@@ -45,12 +45,17 @@ RUN apk add --no-cache \
     sqlite \
     sqlite-libs \
     tzdata \
+    wget \
+    unzip \
+    libstdc++ \
     && rm -rf /var/cache/apk/*
 
-# Copy Convex backend binary (from official image)
-COPY --from=ghcr.io/get-convex/convex-backend:latest \
-    /convex/convex-local-backend /usr/local/bin/convex-backend
-RUN chmod +x /usr/local/bin/convex-backend
+# Download PocketBase (lightweight SQLite backend with realtime API)
+ARG POCKETBASE_VERSION=0.36.2
+RUN wget -q https://github.com/pocketbase/pocketbase/releases/download/v${POCKETBASE_VERSION}/pocketbase_${POCKETBASE_VERSION}_linux_amd64.zip \
+    && unzip -q pocketbase_${POCKETBASE_VERSION}_linux_amd64.zip -d /usr/local/bin/ \
+    && rm pocketbase_${POCKETBASE_VERSION}_linux_amd64.zip \
+    && chmod +x /usr/local/bin/pocketbase
 
 # Copy build artifacts
 COPY --from=dashboard-builder /build/dist /usr/share/nginx/html/dashboard
@@ -59,7 +64,7 @@ COPY --from=backend-builder /build/main /usr/local/bin/appos-api
 # Create data directories
 RUN mkdir -p \
     /appos/data/redis \
-    /appos/data/convex \
+    /appos/data/pocketbase \
     /appos/data/apps \
     /var/log/supervisor \
     /var/log/nginx \

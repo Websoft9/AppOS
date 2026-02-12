@@ -244,17 +244,17 @@ curl http://127.0.0.1:9091/
 
 ## Implementation Tasks
 
-- [ ] Create root Makefile with command categories
-- [ ] Implement `help` with colored categorized output
-- [ ] Implement Dev commands: `install`, `tidy`, `build`, `run`
-- [ ] Implement Testing commands: `test`, `lint`, `fmt`
-- [ ] Implement Image commands: `image build`, `image build-local`
-- [ ] Implement Container commands: `start`, `stop`, `restart`, `logs`, `delete`, `rm`
-- [ ] Implement Utilities: `kill-port`, `help`
-- [ ] Test parameter passing (numeric + env var)
+- [x] Create root Makefile with command categories
+- [x] Implement `help` with colored categorized output
+- [x] Implement Dev commands: `install`, `tidy`, `build`, `run`
+- [x] Implement Testing commands: `test`, `lint`, `fmt`
+- [x] Implement Image commands: `image build`, `image build-local`
+- [x] Implement Container commands: `start`, `stop`, `restart`, `logs`, `delete`, `rm`
+- [x] Implement Utilities: `kill-port`, `help`
+- [x] Test parameter passing (numeric + env var)
 - [ ] Test hot reload workflow
-- [ ] Test on Linux and macOS
-- [ ] Add colored output for better UX
+- [x] Test on Linux and macOS
+- [x] Add colored output for better UX
 
 ---
 
@@ -268,3 +268,12 @@ curl http://127.0.0.1:9091/
 - Story 1.1 completed (Dockerfiles and build configs)
 - Docker and docker-compose installed
 - Go 1.22+ and Node.js 20+ for local builds  
+
+---
+
+## Dev Agent Record
+
+**2026-02-12**: Code Review 优化
+- **Issue**: `make build backend` 产生 glibc 二进制,与 Alpine 不兼容
+- **Fix**: 添加提示信息说明需要 gcompat 包
+- **Note**: Dockerfile.local 已添加 gcompat,宿主机编译的二进制可正常运行

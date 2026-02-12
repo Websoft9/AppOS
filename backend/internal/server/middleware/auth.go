@@ -13,7 +13,7 @@ type contextKey string
 
 const userIDKey contextKey = "userID"
 
-// Auth validates the JWT token from Convex
+// Auth validates the JWT token from PocketBase
 func Auth(cfg *config.Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -32,7 +32,7 @@ func Auth(cfg *config.Config) func(http.Handler) http.Handler {
 
 			token := parts[1]
 
-			// TODO: Validate token with Convex
+			// TODO: Validate token with PocketBase
 			// For now, just check if token exists
 			if token == "" {
 				http.Error(w, "Invalid token", http.StatusUnauthorized)

@@ -8,7 +8,7 @@ Go-based unified API backend for AppOS.
 - **Task Queue**: Asynq for reliable async task execution
 - **Web Terminal**: xterm.js compatible WebSocket terminal
 - **Docker Operations**: Manage containers via Docker socket
-- **Convex Integration**: Auth and data management
+- **PocketBase Integration**: Auth and data management via self-hosted BaaS
 
 ## Architecture
 
@@ -37,7 +37,7 @@ Go-based unified API backend for AppOS.
 - Go 1.23+
 - Redis (for Asynq)
 - Docker (for container operations)
-- Convex account
+- PocketBase (self-hosted, included in All-in-One container)
 
 ### Installation
 
@@ -101,7 +101,7 @@ backend/
 │   │       ├── auth.go
 │   │       └── logger.go
 │   ├── tasks/                   # Asynq task definitions
-│   ├── convex/                  # Convex client
+│   ├── pocketbase/              # PocketBase client (TODO)
 │   └── docker/                  # Docker operations
 ├── .air.toml                    # Hot reload config
 ├── .env.example                 # Environment template
@@ -145,9 +145,9 @@ ENV=development
 # Redis (Asynq)
 REDIS_URL=redis://localhost:6379
 
-# Convex
-CONVEX_URL=https://your-deployment.convex.cloud
-CONVEX_DEPLOY_KEY=your-key
+# PocketBase
+POCKETBASE_URL=http://127.0.0.1:8090
+POCKETBASE_TOKEN=your-admin-token
 
 # CORS
 CORS_ALLOWED_ORIGINS=http://localhost:5173

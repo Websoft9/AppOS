@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -21,9 +20,9 @@ type Config struct {
 	RedisURL  string
 	RedisAddr string // host:port format for Asynq
 
-	// Convex
-	ConvexURL       string
-	ConvexDeployKey string
+	// PocketBase
+	PocketBaseURL string
+	PocketBaseToken string
 
 	// CORS
 	CORSAllowedOrigins []string
@@ -43,8 +42,8 @@ func Load() (*Config, error) {
 		LogLevel:           getEnv("LOG_LEVEL", "info"),
 		LogFormat:          getEnv("LOG_FORMAT", "json"),
 		RedisURL:           getEnv("REDIS_URL", "redis://localhost:6379"),
-		ConvexURL:          getEnv("CONVEX_URL", ""),
-		ConvexDeployKey:    getEnv("CONVEX_DEPLOY_KEY", ""),
+		PocketBaseURL:      getEnv("POCKETBASE_URL", "http://127.0.0.1:8090"),
+		PocketBaseToken:    getEnv("POCKETBASE_TOKEN", ""),
 		CORSAllowedOrigins: getEnvAsSlice("CORS_ALLOWED_ORIGINS", []string{"http://localhost:5173"}),
 		DockerHost:         getEnv("DOCKER_HOST", "unix:///var/run/docker.sock"),
 	}
@@ -52,9 +51,9 @@ func Load() (*Config, error) {
 	// Parse Redis URL to get host:port
 	cfg.RedisAddr = parseRedisAddr(cfg.RedisURL)
 
-	// Validate required fields
-	if cfg.ConvexURL == "" {
-		return nil, fmt.Errorf("CONVEX_URL is required")
+	// PocketBase URL is optional, use default if not set
+	if cfg.PocketBaseURL == "" {
+		cfg.PocketBaseURL = "http://127.0.0.1:8090"
 	}
 
 	return cfg, nil

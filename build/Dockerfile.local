@@ -11,7 +11,7 @@ LABEL maintainer="Websoft9<help@websoft9.com>" \
       org.opencontainers.image.title="AppOS (dev)" \
       org.opencontainers.image.description="Development build with pre-built artifacts"
 
-# Install runtime dependencies
+# Install runtime dependencies + glibc (for host-compiled binaries)
 RUN apk add --no-cache \
     nginx \
     supervisor \
@@ -21,12 +21,25 @@ RUN apk add --no-cache \
     sqlite \
     sqlite-libs \
     tzdata \
+    wget \
+    unzip \
+    libstdc++ \
     && rm -rf /var/cache/apk/*
 
-# Copy Convex backend binary (from official image)
-COPY --from=ghcr.io/get-convex/convex-backend:latest \
-    /convex/convex-local-backend /usr/local/bin/convex-backend
-RUN chmod +x /usr/local/bin/convex-backend
+# Install glibc for host-compiled Go binaries (backend/main)
+RUN wget -q -O /etc/apk/keys/sgerrand.rsa.pub https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub \
+    && wget https://github.com/sgerrand/alpine-pkg-glibc/releases/download/2.35-r1/glibc-2.35-r1.apk \
+    && apk add --no-cache --force-overwrite glibc-2.35-r1.apk \
+    && rm glibc-2.35-r1.apk \
+    && mkdir -p /lib64 \
+    && ln -sf /usr/glibc-compat/lib/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2
+
+# Download PocketBase (lightweight SQLite backend with realtime API)
+ARG POCKETBASE_VERSION=0.36.2
+RUN wget -q https://github.com/pocketbase/pocketbase/releases/download/v${POCKETBASE_VERSION}/pocketbase_${POCKETBASE_VERSION}_linux_amd64.zip \
+    && unzip -q pocketbase_${POCKETBASE_VERSION}_linux_amd64.zip -d /usr/local/bin/ \
+    && rm pocketbase_${POCKETBASE_VERSION}_linux_amd64.zip \
+    && chmod +x /usr/local/bin/pocketbase
 
 # Copy pre-built artifacts from host
 COPY dashboard/dist /usr/share/nginx/html/dashboard
@@ -36,7 +49,7 @@ RUN chmod +x /usr/local/bin/appos-api
 # Create data directories
 RUN mkdir -p \
     /appos/data/redis \
-    /appos/data/convex \
+    /appos/data/pocketbase \
     /appos/data/apps \
     /var/log/supervisor \
     /var/log/nginx \

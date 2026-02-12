@@ -79,7 +79,7 @@ func (s *Server) setupRouter() {
 
 	// API routes
 	r.Route("/v1", func(r chi.Router) {
-		// Auth middleware (validates Convex token)
+		// Auth middleware (validates PocketBase token)
 		r.Use(middleware.Auth(s.cfg))
 
 		// Apps

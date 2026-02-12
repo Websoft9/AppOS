@@ -73,7 +73,7 @@ websoft9 is a GitOps-driven application deployment platform for single-server sc
 
 ### FR-6: User Management
 
-- **FR-6.1** User authentication via Convex (self-hosted)
+- **FR-6.1** User authentication via PocketBase (self-hosted BaaS)
 - **FR-6.2** User registration and login
 - **FR-6.3** JWT-based session management
 - **FR-6.4** Password reset functionality

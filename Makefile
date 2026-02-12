@@ -103,9 +103,10 @@ tidy:
 
 build:
 ifeq ($(ARG2),backend)
-	@echo "Building backend..."
+	@echo "Building backend (with glibc for Dockerfile.local)..."
 	@cd backend && CGO_ENABLED=1 go build -ldflags="-w -s" -o main ./cmd/server
 	@echo "✓ Backend built → backend/main"
+	@echo "  Note: Binary requires gcompat in Alpine (Dockerfile.local includes it)"
 else ifeq ($(ARG2),dashboard)
 	@echo "Building dashboard..."
 	@cd dashboard && npm run build

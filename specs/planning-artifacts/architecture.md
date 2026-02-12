@@ -11,14 +11,14 @@ lastStep: 8
 status: 'complete'
 completedAt: '2026-02-05'
 lastUpdated: '2026-02-12'
-revision: '2.0 - All-in-One Architecture'
+revision: '2.1 - PocketBase Integration'
 ---
 
 # Architecture Decision Document - AppOS
 
 ## Architecture Overview
 
-**All-in-One Container**: Single container packages all core services - Go Backend, SQLite, Redis, Convex (self-hosted), Nginx (internal routing), and Dashboard. External reverse proxy handles SSL and domain routing.
+**All-in-One Container**: Single container packages all core services - Go Backend, SQLite, Redis, PocketBase (self-hosted BaaS), Nginx (internal routing), and Dashboard. External reverse proxy handles SSL and domain routing.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -39,14 +39,14 @@ revision: '2.0 - All-in-One Architecture'
 │  │                        │              │             │
 │  ▼                        ▼              ▼             │
 │ ┌──────────────┐  ┌──────────────┐  ┌─────────────┐   │
-│ │  Dashboard   │  │   Backend    │  │   Convex    │   │
-│ │   (React)    │  │   (Go API)   │  │(Self-hosted)│   │
+│ │  Dashboard   │  │   Backend    │  │ PocketBase  │   │
+│ │   (React)    │  │   (Go API)   │  │   (BaaS)    │   │
 │ │              │  │              │  │             │   │
 │ │ • TanStack   │  │ • REST API   │  │ • Auth      │   │
 │ │ • shadcn/ui  │  │ • WebSocket  │  │ • Database  │   │
 │ └──────────────┘  │ • Asynq      │  │ • Realtime  │   │
-│                   │   Worker     │  └─────────────┘   │
-│                   └──────┬───────┘                     │
+│                   │   Worker     │  │ • Admin UI  │   │
+│                   └──────┬───────┘  └─────────────┘   │
 │                          │                             │
 │  ┌───────────────────────┼─────────────────┐           │
 │  ▼                       ▼                 ▼           │
@@ -64,7 +64,7 @@ revision: '2.0 - All-in-One Architecture'
 
 ### Architecture Approach
 
-**Unified API Gateway**: Single Go-based backend serves as unified API for external users (CLI, API clients) while internally orchestrating Convex (state management), Asynq (task execution), and system operations.
+**Unified API Gateway**: Single Go-based backend serves as unified API for external users (CLI, API clients) while internally orchestrating PocketBase (auth + database), Asynq (task execution), and system operations.
 
 ### Technology Stack
 
@@ -74,7 +74,7 @@ revision: '2.0 - All-in-One Architecture'
 | **UI** | shadcn/ui + Tailwind CSS 4 | Code-ownership components, modern styling |
 | **Backend** | Go + chi | Single binary, stdlib-style, lightweight router |
 | **Database** | SQLite | Embedded database, zero-config, single file |
-| **BaaS** | Convex (self-hosted) | Realtime subscriptions, reactive queries |
+| **BaaS** | PocketBase (self-hosted) | SQLite-based BaaS, auth + realtime, Admin UI |
 | **Task Queue** | Asynq + Redis | Persistent queue, auto-retry, monitoring UI |
 | **Web Terminal** | xterm.js + creack/pty | Industry standard terminal emulator, native PTY |
 | **Container Runtime** | Docker | Single-server optimized |
@@ -88,8 +88,8 @@ revision: '2.0 - All-in-One Architecture'
 - **Backend** (Go): REST API + WebSocket + Asynq Worker
 - **SQLite**: Users, apps, deployments, config versions
 - **Redis**: Asynq task queue backend (persistent)
-- **Convex**: Self-hosted realtime database and auth
-- **Nginx**: Internal routing (Dashboard + API)
+- **PocketBase**: Self-hosted BaaS (auth + database + realtime + Admin UI)
+- **Nginx**: Internal routing (Dashboard + API + PocketBase)
 - **Dashboard**: React SPA (static files served by Nginx)
 
 **External Components:**
@@ -100,8 +100,8 @@ revision: '2.0 - All-in-One Architecture'
 
 | Concern | Owner | Rationale |
 |---------|-------|-----------|
-| User authentication | Convex Auth (self-hosted) | Modern auth flows, session management |
-| Realtime updates | Convex Database | Reactive queries, live subscriptions |
+| User authentication | PocketBase Auth | Built-in auth, JWT tokens, Admin UI |
+| Realtime updates | PocketBase Database | Reactive queries, live subscriptions |
 | Persistent data | SQLite | Users, apps, deployments, config history |
 | Task orchestration | Asynq + Redis | Persistent queue, auto-retry, long-running tasks |
 | System commands | Go + exec | Direct Docker CLI execution |
@@ -125,7 +125,7 @@ POST /v1/apps/deploy ──────────→│ │ API Handler     �
                                 │ └────────┬────────┘ │
                                 │          ↓          │
 GET /v1/apps ───────────────────→│ ┌─────────────────┐ │
-                                │ │ Convex Client   │─┼──→ Convex
+                                │ │PocketBase Client│─┼──→ PocketBase
                                 │ └─────────────────┘ │
                                 │                     │
                                 │ ┌─────────────────┐ │
@@ -140,7 +140,7 @@ WS /terminal ───────────────────→│ │
 
 **Dashboard Access**: Can choose between:
 - **Option A**: Use unified REST API (same as CLI)
-- **Option B**: Direct Convex SDK for reads (realtime), AppOS API for operations (optimized)
+- **Option B**: Direct PocketBase SDK for reads (realtime), AppOS API for operations (optimized)
 
 ## Key Flows
 
@@ -151,14 +151,14 @@ $ appos deploy wordpress
 ```
 
 1. CLI calls `POST /v1/apps/deploy` with JWT token
-2. API handler validates auth with Convex
+2. API handler validates auth with PocketBase
 3. Creates Asynq task → Redis queue
-4. Records deployment in Convex (status: pending)
+4. Records deployment in PocketBase (status: pending)
 5. Returns deployment ID to CLI
 6. Asynq worker picks up task:
    - Fetch compose file from Git
    - Execute `docker compose up -d`
-   - Update Convex (status: success/failed)
+   - Update PocketBase (status: success/failed)
 7. CLI can poll `GET /v1/deployments/:id` for status
 
 ### Application Deployment (via Dashboard)
@@ -173,9 +173,10 @@ await appos.deploy('wordpress');  // Same as CLI
 // Trigger via AppOS API
 const deployment = await appos.deploy('wordpress');
 
-// Subscribe to status via Convex (realtime)
-const status = useQuery(api.deployments.get, { id: deployment.id });
-// Auto-updates when worker completes
+// Subscribe to status via PocketBase (realtime)
+const status = pb.collection('deployments').subscribe(deployment.id, (data) => {
+  // Auto-updates when worker completes
+});
 ```
 
 ### Web Terminal
@@ -241,10 +242,10 @@ volumes:
   - Asynq worker (3 concurrent workers for deployments)
   - WebSocket handler (terminal sessions)
   - SQLite client (persistent data)
-  - Convex client (realtime sync)
+  - PocketBase client (API integration + realtime sync)
 - **Redis** (Asynq queue backend, persistent mode)
-- **Convex** (self-hosted, realtime database)
-- **Nginx** (internal proxy: / → dashboard, /api → backend)
+- **PocketBase** (self-hosted BaaS: auth + database + realtime + Admin UI at /pb/_/)
+- **Nginx** (internal proxy: / → dashboard, /api → backend, /pb → pocketbase)
 - **Dashboard** (static React build served by nginx)
 
 ## Constraints
@@ -252,9 +253,9 @@ volumes:
 - **Single-server architecture**: All services in one container, no distribution
 - **Docker required**: Host must have Docker 20.10+ installed
 - **Persistent storage**: SQLite + Redis RDB in `/websoft9/data` volume
-- **Self-contained**: No external dependencies (Convex self-hosted)
+- **Self-contained**: No external dependencies (PocketBase self-hosted)
 - **Reverse proxy required**: External proxy for SSL and domain management
-- **Token-based auth**: JWT tokens issued by self-hosted Convex
+- **Token-based auth**: JWT tokens issued by self-hosted PocketBase
 
 ## Deployment Modes
 
@@ -309,7 +310,7 @@ $ appos delete wordpress
 | Backend Language | Go | Node.js, Python | Single binary, performance, concurrency |
 | Database | SQLite | PostgreSQL, MySQL | Embedded, zero-config, perfect for single-server |
 | Task Queue | Asynq + Redis | Temporal, Machinery | Persistent queue, auto-retry, monitoring UI |
-| BaaS | Convex (self-hosted) | Supabase, Firebase | Realtime subscriptions, no vendor lock-in |
+| BaaS | PocketBase (self-hosted) | Supabase, Firebase | Auth + realtime + database, no vendor lock-in |
 | Terminal | xterm.js + PTY | ttyd, gotty | Industry standard, actively maintained |
 | Router | TanStack Router | React Router | File-based, type-safe |
 | API Framework | chi | Gin, Echo, Fiber | Stdlib-compatible, lightweight, composable |
@@ -322,7 +323,7 @@ $ appos delete wordpress
 ### ✅ Strengths
 
 1. **True All-in-One Design**
-   - Single container with all services (Redis, Convex, Backend, Nginx)
+   - Single container with all services (Redis, PocketBase, Backend, Nginx)
    - SQLite for persistent data (zero-config)
    - No external cloud dependencies
    - Self-contained, data sovereignty
@@ -348,15 +349,15 @@ $ appos delete wordpress
 5. **Modern Stack**
    - Go: Single binary, excellent concurrency
    - SQLite: Battle-tested, zero maintenance
-   - Convex (self-hosted): Realtime without vendor lock-in
+   - PocketBase (self-hosted): BaaS without vendor lock-in, Admin UI
    - xterm.js: Industry standard terminal
    - TanStack Router: Type-safe routing
 
 ### ⚠️ Considerations
 
-1. **Convex Self-Hosted Dependency**
-   - Decision: Using self-hosted Convex for auth and realtime
-   - Benefit: No vendor lock-in, data sovereignty
+1. **PocketBase Self-Hosted BaaS**
+   - Decision: Using self-hosted PocketBase for auth + database + realtime
+   - Benefit: No vendor lock-in, data sovereignty, built-in Admin UI
    - Alternative: Can replace with PostgreSQL + custom auth if needed
 
 2. **Redis Single Point of Failure**
@@ -370,7 +371,7 @@ $ appos delete wordpress
    - Priority: Medium (add before production)
 
 4. **Security**
-   - Auth: Convex handles JWT validation
+   - Auth: PocketBase handles JWT validation
    - Rate limiting: Add chi middleware
    - Input validation: Implement in API handlers
    - Priority: High (implement during development)
@@ -549,9 +550,9 @@ CREATE TABLE proxy_domains (
 ### 📏 Complexity Score: **Low** ✅
 
 - All-in-one container: Low complexity (supervisord orchestration)
-- Self-hosted Convex: Medium (but abstracted)
+- Self-hosted PocketBase: Low (single Go binary, Admin UI)
 - Redis + Asynq: Low (well-documented)
 - Reverse proxy: Low (standard patterns)
 - Infrastructure: Simple (1 main container + optional proxy)
 
-**Overall Assessment**: Architecture is well-balanced and truly self-contained. No external cloud dependencies. Reverse proxy design is flexible (supports 3 implementation options). Clear separation between internal routing (nginx in container) and external routing (independent proxy).
+**Overall Assessment**: Architecture is well-balanced and truly self-contained. No external cloud dependencies. PocketBase provides integrated BaaS solution with Admin UI. Reverse proxy design is flexible (supports 3 implementation options). Clear separation between internal routing (nginx in container) and external routing (independent proxy).
