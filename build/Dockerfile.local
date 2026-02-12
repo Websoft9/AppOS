@@ -1,0 +1,59 @@
+# Development Build - Uses pre-built artifacts from host
+# Requires: backend/main (Go binary) and dashboard/dist/ (React build)
+#
+# Usage:
+#   make build backend && make build dashboard
+#   make image build-local
+#
+FROM alpine:3.19
+
+LABEL maintainer="Websoft9<help@websoft9.com>" \
+      org.opencontainers.image.title="AppOS (dev)" \
+      org.opencontainers.image.description="Development build with pre-built artifacts"
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    nginx \
+    supervisor \
+    redis \
+    curl \
+    ca-certificates \
+    sqlite \
+    sqlite-libs \
+    tzdata \
+    && rm -rf /var/cache/apk/*
+
+# Copy Convex backend binary (from official image)
+COPY --from=ghcr.io/get-convex/convex-backend:latest \
+    /convex/convex-local-backend /usr/local/bin/convex-backend
+RUN chmod +x /usr/local/bin/convex-backend
+
+# Copy pre-built artifacts from host
+COPY dashboard/dist /usr/share/nginx/html/dashboard
+COPY backend/main /usr/local/bin/appos-api
+RUN chmod +x /usr/local/bin/appos-api
+
+# Create data directories
+RUN mkdir -p \
+    /appos/data/redis \
+    /appos/data/convex \
+    /appos/data/apps \
+    /var/log/supervisor \
+    /var/log/nginx \
+    /etc/nginx/conf.d \
+    /run/nginx
+
+# Copy configuration files
+COPY build/supervisord.conf /etc/supervisor/supervisord.conf
+COPY build/nginx.conf /etc/nginx/nginx.conf
+COPY --chmod=755 build/entrypoint.sh /entrypoint.sh
+
+EXPOSE 80
+
+VOLUME ["/appos/data"]
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost/api/health || exit 1
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["supervisord", "-n", "-c", "/etc/supervisor/supervisord.conf"]
