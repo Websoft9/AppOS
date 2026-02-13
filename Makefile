@@ -22,7 +22,7 @@ help:
 	@printf "\033[36mDev:\033[0m\n"
 	@echo "  make install              Install dev dependencies (Go tools, build-essential, npm packages)"
 	@echo "  make tidy                 Tidy Go modules"
-	@echo "  make build backend        Build Go binary → backend/main"
+	@echo "  make build backend        Build Go binary → backend/appos"
 	@echo "  make build dashboard      Build React app → dashboard/dist"
 	@echo "  make run                  Copy artifacts + restart services (~10s)"
 	@echo "  make run 9092             Copy artifacts + restart on custom port"
@@ -103,10 +103,9 @@ tidy:
 
 build:
 ifeq ($(ARG2),backend)
-	@echo "Building backend (with glibc for Dockerfile.local)..."
-	@cd backend && CGO_ENABLED=1 go build -ldflags="-w -s" -o main ./cmd/server
-	@echo "✓ Backend built → backend/main"
-	@echo "  Note: Binary requires gcompat in Alpine (Dockerfile.local includes it)"
+	@echo "Building backend (static binary, no dependencies)..."
+	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
+	@echo "✓ Backend built → backend/appos (statically linked)"
 else ifeq ($(ARG2),dashboard)
 	@echo "Building dashboard..."
 	@cd dashboard && npm run build
@@ -119,14 +118,14 @@ endif
 run:
 	@echo "Hot reload: building + copying artifacts..."
 	@# Build backend
-	@cd backend && CGO_ENABLED=1 go build -ldflags="-w -s" -o main ./cmd/server
+	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
 	@# Build dashboard
 	@cd dashboard && npm run build
 	@# Copy to running container
-	@docker cp backend/main $(CONTAINER):/usr/local/bin/appos-api
+	@docker cp backend/appos $(CONTAINER):/usr/local/bin/appos
 	@docker cp dashboard/dist/. $(CONTAINER):/usr/share/nginx/html/dashboard/
 	@# Restart services
-	@docker exec $(CONTAINER) supervisorctl restart backend nginx
+	@docker exec $(CONTAINER) supervisorctl restart appos nginx
 	@echo "✓ Hot reload complete (~10s)"
 	@echo "  → http://127.0.0.1:$(PORT_EFFECTIVE)/"
 
@@ -189,7 +188,7 @@ ifeq ($(ARG2),build)
 else ifeq ($(ARG2),build-local)
 	@echo "Building dev image (pre-built artifacts)..."
 	@# Verify artifacts exist
-	@test -f backend/main || { echo "Error: backend/main not found. Run 'make build backend' first."; exit 1; }
+	@test -f backend/appos || { echo "Error: backend/appos not found. Run 'make build backend' first."; exit 1; }
 	@test -d dashboard/dist || { echo "Error: dashboard/dist/ not found. Run 'make build dashboard' first."; exit 1; }
 	docker build -f build/Dockerfile.local -t websoft9/appos:dev .
 	@echo "✓ Dev image built: websoft9/appos:dev"

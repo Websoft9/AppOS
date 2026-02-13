@@ -13,16 +13,18 @@ As a developer, I need Dockerfiles and container configurations to package the A
 ## Architecture Context
 
 **Container Architecture**:
-- Single container running all services via supervisord
-- Internal Nginx routes Dashboard (/) and Backend API (/api)
+- Single container running services via supervisord
+- Internal Nginx routes Dashboard (/) and PocketBase API (/api, /_)
 - Persistent data volume: `/appos/data`
 - No external dependencies (fully self-contained)
 
 **Services Inside Container**:
-1. Redis (port 6379) - Asynq task queue backend
-2. PocketBase (port 8090) - Self-hosted BaaS (SQLite-based, auth + realtime)
-3. Backend (port 8080) - Go API + Asynq worker + WebSocket terminal
-4. Nginx (port 80) - Internal proxy serving Dashboard + routing API
+1. **AppOS (port 8090)** - PocketBase framework with custom extensions
+   - Built-in: Auth, DB (SQLite), Realtime, Admin UI
+   - Custom routes: Docker ops, proxy management, terminal, backup
+   - Asynq worker (embedded in same process)
+2. **Redis (port 6379)** - Asynq task queue backend (optional)
+3. **Nginx (port 80)** - Internal proxy serving Dashboard + routing requests
 
 ## Build Strategies
 
@@ -34,12 +36,13 @@ As a developer, I need Dockerfiles and container configurations to package the A
 ## Acceptance Criteria
 
 - [x] `Dockerfile` builds successfully (multi-stage)
-- [x] `Dockerfile.local` builds successfully (pre-built artifacts + glibc)
-- [x] Both images ~ 195MB (Alpine + glibc + PocketBase optimized)
-- [x] Container starts with all services RUNNING (redis, pocketbase, backend, nginx)
-- [ ] HEALTHCHECK passes after 60s
+- [x] `Dockerfile.local` builds successfully (pre-built artifacts)
+- [x] Final image < 100MB (Alpine + PocketBase framework)
+- [x] Container starts with all services RUNNING (appos, redis, nginx)
+- [x] HEALTHCHECK passes after 30s
 - [x] Dashboard accessible at `/` 
-- [ ] API accessible at `/api/health` (endpoint not implemented yet)
+- [x] PocketBase API accessible at `/api/` and `/_/` (Admin UI)
+- [x] Custom routes at `/api/appos/*` (apps, proxy, system, backup)
 - [ ] Data persists in `/appos/data` after restart
 
 ## Build Strategy Comparison
@@ -68,19 +71,18 @@ As a developer, I need Dockerfiles and container configurations to package the A
 ### Dockerfile.local
 
 - Base: `alpine:3.19`
-- Copy pre-built: `dashboard/dist`, `backend/main`
-- Download: PocketBase v0.36.2 (single Go binary, 186MB uncompressed)
-- Install: nginx, supervisor, redis, ca-certificates, curl, unzip, **glibc 2.35** (for host-built backend binary)
+- Copy pre-built: `dashboard/dist`, `backend/appos`
+- Install: nginx, supervisor, redis, ca-certificates, curl, bash
 - Config: supervisord.conf, nginx.conf, entrypoint.sh
-- Data dirs: `/appos/data/{redis,pocketbase,apps}`
+- Data dirs: `/appos/data/{pb_data,redis,apps}`
 - HEALTHCHECK: `curl -f http://localhost/api/health`
 
-**Note**: Includes `gcompat` package to support binaries compiled on non-Alpine hosts.
+**Note**: PocketBase framework compiled into `appos` binary (Go 1.26.0, PB 0.36.2)
 
 ### Dockerfile (Multi-Stage)
 
 **Stage 1 - Dashboard**: `node:20-alpine` → build to `/build/dist`
-**Stage 2 - Backend**: `golang:1.22-alpine` → build with CGO to `/build/main`
+**Stage 2 - Backend**: `golang:1.26-alpine` → build `cmd/appos/main.go` to `/build/appos`
 **Stage 3 - Runtime**: `alpine:3.19` → copy artifacts + configs
 
 ## File Structure
@@ -100,20 +102,22 @@ build/
 **Data Directories** (inside container):
 ```
 /appos/data/
-├── redis/                  # Redis persistence
-├── pocketbase/             # PocketBase data (*.db files)
-├── apps/                   # User apps
-└── appos.db                # SQLite database (app metadata)
+├── pb_data/                # PocketBase data (data.db, auxiliary.db)
+│   ├── data.db            # Main database (apps, users, etc.)
+│   └── auxiliary.db       # Logs and system metadata
+├── redis/                  # Redis persistence (AOF/RDB)
+└── apps/                   # User-deployed app configurations
 ```
 
 ## Key Configuration Files
 
-- **supervisord.conf**: Process manager (redis → pocketbase → backend → nginx)
-- **nginx.conf**: Routes: `/` (dashboard), `/api/` (backend), `/pb/` (pocketbase), `/terminal` (websocket)
-- **entrypoint.sh**: Init data dirs, create SQLite schema, start supervisord
+- **supervisord.conf**: Process manager (redis → appos → nginx)
+  - `appos serve --http=0.0.0.0:8090` (PocketBase + custom routes + Asynq worker)
+- **nginx.conf**: Routes: `/` (dashboard), `/api/` + `/_/` (PocketBase + custom routes)
+- **entrypoint.sh**: Init data dirs, start supervisord
 - **docker-compose.yml**: Volume mounts, health check, port mapping
-- **.env**: HTTP_PORT, CONTAINER_NAME, IMAGE_NAME, APPOS_DATA_PATH, passwords
-- **.dockerignore**: Exclude node_modules, .git, *.log
+- **.env**: HTTP_PORT, REDIS_ADDR, IMAGE_NAME, APPOS_DATA_PATH
+- **.dockerignore**: Exclude node_modules, .git, *.log, pb_data
 
 ---
 
@@ -141,61 +145,61 @@ docker restart appos && docker exec appos ls /appos/data/
 
 ## Implementation Tasks
 
-- [x] Create `Dockerfile` (multi-stage: node → go → runtime)
-- [x] Create `Dockerfile.local` (copies pre-built artifacts + glibc 2.35)
-- [x] Create `supervisord.conf` (4 services: redis, pocketbase, backend, nginx)
-- [x] Create `nginx.conf` (routes: / → static, /api → backend, /pb → pocketbase, /terminal → ws)
-- [x] Create `entrypoint.sh` (init data dirs, start supervisord)
+- [x] Create `Dockerfile` (multi-stage: node → go 1.26 → runtime)
+- [x] Create `Dockerfile.local` (copies pre-built artifacts)
+- [x] Create `supervisord.conf` (3 services: redis, appos, nginx)
+- [x] Create `nginx.conf` (routes: / → static, /api + /_ → appos:8090)
+- [x] Create `entrypoint.sh` (init pb_data, start supervisord)
 - [x] Create `docker-compose.yml` (volume mounts, health check)
-- [x] Create `.env` (port, passwords, image name)
-- [x] Create `.dockerignore` (exclude node_modules, .git)
+- [x] Create `.env` (port, redis addr, image name)
+- [x] Create `.dockerignore` (exclude node_modules, .git, pb_data)
 - [x] Add HEALTHCHECK to both Dockerfiles
 - [x] Test both build strategies
-- [x] Verify all services start correctly (redis/pocketbase/backend/nginx: ✅)
-- [x] PocketBase superuser created and API auth working
+- [x] Verify all services start correctly (appos + redis + nginx: ✅)
+- [x] PocketBase Admin UI accessible at `/_/`
+- [x] Custom routes working at `/api/appos/*`
 - [ ] Verify data persistence after restart
-- [ ] Complete backend integration with PocketBase API
 
 ---
 
 ## Dev Agent Record
 
-**2026-02-12**: Architecture Change - Convex → PocketBase v0.36.2
+**2026-02-13**: Architecture Refactor - PocketBase as Framework
 
-**Phase 1 - Binary Compatibility Issues**:
-- **Issue**: Host-compiled `backend/main` (glibc) 与 Alpine (musl) 不兼容 → exit 127
-- **Fix**: Dockerfile.local 添加 `glibc 2.35` + `/lib64` 符号链接 → backend 启动成功
-- **Issue**: Convex backend 需 glibc 2.38+ (Alpine 提供 2.35) → symbol errors (__isoc23_sscanf, libstdc++.so.6)
-- **Attempted Fixes**: gcompat → libstdc++ → full glibc 2.35 (all insufficient)
-
-**Phase 2 - Architecture Decision**:
-- **Decision**: Replace Convex with **PocketBase v0.36.2**
+**Phase 1 - Migration from chi-based Backend to PocketBase Framework**:
+- **Change**: Backend 从独立 chi HTTP server 迁移为 PocketBase 扩展
 - **Rationale**:
-  - ✅ Native Alpine compatibility (single Go binary)
-  - ✅ Smaller footprint (526MB → 195MB image)
-  - ✅ Self-contained BaaS (auth + database + realtime)
-  - ✅ SQLite-based (zero external dependencies)
-  - ✅ Built-in Admin UI at `/pb/_/`
-  - ✅ REST API + Realtime subscriptions
+  - ✅ 单进程架构（PocketBase + custom routes + Asynq worker）
+  - ✅ 无需维护独立的 auth/database 客户端代码
+  - ✅ 统一的 middleware 和 auth 系统
+  - ✅ 减少依赖（移除 chi, zerolog, godotenv 等）
+  - ✅ 更小的二进制体积（42MB 单文件）
 
-**Phase 3 - Implementation**:
-- Updated all config files:
-  - `supervisord.conf`: [program:convex] → [program:pocketbase]
-  - `nginx.conf`: /convex/ route → /pb/ route
-  - `entrypoint.sh`: /appos/data/convex → /appos/data/pocketbase
-  - `backend/internal/config/config.go`: CONVEX_URL → POCKETBASE_URL
-- PocketBase startup: http://127.0.0.1:8090
-- Admin UI: http://127.0.0.1:9091/pb/_/
-- API endpoint: http://127.0.0.1:9091/pb/api/
+**Phase 2 - Code Restructure**:
+- **Entry Point**: `cmd/appos/main.go` (PocketBase.New() + extensions)
+- **Custom Routes**: `internal/routes/` (apps, proxy, system, backup)
+  - 使用 `app.OnServe().BindFunc` 注册路由
+  - 使用 `apis.RequireAuth()` / `apis.RequireSuperuserAuth()` 中间件
+- **Event Hooks**: `internal/hooks/` (collection lifecycle events)
+- **Asynq Worker**: `internal/worker/` (embedded, 与 PocketBase 共享进程)
+  - 支持 graceful shutdown via `app.OnTerminate()`
 
-**Phase 4 - Authentication**:
-- Created superuser via CLI: `pocketbase superuser upsert help@websoft9.cn yz910999cdl`
-- Auth endpoint: `/api/collections/_superusers/auth-with-password` (v0.36.2 breaking change)
-  - ⚠️ Old endpoint `/api/admins/auth-with-password` removed in v0.36.2
-  - ✅ New endpoint working, returns JWT token
-- Superuser table: `_superusers` (system collection)
+**Phase 3 - Dependencies**:
+- Go: 1.26.0
+- PocketBase: 0.36.2
+- Asynq: 0.26.0
+- Docker Client: CLI wrapper (避免 SDK 版本耦合)
+- Terminal: creack/pty + gorilla/websocket
 
-**Status**: All services running, PocketBase API authenticated. Next: complete backend integration with PocketBase SDK.
+**Phase 4 - Review Fixes**:
+- P1: Worker lifecycle - 修复 `OnServe` 重复启动问题
+- P2: Asynq client - 使用单例模式避免连接泄漏
+- P3: Docker CLI style - 统一函数调用风格
+- P4: Terminal subprocess - 添加 `Process.Kill()` 防止孤儿进程
+- P5: Unused params - 移除 `routes.Register` 未使用的 app 参数
+- P6: Graceful shutdown - 添加 `OnTerminate` hook
+
+**Status**: 架构重构完成，编译通过，服务正常运行。Redis 可选依赖（不影响 PocketBase 核心功能）。
 
 ---
 
@@ -206,9 +210,11 @@ docker restart appos && docker exec appos ls /appos/data/
 **Estimated Effort**: 2-3 days  
 
 **Dependencies**:
-- PocketBase v0.36.2 binary (auto-downloaded in Dockerfile)
+- Go 1.26.0+ (for building appos binary)
+- PocketBase 0.36.2 (compiled into appos)
 - Dashboard builds to `dist/`
-- Backend compiles to `main`
+- Backend compiles to `appos` (single binary)
 - Docker 20.10+ with BuildKit
+- Redis (optional, for async tasks)
 
 **Note**: Makefile commands for build/start/stop are defined in Story 1.2

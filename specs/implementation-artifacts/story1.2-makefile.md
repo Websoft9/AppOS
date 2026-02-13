@@ -28,7 +28,7 @@ As a developer, I want simplified Makefile commands, so that I don't need to rem
 ```bash
 make install              # Install dev dependencies (Go tools, npm packages)
 make tidy                 # Tidy Go modules
-make build backend        # Build Go binary → backend/main
+make build backend        # Build Go binary → backend/appos
 make build dashboard      # Build React app → dashboard/dist
 make run                  # Copy artifacts + restart (default port 9091)
 make run 9092             # Copy artifacts + restart on port 9092
@@ -88,12 +88,14 @@ make image build-local    # Dev image
 ### Hot Reload Workflow
 
 `make run` performs fast update without rebuilding image:
-1. Build backend binary
+1. Build backend binary (`cmd/appos/main.go` → `appos`)
 2. Build dashboard static files
 3. Copy to running container via `docker cp`
-4. Restart services via supervisorctl
+4. Restart appos service via supervisorctl
 
 **Result**: ~10 seconds update (vs ~5 minutes full rebuild)
+
+**Note**: PocketBase framework + custom routes compiled into single `appos` binary
 
 ### Docker Compose Integration
 
@@ -112,8 +114,9 @@ All container commands use docker-compose:
 /
 ├── Makefile                    # This story: Command definitions
 ├── backend/
-│   ├── main                    # Built binary
-│   └── cmd/server/main.go
+│   ├── appos                   # Built binary (PocketBase framework)
+│   ├── cmd/appos/main.go      # Entry point
+│   └── internal/              # Custom routes, hooks, worker
 ├── dashboard/
 │   ├── dist/                   # Built static files
 │   └── src/
@@ -207,7 +210,7 @@ make help
 ```bash
 make install
 make build backend
-ls backend/main           # Should exist
+ls backend/appos          # Should exist (PocketBase framework binary)
 
 make build dashboard
 ls dashboard/dist/        # Should contain index.html
@@ -267,13 +270,16 @@ curl http://127.0.0.1:9091/
 **Dependencies**:
 - Story 1.1 completed (Dockerfiles and build configs)
 - Docker and docker-compose installed
-- Go 1.22+ and Node.js 20+ for local builds  
+- Go 1.26+ and Node.js 20+ for local builds
+- PocketBase 0.36.2 (compiled into appos binary)  
 
 ---
 
 ## Dev Agent Record
 
-**2026-02-12**: Code Review 优化
-- **Issue**: `make build backend` 产生 glibc 二进制,与 Alpine 不兼容
-- **Fix**: 添加提示信息说明需要 gcompat 包
-- **Note**: Dockerfile.local 已添加 gcompat,宿主机编译的二进制可正常运行
+**2026-02-13**: Architecture Update - PocketBase Framework
+- **Change**: Backend 从 chi-based server 迁移为 PocketBase 扩展
+- **Binary**: `cmd/appos/main.go` → `backend/appos` (单二进制包含 PocketBase + 自定义路由)
+- **Build**: `CGO_ENABLED=0 go build` 生成静态链接二进制，原生 Alpine 兼容
+- **Services**: 3 个服务（appos, redis, nginx）替代之前的 4 个
+- **Note**: 不再需要 gcompat，纯 Go 二进制无 glibc 依赖

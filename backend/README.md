@@ -1,195 +1,87 @@
 # AppOS Backend
 
-Go-based unified API backend for AppOS.
-
-## Features
-
-- **Unified REST API**: Single endpoint for CLI, Dashboard, and integrations
-- **Task Queue**: Asynq for reliable async task execution
-- **Web Terminal**: xterm.js compatible WebSocket terminal
-- **Docker Operations**: Manage containers via Docker socket
-- **PocketBase Integration**: Auth and data management via self-hosted BaaS
+PocketBase-based application server with custom business logic compiled into a single Go binary.
 
 ## Architecture
 
-```
-┌─────────────────────────────────────┐
-│     AppOS Backend (All-in-One)      │
-│                                     │
-│  ┌─────────────────────────────┐   │
-│  │  chi HTTP Server            │   │
-│  │  - REST API (port 8080)     │   │
-│  │  - WebSocket (terminal)     │   │
-│  └─────────────────────────────┘   │
-│                                     │
-│  ┌─────────────────────────────┐   │
-│  │  Asynq Worker               │   │
-│  │  - Embedded in process      │   │
-│  │  - 10 concurrent workers    │   │
-│  └─────────────────────────────┘   │
-└─────────────────────────────────────┘
-```
+- **PocketBase** as application framework (auth, DB, realtime, admin UI)
+- **Custom routes** for Docker operations, proxy management, terminal, backup
+- **Asynq + Redis** for persistent async task processing (embedded worker)
 
-## Getting Started
+## Prerequisites
 
-### Prerequisites
+- Go 1.26+
+- Redis (for Asynq task queue)
+- Docker (host access via socket)
 
-- Go 1.23+
-- Redis (for Asynq)
-- Docker (for container operations)
-- PocketBase (self-hosted, included in All-in-One container)
-
-### Installation
+## Development
 
 ```bash
-# Clone repository
-cd backend
-
-# Copy environment file
-cp .env.example .env
-
-# Edit .env with your configuration
-vim .env
-
 # Install dependencies
-go mod download
+go mod tidy
 
-# Run with hot reload
-make dev
+# Run with hot-reload (requires air: go install github.com/air-verse/air@latest)
+air
 
-# Or build and run
-make run
-```
+# Or run directly
+go run cmd/appos/main.go serve --dev
 
-### Development Tools
+# Build
+go build -o appos cmd/appos/main.go
 
-```bash
-# Install dev tools
-make install-tools
-
-# Run with hot reload
-make dev
-
-# Run tests
-make test
-
-# Lint code
-make lint
-
-# Format code
-make fmt
+# Run production binary
+./appos serve --http=0.0.0.0:8090
 ```
 
 ## Project Structure
 
 ```
 backend/
-├── cmd/
-│   └── server/
-│       └── main.go              # Application entry point
+├── cmd/appos/main.go              # Entry point: PocketBase + extensions
 ├── internal/
-│   ├── config/
-│   │   └── config.go            # Configuration management
-│   ├── server/
-│   │   ├── server.go            # Server setup
-│   │   ├── handlers/            # HTTP handlers
-│   │   │   ├── apps.go
-│   │   │   ├── deployments.go
-│   │   │   ├── health.go
-│   │   │   └── terminal.go
-│   │   └── middleware/          # HTTP middleware
-│   │       ├── auth.go
-│   │       └── logger.go
-│   ├── tasks/                   # Asynq task definitions
-│   ├── pocketbase/              # PocketBase client (TODO)
-│   └── docker/                  # Docker operations
-├── .air.toml                    # Hot reload config
-├── .env.example                 # Environment template
-├── Dockerfile                   # Container image
-├── Makefile                     # Build commands
-└── go.mod                       # Go dependencies
+│   ├── routes/                    # Custom API route handlers
+│   │   ├── routes.go              # Route registration
+│   │   ├── apps.go                # App lifecycle (deploy, restart, stop)
+│   │   ├── proxy.go               # Reverse proxy management
+│   │   ├── system.go              # Metrics, terminal, files
+│   │   └── backup.go              # Backup/restore
+│   ├── hooks/hooks.go             # PocketBase event hooks
+│   ├── worker/worker.go           # Asynq task worker (embedded)
+│   ├── docker/docker.go           # Docker Engine API client
+│   ├── terminal/terminal.go       # WebSocket + PTY terminal
+│   └── migrations/                # PocketBase auto-migrations
+├── Dockerfile
+├── .air.toml                      # Hot-reload config
+└── .env.example
 ```
 
 ## API Endpoints
 
-### Health Checks
-- `GET /health` - Health status
-- `GET /ready` - Readiness status
+### Custom Routes (all under `/api/appos/`)
 
-### Applications
-- `GET /v1/apps` - List all applications
-- `GET /v1/apps/:name` - Get application details
-- `POST /v1/apps/deploy` - Deploy application
-- `DELETE /v1/apps/:name` - Delete application
-- `GET /v1/apps/:name/logs` - Get application logs
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/apps/deploy` | user | Deploy application |
+| POST | `/apps/{id}/restart` | user | Restart application |
+| POST | `/apps/{id}/stop` | user | Stop application |
+| DELETE | `/apps/{id}` | user | Delete application |
+| GET | `/apps/{id}/logs` | user | Stream app logs |
+| GET | `/apps/{id}/env` | user | Get environment vars |
+| PUT | `/apps/{id}/env` | user | Update environment vars |
+| POST | `/proxy/domains` | admin | Add domain binding |
+| GET | `/proxy/domains` | admin | List domains |
+| DELETE | `/proxy/domains/{domain}` | admin | Remove domain |
+| POST | `/proxy/domains/{domain}/ssl` | admin | Request SSL cert |
+| POST | `/proxy/reload` | admin | Reload proxy |
+| GET | `/system/metrics` | admin | System metrics |
+| GET | `/system/terminal` | admin | WebSocket terminal |
+| GET | `/system/files` | admin | File browser |
+| POST | `/backup/create` | admin | Create backup |
+| POST | `/backup/restore` | admin | Restore backup |
+| GET | `/backup/list` | admin | List backups |
 
-### Deployments
-- `GET /v1/deployments` - List deployments
-- `GET /v1/deployments/:id` - Get deployment details
+### Built-in PocketBase Routes
 
-### Tasks
-- `GET /v1/tasks/:id` - Get task status
-
-### Terminal
-- `WS /terminal` - WebSocket terminal connection
-
-## Configuration
-
-Environment variables (see `.env.example`):
-
-```bash
-# Server
-PORT=8080
-ENV=development
-
-# Redis (Asynq)
-REDIS_URL=redis://localhost:6379
-
-# PocketBase
-POCKETBASE_URL=http://127.0.0.1:8090
-POCKETBASE_TOKEN=your-admin-token
-
-# CORS
-CORS_ALLOWED_ORIGINS=http://localhost:5173
-
-# Logging
-LOG_LEVEL=debug
-LOG_FORMAT=pretty
-```
-
-## Docker
-
-```bash
-# Build image
-make docker-build
-
-# Run container
-docker run -p 8080:8080 --env-file .env appos-backend:latest
-```
-
-## Testing
-
-```bash
-# Run tests
-make test
-
-# Run with coverage
-make test-coverage
-
-# Test specific package
-go test -v ./internal/server/...
-```
-
-## Production Deployment
-
-```bash
-# Build optimized binary
-CGO_ENABLED=0 go build -ldflags="-s -w" -o appos-backend cmd/server/main.go
-
-# Run
-./appos-backend
-```
-
-## License
-
-MIT
+- `/api/collections/*` — CRUD for all collections
+- `/api/realtime` — SSE subscriptions
+- `/_/` — Admin UI

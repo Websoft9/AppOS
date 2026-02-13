@@ -35,3 +35,6 @@ Thumbs.db
 # Temp files
 tmp/
 *.log
+
+# PocketBase data (local dev)
+pb_data/

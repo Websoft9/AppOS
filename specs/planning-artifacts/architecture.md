@@ -10,15 +10,15 @@ date: '2026-02-04'
 lastStep: 8
 status: 'complete'
 completedAt: '2026-02-05'
-lastUpdated: '2026-02-12'
-revision: '2.1 - PocketBase Integration'
+lastUpdated: '2026-02-13'
+revision: '3.0 - PocketBase Framework'
 ---
 
 # Architecture Decision Document - AppOS
 
 ## Architecture Overview
 
-**All-in-One Container**: Single container packages all core services - Go Backend, SQLite, Redis, PocketBase (self-hosted BaaS), Nginx (internal routing), and Dashboard. External reverse proxy handles SSL and domain routing.
+**All-in-One Container**: PocketBase as application framework (not standalone BaaS). All business logic compiled into single Go binary. Dashboard uses PocketBase JS SDK directly.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -29,530 +29,284 @@ revision: '2.1 - PocketBase Integration'
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────┐
-│              websoft9 (All-in-One Container)            │
+│                appos (All-in-One Container)             │
 │  ┌───────────────────────────────────────────────────┐  │
 │  │  Nginx (Internal Proxy)                           │  │
-│  │  Routes: /api → Backend, / → Dashboard           │  │
+│  │  / → Dashboard,  /api/ + /_/ → PocketBase        │  │
 │  └─────────────┬─────────────────────────────────────┘  │
 │                │                                         │
-│  ┌─────────────┴──────────┬──────────────┐             │
-│  │                        │              │             │
-│  ▼                        ▼              ▼             │
-│ ┌──────────────┐  ┌──────────────┐  ┌─────────────┐   │
-│ │  Dashboard   │  │   Backend    │  │ PocketBase  │   │
-│ │   (React)    │  │   (Go API)   │  │   (BaaS)    │   │
-│ │              │  │              │  │             │   │
-│ │ • TanStack   │  │ • REST API   │  │ • Auth      │   │
-│ │ • shadcn/ui  │  │ • WebSocket  │  │ • Database  │   │
-│ └──────────────┘  │ • Asynq      │  │ • Realtime  │   │
-│                   │   Worker     │  │ • Admin UI  │   │
-│                   └──────┬───────┘  └─────────────┘   │
-│                          │                             │
-│  ┌───────────────────────┼─────────────────┐           │
-│  ▼                       ▼                 ▼           │
-│ ┌──────────┐      ┌──────────┐      ┌──────────┐      │
-│ │  SQLite  │      │  Redis   │      │  Docker  │      │
-│ │          │      │          │      │  Socket  │      │
-│ │ • Users  │      │ • Asynq  │      │          │      │
-│ │ • Apps   │      │ • Queue  │      │ (Host)   │      │
-│ │ • Config │      │ • Cache  │      └──────────┘      │
-│ └──────────┘      └──────────┘                         │
+│  ┌─────────────┴──────────────────────┐                 │
+│  │                                    │                 │
+│  ▼                                    ▼                 │
+│ ┌──────────────┐     ┌────────────────────────────┐    │
+│ │  Dashboard   │     │  PocketBase (Framework)    │    │
+│ │   (React)    │     │                            │    │
+│ │              │     │ • Built-in: Auth, DB,      │    │
+│ │ • PB SDK     │     │   Realtime, Admin UI       │    │
+│ │ • TanStack   │     │                            │    │
+│ │ • shadcn/ui  │     │ • Custom routes:           │    │
+│ └──────────────┘     │   Docker, Proxy, Terminal  │    │
+│                      │                            │    │
+│                      │ • Asynq Worker (embedded)  │    │
+│                      └──────┬─────────────────────┘    │
+│                             │                           │
+│  ┌──────────────────────────┼──────────────┐           │
+│  ▼                          ▼              ▼           │
+│ ┌──────────┐         ┌──────────┐   ┌──────────┐      │
+│ │  Redis   │         │  SQLite  │   │  Docker  │      │
+│ │ (Asynq)  │         │  (PB)   │   │  Socket  │      │
+│ └──────────┘         └──────────┘   └──────────┘      │
 └─────────────────────────────────────────────────────────┘
 ```
 
-## Core Decisions
-
-### Architecture Approach
-
-**Unified API Gateway**: Single Go-based backend serves as unified API for external users (CLI, API clients) while internally orchestrating PocketBase (auth + database), Asynq (task execution), and system operations.
-
-### Technology Stack
+## Technology Stack
 
 | Layer | Choice | Rationale |
 |-------|--------|-----------|
-| **Frontend** | Vite + React + TanStack Router | Modern SPA, file-based routing, pure static build |
-| **UI** | shadcn/ui + Tailwind CSS 4 | Code-ownership components, modern styling |
-| **Backend** | Go + chi | Single binary, stdlib-style, lightweight router |
-| **Database** | SQLite | Embedded database, zero-config, single file |
-| **BaaS** | PocketBase (self-hosted) | SQLite-based BaaS, auth + realtime, Admin UI |
-| **Task Queue** | Asynq + Redis | Persistent queue, auto-retry, monitoring UI |
-| **Web Terminal** | xterm.js + creack/pty | Industry standard terminal emulator, native PTY |
+| **Framework** | PocketBase (Go) | Auth + DB + Realtime + Admin UI + custom routes in one binary |
+| **Frontend** | Vite + React + TanStack Router | Modern SPA, file-based routing |
+| **UI** | shadcn/ui + Tailwind CSS 4 | Code-ownership components |
+| **Frontend SDK** | PocketBase JS SDK | Auth, CRUD, Realtime, custom route calls — all built-in |
+| **Task Queue** | Asynq + Redis | Persistent async tasks, auto-retry (embedded in PB process) |
+| **Web Terminal** | xterm.js + creack/pty | WebSocket via PB custom route |
 | **Container Runtime** | Docker | Single-server optimized |
-| **Internal Proxy** | Nginx | Routes /api → Backend, / → Dashboard (inside container) |
-| **External Proxy** | Nginx/Traefik/Caddy | SSL termination, domain routing, Let's Encrypt |
-| **Version Control** | SQLite | Configuration history with timestamps |
+| **Internal Proxy** | Nginx | Static files + API routing (inside container) |
+| **External Proxy** | Nginx/Traefik/Caddy | SSL termination, domain routing |
 
-### Infrastructure Components
+## Core Design: PocketBase as Framework
 
-**All-in-One Container Services:**
-- **Backend** (Go): REST API + WebSocket + Asynq Worker
-- **SQLite**: Users, apps, deployments, config versions
-- **Redis**: Asynq task queue backend (persistent)
-- **PocketBase**: Self-hosted BaaS (auth + database + realtime + Admin UI)
-- **Nginx**: Internal routing (Dashboard + API + PocketBase)
-- **Dashboard**: React SPA (static files served by Nginx)
+PocketBase is used as an **application framework** — not a standalone BaaS service. All business logic is compiled into the same Go binary via PocketBase's extension API.
 
-**External Components:**
-- **Reverse Proxy**: Independent container/service for SSL + domain routing
-- **Docker Daemon**: Host Docker socket (mounted into container)
+### What PocketBase Provides (built-in, zero code)
 
-## Role Division
+- **Auth**: JWT, password auth, OAuth2, token refresh, session management
+- **Database**: SQLite with Collection CRUD API + API Rules
+- **Realtime**: SSE subscriptions + custom message broadcasting
+- **Admin UI**: Data management at `/_/`
+- **Middleware**: Auth token loader, rate limiting, CORS, panic recovery
+- **Cron**: Scheduled jobs
+- **File storage**: Upload/download with local or S3 backend
+- **Logging**: Structured logs with Dashboard viewer
 
-| Concern | Owner | Rationale |
-|---------|-------|-----------|
-| User authentication | PocketBase Auth | Built-in auth, JWT tokens, Admin UI |
-| Realtime updates | PocketBase Database | Reactive queries, live subscriptions |
-| Persistent data | SQLite | Users, apps, deployments, config history |
-| Task orchestration | Asynq + Redis | Persistent queue, auto-retry, long-running tasks |
-| System commands | Go + exec | Direct Docker CLI execution |
-| File operations | Go + os | Compose file management, volume operations |
-| Web Terminal | xterm.js + creack/pty | Browser-based PTY with real shell |
-| Internal routing | Nginx | Static files + API proxy (inside container) |
-| External routing | Reverse Proxy | SSL + domain management (outside container) |
+### What We Extend (custom Go code)
+
+- **Docker operations**: deploy, restart, stop, delete apps
+- **Reverse proxy management**: domain binding, SSL config
+- **Web terminal**: WebSocket + PTY (full-duplex)
+- **Backup/restore**: filesystem + encryption
+- **System monitoring**: CPU, memory, disk metrics
+- **Asynq integration**: async task queue for long-running operations
 
 ## API Architecture
 
-**Unified API**: All external access (CLI, third-party integrations) goes through AppOS Backend's REST API.
+### Two API layers, one process
 
 ```
-External Access                Internal Implementation
-┌──────────────┐              
-│   CLI /      │──────────────→ ┌─────────────────────┐
-│  REST API    │                │  AppOS Backend      │
-└──────────────┘                │                     │
-                                │ ┌─────────────────┐ │
-POST /v1/apps/deploy ──────────→│ │ API Handler     │ │
-                                │ └────────┬────────┘ │
-                                │          ↓          │
-GET /v1/apps ───────────────────→│ ┌─────────────────┐ │
-                                │ │PocketBase Client│─┼──→ PocketBase
-                                │ └─────────────────┘ │
-                                │                     │
-                                │ ┌─────────────────┐ │
-WS /terminal ───────────────────→│ │ Terminal Handler│ │
-                                │ └─────────────────┘ │
-                                │                     │
-                                │ ┌─────────────────┐ │
-                                │ │ Asynq Worker    │─┼──→ Redis
-                                │ └─────────────────┘ │
-                                └─────────────────────┘
+Dashboard / CLI
+      │
+      │  PocketBase JS SDK (pb.send(), pb.collection(), pb.realtime)
+      │
+      ▼
+┌─────────────────────────────────────────────┐
+│  PocketBase Process (single binary)         │
+│                                             │
+│  ┌─── Built-in API ──────────────────────┐  │
+│  │  /api/collections/apps/records   CRUD │  │
+│  │  /api/collections/users/...      Auth │  │
+│  │  /api/realtime                   SSE  │  │
+│  └───────────────────────────────────────┘  │
+│                                             │
+│  ┌─── Custom Routes ────────────────────┐   │
+│  │  Apps:   deploy, restart, stop,      │   │
+│  │          delete, logs, env           │   │
+│  │  Config: save, history, rollback     │   │
+│  │  Proxy:  domains, ssl, reload        │   │
+│  │  System: terminal, metrics, files    │   │
+│  │  Backup: create, restore, list       │   │
+│  └───────────────────────────────────────┘  │
+│                                             │
+│  ┌─── Asynq Worker (goroutine) ─────────┐  │
+│  │  deploy:app → docker compose up      │   │
+│  │  backup:create → tar + encrypt       │   │
+│  └───────────────────────────────────────┘  │
+└─────────────────────────────────────────────┘
 ```
 
-**Dashboard Access**: Can choose between:
-- **Option A**: Use unified REST API (same as CLI)
-- **Option B**: Direct PocketBase SDK for reads (realtime), AppOS API for operations (optimized)
+### Unified auth for all routes
+
+Custom routes share PocketBase's auth system automatically:
+
+```go
+// Global auth token loader runs for ALL requests (built-in + custom)
+// → e.Auth is populated before your handler executes
+
+// Route-level access control
+g := se.Router.Group("/api/appos")
+g.Bind(apis.RequireAuth())                          // any authenticated user
+g.POST("/apps/deploy", deployApp)
+
+admin := se.Router.Group("/api/appos/admin")
+admin.Bind(apis.RequireSuperuserAuth())             // superuser only
+admin.POST("/proxy/config", configProxy)
+```
+
+### Frontend: single SDK
+
+```typescript
+import PocketBase from 'pocketbase';
+const pb = new PocketBase('/');
+
+// Auth (built-in)
+await pb.collection('users').authWithPassword(email, password);
+
+// CRUD (built-in, token auto-attached)
+const apps = await pb.collection('apps').getList();
+
+// Realtime (built-in)
+pb.collection('deployments').subscribe('*', (e) => { ... });
+
+// Custom routes (same SDK, same token)
+await pb.send('/api/appos/apps/deploy', { method: 'POST', body: { name: 'wordpress' } });
+```
 
 ## Key Flows
 
-### Application Deployment (via CLI)
+### Application Deployment
 
-```bash
-$ appos deploy wordpress
-```
-
-1. CLI calls `POST /v1/apps/deploy` with JWT token
-2. API handler validates auth with PocketBase
-3. Creates Asynq task → Redis queue
-4. Records deployment in PocketBase (status: pending)
-5. Returns deployment ID to CLI
-6. Asynq worker picks up task:
-   - Fetch compose file from Git
-   - Execute `docker compose up -d`
-   - Update PocketBase (status: success/failed)
-7. CLI can poll `GET /v1/deployments/:id` for status
-
-### Application Deployment (via Dashboard)
-
-**Option A - Unified API**:
-```typescript
-await appos.deploy('wordpress');  // Same as CLI
-```
-
-**Option B - Optimized** (recommended):
-```typescript
-// Trigger via AppOS API
-const deployment = await appos.deploy('wordpress');
-
-// Subscribe to status via PocketBase (realtime)
-const status = pb.collection('deployments').subscribe(deployment.id, (data) => {
-  // Auto-updates when worker completes
-});
-```
+1. Dashboard calls `pb.send('/api/appos/apps/deploy', ...)`
+2. PocketBase auth middleware validates JWT → `e.Auth` populated
+3. Handler creates deployment record via `e.App.Save(record)`
+4. Handler enqueues Asynq task → Redis
+5. Returns `{ deployment_id, status: "pending" }`
+6. Dashboard subscribes: `pb.collection('deployments').subscribe(id, ...)`
+7. Asynq worker executes `docker compose up -d`, updates record status
+8. PocketBase auto-broadcasts status change to subscribed clients
 
 ### Web Terminal
 
-```typescript
-// Dashboard creates WebSocket connection
-const ws = new WebSocket('wss://api.appos.io/terminal');
-const term = new Terminal();
-
-// xterm.js renders terminal in browser
-term.onData(data => ws.send(data));
-ws.onmessage = (e) => term.write(e.data);
-
-// Backend: Go + creack/pty spawns real bash shell
-// Bidirectional: user input → backend → shell → output → user
+```go
+// Custom route upgrades to WebSocket (standard net/http compatible)
+se.Router.GET("/api/appos/terminal", func(e *core.RequestEvent) error {
+    conn, _ := upgrader.Upgrade(e.Response, e.Request, nil)
+    ptmx, _ := pty.Start(exec.Command("bash"))
+    // bidirectional relay: conn ↔ ptmx
+}).Bind(apis.RequireAuth())
 ```
 
 ### Configuration Version Control
 
-Compose files stored in filesystem with version history in SQLite:
 1. User edits compose file via Dashboard
-2. Backend API saves to `/websoft9/data/apps/{app}/docker-compose.yml`
-3. Backend creates version snapshot in SQLite:
-   - `config_versions` table: (id, app_id, content, created_at, created_by)
-4. Manual trigger starts deployment via Asynq task
-5. Task executes `docker compose up -d`
-6. Rollback: Query SQLite for previous version → restore to filesystem → redeploy
+2. Custom route saves to `/appos/data/apps/{app}/docker-compose.yml`
+3. Creates version record in PB collection `config_versions`
+4. Manual deploy trigger → Asynq task → `docker compose up -d`
+5. Rollback: query previous version → restore file → redeploy
 
 ## Container Topology
 
 ```yaml
 services:
-  websoft9:                    # All-in-one container
-    image: websoft9:latest
+  appos:
+    image: appos:latest
     ports:
-      - "9091:80"               # HTTP (internal nginx)
+      - "9091:80"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock  # Docker access
-      - websoft9-data:/websoft9/data                # Persistent data
+      - /var/run/docker.sock:/var/run/docker.sock
+      - appos-data:/appos/data
     environment:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
-  
-  reverse-proxy:               # External reverse proxy (independent)
-    image: nginx:alpine         # Or Traefik/Caddy
+
+  reverse-proxy:
+    image: nginx:alpine          # or Traefik/Caddy
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - proxy-config:/etc/nginx
       - letsencrypt:/etc/letsencrypt
-    depends_on:
-      - websoft9
 
 volumes:
-  websoft9-data:               # SQLite DB, Redis RDB, config files
+  appos-data:                    # SQLite, Redis RDB, app configs
   proxy-config:
   letsencrypt:
 ```
 
-**All-in-One Container Services** (managed by supervisord):
-- **Backend** (Go binary):
-  - chi HTTP server (REST API)
-  - Asynq worker (3 concurrent workers for deployments)
-  - WebSocket handler (terminal sessions)
-  - SQLite client (persistent data)
-  - PocketBase client (API integration + realtime sync)
-- **Redis** (Asynq queue backend, persistent mode)
-- **PocketBase** (self-hosted BaaS: auth + database + realtime + Admin UI at /pb/_/)
-- **Nginx** (internal proxy: / → dashboard, /api → backend, /pb → pocketbase)
-- **Dashboard** (static React build served by nginx)
+**Internal services** (managed by supervisord):
+- **PocketBase** (Go binary): built-in API + custom routes + Asynq worker
+- **Redis**: Asynq queue backend (persistent)
+- **Nginx**: internal proxy (/ → dashboard, /api + /_/ → PocketBase)
+- **Dashboard**: static React build served by Nginx
 
 ## Constraints
 
-- **Single-server architecture**: All services in one container, no distribution
-- **Docker required**: Host must have Docker 20.10+ installed
-- **Persistent storage**: SQLite + Redis RDB in `/websoft9/data` volume
-- **Self-contained**: No external dependencies (PocketBase self-hosted)
-- **Reverse proxy required**: External proxy for SSL and domain management
-- **Token-based auth**: JWT tokens issued by self-hosted PocketBase
+- **Single-server architecture**: no distribution
+- **Docker 20.10+** required on host
+- **Persistent storage**: single volume at `/appos/data`
+- **Self-contained**: no external cloud dependencies
+- **External reverse proxy required** for SSL and domain management
 
-## Deployment Modes
+## Reverse Proxy Module
 
-### Development
-```bash
-# Run locally with hot reload
-$ make dev
-# Go backend: air (hot reload)
-# Dashboard: vite dev server
+External reverse proxy handles SSL and domain routing. Independent from the all-in-one container.
+
+```
+Internet → :443 → [Reverse Proxy] → app1.com → container:port
+                                   → app2.com → container:port
+                                   → appos     → appos:9091
 ```
 
-### Production
-```bash
-# All-in-one container
-$ docker compose up -d
-# Single binary serves everything
+**Custom routes manage proxy config**:
+```
+POST   /api/appos/proxy/domains          – add domain binding
+GET    /api/appos/proxy/domains          – list bindings
+DELETE /api/appos/proxy/domains/:domain  – remove binding
+POST   /api/appos/proxy/domains/:domain/ssl – request certificate
+POST   /api/appos/proxy/reload           – reload proxy config
 ```
 
-### Horizontal Scaling (if needed)
-```bash
-# Scale backend instances
-$ docker compose up -d --scale appos-backend=3
-# Load balancer distributes API requests
-# Asynq workers automatically coordinate via Redis
-```
+Supports Nginx, Traefik, or Caddy. Custom routes generate config files and reload the proxy service.
 
-## CLI Architecture
+## Technology Decisions
 
-**Single Binary**: Cobra-based CLI calls unified REST API.
-
-```bash
-# Installation
-$ go install github.com/appos/cli@latest
-
-# Configuration
-$ appos config set-token YOUR_TOKEN
-$ appos config set-url https://api.appos.io
-
-# Usage
-$ appos deploy wordpress
-$ appos list
-$ appos logs wordpress
-$ appos delete wordpress
-```
-
-**Implementation**: Go HTTP client → AppOS REST API → Same backend logic as Dashboard
-
-## Technology Decisions Summary
-
-| Decision | Choice | Alternative Considered | Why Chosen |
-|----------|--------|----------------------|-----------|
-| Backend Language | Go | Node.js, Python | Single binary, performance, concurrency |
-| Database | SQLite | PostgreSQL, MySQL | Embedded, zero-config, perfect for single-server |
-| Task Queue | Asynq + Redis | Temporal, Machinery | Persistent queue, auto-retry, monitoring UI |
-| BaaS | PocketBase (self-hosted) | Supabase, Firebase | Auth + realtime + database, no vendor lock-in |
-| Terminal | xterm.js + PTY | ttyd, gotty | Industry standard, actively maintained |
-| Router | TanStack Router | React Router | File-based, type-safe |
-| API Framework | chi | Gin, Echo, Fiber | Stdlib-compatible, lightweight, composable |
-| Internal Proxy | Nginx | Caddy, none | Standard, lightweight, serves static files |
-| External Proxy | Nginx/Traefik/Caddy | All valid | Flexible options, documented integration |
-| Process Manager | supervisord | systemd, s6 | Container-optimized, XML-RPC API |
+| Decision | Choice | Why |
+|----------|--------|-----|
+| Application framework | PocketBase | Single binary: auth + DB + realtime + Admin UI + extensible |
+| Task Queue | Asynq + Redis | Persistent async tasks with retry, embedded in PB process |
+| Terminal | xterm.js + PTY | WebSocket via PB custom route, standard Go libs |
+| Frontend Router | TanStack Router | File-based, type-safe |
+| Process Manager | supervisord | Container-optimized, simple config |
 
 ## Architecture Review
 
-### ✅ Strengths
+### Strengths
 
-1. **True All-in-One Design**
-   - Single container with all services (Redis, PocketBase, Backend, Nginx)
-   - SQLite for persistent data (zero-config)
-   - No external cloud dependencies
-   - Self-contained, data sovereignty
+1. **Single process** — PocketBase + business logic compiled into one Go binary. No inter-service HTTP overhead.
+2. **Frontend uses official SDK** — PocketBase JS SDK handles auth, CRUD, realtime, token management. Zero custom SDK needed.
+3. **Unified auth** — Custom routes share PocketBase auth system. One JWT, one middleware chain, one Admin UI.
+4. **Admin UI included** — Data, users, logs manageable via `/_/` without custom tooling.
+5. **Operationally simple** — 2 supervised processes (PocketBase, Redis) instead of 3 (Backend, PocketBase, Redis).
 
-2. **Operational Simplicity**
-   - One `docker run` command to start
-   - supervisord orchestrates all internal services
-   - Persistent data in single volume
-   - Simple backup/restore (copy `/websoft9/data`)
+### Risks
 
-3. **Flexible Reverse Proxy**
-   - Independent module, not coupled to core
-   - Multiple implementation options (Nginx/Traefik/Caddy)
-   - User can choose based on preference
-   - Clear API for proxy management
+| Risk | Severity | Mitigation |
+|------|----------|-----------|
+| PocketBase breaking changes on upgrade | Medium | Pin version, review changelog before upgrade |
+| Single process crash takes everything down | Low | supervisord auto-restart; PB is mature and stable |
+| Redis SPOF for task queue | Low | AOF persistence + restart policy; acceptable for single-server |
+| No auto-generated OpenAPI for custom routes | Low | Manual spec for ~15 custom endpoints |
 
-4. **Reliable Task Execution**
-   - Asynq + Redis for persistent queue
-   - Auto-retry on failure
-   - Survives container restarts
-   - Built-in monitoring UI
+## CLI Architecture
 
-5. **Modern Stack**
-   - Go: Single binary, excellent concurrency
-   - SQLite: Battle-tested, zero maintenance
-   - PocketBase (self-hosted): BaaS without vendor lock-in, Admin UI
-   - xterm.js: Industry standard terminal
-   - TanStack Router: Type-safe routing
+Cobra-based Go binary calls PocketBase HTTP API (built-in + custom routes):
 
-### ⚠️ Considerations
-
-1. **PocketBase Self-Hosted BaaS**
-   - Decision: Using self-hosted PocketBase for auth + database + realtime
-   - Benefit: No vendor lock-in, data sovereignty, built-in Admin UI
-   - Alternative: Can replace with PostgreSQL + custom auth if needed
-
-2. **Redis Single Point of Failure**
-   - Risk: Redis down = no task execution
-   - Mitigation: Redis AOF persistence + container restart policy
-   - Decision: Single instance acceptable for single-server scenario
-
-3. **Monitoring & Observability**
-   - Current: Supervisord process monitoring + logs
-   - Recommendation: Add Prometheus metrics endpoint in backend
-   - Priority: Medium (add before production)
-
-4. **Security**
-   - Auth: PocketBase handles JWT validation
-   - Rate limiting: Add chi middleware
-   - Input validation: Implement in API handlers
-   - Priority: High (implement during development)
-
-5. **Reverse Proxy Integration**
-   - External proxy required for SSL and domain management
-   - Multiple options: Nginx, Traefik, Caddy
-   - Configuration managed via API (FR-3)
-
----
-
-## Reverse Proxy Module Design
-
-### Architecture
-
-```
-                    Internet
-                       │
-                       │ :80, :443
-                       ▼
-            ┌──────────────────────┐
-            │   Reverse Proxy      │
-            │  (Nginx/Traefik)     │
-            │                      │
-            │ • SSL Termination    │
-            │ • Let's Encrypt      │
-            │ • Domain Routing     │
-            └──────────┬───────────┘
-                       │
-          ┌────────────┼────────────┐
-          │            │            │
-          ▼            ▼            ▼
-     app1.com     app2.com    websoft9.com
-     (nginx:80)   (mysql:80)   (websoft9:80)
+```bash
+$ appos deploy wordpress        # → POST /api/appos/apps/deploy
+$ appos list                    # → GET  /api/collections/apps/records
+$ appos logs wordpress          # → GET  /api/appos/apps/:id/logs
+$ appos proxy add example.com   # → POST /api/appos/proxy/domains
 ```
 
-### Responsibilities
+Same JWT auth. Same endpoints as Dashboard. Separate Go module (`cmd/cli/`).
 
-**Reverse Proxy (External)**:
-- SSL certificate management (Let's Encrypt automation)
-- Domain → container port mapping
-- HTTPS enforcement
-- Request routing to deployed applications
-- Access to websoft9 Dashboard
+### Complexity: **Low** ✅
 
-**Websoft9 Internal Nginx**:
-- Dashboard static files (/)
-- Backend API routing (/api)
-- WebSocket terminal (/terminal)
-- Health checks (/health)
-
-### Implementation Options
-
-#### Option 1: Nginx (Simple)
-```yaml
-# docker-compose.yml
-services:
-  reverse-proxy:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./proxy/nginx.conf:/etc/nginx/nginx.conf
-      - ./proxy/conf.d:/etc/nginx/conf.d
-      - certbot-data:/etc/letsencrypt
-  
-  certbot:
-    image: certbot/certbot
-    volumes:
-      - certbot-data:/etc/letsencrypt
-    command: certonly --webroot -w /var/www/certbot
-```
-
-**Management**: Websoft9 backend generates nginx config files, reloads nginx
-
-#### Option 2: Traefik (Dynamic)
-```yaml
-services:
-  reverse-proxy:
-    image: traefik:v2.10
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - traefik-certs:/letsencrypt
-    command:
-      - "--providers.docker=true"
-      - "--certificatesresolvers.letsencrypt.acme.email=admin@example.com"
-```
-
-**Management**: Websoft9 backend adds Docker labels to deployed containers
-
-#### Option 3: Caddy (Automatic SSL)
-```yaml
-services:
-  reverse-proxy:
-    image: caddy:alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
-      - caddy-data:/data
-```
-
-**Management**: Websoft9 backend generates Caddyfile, reloads Caddy
-
-### API Integration (FR-3)
-
-**Backend API Endpoints**:
-```
-POST /api/v1/proxy/domains
-  Body: { domain: "app.example.com", target: "wordpress:80", ssl: true }
-  
-GET /api/v1/proxy/domains
-  Response: [{ domain, target, ssl, certificate_status }]
-
-DELETE /api/v1/proxy/domains/:domain
-
-POST /api/v1/proxy/domains/:domain/ssl
-  Action: Request Let's Encrypt certificate
-
-POST /api/v1/proxy/reload
-  Action: Reload proxy configuration
-```
-
-### Data Model (SQLite)
-
-```sql
-CREATE TABLE proxy_domains (
-    id INTEGER PRIMARY KEY,
-    domain TEXT UNIQUE NOT NULL,
-    target_container TEXT NOT NULL,
-    target_port INTEGER NOT NULL,
-    ssl_enabled BOOLEAN DEFAULT 0,
-    ssl_certificate_path TEXT,
-    force_https BOOLEAN DEFAULT 0,
-    created_at DATETIME,
-    updated_at DATETIME
-);
-```
-
-### Workflow
-
-**Deploy Application with Domain**:
-1. User deploys WordPress via Dashboard
-2. User adds domain: "blog.example.com" → wordpress:80
-3. Backend creates proxy config (Nginx/Traefik/Caddy)
-4. Backend requests SSL certificate (if enabled)
-5. Backend reloads proxy
-6. Domain becomes accessible with HTTPS
-
-**Certificate Renewal**:
-- Let's Encrypt: Auto-renewal via certbot/Traefik/Caddy
-- Websoft9 monitors certificate expiry
-- Sends alert 30 days before expiration
-
----
-
-### 🎯 Recommendations
-
-**Before MVP:**
-1. Implement reverse proxy API (FR-3)
-2. Choose one proxy solution (recommend Traefik for dynamic config)
-3. Add health check endpoints
-4. Implement SQLite schema for proxy config
-
-**Before Production:**
-1. Add Prometheus metrics
-2. Implement certificate monitoring
-3. Add backup/restore for proxy config
-4. Test SSL renewal automation
-
-### 📏 Complexity Score: **Low** ✅
-
-- All-in-one container: Low complexity (supervisord orchestration)
-- Self-hosted PocketBase: Low (single Go binary, Admin UI)
-- Redis + Asynq: Low (well-documented)
-- Reverse proxy: Low (standard patterns)
-- Infrastructure: Simple (1 main container + optional proxy)
-
-**Overall Assessment**: Architecture is well-balanced and truly self-contained. No external cloud dependencies. PocketBase provides integrated BaaS solution with Admin UI. Reverse proxy design is flexible (supports 3 implementation options). Clear separation between internal routing (nginx in container) and external routing (independent proxy).
+One main binary + Redis. No inter-service communication. Standard Go extension patterns.
