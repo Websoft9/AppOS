@@ -14,7 +14,13 @@ import (
 
 // Register mounts all custom route groups on the PocketBase router.
 func Register(se *core.ServeEvent) {
-	// All custom routes require authentication
+	// Setup routes (unauthenticated — only works when no superuser exists)
+	registerSetupRoutes(se)
+
+	// Auth helper routes (unauthenticated — email existence check, etc.)
+	registerAuthRoutes(se)
+
+	// All other custom routes require authentication
 	g := se.Router.Group("/api/appos")
 	g.Bind(apis.RequireAuth())
 

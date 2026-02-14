@@ -7,10 +7,13 @@ services:
       - "${HTTP_PORT:-9091}:80"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ${APPOS_DATA_PATH:-/appos/data}:/appos/data
+      - appos_data:/appos/data
     environment:
       - TZ=UTC
       - SUPERVISOR_PASSWORD=${SUPERVISOR_PASSWORD:-changeme}
+      - INIT_MODE=${INIT_MODE:-setup}
+      - SUPERUSER_EMAIL=${SUPERUSER_EMAIL:-admin@example.com}
+      - SUPERUSER_PASSWORD=${SUPERUSER_PASSWORD:-changeme123}
 
   # Optional: External reverse proxy for SSL and domain routing
   # reverse-proxy:
@@ -24,5 +27,5 @@ services:
   #   depends_on:
   #     - websoft9
 
-# volumes:
-#   letsencrypt:
+volumes:
+  appos_data:

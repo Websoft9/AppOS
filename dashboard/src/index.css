@@ -1,6 +1,14 @@
 @import "tailwindcss";
 
 :root {
+  /* Layout Dimensions */
+  --header-height: 64px;
+  --header-height-mobile: 56px;
+  --sidebar-width: 240px;
+  --sidebar-width-collapsed: 64px;
+  --bottom-height: 40px;
+  --bottom-height-expanded: 200px;
+
   /* Light mode variables */
   --background: 0 0% 100%;
   --foreground: 240 10% 3.9%;

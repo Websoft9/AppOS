@@ -74,12 +74,14 @@ Implement frontend infrastructure only (framework, not features):
   - Devtools setup (React Query Devtools)
   - API client base setup (axios/fetch wrapper)
   
-- [ ] 7.6: Layout Components
-  - `<AppShell>` main layout container
-  - `<Header>` with logo, theme toggle, language switcher, user menu slot
+- [ ] 7.6: Layout Components (5-Zone Structure)
+  - `<AppShell>` main layout container orchestrating 5 zones
+  - `<Header>` with logo, breadcrumbs, theme toggle, language switcher, user menu slot
   - `<Sidebar>` with collapsible navigation (menu items from config)
-  - `<ContentArea>` with breadcrumbs and page header
-  - Responsive behavior (mobile drawer, desktop sidebar)
+  - `<ContentArea>` with page header and scrollable main content
+  - `<Bottom>` with status info, notifications, quick actions
+  - Responsive behavior (mobile drawer, desktop sidebar, bottom condensed)
+  - Layout Context for state management (collapsed, expanded, drawer)
   
 - [ ] 7.7: Common UI Components
   - `<ErrorBoundary>` for error handling
@@ -130,14 +132,46 @@ Implement frontend infrastructure only (framework, not features):
   - UI state context (sidebar collapsed, etc)
   - Context composition patterns
 
+### 5-Zone Layout Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         HEADER                              │
+│  [Logo]  [Breadcrumbs]              [Theme][Lang][UserMenu] │
+├─────────┬───────────────────────────────────────────────────┤
+│         │                                                   │
+│ SIDEBAR │              CONTENT AREA                         │
+│         │                                                   │
+│ [Nav]   │         ┌───────────────────────────┐            │
+│ [Menu]  │         │     <Outlet />            │            │
+│ [Items] │         │     (Page Content)        │            │
+│         │         └───────────────────────────┘            │
+│         │                                                   │
+│         ├───────────────────────────────────────────────────┤
+│         │                    BOTTOM                         │
+│[Toggle] │  [Status]    [Notifications]    [Quick Actions]   │
+└─────────┴───────────────────────────────────────────────────┘
+```
+
+**Layout Zones**:
+- **Header** (64px): Logo, breadcrumbs, theme/lang toggles, user menu
+- **Sidebar** (240px/64px): Collapsible navigation menu (spans full height)
+- **Content Area**: Scrollable main page content
+- **Bottom** (40px): Status info, notifications, quick actions (aligned with Content)
+
 ### Project Structure
 ```
 dashboard/
   src/
     components/       # Shared UI components (Button, Card, etc.)
-    contexts/         # React Context providers (Theme, Locale)
+      layout/         # Layout components (5-zone structure)
+        AppShell.tsx
+        Header.tsx
+        Sidebar.tsx
+        ContentArea.tsx
+        Bottom.tsx
+    contexts/         # React Context providers (Theme, Locale, Layout)
     hooks/            # Custom React hooks
-    layouts/          # Layout components (AppShell, Header, Sidebar)
     lib/              # Utilities (api client, cockpit wrapper, etc.)
     routes/           # TanStack Router file-based routes
       _app/           # Main app layout route

@@ -99,6 +99,12 @@ build/
 └── entrypoint.sh           # Container init script
 ```
 
+**Data Volume**: `appos_data` (Docker named volume) → `/appos/data`
+
+**INIT_MODE** (env, default `setup`):
+- `setup`: 全新容器不创建 superuser，用户通过 Setup 页面创建
+- `auto`: entrypoint 用 `SUPERUSER_EMAIL` + `SUPERUSER_PASSWORD` 自动创建
+
 **Data Directories** (inside container):
 ```
 /appos/data/
@@ -114,9 +120,9 @@ build/
 - **supervisord.conf**: Process manager (redis → appos → nginx)
   - `appos serve --http=0.0.0.0:8090` (PocketBase + custom routes + Asynq worker)
 - **nginx.conf**: Routes: `/` (dashboard), `/api/` + `/_/` (PocketBase + custom routes)
-- **entrypoint.sh**: Init data dirs, start supervisord
-- **docker-compose.yml**: Volume mounts, health check, port mapping
-- **.env**: HTTP_PORT, REDIS_ADDR, IMAGE_NAME, APPOS_DATA_PATH
+- **entrypoint.sh**: Init data dirs, handle INIT_MODE (auto/setup), start supervisord
+- **docker-compose.yml**: Named volume (`appos_data`), health check, port mapping
+- **.env**: HTTP_PORT, REDIS_ADDR, IMAGE_NAME, SUPERUSER_EMAIL, SUPERUSER_PASSWORD
 - **.dockerignore**: Exclude node_modules, .git, *.log, pb_data
 
 ---
@@ -149,8 +155,8 @@ docker restart appos && docker exec appos ls /appos/data/
 - [x] Create `Dockerfile.local` (copies pre-built artifacts)
 - [x] Create `supervisord.conf` (3 services: redis, appos, nginx)
 - [x] Create `nginx.conf` (routes: / → static, /api + /_ → appos:8090)
-- [x] Create `entrypoint.sh` (init pb_data, start supervisord)
-- [x] Create `docker-compose.yml` (volume mounts, health check)
+- [x] Create `entrypoint.sh` (init pb_data, handle INIT_MODE, start supervisord)
+- [x] Create `docker-compose.yml` (named volume `appos_data`, health check)
 - [x] Create `.env` (port, redis addr, image name)
 - [x] Create `.dockerignore` (exclude node_modules, .git, pb_data)
 - [x] Add HEALTHCHECK to both Dockerfiles

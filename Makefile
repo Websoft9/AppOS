@@ -125,7 +125,7 @@ run:
 	@docker cp backend/appos $(CONTAINER):/usr/local/bin/appos
 	@docker cp dashboard/dist/. $(CONTAINER):/usr/share/nginx/html/dashboard/
 	@# Restart services
-	@docker exec $(CONTAINER) supervisorctl restart appos nginx
+	@docker exec $(CONTAINER) supervisorctl -c /etc/supervisor/supervisord.conf restart appos nginx
 	@echo "✓ Hot reload complete (~10s)"
 	@echo "  → http://127.0.0.1:$(PORT_EFFECTIVE)/"
 

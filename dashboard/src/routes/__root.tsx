@@ -1,12 +1,15 @@
 import { createRootRoute, Link, Outlet } from '@tanstack/react-router'
 import { TanStackRouterDevtools } from '@tanstack/router-devtools'
 import { ThemeProvider } from '@/components/theme-provider'
+import { AuthProvider } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 
 function RootComponent() {
   return (
     <ThemeProvider defaultTheme="system" storageKey="websoft9-ui-theme">
-      <Outlet />
+      <AuthProvider>
+        <Outlet />
+      </AuthProvider>
       {import.meta.env.DEV && <TanStackRouterDevtools />}
     </ThemeProvider>
   )

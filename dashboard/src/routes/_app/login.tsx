@@ -1,25 +1,48 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
+import { createFileRoute, Link, useNavigate, useSearch } from '@tanstack/react-router'
+import { useState, useEffect } from 'react'
 import type { FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
+import { useAuth } from '@/contexts/AuthContext'
+import { pb } from '@/lib/pb'
 
 function LoginPage() {
   const navigate = useNavigate()
-  const [username, setUsername] = useState('')
+  const { redirect } = useSearch({ strict: false }) as { redirect?: string }
+  const { login, isAuthenticated } = useAuth()
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  // If already authenticated, redirect away
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate({ to: redirect || '/dashboard' })
+    }
+  }, [isAuthenticated, navigate, redirect])
+
+  // Check if setup is needed → redirect to /setup
+  useEffect(() => {
+    pb.send('/api/appos/setup/status', {}).then((res) => {
+      if (res.needsSetup) {
+        navigate({ to: '/setup' })
+      }
+    }).catch(() => {})
+  }, [navigate])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
+    setLoading(true)
 
-    // TODO: Replace with actual API call
-    if (username && password) {
-      // Simulate login
-      console.log('Login attempt:', { username })
-      await navigate({ to: '/dashboard' })
-    } else {
-      setError('Please enter username and password')
+    try {
+      await login(email, password)
+      await navigate({ to: redirect || '/dashboard' })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Login failed'
+      setError(message)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -36,16 +59,17 @@ function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="username" className="block text-sm font-medium mb-1 text-foreground">
-              Username
+            <label htmlFor="email" className="block text-sm font-medium mb-1 text-foreground">
+              Email
             </label>
             <input
-              type="text"
-              id="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              type="email"
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
               required
+              disabled={loading}
             />
           </div>
           <div>
@@ -59,15 +83,25 @@ function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
               required
+              disabled={loading}
             />
           </div>
           <Button
             type="submit"
             className="w-full"
+            disabled={loading}
           >
-            Sign In
+            {loading ? 'Signing in...' : 'Sign In'}
           </Button>
         </form>
+        <div className="mt-4 flex justify-between text-sm text-muted-foreground">
+          <Link to="/forgot-password" className="text-primary hover:underline">
+            Forgot password?
+          </Link>
+          <Link to="/register" className="text-primary hover:underline">
+            Register
+          </Link>
+        </div>
       </div>
     </div>
   )

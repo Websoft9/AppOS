@@ -1,0 +1,183 @@
+# Story 7.6: Layout Components
+
+## Overview
+
+**Epic**: Epic 7 - Dashboard Foundation  
+**Story**: 7.6 - Layout Components  
+**Status**: Not Started  
+**Priority**: P0 (Foundation for all feature modules)
+
+## Objective
+
+Build 5-zone layout structure for the dashboard. All zones are reusable layout components, supporting responsive and Dark/Light mode.
+
+## 5-Zone Layout Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         HEADER                              │
+│  [Logo]  [Breadcrumbs/Title]        [Theme][Lang][UserMenu] │
+├─────────┬───────────────────────────────────────────────────┤
+│         │                                                   │
+│ SIDEBAR │              CONTENT AREA                         │
+│         │                                                   │
+│ [Nav]   │            ┌─────────────────────┐               │
+│ [Menu]  │            │   Page Content      │               │
+│ [Items] │            │   (<Outlet />)      │               │
+│         │            └─────────────────────┘               │
+│         │                                                   │
+│         ├───────────────────────────────────────────────────┤
+│         │                    BOTTOM                         │
+│[Toggle] │  [Status]    [Notifications]    [Quick Actions]   │
+└─────────┴───────────────────────────────────────────────────┘
+```
+
+Bottom 与 Content Area 同宽，Sidebar 保持垂直连续性。
+
+## Zone Requirements
+
+### 1. AppShell
+
+Main container, orchestrates all zones using CSS Grid layout.
+
+- Grid Areas: `header header / sidebar content / sidebar bottom`
+- Provide LayoutContext to children (sidebar state, responsive breakpoints)
+- min-height: 100vh
+
+### 2. Header
+
+**Full width, fixed height**: 64px (desktop) / 56px (mobile)
+
+| Position | Content |
+|----------|---------|
+| Left | Logo (link to home) |
+| Center-Left | Page title or breadcrumbs (route-based) |
+| Right | Theme toggle, language switcher, user menu slot |
+
+- User menu is a **slot** — Epic 3 (Auth) provides actual component
+
+### 3. Sidebar
+
+**Left side**: 240px expanded / 64px collapsed / hidden on mobile
+
+- Hierarchical navigation menu with icons
+- Menu items grouped by section
+- Active route highlighted
+- Collapse toggle button
+- Mobile: overlay drawer (Sheet component)
+- Collapsed state persisted to `localStorage`
+
+### 4. Content Area
+
+**Center zone**, between Sidebar and Bottom
+
+- Renders page content via `<Outlet />`
+- Independent scroll container
+- Optional page header (title + action buttons)
+
+### 5. Bottom
+
+**Below Content Area**, same width as Content Area
+
+| Position | Content |
+|----------|---------|
+| Left | System status, connection state |
+| Center | Notification/alert summary with badge count |
+| Right | Quick action links (help, docs) |
+
+- Height: 40px default, expandable to show notification list
+- Collapse when clicking outside
+
+## Responsive Behavior
+
+| Breakpoint | Sidebar | Bottom | Header |
+|------------|---------|--------|--------|
+| Desktop ≥1024px | Visible, collapsible | Full info | Full controls |
+| Tablet 768-1023px | Drawer overlay | Condensed | Hamburger menu |
+| Mobile <768px | Full-screen drawer | Icons only | Minimal |
+
+### Desktop (≥1024px)
+
+```
++------------------------------------------------------------------+
+|                        HEADER (64px)                             |
+| [Logo]           [Breadcrumbs]              [🌙] [EN] [👤 User] |
++----------+-------------------------------------------------------+
+|          |                                                       |
+| SIDEBAR  |              CONTENT AREA                             |
+| (240px)  |                                                       |
+| [📊] Dash|        (Page Content)                                 |
+| [🏪] Stor|                                                       |
+| [⚙️] Serv|                                                       |
+|          +-------------------------------------------------------+
+|          |              BOTTOM (40px)                             |
+| [◀ Hide] | [✓ Connected]  [🔔 2 Alerts]    [📚 Docs] [❓ Help]  |
++----------+-------------------------------------------------------+
+```
+
+### Tablet / Mobile
+
+```
++--------------------------------------------+
+|           HEADER (56px)                    |
+| [☰] [Logo]                [🌙] [👤]       |
++--------------------------------------------+
+|            CONTENT AREA                    |
+|          (Page Content)                    |
++--------------------------------------------+
+|           BOTTOM (40px)                    |
+| [✓ OK]   [🔔 2]                  [❓]     |
++--------------------------------------------+
+
+Sidebar: Drawer overlay (tablet) / full-screen (mobile)
+```
+
+## Technical Decisions
+
+- **Layout method**: CSS Grid with named areas, sidebar spans content + bottom rows
+- **State management**: LayoutContext (sidebar collapsed/open, bottom expanded, responsive flags)
+- **Sidebar persistence**: `localStorage` key `sidebar-collapsed`
+- **Component library**: shadcn/ui Sheet (drawer), Button, Avatar, DropdownMenu
+- **Icons**: lucide-react
+
+## File Structure
+
+```
+src/components/layout/
+├── index.ts              # Re-exports
+├── AppShell.tsx
+├── Header.tsx
+├── Sidebar.tsx
+├── ContentArea.tsx
+├── Bottom.tsx
+├── Logo.tsx
+├── Breadcrumbs.tsx
+├── NavItem.tsx
+├── UserMenu.tsx          # Slot, Epic 3 provides actual impl
+├── SidebarToggle.tsx
+└── MobileDrawer.tsx
+```
+
+## Acceptance Criteria
+
+- [ ] AppShell renders 5-zone layout (Header, Sidebar, Content, Bottom)
+- [ ] Header: logo, breadcrumbs, theme toggle, language switcher, user menu slot
+- [ ] Sidebar: nav items with icons, collapse/expand, active route highlight
+- [ ] Sidebar: mobile drawer mode with open/close animation
+- [ ] ContentArea: renders `<Outlet />`, independent scroll
+- [ ] Bottom: status, notifications (expandable), quick actions
+- [ ] Bottom width aligned with Content Area
+- [ ] Responsive at 3 breakpoints (desktop/tablet/mobile)
+- [ ] Dark/Light mode styling for all zones
+- [ ] Keyboard navigation (Tab, Escape to close drawers)
+- [ ] ARIA labels on interactive elements
+- [ ] Sidebar collapsed state persists across page reloads
+- [ ] No layout shift on initial load
+
+## Integration Notes
+
+- **Epic 3 (Auth)**: provides UserMenu component for Header slot
+- **Epic 5/6**: register navigation items for Sidebar
+- **Story 7.7**: Bottom notifications integrate with Toast system
+- **Story 7.3**: provides design tokens and shadcn/ui primitives
+- **Story 7.5**: provides LayoutContext patterns
