@@ -20,6 +20,8 @@ RUN apk add --no-cache \
     ca-certificates \
     tzdata \
     bash \
+    docker-cli \
+    docker-cli-compose \
     && rm -rf /var/cache/apk/*
 
 # Copy pre-built artifacts from host (appos is statically linked)

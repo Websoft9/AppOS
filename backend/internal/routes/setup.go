@@ -12,10 +12,10 @@ import (
 //
 // Endpoints:
 //
-//	GET  /api/appos/setup/status — check if initial setup is needed
-//	POST /api/appos/setup/init   — create first superuser (only when none exist)
+//	GET  /api/ext/setup/status — check if initial setup is needed
+//	POST /api/ext/setup/init   — create first superuser (only when none exist)
 func registerSetupRoutes(se *core.ServeEvent) {
-	setup := se.Router.Group("/api/appos/setup")
+	setup := se.Router.Group("/api/ext/setup")
 
 	setup.GET("/status", func(e *core.RequestEvent) error {
 		needsSetup, err := checkNeedsSetup(e)

@@ -1,10 +1,11 @@
 // Package routes registers all custom API routes for AppOS.
 //
 // Route groups:
-//   - /api/appos/apps     — application lifecycle (deploy, restart, stop, etc.)
-//   - /api/appos/proxy    — reverse proxy domain/SSL management
-//   - /api/appos/system   — system metrics, terminal, file browser
-//   - /api/appos/backup   — backup/restore operations
+//   - /api/ext/docker   — Docker operations (compose, images, containers, networks, volumes)
+//   - /api/ext/proxy    — reverse proxy domain/SSL management
+//   - /api/ext/system   — system metrics, terminal, file browser
+//   - /api/ext/services — supervisord service management (Epic 6)
+//   - /api/ext/backup   — backup/restore operations
 package routes
 
 import (
@@ -21,11 +22,12 @@ func Register(se *core.ServeEvent) {
 	registerAuthRoutes(se)
 
 	// All other custom routes require authentication
-	g := se.Router.Group("/api/appos")
+	g := se.Router.Group("/api/ext")
 	g.Bind(apis.RequireAuth())
 
-	registerAppRoutes(g)
+	registerDockerRoutes(g)
 	registerProxyRoutes(g)
 	registerSystemRoutes(g)
+	registerServiceRoutes(g)
 	registerBackupRoutes(g)
 }

@@ -10,9 +10,9 @@ import (
 //
 // Endpoints:
 //
-//	POST /api/appos/auth/check-email — check if an email exists in _superusers or users
+//	POST /api/ext/auth/check-email — check if an email exists in _superusers or users
 func registerAuthRoutes(se *core.ServeEvent) {
-	auth := se.Router.Group("/api/appos/auth")
+	auth := se.Router.Group("/api/ext/auth")
 
 	auth.POST("/check-email", func(e *core.RequestEvent) error {
 		var body struct {

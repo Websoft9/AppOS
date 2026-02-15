@@ -13,11 +13,11 @@ import (
 //
 // Endpoints:
 //
-//	POST   /api/appos/proxy/domains              — add domain binding
-//	GET    /api/appos/proxy/domains              — list domain bindings
-//	DELETE /api/appos/proxy/domains/{domain}     — remove domain binding
-//	POST   /api/appos/proxy/domains/{domain}/ssl — request SSL certificate
-//	POST   /api/appos/proxy/reload               — reload proxy configuration
+//	POST   /api/ext/proxy/domains              — add domain binding
+//	GET    /api/ext/proxy/domains              — list domain bindings
+//	DELETE /api/ext/proxy/domains/{domain}     — remove domain binding
+//	POST   /api/ext/proxy/domains/{domain}/ssl — request SSL certificate
+//	POST   /api/ext/proxy/reload               — reload proxy configuration
 func registerProxyRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	proxy := g.Group("/proxy")
 	proxy.Bind(apis.RequireSuperuserAuth())

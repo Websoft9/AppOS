@@ -17,6 +17,8 @@ import { Route as AppRegisterRouteImport } from './routes/_app/register'
 import { Route as AppLoginRouteImport } from './routes/_app/login'
 import { Route as AppForgotPasswordRouteImport } from './routes/_app/forgot-password'
 import { Route as AppAuthRouteImport } from './routes/_app/_auth'
+import { Route as AppAuthServicesRouteImport } from './routes/_app/_auth/services'
+import { Route as AppAuthDockerRouteImport } from './routes/_app/_auth/docker'
 import { Route as AppAuthDashboardRouteImport } from './routes/_app/_auth/dashboard'
 
 const AppRoute = AppRouteImport.update({
@@ -57,6 +59,16 @@ const AppAuthRoute = AppAuthRouteImport.update({
   id: '/_auth',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAuthServicesRoute = AppAuthServicesRouteImport.update({
+  id: '/services',
+  path: '/services',
+  getParentRoute: () => AppAuthRoute,
+} as any)
+const AppAuthDockerRoute = AppAuthDockerRouteImport.update({
+  id: '/docker',
+  path: '/docker',
+  getParentRoute: () => AppAuthRoute,
+} as any)
 const AppAuthDashboardRoute = AppAuthDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -71,6 +83,8 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof AppResetPasswordRoute
   '/setup': typeof AppSetupRoute
   '/dashboard': typeof AppAuthDashboardRoute
+  '/docker': typeof AppAuthDockerRoute
+  '/services': typeof AppAuthServicesRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -80,6 +94,8 @@ export interface FileRoutesByTo {
   '/reset-password': typeof AppResetPasswordRoute
   '/setup': typeof AppSetupRoute
   '/dashboard': typeof AppAuthDashboardRoute
+  '/docker': typeof AppAuthDockerRoute
+  '/services': typeof AppAuthServicesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -92,6 +108,8 @@ export interface FileRoutesById {
   '/_app/reset-password': typeof AppResetPasswordRoute
   '/_app/setup': typeof AppSetupRoute
   '/_app/_auth/dashboard': typeof AppAuthDashboardRoute
+  '/_app/_auth/docker': typeof AppAuthDockerRoute
+  '/_app/_auth/services': typeof AppAuthServicesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -103,6 +121,8 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/setup'
     | '/dashboard'
+    | '/docker'
+    | '/services'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -112,6 +132,8 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/setup'
     | '/dashboard'
+    | '/docker'
+    | '/services'
   id:
     | '__root__'
     | '/'
@@ -123,6 +145,8 @@ export interface FileRouteTypes {
     | '/_app/reset-password'
     | '/_app/setup'
     | '/_app/_auth/dashboard'
+    | '/_app/_auth/docker'
+    | '/_app/_auth/services'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -188,6 +212,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/_auth/services': {
+      id: '/_app/_auth/services'
+      path: '/services'
+      fullPath: '/services'
+      preLoaderRoute: typeof AppAuthServicesRouteImport
+      parentRoute: typeof AppAuthRoute
+    }
+    '/_app/_auth/docker': {
+      id: '/_app/_auth/docker'
+      path: '/docker'
+      fullPath: '/docker'
+      preLoaderRoute: typeof AppAuthDockerRouteImport
+      parentRoute: typeof AppAuthRoute
+    }
     '/_app/_auth/dashboard': {
       id: '/_app/_auth/dashboard'
       path: '/dashboard'
@@ -200,10 +238,14 @@ declare module '@tanstack/react-router' {
 
 interface AppAuthRouteChildren {
   AppAuthDashboardRoute: typeof AppAuthDashboardRoute
+  AppAuthDockerRoute: typeof AppAuthDockerRoute
+  AppAuthServicesRoute: typeof AppAuthServicesRoute
 }
 
 const AppAuthRouteChildren: AppAuthRouteChildren = {
   AppAuthDashboardRoute: AppAuthDashboardRoute,
+  AppAuthDockerRoute: AppAuthDockerRoute,
+  AppAuthServicesRoute: AppAuthServicesRoute,
 }
 
 const AppAuthRouteWithChildren =

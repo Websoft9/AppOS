@@ -76,10 +76,8 @@ development_status:
   5-7-search-autocomplete: done
   epic5-retrospective: optional
 
-  # Epic 6: Dashboard - Services Module
+  # Epic 6: Services Module
   epic6: backlog
-  6.1-service-list-status: backlog
-  6.2-service-control: backlog
   epic6-retrospective: optional
 
   # Epic 7: Dashboard - Unified Frontend Framework

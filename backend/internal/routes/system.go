@@ -12,9 +12,9 @@ import (
 //
 // Endpoints:
 //
-//	GET  /api/appos/system/metrics   — CPU, memory, disk usage
-//	GET  /api/appos/system/terminal  — WebSocket terminal (PTY)
-//	GET  /api/appos/system/files     — file browser listing
+//	GET  /api/ext/system/metrics   — CPU, memory, disk usage
+//	GET  /api/ext/system/terminal  — WebSocket terminal (PTY)
+//	GET  /api/ext/system/files     — file browser listing
 func registerSystemRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	sys := g.Group("/system")
 	sys.Bind(apis.RequireSuperuserAuth())

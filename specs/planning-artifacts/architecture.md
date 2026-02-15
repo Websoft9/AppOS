@@ -99,6 +99,15 @@ PocketBase is used as an **application framework** — not a standalone BaaS ser
 
 ## API Architecture
 
+### Route prefix convention
+
+| Layer | Prefix | Example |
+|-------|--------|---------|
+| PB Built-in | `/api/collections/`, `/api/realtime`, `/api/admins/` | `/api/collections/apps/records` |
+| Custom (ext) | `/api/ext/` | `/api/ext/apps/deploy` |
+
+All custom routes use `/api/ext/` prefix to clearly separate from PocketBase built-in API paths. "ext" = extension, aligning with PocketBase's terminology for custom routes.
+
 ### Two API layers, one process
 
 ```
@@ -141,11 +150,11 @@ Custom routes share PocketBase's auth system automatically:
 // → e.Auth is populated before your handler executes
 
 // Route-level access control
-g := se.Router.Group("/api/appos")
+g := se.Router.Group("/api/ext")
 g.Bind(apis.RequireAuth())                          // any authenticated user
 g.POST("/apps/deploy", deployApp)
 
-admin := se.Router.Group("/api/appos/admin")
+admin := se.Router.Group("/api/ext/admin")
 admin.Bind(apis.RequireSuperuserAuth())             // superuser only
 admin.POST("/proxy/config", configProxy)
 ```
@@ -166,14 +175,14 @@ const apps = await pb.collection('apps').getList();
 pb.collection('deployments').subscribe('*', (e) => { ... });
 
 // Custom routes (same SDK, same token)
-await pb.send('/api/appos/apps/deploy', { method: 'POST', body: { name: 'wordpress' } });
+await pb.send('/api/ext/apps/deploy', { method: 'POST', body: { name: 'wordpress' } });
 ```
 
 ## Key Flows
 
 ### Application Deployment
 
-1. Dashboard calls `pb.send('/api/appos/apps/deploy', ...)`
+1. Dashboard calls `pb.send('/api/ext/apps/deploy', ...)`
 2. PocketBase auth middleware validates JWT → `e.Auth` populated
 3. Handler creates deployment record via `e.App.Save(record)`
 4. Handler enqueues Asynq task → Redis
@@ -186,7 +195,7 @@ await pb.send('/api/appos/apps/deploy', { method: 'POST', body: { name: 'wordpre
 
 ```go
 // Custom route upgrades to WebSocket (standard net/http compatible)
-se.Router.GET("/api/appos/terminal", func(e *core.RequestEvent) error {
+se.Router.GET("/api/ext/terminal", func(e *core.RequestEvent) error {
     conn, _ := upgrader.Upgrade(e.Response, e.Request, nil)
     ptmx, _ := pty.Start(exec.Command("bash"))
     // bidirectional relay: conn ↔ ptmx
@@ -256,11 +265,11 @@ Internet → :443 → [Reverse Proxy] → app1.com → container:port
 
 **Custom routes manage proxy config**:
 ```
-POST   /api/appos/proxy/domains          – add domain binding
-GET    /api/appos/proxy/domains          – list bindings
-DELETE /api/appos/proxy/domains/:domain  – remove binding
-POST   /api/appos/proxy/domains/:domain/ssl – request certificate
-POST   /api/appos/proxy/reload           – reload proxy config
+POST   /api/ext/proxy/domains          – add domain binding
+GET    /api/ext/proxy/domains          – list bindings
+DELETE /api/ext/proxy/domains/:domain  – remove binding
+POST   /api/ext/proxy/domains/:domain/ssl – request certificate
+POST   /api/ext/proxy/reload           – reload proxy config
 ```
 
 Supports Nginx, Traefik, or Caddy. Custom routes generate config files and reload the proxy service.
@@ -299,10 +308,10 @@ Supports Nginx, Traefik, or Caddy. Custom routes generate config files and reloa
 Cobra-based Go binary calls PocketBase HTTP API (built-in + custom routes):
 
 ```bash
-$ appos deploy wordpress        # → POST /api/appos/apps/deploy
+$ appos deploy wordpress        # → POST /api/ext/apps/deploy
 $ appos list                    # → GET  /api/collections/apps/records
-$ appos logs wordpress          # → GET  /api/appos/apps/:id/logs
-$ appos proxy add example.com   # → POST /api/appos/proxy/domains
+$ appos logs wordpress          # → GET  /api/ext/apps/:id/logs
+$ appos proxy add example.com   # → POST /api/ext/proxy/domains
 ```
 
 Same JWT auth. Same endpoints as Dashboard. Separate Go module (`cmd/cli/`).

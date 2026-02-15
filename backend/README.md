@@ -57,7 +57,7 @@ backend/
 
 ## API Endpoints
 
-### Custom Routes (all under `/api/appos/`)
+### Custom Routes (all under `/api/ext/`)
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|

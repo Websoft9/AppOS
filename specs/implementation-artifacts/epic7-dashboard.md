@@ -77,11 +77,15 @@ Implement frontend infrastructure only (framework, not features):
 - [ ] 7.6: Layout Components (5-Zone Structure)
   - `<AppShell>` main layout container orchestrating 5 zones
   - `<Header>` with logo, breadcrumbs, theme toggle, language switcher, user menu slot
-  - `<Sidebar>` with collapsible navigation (menu items from config)
+  - `<Sidebar>` with grouped, collapsible navigation:
+    - **Workspace** group: Dashboard, App Store
+    - **Admin** group: Services
+    - Group collapse state persisted to localStorage
   - `<ContentArea>` with page header and scrollable main content
   - `<Bottom>` with status info, notifications, quick actions
   - Responsive behavior (mobile drawer, desktop sidebar, bottom condensed)
   - Layout Context for state management (collapsed, expanded, drawer)
+  - Global `cursor: pointer` for all interactive elements (Tailwind v4 fix)
   
 - [ ] 7.7: Common UI Components
   - `<ErrorBoundary>` for error handling
@@ -114,8 +118,10 @@ Implement frontend infrastructure only (framework, not features):
 - **Build Tool**: Vite 5+
 - **Framework**: React 18 + TypeScript 5+
 - **Routing**: TanStack Router (file-based routing)
-- **UI Library**: shadcn/ui + Tailwind CSS + CSS variables for theming
-- **Theme**: Dark/Light mode with system preference detection
+- **UI Library**: shadcn/ui + Tailwind CSS 4 + CSS variables for theming
+- **Animations**: `tw-animate-css` (Tailwind v4 compatible animate-in/out, fade, zoom, slide)
+- **Theme**: Dark/Light mode via class-based `@custom-variant dark` + system preference detection
+- **Login page**: includes standalone `<ModeToggle />` for theme switching before auth
 - **i18n**: react-i18next + i18next-browser-languagedetector
 
 ### State Management Strategy

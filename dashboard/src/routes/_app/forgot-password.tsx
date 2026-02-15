@@ -17,7 +17,7 @@ function ForgotPasswordPage() {
 
     try {
       // Check if email exists in either collection
-      const check = await pb.send('/api/appos/auth/check-email', {
+      const check = await pb.send('/api/ext/auth/check-email', {
         method: 'POST',
         body: { email },
       })

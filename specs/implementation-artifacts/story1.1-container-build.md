@@ -42,7 +42,7 @@ As a developer, I need Dockerfiles and container configurations to package the A
 - [x] HEALTHCHECK passes after 30s
 - [x] Dashboard accessible at `/` 
 - [x] PocketBase API accessible at `/api/` and `/_/` (Admin UI)
-- [x] Custom routes at `/api/appos/*` (apps, proxy, system, backup)
+- [x] Custom routes at `/api/ext/*` (apps, proxy, system, backup)
 - [ ] Data persists in `/appos/data` after restart
 
 ## Build Strategy Comparison
@@ -72,7 +72,7 @@ As a developer, I need Dockerfiles and container configurations to package the A
 
 - Base: `alpine:3.19`
 - Copy pre-built: `dashboard/dist`, `backend/appos`
-- Install: nginx, supervisor, redis, ca-certificates, curl, bash
+- Install: nginx, supervisor, redis, ca-certificates, curl, bash, **docker-cli, docker-cli-compose**
 - Config: supervisord.conf, nginx.conf, entrypoint.sh
 - Data dirs: `/appos/data/{pb_data,redis,apps}`
 - HEALTHCHECK: `curl -f http://localhost/api/health`
@@ -163,7 +163,7 @@ docker restart appos && docker exec appos ls /appos/data/
 - [x] Test both build strategies
 - [x] Verify all services start correctly (appos + redis + nginx: ✅)
 - [x] PocketBase Admin UI accessible at `/_/`
-- [x] Custom routes working at `/api/appos/*`
+- [x] Custom routes working at `/api/ext/*`
 - [ ] Verify data persistence after restart
 
 ---

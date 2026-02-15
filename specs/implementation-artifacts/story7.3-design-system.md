@@ -35,13 +35,13 @@ so that all subsequent UI components follow a consistent, themeable, and accessi
   - [ ] 1.2 Add `tailwindcss()` plugin to `vite.config.ts` (alongside existing `react()` and `TanStackRouterVite()` plugins)
   - [ ] 1.3 Verify `@types/node` already present in devDependencies (it is)
 
-- [ ] Task 2: Configure CSS with theme variables (AC: #2, #4)
-  - [ ] 2.1 Replace `src/index.css` entirely — remove all default Vite CSS
-  - [ ] 2.2 Add `@import "tailwindcss";` at the top
-  - [ ] 2.3 Define CSS custom properties using `@theme inline` for shadcn/ui color tokens
-  - [ ] 2.4 Define `:root` (light) and `.dark` (dark) CSS variable sets following shadcn/ui convention
-  - [ ] 2.5 Include variables for: background, foreground, card, popover, primary, secondary, muted, accent, destructive, border, input, ring, sidebar, chart colors
-  - [ ] 2.6 Set `@layer base` with `html { ... }` for border-color and body background/foreground defaults
+- [x] Task 2: Configure CSS with theme variables (AC: #2, #4)
+  - [x] 2.1 Replace `src/index.css` entirely — remove all default Vite CSS
+  - [x] 2.2 Add `@import "tailwindcss";` + `@import "tw-animate-css";` for animations
+  - [x] 2.3 Define `@theme inline` block registering all 20 color tokens + 4 radius tokens as Tailwind v4 utilities
+  - [x] 2.4 Add `@custom-variant dark (&:is(.dark *))` for class-based dark mode (not media query)
+  - [x] 2.5 Define `:root` (light) and `.dark` (dark) CSS variable sets (raw HSL values)
+  - [x] 2.6 Set `@layer base` with border-color, html background/foreground, cursor:pointer for interactive elements
 
 - [ ] Task 3: Initialize shadcn/ui and setup utils (AC: #3, #10)
   - [ ] 3.1 Install `clsx` and `tailwind-merge` packages: `npm install clsx tailwind-merge`

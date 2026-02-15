@@ -22,6 +22,7 @@ help:
 	@printf "\033[36mDev:\033[0m\n"
 	@echo "  make install              Install dev dependencies (Go tools, build-essential, npm packages)"
 	@echo "  make tidy                 Tidy Go modules"
+	@echo "  make build                Build all (backend + dashboard)"
 	@echo "  make build backend        Build Go binary → backend/appos"
 	@echo "  make build dashboard      Build React app → dashboard/dist"
 	@echo "  make run                  Copy artifacts + restart services (~10s)"
@@ -111,8 +112,12 @@ else ifeq ($(ARG2),dashboard)
 	@cd dashboard && npm run build
 	@echo "✓ Dashboard built → dashboard/dist/"
 else
-	@echo "Usage: make build backend | make build dashboard"
-	@exit 1
+	@echo "Building all..."
+	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
+	@echo "✓ Backend built → backend/appos"
+	@cd dashboard && npm run build
+	@echo "✓ Dashboard built → dashboard/dist/"
+	@echo "✓ All built"
 endif
 
 run:

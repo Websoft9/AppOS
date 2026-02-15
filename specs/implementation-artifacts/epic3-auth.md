@@ -15,7 +15,7 @@ PB auth is fully **stateless**: no sessions, tokens not stored server-side. "Log
 - **INIT_MODE**: `setup` (default, create admin via Web UI) / `auto` (entrypoint auto-creates)
 - **Auto-login pattern**: Setup and Register show success screen + 3s countdown → auto `authWithPassword`
 - **Logout UX**: AlertDialog confirmation → success feedback → redirect to login
-- **Root route**: `index.tsx` checks `/api/appos/setup/status`, `needsSetup` → `/setup`, else → `/login`
+- **Root route**: `index.tsx` checks `/api/ext/setup/status`, `needsSetup` → `/setup`, else → `/login`
 
 ## Stories
 
@@ -41,7 +41,7 @@ PB auth is fully **stateless**: no sessions, tokens not stored server-side. "Log
 
 ### 3.5: Setup Page ✅
 - `/setup` — Create admin on fresh container first visit
-- Backend `GET /api/appos/setup/status` + `POST /api/appos/setup/init`
+- Backend `GET /api/ext/setup/status` + `POST /api/ext/setup/init`
 - `checkNeedsSetup`: excludes PB installer superuser (`__pbinstaller@example.com`)
 - 3s countdown after success → auto-login to `_superusers`
 

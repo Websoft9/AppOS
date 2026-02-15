@@ -4,6 +4,7 @@ import type { FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
 import { pb } from '@/lib/pb'
+import { ModeToggle } from '@/components/mode-toggle'
 
 function LoginPage() {
   const navigate = useNavigate()
@@ -23,7 +24,7 @@ function LoginPage() {
 
   // Check if setup is needed → redirect to /setup
   useEffect(() => {
-    pb.send('/api/appos/setup/status', {}).then((res) => {
+    pb.send('/api/ext/setup/status', {}).then((res) => {
       if (res.needsSetup) {
         navigate({ to: '/setup' })
       }
@@ -47,7 +48,10 @@ function LoginPage() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-background">
+    <div className="flex items-center justify-center min-h-screen bg-background relative">
+      <div className="absolute top-4 right-4">
+        <ModeToggle />
+      </div>
       <div className="w-full max-w-md p-8 bg-card rounded-lg shadow-md border border-border">
         <h2 className="text-2xl font-bold text-center mb-6 text-card-foreground">Login</h2>
         

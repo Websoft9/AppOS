@@ -41,6 +41,8 @@ RUN apk add --no-cache \
     ca-certificates \
     tzdata \
     bash \
+    docker-cli \
+    docker-cli-compose \
     && rm -rf /var/cache/apk/*
 
 # Copy build artifacts

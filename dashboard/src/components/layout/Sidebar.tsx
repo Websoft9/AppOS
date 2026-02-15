@@ -1,10 +1,13 @@
+import { useState, useCallback } from "react"
 import { Link, useRouterState } from "@tanstack/react-router"
 import {
   LayoutDashboard,
   Store,
   Settings,
+  Container,
   PanelLeftClose,
   PanelLeft,
+  ChevronDown,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -19,9 +22,16 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import { useLayout } from "@/contexts/LayoutContext"
 import { Logo } from "./Logo"
 import { cn } from "@/lib/utils"
+
+// ─── Types ───────────────────────────────────────────────
 
 export interface NavItem {
   id: string
@@ -31,16 +41,55 @@ export interface NavItem {
   badge?: number | string
 }
 
-// Default navigation items — Epic 5/6 will extend this
-const defaultNavItems: NavItem[] = [
-  { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" />, href: "/dashboard" },
-  { id: "store", label: "App Store", icon: <Store className="h-5 w-5" />, href: "/store" },
-  { id: "services", label: "Services", icon: <Settings className="h-5 w-5" />, href: "/services" },
+export interface NavGroup {
+  id: string
+  label: string
+  items: NavItem[]
+}
+
+// ─── Default navigation groups ───────────────────────────
+
+const defaultNavGroups: NavGroup[] = [
+  {
+    id: "workspace",
+    label: "Workspace",
+    items: [
+      { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" />, href: "/dashboard" },
+      { id: "store", label: "App Store", icon: <Store className="h-5 w-5" />, href: "/store" },
+    ],
+  },
+  {
+    id: "admin",
+    label: "Admin",
+    items: [
+      { id: "docker", label: "Docker", icon: <Container className="h-5 w-5" />, href: "/docker" },
+      { id: "services", label: "Services", icon: <Settings className="h-5 w-5" />, href: "/services" },
+    ],
+  },
 ]
 
 interface SidebarProps {
-  items?: NavItem[]
+  groups?: NavGroup[]
 }
+
+// ─── Storage helpers for group collapse state ────────────
+
+const GROUP_STORAGE_KEY = "sidebar-groups"
+
+function loadGroupState(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(GROUP_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+function saveGroupState(state: Record<string, boolean>) {
+  localStorage.setItem(GROUP_STORAGE_KEY, JSON.stringify(state))
+}
+
+// ─── NavLink ─────────────────────────────────────────────
 
 function NavLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed: boolean; onNavigate?: () => void }) {
   const router = useRouterState()
@@ -85,17 +134,94 @@ function NavLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed: bo
   return link
 }
 
-function SidebarNav({ items, collapsed, onNavigate }: { items: NavItem[]; collapsed: boolean; onNavigate?: () => void }) {
+// ─── NavGroupSection (collapsible) ───────────────────────
+
+function NavGroupSection({
+  group,
+  collapsed: sidebarCollapsed,
+  open,
+  onToggle,
+  onNavigate,
+}: {
+  group: NavGroup
+  collapsed: boolean
+  open: boolean
+  onToggle: () => void
+  onNavigate?: () => void
+}) {
+  // When sidebar is collapsed, show only icons (no group headers)
+  if (sidebarCollapsed) {
+    return (
+      <div className="flex flex-col gap-1 px-2">
+        {group.items.map((item) => (
+          <NavLink key={item.id} item={item} collapsed onNavigate={onNavigate} />
+        ))}
+      </div>
+    )
+  }
+
   return (
-    <nav className="flex flex-col gap-1 px-2" aria-label="Main navigation">
-      {items.map((item) => (
-        <NavLink key={item.id} item={item} collapsed={collapsed} onNavigate={onNavigate} />
-      ))}
-    </nav>
+    <Collapsible open={open} onOpenChange={onToggle}>
+      <CollapsibleTrigger className="flex items-center w-full px-4 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors">
+        <span className="flex-1 text-left">{group.label}</span>
+        <ChevronDown
+          className={cn(
+            "h-3.5 w-3.5 transition-transform duration-200",
+            !open && "-rotate-90"
+          )}
+        />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <nav className="flex flex-col gap-1 px-2 pb-1" aria-label={`${group.label} navigation`}>
+          {group.items.map((item) => (
+            <NavLink key={item.id} item={item} collapsed={false} onNavigate={onNavigate} />
+          ))}
+        </nav>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 
-export function Sidebar({ items = defaultNavItems }: SidebarProps) {
+// ─── SidebarNav ──────────────────────────────────────────
+
+function SidebarNav({
+  groups,
+  collapsed,
+  onNavigate,
+}: {
+  groups: NavGroup[]
+  collapsed: boolean
+  onNavigate?: () => void
+}) {
+  const [groupState, setGroupState] = useState<Record<string, boolean>>(loadGroupState)
+
+  const toggleGroup = useCallback((groupId: string) => {
+    setGroupState((prev) => {
+      const next = { ...prev, [groupId]: !(prev[groupId] ?? true) }
+      saveGroupState(next)
+      return next
+    })
+  }, [])
+
+  return (
+    <div className="flex flex-col gap-2">
+      {groups.map((group) => (
+        <NavGroupSection
+          key={group.id}
+          group={group}
+          collapsed={collapsed}
+          open={groupState[group.id] ?? true}
+          onToggle={() => toggleGroup(group.id)}
+          onNavigate={onNavigate}
+        />
+      ))}
+    </div>
+  )
+}
+
+// ─── Sidebar ─────────────────────────────────────────────
+
+export function Sidebar({ groups = defaultNavGroups }: SidebarProps) {
   const {
     sidebarCollapsed,
     sidebarOpen,
@@ -116,7 +242,7 @@ export function Sidebar({ items = defaultNavItems }: SidebarProps) {
           </SheetHeader>
           <Separator />
           <div className="py-3">
-            <SidebarNav items={items} collapsed={false} onNavigate={() => setSidebarOpen(false)} />
+            <SidebarNav groups={groups} collapsed={false} onNavigate={() => setSidebarOpen(false)} />
           </div>
         </SheetContent>
       </Sheet>
@@ -134,9 +260,9 @@ export function Sidebar({ items = defaultNavItems }: SidebarProps) {
       )}
       style={{ gridArea: "sidebar" }}
     >
-      {/* Nav items */}
+      {/* Nav groups */}
       <div className="flex-1 py-3 overflow-y-auto">
-        <SidebarNav items={items} collapsed={sidebarCollapsed} />
+        <SidebarNav groups={groups} collapsed={sidebarCollapsed} />
       </div>
 
       {/* Collapse toggle at bottom */}

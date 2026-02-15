@@ -17,7 +17,7 @@ function SetupPage() {
 
   // If setup already done, redirect to login
   useEffect(() => {
-    pb.send('/api/appos/setup/status', {}).then((res) => {
+    pb.send('/api/ext/setup/status', {}).then((res) => {
       if (!res.needsSetup) {
         navigate({ to: '/login' })
       }
@@ -54,7 +54,7 @@ function SetupPage() {
 
     setLoading(true)
     try {
-      await pb.send('/api/appos/setup/init', {
+      await pb.send('/api/ext/setup/init', {
         method: 'POST',
         body: { email, password },
       })

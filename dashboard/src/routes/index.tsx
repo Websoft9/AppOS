@@ -3,7 +3,7 @@ import { createFileRoute, redirect, isRedirect } from '@tanstack/react-router'
 export const Route = createFileRoute('/')({
   beforeLoad: async () => {
     try {
-      const res = await fetch('/api/appos/setup/status')
+      const res = await fetch('/api/ext/setup/status')
       const data = await res.json()
       if (data.needsSetup) {
         throw redirect({ to: '/setup' })

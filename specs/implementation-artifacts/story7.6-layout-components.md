@@ -60,12 +60,16 @@ Main container, orchestrates all zones using CSS Grid layout.
 
 **Left side**: 240px expanded / 64px collapsed / hidden on mobile
 
-- Hierarchical navigation menu with icons
-- Menu items grouped by section
+- Two navigation groups with collapsible headers:
+  - **Workspace** (top): Dashboard, App Store
+  - **Admin** (bottom): Services
+- Each group header shows label + chevron; click to collapse/expand children
+- Group collapse state persisted to `localStorage` (`sidebar-groups` key)
+- When sidebar is collapsed (icon-only mode), group headers are hidden
 - Active route highlighted
-- Collapse toggle button
+- Sidebar collapse toggle button at bottom
 - Mobile: overlay drawer (Sheet component)
-- Collapsed state persisted to `localStorage`
+- Sidebar collapsed state persisted to `localStorage`
 
 ### 4. Content Area
 
@@ -108,6 +112,8 @@ Main container, orchestrates all zones using CSS Grid layout.
 | (240px)  |                                                       |
 | [📊] Dash|        (Page Content)                                 |
 | [🏪] Stor|                                                       |
+|----------|                                                       |
+| ADMIN    |                                                       |
 | [⚙️] Serv|                                                       |
 |          +-------------------------------------------------------+
 |          |              BOTTOM (40px)                             |
@@ -173,6 +179,11 @@ src/components/layout/
 - [ ] ARIA labels on interactive elements
 - [ ] Sidebar collapsed state persists across page reloads
 - [ ] No layout shift on initial load
+
+## Implementation Notes
+
+- Login page includes `<ModeToggle />` in top-right corner for standalone theme switching
+- `tw-animate-css` provides animation utilities (`animate-in`, `fade-in`, `zoom-in`, `slide-in`) for dialog/sheet/dropdown transitions
 
 ## Integration Notes
 

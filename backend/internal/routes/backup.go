@@ -13,9 +13,9 @@ import (
 //
 // Endpoints:
 //
-//	POST /api/appos/backup/create   — create a new backup
-//	POST /api/appos/backup/restore  — restore from a backup
-//	GET  /api/appos/backup/list     — list available backups
+//	POST /api/ext/backup/create   — create a new backup
+//	POST /api/ext/backup/restore  — restore from a backup
+//	GET  /api/ext/backup/list     — list available backups
 func registerBackupRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	backup := g.Group("/backup")
 	backup.Bind(apis.RequireSuperuserAuth())
