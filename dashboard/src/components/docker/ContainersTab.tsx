@@ -47,7 +47,7 @@ function statusBadge(state: string) {
   return <Badge variant={variant}>{state}</Badge>
 }
 
-export function ContainersTab() {
+export function ContainersTab({ serverId, refreshSignal = 0 }: { serverId: string; refreshSignal?: number }) {
   const [containers, setContainers] = useState<Container[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState("")
@@ -56,7 +56,7 @@ export function ContainersTab() {
   const fetchContainers = useCallback(async () => {
     try {
       setLoading(true)
-      const res = await pb.send("/api/ext/docker/containers", { method: "GET" })
+      const res = await pb.send(`/api/ext/docker/containers?server_id=${serverId}`, { method: "GET" })
       setContainers(parseContainers(res.output))
       if (res.host) setHost(res.host)
     } catch (err) {
@@ -64,18 +64,18 @@ export function ContainersTab() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [serverId])
 
   useEffect(() => {
     fetchContainers()
-  }, [fetchContainers])
+  }, [fetchContainers, refreshSignal])
 
   const action = async (id: string, act: string) => {
     try {
       if (act === "remove") {
-        await pb.send(`/api/ext/docker/containers/${id}`, { method: "DELETE" })
+        await pb.send(`/api/ext/docker/containers/${id}?server_id=${serverId}`, { method: "DELETE" })
       } else {
-        await pb.send(`/api/ext/docker/containers/${id}/${act}`, { method: "POST" })
+        await pb.send(`/api/ext/docker/containers/${id}/${act}?server_id=${serverId}`, { method: "POST" })
       }
       fetchContainers()
     } catch (err) {
@@ -99,10 +99,7 @@ export function ContainersTab() {
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
-        <Button variant="outline" size="sm" onClick={fetchContainers} disabled={loading}>
-          <RotateCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+
       </div>
       <Table>
         <TableHeader>

@@ -15,7 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Download, Trash2, MoreVertical, RotateCw, Eraser } from "lucide-react"
+import { Download, Trash2, MoreVertical, Eraser } from "lucide-react"
 
 interface DockerImage {
   ID: string
@@ -40,7 +40,7 @@ function parseImages(output: string): DockerImage[] {
     .filter(Boolean) as DockerImage[]
 }
 
-export function ImagesTab() {
+export function ImagesTab({ serverId, refreshSignal = 0 }: { serverId: string; refreshSignal?: number }) {
   const [images, setImages] = useState<DockerImage[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState("")
@@ -50,7 +50,7 @@ export function ImagesTab() {
   const fetchImages = useCallback(async () => {
     try {
       setLoading(true)
-      const res = await pb.send("/api/ext/docker/images", { method: "GET" })
+      const res = await pb.send(`/api/ext/docker/images?server_id=${serverId}`, { method: "GET" })
       setImages(parseImages(res.output))
       if (res.host) setHost(res.host)
     } catch (err) {
@@ -58,15 +58,15 @@ export function ImagesTab() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [serverId])
 
   useEffect(() => {
     fetchImages()
-  }, [fetchImages])
+  }, [fetchImages, refreshSignal])
 
   const removeImage = async (id: string) => {
     try {
-      await pb.send(`/api/ext/docker/images/${id}`, { method: "DELETE" })
+      await pb.send(`/api/ext/docker/images/${id}?server_id=${serverId}`, { method: "DELETE" })
       fetchImages()
     } catch (err) {
       console.error("Failed to remove image:", err)
@@ -75,7 +75,7 @@ export function ImagesTab() {
 
   const pruneImages = async () => {
     try {
-      await pb.send("/api/ext/docker/images/prune", { method: "POST" })
+      await pb.send(`/api/ext/docker/images/prune?server_id=${serverId}`, { method: "POST" })
       fetchImages()
     } catch (err) {
       console.error("Failed to prune images:", err)
@@ -85,7 +85,7 @@ export function ImagesTab() {
   const pullImage = async () => {
     if (!pullName.trim()) return
     try {
-      await pb.send("/api/ext/docker/images/pull", {
+      await pb.send(`/api/ext/docker/images/pull?server_id=${serverId}`, {
         method: "POST",
         body: { name: pullName.trim() },
       })
@@ -127,10 +127,7 @@ export function ImagesTab() {
         <Button variant="outline" size="sm" onClick={pruneImages}>
           <Eraser className="h-4 w-4 mr-1" /> Prune
         </Button>
-        <Button variant="outline" size="sm" onClick={fetchImages} disabled={loading}>
-          <RotateCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+
       </div>
       <Table>
         <TableHeader>

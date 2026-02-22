@@ -15,7 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Trash2, MoreVertical, RotateCw, Eraser } from "lucide-react"
+import { Trash2, MoreVertical, Eraser } from "lucide-react"
 
 interface Volume {
   Name: string
@@ -38,7 +38,7 @@ function parseVolumes(output: string): Volume[] {
     .filter(Boolean) as Volume[]
 }
 
-export function VolumesTab() {
+export function VolumesTab({ serverId, refreshSignal = 0 }: { serverId: string; refreshSignal?: number }) {
   const [volumes, setVolumes] = useState<Volume[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState("")
@@ -47,7 +47,7 @@ export function VolumesTab() {
   const fetchVolumes = useCallback(async () => {
     try {
       setLoading(true)
-      const res = await pb.send("/api/ext/docker/volumes", { method: "GET" })
+      const res = await pb.send(`/api/ext/docker/volumes?server_id=${serverId}`, { method: "GET" })
       setVolumes(parseVolumes(res.output))
       if (res.host) setHost(res.host)
     } catch (err) {
@@ -55,15 +55,15 @@ export function VolumesTab() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [serverId])
 
   useEffect(() => {
     fetchVolumes()
-  }, [fetchVolumes])
+  }, [fetchVolumes, refreshSignal])
 
   const removeVolume = async (name: string) => {
     try {
-      await pb.send(`/api/ext/docker/volumes/${name}`, { method: "DELETE" })
+      await pb.send(`/api/ext/docker/volumes/${name}?server_id=${serverId}`, { method: "DELETE" })
       fetchVolumes()
     } catch (err) {
       console.error("Failed to remove volume:", err)
@@ -72,7 +72,7 @@ export function VolumesTab() {
 
   const pruneVolumes = async () => {
     try {
-      await pb.send("/api/ext/docker/volumes/prune", { method: "POST" })
+      await pb.send(`/api/ext/docker/volumes/prune?server_id=${serverId}`, { method: "POST" })
       fetchVolumes()
     } catch (err) {
       console.error("Failed to prune volumes:", err)
@@ -97,10 +97,7 @@ export function VolumesTab() {
         <Button variant="outline" size="sm" onClick={pruneVolumes}>
           <Eraser className="h-4 w-4 mr-1" /> Prune unused
         </Button>
-        <Button variant="outline" size="sm" onClick={fetchVolumes} disabled={loading}>
-          <RotateCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+
       </div>
       <Table>
         <TableHeader>

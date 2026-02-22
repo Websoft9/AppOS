@@ -13,7 +13,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuCheckboxItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -23,6 +22,7 @@ import {
   Loader2,
   TerminalSquare,
   Trash2,
+  RotateCw,
 } from "lucide-react"
 import { pb } from "@/lib/pb"
 import { ContainersTab } from "@/components/docker/ContainersTab"
@@ -47,17 +47,31 @@ interface CommandEntry {
   timestamp: number
 }
 
-// Available hosts (future: fetched from API)
-const HOSTS: HostEntry[] = [
-  { id: "local", label: "local", status: "online" },
-]
+
 
 // ─── DockerPage ──────────────────────────────────────────
 
 function DockerPage() {
-  // Server selection (for resource filtering)
-  const [selectedHosts, setSelectedHosts] = useState<string[]>(["local"])
-  const isAll = selectedHosts.length === HOSTS.length
+  // Hosts fetched from API
+  const [hosts, setHosts] = useState<HostEntry[]>([
+    { id: "local", label: "local", status: "online" },
+  ])
+
+  // Single active server
+  const [serverId, setServerId] = useState("local")
+  const activeHost = hosts.find((h) => h.id === serverId) ?? hosts[0]
+
+  // Fetch available servers on mount
+  useEffect(() => {
+    pb.send("/api/ext/docker/servers", { method: "GET" })
+      .then((res) => {
+        if (Array.isArray(res)) setHosts(res)
+      })
+      .catch(() => {})
+  }, [])
+
+  // Refresh signal for tabs
+  const [refreshSignal, setRefreshSignal] = useState(0)
 
   // Command dialog
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -82,16 +96,7 @@ function DockerPage() {
   }, [dialogOpen])
 
   const toggleHost = useCallback((hostId: string) => {
-    setSelectedHosts((prev) => {
-      if (prev.includes(hostId)) {
-        return prev.length > 1 ? prev.filter((h) => h !== hostId) : prev
-      }
-      return [...prev, hostId]
-    })
-  }, [])
-
-  const selectAll = useCallback(() => {
-    setSelectedHosts(HOSTS.map((h) => h.id))
+    setServerId(hostId)
   }, [])
 
   const runCommand = useCallback(async () => {
@@ -100,7 +105,7 @@ function DockerPage() {
 
     setRunning(true)
     try {
-      const res = await pb.send("/api/ext/docker/exec", {
+      const res = await pb.send(`/api/ext/docker/exec?server_id=${cmdHost}`, {
         method: "POST",
         body: { command: cmd },
       })
@@ -137,89 +142,96 @@ function DockerPage() {
       {/* ── Header ── */}
       <h1 className="text-2xl font-bold">Docker</h1>
 
-      {/* ── Top bar: Server selector + Run Command button ── */}
-      <div className="flex items-center gap-3">
-        {/* Server selector */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1.5">
-              <Server className="h-4 w-4" />
-              {isAll
-                ? "All servers"
-                : selectedHosts.length === 1
-                  ? selectedHosts[0]
-                  : `${selectedHosts.length} servers`}
-              <ChevronDown className="h-3.5 w-3.5 opacity-50" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuCheckboxItem
-              checked={isAll}
-              onCheckedChange={selectAll}
-            >
-              All
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuSeparator />
-            {HOSTS.map((h) => (
-              <DropdownMenuCheckboxItem
-                key={h.id}
-                checked={selectedHosts.includes(h.id)}
-                onCheckedChange={() => toggleHost(h.id)}
-              >
-                <span
-                  className={`mr-1.5 inline-block h-2 w-2 rounded-full ${
-                    h.status === "online" ? "bg-green-500" : "bg-gray-400"
-                  }`}
-                />
-                {h.label}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <div className="flex-1" />
-
-        {/* Run Command button */}
-        <Button
-          variant="default"
-          size="sm"
-          className="gap-1.5"
-          onClick={() => setDialogOpen(true)}
-        >
-          <TerminalSquare className="h-4 w-4" />
-          Run Command
-        </Button>
-      </div>
-
       {/* ── Resource tabs ── */}
       <Tabs defaultValue="containers">
-        <TabsList>
-          <TabsTrigger value="containers">Containers</TabsTrigger>
-          <TabsTrigger value="images">Images</TabsTrigger>
-          <TabsTrigger value="volumes">Volumes</TabsTrigger>
-          <TabsTrigger value="networks">Networks</TabsTrigger>
-          <TabsTrigger value="compose">Compose</TabsTrigger>
-        </TabsList>
+        {/* ── Toolbar: server selector | tabs | spacer | refresh | run command ── */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Server selector */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <Server className="h-4 w-4" />
+                <span
+                  className={`inline-block h-2 w-2 rounded-full ${
+                    activeHost?.status === "online" ? "bg-green-500" : "bg-gray-400"
+                  }`}
+                />
+                {activeHost?.label ?? serverId}
+                <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {hosts.map((h) => (
+                <DropdownMenuCheckboxItem
+                  key={h.id}
+                  checked={serverId === h.id}
+                  onCheckedChange={() => toggleHost(h.id)}
+                >
+                  <span
+                    className={`mr-1.5 inline-block h-2 w-2 rounded-full ${
+                      h.status === "online" ? "bg-green-500" : "bg-gray-400"
+                    }`}
+                  />
+                  {h.label}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Tab navigation labels */}
+          <TabsList>
+            <TabsTrigger value="containers">Containers</TabsTrigger>
+            <TabsTrigger value="images">Images</TabsTrigger>
+            <TabsTrigger value="volumes">Volumes</TabsTrigger>
+            <TabsTrigger value="networks">Networks</TabsTrigger>
+            <TabsTrigger value="compose">Compose</TabsTrigger>
+          </TabsList>
+
+          <div className="flex-1" />
+
+          {/* Refresh button */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setRefreshSignal((s) => s + 1)}
+          >
+            <RotateCw className="h-4 w-4" />
+            Refresh
+          </Button>
+
+          {/* Run Command button */}
+          <Button
+            variant="default"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setDialogOpen(true)}
+          >
+            <TerminalSquare className="h-4 w-4" />
+            Run Command
+          </Button>
+        </div>
+
         <TabsContent value="containers">
-          <ContainersTab />
+          <ContainersTab serverId={serverId} refreshSignal={refreshSignal} />
         </TabsContent>
         <TabsContent value="images">
-          <ImagesTab />
+          <ImagesTab serverId={serverId} refreshSignal={refreshSignal} />
         </TabsContent>
         <TabsContent value="volumes">
-          <VolumesTab />
+          <VolumesTab serverId={serverId} refreshSignal={refreshSignal} />
         </TabsContent>
         <TabsContent value="networks">
-          <NetworksTab />
+          <NetworksTab serverId={serverId} refreshSignal={refreshSignal} />
         </TabsContent>
         <TabsContent value="compose">
-          <ComposeTab />
+          <ComposeTab serverId={serverId} refreshSignal={refreshSignal} />
         </TabsContent>
       </Tabs>
 
       {/* ── Command Dialog ── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col gap-0 p-0">
+        <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col gap-0 p-0">
           <DialogHeader className="px-5 pt-5 pb-3">
             <DialogTitle className="flex items-center gap-2">
               <TerminalSquare className="h-5 w-5" />
@@ -235,7 +247,7 @@ function DockerPage() {
                 <Button variant="outline" size="sm" className="gap-1 shrink-0">
                   <span
                     className={`inline-block h-2 w-2 rounded-full ${
-                      HOSTS.find((h) => h.id === cmdHost)?.status === "online"
+                      hosts.find((h) => h.id === cmdHost)?.status === "online"
                         ? "bg-green-500"
                         : "bg-gray-400"
                     }`}
@@ -245,7 +257,7 @@ function DockerPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
-                {HOSTS.map((h) => (
+                {hosts.map((h) => (
                   <DropdownMenuCheckboxItem
                     key={h.id}
                     checked={cmdHost === h.id}

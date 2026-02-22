@@ -67,7 +67,7 @@ function statusVariant(status: string): "default" | "secondary" | "destructive" 
   return "secondary"
 }
 
-export function ComposeTab() {
+export function ComposeTab({ serverId, refreshSignal = 0 }: { serverId: string; refreshSignal?: number }) {
   const [projects, setProjects] = useState<ComposeProject[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState("")
@@ -91,7 +91,7 @@ export function ComposeTab() {
     try {
       setLoading(true)
       // docker compose ls --format json
-      const res = await pb.send("/api/ext/docker/compose/ls", { method: "GET" })
+      const res = await pb.send(`/api/ext/docker/compose/ls?server_id=${serverId}`, { method: "GET" })
       setProjects(parseProjects(res.output))
       if (res.host) setHost(res.host)
     } catch (err) {
@@ -99,11 +99,11 @@ export function ComposeTab() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [serverId])
 
   useEffect(() => {
     fetchProjects()
-  }, [fetchProjects])
+  }, [fetchProjects, refreshSignal])
 
   // ── Compose Actions ──
 
@@ -113,7 +113,7 @@ export function ComposeTab() {
     method: string = "POST",
   ) => {
     try {
-      await pb.send(`/api/ext/docker/compose/${action}`, {
+      await pb.send(`/api/ext/docker/compose/${action}?server_id=${serverId}`, {
         method,
         body: { projectDir },
       })
@@ -133,7 +133,7 @@ export function ComposeTab() {
     try {
       const res = await pb.send("/api/ext/docker/compose/logs", {
         method: "GET",
-        query: { projectDir, tail: "200" },
+        query: { projectDir, tail: "200", server_id: serverId },
       })
       setLogsContent(res.output || "No logs available")
     } catch (err) {
@@ -201,10 +201,7 @@ export function ComposeTab() {
           onChange={(e) => setFilter(e.target.value)}
         />
         <div className="flex-1" />
-        <Button variant="outline" size="sm" onClick={fetchProjects} disabled={loading}>
-          <RotateCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+
       </div>
 
       <Table>
@@ -260,12 +257,16 @@ export function ComposeTab() {
                       <DropdownMenuItem onClick={() => openLogs(dir)}>
                         <FileText className="h-4 w-4 mr-2" /> Logs
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => openConfig(dir)}>
+                      <DropdownMenuItem
+                        onClick={() => openConfig(dir)}
+                        disabled={serverId !== "local"}
+                        title={serverId !== "local" ? "Config editing is only available for local server" : undefined}
+                      >
                         <Settings2 className="h-4 w-4 mr-2" /> Config
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => {
-                          pb.send(`/api/ext/docker/compose/down`, {
+                          pb.send(`/api/ext/docker/compose/down?server_id=${serverId}`, {
                             method: "POST",
                             body: { projectDir: dir, removeVolumes: true },
                           }).then(fetchProjects).catch(console.error)

@@ -1,5 +1,5 @@
 .PHONY: help install tidy build run test lint fmt \
-	image start stop restart logs stats delete rm kill-port
+	image start stop restart logs stats delete rm kill-port redo
 
 # ============================================================
 # Default values
@@ -27,6 +27,7 @@ help:
 	@echo "  make build dashboard      Build React app → dashboard/dist"
 	@echo "  make run                  Copy artifacts + restart services (~10s)"
 	@echo "  make run 9092             Copy artifacts + restart on custom port"
+	@echo "  make redo                 Full rebuild: rm volumes + build + image + start dev"
 	@echo ""
 	@printf "\033[36mTesting & Quality:\033[0m\n"
 	@echo "  make test                 Run all tests (Go + JS)"
@@ -119,6 +120,14 @@ else
 	@echo "✓ Dashboard built → dashboard/dist/"
 	@echo "✓ All built"
 endif
+
+redo:
+	@echo "Full rebuild: removing container + volumes, then building and restarting..."
+	@$(COMPOSE_CMD) down -v 2>/dev/null || true
+	@echo "✓ Container and volumes removed"
+	@$(MAKE) build
+	@$(MAKE) image build-local
+	@$(MAKE) start dev
 
 run:
 	@echo "Hot reload: building + copying artifacts..."

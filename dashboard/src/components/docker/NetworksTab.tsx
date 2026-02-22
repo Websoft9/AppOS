@@ -15,7 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Trash2, MoreVertical, RotateCw, Plus } from "lucide-react"
+import { Trash2, MoreVertical, Plus } from "lucide-react"
 
 interface Network {
   ID: string
@@ -39,7 +39,7 @@ function parseNetworks(output: string): Network[] {
     .filter(Boolean) as Network[]
 }
 
-export function NetworksTab() {
+export function NetworksTab({ serverId, refreshSignal = 0 }: { serverId: string; refreshSignal?: number }) {
   const [networks, setNetworks] = useState<Network[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState("")
@@ -49,7 +49,7 @@ export function NetworksTab() {
   const fetchNetworks = useCallback(async () => {
     try {
       setLoading(true)
-      const res = await pb.send("/api/ext/docker/networks", { method: "GET" })
+      const res = await pb.send(`/api/ext/docker/networks?server_id=${serverId}`, { method: "GET" })
       setNetworks(parseNetworks(res.output))
       if (res.host) setHost(res.host)
     } catch (err) {
@@ -57,15 +57,15 @@ export function NetworksTab() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [serverId])
 
   useEffect(() => {
     fetchNetworks()
-  }, [fetchNetworks])
+  }, [fetchNetworks, refreshSignal])
 
   const removeNetwork = async (id: string) => {
     try {
-      await pb.send(`/api/ext/docker/networks/${id}`, { method: "DELETE" })
+      await pb.send(`/api/ext/docker/networks/${id}?server_id=${serverId}`, { method: "DELETE" })
       fetchNetworks()
     } catch (err) {
       console.error("Failed to remove network:", err)
@@ -75,7 +75,7 @@ export function NetworksTab() {
   const createNetwork = async () => {
     if (!newName.trim()) return
     try {
-      await pb.send("/api/ext/docker/networks", {
+      await pb.send(`/api/ext/docker/networks?server_id=${serverId}`, {
         method: "POST",
         body: { name: newName.trim() },
       })
@@ -112,10 +112,7 @@ export function NetworksTab() {
         <Button variant="outline" size="sm" onClick={createNetwork}>
           <Plus className="h-4 w-4 mr-1" /> Create
         </Button>
-        <Button variant="outline" size="sm" onClick={fetchNetworks} disabled={loading}>
-          <RotateCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+
       </div>
       <Table>
         <TableHeader>

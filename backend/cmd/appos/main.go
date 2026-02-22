@@ -7,6 +7,9 @@ import (
 	"github.com/websoft9/appos/backend/internal/routes"
 	"github.com/websoft9/appos/backend/internal/worker"
 
+	// Register custom PocketBase migrations (Epic 8: Resource Store)
+	_ "github.com/websoft9/appos/backend/internal/migrations"
+
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 )

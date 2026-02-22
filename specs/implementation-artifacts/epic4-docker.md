@@ -102,8 +102,9 @@ All routes under `/api/ext/docker/`. All list responses include `host` field ide
 
 ### 4.3: Frontend — Docker Resource Dashboard ✅
 - Tabbed page: Containers | Images | Volumes | Networks | Compose
-- Server selector (multi-select for filtering) + Run Command button in top bar
-- Command execution via dialog popup (lg tier, server picker + terminal output)
+- Single toolbar row: server selector → TabsList → Refresh → Run Command button
+- Refresh triggers `refreshSignal` prop increment; each tab re-fetches on change
+- Run Command dialog (`sm:max-w-3xl`, 768px) with server picker + terminal output history
 - List views with host column for each resource type
 - Action buttons: start/stop/restart/remove/prune per resource
 - Compose: logs viewer (full tier dialog) + config editor
@@ -137,10 +138,10 @@ All routes under `/api/ext/docker/`. All list responses include `host` field ide
 - [x] Image delete uses `/{id...}` wildcard for `sha256:` prefix
 
 ### Story 4.3 ✅
-- [x] 5-tab resource dashboard with server selector + command dialog
+- [x] 5-tab resource dashboard — server selector, TabsList, Refresh, Run Command all in one toolbar row
 - [x] Actions (start/stop/remove/prune) trigger API calls
 - [x] Compose logs in full-tier dialog, config editor saves via API
-- [x] Run Command dialog (lg tier) with server picker + terminal output
+- [x] Run Command dialog (`sm:max-w-3xl`) with server picker + terminal output history
 
 ### Story 4.4
 - [ ] RemoteExecutor connects via SSH key auth

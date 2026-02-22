@@ -1,11 +1,13 @@
 // Package routes registers all custom API routes for AppOS.
 //
 // Route groups:
-//   - /api/ext/docker   — Docker operations (compose, images, containers, networks, volumes)
-//   - /api/ext/proxy    — reverse proxy domain/SSL management
-//   - /api/ext/system   — system metrics, terminal, file browser
-//   - /api/ext/services — supervisord service management (Epic 6)
-//   - /api/ext/backup   — backup/restore operations
+//   - /api/ext/docker     — Docker operations (compose, images, containers, networks, volumes)
+//   - /api/ext/proxy      — reverse proxy domain/SSL management
+//   - /api/ext/system     — system metrics, terminal, file browser
+//   - /api/ext/services   — supervisord service management (Epic 6)
+//   - /api/ext/backup     — backup/restore operations
+//   - /api/ext/resources  — Resource Store CRUD (Epic 8)
+//   - /api/ext/files      — User file space (Epic 9)
 package routes
 
 import (
@@ -21,6 +23,9 @@ func Register(se *core.ServeEvent) {
 	// Auth helper routes (unauthenticated — email existence check, etc.)
 	registerAuthRoutes(se)
 
+	// Public file share routes (unauthenticated — share token validation and download)
+	registerFilePublicRoutes(se)
+
 	// All other custom routes require authentication
 	g := se.Router.Group("/api/ext")
 	g.Bind(apis.RequireAuth())
@@ -30,4 +35,6 @@ func Register(se *core.ServeEvent) {
 	registerSystemRoutes(g)
 	registerServiceRoutes(g)
 	registerBackupRoutes(g)
+	registerResourceRoutes(g)
+	registerFileRoutes(g)
 }

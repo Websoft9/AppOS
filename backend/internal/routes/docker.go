@@ -4,18 +4,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
+	"github.com/websoft9/appos/backend/internal/crypto"
 	"github.com/websoft9/appos/backend/internal/docker"
 )
 
-// dockerClient is the shared Docker client used by all docker route handlers.
-var dockerClient *docker.Client
+// localDockerClient is the Docker client for the local host, shared across all local requests.
+var localDockerClient *docker.Client
 
 func init() {
 	exec := docker.NewLocalExecutor("")
-	dockerClient = docker.New(exec)
+	localDockerClient = docker.New(exec)
 }
 
 // registerDockerRoutes registers all Docker operation routes.
@@ -29,6 +31,9 @@ func init() {
 //	/api/ext/docker/volumes/*     — volume management
 func registerDockerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	d := g.Group("/docker")
+
+	// ─── Servers list ───────────────────────────────────
+	d.GET("/servers", handleDockerServers)
 
 	// ─── Compose ─────────────────────────────────────────
 	compose := d.Group("/compose")
@@ -73,7 +78,124 @@ func registerDockerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	// ─── Exec (arbitrary docker command) ─────────────────
 	d.POST("/exec", handleDockerExec)
 }
+// ─── Server-aware executor helper ────────────────────────────────
 
+// getDockerClient returns a Docker client for the server_id in the request query.
+// Falls back to localDockerClient when server_id is absent or "local".
+func getDockerClient(e *core.RequestEvent) (*docker.Client, error) {
+	serverID := e.Request.URL.Query().Get("server_id")
+	if serverID == "" || serverID == "local" {
+		return localDockerClient, nil
+	}
+
+	// Fetch server record
+	serverRec, err := e.App.FindRecordById("servers", serverID)
+	if err != nil {
+		return nil, fmt.Errorf("server %s not found: %w", serverID, err)
+	}
+
+	host := serverRec.GetString("host")
+	port := serverRec.GetInt("port")
+	user := serverRec.GetString("user")
+	authType := serverRec.GetString("auth_type")
+	credentialID := serverRec.GetString("credential")
+
+	if port == 0 {
+		port = 22
+	}
+
+	// Fetch and decrypt the secret credential
+	var secretValue string
+	if credentialID != "" {
+		secretRec, err := e.App.FindRecordById("secrets", credentialID)
+		if err != nil {
+			return nil, fmt.Errorf("credential not found: %w", err)
+		}
+		encrypted := secretRec.GetString("value")
+		if encrypted != "" {
+			secretValue, err = crypto.Decrypt(encrypted)
+			if err != nil {
+				return nil, fmt.Errorf("decrypt credential: %w", err)
+			}
+		}
+	}
+
+	exec := docker.NewSSHExecutor(docker.SSHConfig{
+		Host:     host,
+		Port:     port,
+		User:     user,
+		AuthType: authType,
+		Secret:   secretValue,
+	})
+	return docker.New(exec), nil
+}
+
+// handleDockerServers returns all available servers (local + resource store servers)
+// with their online/offline ping status. Pings are done concurrently.
+func handleDockerServers(e *core.RequestEvent) error {
+	type serverEntry struct {
+		ID     string `json:"id"`
+		Label  string `json:"label"`
+		Host   string `json:"host"`
+		Status string `json:"status"`
+	}
+
+	result := []serverEntry{{
+		ID:     "local",
+		Label:  "local",
+		Host:   "local",
+		Status: "online",
+	}}
+
+	servers, err := e.App.FindAllRecords("servers")
+	if err != nil || len(servers) == 0 {
+		return e.JSON(http.StatusOK, result)
+	}
+
+	entries := make([]serverEntry, len(servers))
+	var wg sync.WaitGroup
+	for i, s := range servers {
+		wg.Add(1)
+		s := s // capture loop variable
+		go func(idx int) {
+			defer wg.Done()
+			status := "offline"
+			host := s.GetString("host")
+			port := s.GetInt("port")
+			if port == 0 {
+				port = 22
+			}
+			user := s.GetString("user")
+			authType := s.GetString("auth_type")
+			var secretValue string
+			if credID := s.GetString("credential"); credID != "" {
+				if secRec, err2 := e.App.FindRecordById("secrets", credID); err2 == nil {
+					if enc := secRec.GetString("value"); enc != "" {
+						if dec, err3 := crypto.Decrypt(enc); err3 == nil {
+							secretValue = dec
+						}
+					}
+				}
+			}
+			execSSH := docker.NewSSHExecutor(docker.SSHConfig{
+				Host: host, Port: port, User: user, AuthType: authType, Secret: secretValue,
+			})
+			if pingErr := execSSH.Ping(e.Request.Context()); pingErr == nil {
+				status = "online"
+			}
+			entries[idx] = serverEntry{
+				ID:     s.Id,
+				Label:  s.GetString("name"),
+				Host:   host,
+				Status: status,
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	result = append(result, entries...)
+	return e.JSON(http.StatusOK, result)
+}
 // ─── Helper ──────────────────────────────────────────────
 
 // dockerError returns a PocketBase-style error response.
@@ -113,14 +235,22 @@ func bodyBool(body map[string]any, key string) bool {
 // ─── Compose Handlers ────────────────────────────────────
 
 func handleComposeLs(e *core.RequestEvent) error {
-	output, err := dockerClient.ComposeLs(e.Request.Context())
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
+	output, err := client.ComposeLs(e.Request.Context())
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "list compose projects failed", err)
 	}
-	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": dockerClient.Host()})
+	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": client.Host()})
 }
 
 func handleComposeUp(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
 	body, err := readBody(e)
 	if err != nil {
 		return dockerError(e, http.StatusBadRequest, "invalid request body", err)
@@ -129,7 +259,7 @@ func handleComposeUp(e *core.RequestEvent) error {
 	if projectDir == "" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "projectDir is required"})
 	}
-	output, err := dockerClient.ComposeUp(e.Request.Context(), projectDir)
+	output, err := client.ComposeUp(e.Request.Context(), projectDir)
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "compose up failed", err)
 	}
@@ -137,6 +267,10 @@ func handleComposeUp(e *core.RequestEvent) error {
 }
 
 func handleComposeDown(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
 	body, err := readBody(e)
 	if err != nil {
 		return dockerError(e, http.StatusBadRequest, "invalid request body", err)
@@ -146,7 +280,7 @@ func handleComposeDown(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "projectDir is required"})
 	}
 	removeVolumes := bodyBool(body, "removeVolumes")
-	output, err := dockerClient.ComposeDown(e.Request.Context(), projectDir, removeVolumes)
+	output, err := client.ComposeDown(e.Request.Context(), projectDir, removeVolumes)
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "compose down failed", err)
 	}
@@ -154,6 +288,10 @@ func handleComposeDown(e *core.RequestEvent) error {
 }
 
 func handleComposeStart(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
 	body, err := readBody(e)
 	if err != nil {
 		return dockerError(e, http.StatusBadRequest, "invalid request body", err)
@@ -162,7 +300,7 @@ func handleComposeStart(e *core.RequestEvent) error {
 	if projectDir == "" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "projectDir is required"})
 	}
-	output, err := dockerClient.ComposeStart(e.Request.Context(), projectDir)
+	output, err := client.ComposeStart(e.Request.Context(), projectDir)
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "compose start failed", err)
 	}
@@ -170,6 +308,10 @@ func handleComposeStart(e *core.RequestEvent) error {
 }
 
 func handleComposeStop(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
 	body, err := readBody(e)
 	if err != nil {
 		return dockerError(e, http.StatusBadRequest, "invalid request body", err)
@@ -178,7 +320,7 @@ func handleComposeStop(e *core.RequestEvent) error {
 	if projectDir == "" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "projectDir is required"})
 	}
-	output, err := dockerClient.ComposeStop(e.Request.Context(), projectDir)
+	output, err := client.ComposeStop(e.Request.Context(), projectDir)
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "compose stop failed", err)
 	}
@@ -186,6 +328,10 @@ func handleComposeStop(e *core.RequestEvent) error {
 }
 
 func handleComposeRestart(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
 	body, err := readBody(e)
 	if err != nil {
 		return dockerError(e, http.StatusBadRequest, "invalid request body", err)
@@ -194,7 +340,7 @@ func handleComposeRestart(e *core.RequestEvent) error {
 	if projectDir == "" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "projectDir is required"})
 	}
-	output, err := dockerClient.ComposeRestart(e.Request.Context(), projectDir)
+	output, err := client.ComposeRestart(e.Request.Context(), projectDir)
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "compose restart failed", err)
 	}
@@ -202,6 +348,10 @@ func handleComposeRestart(e *core.RequestEvent) error {
 }
 
 func handleComposeLogs(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
 	projectDir := e.Request.URL.Query().Get("projectDir")
 	if projectDir == "" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "projectDir is required"})
@@ -210,7 +360,7 @@ func handleComposeLogs(e *core.RequestEvent) error {
 	if t := e.Request.URL.Query().Get("tail"); t != "" {
 		fmt.Sscanf(t, "%d", &tail)
 	}
-	output, err := dockerClient.ComposeLogs(e.Request.Context(), projectDir, tail)
+	output, err := client.ComposeLogs(e.Request.Context(), projectDir, tail)
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "compose logs failed", err)
 	}
@@ -222,7 +372,7 @@ func handleComposeConfigGet(e *core.RequestEvent) error {
 	if projectDir == "" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "projectDir is required"})
 	}
-	content, err := dockerClient.ComposeConfigRead(projectDir)
+	content, err := localDockerClient.ComposeConfigRead(projectDir)
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "read config failed", err)
 	}
@@ -239,7 +389,7 @@ func handleComposeConfigWrite(e *core.RequestEvent) error {
 	if projectDir == "" || content == "" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "projectDir and content are required"})
 	}
-	if err := dockerClient.ComposeConfigWrite(projectDir, content); err != nil {
+	if err := localDockerClient.ComposeConfigWrite(projectDir, content); err != nil {
 		return dockerError(e, http.StatusInternalServerError, "write config failed", err)
 	}
 	return e.JSON(http.StatusOK, map[string]any{"message": "saved"})
@@ -248,14 +398,22 @@ func handleComposeConfigWrite(e *core.RequestEvent) error {
 // ─── Image Handlers ──────────────────────────────────────
 
 func handleImageList(e *core.RequestEvent) error {
-	output, err := dockerClient.ImageList(e.Request.Context())
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
+	output, err := client.ImageList(e.Request.Context())
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "list images failed", err)
 	}
-	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": dockerClient.Host()})
+	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": client.Host()})
 }
 
 func handleImagePull(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
 	body, err := readBody(e)
 	if err != nil {
 		return dockerError(e, http.StatusBadRequest, "invalid request body", err)
@@ -264,7 +422,7 @@ func handleImagePull(e *core.RequestEvent) error {
 	if name == "" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "name is required"})
 	}
-	output, err := dockerClient.ImagePull(e.Request.Context(), name)
+	output, err := client.ImagePull(e.Request.Context(), name)
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "pull image failed", err)
 	}
@@ -272,11 +430,15 @@ func handleImagePull(e *core.RequestEvent) error {
 }
 
 func handleImageRemove(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
 	id := e.Request.PathValue("id")
 	if id == "" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "id is required"})
 	}
-	output, err := dockerClient.ImageRemove(e.Request.Context(), id)
+	output, err := client.ImageRemove(e.Request.Context(), id)
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "remove image failed", err)
 	}
@@ -284,7 +446,11 @@ func handleImageRemove(e *core.RequestEvent) error {
 }
 
 func handleImagePrune(e *core.RequestEvent) error {
-	output, err := dockerClient.ImagePrune(e.Request.Context())
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
+	output, err := client.ImagePrune(e.Request.Context())
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "prune images failed", err)
 	}
@@ -294,16 +460,24 @@ func handleImagePrune(e *core.RequestEvent) error {
 // ─── Container Handlers ──────────────────────────────────
 
 func handleContainerList(e *core.RequestEvent) error {
-	output, err := dockerClient.ContainerList(e.Request.Context())
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
+	output, err := client.ContainerList(e.Request.Context())
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "list containers failed", err)
 	}
-	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": dockerClient.Host()})
+	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": client.Host()})
 }
 
 func handleContainerInspect(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
 	id := e.Request.PathValue("id")
-	output, err := dockerClient.ContainerInspect(e.Request.Context(), id)
+	output, err := client.ContainerInspect(e.Request.Context(), id)
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "inspect container failed", err)
 	}
@@ -311,8 +485,12 @@ func handleContainerInspect(e *core.RequestEvent) error {
 }
 
 func handleContainerStart(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
 	id := e.Request.PathValue("id")
-	output, err := dockerClient.ContainerStart(e.Request.Context(), id)
+	output, err := client.ContainerStart(e.Request.Context(), id)
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "start container failed", err)
 	}
@@ -320,8 +498,12 @@ func handleContainerStart(e *core.RequestEvent) error {
 }
 
 func handleContainerStop(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
 	id := e.Request.PathValue("id")
-	output, err := dockerClient.ContainerStop(e.Request.Context(), id)
+	output, err := client.ContainerStop(e.Request.Context(), id)
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "stop container failed", err)
 	}
@@ -329,8 +511,12 @@ func handleContainerStop(e *core.RequestEvent) error {
 }
 
 func handleContainerRestart(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
 	id := e.Request.PathValue("id")
-	output, err := dockerClient.ContainerRestart(e.Request.Context(), id)
+	output, err := client.ContainerRestart(e.Request.Context(), id)
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "restart container failed", err)
 	}
@@ -338,8 +524,12 @@ func handleContainerRestart(e *core.RequestEvent) error {
 }
 
 func handleContainerRemove(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
 	id := e.Request.PathValue("id")
-	output, err := dockerClient.ContainerRemove(e.Request.Context(), id)
+	output, err := client.ContainerRemove(e.Request.Context(), id)
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "remove container failed", err)
 	}
@@ -349,14 +539,22 @@ func handleContainerRemove(e *core.RequestEvent) error {
 // ─── Network Handlers ────────────────────────────────────
 
 func handleNetworkList(e *core.RequestEvent) error {
-	output, err := dockerClient.NetworkList(e.Request.Context())
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
+	output, err := client.NetworkList(e.Request.Context())
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "list networks failed", err)
 	}
-	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": dockerClient.Host()})
+	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": client.Host()})
 }
 
 func handleNetworkCreate(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
 	body, err := readBody(e)
 	if err != nil {
 		return dockerError(e, http.StatusBadRequest, "invalid request body", err)
@@ -365,7 +563,7 @@ func handleNetworkCreate(e *core.RequestEvent) error {
 	if name == "" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "name is required"})
 	}
-	output, err := dockerClient.NetworkCreate(e.Request.Context(), name)
+	output, err := client.NetworkCreate(e.Request.Context(), name)
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "create network failed", err)
 	}
@@ -373,8 +571,12 @@ func handleNetworkCreate(e *core.RequestEvent) error {
 }
 
 func handleNetworkRemove(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
 	id := e.Request.PathValue("id")
-	output, err := dockerClient.NetworkRemove(e.Request.Context(), id)
+	output, err := client.NetworkRemove(e.Request.Context(), id)
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "remove network failed", err)
 	}
@@ -384,16 +586,24 @@ func handleNetworkRemove(e *core.RequestEvent) error {
 // ─── Volume Handlers ─────────────────────────────────────
 
 func handleVolumeList(e *core.RequestEvent) error {
-	output, err := dockerClient.VolumeList(e.Request.Context())
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
+	output, err := client.VolumeList(e.Request.Context())
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "list volumes failed", err)
 	}
-	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": dockerClient.Host()})
+	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": client.Host()})
 }
 
 func handleVolumeRemove(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
 	id := e.Request.PathValue("id")
-	output, err := dockerClient.VolumeRemove(e.Request.Context(), id)
+	output, err := client.VolumeRemove(e.Request.Context(), id)
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "remove volume failed", err)
 	}
@@ -401,7 +611,11 @@ func handleVolumeRemove(e *core.RequestEvent) error {
 }
 
 func handleVolumePrune(e *core.RequestEvent) error {
-	output, err := dockerClient.VolumePrune(e.Request.Context())
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
+	output, err := client.VolumePrune(e.Request.Context())
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "prune volumes failed", err)
 	}
@@ -411,6 +625,10 @@ func handleVolumePrune(e *core.RequestEvent) error {
 // ─── Exec Handler ────────────────────────────────────────
 
 func handleDockerExec(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
 	body, err := readBody(e)
 	if err != nil {
 		return dockerError(e, http.StatusBadRequest, "invalid request body", err)
@@ -420,11 +638,11 @@ func handleDockerExec(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "command is required"})
 	}
 	args := parseCommand(command)
-	output, err := dockerClient.Exec(e.Request.Context(), args...)
+	output, err := client.Exec(e.Request.Context(), args...)
 	if err != nil {
-		return e.JSON(http.StatusOK, map[string]any{"output": "", "error": err.Error(), "host": dockerClient.Host()})
+		return e.JSON(http.StatusOK, map[string]any{"output": "", "error": err.Error(), "host": client.Host()})
 	}
-	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": dockerClient.Host()})
+	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": client.Host()})
 }
 
 // parseCommand splits a command string into args, handling basic quoting.
