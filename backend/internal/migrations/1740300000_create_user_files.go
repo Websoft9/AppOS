@@ -46,7 +46,7 @@ func init() {
 		// Actual file stored in PocketBase storage.
 		// MaxSize is set to the hard upper limit (100 MB); the configurable
 		// soft limit is enforced at the ext handler / hook layer.
-		// TODO (Story 9.5): read MaxSize from settings API (Epic 2).
+		// TODO (Story 13.2): read MaxSize from settings API (Epic 13).
 		col.Fields.Add(&core.FileField{
 			Name:      "content",
 			MaxSelect: 1,

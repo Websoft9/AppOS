@@ -344,3 +344,190 @@ func TestEnvGroupsCreateWithVars(t *testing.T) {
 		t.Fatalf("expected 2 vars, got %d", len(vars))
 	}
 }
+
+// ═══════════════════════════════════════════════════════════
+// Resource Groups
+// ═══════════════════════════════════════════════════════════
+
+func TestResourceGroupsListAndCreate(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	// Create a group
+	rec := te.do(t, http.MethodPost, "/api/ext/resources/groups",
+		`{"name":"production","description":"Production resources"}`, true)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	created := parseJSON(t, rec)
+	if created["name"] != "production" {
+		t.Errorf("expected name 'production', got %v", created["name"])
+	}
+
+	// List groups (includes the seeded 'default' group + the one we created)
+	rec = te.do(t, http.MethodGet, "/api/ext/resources/groups", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	list := parseJSONArray(t, rec)
+	if len(list) < 2 {
+		t.Fatalf("expected at least 2 groups (default + production), got %d", len(list))
+	}
+
+	// Each item should have a resource_count field
+	for _, item := range list {
+		if _, ok := item["resource_count"]; !ok {
+			t.Error("expected 'resource_count' field in group list response")
+		}
+	}
+}
+
+func TestResourceGroupsGetAndUpdate(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	// Create
+	rec := te.do(t, http.MethodPost, "/api/ext/resources/groups",
+		`{"name":"staging","description":"Staging env"}`, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	created := parseJSON(t, rec)
+	id := created["id"].(string)
+
+	// Get
+	rec = te.do(t, http.MethodGet, "/api/ext/resources/groups/"+id, "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	got := parseJSON(t, rec)
+	if got["description"] != "Staging env" {
+		t.Errorf("expected description 'Staging env', got %v", got["description"])
+	}
+
+	// Update
+	rec = te.do(t, http.MethodPut, "/api/ext/resources/groups/"+id,
+		`{"name":"staging-updated","description":"Updated staging"}`, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("update: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	updated := parseJSON(t, rec)
+	if updated["name"] != "staging-updated" {
+		t.Errorf("expected name 'staging-updated', got %v", updated["name"])
+	}
+}
+
+func TestResourceGroupsDeleteBlockedForDefault(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	// List to find the default group
+	rec := te.do(t, http.MethodGet, "/api/ext/resources/groups", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	list := parseJSONArray(t, rec)
+	var defaultId string
+	for _, g := range list {
+		if g["is_default"] == true {
+			defaultId = g["id"].(string)
+			break
+		}
+	}
+	if defaultId == "" {
+		t.Fatal("no default group found")
+	}
+
+	// Attempt to delete default group — should fail
+	rec = te.do(t, http.MethodDelete, "/api/ext/resources/groups/"+defaultId, "", true)
+	if rec.Code == http.StatusNoContent {
+		t.Fatal("expected delete of default group to be blocked (non-204)")
+	}
+}
+
+func TestResourceGroupsCrossTypeListAndBatch(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	// Create a custom group
+	rec := te.do(t, http.MethodPost, "/api/ext/resources/groups",
+		`{"name":"infra","description":"Infrastructure group"}`, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create group: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	group := parseJSON(t, rec)
+	groupId := group["id"].(string)
+
+	// Create a server
+	rec = te.do(t, http.MethodPost, "/api/ext/resources/servers",
+		`{"name":"infra-server","host":"10.0.0.1","port":22,"user":"root","auth_type":"password"}`, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create server: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	server := parseJSON(t, rec)
+	serverId := server["id"].(string)
+
+	// Batch add server to the infra group
+	batchBody := `{"action":"add","items":[{"type":"servers","id":"` + serverId + `"}]}`
+	rec = te.do(t, http.MethodPost, "/api/ext/resources/groups/"+groupId+"/resources/batch", batchBody, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("batch add: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// Cross-type list should include the server
+	rec = te.do(t, http.MethodGet, "/api/ext/resources/groups/"+groupId+"/resources", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("cross-type list: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	resources := parseJSONArray(t, rec)
+	if len(resources) != 1 {
+		t.Fatalf("expected 1 resource in group, got %d", len(resources))
+	}
+	if resources[0]["type"] != "servers" {
+		t.Errorf("expected type 'servers', got %v", resources[0]["type"])
+	}
+	if resources[0]["name"] != "infra-server" {
+		t.Errorf("expected name 'infra-server', got %v", resources[0]["name"])
+	}
+
+	// Batch remove server from the infra group
+	batchBody = `{"action":"remove","items":[{"type":"servers","id":"` + serverId + `"}]}`
+	rec = te.do(t, http.MethodPost, "/api/ext/resources/groups/"+groupId+"/resources/batch", batchBody, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("batch remove: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// Cross-type list should now be empty
+	rec = te.do(t, http.MethodGet, "/api/ext/resources/groups/"+groupId+"/resources", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("cross-type list after remove: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	resources = parseJSONArray(t, rec)
+	if len(resources) != 0 {
+		t.Fatalf("expected 0 resources after remove, got %d", len(resources))
+	}
+}
+
+func TestResourceGroupDeleteNonDefault(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	// Create a non-default group
+	rec := te.do(t, http.MethodPost, "/api/ext/resources/groups",
+		`{"name":"temp-group","description":"Temporary"}`, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	created := parseJSON(t, rec)
+	id := created["id"].(string)
+
+	// Delete should succeed
+	rec = te.do(t, http.MethodDelete, "/api/ext/resources/groups/"+id, "", true)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("delete: expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+}

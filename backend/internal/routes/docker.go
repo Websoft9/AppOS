@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"sync"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
+	"github.com/websoft9/appos/backend/internal/audit"
 	"github.com/websoft9/appos/backend/internal/crypto"
 	"github.com/websoft9/appos/backend/internal/docker"
 )
@@ -17,6 +19,11 @@ var localDockerClient *docker.Client
 
 func init() {
 	exec := docker.NewLocalExecutor("")
+	if os.Getuid() != 0 {
+		// Running as non-root: wrap docker commands with passwordless sudo.
+		// The system must have NOPASSWD configured for docker in sudoers.
+		exec.SudoEnabled = true
+	}
 	localDockerClient = docker.New(exec)
 }
 
@@ -120,12 +127,22 @@ func getDockerClient(e *core.RequestEvent) (*docker.Client, error) {
 		}
 	}
 
+	// When the remote user is not root, escalate via sudo.
+	// For password-based auth, the same credential is used as the sudo password.
+	sudoEnabled := user != "root"
+	sudoPassword := ""
+	if sudoEnabled && (authType == "password" || authType == "username_password") {
+		sudoPassword = secretValue
+	}
+
 	exec := docker.NewSSHExecutor(docker.SSHConfig{
-		Host:     host,
-		Port:     port,
-		User:     user,
-		AuthType: authType,
-		Secret:   secretValue,
+		Host:         host,
+		Port:         port,
+		User:         user,
+		AuthType:     authType,
+		Secret:       secretValue,
+		SudoEnabled:  sudoEnabled,
+		SudoPassword: sudoPassword,
 	})
 	return docker.New(exec), nil
 }
@@ -177,8 +194,19 @@ func handleDockerServers(e *core.RequestEvent) error {
 					}
 				}
 			}
+			srvSudoEnabled := user != "root"
+			srvSudoPassword := ""
+			if srvSudoEnabled && (authType == "password" || authType == "username_password") {
+				srvSudoPassword = secretValue
+			}
 			execSSH := docker.NewSSHExecutor(docker.SSHConfig{
-				Host: host, Port: port, User: user, AuthType: authType, Secret: secretValue,
+				Host:         host,
+				Port:         port,
+				User:         user,
+				AuthType:     authType,
+				Secret:       secretValue,
+				SudoEnabled:  srvSudoEnabled,
+				SudoPassword: srvSudoPassword,
 			})
 			if pingErr := execSSH.Ping(e.Request.Context()); pingErr == nil {
 				status = "online"
@@ -205,6 +233,29 @@ func dockerError(e *core.RequestEvent, status int, msg string, err error) error 
 		"message": msg,
 		"data":    map[string]any{"error": err.Error()},
 	})
+}
+
+// authInfo extracts user ID and email from the request's authenticated record.
+// Returns empty strings when the request is unauthenticated.
+func authInfo(e *core.RequestEvent) (userID, userEmail string) {
+	if e.Auth != nil {
+		userID = e.Auth.Id
+		userEmail = e.Auth.GetString("email")
+	}
+	return
+}
+
+// clientInfo extracts user ID, email, source IP, and User-Agent from the request.
+// IP is resolved via PocketBase's trusted-proxy-aware RealIP().
+// Returns empty strings for unauthenticated or missing values.
+func clientInfo(e *core.RequestEvent) (userID, userEmail, ip, userAgent string) {
+	if e.Auth != nil {
+		userID = e.Auth.Id
+		userEmail = e.Auth.GetString("email")
+	}
+	ip = e.RealIP()
+	userAgent = e.Request.Header.Get("User-Agent")
+	return
 }
 
 // readBody parses JSON request body into a map.
@@ -259,10 +310,26 @@ func handleComposeUp(e *core.RequestEvent) error {
 	if projectDir == "" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "projectDir is required"})
 	}
+	userID, userEmail, ip, ua := clientInfo(e)
 	output, err := client.ComposeUp(e.Request.Context(), projectDir)
 	if err != nil {
+		audit.Write(e.App, audit.Entry{
+			UserID: userID, UserEmail: userEmail,
+			Action: "app.deploy", ResourceType: "app",
+			ResourceID: projectDir, ResourceName: projectDir,
+			IP: ip, UserAgent: ua,
+			Status: audit.StatusFailed,
+			Detail: map[string]any{"errorMessage": err.Error()},
+		})
 		return dockerError(e, http.StatusInternalServerError, "compose up failed", err)
 	}
+	audit.Write(e.App, audit.Entry{
+		UserID: userID, UserEmail: userEmail,
+		Action: "app.deploy", ResourceType: "app",
+		ResourceID: projectDir, ResourceName: projectDir,
+		IP: ip, UserAgent: ua,
+		Status: audit.StatusSuccess,
+	})
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
@@ -279,11 +346,27 @@ func handleComposeDown(e *core.RequestEvent) error {
 	if projectDir == "" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "projectDir is required"})
 	}
+	userID, userEmail, ip, ua := clientInfo(e)
 	removeVolumes := bodyBool(body, "removeVolumes")
 	output, err := client.ComposeDown(e.Request.Context(), projectDir, removeVolumes)
 	if err != nil {
+		audit.Write(e.App, audit.Entry{
+			UserID: userID, UserEmail: userEmail,
+			Action: "app.delete", ResourceType: "app",
+			ResourceID: projectDir, ResourceName: projectDir,
+			IP: ip, UserAgent: ua,
+			Status: audit.StatusFailed,
+			Detail: map[string]any{"errorMessage": err.Error()},
+		})
 		return dockerError(e, http.StatusInternalServerError, "compose down failed", err)
 	}
+	audit.Write(e.App, audit.Entry{
+		UserID: userID, UserEmail: userEmail,
+		Action: "app.delete", ResourceType: "app",
+		ResourceID: projectDir, ResourceName: projectDir,
+		IP: ip, UserAgent: ua,
+		Status: audit.StatusSuccess,
+	})
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
@@ -300,10 +383,26 @@ func handleComposeStart(e *core.RequestEvent) error {
 	if projectDir == "" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "projectDir is required"})
 	}
+	userID, userEmail, ip, ua := clientInfo(e)
 	output, err := client.ComposeStart(e.Request.Context(), projectDir)
 	if err != nil {
+		audit.Write(e.App, audit.Entry{
+			UserID: userID, UserEmail: userEmail,
+			Action: "app.start", ResourceType: "app",
+			ResourceID: projectDir, ResourceName: projectDir,
+			IP: ip, UserAgent: ua,
+			Status: audit.StatusFailed,
+			Detail: map[string]any{"errorMessage": err.Error()},
+		})
 		return dockerError(e, http.StatusInternalServerError, "compose start failed", err)
 	}
+	audit.Write(e.App, audit.Entry{
+		UserID: userID, UserEmail: userEmail,
+		Action: "app.start", ResourceType: "app",
+		ResourceID: projectDir, ResourceName: projectDir,
+		IP: ip, UserAgent: ua,
+		Status: audit.StatusSuccess,
+	})
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
@@ -320,10 +419,26 @@ func handleComposeStop(e *core.RequestEvent) error {
 	if projectDir == "" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "projectDir is required"})
 	}
+	userID, userEmail, ip, ua := clientInfo(e)
 	output, err := client.ComposeStop(e.Request.Context(), projectDir)
 	if err != nil {
+		audit.Write(e.App, audit.Entry{
+			UserID: userID, UserEmail: userEmail,
+			Action: "app.stop", ResourceType: "app",
+			ResourceID: projectDir, ResourceName: projectDir,
+			IP: ip, UserAgent: ua,
+			Status: audit.StatusFailed,
+			Detail: map[string]any{"errorMessage": err.Error()},
+		})
 		return dockerError(e, http.StatusInternalServerError, "compose stop failed", err)
 	}
+	audit.Write(e.App, audit.Entry{
+		UserID: userID, UserEmail: userEmail,
+		Action: "app.stop", ResourceType: "app",
+		ResourceID: projectDir, ResourceName: projectDir,
+		IP: ip, UserAgent: ua,
+		Status: audit.StatusSuccess,
+	})
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
@@ -340,10 +455,26 @@ func handleComposeRestart(e *core.RequestEvent) error {
 	if projectDir == "" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "projectDir is required"})
 	}
+	userID, userEmail, ip, ua := clientInfo(e)
 	output, err := client.ComposeRestart(e.Request.Context(), projectDir)
 	if err != nil {
+		audit.Write(e.App, audit.Entry{
+			UserID: userID, UserEmail: userEmail,
+			Action: "app.restart", ResourceType: "app",
+			ResourceID: projectDir, ResourceName: projectDir,
+			IP: ip, UserAgent: ua,
+			Status: audit.StatusFailed,
+			Detail: map[string]any{"errorMessage": err.Error()},
+		})
 		return dockerError(e, http.StatusInternalServerError, "compose restart failed", err)
 	}
+	audit.Write(e.App, audit.Entry{
+		UserID: userID, UserEmail: userEmail,
+		Action: "app.restart", ResourceType: "app",
+		ResourceID: projectDir, ResourceName: projectDir,
+		IP: ip, UserAgent: ua,
+		Status: audit.StatusSuccess,
+	})
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
@@ -389,9 +520,25 @@ func handleComposeConfigWrite(e *core.RequestEvent) error {
 	if projectDir == "" || content == "" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "projectDir and content are required"})
 	}
+	userID, userEmail, ip, ua := clientInfo(e)
 	if err := localDockerClient.ComposeConfigWrite(projectDir, content); err != nil {
+		audit.Write(e.App, audit.Entry{
+			UserID: userID, UserEmail: userEmail,
+			Action: "app.env_update", ResourceType: "app",
+			ResourceID: projectDir, ResourceName: projectDir,
+			IP: ip, UserAgent: ua,
+			Status: audit.StatusFailed,
+			Detail: map[string]any{"errorMessage": err.Error()},
+		})
 		return dockerError(e, http.StatusInternalServerError, "write config failed", err)
 	}
+	audit.Write(e.App, audit.Entry{
+		UserID: userID, UserEmail: userEmail,
+		Action: "app.env_update", ResourceType: "app",
+		ResourceID: projectDir, ResourceName: projectDir,
+		IP: ip, UserAgent: ua,
+		Status: audit.StatusSuccess,
+	})
 	return e.JSON(http.StatusOK, map[string]any{"message": "saved"})
 }
 

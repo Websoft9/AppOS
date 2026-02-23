@@ -11,9 +11,19 @@
 package routes
 
 import (
+	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 )
+
+// asynqClient is set by main via SetAsynqClient after creating the worker.
+// It is used by route handlers that need to enqueue background tasks.
+var asynqClient *asynq.Client
+
+// SetAsynqClient stores the Asynq client for use in async route handlers.
+func SetAsynqClient(c *asynq.Client) {
+	asynqClient = c
+}
 
 // Register mounts all custom route groups on the PocketBase router.
 func Register(se *core.ServeEvent) {
@@ -37,4 +47,5 @@ func Register(se *core.ServeEvent) {
 	registerBackupRoutes(g)
 	registerResourceRoutes(g)
 	registerFileRoutes(g)
+	registerUserRoutes(g)
 }

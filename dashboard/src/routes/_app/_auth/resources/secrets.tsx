@@ -48,6 +48,16 @@ const fields: FieldDef[] = [
     fileAccept: ".pem,.key,.txt",
   },
   { key: "description", label: "Description", type: "textarea" },
+  {
+    key: "groups",
+    label: "Groups",
+    type: "relation",
+    multiSelect: true,
+    relationAutoSelectDefault: true,
+    relationApiPath: "/api/ext/resources/groups",
+    relationLabelKey: "name",
+    defaultValue: [],
+  },
 ]
 
 function SecretsPage() {
@@ -62,6 +72,7 @@ function SecretsPage() {
         fields,
         parentNav: { label: "Resources", href: "/resources" },
         autoCreate,
+        enableGroupAssign: true,
       }}
     />
   )

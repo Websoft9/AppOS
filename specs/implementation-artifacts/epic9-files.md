@@ -4,7 +4,7 @@
 
 **Per-user private file workspace** — each authenticated user gets an isolated space for storing, editing, organizing, and sharing files.
 
-**Status**: Stories 9.1–9.4 complete | **Priority**: P2 | **Depends on**: Epic 1, Epic 3 (Epic 2 only for Story 9.5)
+**Status**: Stories 9.1–9.4 complete | **Priority**: P2 | **Depends on**: Epic 1, Epic 3 (Epic 13 only for Story 9.5)
 
 ---
 
@@ -111,8 +111,9 @@ Share `POST` body: `{ "minutes": N }`. Response: `{ "share_token", "share_url", 
 | New Folder | Creates `is_folder=true` record; reserved name check at root |
 | New File | Online textarea creation for editable formats; saves as file upload |
 | Editor | `sm:max-w-3xl` (768px), `max-h-[65vh]` scrollable textarea; disabled for office/pdf |
+| File size | Column shows human-readable size (K/M) from `size` field; set on upload, create, and save |
 | Download | Native `<a download>` using authenticated PB file URL |
-| Share | Generates public link via ext API; copy button copies URL (with `execCommand` fallback); link works without login |
+| Share | Generates public link via ext API; copy button copies URL; link works without login. **Caveat**: Radix Dialog focus-trap breaks `execCommand` on elements outside the dialog — fallback must select the in-dialog input via ref. |
 | Delete | AlertDialog confirm; warns folder does not cascade-delete children |
 | Refresh | Spinner icon button in toolbar |
 
@@ -125,6 +126,7 @@ Share `POST` body: `{ "minutes": N }`. Response: `{ "share_token", "share_url", 
 | `1740300000_create_user_files.go` | Initial collection with all fields |
 | `1740300001_user_files_add_autodate.go` | Adds `created`/`updated` AutodateFields to existing deployments |
 | `1740300002_user_files_folder_support.go` | Adds `is_folder` (bool) + `parent` (text) fields |
+| `1740300003_user_files_add_size.go` | Adds `size` (number, bytes) field for file-size display |
 
 ---
 
@@ -145,7 +147,7 @@ Share `POST` body: `{ "minutes": N }`. Response: `{ "share_token", "share_url", 
 | 9.2 | File List UI | ✅ Done |
 | 9.3 | Online Editor | ✅ Done |
 | 9.4 | Share | ✅ Done |
-| 9.5 | Settings UI (Admin) | ⏳ Blocked on Epic 2 |
+| 9.5 | Settings UI (Admin) | ⏳ Resolved by Epic 13 (Story 13.2 + 13.4) |
 | 9.6 | File Version History | 📋 Planned |
 
 ---
@@ -186,4 +188,4 @@ Share `POST` body: `{ "minutes": N }`. Response: `{ "share_token", "share_url", 
 - Collaborative editing
 - Cascading folder delete
 - Global search (cross-folder)
-- Story 9.5 settings UI (requires Epic 2)
+- Story 9.5 settings UI (resolved by Epic 13, stories 13.2 + 13.4)

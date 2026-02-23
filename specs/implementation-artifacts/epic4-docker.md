@@ -130,6 +130,7 @@ All routes under `/api/ext/docker/`. All list responses include `host` field ide
 - [x] `/exec` endpoint for arbitrary docker commands
 - [x] Old `/api/ext/apps/*` routes removed
 - [x] Auth middleware enforced on all routes
+- [x] Non-root privilege escalation via `sudo` (local + SSH); password credential reused as sudo password
 
 ### Story 4.2 ✅
 - [x] All resource CRUD endpoints return valid JSON with `host` field
@@ -167,6 +168,7 @@ type Executor interface {
 - Frontend UX: command execution via dialog popup (not inline or tab) — cleanest separation of concerns
 - Dialog sizes standardized in `coding-decisions.md#dialog-sizes` (sm/default/md/lg/xl/full tiers)
 - Container image requires `docker-cli` + `docker-cli-compose` packages (both `Dockerfile` and `Dockerfile.local`)
+- **Sudo escalation**: `LocalExecutor.SudoEnabled` set when process uid ≠ 0; `SSHExecutor.SudoEnabled` set when `user ≠ root`. Password-auth servers reuse the same credential as sudo password; key-auth servers require NOPASSWD in sudoers.
 
 **What moved OUT of Epic 4:**
 - Asynq async tasks → future business epic (app management)

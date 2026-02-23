@@ -11,15 +11,16 @@ import (
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/internal/audit"
 )
 
 // ─── File quota constants (mirrors routes/files.go) ─────────────────────────
-// TODO (Story 9.5): replace with live settings API lookups (Epic 2).
+// TODO (Story 13.2): replace with live settings API lookups (Epic 13).
 const (
 	hookFilesMaxPerUser = 100
 
 	// Reserved root-level folder names used by the system.
-	// TODO (Story 9.5): make configurable via settings API.
+	// TODO (Story 13.2): make configurable via settings API.
 	hookReservedFolderNames = "deploy,artifact"
 	// Must match filesAllowedUploadFormats in routes/files.go.
 	hookFilesAllowedFormats = "txt,md,yaml,yml,json,sh,bash,zsh,fish,env," +
@@ -36,6 +37,9 @@ const (
 func Register(app *pocketbase.PocketBase) {
 	registerAppHooks(app)
 	registerFileHooks(app)
+	registerSuperuserHooks(app)
+	registerUserAuditHooks(app)
+	registerLoginAuditHooks(app)
 }
 
 // registerAppHooks registers hooks related to the apps collection.
@@ -125,4 +129,133 @@ func validateFileUpload(app core.App, record *core.Record) error {
 		}
 	}
 	return nil
+}
+
+// registerUserAuditHooks writes audit records when users are created, updated, or deleted
+// via PocketBase's built-in REST API (not the custom /api/ext/users routes).
+// Both the "users" and "_superusers" collections are tracked.
+// Uses request-level hooks to access e.Auth (the actor performing the operation).
+func registerUserAuditHooks(app *pocketbase.PocketBase) {
+	actorInfo := func(auth *core.Record) (string, string) {
+		if auth != nil {
+			return auth.Id, auth.GetString("email")
+		}
+		return "system", ""
+	}
+
+	for _, col := range []string{"users", "_superusers"} {
+		col := col // capture loop variable
+
+		app.OnRecordCreateRequest(col).BindFunc(func(e *core.RecordRequestEvent) error {
+			err := e.Next()
+			if err == nil {
+				userID, userEmail := actorInfo(e.Auth)
+				audit.Write(app, audit.Entry{
+					UserID: userID, UserEmail: userEmail,
+					Action: "user.create", ResourceType: "user",
+					ResourceID: e.Record.Id, ResourceName: e.Record.GetString("email"),
+					Status:    audit.StatusSuccess,
+					IP:        e.RealIP(),
+					UserAgent: e.Request.Header.Get("User-Agent"),
+				})
+			}
+			return err
+		})
+
+		app.OnRecordUpdateRequest(col).BindFunc(func(e *core.RecordRequestEvent) error {
+			err := e.Next()
+			if err == nil {
+				userID, userEmail := actorInfo(e.Auth)
+				audit.Write(app, audit.Entry{
+					UserID: userID, UserEmail: userEmail,
+					Action: "user.update", ResourceType: "user",
+					ResourceID: e.Record.Id, ResourceName: e.Record.GetString("email"),
+					Status:    audit.StatusSuccess,
+					IP:        e.RealIP(),
+					UserAgent: e.Request.Header.Get("User-Agent"),
+				})
+			}
+			return err
+		})
+
+		app.OnRecordDeleteRequest(col).BindFunc(func(e *core.RecordRequestEvent) error {
+			// Capture record info before deletion
+			recordID := e.Record.Id
+			recordEmail := e.Record.GetString("email")
+			ip := e.RealIP()
+			ua := e.Request.Header.Get("User-Agent")
+			err := e.Next()
+			if err == nil {
+				userID, userEmail := actorInfo(e.Auth)
+				audit.Write(app, audit.Entry{
+					UserID: userID, UserEmail: userEmail,
+					Action: "user.delete", ResourceType: "user",
+					ResourceID: recordID, ResourceName: recordEmail,
+					Status:    audit.StatusSuccess,
+					IP:        ip,
+					UserAgent: ua,
+				})
+			}
+			return err
+		})
+	}
+}
+
+// registerLoginAuditHooks writes audit records on login success and failure
+// for both the "users" and "_superusers" collections.
+func registerLoginAuditHooks(app *pocketbase.PocketBase) {
+	for _, col := range []string{"users", "_superusers"} {
+		col := col // capture loop variable
+
+		app.OnRecordAuthWithPasswordRequest(col).BindFunc(func(e *core.RecordAuthWithPasswordRequestEvent) error {
+			ip := e.RealIP()
+			ua := e.Request.Header.Get("User-Agent")
+			err := e.Next()
+			if err != nil {
+				audit.Write(app, audit.Entry{
+					UserID: "unknown", UserEmail: e.Identity,
+					Action: "login.failed", ResourceType: "session",
+					Status:    audit.StatusFailed,
+					IP:        ip,
+					UserAgent: ua,
+					Detail: map[string]any{
+						"reason":     err.Error(),
+						"collection": col,
+					},
+				})
+				return err
+			}
+			audit.Write(app, audit.Entry{
+				UserID: e.Record.Id, UserEmail: e.Record.GetString("email"),
+				Action: "login.success", ResourceType: "session",
+				Status:    audit.StatusSuccess,
+				IP:        ip,
+				UserAgent: ua,
+			})
+			return nil
+		})
+	}
+}
+
+// registerSuperuserHooks registers safety guards for the _superusers system collection.
+func registerSuperuserHooks(app *pocketbase.PocketBase) {
+	// Guard: prevent deleting self or the last superuser.
+	// Uses OnRecordDeleteRequest (request-level hook) to access the auth record.
+	app.OnRecordDeleteRequest("_superusers").BindFunc(func(e *core.RecordRequestEvent) error {
+		// Guard 1: cannot delete yourself.
+		if e.Auth != nil && e.Auth.Id == e.Record.Id {
+			return apis.NewBadRequestError("cannot_delete_self", nil)
+		}
+
+		// Guard 2: cannot delete the last superuser.
+		count, err := app.CountRecords("_superusers")
+		if err != nil {
+			return fmt.Errorf("superuser guard: failed to count superusers: %w", err)
+		}
+		if count <= 1 {
+			return apis.NewBadRequestError("cannot_delete_last_superuser", nil)
+		}
+
+		return e.Next()
+	})
 }

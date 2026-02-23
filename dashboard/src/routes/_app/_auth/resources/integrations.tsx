@@ -81,6 +81,16 @@ const fields: FieldDef[] = [
   },
   { key: "extra", label: "Extra Config (JSON)", type: "textarea", placeholder: '{"headers": {"X-Custom": "value"}}' },
   { key: "description", label: "Description", type: "textarea" },
+  {
+    key: "groups",
+    label: "Groups",
+    type: "relation",
+    multiSelect: true,
+    relationAutoSelectDefault: true,
+    relationApiPath: "/api/ext/resources/groups",
+    relationLabelKey: "name",
+    defaultValue: [],
+  },
 ]
 
 function IntegrationsPage() {
@@ -95,6 +105,7 @@ function IntegrationsPage() {
         fields,
         parentNav: { label: "Resources", href: "/resources" },
         autoCreate,
+        enableGroupAssign: true,
       }}
     />
   )

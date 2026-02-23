@@ -28,12 +28,22 @@ const fields: FieldDef[] = [
     options: [
       { label: "MySQL", value: "mysql" },
       { label: "PostgreSQL", value: "postgres" },
+      { label: "MariaDB", value: "mariadb" },
       { label: "Redis", value: "redis" },
       { label: "MongoDB", value: "mongodb" },
+      { label: "ClickHouse", value: "clickhouse" },
+      { label: "Neo4j", value: "neo4j" },
+      { label: "Qdrant", value: "qdrant" },
+      { label: "Elasticsearch", value: "elasticsearch" },
+      { label: "SQLite", value: "sqlite" },
     ],
     // Auto-fill default port when DB type changes
     onValueChange: (v, update) => {
-      const defaults: Record<string, number> = { mysql: 3306, postgres: 5432, redis: 6379, mongodb: 27017 }
+      const defaults: Record<string, number> = {
+        mysql: 3306, postgres: 5432, mariadb: 3306, redis: 6379,
+        mongodb: 27017, clickhouse: 9000, neo4j: 7687,
+        qdrant: 6333, elasticsearch: 9200,
+      }
       const port = defaults[String(v)]
       if (port) update("port", port)
     },
@@ -60,6 +70,16 @@ const fields: FieldDef[] = [
     },
   },
   { key: "description", label: "Description", type: "textarea" },
+  {
+    key: "groups",
+    label: "Groups",
+    type: "relation",
+    multiSelect: true,
+    relationAutoSelectDefault: true,
+    relationApiPath: "/api/ext/resources/groups",
+    relationLabelKey: "name",
+    defaultValue: [],
+  },
 ]
 
 function DatabasesPage() {
@@ -74,6 +94,7 @@ function DatabasesPage() {
         fields,
         parentNav: { label: "Resources", href: "/resources" },
         autoCreate,
+        enableGroupAssign: true,
       }}
     />
   )

@@ -18,6 +18,13 @@ type SSHConfig struct {
 	User     string
 	AuthType string // "password" or "key"
 	Secret   string // decrypted: password string or PEM private key
+
+	// SudoEnabled wraps every command with `sudo` when the remote user is not root.
+	SudoEnabled bool
+
+	// SudoPassword is the password for `sudo -S`. Empty means passwordless sudo (NOPASSWD).
+	// For password-based auth it defaults to the SSH password credential.
+	SudoPassword string
 }
 
 // SSHExecutor runs commands on a remote host over SSH.
@@ -80,6 +87,17 @@ func (e *SSHExecutor) Run(ctx context.Context, command string, args ...string) (
 	defer session.Close()
 
 	cmd := strings.Join(append([]string{command}, args...), " ")
+	if e.cfg.SudoEnabled {
+		if e.cfg.SudoPassword != "" {
+			// -S: read password from stdin; -p '': suppress prompt text
+			session.Stdin = strings.NewReader(e.cfg.SudoPassword + "\n")
+			cmd = "sudo -S -p '' -- " + cmd
+		} else {
+			// Passwordless sudo (-n: non-interactive, fail if password needed)
+			cmd = "sudo -n -- " + cmd
+		}
+	}
+
 	var stdout, stderr bytes.Buffer
 	session.Stdout = &stdout
 	session.Stderr = &stderr
@@ -115,6 +133,17 @@ func (e *SSHExecutor) RunStream(ctx context.Context, command string, args ...str
 	}
 
 	cmd := strings.Join(append([]string{command}, args...), " ")
+	if e.cfg.SudoEnabled {
+		if e.cfg.SudoPassword != "" {
+			// -S: read password from stdin; -p '': suppress prompt text
+			session.Stdin = strings.NewReader(e.cfg.SudoPassword + "\n")
+			cmd = "sudo -S -p '' -- " + cmd
+		} else {
+			// Passwordless sudo (-n: non-interactive, fail if password needed)
+			cmd = "sudo -n -- " + cmd
+		}
+	}
+
 	stdout, err := session.StdoutPipe()
 	if err != nil {
 		session.Close()

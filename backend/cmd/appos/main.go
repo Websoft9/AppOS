@@ -18,7 +18,8 @@ func main() {
 	app := pocketbase.New()
 
 	// Initialize Asynq worker (created once, shared across app lifecycle)
-	w := worker.New()
+	w := worker.New(app)
+	routes.SetAsynqClient(w.Client())
 
 	// Register custom routes
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {

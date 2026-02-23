@@ -52,6 +52,13 @@ interface EnvGroup {
 
 interface EnvGroupDetail extends EnvGroup {
   vars: EnvVar[]
+  groups?: string[]
+}
+
+interface AvailableGroup {
+  id: string
+  name: string
+  is_default: boolean
 }
 
 interface Secret {
@@ -84,6 +91,10 @@ function EnvGroupsPage() {
 
   // Inline create-secret mini-dialog (for var rows)
   const [createSecretOpen, setCreateSecretOpen] = useState(false)
+
+  // Groups
+  const [selectedGroups, setSelectedGroups] = useState<string[]>([])
+  const [availableGroups, setAvailableGroups] = useState<AvailableGroup[]>([])
   const [createSecretVarIdx, setCreateSecretVarIdx] = useState<number | null>(null)
   const [createSecretName, setCreateSecretName] = useState("")
   const [createSecretType, setCreateSecretType] = useState("password")
@@ -116,16 +127,28 @@ function EnvGroupsPage() {
   // Load secrets list when dialog opens (for the secret selector in vars)
   useEffect(() => {
     if (!dialogOpen) return
-    pb.send<Secret[]>("/api/ext/resources/secrets", {})
+    pb.send<{id:string;name:string;type?:string}[]>("/api/ext/resources/secrets", {})
       .then(data => setSecrets(Array.isArray(data) ? data : []))
       .catch(() => setSecrets([]))
-  }, [dialogOpen])
+    pb.send<AvailableGroup[]>("/api/ext/resources/groups", {})
+      .then(data => {
+        const groups = Array.isArray(data) ? data : []
+        setAvailableGroups(groups)
+        // Auto-select default group when creating
+        if (!editingId) {
+          const def = groups.find(g => g.is_default)
+          if (def) setSelectedGroups(prev => prev.includes(def.id) ? prev : [def.id])
+        }
+      })
+      .catch(() => setAvailableGroups([]))
+  }, [dialogOpen, editingId])
 
   function openCreateDialog() {
     setEditingId(null)
     setName("")
     setDescription("")
     setVars([])
+    setSelectedGroups([])
     setFormError("")
     setDialogOpen(true)
   }
@@ -139,6 +162,7 @@ function EnvGroupsPage() {
       setName(data.name ?? "")
       setDescription(data.description ?? "")
       setVars(data.vars ?? [])
+      setSelectedGroups(Array.isArray(data.groups) ? data.groups.map(String) : [])
       setDialogOpen(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load group")
@@ -201,7 +225,7 @@ function EnvGroupsPage() {
     setSaving(true)
     setFormError("")
     try {
-      const body = { name, description, vars }
+      const body = { name, description, vars, groups: selectedGroups }
       if (editingId) {
         await pb.send(`/api/ext/resources/env-groups/${editingId}`, { method: "PUT", body })
       } else {
@@ -352,6 +376,34 @@ function EnvGroupsPage() {
                 onChange={e => setDescription(e.target.value)}
                 placeholder="Optional description"
               />
+            </div>
+
+            {/* Groups multi-select */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Groups</label>
+              <div className="border border-input rounded-md p-2 max-h-36 overflow-y-auto space-y-1 bg-background">
+                {availableGroups.length === 0 ? (
+                  <p className="text-xs text-muted-foreground px-1">Loading groups…</p>
+                ) : (
+                  availableGroups.map(g => (
+                    <label key={g.id} className="flex items-center gap-2 cursor-pointer px-1 py-0.5 rounded hover:bg-muted transition-colors">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-input"
+                        checked={selectedGroups.includes(g.id)}
+                        onChange={e => {
+                          if (e.target.checked) {
+                            setSelectedGroups(prev => [...prev, g.id])
+                          } else {
+                            setSelectedGroups(prev => prev.filter(id => id !== g.id))
+                          }
+                        }}
+                      />
+                      <span className="text-sm">{g.name}</span>
+                    </label>
+                  ))
+                )}
+              </div>
             </div>
 
             {/* Variables editor */}

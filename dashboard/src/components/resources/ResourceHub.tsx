@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react"
-import { useNavigate } from "@tanstack/react-router"
+import { useNavigate, Link } from "@tanstack/react-router"
 import {
   Server, KeyRound, Braces, Database, Cloud, FileCheck,
   Plug, FileCode,
-  Plus, ChevronDown, Loader2, ChevronRight,
+  Plus, ChevronDown, Loader2, ChevronRight, Layers,
 } from "lucide-react"
 import { pb } from "@/lib/pb"
 import { Button } from "@/components/ui/button"
@@ -129,28 +129,38 @@ export function ResourceHub() {
           <p className="text-muted-foreground mt-1">Manage reusable infrastructure credentials and configuration</p>
         </div>
 
-        {/* Global quick-create */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Resource
-              <ChevronDown className="h-4 w-4 ml-2" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            {RESOURCES.map(r => (
-              <DropdownMenuItem
-                key={r.key}
-                onClick={() => goToCreate(r.href)}
-                className="gap-2 cursor-pointer"
-              >
-                {r.icon}
-                {r.title}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* Hub actions */}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" asChild>
+            <Link to="/resources/groups">
+              <Layers className="h-4 w-4 mr-2" />
+              Resource Groups
+            </Link>
+          </Button>
+
+          {/* Global quick-create */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Resource
+                <ChevronDown className="h-4 w-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              {RESOURCES.map(r => (
+                <DropdownMenuItem
+                  key={r.key}
+                  onClick={() => goToCreate(r.href)}
+                  className="gap-2 cursor-pointer"
+                >
+                  {r.icon}
+                  {r.title}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {/* Cards grid */}
@@ -162,22 +172,27 @@ export function ResourceHub() {
             onClick={() => navigate({ to: r.href as never })}
           >
             <CardContent className="px-4 py-3">
+              {/* Icon + Title(n) + Arrow */}
               <div className="flex items-center justify-between">
-                <div className="p-1.5 rounded-md bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-                  {r.icon}
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="p-1 rounded-md bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors shrink-0">
+                    {r.icon}
+                  </div>
+                  <p className="text-sm font-medium leading-tight truncate">
+                    {r.title}
+                    {!loading && (
+                      <span className="ml-2 text-muted-foreground font-medium">({counts[r.key] ?? 0})</span>
+                    )}
+                    {loading && (
+                      <span className="ml-2 inline-flex"><Loader2 className="h-3 w-3 animate-spin text-muted-foreground" /></span>
+                    )}
+                  </p>
                 </div>
-                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0 ml-1" />
               </div>
 
-              <div className="mt-2">
-                {loading ? (
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                ) : (
-                  <p className="text-2xl font-bold tracking-tight">{counts[r.key] ?? 0}</p>
-                )}
-                <p className="text-sm font-medium leading-tight">{r.title}</p>
-                <p className="text-xs text-muted-foreground leading-tight">{r.description}</p>
-              </div>
+              {/* Description */}
+              <p className="text-xs text-muted-foreground leading-tight mt-2 pl-7">{r.description}</p>
             </CardContent>
           </Card>
         ))}

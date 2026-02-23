@@ -61,6 +61,16 @@ const fields: FieldDef[] = [
   { key: "auto_renew", label: "Auto Renew", type: "boolean", defaultValue: false },
   { key: "expires_at", label: "Expires At", type: "text", placeholder: "2025-12-31" },
   { key: "description", label: "Description", type: "textarea" },
+  {
+    key: "groups",
+    label: "Groups",
+    type: "relation",
+    multiSelect: true,
+    relationAutoSelectDefault: true,
+    relationApiPath: "/api/ext/resources/groups",
+    relationLabelKey: "name",
+    defaultValue: [],
+  },
 ]
 
 function CertificatesPage() {
@@ -75,6 +85,7 @@ function CertificatesPage() {
         fields,
         parentNav: { label: "Resources", href: "/resources" },
         autoCreate,
+        enableGroupAssign: true,
       }}
     />
   )

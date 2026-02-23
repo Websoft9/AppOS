@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, type ReactNode, type FormEvent, type ChangeEvent } from "react"
 import { Link } from "@tanstack/react-router"
-import { Plus, Pencil, Trash2, Loader2, Upload, ChevronLeft } from "lucide-react"
+import { Plus, Pencil, Trash2, Loader2, Upload, ChevronLeft, Tags, X } from "lucide-react"
 import { pb } from "@/lib/pb"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -30,6 +30,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -77,6 +78,10 @@ export interface FieldDef {
     apiPath: string
     fields: RelCreateField[]
   }
+  /** Relation: allow selecting multiple options (renders as checkboxes) */
+  multiSelect?: boolean
+  /** Relation + multiSelect: auto-select the option with is_default=true when creating */
+  relationAutoSelectDefault?: boolean
   /** Only show when another field has one of these values */
   showWhen?: { field: string; values: string[] }
   /** Switch type when another field has one of these values */
@@ -96,12 +101,13 @@ export interface ResourcePageConfig {
   nameField?: string        // field used as display name (default: "name")
   autoCreate?: boolean      // open Create dialog on mount (from ?create=1)
   parentNav?: { label: string; href: string }  // breadcrumb back link
+  enableGroupAssign?: boolean  // show batch assign-to-group toolbar on list
 }
 
 const INPUT_CLASS =
   "w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground text-sm"
 
-type RelOpt = { id: string; label: string }
+type RelOpt = { id: string; label: string; raw?: Record<string, unknown> }
 
 // ─── ResourcePage ────────────────────────────────────────
 
@@ -131,6 +137,14 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   const [createRelSaving, setCreateRelSaving] = useState(false)
   const [createRelError, setCreateRelError] = useState("")
 
+  // Batch group assignment
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
+  const [availableGroups, setAvailableGroups] = useState<RelOpt[]>([])
+  const [groupsLoading, setGroupsLoading] = useState(false)
+  const [assigningGroups, setAssigningGroups] = useState(false)
+  const [groupAssignDialogOpen, setGroupAssignDialogOpen] = useState(false)
+  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set())
+
   const nameField = config.nameField || "name"
 
   // ─── Fetch ───────────────────────────
@@ -149,6 +163,22 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
 
   useEffect(() => { fetchItems() }, [fetchItems])
 
+  // Pre-load available groups on mount when batch assign is enabled
+  useEffect(() => {
+    if (!config.enableGroupAssign) return
+    setGroupsLoading(true)
+    pb.send<Record<string, unknown>[]>("/api/ext/resources/groups", {})
+      .then(data => {
+        setAvailableGroups(
+          Array.isArray(data)
+            ? data.map(g => ({ id: String(g.id), label: String(g["name"] ?? g.id) }))
+            : []
+        )
+      })
+      .catch(() => setAvailableGroups([]))
+      .finally(() => setGroupsLoading(false))
+  }, [config.enableGroupAssign])
+
   // Auto-open Create dialog once data has loaded (triggered by ?create=1)
   useEffect(() => {
     if (config.autoCreate && !loading) openCreateDialog()
@@ -164,7 +194,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
         pb.send<Record<string, unknown>[]>(f.relationApiPath!, {})
           .then(data => {
             let records = Array.isArray(data) ? data : []
-            // Client-side filter (backend list endpoint has no query filter support yet)
+            // Client-side filter
             if (f.relationFilter) {
               for (const [fk, fv] of Object.entries(f.relationFilter)) {
                 records = records.filter(item => String(item[fk] ?? "") === fv)
@@ -173,12 +203,24 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
             const opts: RelOpt[] = records.map(item => ({
               id: String(item.id),
               label: String(item[f.relationLabelKey ?? "name"] ?? item.id),
+              raw: item,
             }))
             setRelOpts(prev => ({ ...prev, [f.key]: opts }))
+            // Auto-select default option on create
+            if (f.multiSelect && f.relationAutoSelectDefault && !editingItem) {
+              const defaultOpt = opts.find(o => o.raw?.["is_default"] === true)
+              if (defaultOpt) {
+                setFormData(prev => {
+                  const existing = Array.isArray(prev[f.key]) ? (prev[f.key] as string[]) : []
+                  if (existing.includes(defaultOpt.id)) return prev
+                  return { ...prev, [f.key]: [...existing, defaultOpt.id] }
+                })
+              }
+            }
           })
           .catch(() => setRelOpts(prev => ({ ...prev, [f.key]: [] })))
       })
-  }, [dialogOpen, config.fields])
+  }, [dialogOpen, config.fields, editingItem])
 
   // ─── Form helpers ────────────────────
 
@@ -186,7 +228,11 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
     setEditingItem(null)
     const defaults: Record<string, unknown> = {}
     for (const f of config.fields) {
-      defaults[f.key] = f.defaultValue ?? (f.type === "boolean" ? false : f.type === "number" ? 0 : "")
+      if (f.multiSelect) {
+        defaults[f.key] = Array.isArray(f.defaultValue) ? f.defaultValue : []
+      } else {
+        defaults[f.key] = f.defaultValue ?? (f.type === "boolean" ? false : f.type === "number" ? 0 : "")
+      }
     }
     setFormData(defaults)
     setFormError("")
@@ -197,7 +243,13 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
     setEditingItem(item)
     const data: Record<string, unknown> = {}
     for (const f of config.fields) {
-      data[f.key] = item[f.key] ?? (f.defaultValue ?? "")
+      const val = item[f.key]
+      if (f.multiSelect) {
+        // Normalize to string array
+        data[f.key] = Array.isArray(val) ? val.map(String) : (val ? [String(val)] : [])
+      } else {
+        data[f.key] = val ?? (f.defaultValue ?? "")
+      }
     }
     setFormData(data)
     setFormError("")
@@ -294,6 +346,50 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
     }
   }
 
+  // ─── Batch selection ─────────────────
+
+  function toggleSelectItem(id: string) {
+    setSelectedItems(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (selectedItems.size === items.length) {
+      setSelectedItems(new Set())
+    } else {
+      setSelectedItems(new Set(items.map(i => String(i.id))))
+    }
+  }
+
+  async function handleAssignToGroups() {
+    if (selectedGroupIds.size === 0) return
+    setAssigningGroups(true)
+    const resourceType = config.apiPath.split("/").pop() ?? ""
+    const batchItems = Array.from(selectedItems).map(id => ({ type: resourceType, id }))
+    try {
+      await Promise.all(
+        Array.from(selectedGroupIds).map(groupId =>
+          pb.send(`/api/ext/resources/groups/${groupId}/resources/batch`, {
+            method: "POST",
+            body: { action: "add", items: batchItems },
+          })
+        )
+      )
+      setSelectedItems(new Set())
+      setSelectedGroupIds(new Set())
+      setGroupAssignDialogOpen(false)
+      await fetchItems()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Batch assign failed")
+    } finally {
+      setAssigningGroups(false)
+    }
+  }
+
   // ─── Delete ──────────────────────────
 
   async function handleDelete() {
@@ -370,6 +466,16 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {config.enableGroupAssign && (
+                    <TableHead className="w-[40px]">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-input"
+                        checked={items.length > 0 && selectedItems.size === items.length}
+                        onChange={toggleSelectAll}
+                      />
+                    </TableHead>
+                  )}
                   {config.columns.map((col) => (
                     <TableHead key={col.key}>{col.label}</TableHead>
                   ))}
@@ -378,7 +484,17 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
               </TableHeader>
               <TableBody>
                 {items.map((item) => (
-                  <TableRow key={String(item.id)}>
+                  <TableRow key={String(item.id)} data-selected={selectedItems.has(String(item.id))}>
+                    {config.enableGroupAssign && (
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-input"
+                          checked={selectedItems.has(String(item.id))}
+                          onChange={() => toggleSelectItem(String(item.id))}
+                        />
+                      </TableCell>
+                    )}
                     {config.columns.map((col) => (
                       <TableCell key={col.key}>
                         {col.render
@@ -409,6 +525,88 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
           )}
         </CardContent>
       </Card>
+
+      {/* Batch assign toolbar */}
+      {config.enableGroupAssign && selectedItems.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-muted rounded-lg border">
+          <span className="text-sm font-medium">{selectedItems.size} selected</span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={assigningGroups || groupsLoading}
+            onClick={() => { setSelectedGroupIds(new Set()); setGroupAssignDialogOpen(true) }}
+          >
+            <Tags className="h-4 w-4 mr-2" />
+            Assign to Groups
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedItems(new Set())}
+          >
+            <X className="h-4 w-4 mr-1" />
+            Clear
+          </Button>
+        </div>
+      )}
+
+      {/* Assign to Groups dialog */}
+      <Dialog open={groupAssignDialogOpen} onOpenChange={v => { setGroupAssignDialogOpen(v); if (!v) setSelectedGroupIds(new Set()) }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Assign to Groups</DialogTitle>
+            <DialogDescription>
+              Select one or more groups to assign the {selectedItems.size} selected resource{selectedItems.size > 1 ? "s" : ""} to.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            {groupsLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : availableGroups.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No groups available</p>
+            ) : (
+              <div className="space-y-1 max-h-60 overflow-y-auto">
+                {availableGroups.map(g => {
+                  const checked = selectedGroupIds.has(g.id)
+                  return (
+                    <label
+                      key={g.id}
+                      className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-input"
+                        checked={checked}
+                        onChange={() => {
+                          setSelectedGroupIds(prev => {
+                            const next = new Set(prev)
+                            if (next.has(g.id)) next.delete(g.id)
+                            else next.add(g.id)
+                            return next
+                          })
+                        }}
+                      />
+                      <span className="text-sm">{g.label}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGroupAssignDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={handleAssignToGroups}
+              disabled={assigningGroups || selectedGroupIds.size === 0}
+            >
+              {assigningGroups && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Assign{selectedGroupIds.size > 0 ? ` to ${selectedGroupIds.size} group${selectedGroupIds.size > 1 ? "s" : ""}` : ""}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) setCreateRelOpen(false) }}>
@@ -456,6 +654,35 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                           <option key={o.value} value={o.value}>{o.label}</option>
                         ))}
                       </select>
+
+                    ) : effectiveType === "relation" && field.multiSelect ? (
+                      <div className="border border-input rounded-md p-2 max-h-44 overflow-y-auto space-y-1 bg-background">
+                        {(relOpts[field.key] ?? []).length === 0 ? (
+                          <p className="text-xs text-muted-foreground px-1">No options available</p>
+                        ) : (
+                          (relOpts[field.key] ?? []).map(o => {
+                            const selected = (formData[field.key] as string[] ?? []).includes(o.id)
+                            return (
+                              <label key={o.id} className="flex items-center gap-2 cursor-pointer px-1 py-0.5 rounded hover:bg-muted transition-colors">
+                                <input
+                                  type="checkbox"
+                                  className="h-4 w-4 rounded border-input"
+                                  checked={selected}
+                                  onChange={e => {
+                                    const current = (formData[field.key] as string[] ?? [])
+                                    if (e.target.checked) {
+                                      updateField(field.key, [...current, o.id])
+                                    } else {
+                                      updateField(field.key, current.filter(id => id !== o.id))
+                                    }
+                                  }}
+                                />
+                                <span className="text-sm">{o.label}</span>
+                              </label>
+                            )
+                          })
+                        )}
+                      </div>
 
                     ) : effectiveType === "relation" ? (
                       <div className="flex gap-2 items-center">

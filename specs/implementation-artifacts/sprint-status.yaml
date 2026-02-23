@@ -97,3 +97,28 @@ development_status:
   # Epic 10: Internationalization (i18n)
   epic10: backlog
   epic10-retrospective: optional
+
+  # Epic 11: User Management
+  epic11: done
+  11.1-users-list: done
+  11.2-create-user: done
+  11.3-edit-reset-password: done
+  11.4-profile: done
+  epic11-retrospective: optional
+
+  # Epic 12: Operation Audit Log
+  epic12: done
+  12.1-audit-foundation: done
+  12.2-audit-sync-async: done
+  12.3-audit-viewer: done
+  epic12-retrospective: optional
+
+  # Epic 13: Settings Management
+  epic13: in-progress
+  13.1-settings-foundation: ready-for-dev
+  13.2-migrate-file-constants: ready-for-dev     # Resolves Story 9.5
+  13.3-pb-settings-ui: ready-for-dev
+  13.4-ext-settings-ui: ready-for-dev
+  13.5-ext-infra-backend: ready-for-dev
+  13.6-ext-infra-ui: ready-for-dev
+  epic13-retrospective: optional

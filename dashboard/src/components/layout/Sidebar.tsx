@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react"
+import { useState, useCallback, useMemo } from "react"
 import { Link, useRouterState } from "@tanstack/react-router"
 import {
   LayoutDashboard,
@@ -10,6 +10,8 @@ import {
   ChevronDown,
   LayoutGrid,
   FolderOpen,
+  Users,
+  ScrollText,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -30,6 +32,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { useLayout } from "@/contexts/LayoutContext"
+import { useAuth } from "@/contexts/AuthContext"
 import { Logo } from "./Logo"
 import { cn } from "@/lib/utils"
 
@@ -51,26 +54,42 @@ export interface NavGroup {
 
 // ─── Default navigation groups ───────────────────────────
 
-const defaultNavGroups: NavGroup[] = [
-  {
-    id: "workspace",
-    label: "Workspace",
-    items: [
-      { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" />, href: "/dashboard" },
-      { id: "store", label: "App Store", icon: <Store className="h-5 w-5" />, href: "/store" },
-      { id: "resources", label: "Resources", icon: <LayoutGrid className="h-5 w-5" />, href: "/resources" },
-      { id: "files", label: "Files", icon: <FolderOpen className="h-5 w-5" />, href: "/files" },
-    ],
-  },
-  {
-    id: "admin",
-    label: "Admin",
-    items: [
-      { id: "docker", label: "Docker", icon: <Container className="h-5 w-5" />, href: "/docker" },
-      { id: "services", label: "Services", icon: <Settings className="h-5 w-5" />, href: "/services" },
-    ],
-  },
+const workspaceGroup: NavGroup = {
+  id: "workspace",
+  label: "Workspace",
+  items: [
+    { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" />, href: "/dashboard" },
+    { id: "store", label: "App Store", icon: <Store className="h-5 w-5" />, href: "/store" },
+    { id: "resources", label: "Resources", icon: <LayoutGrid className="h-5 w-5" />, href: "/resources" },
+    { id: "files", label: "Files", icon: <FolderOpen className="h-5 w-5" />, href: "/files" },
+  ],
+}
+
+const baseAdminItems: NavItem[] = [
+  { id: "docker", label: "Docker", icon: <Container className="h-5 w-5" />, href: "/docker" },
+  { id: "services", label: "Services", icon: <Settings className="h-5 w-5" />, href: "/services" },
+  { id: "audit", label: "Audit", icon: <ScrollText className="h-5 w-5" />, href: "/audit" },
 ]
+
+const usersNavItem: NavItem = {
+  id: "users",
+  label: "Users",
+  icon: <Users className="h-5 w-5" />,
+  href: "/users",
+}
+
+function buildNavGroups(isSuperuser: boolean): NavGroup[] {
+  return [
+    workspaceGroup,
+    {
+      id: "admin",
+      label: "Admin",
+      items: isSuperuser
+        ? [...baseAdminItems, usersNavItem]
+        : baseAdminItems,
+    },
+  ]
+}
 
 interface SidebarProps {
   groups?: NavGroup[]
@@ -225,7 +244,7 @@ function SidebarNav({
 
 // ─── Sidebar ─────────────────────────────────────────────
 
-export function Sidebar({ groups = defaultNavGroups }: SidebarProps) {
+export function Sidebar({ groups }: SidebarProps) {
   const {
     sidebarCollapsed,
     sidebarOpen,
@@ -233,6 +252,9 @@ export function Sidebar({ groups = defaultNavGroups }: SidebarProps) {
     toggleSidebar,
     isDesktop,
   } = useLayout()
+  const { user } = useAuth()
+  const isSuperuser = user?.collectionName === '_superusers'
+  const resolvedGroups = useMemo(() => groups ?? buildNavGroups(isSuperuser), [groups, isSuperuser])
 
   // Mobile/Tablet: Sheet drawer
   if (!isDesktop) {
@@ -246,7 +268,7 @@ export function Sidebar({ groups = defaultNavGroups }: SidebarProps) {
           </SheetHeader>
           <Separator />
           <div className="py-3">
-            <SidebarNav groups={groups} collapsed={false} onNavigate={() => setSidebarOpen(false)} />
+            <SidebarNav groups={resolvedGroups} collapsed={false} onNavigate={() => setSidebarOpen(false)} />
           </div>
         </SheetContent>
       </Sheet>
@@ -266,7 +288,7 @@ export function Sidebar({ groups = defaultNavGroups }: SidebarProps) {
     >
       {/* Nav groups */}
       <div className="flex-1 py-3 overflow-y-auto">
-        <SidebarNav groups={groups} collapsed={sidebarCollapsed} />
+        <SidebarNav groups={resolvedGroups} collapsed={sidebarCollapsed} />
       </div>
 
       {/* Collapse toggle at bottom */}

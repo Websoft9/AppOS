@@ -13,6 +13,12 @@ import (
 type LocalExecutor struct {
 	// DockerHost is the DOCKER_HOST env value (e.g. "unix:///var/run/docker.sock").
 	DockerHost string
+
+	// SudoEnabled wraps every command with `sudo` when the process is not root.
+	SudoEnabled bool
+
+	// SudoPassword is the password for `sudo -S`. Empty means passwordless sudo (NOPASSWD).
+	SudoPassword string
 }
 
 // NewLocalExecutor creates a LocalExecutor with the given Docker host.
@@ -23,10 +29,28 @@ func NewLocalExecutor(dockerHost string) *LocalExecutor {
 	return &LocalExecutor{DockerHost: dockerHost}
 }
 
+// buildCmd constructs the exec.Cmd, wrapping with sudo when SudoEnabled is set.
+func (e *LocalExecutor) buildCmd(ctx context.Context, command string, args []string) *exec.Cmd {
+	if e.SudoEnabled {
+		allArgs := append([]string{command}, args...)
+		if e.SudoPassword != "" {
+			// -S: read password from stdin; -p '': suppress prompt text
+			return exec.CommandContext(ctx, "sudo", append([]string{"-S", "-p", "", "--"}, allArgs...)...)
+		}
+		// Passwordless sudo (-n: non-interactive, fail if password needed)
+		return exec.CommandContext(ctx, "sudo", append([]string{"-n", "--"}, allArgs...)...)
+	}
+	return exec.CommandContext(ctx, command, args...)
+}
+
 // Run executes a command and returns buffered stdout.
 func (e *LocalExecutor) Run(ctx context.Context, command string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, command, args...)
+	cmd := e.buildCmd(ctx, command, args)
 	cmd.Env = append(cmd.Environ(), "DOCKER_HOST="+e.DockerHost)
+
+	if e.SudoEnabled && e.SudoPassword != "" {
+		cmd.Stdin = strings.NewReader(e.SudoPassword + "\n")
+	}
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -40,8 +64,12 @@ func (e *LocalExecutor) Run(ctx context.Context, command string, args ...string)
 
 // RunStream executes a command and returns a streaming reader for stdout.
 func (e *LocalExecutor) RunStream(ctx context.Context, command string, args ...string) (io.ReadCloser, error) {
-	cmd := exec.CommandContext(ctx, command, args...)
+	cmd := e.buildCmd(ctx, command, args)
 	cmd.Env = append(cmd.Environ(), "DOCKER_HOST="+e.DockerHost)
+
+	if e.SudoEnabled && e.SudoPassword != "" {
+		cmd.Stdin = strings.NewReader(e.SudoPassword + "\n")
+	}
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

@@ -16,7 +16,7 @@ import (
 )
 
 // ─── Quota constants (Phase 1: hardcoded) ──────────────────────────────────
-// TODO (Story 9.5): replace each constant with a live lookup from the settings API (Epic 2).
+// TODO (Story 13.2): replace each constant with a live lookup from the settings API (Epic 13).
 const (
 	filesMaxSizeMB = 10  // max file size in MB
 	filesMaxPerUser      = 100 // max files per user
@@ -24,7 +24,7 @@ const (
 	filesShareDefaultMin = 30  // default share validity (minutes)
 
 	// Root-level folder names reserved by the system (not creatable by users).
-	// TODO (Story 9.5): make configurable via settings API.
+	// TODO (Story 13.2): make configurable via settings API.
 	filesReservedFolderNames = "deploy,artifact"
 
 	// All extensions that may be uploaded (text, code, office, pdf).

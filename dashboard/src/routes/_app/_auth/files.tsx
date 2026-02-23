@@ -37,6 +37,7 @@ interface UserFile {
   created: string
   updated: string
   content: string // stored filename in PocketBase storage
+  size: number    // file size in bytes (0 for folders)
 }
 
 interface Quota {
@@ -59,6 +60,12 @@ const PAGE_SIZE = 20
 // ─── Helpers ─────────────────────────────────────────────
 
 function formatBytes(mb: number) { return `${mb} MB` }
+
+function formatFileSize(bytes: number | undefined): string {
+  if (!bytes) return '—'
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} K`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} M`
+}
 
 function formatDate(iso: string) {
   if (!iso) return '—'
@@ -102,17 +109,35 @@ function isEditable(file: UserFile, quota: Quota | null): boolean {
 
 /**
  * Copy text to clipboard.
- * Tries the modern Clipboard API first; falls back to execCommand for HTTP contexts.
+ * Tries the modern Clipboard API first; falls back to selecting an
+ * existing input element (required when inside a Radix Dialog focus trap
+ * which blocks focus on elements appended to document.body).
  */
-async function copyToClipboard(text: string): Promise<boolean> {
+async function copyToClipboard(
+  text: string,
+  inputRef?: React.RefObject<HTMLInputElement | null>,
+): Promise<boolean> {
+  // 1. Modern API (requires secure context — HTTPS or localhost).
   try {
     await navigator.clipboard.writeText(text)
     return true
-  } catch { /* fall through to execCommand */ }
+  } catch { /* fall through */ }
+  // 2. Fallback: select the existing in-dialog input that already shows the URL.
+  //    This avoids Radix Dialog's focus-trap stealing focus from a temporary textarea.
+  if (inputRef?.current) {
+    try {
+      const el = inputRef.current
+      el.focus()
+      el.setSelectionRange(0, el.value.length)
+      const ok = document.execCommand('copy')
+      return ok
+    } catch { /* fall through */ }
+  }
+  // 3. Last resort: temporary textarea (may fail inside a focus-trapped dialog).
   try {
     const el = document.createElement('textarea')
     el.value = text
-    el.style.cssText = 'position:fixed;top:0;left:0;width:2px;height:2px;opacity:0;'
+    el.style.cssText = 'position:fixed;top:-9999px;left:-9999px;'
     document.body.appendChild(el)
     el.focus()
     el.select()
@@ -191,6 +216,7 @@ function FilesPage() {
   const [shareFile, setShareFile] = useState<UserFile | null>(null)
   const [shareMinutes, setShareMinutes] = useState(30)
   const [shareUrl, setShareUrl] = useState<string | null>(null)
+  const shareUrlInputRef = useRef<HTMLInputElement | null>(null)
   const [sharing, setSharing] = useState(false)
   const [copied, setCopied] = useState(false)
 
@@ -343,6 +369,7 @@ function FilesPage() {
       form.append('name', uploadName.trim())
       form.append('mime_type', uploadFile.type || 'application/octet-stream')
       form.append('content', uploadFile, uploadName.trim())
+      form.append('size', String(uploadFile.size))
       if (uploadParent) form.append('parent', uploadParent)
       await pb.collection('user_files').create(form)
       setUploadOpen(false)
@@ -411,6 +438,7 @@ function FilesPage() {
       form.append('name', newFileName.trim())
       form.append('mime_type', 'text/plain')
       form.append('content', blob, newFileName.trim())
+      form.append('size', String(blob.size))
       if (newFileParent) form.append('parent', newFileParent)
       await pb.collection('user_files').create(form)
       setNewFileOpen(false)
@@ -453,6 +481,7 @@ function FilesPage() {
       const blob = new Blob([editContent], { type: editFile.mime_type || 'text/plain' })
       const form = new FormData()
       form.append('content', blob, editFile.name)
+      form.append('size', String(blob.size))
       await pb.collection('user_files').update(editFile.id, form)
       setEditFile(null)
       fetchAll()
@@ -510,7 +539,8 @@ function FilesPage() {
       const data = await res.json()
       // Use share_url from the server (relative path) and prefix the origin.
       // This avoids any risk of reading a stale or wrong field from the response.
-      setShareUrl(buildPublicShareUrl(data.share_url as string))
+      const generatedUrl = buildPublicShareUrl(data.share_url as string)
+      setShareUrl(generatedUrl)
       fetchAll()
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : 'Share failed')
@@ -529,10 +559,14 @@ function FilesPage() {
     fetchAll()
   }
 
-  async function doCopy(url: string) {
-    await copyToClipboard(url)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+  async function doCopy() {
+    const url = shareUrlInputRef.current?.value
+    if (!url) return
+    const ok = await copyToClipboard(url, shareUrlInputRef)
+    if (ok) {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
   }
 
   // ─── Render ────────────────────────────────────────────
@@ -651,6 +685,7 @@ function FilesPage() {
                       Type <SortIcon field="type" sortBy={sortBy} sortDir={sortDir} />
                     </button>
                   </TableHead>
+                  <TableHead>Size</TableHead>
                   <TableHead>Shared</TableHead>
                   <TableHead>
                     <button
@@ -692,6 +727,9 @@ function FilesPage() {
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                         {item.is_folder ? 'Folder' : (item.mime_type || '—')}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
+                        {item.is_folder ? '—' : formatFileSize(item.size)}
                       </TableCell>
                       <TableCell>
                         {!item.is_folder && item.share_token && !isExpired(item.share_expires_at)
@@ -849,7 +887,7 @@ function FilesPage() {
 
       {/* ── New Text File Dialog ───────────────────────── */}
       <Dialog open={newFileOpen} onOpenChange={setNewFileOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="sm:max-w-3xl w-full">
           <DialogHeader>
             <DialogTitle>New Text File</DialogTitle>
             <DialogDescription>Create a new text or code file online.</DialogDescription>
@@ -1043,10 +1081,10 @@ function FilesPage() {
               <div className="space-y-2">
                 <Label>Public download link</Label>
                 <div className="flex gap-2 mt-1">
-                  <Input readOnly value={shareUrl} className="text-xs font-mono" />
+                  <Input ref={shareUrlInputRef} readOnly value={shareUrl} className="text-xs font-mono" />
                   <Button
                     size="icon" variant="outline"
-                    onClick={() => doCopy(shareUrl!)} title="Copy link"
+                    onClick={doCopy} title="Copy link"
                   >
                     {copied
                       ? <Check className="h-4 w-4 text-green-500" />

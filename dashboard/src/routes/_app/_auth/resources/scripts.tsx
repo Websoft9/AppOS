@@ -38,6 +38,16 @@ const fields: FieldDef[] = [
   },
   { key: "code", label: "Code", type: "textarea", required: true, placeholder: "#!/bin/bash\necho 'hello'" },
   { key: "description", label: "Description", type: "textarea" },
+  {
+    key: "groups",
+    label: "Groups",
+    type: "relation",
+    multiSelect: true,
+    relationAutoSelectDefault: true,
+    relationApiPath: "/api/ext/resources/groups",
+    relationLabelKey: "name",
+    defaultValue: [],
+  },
 ]
 
 function ScriptsPage() {
@@ -52,6 +62,7 @@ function ScriptsPage() {
         fields,
         parentNav: { label: "Resources", href: "/resources" },
         autoCreate,
+        enableGroupAssign: true,
       }}
     />
   )

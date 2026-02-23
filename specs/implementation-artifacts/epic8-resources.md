@@ -148,7 +148,7 @@ External database connections. Password always references secrets.
 | Field | Type | Notes |
 |-------|------|-------|
 | name | Text | required |
-| type | Select | `mysql` / `postgres` / `redis` / `mongodb` |
+| type | Select | `mysql` / `postgres` / `mariadb` / `redis` / `mongodb` / `clickhouse` / `neo4j` / `qdrant` / `elasticsearch` / `sqlite` |
 | host | Text | |
 | port | Number | |
 | db_name | Text | |
@@ -298,11 +298,16 @@ New resource types → new collection + migration + route group. No changes to e
 - [x] 8.4b: Dashboard UI — Integrations list/form page + Hub card
 - [x] 8.4c: Dashboard UI — Scripts list/form page + Hub card
 - [x] 8.5: App resource binding — `env_vars`, `credentials` (encrypted) JSON + relation fields on Apps collection (`1740100000_add_apps_resource_bindings.go`)
-- [ ] 8.6: Resource Groups — Migration: `resource_groups` collection + seed `default` group + back-fill `groups` field on all 8 resource collections
-- [ ] 8.7: Resource Groups — Backend API: CRUD for `/groups`, cross-type list (`/groups/:id/resources`), batch add/remove (`/groups/:id/resources/batch`)
-- [ ] 8.8: Resource Groups — Dashboard UI: Groups management page (`/resources/groups`), group detail page with unified resource list + batch assign/remove; `[Resource Groups]` link on Hub page; `Groups` multi-select field in all resource create/edit forms; multi-select + batch toolbar on each resource list page
+- [x] 8.6: Resource Groups — Migration: `resource_groups` collection + seed `default` group + back-fill `groups` field on all 8 resource collections
+- [x] 8.7: Resource Groups — Backend API: CRUD for `/groups`, cross-type list (`/groups/:id/resources`), batch add/remove (`/groups/:id/resources/batch`)
+- [x] 8.8: Resource Groups — Dashboard UI: Groups management page (`/resources/groups`), group detail page with unified resource list + batch assign/remove; `[Resource Groups]` link on Hub page; `Groups` multi-select field in all resource create/edit forms; multi-select + batch toolbar on each resource list page
 
 ## Implementation Notes (Dashboard UI)
+
+### Resource Hub 卡片布局
+- 图标 + 标题 + `(n)` 数量在同一行，数量字体与标题一致（`text-sm font-medium`），颜色 `text-muted-foreground`
+- 描述文字在图标/标题行下方，左对齐图标右侧
+- 加载中时在括号位置显示内联 spinner
 
 ### Navigation structure
 Resources is a single sidebar entry (no sub-items). Clicking it opens the **Resource Hub** at `/resources` — a card grid showing all 8 resource types with live counts. Each card is fully clickable and navigates to the resource list page (`/resources/servers`, etc.). No action buttons on the Hub; `[+ Create]` lives only on the list page.
@@ -346,15 +351,24 @@ Hub 页右上角有两个并排操作入口：
 - 支持按 Type 过滤
 - 右上角 **[+ Add Resources]** 按钮：打开多选弹窗，按类型 tab 浏览并选择资源加入本组
 
-**资源列表页批量操作**（`/resources/servers` 等）
+**Assign to Groups 批量工具栏**（`/resources/servers` 等）
 - 列表行支持多选（checkbox）
-- 多选后底部出现批量工具栏：**[Assign to Groups ▾]** 展开已有组列表，点击后将所选资源加入目标组（不影响已有分组归属）
+- 多选后底部出现批量工具栏：**[Assign to Groups]** 按钮
+- 点击按钮打开 Dialog，列出所有 group（Checkbox 多选），确认后批量分配，支持一次分配到多个 group
 - 批量工具栏同时显示已选数量
 
 **资源创建 / 编辑表单**
 - 增加 `Groups` 字段：多选下拉，选项来自 `/api/ext/resources/groups`
 - 创建时默认已勾选 `default` 组
 - 适用于所有 8 种资源类型（`ResourcePage` 通用 fieldDef + `EnvGroupsPage` 各自扩展）
+
+### Groups 路由结构
+`/resources/groups` 下有两层路由，需要 layout + index 分离：
+- `groups.tsx` — layout，仅含 `<Outlet />`
+- `groups.index.tsx` — 列表页组件，route id `/_app/_auth/resources/groups/`
+- `groups.$id.tsx` — 详情页，route id `/_app/_auth/resources/groups/$id`
+
+routeTree.gen.ts 中 `AppAuthResourcesGroupsRouteChildren` 包含 `AppAuthResourcesGroupsIndexRoute` 和 `AppAuthResourcesGroupsIdRoute` 两个子路由。
 
 ### Generic `ResourcePage` component
 All resource types except Env Groups use the shared `ResourcePage` component (`src/components/resources/ResourcePage.tsx`). It supports the following field config options:
@@ -376,8 +390,23 @@ The `secrets.value` field is a single-line password input for `password / api_ke
 ### Env Groups — custom component
 Env Groups require a nested dynamic vars editor (each row: key + value or secret selector) which cannot be expressed in flat `FieldDef[]`. The route uses a standalone `EnvGroupsPage` component instead of `ResourcePage`.
 
-### Databases — port auto-fill
-The `type` select uses `onValueChange` to pre-fill the `port` field: `mysql→3306`, `postgres→5432`, `redis→6379`, `mongodb→27017`.
+### Databases — port auto-fill & supported types
+`type` select 支持 10 种数据库，`onValueChange` 自动填充默认端口：
+
+| Type | 场景 | 默认端口 |
+|------|------|---------|
+| mysql | 关系型 OLTP | 3306 |
+| postgres | 通用关系型 | 5432 |
+| mariadb | 关系型 OLTP | 3306 |
+| redis | 缓存 / KV | 6379 |
+| mongodb | 文档数据库 | 27017 |
+| clickhouse | 分析 OLAP | 9000 |
+| neo4j | 图数据库 | 7687 |
+| qdrant | 向量数据库 | 6333 |
+| elasticsearch | 搜索 / 分析 | 9200 |
+| sqlite | 嵌入式 / 文件 | — |
+
+> 集合层 `type` 字段 Select 选项同步更新（迁移文件需追加新选项）。
 
 ## Dependencies
 

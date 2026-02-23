@@ -61,6 +61,16 @@ const fields: FieldDef[] = [
   { key: "region", label: "Region", type: "text", placeholder: "us-east-1 (optional)" },
   { key: "extra", label: "Extra Config (JSON)", type: "textarea", placeholder: "{\"tenant_id\": \"…\"}" },
   { key: "description", label: "Description", type: "textarea" },
+  {
+    key: "groups",
+    label: "Groups",
+    type: "relation",
+    multiSelect: true,
+    relationAutoSelectDefault: true,
+    relationApiPath: "/api/ext/resources/groups",
+    relationLabelKey: "name",
+    defaultValue: [],
+  },
 ]
 
 function CloudAccountsPage() {
@@ -75,6 +85,7 @@ function CloudAccountsPage() {
         fields,
         parentNav: { label: "Resources", href: "/resources" },
         autoCreate,
+        enableGroupAssign: true,
       }}
     />
   )
