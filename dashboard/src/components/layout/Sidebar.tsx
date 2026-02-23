@@ -12,6 +12,7 @@ import {
   FolderOpen,
   Users,
   ScrollText,
+  Cog,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -78,6 +79,13 @@ const usersNavItem: NavItem = {
   href: "/users",
 }
 
+const settingsNavItem: NavItem = {
+  id: "settings",
+  label: "Settings",
+  icon: <Cog className="h-5 w-5" />,
+  href: "/settings",
+}
+
 function buildNavGroups(isSuperuser: boolean): NavGroup[] {
   return [
     workspaceGroup,
@@ -85,7 +93,7 @@ function buildNavGroups(isSuperuser: boolean): NavGroup[] {
       id: "admin",
       label: "Admin",
       items: isSuperuser
-        ? [...baseAdminItems, usersNavItem]
+        ? [...baseAdminItems, usersNavItem, settingsNavItem]
         : baseAdminItems,
     },
   ]

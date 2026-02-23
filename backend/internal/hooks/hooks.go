@@ -12,15 +12,22 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/internal/audit"
+	"github.com/websoft9/appos/backend/internal/settings"
 )
 
-// ─── File quota constants (mirrors routes/files.go) ─────────────────────────
-// TODO (Story 13.2): replace with live settings API lookups (Epic 13).
-const (
-	hookFilesMaxPerUser = 100
+// ─── File quota defaults (Story 13.2: values now stored in app_settings DB) ───────
+//
+// hookDefaultFilesQuota is the code-level fallback used when the DB row is
+// missing or the DB is unavailable.
+var hookDefaultFilesQuota = map[string]any{
+	"maxSizeMB":           10,
+	"maxPerUser":          100,
+	"shareMaxMinutes":     60,
+	"shareDefaultMinutes": 30,
+}
 
+const (
 	// Reserved root-level folder names used by the system.
-	// TODO (Story 13.2): make configurable via settings API.
 	hookReservedFolderNames = "deploy,artifact"
 	// Must match filesAllowedUploadFormats in routes/files.go.
 	hookFilesAllowedFormats = "txt,md,yaml,yml,json,sh,bash,zsh,fish,env," +
@@ -71,6 +78,10 @@ func registerFileHooks(app *pocketbase.PocketBase) {
 // validateFileUpload checks file extension and per-user file count.
 // For folder records (is_folder=true) format validation is skipped.
 func validateFileUpload(app core.App, record *core.Record) error {
+	// Load quota from settings DB (fallback to code defaults if unavailable).
+	quota, _ := settings.GetGroup(app, "files", "quota", hookDefaultFilesQuota)
+	maxPerUser := settings.Int(quota, "maxPerUser", 100)
+
 	// Folders don't have a file extension — skip format check.
 	if record.GetBool("is_folder") {
 		// Reject reserved root-level folder names.
@@ -90,10 +101,10 @@ func validateFileUpload(app core.App, record *core.Record) error {
 		owner := record.GetString("owner")
 		if owner != "" {
 			existing, err := app.FindAllRecords("user_files", dbx.HashExp{"owner": owner})
-			if err == nil && len(existing) >= hookFilesMaxPerUser {
+			if err == nil && len(existing) >= maxPerUser {
 				return fmt.Errorf(
 					"item limit reached (%d); delete some files or folders first",
-					hookFilesMaxPerUser,
+					maxPerUser,
 				)
 			}
 		}
@@ -121,10 +132,10 @@ func validateFileUpload(app core.App, record *core.Record) error {
 	owner := record.GetString("owner")
 	if owner != "" {
 		existing, err := app.FindAllRecords("user_files", dbx.HashExp{"owner": owner})
-		if err == nil && len(existing) >= hookFilesMaxPerUser {
+		if err == nil && len(existing) >= maxPerUser {
 			return fmt.Errorf(
 				"file limit reached (%d); delete some files before uploading new ones",
-				hookFilesMaxPerUser,
+				maxPerUser,
 			)
 		}
 	}

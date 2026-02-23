@@ -114,11 +114,11 @@ development_status:
   epic12-retrospective: optional
 
   # Epic 13: Settings Management
-  epic13: in-progress
-  13.1-settings-foundation: ready-for-dev
-  13.2-migrate-file-constants: ready-for-dev     # Resolves Story 9.5
-  13.3-pb-settings-ui: ready-for-dev
-  13.4-ext-settings-ui: ready-for-dev
-  13.5-ext-infra-backend: ready-for-dev
-  13.6-ext-infra-ui: ready-for-dev
+  epic13: done
+  13.1-settings-foundation: done
+  13.2-migrate-file-constants: done    # Resolves Story 9.5
+  13.3-pb-settings-ui: done
+  13.4-ext-settings-ui: done
+  13.5-ext-infra-backend: done
+  13.6-ext-infra-ui: done
   epic13-retrospective: optional

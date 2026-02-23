@@ -2,7 +2,7 @@
 
 **Epic**: Epic 13 - Settings Management
 **Priority**: P2
-**Status**: ready-for-dev
+**Status**: done
 **Depends on**: Story 13.1 (superuser route pattern established)
 
 ## User Story
@@ -117,10 +117,18 @@ Render Settings nav item only when `pb.authStore.record?.collectionName === '_su
 
 ### Agent Model Used
 
-claude-sonnet-4-5
+claude-sonnet-4-6
 
 ### Debug Log References
 
 ### Completion Notes List
 
+- Used custom Toggle component (button role=switch) since project has no Radix Switch component installed
+- `react-hook-form`/`zod` not in project deps — used controlled state (useState) consistent with existing codebase
+- Stories 13.3, 13.4, 13.6 implemented in a single settings.tsx file (all sections)
+
 ### File List
+
+- `dashboard/src/routes/_app/_auth/_superuser/settings.tsx` (new)
+- `dashboard/src/components/layout/Sidebar.tsx` (modified: added Cog icon + settingsNavItem)
+- `dashboard/src/routeTree.gen.ts` (modified: registered settings route)

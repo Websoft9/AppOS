@@ -13,18 +13,27 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
+	"github.com/websoft9/appos/backend/internal/settings"
 )
 
-// ─── Quota constants (Phase 1: hardcoded) ──────────────────────────────────
-// TODO (Story 13.2): replace each constant with a live lookup from the settings API (Epic 13).
-const (
-	filesMaxSizeMB = 10  // max file size in MB
-	filesMaxPerUser      = 100 // max files per user
-	filesShareMaxMin     = 60  // hard ceiling for share validity (minutes)
-	filesShareDefaultMin = 30  // default share validity (minutes)
+// ─── Quota defaults (Story 13.2: values now stored in app_settings DB) ───────
+//
+// defaultFilesQuota is the code-level safety net used when the DB row is
+// missing or unavailable.  settings.GetGroup always returns a non-nil map, so
+// callers using  quota, _ := settings.GetGroup(...)  are always safe.
+//
+// NOTE: These values must stay in sync with:
+//   - routes/settings.go  fallbackForKey("files/quota")
+//   - migrations/1741200001_seed_app_settings.go  (seed defaults)
+var defaultFilesQuota = map[string]any{
+	"maxSizeMB":           10,
+	"maxPerUser":          100,
+	"shareMaxMinutes":     60,
+	"shareDefaultMinutes": 30,
+}
 
+const (
 	// Root-level folder names reserved by the system (not creatable by users).
-	// TODO (Story 13.2): make configurable via settings API.
 	filesReservedFolderNames = "deploy,artifact"
 
 	// All extensions that may be uploaded (text, code, office, pdf).
@@ -73,18 +82,17 @@ func registerFilePublicRoutes(se *core.ServeEvent) {
 
 // ─── Handlers ──────────────────────────────────────────────────────────────
 
-// handleFilesQuota returns the currently active quota limits.
-// Phase 1: returns hardcoded constants so the frontend can use them for pre-checks.
-// Phase 2 (Story 9.5): will read from the settings API (Epic 2).
+// handleFilesQuota returns the currently active quota limits read from app_settings.
 func handleFilesQuota(e *core.RequestEvent) error {
+	quota, _ := settings.GetGroup(e.App, "files", "quota", defaultFilesQuota)
 	return e.JSON(http.StatusOK, map[string]any{
-		"max_size_mb":             filesMaxSizeMB,
+		"max_size_mb":            settings.Int(quota, "maxSizeMB", 10),
 		"allowed_upload_formats": strings.Split(filesAllowedUploadFormats, ","),
 		"editable_formats":       strings.Split(filesEditableFormats, ","),
-		"max_per_user":           filesMaxPerUser,
-		"share_max_minutes":      filesShareMaxMin,
-		"share_default_minutes":  filesShareDefaultMin,
-		"reserved_folder_names": strings.Split(filesReservedFolderNames, ","),
+		"max_per_user":           settings.Int(quota, "maxPerUser", 100),
+		"share_max_minutes":      settings.Int(quota, "shareMaxMinutes", 60),
+		"share_default_minutes":  settings.Int(quota, "shareDefaultMinutes", 30),
+		"reserved_folder_names":  strings.Split(filesReservedFolderNames, ","),
 	})
 }
 
@@ -111,18 +119,23 @@ func handleFileShareCreate(e *core.RequestEvent) error {
 		return e.ForbiddenError("Access denied", nil)
 	}
 
+	// Load quota from settings DB (fallback to code defaults if unavailable).
+	quota, _ := settings.GetGroup(e.App, "files", "quota", defaultFilesQuota)
+	shareMaxMin := settings.Int(quota, "shareMaxMinutes", 60)
+	shareDefaultMin := settings.Int(quota, "shareDefaultMinutes", 30)
+
 	// Parse duration from body; fall back to default.
 	var body struct {
 		Minutes int `json:"minutes"`
 	}
 	_ = e.BindBody(&body) // ignore parse errors; zero value is fine
 	if body.Minutes <= 0 {
-		body.Minutes = filesShareDefaultMin
+		body.Minutes = shareDefaultMin
 	}
 	// Enforce hard ceiling.
-	if body.Minutes > filesShareMaxMin {
+	if body.Minutes > shareMaxMin {
 		return e.BadRequestError(
-			fmt.Sprintf("share duration cannot exceed %d minutes", filesShareMaxMin), nil,
+			fmt.Sprintf("share duration cannot exceed %d minutes", shareMaxMin), nil,
 		)
 	}
 

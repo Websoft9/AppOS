@@ -34,6 +34,7 @@ import { Route as AppAuthResourcesEnvGroupsRouteImport } from './routes/_app/_au
 import { Route as AppAuthResourcesDatabasesRouteImport } from './routes/_app/_auth/resources/databases'
 import { Route as AppAuthResourcesCloudAccountsRouteImport } from './routes/_app/_auth/resources/cloud-accounts'
 import { Route as AppAuthResourcesCertificatesRouteImport } from './routes/_app/_auth/resources/certificates'
+import { Route as AppAuthSuperuserSettingsRouteImport } from './routes/_app/_auth/_superuser/settings'
 import { Route as AppAuthResourcesGroupsIndexRouteImport } from './routes/_app/_auth/resources/groups.index'
 import { Route as AppAuthSuperuserUsersIndexRouteImport } from './routes/_app/_auth/_superuser/users/index'
 import { Route as AppAuthResourcesGroupsIdRouteImport } from './routes/_app/_auth/resources/groups.$id'
@@ -165,6 +166,12 @@ const AppAuthResourcesCertificatesRoute =
     path: '/resources/certificates',
     getParentRoute: () => AppAuthRoute,
   } as any)
+const AppAuthSuperuserSettingsRoute =
+  AppAuthSuperuserSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AppAuthSuperuserRoute,
+  } as any)
 const AppAuthResourcesGroupsIndexRoute =
   AppAuthResourcesGroupsIndexRouteImport.update({
     id: '/',
@@ -197,6 +204,7 @@ export interface FileRoutesByFullPath {
   '/files': typeof AppAuthFilesRoute
   '/profile': typeof AppAuthProfileRoute
   '/services': typeof AppAuthServicesRoute
+  '/settings': typeof AppAuthSuperuserSettingsRoute
   '/resources/certificates': typeof AppAuthResourcesCertificatesRoute
   '/resources/cloud-accounts': typeof AppAuthResourcesCloudAccountsRoute
   '/resources/databases': typeof AppAuthResourcesDatabasesRoute
@@ -224,6 +232,7 @@ export interface FileRoutesByTo {
   '/files': typeof AppAuthFilesRoute
   '/profile': typeof AppAuthProfileRoute
   '/services': typeof AppAuthServicesRoute
+  '/settings': typeof AppAuthSuperuserSettingsRoute
   '/resources/certificates': typeof AppAuthResourcesCertificatesRoute
   '/resources/cloud-accounts': typeof AppAuthResourcesCloudAccountsRoute
   '/resources/databases': typeof AppAuthResourcesDatabasesRoute
@@ -254,6 +263,7 @@ export interface FileRoutesById {
   '/_app/_auth/files': typeof AppAuthFilesRoute
   '/_app/_auth/profile': typeof AppAuthProfileRoute
   '/_app/_auth/services': typeof AppAuthServicesRoute
+  '/_app/_auth/_superuser/settings': typeof AppAuthSuperuserSettingsRoute
   '/_app/_auth/resources/certificates': typeof AppAuthResourcesCertificatesRoute
   '/_app/_auth/resources/cloud-accounts': typeof AppAuthResourcesCloudAccountsRoute
   '/_app/_auth/resources/databases': typeof AppAuthResourcesDatabasesRoute
@@ -283,6 +293,7 @@ export interface FileRouteTypes {
     | '/files'
     | '/profile'
     | '/services'
+    | '/settings'
     | '/resources/certificates'
     | '/resources/cloud-accounts'
     | '/resources/databases'
@@ -310,6 +321,7 @@ export interface FileRouteTypes {
     | '/files'
     | '/profile'
     | '/services'
+    | '/settings'
     | '/resources/certificates'
     | '/resources/cloud-accounts'
     | '/resources/databases'
@@ -339,6 +351,7 @@ export interface FileRouteTypes {
     | '/_app/_auth/files'
     | '/_app/_auth/profile'
     | '/_app/_auth/services'
+    | '/_app/_auth/_superuser/settings'
     | '/_app/_auth/resources/certificates'
     | '/_app/_auth/resources/cloud-accounts'
     | '/_app/_auth/resources/databases'
@@ -536,6 +549,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthResourcesCertificatesRouteImport
       parentRoute: typeof AppAuthRoute
     }
+    '/_app/_auth/_superuser/settings': {
+      id: '/_app/_auth/_superuser/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppAuthSuperuserSettingsRouteImport
+      parentRoute: typeof AppAuthSuperuserRoute
+    }
     '/_app/_auth/resources/groups/': {
       id: '/_app/_auth/resources/groups/'
       path: '/'
@@ -561,10 +581,12 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppAuthSuperuserRouteChildren {
+  AppAuthSuperuserSettingsRoute: typeof AppAuthSuperuserSettingsRoute
   AppAuthSuperuserUsersIndexRoute: typeof AppAuthSuperuserUsersIndexRoute
 }
 
 const AppAuthSuperuserRouteChildren: AppAuthSuperuserRouteChildren = {
+  AppAuthSuperuserSettingsRoute: AppAuthSuperuserSettingsRoute,
   AppAuthSuperuserUsersIndexRoute: AppAuthSuperuserUsersIndexRoute,
 }
 

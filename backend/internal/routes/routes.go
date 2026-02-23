@@ -36,6 +36,9 @@ func Register(se *core.ServeEvent) {
 	// Public file share routes (unauthenticated — share token validation and download)
 	registerFilePublicRoutes(se)
 
+	// Ext Settings API (superuser-only — registered directly on se.Router)
+	RegisterSettings(se)
+
 	// All other custom routes require authentication
 	g := se.Router.Group("/api/ext")
 	g.Bind(apis.RequireAuth())

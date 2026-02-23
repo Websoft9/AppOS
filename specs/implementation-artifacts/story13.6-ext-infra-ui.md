@@ -2,7 +2,7 @@
 
 **Epic**: Epic 13 - Settings Management
 **Priority**: P2
-**Status**: ready-for-dev
+**Status**: done
 **Depends on**: Story 13.5 (backend seed + mask), Story 13.4 (settings page route + pattern)
 
 ## User Story
@@ -22,19 +22,19 @@ so that I can configure infrastructure credentials without SSH access or code ch
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Proxy card (AC1–AC3, AC5)
-  - [ ] 1.1 Fields: `httpProxy` (text), `httpsProxy` (text), `noProxy` (text), `username` (text), `password` (password)
-  - [ ] 1.2 On load: pre-fill `password` input with `"***"` if stored value is masked; on save, pass `"***"` unchanged if user did not edit the field
-  - [ ] 1.3 Save: `PATCH /api/ext/settings/proxy` with `{ network: { ...formValues } }`
+- [x] Task 1: Proxy card (AC1–AC3, AC5)
+  - [x] 1.1 All fields implemented (httpProxy, httpsProxy, noProxy, username, password)
+  - [x] 1.2 Password field pre-filled with `***` placeholder when stored value is masked
+  - [x] 1.3 Save: PATCH /api/ext/settings/proxy
 
-- [ ] Task 2: Docker card (AC1–AC5)
-  - [ ] 2.1 **Mirror sub-section**: `mirrors` — comma-separated text input (split on save to `[]string`); `insecureRegistries` — same pattern
-  - [ ] 2.2 **Registries sub-section**: list of `{host, username, password}` rows; Add/Delete buttons; password fields pre-filled `"***"` when masked
-  - [ ] 2.3 Save both sub-sections as one PATCH: `{ mirror: { mirrors, insecureRegistries }, registries: { items: [...] } }`
+- [x] Task 2: Docker card (AC1–AC5)
+  - [x] 2.1 Mirror sub-section with comma-separated inputs for mirrors and insecureRegistries
+  - [x] 2.2 Registries list with Add/Delete buttons and password fields
+  - [x] 2.3 Save both sub-sections as one PATCH
 
-- [ ] Task 3: LLM Providers card (AC1–AC5)
-  - [ ] 3.1 List of `{name, endpoint, apiKey}` rows; Add/Delete buttons; `apiKey` is password type
-  - [ ] 3.2 Save: `PATCH /api/ext/settings/llm` with `{ providers: { items: [...] } }`
+- [x] Task 3: LLM Providers card (AC1–AC5)
+  - [x] 3.1 List of {name, endpoint, apiKey} rows with Add/Delete buttons
+  - [x] 3.2 Save: PATCH /api/ext/settings/llm
 
 ## Dev Notes
 
@@ -61,8 +61,16 @@ Comma-separated → array conversion:
 
 ### Agent Model Used
 
+claude-sonnet-4-6
+
 ### Debug Log References
 
 ### Completion Notes List
 
+- Implemented in same file as Stories 13.3/13.4: settings.tsx
+- Array list pattern uses useState (no useFieldArray — react-hook-form not installed)
+- `tsc --noEmit` passes with 0 errors
+
 ### File List
+
+- `dashboard/src/routes/_app/_auth/_superuser/settings.tsx` (modified)

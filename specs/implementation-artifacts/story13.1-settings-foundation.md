@@ -2,7 +2,7 @@
 
 **Epic**: Epic 13 - Settings Management
 **Priority**: P2
-**Status**: ready-for-dev
+**Status**: done
 **Depends on**: Epic 1 (build), Epic 3 (auth)
 
 ## User Story
@@ -21,28 +21,28 @@ so that any backend module can read/write grouped settings from the database ins
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Migration — create `app_settings` collection (AC1)
-  - [ ] 1.1 File: `backend/internal/migrations/1741200000_create_app_settings.go`
-  - [ ] 1.2 `core.NewBaseCollection("app_settings")` with fields: `module` (TextField, required), `key` (TextField, required), `value` (JSONField)
-  - [ ] 1.3 ListRule / ViewRule: `@request.auth.collectionName = '_superusers'`
-  - [ ] 1.4 CreateRule / UpdateRule / DeleteRule: `""` (nil — forbidden from client)
-  - [ ] 1.5 Add a unique index on `(module, key)` via `collection.Indexes` or raw SQL in the migration
+- [x] Task 1: Migration — create `app_settings` collection (AC1)
+  - [x] 1.1 File: `backend/internal/migrations/1741200000_create_app_settings.go`
+  - [x] 1.2 `core.NewBaseCollection("app_settings")` with fields: `module` (TextField, required), `key` (TextField, required), `value` (JSONField)
+  - [x] 1.3 ListRule / ViewRule: `@request.auth.collectionName = '_superusers'`
+  - [x] 1.4 CreateRule / UpdateRule / DeleteRule: `""` (nil — forbidden from client)
+  - [x] 1.5 Add a unique index on `(module, key)` via `collection.Indexes` or raw SQL in the migration
 
-- [ ] Task 2: Settings helper package (AC5)
-  - [ ] 2.1 Create `backend/internal/settings/settings.go`
-  - [ ] 2.2 Implement `GetGroup(app core.App, module, key string, fallback map[string]any) (map[string]any, error)` — on **any** error (row not found OR DB failure) return `(fallback, err)`; never return `(nil, err)`. This ensures callers using `v, _ := GetGroup(...)` always have a usable map.
-  - [ ] 2.3 Implement `SetGroup(app core.App, module, key string, value map[string]any) error` — upsert row (find existing or create new record, marshal value to JSON, call `app.Save()`)
-  - [ ] 2.4 Implement typed readers operating on an already-loaded group map: `Int(group map[string]any, field string, fallback int) int` and `String(group map[string]any, field string, fallback string) string`
+- [x] Task 2: Settings helper package (AC5)
+  - [x] 2.1 Create `backend/internal/settings/settings.go`
+  - [x] 2.2 Implement `GetGroup(app core.App, module, key string, fallback map[string]any) (map[string]any, error)` — on **any** error (row not found OR DB failure) return `(fallback, err)`; never return `(nil, err)`. This ensures callers using `v, _ := GetGroup(...)` always have a usable map.
+  - [x] 2.3 Implement `SetGroup(app core.App, module, key string, value map[string]any) error` — upsert row (find existing or create new record, marshal value to JSON, call `app.Save()`)
+  - [x] 2.4 Implement typed readers operating on an already-loaded group map: `Int(group map[string]any, field string, fallback int) int` and `String(group map[string]any, field string, fallback string) string`
 
-- [ ] Task 3: Ext API routes (AC2, AC3, AC4)
-  - [ ] 3.1 Create `backend/internal/routes/settings.go`
-  - [ ] 3.2 Register routes under superuser-only group: `GET /api/ext/settings/{module}` and `PATCH /api/ext/settings/{module}`
-  - [ ] 3.3 `GET` handler: query all `app_settings` rows where `module = {module}`, return `{ groupKey: { ...fields } }` JSON; **mask** string fields named `password`, `apiKey`, `secret` to `"***"` before returning
-  - [ ] 3.4 `PATCH` handler: for each key in request body, call `SetGroup` with masked fields preserved: if incoming value `=== "***"`, load existing row and keep original value; validate `module` and `key` are known (allowlist per module); return `400` for unknown, `422` for type mismatch
-  - [ ] 3.5 Register via `routes.RegisterSettings(se)` in main alongside other ext route registrations
+- [x] Task 3: Ext API routes (AC2, AC3, AC4)
+  - [x] 3.1 Create `backend/internal/routes/settings.go`
+  - [x] 3.2 Register routes under superuser-only group: `GET /api/ext/settings/{module}` and `PATCH /api/ext/settings/{module}`
+  - [x] 3.3 `GET` handler: query all `app_settings` rows where `module = {module}`, return `{ groupKey: { ...fields } }` JSON; **mask** string fields named `password`, `apiKey`, `secret` to `"***"` before returning
+  - [x] 3.4 `PATCH` handler: for each key in request body, call `SetGroup` with masked fields preserved: if incoming value `=== "***"`, load existing row and keep original value; validate `module` and `key` are known (allowlist per module); return `400` for unknown, `422` for type mismatch
+  - [x] 3.5 Register via `routes.RegisterSettings(se)` in main alongside other ext route registrations
 
-- [ ] Task 4: Basic test (AC1–AC5)
-  - [ ] 4.1 `backend/internal/settings/settings_test.go` — unit test `GetGroup` fallback path and `SetGroup` round-trip using PB test app
+- [x] Task 4: Basic test (AC1–AC5)
+  - [x] 4.1 `backend/internal/settings/settings_test.go` — unit test `GetGroup` fallback path and `SetGroup` round-trip using PB test app
 
 ## Dev Notes
 
@@ -116,10 +116,20 @@ backend/internal/routes/settings.go
 
 ### Agent Model Used
 
-claude-sonnet-4-5
+claude-sonnet-4-6
 
 ### Debug Log References
 
 ### Completion Notes List
 
+- `defaultFilesQuota` var declared in `routes/files.go` (not settings.go) to avoid duplication
+- Nested array mask/preserve implemented for docker/llm items (Story 13.5 scope included)
+- `allowedModuleKeys` pre-populated for all 4 modules (files, proxy, docker, llm) at time of creation
+
 ### File List
+
+- `backend/internal/migrations/1741200000_create_app_settings.go` (new)
+- `backend/internal/settings/settings.go` (new)
+- `backend/internal/settings/settings_test.go` (new)
+- `backend/internal/routes/settings.go` (new)
+- `backend/internal/routes/routes.go` (modified)

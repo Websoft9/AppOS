@@ -2,7 +2,7 @@
 
 **Epic**: Epic 13 - Settings Management
 **Priority**: P2
-**Status**: ready-for-dev
+**Status**: done
 **Depends on**: Story 13.1 (app_settings collection + helper + Ext API with mask)
 
 ## User Story
@@ -22,30 +22,21 @@ so that administrators can set these without modifying code or environment varia
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Seed migration (AC1)
-  - [ ] 1.1 File: `backend/internal/migrations/1741200002_seed_infra_settings.go` (timestamp after `1741200001`)
-  - [ ] 1.2 For each of the 4 rows, use insert-if-not-exists pattern from Story 13.2
-  - [ ] 1.3 Default values:
-    - `proxy/network`: `{"httpProxy":"","httpsProxy":"","noProxy":"","username":"","password":""}`
-    - `docker/mirror`: `{"mirrors":[],"insecureRegistries":[]}`
-    - `docker/registries`: `{"items":[]}`
-    - `llm/providers`: `{"items":[]}`
-  - [ ] 1.4 `down()` is a no-op
+- [x] Task 1: Seed migration (AC1)
+  - [x] 1.1 File: `backend/internal/migrations/1741200002_seed_infra_settings.go`
+  - [x] 1.2 Insert-if-not-exists pattern for all 4 rows
+  - [x] 1.3 Default values as specified
+  - [x] 1.4 `down()` is a no-op
 
-- [ ] Task 2: Expand allowlist in `routes/settings.go` (AC6)
-  - [ ] 2.1 Add to `allowedModuleKeys`:
-    ```go
-    "proxy":  {"network"},
-    "docker": {"mirror", "registries"},
-    "llm":    {"providers"},
-    ```
+- [x] Task 2: Expand allowlist in `routes/settings.go` (AC6)
+  - [x] 2.1 `allowedModuleKeys` pre-populated with proxy/docker/llm at initial creation
 
-- [ ] Task 3: Mask for nested array items (AC3, AC4, AC5)
-  - [ ] 3.1 Extend the `maskGroup` helper (from Story 13.1) to also walk `value["items"]` arrays and mask sensitive fields within each item
-  - [ ] 3.2 Extend PATCH preserve-`"***"` logic to handle nested items: for array groups, load existing items, for each incoming item compare by position or identity (simplest: positional), preserve any `"***"` field from existing value
+- [x] Task 3: Mask for nested array items (AC3, AC4, AC5)
+  - [x] 3.1 `maskItems` helper walks `value["items"]` arrays and masks sensitive fields in each item
+  - [x] 3.2 `preserveItemsSensitive` handles positional "***" preservation in array groups
 
-- [ ] Task 4: Code-level defaults (AC1 fallback)
-  - [ ] 4.1 In `routes/settings.go` (or a new `settings/defaults.go`), define fallback maps used when DB unavailable:
+- [x] Task 4: Code-level defaults (AC1 fallback)
+  - [x] 4.1 `defaultProxyNetwork`, `defaultDockerMirror`, `defaultDockerRegistries`, `defaultLLMProviders` defined in `routes/settings.go`:
     ```go
     var defaultProxyNetwork    = map[string]any{"httpProxy":"","httpsProxy":"","noProxy":"","username":"","password":""}
     var defaultDockerMirror    = map[string]any{"mirrors":[]any{},"insecureRegistries":[]any{}}
@@ -71,8 +62,16 @@ For array groups (docker/registries, llm/providers), iterate `value["items"].([]
 
 ### Agent Model Used
 
+claude-sonnet-4-6
+
 ### Debug Log References
 
 ### Completion Notes List
 
+- allowedModuleKeys, mask, and preserve logic all implemented in Story 13.1's settings.go (pre-populated)
+- `go build ./...` passes with 0 errors
+
 ### File List
+
+- `backend/internal/migrations/1741200002_seed_infra_settings.go` (new)
+- `backend/internal/routes/settings.go` (modified: allowlist, mask, preserve all complete from 13.1)

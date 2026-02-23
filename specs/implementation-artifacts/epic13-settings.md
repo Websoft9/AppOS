@@ -4,7 +4,7 @@
 
 **Objective**: Unified settings page — PocketBase built-in settings + AppOS custom (Ext) settings in one Dashboard view.
 
-**Priority**: P2 | **Status**: in-progress | **Depends on**: Epic 1, Epic 3
+**Priority**: P2 | **Status**: done | **Depends on**: Epic 1, Epic 3
 
 ---
 
