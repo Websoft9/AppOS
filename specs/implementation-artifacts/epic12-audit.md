@@ -71,6 +71,7 @@ Format: `{resource_type}.{verb}`
 | Action | Trigger |
 |--------|---------|
 | `app.deploy` | Deploy app (Asynq) |
+| `app.start` | Start app |
 | `app.restart` | Restart app |
 | `app.stop` | Stop app |
 | `app.delete` | Delete app (Asynq) |

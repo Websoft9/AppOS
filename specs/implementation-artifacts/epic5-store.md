@@ -1,60 +1,84 @@
-# Epic 5: Dashboard - Store Module
+# Epic 5: App Store Module
 
-## Overview
+**Priority**: P1 | **Status**: In Progress | **Updated**: 2026-02-23
 
-**Objective**: Implement application store module within Dashboard - browse, search, and deploy applications from 300+ app catalog
-
-**Business Value**: Unified app discovery and deployment experience integrated into main Dashboard UI
-
-**Priority**: P1
-
-**Status**: In Progress
+---
 
 ## Scope
 
-Build Store module as part of Dashboard (Epic 7 framework):
-- Application catalog browsing and search
-- Category-based filtering and navigation
-- Application detail views with metadata
-- One-click deployment integration (calls BaaS deployment API)
-- Media data integration from `/data/dev/websoft9/media`
+- Browse application catalog, category navigation, search
+- Application detail page (screenshot carousel / text-icon fallback / Markdown description)
+- Favorites and notes (user-private)
+- User-defined custom apps (private or globally shared)
+- One-click deployment
 
-## Success Criteria
+---
 
-- Store module integrates seamlessly with Dashboard routing
-- Application catalog displays with categories and search
-- Detail modal shows app metadata (description, ports, volumes)
-- Deploy button triggers BaaS deployment workflow
-- UI follows Dashboard design system (shadcn/ui + Tailwind)
+## Key Decisions
+
+### Data Layer
+
+Official catalog (read-only) and user data (writable) are strictly separated and merged on the frontend before rendering:
+
+| Data | Storage | Notes |
+|------|---------|-------|
+| catalog / product JSON | CDN + local fallback | Read-only; bundled with release, CDN keeps it up to date |
+| Favorites & notes | PocketBase `store_user_apps` | User-private; unique on `(user, app_key)` |
+| Custom apps | PocketBase `store_custom_apps` | Includes compose template; supports private / shared visibility |
+
+### Media Resources (fetched online, not pre-stored in container)
+
+| Resource | URL Pattern | Fallback |
+|----------|-------------|----------|
+| Catalog JSON | `https://artifact.websoft9.com/release/websoft9/store/{catalog\|product}_{locale}.json` | Local bundled file (`/store/*.json`) |
+| App icon | `https://libs.websoft9.com/Websoft9/logo/product/{key}.png` | Auto-generated text icon |
+| Screenshots | `https://libs.websoft9.com/Websoft9/DocsPicture/en/{key}/` | Entire carousel section hidden |
+
+### PocketBase Collections
+
+#### `store_user_apps` — Favorites & Notes
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `user` | Relation → users | Owner |
+| `app_key` | Text | Matches `key` in product JSON |
+| `is_favorite` | Bool | |
+| `note` | Text (nullable) | Markdown |
+
+Unique index on `(user, app_key)`. List/View rule: `@request.auth.id = user`.
+
+#### `store_custom_apps` — User-Defined Apps
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `key` | Text (unique) | Must not conflict with official keys |
+| `trademark` | Text | Display name |
+| `logo_url` | URL (nullable) | Custom icon |
+| `overview` | Text | Short description |
+| `description` | Text | Markdown |
+| `category_keys` | JSON | References catalog category keys |
+| `compose_yaml` | Text | Docker Compose template |
+| `visibility` | Select: `private/shared` | |
+| `created_by` | Relation → users | |
+
+### Catalog Loading Strategy: Stale-While-Revalidate
+
+Serve local JSON immediately (millisecond-level), then silently fetch CDN in the background to update the cache. CDN failures are ignored. Catalog data is decoupled from software releases and always available offline.
+
+---
 
 ## Stories
 
-- [x] 5.1: Core UI Components & Data Loading
-- [x] 5.2: Media API Integration
-- [x] 5.3: Category Management
-- [ ] 5.4: Build & Deployment Configuration
-- [x] 5.5: Internationalization (i18n) Support
-- [ ] 5.6: Application Detail Modal
-- [ ] 5.7: Search Autocomplete
+- [x] [5.1: Foundation](story5.1-foundation.md) — Core UI, category navigation, i18n
+- [ ] [5.2: Store API & Display](story5.2-store-api.md) — online media fetch, SWR, detail page, icon/screenshot fallback, search
+- [ ] 5.3: Deployment — one-click deployment integration
+- [ ] 5.4: User Features — favorites, notes, custom apps
+- [ ] 5.5  i18n
+
+---
 
 ## Dependencies
 
-- Prerequisites: 
-  - Epic 7 (Dashboard framework) must be completed first
-  - Media data available at `/data/dev/websoft9/media`
-  - BaaS deployment API available
-- Downstream: None
-
-## Technical Notes
-
-- **Technology**: React components within Dashboard framework
-  - UI: shadcn/ui + Tailwind CSS (from Epic 7)
-  - Routing: TanStack Router (`/store/*` routes)
-  - Data: TanStack Query for API calls and caching
-  - i18n: react-i18next for translations
-- **Location**: `dashboard/src/routes/_app/_auth/store/` (TanStack Router file-based structure)
-- **Data Source**: `/data/dev/websoft9/media` (loaded via BaaS API)
-- **Integration**: 
-  - BaaS deployment API for app installation
-  - Shared Dashboard state (theme, locale from React Context)
-  - TanStack Query for catalog data caching
+- Epic 7 (Dashboard framework) completed
+- PocketBase migrations for `store_user_apps` and `store_custom_apps`
+- Deployment API `/api/ext/apps/deploy` available

@@ -1,6 +1,6 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import React, { useState, useEffect, useCallback } from 'react'
-import { ChevronDown, ChevronUp, ChevronRight, ChevronsUpDown, RefreshCw, Loader2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, ChevronRight, ChevronsUpDown, RefreshCw, Loader2, FileText } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -30,6 +30,7 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
 
 const ACTIONS = [
   'app.deploy', 'app.start', 'app.restart', 'app.stop', 'app.delete', 'app.env_update',
+  'service.restart',
   'backup.create', 'backup.restore',
   'user.create', 'user.update', 'user.delete', 'user.reset_password',
   'login.success', 'login.failed',
@@ -145,10 +146,19 @@ function AuditPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold">Audit Log</h2>
-        <Button variant="ghost" size="sm" onClick={() => fetchLogs(page, filterAction, filterStatus, sortParam, pageSize)}>
-          <RefreshCw className="h-4 w-4 mr-1" /> Refresh
-        </Button>
+        <h2 className="text-2xl font-bold">Audit &amp; Logs</h2>
+        <div className="flex items-center gap-1">
+          {isSuperuser && (
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/logs">
+                <FileText className="h-4 w-4 mr-1" /> Logs
+              </Link>
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" onClick={() => fetchLogs(page, filterAction, filterStatus, sortParam, pageSize)}>
+            <RefreshCw className="h-4 w-4 mr-1" /> Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Filter bar */}

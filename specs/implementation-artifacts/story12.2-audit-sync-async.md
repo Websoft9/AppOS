@@ -64,6 +64,7 @@ All tasks complete. Backend compiles cleanly. Note: `handleDeployApp`/`handleDel
 - `backend/internal/routes/docker.go` — modified: `clientInfo()` helper + audit calls in all compose handlers
 - `backend/internal/routes/backup.go` — modified: IP/UA + audit calls
 - `backend/internal/routes/users.go` — modified: IP/UA in reset-password audit
+- `backend/internal/routes/services.go` — modified: added `audit` import + `audit.Write` in `handleServiceRestart` (`service.restart`)
 - `backend/internal/hooks/hooks.go` — modified: login hooks + IP/UA in user hooks
 - `backend/internal/routes/routes.go` — modified: added `asynqClient` var + `SetAsynqClient()`
 - `backend/cmd/appos/main.go` — modified: `worker.New(app)`, `routes.SetAsynqClient(w.Client())`
@@ -75,3 +76,4 @@ All tasks complete. Backend compiles cleanly. Note: `handleDeployApp`/`handleDel
 | 2026-02-23 | Story created |
 | 2026-02-23 | Implemented — worker redesign, sync handler audit, async enqueue+pending |
 | 2026-02-23 | Added `clientInfo()` helper; IP/UA in all sync handlers; login hooks; user hook IP/UA |
+| 2026-02-23 | Added `audit.Write` to `handleServiceRestart` in services.go — `service.restart` action now wired |

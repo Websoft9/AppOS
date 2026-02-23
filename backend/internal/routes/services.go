@@ -7,6 +7,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
+	"github.com/websoft9/appos/backend/internal/audit"
 	"github.com/websoft9/appos/backend/internal/supervisor"
 )
 
@@ -170,6 +171,7 @@ func handleServiceRestart(e *core.RequestEvent) error {
 		})
 	}
 
+	userID, userEmail, ip, ua := clientInfo(e)
 	client := newSupervisorClient()
 	if err := client.RestartProcess(name); err != nil {
 		if strings.Contains(err.Error(), "BAD_NAME") {
@@ -178,11 +180,26 @@ func handleServiceRestart(e *core.RequestEvent) error {
 				"message": "service not found: " + name,
 			})
 		}
+		audit.Write(e.App, audit.Entry{
+			UserID: userID, UserEmail: userEmail,
+			Action: "service.restart", ResourceType: "service",
+			ResourceID: name, ResourceName: name,
+			IP: ip, UserAgent: ua,
+			Status: audit.StatusFailed,
+			Detail: map[string]any{"errorMessage": err.Error()},
+		})
 		return e.JSON(http.StatusInternalServerError, map[string]any{
 			"error":   "restart_failed",
 			"message": err.Error(),
 		})
 	}
+	audit.Write(e.App, audit.Entry{
+		UserID: userID, UserEmail: userEmail,
+		Action: "service.restart", ResourceType: "service",
+		ResourceID: name, ResourceName: name,
+		IP: ip, UserAgent: ua,
+		Status: audit.StatusSuccess,
+	})
 
 	return e.JSON(http.StatusOK, map[string]any{
 		"success": true,

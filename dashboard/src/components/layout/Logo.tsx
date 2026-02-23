@@ -13,7 +13,7 @@ export function Logo({ collapsed = false }: { collapsed?: boolean }) {
       <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-bold">
         W9
       </div>
-      {!collapsed && <span className="text-lg">Websoft9</span>}
+      {!collapsed && <span className="text-lg">AppOS</span>}
     </Link>
   )
 }

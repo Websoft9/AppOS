@@ -299,9 +299,9 @@ function SettingsPage() {
   const saveApp = async () => {
     setAppSaving(true)
     try {
-      // Re-fetch current settings to avoid overwriting meta fields (senderName, etc.)
-      // that are not exposed in this form but are part of the same meta object.
-      const current = await pb.send('/api/settings', { method: 'GET' }) as PBSettings
+      // Use cached settings if available; re-fetch only when not yet loaded to
+      // avoid overwriting meta fields (senderName, etc.) not exposed in this form.
+      const current = pbSettings ?? await pb.send('/api/settings', { method: 'GET' }) as PBSettings
       await pb.send('/api/settings', {
         method: 'PATCH',
         body: { meta: { ...current.meta, appName, appURL } },
