@@ -85,6 +85,22 @@ As a developer, I need Dockerfiles and container configurations to package the A
 **Stage 2 - Backend**: `golang:1.26-alpine` → build `cmd/appos/main.go` to `/build/appos`
 **Stage 3 - Runtime**: `alpine:3.19` → copy artifacts + configs
 
+### Store Library Plugin
+
+Store Library 插件在**镜像构建时**下载（非运行时），保证启动速度、消除运行时网络依赖。
+
+```dockerfile
+# Build arg required: ARG WEBSOFT9_ARTIFACT
+RUN set -eux; \
+    curl -fsSL --retry 3 -o library.zip ${WEBSOFT9_ARTIFACT}/plugin/library/library-latest.zip; \
+    unzip -q library.zip && rm library.zip; \
+    [ -d "library" ] || mv library-* library 2>/dev/null || true; \
+    mv library /appos/library
+```
+
+- 最终路径: `/appos/library/` — 静态只读，**不**挂载为 Docker VOLUME
+- `mv library-* library` 兼容带版本号的归档名
+
 ## File Structure
 
 ```
@@ -106,14 +122,37 @@ build/
 - `auto`: entrypoint 用 `SUPERUSER_EMAIL` + `SUPERUSER_PASSWORD` 自动创建
 
 **Data Directories** (inside container):
+
+> ⚠️ **Breaking change**: `/appos/data/pb_data/` → `/appos/data/pb/pb_data/`. Update `entrypoint.sh`, `supervisord.conf`, and PocketBase startup command.
+
 ```
 /appos/data/
-├── pb_data/                # PocketBase data (data.db, auxiliary.db)
-│   ├── data.db            # Main database (apps, users, etc.)
-│   └── auxiliary.db       # Logs and system metadata
-├── redis/                  # Redis persistence (AOF/RDB)
-└── apps/                   # User-deployed app configurations
+├── pb/
+│   ├── pb_data/            # PocketBase database & storage
+│   └── pb_migrations/      # PocketBase migration files
+├── redis/                  # Redis persistence
+├── apps/                   # App instance workspaces
+├── workflows/              # Workflow instance workspaces
+└── templates/
+    ├── apps/               # Official app templates
+    ├── workflows/          # Official workflow templates
+    └── custom/             # User-defined custom templates
 ```
+
+```dockerfile
+# Required mkdir -p block in Dockerfile
+RUN mkdir -p \
+    /appos/data/pb/pb_data \
+    /appos/data/pb/pb_migrations \
+    /appos/data/redis \
+    /appos/data/apps \
+    /appos/data/workflows \
+    /appos/data/templates/apps \
+    /appos/data/templates/workflows \
+    /appos/data/templates/custom
+```
+
+`entrypoint.sh` 应通过幂等 `mkdir -p` 确保所有目录在运行时存在。
 
 ## Key Configuration Files
 
@@ -164,7 +203,9 @@ docker restart appos && docker exec appos ls /appos/data/
 - [x] Verify all services start correctly (appos + redis + nginx: ✅)
 - [x] PocketBase Admin UI accessible at `/_/`
 - [x] Custom routes working at `/api/ext/*`
-- [ ] Verify data persistence after restart
+- [x] Verify data persistence after restart
+- [x] Migrate pb_data → pb/pb_data; add workflows/, templates/ dirs
+- [x] Add Store Library baked into image (`build/library/` via COPY; `make build library` to download)
 
 ---
 
@@ -209,10 +250,21 @@ docker restart appos && docker exec appos ls /appos/data/
 
 ---
 
+**2026-02-24**: Directory Structure + Makefile + Store Library
+
+- **Breaking**: `/appos/data/pb_data/` → `/appos/data/pb/pb_data/`
+- **New dirs**: `pb/pb_migrations/`, `workflows/`, `templates/{apps,workflows,custom}/`
+- **Store Library**: `COPY build/library /appos/library`（宿主机预下载，`make build library` 触发）
+- **Makefile**: 新增 `make build library`；`make image build-local` 自动检查并下载；`make run` 改为方案B（仅 cp + restart）
+- **Files changed**: `Dockerfile`, `Dockerfile.local`, `entrypoint.sh`, `supervisord.conf`, `Makefile`, `.gitignore`
+- **Status**: 构建成功，`/appos/library` 和新目录结构已验证 ✅
+
+---
+
 ## Status
 
-**Current**: Ready for Dev  
-**Last Updated**: 2026-02-12  
+**Current**: Done
+**Last Updated**: 2026-02-24  
 **Estimated Effort**: 2-3 days  
 
 **Dependencies**:

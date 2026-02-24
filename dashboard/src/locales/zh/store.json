@@ -1,0 +1,104 @@
+{
+  "title": "应用商店",
+  "search": {
+    "placeholder": "搜索应用...",
+    "recentSearches": "最近搜索",
+    "noResults": "未找到应用",
+    "clearHistory": "清除历史"
+  },
+  "categories": {
+    "all": "全部",
+    "allApps": "全部应用"
+  },
+  "favorites": {
+    "showOnly": "只显示收藏",
+    "noFavorites": "暂无收藏应用",
+    "clearFilter": "清除筛选"
+  },
+  "note": {
+    "label": "备注",
+    "add": "添加",
+    "edit": "编辑",
+    "placeholder": "添加备注...",
+    "save": "保存",
+    "cancel": "取消",
+    "showMore": "显示更多"
+  },
+  "card": {
+    "deploy": "部署",
+    "view": "查看"
+  },
+  "detail": {
+    "overview": "概述",
+    "description": "详细介绍",
+    "screenshots": "截图",
+    "systemRequirements": "系统要求",
+    "vcpu": "vCPU",
+    "memory": "内存 (GB)",
+    "storage": "存储 (GB)",
+    "website": "官网",
+    "github": "GitHub",
+    "docs": "文档",
+    "deploy": "立即部署",
+    "favorite": "收藏应用",
+    "unfavorite": "取消收藏",
+    "unfavoriteConfirm": "确定取消收藏？",
+    "unfavoriteYes": "取消",
+    "category": "分类",
+    "categories": "分类"
+  },
+  "pagination": {
+    "perPage": "每页",
+    "showing": "显示第 {{from}}–{{to}} 条，共 {{total}} 个应用"
+  },
+  "sync": {
+    "button": "同步最新",
+    "syncing": "同步中...",
+    "success": "已同步",
+    "error": "同步失败"
+  },
+  "loading": "正在加载应用目录...",
+  "error": {
+    "title": "加载应用目录失败",
+    "retry": "重试"
+  },
+  "appsCount": "{{count}} 个应用",
+  "appsCount_other": "{{count}} 个应用",
+  "customApp": {
+    "titleAdd": "添加自定义应用",
+    "titleEdit": "编辑自定义应用",
+    "groupLabel": "自定义应用",
+    "officialGroupLabel": "官方应用",
+    "add": "添加自定义应用",
+    "edit": "编辑",
+    "delete": "删除",
+    "deleteConfirm": "确定删除此自定义应用？此操作不可撤销。",
+    "basedOn": "基于现有应用",
+    "basedOnDesc": "从目录中选择应用预填信息",
+    "fromScratch": "从零创建",
+    "fromScratchDesc": "从空白模板开始",
+    "back": "返回",
+    "key": "应用标识",
+    "trademark": "显示名称",
+    "overview": "简短描述",
+    "logoUrl": "Logo URL（可选）",
+    "description": "详细介绍（可选，支持 Markdown）",
+    "compose": "Docker Compose YAML",
+    "envText": ".env 文件（可选）",
+    "envTextDesc": "环境变量，将作为 .env 文件与 docker-compose.yml 并排挂载",
+    "trademarkPlaceholder": "我的应用",
+    "overviewPlaceholder": "简短描述",
+    "descriptionPlaceholder": "详细介绍（支持 Markdown）",
+    "fieldRequired": "必填",
+    "keyConflict": "该标识已存在",
+    "loadMore": "加载更多",
+    "visibility": "可见性",
+    "private": "私有（仅自己）",
+    "shared": "共享（所有用户）",
+    "sharedWarning": "此应用将对本 AppOS 实例的所有用户可见，Docker Compose YAML 也会一并共享。",
+    "badge": "自定义",
+    "createdBy": "创建者：{{name}}",
+    "you": "我",
+    "unknown": "未知"
+  }
+}

@@ -112,6 +112,8 @@ else ifeq ($(ARG2),dashboard)
 	@echo "Building dashboard..."
 	@cd dashboard && npm run build
 	@echo "✓ Dashboard built → dashboard/dist/"
+else ifeq ($(ARG2),library)
+	@echo "'make build library' is no longer needed - library is downloaded during Docker build (cached)"
 else
 	@echo "Building all..."
 	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
@@ -130,17 +132,11 @@ redo:
 	@$(MAKE) start dev
 
 run:
-	@echo "Hot reload: building + copying artifacts..."
-	@# Build backend
-	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
-	@# Build dashboard
-	@cd dashboard && npm run build
-	@# Copy to running container
+	@echo "Hot reload: copying pre-built artifacts..."
 	@docker cp backend/appos $(CONTAINER):/usr/local/bin/appos
 	@docker cp dashboard/dist/. $(CONTAINER):/usr/share/nginx/html/dashboard/
-	@# Restart services
 	@docker exec $(CONTAINER) supervisorctl -c /etc/supervisor/supervisord.conf restart appos nginx
-	@echo "✓ Hot reload complete (~10s)"
+	@echo "✓ Hot reload complete"
 	@echo "  → http://127.0.0.1:$(PORT_EFFECTIVE)/"
 
 # ============================================================
@@ -204,7 +200,14 @@ else ifeq ($(ARG2),build-local)
 	@# Verify artifacts exist
 	@test -f backend/appos || { echo "Error: backend/appos not found. Run 'make build backend' first."; exit 1; }
 	@test -d dashboard/dist || { echo "Error: dashboard/dist/ not found. Run 'make build dashboard' first."; exit 1; }
-	docker build -f build/Dockerfile.local -t websoft9/appos:dev .
+	@# Pass host proxy into build (replace 127.0.0.1 with host-gateway for container access)
+	$(eval HOST_PROXY := $(shell \
+		P=$${all_proxy:-$${ALL_PROXY:-$${http_proxy:-$${HTTP_PROXY:-}}}}; \
+		if [ -n "$$P" ]; then \
+			echo "$$(echo $$P | sed 's/127\.0\.0\.1/host-gateway/g;s/localhost/host-gateway/g')"; \
+		fi))
+	$(eval PROXY_ARGS := $(if $(HOST_PROXY),--add-host=host-gateway:host-gateway --build-arg ALL_PROXY=$(HOST_PROXY),))
+	docker build $(PROXY_ARGS) -f build/Dockerfile.local -t websoft9/appos:dev .
 	@echo "✓ Dev image built: websoft9/appos:dev"
 	@docker images websoft9/appos:dev --format "  Size: {{.Size}}"
 else

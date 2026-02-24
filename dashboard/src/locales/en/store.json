@@ -1,0 +1,104 @@
+{
+  "title": "App Store",
+  "search": {
+    "placeholder": "Search apps...",
+    "recentSearches": "Recent searches",
+    "noResults": "No apps found",
+    "clearHistory": "Clear history"
+  },
+  "categories": {
+    "all": "All",
+    "allApps": "All Apps"
+  },
+  "favorites": {
+    "showOnly": "Show favorites only",
+    "noFavorites": "No favorited apps",
+    "clearFilter": "Clear filter"
+  },
+  "note": {
+    "label": "Note",
+    "add": "Add",
+    "edit": "Edit",
+    "placeholder": "Add a note...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "showMore": "Show more"
+  },
+  "card": {
+    "deploy": "Deploy",
+    "view": "View"
+  },
+  "detail": {
+    "overview": "Overview",
+    "description": "Description",
+    "screenshots": "Screenshots",
+    "systemRequirements": "System Requirements",
+    "vcpu": "vCPU",
+    "memory": "Memory",
+    "storage": "Storage",
+    "website": "Website",
+    "github": "GitHub",
+    "docs": "Documentation",
+    "deploy": "Deploy Now",
+    "favorite": "Add to Favorites",
+    "unfavorite": "Remove Favorite",
+    "unfavoriteConfirm": "Remove from favorites?",
+    "unfavoriteYes": "Remove",
+    "category": "Category",
+    "categories": "Categories"
+  },
+  "pagination": {
+    "perPage": "per page",
+    "showing": "Showing {{from}}–{{to}} of {{total}} apps"
+  },
+  "sync": {
+    "button": "Sync Latest",
+    "syncing": "Syncing...",
+    "success": "Synced",
+    "error": "Sync failed"
+  },
+  "loading": "Loading app catalog...",
+  "error": {
+    "title": "Failed to load app catalog",
+    "retry": "Retry"
+  },
+  "appsCount": "{{count}} app",
+  "appsCount_other": "{{count}} apps",
+  "customApp": {
+    "titleAdd": "Add Custom App",
+    "titleEdit": "Edit Custom App",
+    "groupLabel": "Custom Apps",
+    "officialGroupLabel": "Official Apps",
+    "add": "Add Custom App",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this custom app? This cannot be undone.",
+    "basedOn": "Based on existing app",
+    "basedOnDesc": "Pre-fill from an existing catalog app",
+    "fromScratch": "Create from scratch",
+    "fromScratchDesc": "Start with a blank template",
+    "back": "Back",
+    "key": "App Key",
+    "trademark": "Display Name",
+    "overview": "Short Description",
+    "logoUrl": "Logo URL (optional)",
+    "description": "Detailed Description (optional, Markdown)",
+    "compose": "Docker Compose YAML",
+    "envText": ".env File (optional)",
+    "envTextDesc": "Environment variables mounted as .env alongside docker-compose.yml",
+    "trademarkPlaceholder": "My App",
+    "overviewPlaceholder": "Brief description",
+    "descriptionPlaceholder": "Detailed description (Markdown supported)",
+    "fieldRequired": "Required",
+    "keyConflict": "Key already exists",
+    "loadMore": "Load more",
+    "visibility": "Visibility",
+    "private": "Private (only me)",
+    "shared": "Shared (all instance users)",
+    "sharedWarning": "This app will be visible to all users in this AppOS instance. The Docker Compose YAML will also be visible.",
+    "badge": "Custom",
+    "createdBy": "By {{name}}",
+    "you": "You",
+    "unknown": "Unknown"
+  }
+}

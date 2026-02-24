@@ -1,4 +1,5 @@
 import { Menu } from "lucide-react"
+import { Link } from "@tanstack/react-router"
 import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Logo } from "./Logo"
@@ -52,6 +53,12 @@ export function Header({ actions, title }: HeaderProps) {
 
       {/* Right: actions */}
       <div className="flex items-center gap-1.5">
+        <Link
+          to="/store"
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2"
+        >
+          App Store
+        </Link>
         <ModeToggle />
         {actions}
       </div>

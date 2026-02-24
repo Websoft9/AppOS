@@ -13,10 +13,10 @@ import (
 // allowedModuleKeys defines which (module, key) pairs may be read/written via
 // the Ext Settings API.  Unknown pairs are rejected with 400.
 //
-// Phase 1 (Story 13.1): files only.
+// Phase 1 (Story 13.1): space only.
 // Phase 2 (Story 13.5): proxy, docker, llm added.
 var allowedModuleKeys = map[string][]string{
-	"files":  {"quota"},
+	"space":  {"quota"},
 	"proxy":  {"network"},
 	"docker": {"mirror", "registries"},
 	"llm":    {"providers"},
@@ -45,8 +45,8 @@ var (
 // fallbackForKey returns the code-level fallback for a given (module, key) pair.
 func fallbackForKey(module, key string) map[string]any {
 	switch module + "/" + key {
-	case "files/quota":
-		return defaultFilesQuota
+	case "space/quota":
+		return defaultSpaceQuota
 	case "proxy/network":
 		return defaultProxyNetwork
 	case "docker/mirror":

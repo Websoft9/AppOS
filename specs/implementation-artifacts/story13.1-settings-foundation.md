@@ -47,7 +47,7 @@ so that any backend module can read/write grouped settings from the database ins
 ## Dev Notes
 
 ### Route registration pattern
-Follow `backend/internal/routes/files.go`. Use `apis.RequireSuperuserAuth()` (not `RequireAuth()`).
+Follow `backend/internal/routes/space.go`. Use `apis.RequireSuperuserAuth()` (not `RequireAuth()`).
 
 ### Migration — unique index
 Reference `1741000000_create_audit_logs.go` for `core.NewBaseCollection` pattern. Unique index:
@@ -78,10 +78,10 @@ func SetGroup(app core.App, module, key string, value map[string]any) error {
 }
 ```
 
-### PATCH allowlist (Phase 1 — files only; expanded in Story 13.5)
-Only `files/quota` valid in this story. Return `400` for anything else.
+### PATCH allowlist (Phase 1 — space only; expanded in Story 13.5)
+Only `space/quota` valid in this story. Return `400` for anything else.
 ```go
-var allowedModuleKeys = map[string][]string{"files": {"quota"}}
+var allowedModuleKeys = map[string][]string{"space": {"quota"}}
 ```
 
 ### Mask logic (GET + PATCH)
@@ -109,7 +109,7 @@ backend/internal/routes/settings.go
 - Epic 13 data model: [specs/implementation-artifacts/epic13-settings.md](specs/implementation-artifacts/epic13-settings.md)
 - Audit migration pattern: [backend/internal/migrations/1741000000_create_audit_logs.go](backend/internal/migrations/1741000000_create_audit_logs.go)
 - Audit helper pattern: [backend/internal/audit/audit.go](backend/internal/audit/audit.go)
-- Route registration pattern: [backend/internal/routes/files.go](backend/internal/routes/files.go)
+- Route registration pattern: [backend/internal/routes/space.go](backend/internal/routes/space.go)
 - Architecture — custom route auth: [specs/planning-artifacts/architecture.md](specs/planning-artifacts/architecture.md) §Unified auth for all routes
 
 ## Dev Agent Record
@@ -122,9 +122,9 @@ claude-sonnet-4-6
 
 ### Completion Notes List
 
-- `defaultFilesQuota` var declared in `routes/files.go` (not settings.go) to avoid duplication
+- `defaultSpaceQuota` var declared in `routes/space.go` (not settings.go) to avoid duplication
 - Nested array mask/preserve implemented for docker/llm items (Story 13.5 scope included)
-- `allowedModuleKeys` pre-populated for all 4 modules (files, proxy, docker, llm) at time of creation
+- `allowedModuleKeys` pre-populated for all 4 modules (space, proxy, docker, llm) at time of creation
 
 ### File List
 

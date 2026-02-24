@@ -1,8 +1,8 @@
-# Epic 9: User Files
+# Epic 9: User Space
 
 ## Overview
 
-**Per-user private file workspace** — each authenticated user gets an isolated space for storing, editing, organizing, and sharing files.
+**Per-user private space** — each authenticated user gets an isolated space for storing, editing, organizing, and sharing files.
 
 **Status**: Stories 9.1–9.4 complete | **Priority**: P2 | **Depends on**: Epic 1, Epic 3 (Epic 13 only for Story 9.5)
 
@@ -34,18 +34,18 @@ user_files (PocketBase Collection)
 
 | Constant | Value | Notes |
 |---|---|---|
-| `filesMaxSizeMB` | `10` | Per-file upload limit |
-| `filesMaxPerUser` | `100` | Includes folders and files |
-| `filesShareMaxMin` | `60` | Hard ceiling for share duration |
-| `filesShareDefaultMin` | `30` | Default when not specified |
-| `filesAllowedUploadFormats` | 80+ extensions | text, code, pdf, office docs |
-| `filesEditableFormats` | ~70 extensions | text and code only (no pdf/office) |
-| `filesReservedFolderNames` | `deploy,artifact` | Root-level names reserved by system |
+| `spaceMaxSizeMB` | `10` | Per-file upload limit |
+| `spaceMaxPerUser` | `100` | Includes folders and files |
+| `spaceShareMaxMin` | `60` | Hard ceiling for share duration |
+| `spaceShareDefaultMin` | `30` | Default when not specified |
+| `spaceAllowedUploadFormats` | 80+ extensions | text, code, pdf, office docs |
+| `spaceEditableFormats` | ~70 extensions | text and code only (no pdf/office) |
+| `spaceReservedFolderNames` | `deploy,artifact` | Root-level names reserved by system |
 
-All constants live in `backend/internal/routes/files.go` and mirrored in `backend/internal/hooks/hooks.go`.
+All constants live in `backend/internal/routes/space.go` and mirrored in `backend/internal/hooks/hooks.go`.
 All marked `// TODO (Story 9.5): replace with settings API`.
 
-The `/api/ext/files/quota` endpoint exposes all constants to the frontend as JSON.
+The `/api/ext/space/quota` endpoint exposes all constants to the frontend as JSON.
 
 ---
 
@@ -83,20 +83,20 @@ PB access rules: `owner = @request.auth.id` on all CRUD operations.
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| `GET` | `/api/ext/files/quota` | Required | Return effective quota limits |
-| `POST` | `/api/ext/files/share/{id}` | Required | Create/refresh share token (max 60 min) |
-| `DELETE` | `/api/ext/files/share/{id}` | Required | Revoke share |
-| `GET` | `/api/ext/files/share/{token}` | None | Validate token, return file metadata |
-| `GET` | `/api/ext/files/share/{token}/download` | None | Stream file content (public) |
+| `GET` | `/api/ext/space/quota` | Required | Return effective quota limits |
+| `POST` | `/api/ext/space/share/{id}` | Required | Create/refresh share token (max 60 min) |
+| `DELETE` | `/api/ext/space/share/{id}` | Required | Revoke share |
+| `GET` | `/api/ext/space/share/{token}` | None | Validate token, return file metadata |
+| `GET` | `/api/ext/space/share/{token}/download` | None | Stream file content (public) |
 
 Share `POST` body: `{ "minutes": N }`. Response: `{ "share_token", "share_url", "expires_at" }`.
-`share_url` is a relative path (`/api/ext/files/share/{token}/download`); the frontend prepends `window.location.origin`.
+`share_url` is a relative path (`/api/ext/space/share/{token}/download`); the frontend prepends `window.location.origin`.
 
 ---
 
 ## Frontend Features
 
-**Route**: `/_app/_auth/files` → `/files`
+**Route**: `/_app/_auth/space` → `/space`
 
 | Feature | Implementation |
 |---|---|
@@ -127,6 +127,7 @@ Share `POST` body: `{ "minutes": N }`. Response: `{ "share_token", "share_url", 
 | `1740300001_user_files_add_autodate.go` | Adds `created`/`updated` AutodateFields to existing deployments |
 | `1740300002_user_files_folder_support.go` | Adds `is_folder` (bool) + `parent` (text) fields |
 | `1740300003_user_files_add_size.go` | Adds `size` (number, bytes) field for file-size display |
+| `1741300010_rename_settings_files_to_space.go` | Renames `app_settings` module key from `files` → `space` (Epic 9 rebrand) |
 
 ---
 
@@ -144,7 +145,7 @@ Share `POST` body: `{ "minutes": N }`. Response: `{ "share_token", "share_url", 
 | Story | Title | Status |
 |---|---|---|
 | 9.1 | Backend Collection + Migration + Hooks | ✅ Done |
-| 9.2 | File List UI | ✅ Done |
+| 9.2 | Space List UI | ✅ Done |
 | 9.3 | Online Editor | ✅ Done |
 | 9.4 | Share | ✅ Done |
 | 9.5 | Settings UI (Admin) | ⏳ Resolved by Epic 13 (Story 13.2 + 13.4) |
@@ -154,7 +155,7 @@ Share `POST` body: `{ "minutes": N }`. Response: `{ "share_token", "share_url", 
 
 ## Story 9.6 — File Version History
 
-**Objective**: Users can view and restore previous versions of a file.
+**Objective**: Users can view and restore previous versions of a file in their space.
 
 **Requirements**:
 - Every save (create or update of a file record) automatically creates a version snapshot
@@ -163,7 +164,7 @@ Share `POST` body: `{ "minutes": N }`. Response: `{ "share_token", "share_url", 
 - Users can restore a past version as the current content
 - Version retention policy: configurable maximum number of versions per file (default TBD)
 - Versions are stored per file, not per folder; folders have no version history
-- Version data must not count against the user's file quota
+- Version data must not count against the user's space quota
 
 **Open Questions** (solution not decided):
 - Storage backend: PB FileField on a sibling `user_file_versions` collection vs. content-addressed storage vs. Git-backed store

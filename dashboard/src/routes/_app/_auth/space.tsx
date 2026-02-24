@@ -227,7 +227,7 @@ function FilesPage() {
     setError(null)
     try {
       const [quotaRes, listRes] = await Promise.all([
-        fetch('/api/ext/files/quota', {
+        fetch('/api/ext/space/quota', {
           headers: { Authorization: pb.authStore.token },
         }).then(r => r.json()),
         pb.collection('user_files').getFullList<UserFile>({
@@ -513,7 +513,7 @@ function FilesPage() {
     setShareMinutes(quota?.share_default_minutes ?? 30)
     if (file.share_token && !isExpired(file.share_expires_at)) {
       // Reconstruct the public URL from the known token.
-      setShareUrl(buildPublicShareUrl(`/api/ext/files/share/${file.share_token}/download`))
+      setShareUrl(buildPublicShareUrl(`/api/ext/space/share/${file.share_token}/download`))
     } else {
       setShareUrl(null)
     }
@@ -524,7 +524,7 @@ function FilesPage() {
     if (!shareFile) return
     setSharing(true)
     try {
-      const res = await fetch(`/api/ext/files/share/${shareFile.id}`, {
+      const res = await fetch(`/api/ext/space/share/${shareFile.id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -551,7 +551,7 @@ function FilesPage() {
 
   async function handleRevoke() {
     if (!shareFile) return
-    await fetch(`/api/ext/files/share/${shareFile.id}`, {
+    await fetch(`/api/ext/space/share/${shareFile.id}`, {
       method: 'DELETE',
       headers: { Authorization: pb.authStore.token },
     })
@@ -576,7 +576,7 @@ function FilesPage() {
 
       {/* ── Unified toolbar ─────────────────────────── */}
       <div className="flex items-center gap-2 flex-wrap">
-        <h2 className="text-2xl font-bold shrink-0">Files</h2>
+        <h2 className="text-2xl font-bold shrink-0">Space</h2>
 
         {/* Breadcrumb / path */}
         <div className="flex items-center gap-1 text-sm shrink-0">
@@ -1121,6 +1121,6 @@ function FilesPage() {
   )
 }
 
-export const Route = createFileRoute('/_app/_auth/files')({
+export const Route = createFileRoute('/_app/_auth/space')({
   component: FilesPage,
 })

@@ -18,14 +18,14 @@ import (
 
 // ─── Quota defaults (Story 13.2: values now stored in app_settings DB) ───────
 //
-// defaultFilesQuota is the code-level safety net used when the DB row is
+// defaultSpaceQuota is the code-level safety net used when the DB row is
 // missing or unavailable.  settings.GetGroup always returns a non-nil map, so
 // callers using  quota, _ := settings.GetGroup(...)  are always safe.
 //
 // NOTE: These values must stay in sync with:
-//   - routes/settings.go  fallbackForKey("files/quota")
+//   - routes/settings.go  fallbackForKey("space/quota")
 //   - migrations/1741200001_seed_app_settings.go  (seed defaults)
-var defaultFilesQuota = map[string]any{
+var defaultSpaceQuota = map[string]any{
 	"maxSizeMB":           10,
 	"maxPerUser":          100,
 	"shareMaxMinutes":     60,
@@ -34,10 +34,10 @@ var defaultFilesQuota = map[string]any{
 
 const (
 	// Root-level folder names reserved by the system (not creatable by users).
-	filesReservedFolderNames = "deploy,artifact"
+	spaceReservedFolderNames = "deploy,artifact"
 
 	// All extensions that may be uploaded (text, code, office, pdf).
-	filesAllowedUploadFormats = "txt,md,yaml,yml,json,sh,bash,zsh,fish,env,js,ts,jsx,tsx,mjs,cjs,vue,svelte," +
+	spaceAllowedUploadFormats = "txt,md,yaml,yml,json,sh,bash,zsh,fish,env,js,ts,jsx,tsx,mjs,cjs,vue,svelte," +
 		"py,rb,go,rs,java,c,cpp,h,hpp,cc,cs,php,swift,kt,scala,groovy,lua,r,m,pl,pm," +
 		"ex,exs,erl,hrl,clj,cljs,fs,fsx,ml,mli," +
 		"css,scss,sass,less,html,htm,xml,svg,sql,graphql," +
@@ -46,7 +46,7 @@ const (
 		"pdf,doc,docx,xls,xlsx,ppt,pptx,odt,ods,odp"
 
 	// Subset of the above that supports online (textarea) editing — text/code only.
-	filesEditableFormats = "txt,md,yaml,yml,json,sh,bash,zsh,fish,env,js,ts,jsx,tsx,mjs,cjs,vue,svelte," +
+	spaceEditableFormats = "txt,md,yaml,yml,json,sh,bash,zsh,fish,env,js,ts,jsx,tsx,mjs,cjs,vue,svelte," +
 		"py,rb,go,rs,java,c,cpp,h,hpp,cc,cs,php,swift,kt,scala,groovy,lua,r,m,pl,pm," +
 		"ex,exs,erl,hrl,clj,cljs,fs,fsx,ml,mli," +
 		"css,scss,sass,less,html,htm,xml,svg,sql,graphql," +
@@ -56,43 +56,43 @@ const (
 
 // ─── Route registration ────────────────────────────────────────────────────
 
-// registerFileRoutes registers authenticated file ext routes under /api/ext/files.
+// registerSpaceRoutes registers authenticated space ext routes under /api/ext/space.
 //
-//	GET    /api/ext/files/quota         — current effective quota limits (for UI pre-check)
-//	POST   /api/ext/files/share/{id}    — create or refresh share token (max 60 min)
-//	DELETE /api/ext/files/share/{id}    — revoke share
-func registerFileRoutes(g *router.RouterGroup[*core.RequestEvent]) {
-	f := g.Group("/files")
+//	GET    /api/ext/space/quota         — current effective quota limits (for UI pre-check)
+//	POST   /api/ext/space/share/{id}    — create or refresh share token (max 60 min)
+//	DELETE /api/ext/space/share/{id}    — revoke share
+func registerSpaceRoutes(g *router.RouterGroup[*core.RequestEvent]) {
+	f := g.Group("/space")
 	f.Bind(apis.RequireAuth())
 
-	f.GET("/quota", handleFilesQuota)
+	f.GET("/quota", handleSpaceQuota)
 	f.POST("/share/{id}", handleFileShareCreate)
 	f.DELETE("/share/{id}", handleFileShareRevoke)
 }
 
-// registerFilePublicRoutes registers unauthenticated share routes on se.Router directly.
+// registerSpacePublicRoutes registers unauthenticated share routes on se.Router directly.
 //
-//	GET /api/ext/files/share/{token}           — resolve share: return file metadata
-//	GET /api/ext/files/share/{token}/download  — stream file content (no auth)
-func registerFilePublicRoutes(se *core.ServeEvent) {
-	pub := se.Router.Group("/api/ext/files/share")
+//	GET /api/ext/space/share/{token}           — resolve share: return file metadata
+//	GET /api/ext/space/share/{token}/download  — stream file content (no auth)
+func registerSpacePublicRoutes(se *core.ServeEvent) {
+	pub := se.Router.Group("/api/ext/space/share")
 	pub.GET("/{token}", handleFileShareResolve)
 	pub.GET("/{token}/download", handleFileShareDownload)
 }
 
 // ─── Handlers ──────────────────────────────────────────────────────────────
 
-// handleFilesQuota returns the currently active quota limits read from app_settings.
-func handleFilesQuota(e *core.RequestEvent) error {
-	quota, _ := settings.GetGroup(e.App, "files", "quota", defaultFilesQuota)
+// handleSpaceQuota returns the currently active quota limits read from app_settings.
+func handleSpaceQuota(e *core.RequestEvent) error {
+	quota, _ := settings.GetGroup(e.App, "space", "quota", defaultSpaceQuota)
 	return e.JSON(http.StatusOK, map[string]any{
 		"max_size_mb":            settings.Int(quota, "maxSizeMB", 10),
-		"allowed_upload_formats": strings.Split(filesAllowedUploadFormats, ","),
-		"editable_formats":       strings.Split(filesEditableFormats, ","),
+		"allowed_upload_formats": strings.Split(spaceAllowedUploadFormats, ","),
+		"editable_formats":       strings.Split(spaceEditableFormats, ","),
 		"max_per_user":           settings.Int(quota, "maxPerUser", 100),
 		"share_max_minutes":      settings.Int(quota, "shareMaxMinutes", 60),
 		"share_default_minutes":  settings.Int(quota, "shareDefaultMinutes", 30),
-		"reserved_folder_names":  strings.Split(filesReservedFolderNames, ","),
+		"reserved_folder_names":  strings.Split(spaceReservedFolderNames, ","),
 	})
 }
 
@@ -120,7 +120,7 @@ func handleFileShareCreate(e *core.RequestEvent) error {
 	}
 
 	// Load quota from settings DB (fallback to code defaults if unavailable).
-	quota, _ := settings.GetGroup(e.App, "files", "quota", defaultFilesQuota)
+	quota, _ := settings.GetGroup(e.App, "space", "quota", defaultSpaceQuota)
 	shareMaxMin := settings.Int(quota, "shareMaxMinutes", 60)
 	shareDefaultMin := settings.Int(quota, "shareDefaultMinutes", 30)
 
@@ -155,7 +155,7 @@ func handleFileShareCreate(e *core.RequestEvent) error {
 
 	return e.JSON(http.StatusOK, map[string]any{
 		"share_token": token,
-		"share_url":   "/api/ext/files/share/" + token + "/download",
+		"share_url":   "/api/ext/space/share/" + token + "/download",
 		"expires_at":  expiresAt.Format(time.RFC3339),
 	})
 }
@@ -204,7 +204,7 @@ func handleFileShareResolve(e *core.RequestEvent) error {
 		"id":           record.Id,
 		"name":         record.GetString("name"),
 		"mime_type":    record.GetString("mime_type"),
-		"download_url": "/api/ext/files/share/" + token + "/download",
+		"download_url": "/api/ext/space/share/" + token + "/download",
 		"expires_at":   record.GetString("share_expires_at"),
 	})
 }

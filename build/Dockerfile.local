@@ -5,6 +5,23 @@
 #   make build backend && make build dashboard
 #   make image build-local
 #
+
+# ===========================
+# Stage 1: Download Store Library (cached by Docker layer cache)
+# ===========================
+FROM alpine:3.19 AS library-downloader
+ARG WEBSOFT9_ARTIFACT="https://artifact.websoft9.com/release/websoft9"
+ARG ALL_PROXY
+ENV ALL_PROXY=${ALL_PROXY}
+RUN apk add --no-cache curl unzip && \
+    curl -fsSL --retry 3 --max-time 300 -o /tmp/library.zip ${WEBSOFT9_ARTIFACT}/plugin/library/library-latest.zip && \
+    mkdir -p /appos && \
+    unzip -q /tmp/library.zip -d /appos && \
+    rm /tmp/library.zip
+
+# ===========================
+# Stage 2: Runtime
+# ===========================
 FROM alpine:3.19
 
 LABEL maintainer="Websoft9<help@websoft9.com>" \
@@ -17,6 +34,7 @@ RUN apk add --no-cache \
     supervisor \
     redis \
     curl \
+    unzip \
     ca-certificates \
     tzdata \
     bash \
@@ -29,11 +47,19 @@ COPY dashboard/dist /usr/share/nginx/html/dashboard
 COPY backend/appos /usr/local/bin/appos
 RUN chmod +x /usr/local/bin/appos
 
+# Store Library plugin (from download stage, Docker-cached after first build)
+COPY --from=library-downloader /appos/library /appos/library
+
 # Create data directories
 RUN mkdir -p \
+    /appos/data/pb/pb_data \
+    /appos/data/pb/pb_migrations \
     /appos/data/redis \
-    /appos/data/pb_data \
     /appos/data/apps \
+    /appos/data/workflows \
+    /appos/data/templates/apps \
+    /appos/data/templates/workflows \
+    /appos/data/templates/custom \
     /var/log/supervisor \
     /var/log/nginx \
     /etc/nginx/conf.d \

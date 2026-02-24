@@ -4,15 +4,18 @@ set -e
 echo "==> Initializing AppOS..."
 
 # Create data directories if they don't exist
-mkdir -p /appos/data/redis
-mkdir -p /appos/data/pb_data
-mkdir -p /appos/data/apps
+mkdir -p \
+    /appos/data/pb/pb_data \
+    /appos/data/pb/pb_migrations \
+    /appos/data/redis \
+    /appos/data/apps \
+    /appos/data/workflows \
+    /appos/data/templates/apps \
+    /appos/data/templates/workflows \
+    /appos/data/templates/custom
 
 # Ensure proper permissions
-chmod 755 /appos/data
-chmod 755 /appos/data/redis
-chmod 755 /appos/data/pb_data
-chmod 755 /appos/data/apps
+chmod -R 755 /appos/data
 
 # Create log directories
 mkdir -p /var/log/supervisor
@@ -31,7 +34,7 @@ if [ "$INIT_MODE" = "auto" ]; then
   if [ -n "$SUPERUSER_EMAIL" ] && [ -n "$SUPERUSER_PASSWORD" ]; then
     echo "==> Initializing superuser..."
     /usr/local/bin/appos superuser upsert "$SUPERUSER_EMAIL" "$SUPERUSER_PASSWORD" \
-      --dir /appos/data/pb_data 2>&1 && \
+      --dir /appos/data/pb/pb_data 2>&1 && \
       echo "==> Superuser ready: $SUPERUSER_EMAIL" || \
       echo "==> [WARN] Failed to initialize superuser"
   else

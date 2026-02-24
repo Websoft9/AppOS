@@ -69,10 +69,11 @@ development_status:
 
   # Epic 5: Dashboard - Store Module
   epic5: in-progress
-  5-1-core-ui: ready-for-dev
-  5-2-media-api: backlog
+  5-1-core-ui: review
+  5-2-media-api: review
   5-3-categories: backlog
-  5-4-build-deploy: backlog
+  5-4-user-features: done
+  5-5-custom-apps: done
   5-7-search-autocomplete: done
   epic5-retrospective: optional
 
@@ -94,6 +95,17 @@ development_status:
   7.10-responsive-design: backlog         # Mobile optimization (1024px+)
   epic7-retrospective: optional
 
+  # Epic 9: User Space (formerly Files)
+  # Rebrand: files→space applied 2026-02-24 (sprint-change-proposal-2026-02-24.md)
+  epic9: in-progress
+  9.1-backend-collection-migration-hooks: done
+  9.2-space-list-ui: done
+  9.3-online-editor: done
+  9.4-share: done
+  9.5-settings-ui: done                # Resolved by Epic 13 (Story 13.2 + 13.4)
+  9.6-file-version-history: backlog
+  epic9-retrospective: optional
+
   # Epic 10: Internationalization (i18n)
   epic10: backlog
   epic10-retrospective: optional
@@ -112,6 +124,16 @@ development_status:
   12.2-audit-sync-async: done
   12.3-audit-viewer: done
   epic12-retrospective: optional
+
+  # Epic 14: System File API (ext-files)
+  # Frontend UI owned by consuming Epics; Dockerfile init handled in Epic 1
+  epic14: backlog
+  14.1-backend-route-foundation: backlog
+  14.2-list-read-api: backlog
+  14.3-write-delete-move-api: backlog
+  14.4-upload-download-api: backlog
+  14.5-per-user-permissions: backlog            # Phase 2: app ownership inheritance
+  epic14-retrospective: optional
 
   # Epic 13: Settings Management
   epic13: done

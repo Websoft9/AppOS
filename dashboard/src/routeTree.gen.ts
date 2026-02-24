@@ -17,13 +17,14 @@ import { Route as AppRegisterRouteImport } from './routes/_app/register'
 import { Route as AppLoginRouteImport } from './routes/_app/login'
 import { Route as AppForgotPasswordRouteImport } from './routes/_app/forgot-password'
 import { Route as AppAuthRouteImport } from './routes/_app/_auth'
+import { Route as AppAuthSpaceRouteImport } from './routes/_app/_auth/space'
 import { Route as AppAuthServicesRouteImport } from './routes/_app/_auth/services'
 import { Route as AppAuthProfileRouteImport } from './routes/_app/_auth/profile'
-import { Route as AppAuthFilesRouteImport } from './routes/_app/_auth/files'
 import { Route as AppAuthDockerRouteImport } from './routes/_app/_auth/docker'
 import { Route as AppAuthDashboardRouteImport } from './routes/_app/_auth/dashboard'
 import { Route as AppAuthAuditRouteImport } from './routes/_app/_auth/audit'
 import { Route as AppAuthSuperuserRouteImport } from './routes/_app/_auth/_superuser'
+import { Route as AppAuthStoreIndexRouteImport } from './routes/_app/_auth/store/index'
 import { Route as AppAuthResourcesIndexRouteImport } from './routes/_app/_auth/resources/index'
 import { Route as AppAuthResourcesServersRouteImport } from './routes/_app/_auth/resources/servers'
 import { Route as AppAuthResourcesSecretsRouteImport } from './routes/_app/_auth/resources/secrets'
@@ -78,6 +79,11 @@ const AppAuthRoute = AppAuthRouteImport.update({
   id: '/_auth',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAuthSpaceRoute = AppAuthSpaceRouteImport.update({
+  id: '/space',
+  path: '/space',
+  getParentRoute: () => AppAuthRoute,
+} as any)
 const AppAuthServicesRoute = AppAuthServicesRouteImport.update({
   id: '/services',
   path: '/services',
@@ -86,11 +92,6 @@ const AppAuthServicesRoute = AppAuthServicesRouteImport.update({
 const AppAuthProfileRoute = AppAuthProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
-  getParentRoute: () => AppAuthRoute,
-} as any)
-const AppAuthFilesRoute = AppAuthFilesRouteImport.update({
-  id: '/files',
-  path: '/files',
   getParentRoute: () => AppAuthRoute,
 } as any)
 const AppAuthDockerRoute = AppAuthDockerRouteImport.update({
@@ -110,6 +111,11 @@ const AppAuthAuditRoute = AppAuthAuditRouteImport.update({
 } as any)
 const AppAuthSuperuserRoute = AppAuthSuperuserRouteImport.update({
   id: '/_superuser',
+  getParentRoute: () => AppAuthRoute,
+} as any)
+const AppAuthStoreIndexRoute = AppAuthStoreIndexRouteImport.update({
+  id: '/store/',
+  path: '/store/',
   getParentRoute: () => AppAuthRoute,
 } as any)
 const AppAuthResourcesIndexRoute = AppAuthResourcesIndexRouteImport.update({
@@ -207,9 +213,9 @@ export interface FileRoutesByFullPath {
   '/audit': typeof AppAuthAuditRoute
   '/dashboard': typeof AppAuthDashboardRoute
   '/docker': typeof AppAuthDockerRoute
-  '/files': typeof AppAuthFilesRoute
   '/profile': typeof AppAuthProfileRoute
   '/services': typeof AppAuthServicesRoute
+  '/space': typeof AppAuthSpaceRoute
   '/logs': typeof AppAuthSuperuserLogsRoute
   '/settings': typeof AppAuthSuperuserSettingsRoute
   '/resources/certificates': typeof AppAuthResourcesCertificatesRoute
@@ -222,6 +228,7 @@ export interface FileRoutesByFullPath {
   '/resources/secrets': typeof AppAuthResourcesSecretsRoute
   '/resources/servers': typeof AppAuthResourcesServersRoute
   '/resources/': typeof AppAuthResourcesIndexRoute
+  '/store/': typeof AppAuthStoreIndexRoute
   '/resources/groups/$id': typeof AppAuthResourcesGroupsIdRoute
   '/users/': typeof AppAuthSuperuserUsersIndexRoute
   '/resources/groups/': typeof AppAuthResourcesGroupsIndexRoute
@@ -236,9 +243,9 @@ export interface FileRoutesByTo {
   '/audit': typeof AppAuthAuditRoute
   '/dashboard': typeof AppAuthDashboardRoute
   '/docker': typeof AppAuthDockerRoute
-  '/files': typeof AppAuthFilesRoute
   '/profile': typeof AppAuthProfileRoute
   '/services': typeof AppAuthServicesRoute
+  '/space': typeof AppAuthSpaceRoute
   '/logs': typeof AppAuthSuperuserLogsRoute
   '/settings': typeof AppAuthSuperuserSettingsRoute
   '/resources/certificates': typeof AppAuthResourcesCertificatesRoute
@@ -250,6 +257,7 @@ export interface FileRoutesByTo {
   '/resources/secrets': typeof AppAuthResourcesSecretsRoute
   '/resources/servers': typeof AppAuthResourcesServersRoute
   '/resources': typeof AppAuthResourcesIndexRoute
+  '/store': typeof AppAuthStoreIndexRoute
   '/resources/groups/$id': typeof AppAuthResourcesGroupsIdRoute
   '/users': typeof AppAuthSuperuserUsersIndexRoute
   '/resources/groups': typeof AppAuthResourcesGroupsIndexRoute
@@ -268,9 +276,9 @@ export interface FileRoutesById {
   '/_app/_auth/audit': typeof AppAuthAuditRoute
   '/_app/_auth/dashboard': typeof AppAuthDashboardRoute
   '/_app/_auth/docker': typeof AppAuthDockerRoute
-  '/_app/_auth/files': typeof AppAuthFilesRoute
   '/_app/_auth/profile': typeof AppAuthProfileRoute
   '/_app/_auth/services': typeof AppAuthServicesRoute
+  '/_app/_auth/space': typeof AppAuthSpaceRoute
   '/_app/_auth/_superuser/logs': typeof AppAuthSuperuserLogsRoute
   '/_app/_auth/_superuser/settings': typeof AppAuthSuperuserSettingsRoute
   '/_app/_auth/resources/certificates': typeof AppAuthResourcesCertificatesRoute
@@ -283,6 +291,7 @@ export interface FileRoutesById {
   '/_app/_auth/resources/secrets': typeof AppAuthResourcesSecretsRoute
   '/_app/_auth/resources/servers': typeof AppAuthResourcesServersRoute
   '/_app/_auth/resources/': typeof AppAuthResourcesIndexRoute
+  '/_app/_auth/store/': typeof AppAuthStoreIndexRoute
   '/_app/_auth/resources/groups/$id': typeof AppAuthResourcesGroupsIdRoute
   '/_app/_auth/_superuser/users/': typeof AppAuthSuperuserUsersIndexRoute
   '/_app/_auth/resources/groups/': typeof AppAuthResourcesGroupsIndexRoute
@@ -299,9 +308,9 @@ export interface FileRouteTypes {
     | '/audit'
     | '/dashboard'
     | '/docker'
-    | '/files'
     | '/profile'
     | '/services'
+    | '/space'
     | '/logs'
     | '/settings'
     | '/resources/certificates'
@@ -314,6 +323,7 @@ export interface FileRouteTypes {
     | '/resources/secrets'
     | '/resources/servers'
     | '/resources/'
+    | '/store/'
     | '/resources/groups/$id'
     | '/users/'
     | '/resources/groups/'
@@ -328,9 +338,9 @@ export interface FileRouteTypes {
     | '/audit'
     | '/dashboard'
     | '/docker'
-    | '/files'
     | '/profile'
     | '/services'
+    | '/space'
     | '/logs'
     | '/settings'
     | '/resources/certificates'
@@ -342,6 +352,7 @@ export interface FileRouteTypes {
     | '/resources/secrets'
     | '/resources/servers'
     | '/resources'
+    | '/store'
     | '/resources/groups/$id'
     | '/users'
     | '/resources/groups'
@@ -359,9 +370,9 @@ export interface FileRouteTypes {
     | '/_app/_auth/audit'
     | '/_app/_auth/dashboard'
     | '/_app/_auth/docker'
-    | '/_app/_auth/files'
     | '/_app/_auth/profile'
     | '/_app/_auth/services'
+    | '/_app/_auth/space'
     | '/_app/_auth/_superuser/logs'
     | '/_app/_auth/_superuser/settings'
     | '/_app/_auth/resources/certificates'
@@ -374,6 +385,7 @@ export interface FileRouteTypes {
     | '/_app/_auth/resources/secrets'
     | '/_app/_auth/resources/servers'
     | '/_app/_auth/resources/'
+    | '/_app/_auth/store/'
     | '/_app/_auth/resources/groups/$id'
     | '/_app/_auth/_superuser/users/'
     | '/_app/_auth/resources/groups/'
@@ -442,6 +454,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/_auth/space': {
+      id: '/_app/_auth/space'
+      path: '/space'
+      fullPath: '/space'
+      preLoaderRoute: typeof AppAuthSpaceRouteImport
+      parentRoute: typeof AppAuthRoute
+    }
     '/_app/_auth/services': {
       id: '/_app/_auth/services'
       path: '/services'
@@ -454,13 +473,6 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof AppAuthProfileRouteImport
-      parentRoute: typeof AppAuthRoute
-    }
-    '/_app/_auth/files': {
-      id: '/_app/_auth/files'
-      path: '/files'
-      fullPath: '/files'
-      preLoaderRoute: typeof AppAuthFilesRouteImport
       parentRoute: typeof AppAuthRoute
     }
     '/_app/_auth/docker': {
@@ -489,6 +501,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AppAuthSuperuserRouteImport
+      parentRoute: typeof AppAuthRoute
+    }
+    '/_app/_auth/store/': {
+      id: '/_app/_auth/store/'
+      path: '/store'
+      fullPath: '/store/'
+      preLoaderRoute: typeof AppAuthStoreIndexRouteImport
       parentRoute: typeof AppAuthRoute
     }
     '/_app/_auth/resources/': {
@@ -635,9 +654,9 @@ interface AppAuthRouteChildren {
   AppAuthAuditRoute: typeof AppAuthAuditRoute
   AppAuthDashboardRoute: typeof AppAuthDashboardRoute
   AppAuthDockerRoute: typeof AppAuthDockerRoute
-  AppAuthFilesRoute: typeof AppAuthFilesRoute
   AppAuthProfileRoute: typeof AppAuthProfileRoute
   AppAuthServicesRoute: typeof AppAuthServicesRoute
+  AppAuthSpaceRoute: typeof AppAuthSpaceRoute
   AppAuthResourcesCertificatesRoute: typeof AppAuthResourcesCertificatesRoute
   AppAuthResourcesCloudAccountsRoute: typeof AppAuthResourcesCloudAccountsRoute
   AppAuthResourcesDatabasesRoute: typeof AppAuthResourcesDatabasesRoute
@@ -648,6 +667,7 @@ interface AppAuthRouteChildren {
   AppAuthResourcesSecretsRoute: typeof AppAuthResourcesSecretsRoute
   AppAuthResourcesServersRoute: typeof AppAuthResourcesServersRoute
   AppAuthResourcesIndexRoute: typeof AppAuthResourcesIndexRoute
+  AppAuthStoreIndexRoute: typeof AppAuthStoreIndexRoute
 }
 
 const AppAuthRouteChildren: AppAuthRouteChildren = {
@@ -655,9 +675,9 @@ const AppAuthRouteChildren: AppAuthRouteChildren = {
   AppAuthAuditRoute: AppAuthAuditRoute,
   AppAuthDashboardRoute: AppAuthDashboardRoute,
   AppAuthDockerRoute: AppAuthDockerRoute,
-  AppAuthFilesRoute: AppAuthFilesRoute,
   AppAuthProfileRoute: AppAuthProfileRoute,
   AppAuthServicesRoute: AppAuthServicesRoute,
+  AppAuthSpaceRoute: AppAuthSpaceRoute,
   AppAuthResourcesCertificatesRoute: AppAuthResourcesCertificatesRoute,
   AppAuthResourcesCloudAccountsRoute: AppAuthResourcesCloudAccountsRoute,
   AppAuthResourcesDatabasesRoute: AppAuthResourcesDatabasesRoute,
@@ -668,6 +688,7 @@ const AppAuthRouteChildren: AppAuthRouteChildren = {
   AppAuthResourcesSecretsRoute: AppAuthResourcesSecretsRoute,
   AppAuthResourcesServersRoute: AppAuthResourcesServersRoute,
   AppAuthResourcesIndexRoute: AppAuthResourcesIndexRoute,
+  AppAuthStoreIndexRoute: AppAuthStoreIndexRoute,
 }
 
 const AppAuthRouteWithChildren =

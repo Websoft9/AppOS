@@ -7,7 +7,7 @@
 //   - /api/ext/services   — supervisord service management (Epic 6)
 //   - /api/ext/backup     — backup/restore operations
 //   - /api/ext/resources  — Resource Store CRUD (Epic 8)
-//   - /api/ext/files      — User file space (Epic 9)
+//   - /api/ext/space      — User private space (Epic 9)
 package routes
 
 import (
@@ -33,8 +33,8 @@ func Register(se *core.ServeEvent) {
 	// Auth helper routes (unauthenticated — email existence check, etc.)
 	registerAuthRoutes(se)
 
-	// Public file share routes (unauthenticated — share token validation and download)
-	registerFilePublicRoutes(se)
+	// Public space share routes (unauthenticated — share token validation and download)
+	registerSpacePublicRoutes(se)
 
 	// Ext Settings API (superuser-only — registered directly on se.Router)
 	RegisterSettings(se)
@@ -49,6 +49,6 @@ func Register(se *core.ServeEvent) {
 	registerServiceRoutes(g)
 	registerBackupRoutes(g)
 	registerResourceRoutes(g)
-	registerFileRoutes(g)
+	registerSpaceRoutes(g)
 	registerUserRoutes(g)
 }

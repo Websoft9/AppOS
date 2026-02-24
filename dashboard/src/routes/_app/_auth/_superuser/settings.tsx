@@ -46,7 +46,7 @@ interface PBSettings {
   }
 }
 
-interface FilesQuota {
+interface SpaceQuota {
   maxSizeMB: number
   maxPerUser: number
   shareMaxMinutes: number
@@ -132,7 +132,7 @@ const NAV_ITEMS = [
   { id: 'smtp',               group: 'System',  label: 'SMTP' },
   { id: 's3',                 group: 'System',  label: 'S3 Storage' },
   { id: 'logs',               group: 'System',  label: 'Logs' },
-  { id: 'files',              group: 'App',     label: 'Files Quota' },
+  { id: 'space',              group: 'App',     label: 'Space Quota' },
   { id: 'proxy',              group: 'App',     label: 'Proxy' },
   { id: 'docker-mirrors',     group: 'App',     label: 'Docker Mirrors' },
   { id: 'docker-registries',  group: 'App',     label: 'Docker Registries' },
@@ -143,7 +143,7 @@ type SectionId = typeof NAV_ITEMS[number]['id']
 
 // ─── Module-level defaults (outside component to avoid stale closure captures) ─
 
-const DEFAULT_FILES_QUOTA: FilesQuota = {
+const DEFAULT_SPACE_QUOTA: SpaceQuota = {
   maxSizeMB: 10,
   maxPerUser: 100,
   shareMaxMinutes: 60,
@@ -200,10 +200,10 @@ function SettingsPage() {
   const [logsLogAuthId, setLogsLogAuthId] = useState(false)
   const [logsSaving, setLogsSaving] = useState(false)
 
-  // Files quota
-  const [filesQuotaForm, setFilesQuotaForm] = useState<FilesQuota>(DEFAULT_FILES_QUOTA)
-  const [filesQuotaSaving, setFilesQuotaSaving] = useState(false)
-  const [filesQuotaErrors, setFilesQuotaErrors] = useState<Partial<Record<keyof FilesQuota, string>>>({})
+  // Space quota
+  const [spaceQuotaForm, setSpaceQuotaForm] = useState<SpaceQuota>(DEFAULT_SPACE_QUOTA)
+  const [spaceQuotaSaving, setSpaceQuotaSaving] = useState(false)
+  const [spaceQuotaErrors, setSpaceQuotaErrors] = useState<Partial<Record<keyof SpaceQuota, string>>>({})
 
   // Proxy
   const [proxyNetwork, setProxyNetwork] = useState<ProxyNetwork>(EMPTY_PROXY)
@@ -261,14 +261,14 @@ function SettingsPage() {
   const loadExtSettings = useCallback(async () => {
     try {
       const [filesRes, proxyRes, dockerRes, llmRes] = await Promise.allSettled([
-        pb.send('/api/ext/settings/files', { method: 'GET' }),
+        pb.send('/api/ext/settings/space', { method: 'GET' }),
         pb.send('/api/ext/settings/proxy', { method: 'GET' }),
         pb.send('/api/ext/settings/docker', { method: 'GET' }),
         pb.send('/api/ext/settings/llm', { method: 'GET' }),
       ])
       if (filesRes.status === 'fulfilled') {
-        const q = (filesRes.value as { quota: FilesQuota }).quota ?? DEFAULT_FILES_QUOTA
-        setFilesQuotaForm(q)
+        const q = (filesRes.value as { quota: SpaceQuota }).quota ?? DEFAULT_SPACE_QUOTA
+        setSpaceQuotaForm(q)
       }
       if (proxyRes.status === 'fulfilled') {
         const n = (proxyRes.value as { network: ProxyNetwork }).network ?? EMPTY_PROXY
@@ -375,27 +375,27 @@ function SettingsPage() {
     } finally { setLogsSaving(false) }
   }
 
-  const validateFilesQuota = (): boolean => {
-    const errs: Partial<Record<keyof FilesQuota, string>> = {}
-    if (!filesQuotaForm.maxSizeMB || filesQuotaForm.maxSizeMB < 1) errs.maxSizeMB = 'Must be ≥ 1'
-    if (!filesQuotaForm.maxPerUser || filesQuotaForm.maxPerUser < 1) errs.maxPerUser = 'Must be ≥ 1'
-    if (!filesQuotaForm.shareMaxMinutes || filesQuotaForm.shareMaxMinutes < 1) errs.shareMaxMinutes = 'Must be ≥ 1'
-    if (!filesQuotaForm.shareDefaultMinutes || filesQuotaForm.shareDefaultMinutes < 1) errs.shareDefaultMinutes = 'Must be ≥ 1'
-    if (filesQuotaForm.shareDefaultMinutes > filesQuotaForm.shareMaxMinutes) errs.shareDefaultMinutes = 'Cannot exceed max duration'
-    setFilesQuotaErrors(errs)
+  const validateSpaceQuota = (): boolean => {
+    const errs: Partial<Record<keyof SpaceQuota, string>> = {}
+    if (!spaceQuotaForm.maxSizeMB || spaceQuotaForm.maxSizeMB < 1) errs.maxSizeMB = 'Must be ≥ 1'
+    if (!spaceQuotaForm.maxPerUser || spaceQuotaForm.maxPerUser < 1) errs.maxPerUser = 'Must be ≥ 1'
+    if (!spaceQuotaForm.shareMaxMinutes || spaceQuotaForm.shareMaxMinutes < 1) errs.shareMaxMinutes = 'Must be ≥ 1'
+    if (!spaceQuotaForm.shareDefaultMinutes || spaceQuotaForm.shareDefaultMinutes < 1) errs.shareDefaultMinutes = 'Must be ≥ 1'
+    if (spaceQuotaForm.shareDefaultMinutes > spaceQuotaForm.shareMaxMinutes) errs.shareDefaultMinutes = 'Cannot exceed max duration'
+    setSpaceQuotaErrors(errs)
     return Object.keys(errs).length === 0
   }
 
-  const saveFilesQuota = async () => {
-    if (!validateFilesQuota()) return
-    setFilesQuotaSaving(true)
+  const saveSpaceQuota = async () => {
+    if (!validateSpaceQuota()) return
+    setSpaceQuotaSaving(true)
     try {
-      const res = await pb.send('/api/ext/settings/files', { method: 'PATCH', body: { quota: filesQuotaForm } }) as { quota: FilesQuota }
-      setFilesQuotaForm(res.quota ?? filesQuotaForm)
-      showToast('Files quota saved')
+      const res = await pb.send('/api/ext/settings/space', { method: 'PATCH', body: { quota: spaceQuotaForm } }) as { quota: SpaceQuota }
+      setSpaceQuotaForm(res.quota ?? spaceQuotaForm)
+      showToast('Space quota saved')
     } catch (err: unknown) {
       showToast('Failed: ' + ((err as { message?: string })?.message ?? String(err)), false)
-    } finally { setFilesQuotaSaving(false) }
+    } finally { setSpaceQuotaSaving(false) }
   }
 
   const saveProxy = async () => {
@@ -610,40 +610,40 @@ function SettingsPage() {
     </Card>
   )
 
-  const renderFiles = () => (
+  const renderSpace = () => (
     <Card>
       <CardHeader>
-        <CardTitle>Files Quota</CardTitle>
-        <CardDescription>Per-user file space limits</CardDescription>
+        <CardTitle>Space Quota</CardTitle>
+        <CardDescription>Per-user private space limits</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">
             <Label htmlFor="maxSizeMB">Max File Size (MB)</Label>
-            <Input id="maxSizeMB" type="number" min={1} value={filesQuotaForm.maxSizeMB}
-              onChange={e => setFilesQuotaForm(f => ({ ...f, maxSizeMB: Number(e.target.value) }))} />
-            {filesQuotaErrors.maxSizeMB && <p className="text-xs text-destructive">{filesQuotaErrors.maxSizeMB}</p>}
+            <Input id="maxSizeMB" type="number" min={1} value={spaceQuotaForm.maxSizeMB}
+              onChange={e => setSpaceQuotaForm(f => ({ ...f, maxSizeMB: Number(e.target.value) }))} />
+            {spaceQuotaErrors.maxSizeMB && <p className="text-xs text-destructive">{spaceQuotaErrors.maxSizeMB}</p>}
           </div>
           <div className="space-y-1">
-            <Label htmlFor="maxPerUser">Max Files per User</Label>
-            <Input id="maxPerUser" type="number" min={1} value={filesQuotaForm.maxPerUser}
-              onChange={e => setFilesQuotaForm(f => ({ ...f, maxPerUser: Number(e.target.value) }))} />
-            {filesQuotaErrors.maxPerUser && <p className="text-xs text-destructive">{filesQuotaErrors.maxPerUser}</p>}
+            <Label htmlFor="maxPerUser">Max Items per User</Label>
+            <Input id="maxPerUser" type="number" min={1} value={spaceQuotaForm.maxPerUser}
+              onChange={e => setSpaceQuotaForm(f => ({ ...f, maxPerUser: Number(e.target.value) }))} />
+            {spaceQuotaErrors.maxPerUser && <p className="text-xs text-destructive">{spaceQuotaErrors.maxPerUser}</p>}
           </div>
           <div className="space-y-1">
             <Label htmlFor="shareMaxMinutes">Share Max Duration (min)</Label>
-            <Input id="shareMaxMinutes" type="number" min={1} value={filesQuotaForm.shareMaxMinutes}
-              onChange={e => setFilesQuotaForm(f => ({ ...f, shareMaxMinutes: Number(e.target.value) }))} />
-            {filesQuotaErrors.shareMaxMinutes && <p className="text-xs text-destructive">{filesQuotaErrors.shareMaxMinutes}</p>}
+            <Input id="shareMaxMinutes" type="number" min={1} value={spaceQuotaForm.shareMaxMinutes}
+              onChange={e => setSpaceQuotaForm(f => ({ ...f, shareMaxMinutes: Number(e.target.value) }))} />
+            {spaceQuotaErrors.shareMaxMinutes && <p className="text-xs text-destructive">{spaceQuotaErrors.shareMaxMinutes}</p>}
           </div>
           <div className="space-y-1">
             <Label htmlFor="shareDefaultMinutes">Share Default Duration (min)</Label>
-            <Input id="shareDefaultMinutes" type="number" min={1} value={filesQuotaForm.shareDefaultMinutes}
-              onChange={e => setFilesQuotaForm(f => ({ ...f, shareDefaultMinutes: Number(e.target.value) }))} />
-            {filesQuotaErrors.shareDefaultMinutes && <p className="text-xs text-destructive">{filesQuotaErrors.shareDefaultMinutes}</p>}
+            <Input id="shareDefaultMinutes" type="number" min={1} value={spaceQuotaForm.shareDefaultMinutes}
+              onChange={e => setSpaceQuotaForm(f => ({ ...f, shareDefaultMinutes: Number(e.target.value) }))} />
+            {spaceQuotaErrors.shareDefaultMinutes && <p className="text-xs text-destructive">{spaceQuotaErrors.shareDefaultMinutes}</p>}
           </div>
         </div>
-        <SaveBtn onClick={saveFilesQuota} saving={filesQuotaSaving} />
+        <SaveBtn onClick={saveSpaceQuota} saving={spaceQuotaSaving} />
       </CardContent>
     </Card>
   )
@@ -860,7 +860,7 @@ function SettingsPage() {
       case 'smtp':              return renderSmtp()
       case 's3':                return renderS3()
       case 'logs':              return renderLogs()
-      case 'files':             return renderFiles()
+      case 'space':             return renderSpace()
       case 'proxy':             return renderProxy()
       case 'docker-mirrors':    return renderDockerMirrors()
       case 'docker-registries': return renderDockerRegistries()

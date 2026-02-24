@@ -17,9 +17,9 @@ import (
 
 // ─── File quota defaults (Story 13.2: values now stored in app_settings DB) ───────
 //
-// hookDefaultFilesQuota is the code-level fallback used when the DB row is
+// hookDefaultSpaceQuota is the code-level fallback used when the DB row is
 // missing or the DB is unavailable.
-var hookDefaultFilesQuota = map[string]any{
+var hookDefaultSpaceQuota = map[string]any{
 	"maxSizeMB":           10,
 	"maxPerUser":          100,
 	"shareMaxMinutes":     60,
@@ -29,8 +29,8 @@ var hookDefaultFilesQuota = map[string]any{
 const (
 	// Reserved root-level folder names used by the system.
 	hookReservedFolderNames = "deploy,artifact"
-	// Must match filesAllowedUploadFormats in routes/files.go.
-	hookFilesAllowedFormats = "txt,md,yaml,yml,json,sh,bash,zsh,fish,env," +
+	// Must match spaceAllowedUploadFormats in routes/space.go.
+	hookSpaceAllowedFormats = "txt,md,yaml,yml,json,sh,bash,zsh,fish,env," +
 		"js,ts,jsx,tsx,mjs,cjs,vue,svelte," +
 		"py,rb,go,rs,java,c,cpp,h,hpp,cc,cs,php,swift,kt,scala,groovy,lua,r,m,pl,pm," +
 		"ex,exs,erl,hrl,clj,cljs,fs,fsx,ml,mli," +
@@ -43,7 +43,7 @@ const (
 // Register binds all custom event hooks to the PocketBase app.
 func Register(app *pocketbase.PocketBase) {
 	registerAppHooks(app)
-	registerFileHooks(app)
+	registerSpaceHooks(app)
 	registerSuperuserHooks(app)
 	registerUserAuditHooks(app)
 	registerLoginAuditHooks(app)
@@ -64,9 +64,9 @@ func registerAppHooks(app *pocketbase.PocketBase) {
 	})
 }
 
-// registerFileHooks registers hooks related to the user_files collection.
+// registerSpaceHooks registers hooks related to the user_files collection.
 // Enforces quota limits that cannot be expressed in PocketBase access rules.
-func registerFileHooks(app *pocketbase.PocketBase) {
+func registerSpaceHooks(app *pocketbase.PocketBase) {
 	app.OnRecordCreate("user_files").BindFunc(func(e *core.RecordEvent) error {
 		if err := validateFileUpload(app, e.Record); err != nil {
 			return apis.NewBadRequestError(err.Error(), nil)
@@ -79,7 +79,7 @@ func registerFileHooks(app *pocketbase.PocketBase) {
 // For folder records (is_folder=true) format validation is skipped.
 func validateFileUpload(app core.App, record *core.Record) error {
 	// Load quota from settings DB (fallback to code defaults if unavailable).
-	quota, _ := settings.GetGroup(app, "files", "quota", hookDefaultFilesQuota)
+	quota, _ := settings.GetGroup(app, "space", "quota", hookDefaultSpaceQuota)
 	maxPerUser := settings.Int(quota, "maxPerUser", 100)
 
 	// Folders don't have a file extension — skip format check.
@@ -116,7 +116,7 @@ func validateFileUpload(app core.App, record *core.Record) error {
 
 	// Build allowed extension list.
 	allowed := make([]string, 0)
-	for _, p := range strings.Split(hookFilesAllowedFormats, ",") {
+	for _, p := range strings.Split(hookSpaceAllowedFormats, ",") {
 		if p = strings.TrimSpace(p); p != "" {
 			allowed = append(allowed, "."+p)
 		}
@@ -124,7 +124,7 @@ func validateFileUpload(app core.App, record *core.Record) error {
 	if ext == "" || !slices.Contains(allowed, ext) {
 		return fmt.Errorf(
 			"file extension %q is not allowed; permitted: %s",
-			ext, hookFilesAllowedFormats,
+			ext, hookSpaceAllowedFormats,
 		)
 	}
 

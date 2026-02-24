@@ -38,6 +38,7 @@ RUN apk add --no-cache \
     supervisor \
     redis \
     curl \
+    unzip \
     ca-certificates \
     tzdata \
     bash \
@@ -49,11 +50,24 @@ RUN apk add --no-cache \
 COPY --from=dashboard-builder /build/dist /usr/share/nginx/html/dashboard
 COPY --from=backend-builder /build/appos /usr/local/bin/appos
 
+# Download Store Library plugin at build time
+ARG WEBSOFT9_ARTIFACT="https://artifact.websoft9.com/release/websoft9"
+RUN set -eux; \
+    curl -fsSL --retry 3 -o /tmp/library.zip ${WEBSOFT9_ARTIFACT}/plugin/library/library-latest.zip; \
+    mkdir -p /appos; \
+    unzip -q /tmp/library.zip -d /appos; \
+    rm /tmp/library.zip
+
 # Create data directories
 RUN mkdir -p \
-    /appos/data/pb_data \
+    /appos/data/pb/pb_data \
+    /appos/data/pb/pb_migrations \
     /appos/data/redis \
     /appos/data/apps \
+    /appos/data/workflows \
+    /appos/data/templates/apps \
+    /appos/data/templates/workflows \
+    /appos/data/templates/custom \
     /var/log/supervisor \
     /var/log/nginx \
     /etc/nginx/conf.d \

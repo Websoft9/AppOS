@@ -63,7 +63,7 @@ const workspaceGroup: NavGroup = {
     { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" />, href: "/dashboard" },
     { id: "store", label: "App Store", icon: <Store className="h-5 w-5" />, href: "/store" },
     { id: "resources", label: "Resources", icon: <LayoutGrid className="h-5 w-5" />, href: "/resources" },
-    { id: "files", label: "Files", icon: <FolderOpen className="h-5 w-5" />, href: "/files" },
+    { id: "space", label: "Space", icon: <FolderOpen className="h-5 w-5" />, href: "/space" },
   ],
 }
 
