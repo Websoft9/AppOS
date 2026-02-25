@@ -176,3 +176,6 @@ type Executor interface {
 - App store deploy logic → future business epic
 - Environment variable abstraction → compose config read/write replaces it
 
+**Deploy 流程与 IaC API 的关系（设计备忘）：**
+部署应用时需将 `/appos/library/apps/{slug}/` 的模板拷贝到 `/appos/data/apps/{appId}/` 作为编排起始文件。此操作是内部流程，不通过 IaC API HTTP 端点，而是直接调用 `internal/fileutil/CopyDir()`，该包同时也是 IaC API 路由层的底层工具库。`/appos/library/` 不在 IaC API 的沙箱范围内，详见 [epic14-iac.md](epic14-iac.md#api-scope-boundary)。
+

@@ -31,7 +31,7 @@ import { CustomAppCard } from '@/components/store/CustomAppCard'
 import { CustomAppDialog } from '@/components/store/CustomAppDialog'
 import { StorePagination } from '@/components/store/StorePagination'
 import { AppDetailModal } from '@/components/store/AppDetailModal'
-import { Loader2, RefreshCw, PlusCircle } from 'lucide-react'
+import { Loader2, RefreshCw, PlusCircle, ChevronDown, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 // ─── Route definition ──────────────────────────────────────────────────────────
@@ -62,6 +62,7 @@ function StorePage() {
   const [selectedApp, setSelectedApp] = useState<ProductWithCategories | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedAppIsCustom, setSelectedAppIsCustom] = useState(false)
+  const [selectedCustomAppRaw, setSelectedCustomAppRaw] = useState<CustomApp | null>(null)
   const [enScreenshots, setEnScreenshots] = useState<Screenshot[]>([])
 
   // ─── Custom app dialog state ──────────────────────────────────────────────────
@@ -70,6 +71,9 @@ function StorePage() {
 
   // ─── Favorites filter ─────────────────────────────────────────────────────────
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
+
+  // ─── Official apps collapse ───────────────────────────────────────────────────
+  const [officialCollapsed, setOfficialCollapsed] = useState(false)
 
   // ─── Error toast ──────────────────────────────────────────────────────────────
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -85,8 +89,8 @@ function StorePage() {
 
   // ─── Custom apps ──────────────────────────────────────────────────────────────
   const { data: customApps = [] } = useCustomApps()
-  const createCustomApp = useCreateCustomApp(showError)
-  const updateCustomApp = useUpdateCustomApp(showError)
+  const createCustomApp = useCreateCustomApp(showError, showError)
+  const updateCustomApp = useUpdateCustomApp(showError, showError)
   const deleteCustomApp = useDeleteCustomApp(showError)
   const currentUserId = pb.authStore.record?.id ?? ''
 
@@ -196,6 +200,7 @@ function StorePage() {
   const openDetail = (product: ProductWithCategories) => {
     setSelectedApp(product)
     setSelectedAppIsCustom(false)
+    setSelectedCustomAppRaw(null)
     // Set en screenshots for fallback when locale URLs fail
     const enProduct = enProductsData?.find((p) => p.key === product.key)
     setEnScreenshots(enProduct?.screenshots ?? [])
@@ -205,6 +210,7 @@ function StorePage() {
   const openCustomDetail = (app: CustomApp) => {
     setSelectedApp(customAppToProduct(app))
     setSelectedAppIsCustom(true)
+    setSelectedCustomAppRaw(app)
     setEnScreenshots([])
     setModalOpen(true)
   }
@@ -369,11 +375,7 @@ function StorePage() {
                     <CustomAppCard
                       app={app}
                       currentUserId={currentUserId}
-                      userApps={userApps}
-                      onToggleFavorite={handleToggleFavorite}
                       onOpenDetail={openCustomDetail}
-                      onEdit={(a) => { setEditingCustomApp(a); setCustomAppDialogOpen(true) }}
-                      onDelete={(id) => deleteCustomApp.mutate(id)}
                     />
                   </div>
                 ))}
@@ -385,15 +387,26 @@ function StorePage() {
           {paginatedProducts.length > 0 && (
             <div className="space-y-3">
               {visibleCustomApps.length > 0 && (
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                  {t('customApp.officialGroupLabel')}
-                </h3>
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 group"
+                  onClick={() => setOfficialCollapsed((c) => !c)}
+                >
+                  {officialCollapsed
+                    ? <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    : <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  }
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide group-hover:text-foreground transition-colors">
+                    {t('customApp.officialGroupLabel')}
+                  </h3>
+                </button>
               )}
-              <div
-                className="grid gap-x-4 gap-y-6 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
-                role="list"
-                aria-label={t('title')}
-              >
+              {!officialCollapsed && (
+                <div
+                  className="grid gap-x-4 gap-y-6 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
+                  role="list"
+                  aria-label={t('title')}
+                >
                 {paginatedProducts.map((product) => (
                   <div key={product.key} role="listitem">
                     <AppCard
@@ -404,23 +417,26 @@ function StorePage() {
                     />
                   </div>
                 ))}
-              </div>
+                </div>
+              )}
             </div>
           )}
         </div>
       )}
 
-      {/* Pagination */}
-      <StorePagination
-        page={page}
-        pageSize={pageSize}
-        total={filteredProducts.length}
-        onPageChange={setPage}
-        onPageSizeChange={(size) => {
-          setPageSize(size)
-          setPage(1)
-        }}
-      />
+      {/* Pagination — hidden when official apps are collapsed */}
+      {!officialCollapsed && (
+        <StorePagination
+          page={page}
+          pageSize={pageSize}
+          total={filteredProducts.length}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => {
+            setPageSize(size)
+            setPage(1)
+          }}
+        />
+      )}
 
       {/* App Detail Modal */}
       <AppDetailModal
@@ -429,17 +445,40 @@ function StorePage() {
         locale={locale}
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        onSelectCategory={handleCategoryFromModal}
-        userApps={userApps}
-        onToggleFavorite={handleToggleFavorite}
-        onSaveNote={handleSaveNote}
-        isSavingNote={saveNote.isPending}
-        showDeploy={!selectedAppIsCustom}
+        onSelectCategory={selectedAppIsCustom ? undefined : handleCategoryFromModal}
+        userApps={selectedAppIsCustom ? undefined : userApps}
+        onToggleFavorite={selectedAppIsCustom ? undefined : handleToggleFavorite}
+        onSaveNote={selectedAppIsCustom ? undefined : handleSaveNote}
+        isSavingNote={selectedAppIsCustom ? undefined : saveNote.isPending}
+        showDeploy
         fallbackScreenshots={enScreenshots}
+        onEdit={
+          selectedAppIsCustom && selectedCustomAppRaw && selectedCustomAppRaw.created_by === currentUserId
+            ? () => {
+                setModalOpen(false)
+                setEditingCustomApp(selectedCustomAppRaw)
+                setCustomAppDialogOpen(true)
+              }
+            : undefined
+        }
+        onDelete={
+          selectedAppIsCustom && selectedCustomAppRaw && selectedCustomAppRaw.created_by === currentUserId
+            ? () => {
+                deleteCustomApp.mutate(selectedCustomAppRaw.id)
+                setModalOpen(false)
+              }
+            : undefined
+        }
+        iacEditPath={
+          selectedAppIsCustom && selectedCustomAppRaw
+            ? `templates/apps/${selectedCustomAppRaw.key}`
+            : undefined
+        }
       />
 
-      {/* Custom App Dialog */}
+      {/* Custom App Dialog — key forces remount so edit state resets */}
       <CustomAppDialog
+        key={editingCustomApp?.id ?? 'new'}
         open={customAppDialogOpen}
         onClose={() => { setCustomAppDialogOpen(false); setEditingCustomApp(null) }}
         onSave={handleSaveCustomApp}

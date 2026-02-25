@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { pb } from '@/lib/pb'
 import type { ProductWithCategories } from '@/lib/store-types'
+import { iacLibraryCopy, iacEnsureCustomAppTemplate, iacUploadExtraFiles } from '@/lib/iac-api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -16,9 +17,6 @@ export interface CustomApp {
   env_text: string | null
   visibility: 'private' | 'shared'
   created_by: string
-  expand?: {
-    created_by?: { id: string; name?: string; email?: string }
-  }
   created: string
   updated: string
 }
@@ -33,6 +31,10 @@ export interface CustomAppFormData {
   compose_yaml: string
   env_text: string
   visibility: 'private' | 'shared'
+  /** When creating from an existing library app, pass the source app key so we copy the entire folder first */
+  basedOnKey?: string
+  /** Extra files to upload to templates/{key}/ via IAC — NOT stored in PocketBase */
+  extraFiles?: File[]
 }
 
 // ─── Query ────────────────────────────────────────────────────────────────────
@@ -43,9 +45,7 @@ export function useCustomApps() {
   return useQuery({
     queryKey: CUSTOM_APPS_KEY,
     queryFn: () =>
-      pb.collection('store_custom_apps').getFullList<CustomApp>({
-        expand: 'created_by',
-      }),
+      pb.collection('store_custom_apps').getFullList<CustomApp>(),
     staleTime: 60 * 1000,
   })
 }
@@ -58,7 +58,8 @@ export function getCreatorName(
   t?: (key: string) => string,
 ): string {
   if (app.created_by === currentUserId) return t ? t('customApp.you') : 'You'
-  return app.expand?.created_by?.name || app.expand?.created_by?.email || (t ? t('customApp.unknown') : 'Unknown')
+  // created_by is a plain ID string; no expand available
+  return t ? t('customApp.unknown') : 'Unknown'
 }
 
 // Adapter: convert CustomApp to ProductWithCategories so AppDetailModal can be reused
@@ -79,25 +80,66 @@ export function customAppToProduct(app: CustomApp): ProductWithCategories {
 
 // ─── Mutations ────────────────────────────────────────────────────────────────
 
-export function useCreateCustomApp(onError?: (msg: string) => void) {
+export function useCreateCustomApp(
+  onError?: (msg: string) => void,
+  onIacError?: (msg: string) => void,
+) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (data: CustomAppFormData) =>
-      pb.collection('store_custom_apps').create<CustomApp>({
-        ...data,
-        category_keys: data.category_keys,
+    mutationFn: async (data: CustomAppFormData) => {
+      const { extraFiles, basedOnKey, ...pbData } = data
+      const app = await pb.collection('store_custom_apps').create<CustomApp>({
+        ...pbData,
+        category_keys: pbData.category_keys,
         created_by: pb.authStore.record?.id ?? '',
-      }),
+      })
+      // Write files to templates/{key}/ via IAC (best-effort — non-blocking on failure)
+      try {
+        if (basedOnKey) {
+          // Copy the whole library/apps/{basedOnKey}/ → templates/{app.key}/
+          await iacLibraryCopy(basedOnKey, app.key)
+        }
+        // Overlay user-modified compose & env (creates dir if library copy was skipped)
+        await iacEnsureCustomAppTemplate(app.key, pbData.compose_yaml, pbData.env_text)
+        if (extraFiles && extraFiles.length > 0) {
+          const failed = await iacUploadExtraFiles(app.key, extraFiles)
+          if (failed.length > 0) {
+            onIacError?.(`Failed to upload: ${failed.join(', ')}`)
+          }
+        }
+      } catch {
+        onIacError?.('Template directory could not be created (superuser access required).')
+      }
+      return app
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: CUSTOM_APPS_KEY }),
     onError: () => onError?.('Failed to create custom app. Please try again.'),
   })
 }
 
-export function useUpdateCustomApp(onError?: (msg: string) => void) {
+export function useUpdateCustomApp(
+  onError?: (msg: string) => void,
+  onIacError?: (msg: string) => void,
+) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<CustomAppFormData> }) =>
-      pb.collection('store_custom_apps').update<CustomApp>(id, data),
+    mutationFn: async ({ id, data }: { id: string; data: Partial<CustomAppFormData> }) => {
+      const { extraFiles, basedOnKey: _, ...pbData } = data
+      const app = await pb.collection('store_custom_apps').update<CustomApp>(id, pbData)
+      // Sync files to templates/apps/{key}/ via IAC (best-effort)
+      try {
+        await iacEnsureCustomAppTemplate(app.key, pbData.compose_yaml, pbData.env_text)
+        if (extraFiles && extraFiles.length > 0) {
+          const failed = await iacUploadExtraFiles(app.key, extraFiles)
+          if (failed.length > 0) {
+            onIacError?.(`Failed to upload: ${failed.join(', ')}`)
+          }
+        }
+      } catch {
+        onIacError?.('Template files could not be updated (superuser access required).')
+      }
+      return app
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: CUSTOM_APPS_KEY }),
     onError: () => onError?.('Failed to update custom app. Please try again.'),
   })

@@ -10,7 +10,6 @@
 - Application detail page (screenshot carousel / text-icon fallback / Markdown description)
 - Favorites and notes (user-private)
 - User-defined custom apps (private or globally shared)
-- One-click deployment
 
 ---
 
@@ -67,9 +66,10 @@ Unique index on `(user, app_key)`. List/View rule: `@request.auth.id = user`.
 | `overview` | Text | Short description |
 | `description` | Text | Markdown |
 | `category_keys` | JSON | References catalog category keys |
-| `compose_yaml` | Text | Docker Compose template |
+| `compose_yaml` | Text | Docker Compose template (optional) |
+| `env_text` | Text | .env file content (optional) |
 | `visibility` | Select: `private/shared` | |
-| `created_by` | Relation → users | |
+| `created_by` | Text | Auth record ID (supports users + _superusers) |
 
 ### Catalog Loading Strategy: Stale-While-Revalidate
 
@@ -138,9 +138,8 @@ location / {
 
 - [x] [5.1: Foundation](story5.1-foundation.md) — Core UI, category navigation, i18n
 - [ ] [5.2: Store API & Display](story5.2-store-api.md) — online media fetch, SWR, detail page, icon/screenshot fallback, search
-- [ ] 5.3: Deployment — one-click deployment integration
 - [ ] [5.4: Favorites & Notes](story5.4-user-features.md) — per-user favorites toggle, catalog filter, inline notes
-- [ ] [5.5: Custom Apps](story5.5-custom-apps.md) — create/edit/delete custom apps, catalog grouping, sharing
+- [x] [5.5: Custom Apps](story5.5-custom-apps.md) — create/edit/delete custom apps, IAC template files, catalog grouping, sharing
 - [ ] 5.6: i18n
 
 ---
@@ -149,4 +148,3 @@ location / {
 
 - Epic 7 (Dashboard framework) completed
 - PocketBase migrations for `store_user_apps` and `store_custom_apps`
-- Deployment API `/api/ext/apps/deploy` available

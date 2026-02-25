@@ -125,14 +125,13 @@ development_status:
   12.3-audit-viewer: done
   epic12-retrospective: optional
 
-  # Epic 14: System File API (ext-files)
-  # Frontend UI owned by consuming Epics; Dockerfile init handled in Epic 1
-  epic14: backlog
-  14.1-backend-route-foundation: backlog
-  14.2-list-read-api: backlog
-  14.3-write-delete-move-api: backlog
-  14.4-upload-download-api: backlog
-  14.5-per-user-permissions: backlog            # Phase 2: app ownership inheritance
+  # Epic 14: IaC File Management (ext-iac)
+  # P1: IaC 闭环编辑端，优先于部署 Epic；包含最小文件编辑器 UI (14.4)
+  epic14: done
+  14.1-iac-read-api: done
+  14.2-iac-write-api: done
+  14.3-per-user-permissions: backlog            # Phase 2: app ownership inheritance
+  14.4-iac-browser-ui: done                  # Monaco Editor + whitelisted directory tree
   epic14-retrospective: optional
 
   # Epic 13: Settings Management

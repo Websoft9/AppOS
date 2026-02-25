@@ -1,6 +1,6 @@
 # Story 5.5: Custom Apps
 
-**Epic**: 5 - App Store | **Priority**: P2 | **Status**: ready-for-dev
+**Epic**: 5 - App Store | **Priority**: P2 | **Status**: done
 
 ## User Story
 
@@ -10,49 +10,57 @@ As a user, I can create, edit, and share custom apps in the catalog, so that I c
 
 ### Creation — Two Entry Points
 
-- [ ] "Add Custom App" button in catalog header
-- [ ] **Option A: Based on existing app** — searchable app picker; pre-fills `trademark`, `overview`, `category_keys` and a starter compose template
-- [ ] **Option B: Create from scratch** — blank form
+- [x] "Add Custom App" button in catalog header
+- [x] **Option A: Based on existing app** — searchable app picker; pre-fills `trademark`, `overview`, `category_keys` and a starter compose template
+- [x] **Option B: Create from scratch** — blank form
 
 ### Custom App Form
 
-- [ ] Required: `trademark` (display name), `overview` (short text), `compose_yaml`
-- [ ] Optional: `logo_url`, `description` (Markdown), `category_keys` (multi-select from existing catalog categories)
-- [ ] `key` auto-generated from `trademark` (slugified, lowercased); editable; validated unique against official catalog keys and existing custom keys
-- [ ] `visibility`: `private` (default) / `shared` — no role restriction; creator identity recorded via `created_by`
-- [ ] Switching visibility to `shared` requires explicit confirmation: "This app will be visible to all users in this AppOS instance"
-- [ ] Save → creates record in `store_custom_apps`; owner can edit/delete; non-owners see shared apps read-only
+- [x] Required: `trademark` (display name), `overview` (short text), `compose_yaml`
+- [x] Optional: `logo_url`, `description` (Markdown), `category_keys` (multi-select from existing catalog categories)
+- [x] `key` auto-generated from `trademark` (slugified, lowercased); editable; validated unique against official catalog keys and existing custom keys
+- [x] `visibility`: `private` (default) / `shared` — no role restriction; creator identity recorded via `created_by`
+- [x] Switching visibility to `shared` requires explicit confirmation: "This app will be visible to all users in this AppOS instance"
+- [x] Save → creates record in `store_custom_apps`; owner can edit/delete; non-owners see shared apps read-only
 
 ### Catalog Layout — Grouped Display
 
-- [ ] **When custom apps exist**: catalog renders two clearly labeled group blocks:
+- [x] **When custom apps exist**: catalog renders two clearly labeled group blocks:
   1. **Custom Apps** (top) — all custom apps visible to the current user (own private + all shared)
-  2. **Official Apps** (below) — standard catalog
-- [ ] **When no custom apps**: group block headers are not rendered; catalog displays as normal single list
-- [ ] Category filter and search apply across both groups; group hidden entirely if 0 results after filter
-- [ ] Pagination remains single and global on the merged result set; grouping is visual only
-- [ ] Custom app cards show "Custom" badge; shared apps show creator display name
+  2. **Official Apps** (below, collapsible) — standard catalog
+- [x] **When no custom apps**: group block headers are not rendered; catalog displays as normal single list
+- [x] Category filter and search apply across both groups; group hidden entirely if 0 results after filter
+- [x] Pagination remains single and global on the merged result set; grouping is visual only
+- [x] Custom app cards show "Custom" badge; shared apps show creator display name
 
 ### Detail View
 
-- [ ] Clicking a custom app card opens `AppDetailModal` (reuse existing component)
-- [ ] Sections with no data are conditionally hidden: screenshots section hidden if `logo_url` absent and no screenshots; system requirements hidden if fields are zero/absent
-- [ ] **No Deploy button** on custom app detail in this story — deployment of custom compose is out of scope; deploy capability tracked as a future story
+- [x] Clicking a custom app card opens `AppDetailModal` (reuse existing component)
+- [x] Sections with no data are conditionally hidden: screenshots section hidden if `logo_url` absent and no screenshots; system requirements hidden if fields are zero/absent
+- [x] Deploy button shown on custom app detail; Edit/Delete buttons for owner; "Edit Files" link to IAC editor
 
 ### Edit / Delete
 
-- [ ] Gear/edit icon on custom app card (visible only to creator)
-- [ ] Edit opens same form, pre-filled
-- [ ] Delete prompts confirmation dialog; removes record
+- [x] Edit/Delete buttons on custom app detail modal (visible only to creator)
+- [x] Edit opens same form, pre-filled (key-based remount forces fresh state)
+- [x] Delete prompts confirmation dialog; removes record
 
 ### Backend: PocketBase Migration
 
-- [ ] Migration: `store_custom_apps` collection
-  - Fields: `key` (Text, unique), `trademark` (Text), `logo_url` (URL, nullable), `overview` (Text), `description` (Text nullable), `category_keys` (JSON), `compose_yaml` (Text), `visibility` (Select: private/shared), `created_by` (Relation→users)
+- [x] Migration: `store_custom_apps` collection
+  - Fields: `key` (Text, unique), `trademark` (Text), `logo_url` (Text, nullable), `overview` (Text), `description` (Text nullable), `category_keys` (JSON), `compose_yaml` (Text, optional), `env_text` (Text, optional), `visibility` (Select: private/shared), `created_by` (TextField — supports users + _superusers)
   - List/View rule: `visibility = "shared" || created_by = @request.auth.id`
   - Create rule: `@request.auth.id != ""`
   - Update/Delete rule: `created_by = @request.auth.id`
   - Unique index on `key`
+
+### IAC Integration (added during implementation)
+
+- [x] Backend: `GET /library`, `GET /library/content` (read-only), `POST /library/copy` (copies library → templates)
+- [x] Frontend: `iac-api.ts` — library read/copy, template ensure (mkdir + upsert files), extra file upload
+- [x] "Based on" creates template by copying library folder then overlaying user changes
+- [x] "Scratch" creates empty `.env`, `docker-compose.yml`, `readme.md` in templates
+- [x] IAC page `root` search param scopes file tree for direct template editing
 
 ## Dev Notes
 
@@ -117,22 +125,31 @@ Follow `backend/internal/migrations/1740300000_create_user_files.go`. File namin
 
 ### Completion Notes
 
-- `store_custom_apps` PocketBase collection: fields `key` (unique), `trademark`, `logo_url`, `overview`, `description`, `category_keys` (JSON), `compose_yaml`, `visibility` (private/shared), `created_by` (RelationField → users); rules: list/view = shared or own; create = authenticated; update/delete = own only
-- `store-custom-api.ts`: `useCustomApps` (expand created_by), `useCreateCustomApp`, `useUpdateCustomApp`, `useDeleteCustomApp`, `getCreatorName(app, userId, t?)`, `customAppToProduct()` adapter for AppDetailModal reuse
-- `CustomAppDialog.tsx`: three-step dialog (mode select → optional app picker → form); auto-generates key from trademark; key conflict validation against both official and custom apps; inline amber warning on visibility=shared
-- `CustomAppCard.tsx`: reuses AppCard visual style; "Custom" badge; edit/delete controls (owner only); creator name for shared apps via `getCreatorName`
-- `AppDetailModal.tsx`: added `showDeploy?: boolean` prop (default true); custom apps pass `showDeploy={false}` — Deploy button fully suppressed
-- `index.tsx`: grouped layout — custom apps section (no pagination) above official apps (paginated); `visibleCustomApps` memo (filtered by ownership + visibility + search + favorites); "Add Custom App" header button; `openCustomDetail` uses `customAppToProduct` adapter; `handleSaveCustomApp` dispatches create or update
-- i18n: added `customApp.*` namespace (24 keys) and `card.view` to both en and zh
+- **Migration**: `store_custom_apps` collection — `key` (unique), `trademark`, `logo_url`, `overview`, `description`, `category_keys` (JSON), `compose_yaml` (optional), `env_text` (optional), `visibility` (private/shared), `created_by` (TextField, supports users + _superusers); rules: list/view = shared or own; create = authenticated; update/delete = own only
+- **IAC integration**: Custom app creation writes template files to `templates/apps/{key}/` via IAC API:
+  - "Based on" → `iacLibraryCopy` copies entire library folder, then overlays user changes
+  - "Scratch" → creates empty `.env`, `docker-compose.yml`, `readme.md`
+  - Extra files uploaded via multipart `iacUploadFile`
+  - Backend `POST /api/ext/iac/library/copy` copies `library/apps/{sourceKey}/` → `data/templates/apps/{destKey}/`
+  - Backend `GET /api/ext/iac/library[/content]` provides read-only access to `/appos/library/`
+- **CustomAppDialog**: three-step (select → optional app picker → form); file upload buttons for compose.yml/.env; extra files multi-upload; auto-key from trademark; key conflict validation; amber warning on shared visibility
+- **CustomAppCard**: simplified — app info + View button only (no edit/delete on card)
+- **AppDetailModal**: Deploy + Edit/Delete (owner) + "Edit Files" IAC link (navigates to `/iac?root=templates/apps/{key}`)
+- **Catalog grouping**: custom apps section on top; official apps section collapsible (chevron toggle)
+- **IAC page**: added `root` search param to scope file tree to a single directory
+- **Edit metadata**: `key={editingCustomApp?.id ?? 'new'}` on `CustomAppDialog` forces remount when switching create/edit
 - TypeScript: 0 errors | Go: clean compile
 
 ### File List
 
 - `backend/internal/migrations/1741300001_create_store_custom_apps.go` [NEW]
-- `dashboard/src/lib/store-custom-api.ts` [NEW]
+- `backend/internal/routes/iac.go` [MODIFIED — library handlers + copy endpoint]
+- `dashboard/src/lib/iac-api.ts` [NEW — IAC client with library/template helpers]
+- `dashboard/src/lib/store-custom-api.ts` [NEW — custom apps CRUD hooks + adapter]
 - `dashboard/src/components/store/CustomAppDialog.tsx` [NEW]
 - `dashboard/src/components/store/CustomAppCard.tsx` [NEW]
-- `dashboard/src/components/store/AppDetailModal.tsx` [MODIFIED — showDeploy prop]
-- `dashboard/src/routes/_app/_auth/store/index.tsx` [MODIFIED]
+- `dashboard/src/components/store/AppDetailModal.tsx` [MODIFIED — onEdit/onDelete/iacEditPath props]
+- `dashboard/src/routes/_app/_auth/store/index.tsx` [MODIFIED — grouped layout, collapsible, edit wiring]
+- `dashboard/src/routes/_app/_auth/_superuser/iac.tsx` [MODIFIED — root search param]
 - `dashboard/src/locales/en/store.json` [MODIFIED]
 - `dashboard/src/locales/zh/store.json` [MODIFIED]

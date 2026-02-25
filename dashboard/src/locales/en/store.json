@@ -83,9 +83,14 @@
     "overview": "Short Description",
     "logoUrl": "Logo URL (optional)",
     "description": "Detailed Description (optional, Markdown)",
-    "compose": "Docker Compose YAML",
+    "compose": "Docker Compose YAML (optional)",
     "envText": ".env File (optional)",
     "envTextDesc": "Environment variables mounted as .env alongside docker-compose.yml",
+    "uploadFile": "Upload file",
+    "extraFiles": "Additional Files (optional)",
+    "extraFilesDesc": "Files uploaded directly to the app template directory",
+    "addFiles": "Add files",
+    "defaultFromLibrary": "loaded from library",
     "trademarkPlaceholder": "My App",
     "overviewPlaceholder": "Brief description",
     "descriptionPlaceholder": "Detailed description (Markdown supported)",
@@ -99,6 +104,7 @@
     "badge": "Custom",
     "createdBy": "By {{name}}",
     "you": "You",
-    "unknown": "Unknown"
+    "unknown": "Unknown",
+    "editIac": "Edit Files"
   }
 }

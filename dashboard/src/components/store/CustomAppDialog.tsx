@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Layers, PlusCircle, AlertTriangle, Search } from 'lucide-react'
+import { Layers, PlusCircle, AlertTriangle, Search, Upload, X, File as FileIcon, Loader2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,7 @@ import { Separator } from '@/components/ui/separator'
 import { AppIcon } from './AppIcon'
 import type { Product } from '@/lib/store-types'
 import type { CustomApp, CustomAppFormData } from '@/lib/store-custom-api'
+import { iacLoadLibraryAppFiles } from '@/lib/iac-api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,6 +29,7 @@ interface CustomAppDialogProps {
 }
 
 type Mode = 'select' | 'pick-app' | 'form'
+type FormOrigin = 'scratch' | 'based-on' | 'edit'
 
 const PAGE_SIZE = 20
 
@@ -36,6 +38,43 @@ function slugify(text: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
+}
+
+// ─── File upload button ───────────────────────────────────────────────────────
+
+interface FileUploadButtonProps {
+  accept?: string
+  label: string
+  onContent: (content: string) => void
+}
+
+function FileUploadButton({ accept = '*', label, onContent }: FileUploadButtonProps) {
+  const ref = useRef<HTMLInputElement>(null)
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => onContent(reader.result as string)
+    reader.readAsText(file)
+    e.target.value = ''
+  }
+
+  return (
+    <>
+      <input ref={ref} type="file" accept={accept} className="hidden" onChange={handleChange} />
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-6 gap-1 text-xs px-2"
+        onClick={() => ref.current?.click()}
+      >
+        <Upload className="h-3 w-3" />
+        {label}
+      </Button>
+    </>
+  )
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -52,6 +91,9 @@ export function CustomAppDialog({
   const { t } = useTranslation('store')
 
   const [mode, setMode] = useState<Mode>(editApp ? 'form' : 'select')
+  const [formOrigin, setFormOrigin] = useState<FormOrigin>(editApp ? 'edit' : 'scratch')
+  const [basedOnSourceKey, setBasedOnSourceKey] = useState<string | null>(null)
+  const [loadingLibrary, setLoadingLibrary] = useState(false)
   const [pickSearch, setPickSearch] = useState('')
   const [pickPage, setPickPage] = useState(1)
   const [keyManual, setKeyManual] = useState(!!editApp)
@@ -68,6 +110,10 @@ export function CustomAppDialog({
     visibility: editApp?.visibility ?? 'private',
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  // Extra files to upload to templates/{key}/ via IAC
+  const [extraFiles, setExtraFiles] = useState<File[]>([])
+  const extraFilesRef = useRef<HTMLInputElement>(null)
 
   const setField = <K extends keyof CustomAppFormData>(k: K, v: CustomAppFormData[K]) => {
     setForm((f) => {
@@ -106,7 +152,7 @@ export function CustomAppDialog({
     }
   }, [hasMore])
 
-  const selectTemplate = (product: Product) => {
+  const selectTemplate = async (product: Product) => {
     setForm({
       key: '',
       trademark: product.trademark,
@@ -119,7 +165,24 @@ export function CustomAppDialog({
       visibility: 'private',
     })
     setKeyManual(false)
+    setFormOrigin('based-on')
+    setBasedOnSourceKey(product.key)
     setMode('form')
+
+    // Load library compose/.env in background
+    setLoadingLibrary(true)
+    try {
+      const { compose, env } = await iacLoadLibraryAppFiles(product.key)
+      setForm((f) => ({
+        ...f,
+        compose_yaml: compose ?? f.compose_yaml,
+        env_text: env ?? f.env_text,
+      }))
+    } catch {
+      // library files not found — keep form empty
+    } finally {
+      setLoadingLibrary(false)
+    }
   }
 
   // ─── Validation ──────────────────────────────────────────────────────────
@@ -138,9 +201,28 @@ export function CustomAppDialog({
     return Object.keys(e).length === 0
   }
 
+  // ─── Extra files handlers ──────────────────────────────────────────────────
+
+  const handleExtraFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    setExtraFiles((prev) => {
+      const existing = new Set(prev.map((f) => f.name))
+      return [...prev, ...files.filter((f) => !existing.has(f.name))]
+    })
+    e.target.value = ''
+  }
+
+  const removeExtraFile = (name: string) => {
+    setExtraFiles((prev) => prev.filter((f) => f.name !== name))
+  }
+
   const handleSave = () => {
     if (!validate()) return
-    onSave(form)
+    onSave({
+      ...form,
+      extraFiles: extraFiles.length > 0 ? extraFiles : undefined,
+      basedOnKey: formOrigin === 'based-on' && basedOnSourceKey ? basedOnSourceKey : undefined,
+    })
   }
 
   const handleClose = () => {
@@ -148,6 +230,8 @@ export function CustomAppDialog({
     setPickSearch('')
     setPickPage(1)
     setErrors({})
+    setExtraFiles([])
+    setBasedOnSourceKey(null)
     onClose()
   }
 
@@ -155,7 +239,7 @@ export function CustomAppDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
         <DialogHeader className="shrink-0">
           <DialogTitle>
             {editApp ? t('customApp.titleEdit') : t('customApp.titleAdd')}
@@ -178,6 +262,7 @@ export function CustomAppDialog({
               onClick={() => {
                 setForm({ key: '', trademark: '', logo_url: '', overview: '', description: '', category_keys: [], compose_yaml: '', env_text: '', visibility: 'private' })
                 setKeyManual(false)
+                setFormOrigin('scratch')
                 setMode('form')
               }}
             >
@@ -288,36 +373,114 @@ export function CustomAppDialog({
               />
             </div>
 
-            {/* --- Advanced fields: only when editing --- */}
+            {/* --- Advanced fields: always shown --- */}
+            <Separator />
+
+            {/* docker-compose.yml */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-medium">{t('customApp.compose')}</label>
+                  {loadingLibrary && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                  {formOrigin === 'based-on' && !loadingLibrary && form.compose_yaml && (
+                    <span className="text-xs text-muted-foreground">({t('customApp.defaultFromLibrary')})</span>
+                  )}
+                </div>
+                <FileUploadButton
+                  accept=".yml,.yaml,.txt"
+                  label={t('customApp.uploadFile')}
+                  onContent={(content) => setField('compose_yaml', content)}
+                />
+              </div>
+              <Textarea
+                value={form.compose_yaml}
+                onChange={(e) => setField('compose_yaml', e.target.value)}
+                className="font-mono text-xs min-h-[120px] resize-y"
+                spellCheck={false}
+                placeholder={'services:\n  app:\n    image: your-image:latest\n    ports:\n      - "8080:8080"'}
+                disabled={loadingLibrary}
+              />
+            </div>
+
+            {/* .env */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-medium">{t('customApp.envText')}</label>
+                  {formOrigin === 'based-on' && !loadingLibrary && form.env_text && (
+                    <span className="text-xs text-muted-foreground">({t('customApp.defaultFromLibrary')})</span>
+                  )}
+                </div>
+                <FileUploadButton
+                  accept=".env,.txt"
+                  label={t('customApp.uploadFile')}
+                  onContent={(content) => setField('env_text', content)}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mb-1">{t('customApp.envTextDesc')}</p>
+              <Textarea
+                value={form.env_text}
+                onChange={(e) => setField('env_text', e.target.value)}
+                className="font-mono text-xs min-h-[80px] resize-y"
+                spellCheck={false}
+                placeholder={'APP_KEY=value\nDB_PASSWORD=secret'}
+                disabled={loadingLibrary}
+              />
+            </div>
+
+            {/* Extra files upload */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <div>
+                  <label className="text-xs font-medium">{t('customApp.extraFiles')}</label>
+                  <p className="text-xs text-muted-foreground">{t('customApp.extraFilesDesc')}</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-6 gap-1 text-xs px-2 shrink-0 ml-2"
+                  onClick={() => extraFilesRef.current?.click()}
+                >
+                  <Upload className="h-3 w-3" />
+                  {t('customApp.addFiles')}
+                </Button>
+              </div>
+              <input
+                ref={extraFilesRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handleExtraFilesChange}
+              />
+              {extraFiles.length > 0 && (
+                <div className="border rounded-md divide-y mt-1">
+                  {extraFiles.map((file) => (
+                    <div key={file.name} className="flex items-center justify-between px-3 py-1.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <span className="text-xs truncate">{file.name}</span>
+                        <span className="text-xs text-muted-foreground shrink-0">
+                          {(file.size / 1024).toFixed(1)} KB
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="shrink-0 ml-2 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeExtraFile(file.name)}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Description — shown only when editing (advanced Markdown field) */}
             {editApp && (
               <>
                 <Separator />
-                {/* compose_yaml */}
-                <div>
-                  <label className="text-xs font-medium">{t('customApp.compose')}</label>
-                  <Textarea
-                    value={form.compose_yaml}
-                    onChange={(e) => setField('compose_yaml', e.target.value)}
-                    className="font-mono text-xs min-h-[120px] resize-y"
-                    spellCheck={false}
-                    placeholder={'services:\n  app:\n    image: your-image:latest'}
-                  />
-                </div>
-
-                {/* .env */}
-                <div>
-                  <label className="text-xs font-medium">{t('customApp.envText')}</label>
-                  <p className="text-xs text-muted-foreground mb-1">{t('customApp.envTextDesc')}</p>
-                  <Textarea
-                    value={form.env_text}
-                    onChange={(e) => setField('env_text', e.target.value)}
-                    className="font-mono text-xs min-h-[80px] resize-y"
-                    spellCheck={false}
-                    placeholder={'APP_KEY=value\nDB_PASSWORD=secret'}
-                  />
-                </div>
-
-                {/* Description */}
                 <div>
                   <label className="text-xs font-medium">{t('customApp.description')}</label>
                   <Textarea

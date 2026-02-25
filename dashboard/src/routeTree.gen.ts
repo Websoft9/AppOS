@@ -37,6 +37,7 @@ import { Route as AppAuthResourcesCloudAccountsRouteImport } from './routes/_app
 import { Route as AppAuthResourcesCertificatesRouteImport } from './routes/_app/_auth/resources/certificates'
 import { Route as AppAuthSuperuserSettingsRouteImport } from './routes/_app/_auth/_superuser/settings'
 import { Route as AppAuthSuperuserLogsRouteImport } from './routes/_app/_auth/_superuser/logs'
+import { Route as AppAuthSuperuserIacRouteImport } from './routes/_app/_auth/_superuser/iac'
 import { Route as AppAuthResourcesGroupsIndexRouteImport } from './routes/_app/_auth/resources/groups.index'
 import { Route as AppAuthSuperuserUsersIndexRouteImport } from './routes/_app/_auth/_superuser/users/index'
 import { Route as AppAuthResourcesGroupsIdRouteImport } from './routes/_app/_auth/resources/groups.$id'
@@ -184,6 +185,11 @@ const AppAuthSuperuserLogsRoute = AppAuthSuperuserLogsRouteImport.update({
   path: '/logs',
   getParentRoute: () => AppAuthSuperuserRoute,
 } as any)
+const AppAuthSuperuserIacRoute = AppAuthSuperuserIacRouteImport.update({
+  id: '/iac',
+  path: '/iac',
+  getParentRoute: () => AppAuthSuperuserRoute,
+} as any)
 const AppAuthResourcesGroupsIndexRoute =
   AppAuthResourcesGroupsIndexRouteImport.update({
     id: '/',
@@ -216,6 +222,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof AppAuthProfileRoute
   '/services': typeof AppAuthServicesRoute
   '/space': typeof AppAuthSpaceRoute
+  '/iac': typeof AppAuthSuperuserIacRoute
   '/logs': typeof AppAuthSuperuserLogsRoute
   '/settings': typeof AppAuthSuperuserSettingsRoute
   '/resources/certificates': typeof AppAuthResourcesCertificatesRoute
@@ -246,6 +253,7 @@ export interface FileRoutesByTo {
   '/profile': typeof AppAuthProfileRoute
   '/services': typeof AppAuthServicesRoute
   '/space': typeof AppAuthSpaceRoute
+  '/iac': typeof AppAuthSuperuserIacRoute
   '/logs': typeof AppAuthSuperuserLogsRoute
   '/settings': typeof AppAuthSuperuserSettingsRoute
   '/resources/certificates': typeof AppAuthResourcesCertificatesRoute
@@ -279,6 +287,7 @@ export interface FileRoutesById {
   '/_app/_auth/profile': typeof AppAuthProfileRoute
   '/_app/_auth/services': typeof AppAuthServicesRoute
   '/_app/_auth/space': typeof AppAuthSpaceRoute
+  '/_app/_auth/_superuser/iac': typeof AppAuthSuperuserIacRoute
   '/_app/_auth/_superuser/logs': typeof AppAuthSuperuserLogsRoute
   '/_app/_auth/_superuser/settings': typeof AppAuthSuperuserSettingsRoute
   '/_app/_auth/resources/certificates': typeof AppAuthResourcesCertificatesRoute
@@ -311,6 +320,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/services'
     | '/space'
+    | '/iac'
     | '/logs'
     | '/settings'
     | '/resources/certificates'
@@ -341,6 +351,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/services'
     | '/space'
+    | '/iac'
     | '/logs'
     | '/settings'
     | '/resources/certificates'
@@ -373,6 +384,7 @@ export interface FileRouteTypes {
     | '/_app/_auth/profile'
     | '/_app/_auth/services'
     | '/_app/_auth/space'
+    | '/_app/_auth/_superuser/iac'
     | '/_app/_auth/_superuser/logs'
     | '/_app/_auth/_superuser/settings'
     | '/_app/_auth/resources/certificates'
@@ -594,6 +606,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthSuperuserLogsRouteImport
       parentRoute: typeof AppAuthSuperuserRoute
     }
+    '/_app/_auth/_superuser/iac': {
+      id: '/_app/_auth/_superuser/iac'
+      path: '/iac'
+      fullPath: '/iac'
+      preLoaderRoute: typeof AppAuthSuperuserIacRouteImport
+      parentRoute: typeof AppAuthSuperuserRoute
+    }
     '/_app/_auth/resources/groups/': {
       id: '/_app/_auth/resources/groups/'
       path: '/'
@@ -619,12 +638,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppAuthSuperuserRouteChildren {
+  AppAuthSuperuserIacRoute: typeof AppAuthSuperuserIacRoute
   AppAuthSuperuserLogsRoute: typeof AppAuthSuperuserLogsRoute
   AppAuthSuperuserSettingsRoute: typeof AppAuthSuperuserSettingsRoute
   AppAuthSuperuserUsersIndexRoute: typeof AppAuthSuperuserUsersIndexRoute
 }
 
 const AppAuthSuperuserRouteChildren: AppAuthSuperuserRouteChildren = {
+  AppAuthSuperuserIacRoute: AppAuthSuperuserIacRoute,
   AppAuthSuperuserLogsRoute: AppAuthSuperuserLogsRoute,
   AppAuthSuperuserSettingsRoute: AppAuthSuperuserSettingsRoute,
   AppAuthSuperuserUsersIndexRoute: AppAuthSuperuserUsersIndexRoute,

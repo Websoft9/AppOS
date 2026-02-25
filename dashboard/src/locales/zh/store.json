@@ -83,9 +83,14 @@
     "overview": "简短描述",
     "logoUrl": "Logo URL（可选）",
     "description": "详细介绍（可选，支持 Markdown）",
-    "compose": "Docker Compose YAML",
+    "compose": "Docker Compose YAML（可选）",
     "envText": ".env 文件（可选）",
     "envTextDesc": "环境变量，将作为 .env 文件与 docker-compose.yml 并排挂载",
+    "uploadFile": "上传文件",
+    "extraFiles": "附加文件（可选）",
+    "extraFilesDesc": "直接上传到应用模板目录的文件",
+    "addFiles": "添加文件",
+    "defaultFromLibrary": "已从库加载",
     "trademarkPlaceholder": "我的应用",
     "overviewPlaceholder": "简短描述",
     "descriptionPlaceholder": "详细介绍（支持 Markdown）",
@@ -99,6 +104,7 @@
     "badge": "自定义",
     "createdBy": "创建者：{{name}}",
     "you": "我",
-    "unknown": "未知"
+    "unknown": "未知",
+    "editIac": "编辑文件"
   }
 }

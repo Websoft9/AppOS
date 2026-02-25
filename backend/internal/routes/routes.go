@@ -8,6 +8,7 @@
 //   - /api/ext/backup     — backup/restore operations
 //   - /api/ext/resources  — Resource Store CRUD (Epic 8)
 //   - /api/ext/space      — User private space (Epic 9)
+//   - /api/ext/iac        — IaC file management (Epic 14, superuser-only)
 package routes
 
 import (
@@ -51,4 +52,5 @@ func Register(se *core.ServeEvent) {
 	registerResourceRoutes(g)
 	registerSpaceRoutes(g)
 	registerUserRoutes(g)
+	registerIaCRoutes(g)
 }

@@ -14,6 +14,7 @@ import {
   ScrollText,
   Cog,
   FileText,
+  FolderCode,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -70,7 +71,7 @@ const workspaceGroup: NavGroup = {
 const baseAdminItems: NavItem[] = [
   { id: "docker", label: "Docker", icon: <Container className="h-5 w-5" />, href: "/docker" },
   { id: "services", label: "Services", icon: <Settings className="h-5 w-5" />, href: "/services" },
-  { id: "audit", label: "Audit & Logs", icon: <ScrollText className="h-5 w-5" />, href: "/audit" },
+  { id: "audit", label: "Audit", icon: <ScrollText className="h-5 w-5" />, href: "/audit" },
 ]
 
 const usersNavItem: NavItem = {
@@ -88,10 +89,17 @@ const settingsNavItem: NavItem = {
 }
 
 const logsNavItem: NavItem = {
-  id: "logs",
-  label: "Logs",
+  id: 'logs',
+  label: 'Logs',
   icon: <FileText className="h-5 w-5" />,
-  href: "/logs",
+  href: '/logs',
+}
+
+const filesNavItem: NavItem = {
+  id: 'files',
+  label: 'IaC Browser',
+  icon: <FolderCode className="h-5 w-5" />,
+  href: '/iac',
 }
 
 function buildNavGroups(isSuperuser: boolean): NavGroup[] {
@@ -101,7 +109,7 @@ function buildNavGroups(isSuperuser: boolean): NavGroup[] {
       id: "admin",
       label: "Admin",
       items: isSuperuser
-        ? [...baseAdminItems, usersNavItem, logsNavItem, settingsNavItem]
+        ? [...baseAdminItems, usersNavItem, logsNavItem, filesNavItem, settingsNavItem]
         : baseAdminItems,
     },
   ]

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from '@tanstack/react-router'
 import ReactMarkdown from 'react-markdown'
-import { ExternalLink, Github, BookOpen, Cpu, MemoryStick, HardDrive, Heart } from 'lucide-react'
+import { ExternalLink, Github, BookOpen, Cpu, MemoryStick, HardDrive, Heart, Pencil, Trash2, Code } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -31,6 +32,11 @@ interface AppDetailModalProps {
   isSavingNote?: boolean
   showDeploy?: boolean
   fallbackScreenshots?: Screenshot[]
+  /** Custom app actions — show edit/delete in the action bar when provided */
+  onEdit?: () => void
+  onDelete?: () => void
+  /** Path for IAC editor link, e.g. "templates/apps/myapp" */
+  iacEditPath?: string
 }
 
 export function AppDetailModal({
@@ -46,6 +52,9 @@ export function AppDetailModal({
   isSavingNote,
   showDeploy = true,
   fallbackScreenshots = [],
+  onEdit,
+  onDelete,
+  iacEditPath,
 }: AppDetailModalProps) {
   const { t } = useTranslation('store')
   const [confirmUnfavorite, setConfirmUnfavorite] = useState(false)
@@ -113,7 +122,7 @@ export function AppDetailModal({
         </DialogHeader>
 
         {/* ── Action bar: Deploy + Favorite — prominent, near the top ── */}
-        {(showDeploy || onToggleFavorite) && (
+        {(showDeploy || onToggleFavorite || onEdit || onDelete) && (
           <div className="flex items-center gap-3 mt-1">
             {showDeploy && (
               <Button className="flex-1" size="lg">
@@ -145,6 +154,39 @@ export function AppDetailModal({
                   {t('note.cancel')}
                 </Button>
               </div>
+            )}
+            {onEdit && (
+              <Button variant="outline" size="lg" onClick={onEdit}>
+                <Pencil className="h-4 w-4 mr-1.5" />
+                {t('customApp.edit')}
+              </Button>
+            )}
+            {onDelete && (
+              <Button
+                variant="outline"
+                size="lg"
+                className="text-destructive hover:text-destructive"
+                onClick={() => {
+                  if (window.confirm(t('customApp.deleteConfirm'))) {
+                    onDelete()
+                  }
+                }}
+              >
+                <Trash2 className="h-4 w-4 mr-1.5" />
+                {t('customApp.delete')}
+              </Button>
+            )}
+            {iacEditPath && (
+              <Button variant="outline" size="lg" asChild>
+                <Link
+                  to="/iac"
+                  search={{ root: iacEditPath }}
+                  onClick={onClose}
+                >
+                  <Code className="h-4 w-4 mr-1.5" />
+                  {t('customApp.editIac')}
+                </Link>
+              </Button>
             )}
           </div>
         )}
