@@ -93,32 +93,32 @@ type Connector interface {
 
 ### 决策 4：Epic 规划边界
 
-| Epic | 名称 | 核心内容 | 依赖 |
-|------|------|---------|------|
-| **Epic 14** | File API | AppOS 本地 `/appos/data/` CRUD API | Epic 1, 3 |
-| **Epic 15** | Web Terminal | SSH Connector + SFTP Connector + Docker exec；Terminal UI + File Manager UI | Epic 8 |
-| **Epic 16** | Dev Tools | DB Connector + HTTP Connector；DB Client UI + API Debugger UI | Epic 8, 15 |
-| **Epic 17** | AI Core + Pilot | AI Provider 路由、MCP Server 管理、对话历史、Pilot UI（Chat + Flows） | Epic 8, 15, 16 |
+| Epic | 名称 | 产品模块 | 核心内容 | 依赖 |
+|------|------|---------|---------|------|
+| **Epic 14** | File API | — | AppOS 本地 `/appos/data/` CRUD API | Epic 1, 3 |
+| **Epic 15** | Web Terminal | **Connect**（第一部分） | SSH Connector + SFTP Connector + Docker exec；Terminal UI + File Manager UI | Epic 8 |
+| **Epic 16** | Dev Tools | **Connect**（第二部分） | DB Connector + HTTP Connector；DB Client UI + API Debugger UI | Epic 8, 15 |
+| **Epic 17** | AI Core + AI Pilot | **AI Pilot** | AI Provider 路由、MCP Server 管理、对话历史、AI Pilot UI（Chat + Flows） | Epic 8, 15, 16 |
 
 **YAGNI 原则**：不预先建通用 Connector Layer 抽象，在 Epic 15 定义接口，Epic 16 添加实现，Epic 17 启动时如有需要再统一抽象。
 
-### 决策 5：Pilot — 统一 AI + 工作流界面
+### 决策 5：AI Pilot — 统一 AI + 工作流界面
 
-**名称**：`Pilot`（AppOS Pilot）
+**名称**：`AI Pilot`（AppOS AI Pilot）
 
 **定位**：意图驱动的统一工作区，不是"什么都有"的门户。
 
 ```
-Pilot
+AI Pilot
   ├── Chat    → AI 对话路径（概率性）
   └── Flows   → 工作流路径（确定性）
 ```
 
 **与其他工具的边界**：
 
-- Terminal、Files（SFTP）、DB Client 是**独立入口**，目标明确的操作工具
-- Pilot 是**意图入口**，用户不确定怎么做时使用
-- Pilot Chat 可以**跳转并传递上下文**到 Terminal / DB Client，但不整合界面
+- Connect（Terminal、Files、DB Client、API Debugger）是**目标明确的操控工具**
+- AI Pilot 是**意图入口**，用户不确定怎么做时使用
+- AI Pilot Chat 可以**跳转并传递上下文**到 Connect 各工具，但不整合界面
 
 ### 决策 6：AI Chat 是嵌入式基础能力
 
@@ -129,9 +129,9 @@ AI Chat 不是独立产品，而是各工具可按需嵌入的能力：
 | SSH Terminal | 内嵌 AI Panel（分屏） | Warp Terminal |
 | DB Client | 内嵌 AI Panel（SQL 生成 + 解释） | DataGrip AI |
 | SFTP / File Manager | 悬浮 AI 入口（上下文感知） | 轻量集成 |
-| Pilot | 完整 AI Chat 界面 | LobeChat |
+| AI Pilot | 完整 AI Chat 界面 | LobeChat |
 
-**同一套后端**（Epic 17 AI Core），**不同前端嵌入形态**，各 Epic 按需集成。
+**同一套后端**（Epic 17 AI Core），**不同前端嵌入形态**，Connect 各工具按需集成。
 
 ---
 

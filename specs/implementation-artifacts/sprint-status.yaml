@@ -134,6 +134,13 @@ development_status:
   14.4-iac-browser-ui: done                  # Monaco Editor + whitelisted directory tree
   epic14-retrospective: optional
 
+  # Epic 15: Web Terminal & File Manager
+  epic15: done
+  15.1-ssh-sftp-backend: done
+  15.2-terminal-filemanager-ui: done
+  15.3-docker-exec: done
+  epic15-retrospective: optional
+
   # Epic 13: Settings Management
   epic13: done
   13.1-settings-foundation: done

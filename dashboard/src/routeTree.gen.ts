@@ -40,7 +40,9 @@ import { Route as AppAuthSuperuserLogsRouteImport } from './routes/_app/_auth/_s
 import { Route as AppAuthSuperuserIacRouteImport } from './routes/_app/_auth/_superuser/iac'
 import { Route as AppAuthResourcesGroupsIndexRouteImport } from './routes/_app/_auth/resources/groups.index'
 import { Route as AppAuthSuperuserUsersIndexRouteImport } from './routes/_app/_auth/_superuser/users/index'
+import { Route as AppAuthSuperuserConnectIndexRouteImport } from './routes/_app/_auth/_superuser/connect.index'
 import { Route as AppAuthResourcesGroupsIdRouteImport } from './routes/_app/_auth/resources/groups.$id'
+import { Route as AppAuthSuperuserConnectServerServerIdRouteImport } from './routes/_app/_auth/_superuser/connect.server.$serverId'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -202,11 +204,23 @@ const AppAuthSuperuserUsersIndexRoute =
     path: '/users/',
     getParentRoute: () => AppAuthSuperuserRoute,
   } as any)
+const AppAuthSuperuserConnectIndexRoute =
+  AppAuthSuperuserConnectIndexRouteImport.update({
+    id: '/connect/',
+    path: '/connect/',
+    getParentRoute: () => AppAuthSuperuserRoute,
+  } as any)
 const AppAuthResourcesGroupsIdRoute =
   AppAuthResourcesGroupsIdRouteImport.update({
     id: '/$id',
     path: '/$id',
     getParentRoute: () => AppAuthResourcesGroupsRoute,
+  } as any)
+const AppAuthSuperuserConnectServerServerIdRoute =
+  AppAuthSuperuserConnectServerServerIdRouteImport.update({
+    id: '/connect/server/$serverId',
+    path: '/connect/server/$serverId',
+    getParentRoute: () => AppAuthSuperuserRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -237,8 +251,10 @@ export interface FileRoutesByFullPath {
   '/resources/': typeof AppAuthResourcesIndexRoute
   '/store/': typeof AppAuthStoreIndexRoute
   '/resources/groups/$id': typeof AppAuthResourcesGroupsIdRoute
+  '/connect/': typeof AppAuthSuperuserConnectIndexRoute
   '/users/': typeof AppAuthSuperuserUsersIndexRoute
   '/resources/groups/': typeof AppAuthResourcesGroupsIndexRoute
+  '/connect/server/$serverId': typeof AppAuthSuperuserConnectServerServerIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -267,8 +283,10 @@ export interface FileRoutesByTo {
   '/resources': typeof AppAuthResourcesIndexRoute
   '/store': typeof AppAuthStoreIndexRoute
   '/resources/groups/$id': typeof AppAuthResourcesGroupsIdRoute
+  '/connect': typeof AppAuthSuperuserConnectIndexRoute
   '/users': typeof AppAuthSuperuserUsersIndexRoute
   '/resources/groups': typeof AppAuthResourcesGroupsIndexRoute
+  '/connect/server/$serverId': typeof AppAuthSuperuserConnectServerServerIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -302,8 +320,10 @@ export interface FileRoutesById {
   '/_app/_auth/resources/': typeof AppAuthResourcesIndexRoute
   '/_app/_auth/store/': typeof AppAuthStoreIndexRoute
   '/_app/_auth/resources/groups/$id': typeof AppAuthResourcesGroupsIdRoute
+  '/_app/_auth/_superuser/connect/': typeof AppAuthSuperuserConnectIndexRoute
   '/_app/_auth/_superuser/users/': typeof AppAuthSuperuserUsersIndexRoute
   '/_app/_auth/resources/groups/': typeof AppAuthResourcesGroupsIndexRoute
+  '/_app/_auth/_superuser/connect/server/$serverId': typeof AppAuthSuperuserConnectServerServerIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -335,8 +355,10 @@ export interface FileRouteTypes {
     | '/resources/'
     | '/store/'
     | '/resources/groups/$id'
+    | '/connect/'
     | '/users/'
     | '/resources/groups/'
+    | '/connect/server/$serverId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -365,8 +387,10 @@ export interface FileRouteTypes {
     | '/resources'
     | '/store'
     | '/resources/groups/$id'
+    | '/connect'
     | '/users'
     | '/resources/groups'
+    | '/connect/server/$serverId'
   id:
     | '__root__'
     | '/'
@@ -399,8 +423,10 @@ export interface FileRouteTypes {
     | '/_app/_auth/resources/'
     | '/_app/_auth/store/'
     | '/_app/_auth/resources/groups/$id'
+    | '/_app/_auth/_superuser/connect/'
     | '/_app/_auth/_superuser/users/'
     | '/_app/_auth/resources/groups/'
+    | '/_app/_auth/_superuser/connect/server/$serverId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -627,12 +653,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthSuperuserUsersIndexRouteImport
       parentRoute: typeof AppAuthSuperuserRoute
     }
+    '/_app/_auth/_superuser/connect/': {
+      id: '/_app/_auth/_superuser/connect/'
+      path: '/connect'
+      fullPath: '/connect/'
+      preLoaderRoute: typeof AppAuthSuperuserConnectIndexRouteImport
+      parentRoute: typeof AppAuthSuperuserRoute
+    }
     '/_app/_auth/resources/groups/$id': {
       id: '/_app/_auth/resources/groups/$id'
       path: '/$id'
       fullPath: '/resources/groups/$id'
       preLoaderRoute: typeof AppAuthResourcesGroupsIdRouteImport
       parentRoute: typeof AppAuthResourcesGroupsRoute
+    }
+    '/_app/_auth/_superuser/connect/server/$serverId': {
+      id: '/_app/_auth/_superuser/connect/server/$serverId'
+      path: '/connect/server/$serverId'
+      fullPath: '/connect/server/$serverId'
+      preLoaderRoute: typeof AppAuthSuperuserConnectServerServerIdRouteImport
+      parentRoute: typeof AppAuthSuperuserRoute
     }
   }
 }
@@ -641,14 +681,19 @@ interface AppAuthSuperuserRouteChildren {
   AppAuthSuperuserIacRoute: typeof AppAuthSuperuserIacRoute
   AppAuthSuperuserLogsRoute: typeof AppAuthSuperuserLogsRoute
   AppAuthSuperuserSettingsRoute: typeof AppAuthSuperuserSettingsRoute
+  AppAuthSuperuserConnectIndexRoute: typeof AppAuthSuperuserConnectIndexRoute
   AppAuthSuperuserUsersIndexRoute: typeof AppAuthSuperuserUsersIndexRoute
+  AppAuthSuperuserConnectServerServerIdRoute: typeof AppAuthSuperuserConnectServerServerIdRoute
 }
 
 const AppAuthSuperuserRouteChildren: AppAuthSuperuserRouteChildren = {
   AppAuthSuperuserIacRoute: AppAuthSuperuserIacRoute,
   AppAuthSuperuserLogsRoute: AppAuthSuperuserLogsRoute,
   AppAuthSuperuserSettingsRoute: AppAuthSuperuserSettingsRoute,
+  AppAuthSuperuserConnectIndexRoute: AppAuthSuperuserConnectIndexRoute,
   AppAuthSuperuserUsersIndexRoute: AppAuthSuperuserUsersIndexRoute,
+  AppAuthSuperuserConnectServerServerIdRoute:
+    AppAuthSuperuserConnectServerServerIdRoute,
 }
 
 const AppAuthSuperuserRouteWithChildren =

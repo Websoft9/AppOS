@@ -15,6 +15,7 @@ import {
   Cog,
   FileText,
   FolderCode,
+  TerminalSquare,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -102,6 +103,13 @@ const filesNavItem: NavItem = {
   href: '/iac',
 }
 
+const connectNavItem: NavItem = {
+  id: 'connect',
+  label: 'Connect',
+  icon: <TerminalSquare className="h-5 w-5" />,
+  href: '/connect',
+}
+
 function buildNavGroups(isSuperuser: boolean): NavGroup[] {
   return [
     workspaceGroup,
@@ -109,7 +117,7 @@ function buildNavGroups(isSuperuser: boolean): NavGroup[] {
       id: "admin",
       label: "Admin",
       items: isSuperuser
-        ? [...baseAdminItems, usersNavItem, logsNavItem, filesNavItem, settingsNavItem]
+        ? [...baseAdminItems, usersNavItem, logsNavItem, filesNavItem, connectNavItem, settingsNavItem]
         : baseAdminItems,
     },
   ]

@@ -16,7 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Play, Square, RotateCw, Trash2, MoreVertical } from "lucide-react"
+import { Play, Square, RotateCw, Trash2, MoreVertical, TerminalSquare } from "lucide-react"
 
 interface Container {
   ID: string
@@ -47,7 +47,7 @@ function statusBadge(state: string) {
   return <Badge variant={variant}>{state}</Badge>
 }
 
-export function ContainersTab({ serverId, refreshSignal = 0 }: { serverId: string; refreshSignal?: number }) {
+export function ContainersTab({ serverId, refreshSignal = 0, onOpenTerminal }: { serverId: string; refreshSignal?: number; onOpenTerminal?: (containerId: string) => void }) {
   const [containers, setContainers] = useState<Container[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState("")
@@ -130,6 +130,11 @@ export function ContainersTab({ serverId, refreshSignal = 0 }: { serverId: strin
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    {c.State === "running" && onOpenTerminal && (
+                      <DropdownMenuItem onClick={() => onOpenTerminal(c.ID)}>
+                        <TerminalSquare className="h-4 w-4 mr-2" /> Terminal
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem onClick={() => action(c.ID, "start")}>
                       <Play className="h-4 w-4 mr-2" /> Start
                     </DropdownMenuItem>

@@ -30,6 +30,7 @@ import { ImagesTab } from "@/components/docker/ImagesTab"
 import { NetworksTab } from "@/components/docker/NetworksTab"
 import { VolumesTab } from "@/components/docker/VolumesTab"
 import { ComposeTab } from "@/components/docker/ComposeTab"
+import { TerminalPanel } from "@/components/connect/TerminalPanel"
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -52,14 +53,24 @@ interface CommandEntry {
 // ─── DockerPage ──────────────────────────────────────────
 
 function DockerPage() {
+  const { server: serverFromUrl } = Route.useSearch()
+
   // Hosts fetched from API
   const [hosts, setHosts] = useState<HostEntry[]>([
     { id: "local", label: "local", status: "online" },
   ])
 
-  // Single active server
-  const [serverId, setServerId] = useState("local")
+  // Single active server — initialise from URL ?server= if provided
+  const [serverId, setServerId] = useState(serverFromUrl || "local")
   const activeHost = hosts.find((h) => h.id === serverId) ?? hosts[0]
+
+  // When hosts are loaded and a URL server param is present, validate it exists
+  useEffect(() => {
+    if (serverFromUrl && hosts.length > 0) {
+      const match = hosts.find((h) => h.id === serverFromUrl)
+      if (match) setServerId(match.id)
+    }
+  }, [hosts, serverFromUrl])
 
   // Fetch available servers on mount
   useEffect(() => {
@@ -81,6 +92,10 @@ function DockerPage() {
   const [history, setHistory] = useState<CommandEntry[]>([])
   const outputEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Terminal dialog for docker exec
+  const [terminalContainerId, setTerminalContainerId] = useState<string | null>(null)
+  const [terminalShell, setTerminalShell] = useState<string>('/bin/sh')
 
   useEffect(() => {
     if (outputEndRef.current) {
@@ -213,7 +228,11 @@ function DockerPage() {
         </div>
 
         <TabsContent value="containers">
-          <ContainersTab serverId={serverId} refreshSignal={refreshSignal} />
+          <ContainersTab
+            serverId={serverId}
+            refreshSignal={refreshSignal}
+            onOpenTerminal={(id) => setTerminalContainerId(id)}
+          />
         </TabsContent>
         <TabsContent value="images">
           <ImagesTab serverId={serverId} refreshSignal={refreshSignal} />
@@ -354,10 +373,55 @@ function DockerPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ── Docker Exec Terminal Dialog ── */}
+      <Dialog
+        open={!!terminalContainerId}
+        onOpenChange={(open) => { if (!open) setTerminalContainerId(null) }}
+      >
+        <DialogContent className="sm:max-w-4xl h-[80vh] flex flex-col gap-0 p-0">
+          <DialogHeader className="px-5 pt-4 pb-2">
+            <DialogTitle className="flex items-center gap-2">
+              <TerminalSquare className="h-5 w-5" />
+              Container Terminal
+              <span className="text-xs font-mono text-muted-foreground ml-2">
+                {terminalContainerId?.slice(0, 12)}
+              </span>
+              {/* Shell selector */}
+              <div className="ml-auto flex items-center gap-1">
+                {['/bin/sh', '/bin/bash', '/bin/zsh'].map((sh) => (
+                  <Button
+                    key={sh}
+                    variant={terminalShell === sh ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className="h-6 px-2 text-xs font-mono"
+                    onClick={() => setTerminalShell(sh)}
+                  >
+                    {sh.split('/').pop()}
+                  </Button>
+                ))}
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0">
+            {terminalContainerId && (
+              <TerminalPanel
+                key={`${terminalContainerId}-${terminalShell}`}
+                containerId={terminalContainerId}
+                shell={terminalShell}
+                className="h-full"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
 export const Route = createFileRoute("/_app/_auth/docker")({
   component: DockerPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    server: typeof search.server === 'string' ? search.server : undefined,
+  }),
 })
