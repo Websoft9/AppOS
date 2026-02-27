@@ -1,8 +1,8 @@
 import { useState, useCallback } from "react"
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { PlugZap, Loader2, Cable } from "lucide-react"
+import { PlugZap, Loader2, Cable, Link as LinkIcon } from "lucide-react"
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import {
   ResourcePage,
   type Column,
@@ -90,10 +90,33 @@ const fields: FieldDef[] = [
 
 function ServersPage() {
   const autoCreate = new URLSearchParams(window.location.search).get("create") === "1"
+  const navigate = useNavigate()
   const [wizardServerId, setWizardServerId] = useState<string | null>(null)
-  const [testingId, setTestingId] = useState<string | null>(null)
+  const [checkingIds, setCheckingIds] = useState<Set<string>>(new Set())
   // Per-server ping results (overrides DB value in Status column)
   const [pingResults, setPingResults] = useState<Record<string, "online" | "offline">>({})
+
+  const checkServerStatus = useCallback(async (item: Record<string, unknown>) => {
+    const id = String(item.id)
+    setCheckingIds((prev) => new Set(prev).add(id))
+    try {
+      if (item.connect_type === "tunnel") {
+        const res = await pb.send(`/api/ext/tunnel/servers/${id}/status`, { method: "GET" }) as { status?: string }
+        setPingResults(prev => ({ ...prev, [id]: res.status === "online" ? "online" : "offline" }))
+      } else {
+        const res = await pb.send(`/api/ext/resources/servers/${id}/ping`, { method: "GET" }) as { status?: string }
+        setPingResults(prev => ({ ...prev, [id]: res.status === "online" ? "online" : "offline" }))
+      }
+    } catch {
+      setPingResults(prev => ({ ...prev, [id]: "offline" }))
+    } finally {
+      setCheckingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    }
+  }, [])
 
   const columns: Column[] = [
     { key: "name", label: "Name" },
@@ -115,10 +138,30 @@ function ServersPage() {
       render: (v, row) => {
         const id = String(row.id ?? "")
         const ct = row.connect_type
+        const checking = checkingIds.has(id)
 
         // Local ping result takes priority over DB value
         const local = pingResults[id]
         const status = local ?? (ct === "tunnel" ? (v as string) : undefined)
+
+        if (ct === "tunnel") {
+          return (
+            <button
+              type="button"
+              className="inline-flex"
+              title="Click to check status"
+              onClick={() => { void checkServerStatus(row) }}
+              disabled={checking}
+            >
+              {checking
+                ? <Badge variant="outline"><Loader2 className="h-3 w-3 animate-spin" /></Badge>
+                : status === "online"
+                  ? <Badge variant="default">Online</Badge>
+                  : <Badge variant="secondary">Offline</Badge>
+              }
+            </button>
+          )
+        }
 
         if (status === "online") {
           return <Badge variant="default">Online</Badge>
@@ -157,50 +200,39 @@ function ServersPage() {
     },
   ]
 
-  const handleConnectTest = useCallback(async (item: Record<string, unknown>, refreshList: () => void) => {
-    const id = String(item.id)
-    setTestingId(id)
-    try {
-      const res = await pb.send(`/api/ext/resources/servers/${id}/ping`, { method: "GET" }) as { status: string }
-      setPingResults(prev => ({ ...prev, [id]: res.status === "online" ? "online" : "offline" }))
-      // Refresh to sync tunnel_status in DB for tunnel servers
-      if (item.connect_type === "tunnel") refreshList()
-    } catch {
-      setPingResults(prev => ({ ...prev, [id]: "offline" }))
-    }
-    setTestingId(null)
-  }, [])
-
-  const renderExtraActions = useCallback((item: Record<string, unknown>, refreshList: () => void) => {
+  const renderExtraActions = useCallback((item: Record<string, unknown>) => {
     const id = String(item.id)
     const isTunnel = item.connect_type === "tunnel"
     return (
       <>
-        <Button
-          variant="ghost"
-          size="icon"
-          title="Test connection"
-          disabled={testingId === id}
-          onClick={() => handleConnectTest(item, refreshList)}
-        >
-          {testingId === id
-            ? <Loader2 className="h-4 w-4 animate-spin" />
-            : <PlugZap className="h-4 w-4" />
-          }
-        </Button>
+        <DropdownMenuItem onClick={() => { void navigate({ to: "/connect/server/$serverId", params: { serverId: id } }) }}>
+          <LinkIcon className="h-4 w-4" />
+          Connect
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={checkingIds.has(id)} onClick={() => { void checkServerStatus(item) }}>
+          {checkingIds.has(id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlugZap className="h-4 w-4" />}
+          Check Status
+        </DropdownMenuItem>
         {isTunnel && (
-          <Button
-            variant="ghost"
-            size="icon"
-            title="Show tunnel setup script"
-            onClick={() => setWizardServerId(id)}
-          >
+          <DropdownMenuItem onClick={() => setWizardServerId(id)}>
             <Cable className="h-4 w-4" />
-          </Button>
+            Connect Setup
+          </DropdownMenuItem>
         )}
       </>
     )
-  }, [testingId, handleConnectTest])
+  }, [checkingIds, checkServerStatus, navigate])
+
+  const refreshAllStatuses = useCallback(async ({
+    items,
+    refreshList,
+  }: {
+    items: Record<string, unknown>[]
+    refreshList: () => Promise<void>
+  }) => {
+    await Promise.all(items.map((item) => checkServerStatus(item)))
+    await refreshList()
+  }, [checkServerStatus])
 
   return (
     <>
@@ -215,6 +247,7 @@ function ServersPage() {
           autoCreate,
           enableGroupAssign: true,
           showRefreshButton: true,
+          onRefresh: refreshAllStatuses,
           extraActions: renderExtraActions,
           onCreateSuccess: (record) => {
             if (record.connect_type === "tunnel") {

@@ -25,6 +25,8 @@ import (
 // and the API handlers (status queries, disconnect-on-rotation).
 var tunnelSessions *tunnel.Registry
 
+const tunnelTokenSecretPrefix = "tunnel-token-"
+
 // tunnelSSHPort returns the publicly reachable SSH port for the tunnel.
 // Defaults to "2222" (bare-metal). Set TUNNEL_SSH_PORT env var to override
 // (e.g. "9222" when running behind Docker port mapping).
@@ -33,6 +35,39 @@ func tunnelSSHPort() string {
 		return p
 	}
 	return "2222"
+}
+
+func tunnelTokenSecretName(serverID string) string {
+	return tunnelTokenSecretPrefix + serverID
+}
+
+func findTunnelTokenSecret(app core.App, serverID string) (*core.Record, error) {
+	secret, err := app.FindFirstRecordByFilter(
+		"secrets",
+		"type = 'tunnel_token' && name = {:name}",
+		dbx.Params{"name": tunnelTokenSecretName(serverID)},
+	)
+	if err == nil {
+		return secret, nil
+	}
+
+	// Legacy compatibility: early versions linked tunnel token in servers.credential.
+	server, sErr := app.FindRecordById("servers", serverID)
+	if sErr != nil {
+		return nil, nil
+	}
+	credID := server.GetString("credential")
+	if credID == "" {
+		return nil, nil
+	}
+	legacy, lErr := app.FindRecordById("secrets", credID)
+	if lErr != nil {
+		return nil, nil
+	}
+	if legacy.GetString("type") != "tunnel_token" {
+		return nil, nil
+	}
+	return legacy, nil
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -61,10 +96,21 @@ func (v *pbTokenValidator) Validate(rawToken string) (serverID string, ok bool) 
 		if err != nil || dec != rawToken {
 			continue
 		}
-		// Find the server that has this secret as its credential.
+
+		// Preferred mapping: secret name "tunnel-token-{serverID}".
+		if name := secret.GetString("name"); strings.HasPrefix(name, tunnelTokenSecretPrefix) {
+			sid := strings.TrimPrefix(name, tunnelTokenSecretPrefix)
+			if sid != "" {
+				if _, err := v.app.FindRecordById("servers", sid); err == nil {
+					return sid, true
+				}
+			}
+		}
+
+		// Legacy fallback: token secret linked via servers.credential relation.
 		server, err := v.app.FindFirstRecordByFilter(
 			"servers",
-			"credential = {:cid}",
+			"credential = {:cid} && connect_type = 'tunnel'",
 			dbx.Params{"cid": secret.Id},
 		)
 		if err == nil {
@@ -249,14 +295,13 @@ func handleTunnelToken(e *core.RequestEvent) error {
 		return e.BadRequestError("server is not a tunnel server", nil)
 	}
 
-	credID := server.GetString("credential")
+	secret, err := findTunnelTokenSecret(e.App, id)
+	if err != nil {
+		return e.InternalServerError("failed to load token secret", err)
+	}
 
 	// Idempotent path: token already exists and caller did not request rotation.
-	if credID != "" && !wantRotate {
-		secret, err := e.App.FindRecordById("secrets", credID)
-		if err != nil {
-			return e.InternalServerError("credential not found", err)
-		}
+	if secret != nil && !wantRotate {
 		rawToken, err := crypto.Decrypt(secret.GetString("value"))
 		if err != nil {
 			return e.InternalServerError("token decryption failed", err)
@@ -271,45 +316,31 @@ func handleTunnelToken(e *core.RequestEvent) error {
 		return e.InternalServerError("token encryption failed", err)
 	}
 
-	rotating := false
+	rotating := secret != nil
 
-	if credID != "" {
-		// Rotation: overwrite existing secret.
-		secret, err := e.App.FindRecordById("secrets", credID)
-		if err != nil {
-			return e.InternalServerError("credential not found", err)
-		}
-		// Ensure the type is tunnel_token even if the secret was originally a
-		// password credential from a direct-server setup.
+	if secret != nil {
+		secret.Set("name", tunnelTokenSecretName(id))
 		secret.Set("type", "tunnel_token")
 		secret.Set("value", encToken)
 		if err := e.App.Save(secret); err != nil {
 			return e.InternalServerError("failed to save rotated token", err)
 		}
-		rotating = true
 
-		// Immediately disconnect any active session so the old token stops working.
-		if tunnelSessions != nil {
+		if wantRotate && tunnelSessions != nil {
 			tunnelSessions.Disconnect(id)
 		}
 	} else {
-		// First time: create new secret record.
+		// First time: create dedicated tunnel token secret (do not reuse SSH credential).
 		secretCol, err := e.App.FindCollectionByNameOrId("secrets")
 		if err != nil {
 			return e.InternalServerError("secrets collection not found", err)
 		}
 		secret := core.NewRecord(secretCol)
-		secret.Set("name", fmt.Sprintf("tunnel-token-%s", id[:8]))
+		secret.Set("name", tunnelTokenSecretName(id))
 		secret.Set("type", "tunnel_token")
 		secret.Set("value", encToken)
 		if err := e.App.Save(secret); err != nil {
 			return e.InternalServerError("failed to save token", err)
-		}
-
-		// Link secret to server.
-		server.Set("credential", secret.Id)
-		if err := e.App.Save(server); err != nil {
-			return e.InternalServerError("failed to link credential", err)
 		}
 	}
 
@@ -339,18 +370,17 @@ func handleTunnelToken(e *core.RequestEvent) error {
 func handleTunnelSetup(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 
-	server, err := e.App.FindRecordById("servers", id)
+	_, err := e.App.FindRecordById("servers", id)
 	if err != nil {
 		return e.NotFoundError("server not found", err)
 	}
 
-	credID := server.GetString("credential")
-	if credID == "" {
-		return e.BadRequestError("no token generated yet — call POST /token first", nil)
-	}
-	secret, err := e.App.FindRecordById("secrets", credID)
+	secret, err := findTunnelTokenSecret(e.App, id)
 	if err != nil {
-		return e.InternalServerError("credential not found", err)
+		return e.InternalServerError("failed to load token secret", err)
+	}
+	if secret == nil {
+		return e.BadRequestError("no token generated yet — call POST /token first", nil)
 	}
 	rawToken, err := crypto.Decrypt(secret.GetString("value"))
 	if err != nil {
@@ -361,16 +391,19 @@ func handleTunnelSetup(e *core.RequestEvent) error {
 	sshPort := tunnelSSHPort()
 
 	autosshCmd := fmt.Sprintf(
-		"autossh -M 0 -N \\\n  -R 0:localhost:22 \\\n  -R 0:localhost:80 \\\n  -p %s %s@%s \\\n  -o ServerAliveInterval=30 \\\n  -o ServerAliveCountMax=3 \\\n  -o StrictHostKeyChecking=no \\\n  -o UserKnownHostsFile=/dev/null",
+		"autossh -M 0 -N \\\n  -R 0:localhost:22 \\\n  -R 0:localhost:80 \\\n  -p %s %s@%s \\\n  -o ServerAliveInterval=30 \\\n  -o ServerAliveCountMax=3 \\\n  -o StrictHostKeyChecking=no \\\n  -o UserKnownHostsFile=/dev/null \\\n  -o ExitOnForwardFailure=yes",
 		sshPort, rawToken, apposHost,
 	)
 
 	systemdUnit := fmt.Sprintf(`[Unit]
 Description=appos reverse SSH tunnel
-After=network.target
+After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=0
 
 [Service]
+Type=simple
+Environment=AUTOSSH_GATETIME=0
 ExecStart=/usr/bin/autossh -M 0 -N \
   -R 0:localhost:22 \
   -R 0:localhost:80 \
@@ -378,9 +411,10 @@ ExecStart=/usr/bin/autossh -M 0 -N \
   -o ServerAliveInterval=30 \
   -o ServerAliveCountMax=3 \
   -o StrictHostKeyChecking=no \
-  -o UserKnownHostsFile=/dev/null
+  -o UserKnownHostsFile=/dev/null \
+  -o ExitOnForwardFailure=yes
 Restart=always
-RestartSec=10
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target`, sshPort, rawToken, apposHost)
@@ -500,37 +534,25 @@ fi
 
 # ── Build ExecStart depending on available binary ────────────────────────────
 if [ "$USE_AUTOSSH" = true ]; then
-  EXEC_START="/usr/bin/autossh -M 0 -N \\\\
-  -R 0:localhost:22 \\\\
-  -R 0:localhost:80 \\\\
-  -p ${SSH_PORT} ${TOKEN}@${APPOS_HOST} \\\\
-  -o ServerAliveInterval=30 \\\\
-  -o ServerAliveCountMax=3 \\\\
-  -o StrictHostKeyChecking=no \\\\
-  -o UserKnownHostsFile=/dev/null"
+	EXEC_START="/usr/bin/autossh -M 0 -N -R 0:localhost:22 -R 0:localhost:80 -p ${SSH_PORT} ${TOKEN}@${APPOS_HOST} -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ExitOnForwardFailure=yes"
 else
-  EXEC_START="/usr/bin/ssh -N \\\\
-  -R 0:localhost:22 \\\\
-  -R 0:localhost:80 \\\\
-  -p ${SSH_PORT} ${TOKEN}@${APPOS_HOST} \\\\
-  -o ServerAliveInterval=30 \\\\
-  -o ServerAliveCountMax=3 \\\\
-  -o StrictHostKeyChecking=no \\\\
-  -o UserKnownHostsFile=/dev/null \\\\
-  -o ExitOnForwardFailure=yes"
+	EXEC_START="/usr/bin/ssh -N -R 0:localhost:22 -R 0:localhost:80 -p ${SSH_PORT} ${TOKEN}@${APPOS_HOST} -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ExitOnForwardFailure=yes"
 fi
 
 # ── Write systemd unit ────────────────────────────────────────────────────────
 cat >/etc/systemd/system/appos-tunnel.service <<EOF
 [Unit]
 Description=appos reverse SSH tunnel
-After=network.target
+After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=0
 
 [Service]
+Type=simple
+Environment=AUTOSSH_GATETIME=0
 ExecStart=${EXEC_START}
 Restart=always
-RestartSec=10
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target

@@ -268,29 +268,35 @@ func (s *Server) handleGlobalRequests(reqs <-chan *ssh.Request, services []Servi
 	assignedIdx := 0 // index into services for sequential assignment
 
 	for req := range reqs {
-		if req.Type != "tcpip-forward" {
+		switch req.Type {
+		case "tcpip-forward":
+			if assignedIdx >= len(services) {
+				// More -R flags than expected services.
+				if req.WantReply {
+					_ = req.Reply(false, nil)
+				}
+				continue
+			}
+
+			svc := services[assignedIdx]
+			assignedIdx++
+
+			if req.WantReply {
+				// Reply payload: uint32 chosen port (only when requested port was 0).
+				var reply [4]byte
+				binary.BigEndian.PutUint32(reply[:], uint32(svc.TunnelPort))
+				_ = req.Reply(true, reply[:])
+			}
+
+		case "cancel-tcpip-forward", "keepalive@openssh.com", "no-more-sessions@openssh.com":
+			if req.WantReply {
+				_ = req.Reply(true, nil)
+			}
+
+		default:
 			if req.WantReply {
 				_ = req.Reply(false, nil)
 			}
-			continue
-		}
-
-		if assignedIdx >= len(services) {
-			// More -R flags than expected services.
-			if req.WantReply {
-				_ = req.Reply(false, nil)
-			}
-			continue
-		}
-
-		svc := services[assignedIdx]
-		assignedIdx++
-
-		if req.WantReply {
-			// Reply payload: uint32 chosen port (only when requested port was 0).
-			var reply [4]byte
-			binary.BigEndian.PutUint32(reply[:], uint32(svc.TunnelPort))
-			_ = req.Reply(true, reply[:])
 		}
 	}
 }
@@ -363,7 +369,7 @@ func (s *Server) forwardConn(conn *ssh.ServerConn, svc Service, tc net.Conn) {
 	fmt.Sscanf(originPortStr, "%d", &originPort)
 
 	payload := ssh.Marshal(forwardedTCPPayload{
-		Addr:       "127.0.0.1",
+		Addr:       "localhost",
 		Port:       uint32(svc.TunnelPort),
 		OriginAddr: originAddr,
 		OriginPort: originPort,

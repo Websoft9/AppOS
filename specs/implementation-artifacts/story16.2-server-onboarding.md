@@ -5,6 +5,23 @@
 
 ---
 
+## Session Delta (2026-02-27)
+
+### Requirements
+- Server actions add `Connect` (open selected server in Connect page).
+- Keep tunnel setup entry for tunnel servers (`Connect Setup`).
+- First-install tunnel service must auto-retry on appos/server-side transient failures.
+
+### Decisions
+- Tunnel token is independent from server login credential (no reuse of `servers.credential`).
+- setup script/systemd unit uses resilient defaults: `Restart=always`, `RestartSec=5`, `StartLimitIntervalSec=0`, `AUTOSSH_GATETIME=0`, `ExitOnForwardFailure=yes`, `After/Wants=network-online.target`.
+- Terminal tunnel service parsing uses `service_name` (not `name`) for `tunnel_services`.
+
+### Memo
+- Quick acceptance passed: tunnel `online` + terminal/sftp `HTTP 200` verified after `make redo`.
+
+---
+
 ## User Story
 
 As a superuser, I can add a local server (behind NAT) to appos by copying a generated `autossh` command, so that the server becomes manageable via Terminal, Files, and Docker without a public IP or agent software.

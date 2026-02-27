@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, type ReactNode, type FormEvent, type ChangeEvent } from "react"
 import { Link } from "@tanstack/react-router"
-import { Plus, Pencil, Trash2, Loader2, Upload, ChevronLeft, Tags, X, RefreshCw } from "lucide-react"
+import { Plus, Pencil, Trash2, Loader2, Upload, ChevronLeft, Tags, X, RefreshCw, MoreVertical } from "lucide-react"
 import { pb } from "@/lib/pb"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -30,6 +30,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 
 // ─── Types ───────────────────────────────────────────────
@@ -104,6 +111,7 @@ export interface ResourcePageConfig {
   enableGroupAssign?: boolean  // show batch assign-to-group toolbar on list
   onCreateSuccess?: (record: Record<string, unknown>) => void
   showRefreshButton?: boolean   // show a manual refresh button next to Create
+  onRefresh?: (ctx: { items: Record<string, unknown>[]; refreshList: () => Promise<void> }) => Promise<void> | void
   extraActions?: (item: Record<string, unknown>, refreshList: () => void) => ReactNode
 }
 
@@ -163,6 +171,14 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
       setLoading(false)
     }
   }, [config.apiPath])
+
+  const handleRefresh = useCallback(async () => {
+    if (config.onRefresh) {
+      await config.onRefresh({ items, refreshList: fetchItems })
+      return
+    }
+    await fetchItems()
+  }, [config, items, fetchItems])
 
   useEffect(() => { fetchItems() }, [fetchItems])
 
@@ -445,7 +461,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
         </div>
         <div className="flex items-center gap-2">
           {config.showRefreshButton && (
-            <Button variant="outline" size="icon" onClick={fetchItems} title="Refresh">
+            <Button variant="outline" size="icon" onClick={() => { void handleRefresh() }} title="Refresh">
               <RefreshCw className="h-4 w-4" />
             </Button>
           )}
@@ -493,7 +509,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                   {config.columns.map((col) => (
                     <TableHead key={col.key}>{col.label}</TableHead>
                   ))}
-                  <TableHead className="w-[100px] text-right">Actions</TableHead>
+                  <TableHead className="w-[72px] text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -517,21 +533,25 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                       </TableCell>
                     ))}
                     <TableCell className="text-right whitespace-nowrap">
-                      {config.extraActions?.(item, fetchItems)}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openEditDialog(item)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setDeleteTarget(item)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" title="More actions">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {config.extraActions?.(item, () => { void fetchItems() })}
+                          {config.extraActions && <DropdownMenuSeparator />}
+                          <DropdownMenuItem onClick={() => openEditDialog(item)}>
+                            <Pencil className="h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem variant="destructive" onClick={() => setDeleteTarget(item)}>
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}
