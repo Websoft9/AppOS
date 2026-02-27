@@ -1,7 +1,10 @@
 package routes
 
 import (
+	"fmt"
+	"net"
 	"net/http"
+	"time"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/apis"
@@ -313,7 +316,7 @@ func bindAndSave(e *core.RequestEvent, record *core.Record, fields []string) err
 // Servers
 // ═══════════════════════════════════════════════════════════
 
-var serverFields = []string{"name", "host", "port", "user", "auth_type", "credential", "description", "groups"}
+var serverFields = []string{"name", "host", "port", "user", "auth_type", "credential", "description", "groups", "connect_type"}
 
 func registerServersCRUD(r *router.RouterGroup[*core.RequestEvent]) {
 	s := r.Group("/servers")
@@ -343,6 +346,45 @@ func registerServersCRUD(r *router.RouterGroup[*core.RequestEvent]) {
 	})
 	s.DELETE("/{id}", func(e *core.RequestEvent) error {
 		return deleteRecord(e, "servers")
+	})
+
+	// Ping — test whether the server is reachable.
+	// Tunnel servers: check in-memory session registry.
+	// Direct servers: attempt a TCP dial to host:port.
+	s.GET("/{id}/ping", func(e *core.RequestEvent) error {
+		id := e.Request.PathValue("id")
+		server, err := e.App.FindRecordById("servers", id)
+		if err != nil {
+			return e.NotFoundError("server not found", err)
+		}
+
+		if server.GetString("connect_type") == "tunnel" {
+			// Delegate to tunnel registry.
+			if tunnelSessions != nil {
+				if _, ok := tunnelSessions.Get(id); ok {
+					return e.JSON(http.StatusOK, map[string]any{"status": "online"})
+				}
+			}
+			return e.JSON(http.StatusOK, map[string]any{"status": "offline"})
+		}
+
+		// Direct server: TCP dial.
+		host := server.GetString("host")
+		port := server.GetInt("port")
+		if port == 0 {
+			port = 22
+		}
+		addr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
+		start := time.Now()
+		conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
+		if err != nil {
+			return e.JSON(http.StatusOK, map[string]any{"status": "offline"})
+		}
+		_ = conn.Close()
+		return e.JSON(http.StatusOK, map[string]any{
+			"status":     "online",
+			"latency_ms": time.Since(start).Milliseconds(),
+		})
 	})
 }
 

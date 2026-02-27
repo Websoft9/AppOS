@@ -125,7 +125,8 @@ endif
 
 redo:
 	@echo "Full rebuild: removing container + volumes, then building and restarting..."
-	@$(COMPOSE_CMD) down -v 2>/dev/null || true
+	@docker rm -f $$(docker ps -aq --filter name=$(CONTAINER)) 2>/dev/null || true
+	@$(COMPOSE_CMD) down --timeout 5 -v 2>/dev/null || true
 	@echo "✓ Container and volumes removed"
 	@$(MAKE) build
 	@$(MAKE) image build-local
@@ -245,6 +246,16 @@ start:
 	echo ""; \
 	echo "Starting AppOS ($$IMAGE_TAG) on port $$PORT..."; \
 	cd build && HTTP_PORT=$$PORT IMAGE_TAG=$$IMAGE_TAG docker compose up -d; \
+	sleep 1; \
+	STATUS=$$(docker inspect --format '{{.State.Status}}' $(CONTAINER) 2>/dev/null); \
+	if [ "$$STATUS" = "created" ]; then \
+		echo "⚠ Container stuck in Created state, attempting forced start..."; \
+		docker start $(CONTAINER) || { \
+			echo "✗ Failed to start container. Logs:"; \
+			docker logs $(CONTAINER) 2>&1 | tail -20; \
+			exit 1; \
+		}; \
+	fi; \
 	echo "✓ AppOS started"; \
 	echo "  Image: websoft9/appos:$$IMAGE_TAG"; \
 	echo "  → http://127.0.0.1:$$PORT/"
@@ -283,7 +294,8 @@ rm:
 	@echo "⚠ This will remove the container AND all data volumes."
 	@read -p "Continue? [y/N] " confirm; \
 	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
-		$(COMPOSE_CMD) down -v 2>/dev/null || true; \
+		docker rm -f $$(docker ps -aq --filter name=$(CONTAINER)) 2>/dev/null || true; \
+		$(COMPOSE_CMD) down --timeout 5 -v 2>/dev/null || true; \
 		echo "✓ Container and volumes removed"; \
 	else \
 		echo "Cancelled."; \

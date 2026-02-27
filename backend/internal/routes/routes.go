@@ -54,4 +54,5 @@ func Register(se *core.ServeEvent) {
 	registerUserRoutes(g)
 	registerIaCRoutes(g)
 	registerTerminalRoutes(g)
+	registerTunnelRoutes(se, g)
 }

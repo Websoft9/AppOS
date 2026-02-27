@@ -5,6 +5,8 @@ services:
     restart: ${RESTART_POLICY:-unless-stopped}
     ports:
       - "${HTTP_PORT:-9091}:80"
+      - "${TUNNEL_SSH_PORT:-9222}:2222"
+      #- "${TUNNEL_PORT_START:-40000}-${TUNNEL_PORT_END:-49999}:40000-49999"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - appos_data:/appos/data
@@ -14,6 +16,7 @@ services:
       - INIT_MODE=${INIT_MODE:-setup}
       - SUPERUSER_EMAIL=${SUPERUSER_EMAIL:-admin@example.com}
       - SUPERUSER_PASSWORD=${SUPERUSER_PASSWORD:-changeme123}
+      - TUNNEL_SSH_PORT=${TUNNEL_SSH_PORT:-9222}
 
   # Optional: External reverse proxy for SSL and domain routing
   # reverse-proxy:

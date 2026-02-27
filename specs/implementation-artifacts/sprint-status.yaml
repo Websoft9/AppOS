@@ -141,6 +141,12 @@ development_status:
   15.3-docker-exec: done
   epic15-retrospective: optional
 
+  # Epic 16: SSH Tunnel – Local Server Management
+  epic16: done
+  16.1-tunnel-infrastructure: done
+  16.2-server-onboarding: done
+  epic16-retrospective: optional
+
   # Epic 13: Settings Management
   epic13: done
   13.1-settings-foundation: done

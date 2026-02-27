@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, type ReactNode, type FormEvent, type ChangeEvent } from "react"
 import { Link } from "@tanstack/react-router"
-import { Plus, Pencil, Trash2, Loader2, Upload, ChevronLeft, Tags, X } from "lucide-react"
+import { Plus, Pencil, Trash2, Loader2, Upload, ChevronLeft, Tags, X, RefreshCw } from "lucide-react"
 import { pb } from "@/lib/pb"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -102,6 +102,9 @@ export interface ResourcePageConfig {
   autoCreate?: boolean      // open Create dialog on mount (from ?create=1)
   parentNav?: { label: string; href: string }  // breadcrumb back link
   enableGroupAssign?: boolean  // show batch assign-to-group toolbar on list
+  onCreateSuccess?: (record: Record<string, unknown>) => void
+  showRefreshButton?: boolean   // show a manual refresh button next to Create
+  extraActions?: (item: Record<string, unknown>, refreshList: () => void) => ReactNode
 }
 
 const INPUT_CLASS =
@@ -332,10 +335,14 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
           body: formData,
         })
       } else {
-        await pb.send(config.apiPath, {
+        const created = await pb.send(config.apiPath, {
           method: "POST",
           body: formData,
         })
+        setDialogOpen(false)
+        await fetchItems()
+        config.onCreateSuccess?.(created as Record<string, unknown>)
+        return
       }
       setDialogOpen(false)
       await fetchItems()
@@ -436,10 +443,17 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
             <p className="text-muted-foreground mt-1">{config.description}</p>
           )}
         </div>
-        <Button onClick={openCreateDialog}>
-          <Plus className="h-4 w-4 mr-2" />
-          Create
-        </Button>
+        <div className="flex items-center gap-2">
+          {config.showRefreshButton && (
+            <Button variant="outline" size="icon" onClick={fetchItems} title="Refresh">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          )}
+          <Button onClick={openCreateDialog}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create
+          </Button>
+        </div>
       </div>
 
       {/* Error */}
@@ -502,7 +516,8 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                           : String(item[col.key] ?? "")}
                       </TableCell>
                     ))}
-                    <TableCell className="text-right">
+                    <TableCell className="text-right whitespace-nowrap">
+                      {config.extraActions?.(item, fetchItems)}
                       <Button
                         variant="ghost"
                         size="icon"

@@ -645,6 +645,22 @@ func resolveServerConfig(e *core.RequestEvent, serverID string) (terminal.Connec
 		}
 	}
 
+	// Tunnel servers: override host/port using the locally forwarded SSH port.
+	if server.GetString("connect_type") == "tunnel" {
+		var services []struct {
+			Name       string `json:"name"`
+			TunnelPort int    `json:"tunnel_port"`
+		}
+		_ = json.Unmarshal([]byte(server.GetString("tunnel_services")), &services)
+		for _, svc := range services {
+			if svc.Name == "ssh" && svc.TunnelPort > 0 {
+				cfg.Host = "127.0.0.1"
+				cfg.Port = svc.TunnelPort
+				break
+			}
+		}
+	}
+
 	return cfg, nil
 }
 
