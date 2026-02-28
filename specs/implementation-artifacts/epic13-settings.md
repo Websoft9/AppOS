@@ -34,7 +34,7 @@ Dashboard calls PB `/api/settings` directly — no new backend code.
 
 | Module | Group | Fields |
 |--------|-------|--------|
-| `files` | `quota` | `maxSizeMB`, `maxPerUser`, `shareMaxMinutes`, `shareDefaultMinutes` |
+| `space` | `quota` | `maxSizeMB`, `maxPerUser`, `maxUploadFiles`, `shareMaxMinutes`, `shareDefaultMinutes`, `uploadAllowExts[]`, `uploadDenyExts[]` |
 | `proxy` | `network` | `httpProxy`, `httpsProxy`, `noProxy`, `username`, `password`* |
 | `docker` | `mirror` | `mirrors[]`, `insecureRegistries[]` |
 | `docker` | `registries` | `items: [{host, username, password*}]` |
@@ -60,7 +60,7 @@ Data model (`app_settings` collection), API contract, seed values, mask semantic
 | 13.1 | Settings foundation (collection + helper + Ext API) |
 | 13.2 | Migrate file constants → settings DB (resolves Story 9.5) |
 | 13.3 | PB Settings UI (Application + SMTP + S3 + Logs) |
-| 13.4 | Ext Settings UI — Files quota |
+| 13.4 | Ext Settings UI — Space quota (+ upload allow/deny lists) |
 | 13.5 | Ext infra backend (proxy/docker/llm seed + mask) |
 | 13.6 | Ext infra UI (proxy/docker/llm cards) |
 

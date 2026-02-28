@@ -38,6 +38,7 @@ user_files (PocketBase Collection)
 | `spaceMaxPerUser` | `100` | Includes folders and files |
 | `spaceShareMaxMin` | `60` | Hard ceiling for share duration |
 | `spaceShareDefaultMin` | `30` | Default when not specified |
+| `maxUploadFiles` | `50` (configurable, max `200`) | Max files per single upload batch |
 | `spaceAllowedUploadFormats` | 80+ extensions | text, code, pdf, office docs |
 | `spaceEditableFormats` | ~70 extensions | text and code only (no pdf/office) |
 | `spaceReservedFolderNames` | `deploy,artifact` | Root-level names reserved by system |
@@ -51,7 +52,10 @@ The `/api/ext/space/quota` endpoint exposes all constants to the frontend as JSO
 
 ## File Formats
 
-**Upload allowed**: text, code (50+ languages), `pdf`, `doc`, `docx`, `xls`, `xlsx`, `ppt`, `pptx`, `odt`, `ods`, `odp`, `lock`
+**Upload policy (current)**:
+- `uploadAllowExts` non-empty: allowlist-only (denylist ignored)
+- `uploadAllowExts` empty: denylist-only (not denied = allowed)
+- if both lists are empty: any file with extension is allowed
 
 **Online editable**: text and code only — office/pdf formats are blocked from the editor (edit button disabled in UI).
 
@@ -92,6 +96,15 @@ PB access rules: `owner = @request.auth.id` on all CRUD operations.
 Share `POST` body: `{ "minutes": N }`. Response: `{ "share_token", "share_url", "expires_at" }`.
 `share_url` is a relative path (`/api/ext/space/share/{token}/download`); the frontend prepends `window.location.origin`.
 
+### Header Requirements (file create)
+
+For `POST /api/collections/user_files/records` when creating a file (`is_folder=false`):
+- `X-Space-Batch-Size` is required
+- must be an integer ≥ 1
+- must be ≤ current `space/quota.maxUploadFiles`
+
+Purpose: enforce server-side max files per upload batch (not only frontend validation).
+
 ---
 
 ## Frontend Features
@@ -107,13 +120,13 @@ Share `POST` body: `{ "minutes": N }`. Response: `{ "share_token", "share_url", 
 | Sort | Click Name / Type / Created column headers; folders always listed before files |
 | Pagination | 20 items per page; Previous/Next controls |
 | Path column | Full path from root computed client-side via `buildPath()` |
-| Upload | Validates extension against `allowed_upload_formats` and size before submit |
+| Upload | Validates allow/deny settings, file size, and max files per batch before submit |
 | New Folder | Creates `is_folder=true` record; reserved name check at root |
 | New File | Online textarea creation for editable formats; saves as file upload |
 | Editor | `sm:max-w-3xl` (768px), `max-h-[65vh]` scrollable textarea; disabled for office/pdf |
 | File size | Column shows human-readable size (K/M) from `size` field; set on upload, create, and save |
 | Download | Native `<a download>` using authenticated PB file URL |
-| Share | Generates public link via ext API; copy button copies URL; link works without login. **Caveat**: Radix Dialog focus-trap breaks `execCommand` on elements outside the dialog — fallback must select the in-dialog input via ref. |
+| Share | Generates public link via ext API; copy button copies URL; link works without login; supports QR code generation + PNG download. **Caveat**: Radix Dialog focus-trap breaks `execCommand` on elements outside the dialog — fallback must select the in-dialog input via ref. |
 | Delete | AlertDialog confirm; warns folder does not cascade-delete children |
 | Refresh | Spinner icon button in toolbar |
 
@@ -133,10 +146,16 @@ Share `POST` body: `{ "minutes": N }`. Response: `{ "share_token", "share_url", 
 
 ## Hook Validation (`hooks.go`)
 
-`OnRecordCreate("user_files")`:
+`OnRecordCreateRequest("user_files")`:
 1. If `is_folder=true` and `parent=""`: reject reserved root names
 2. If `is_folder=true`: enforce item count limit
-3. If file: validate extension; enforce item count limit
+3. If file: require `X-Space-Batch-Size` header; enforce `maxUploadFiles`
+4. If file: validate extension; enforce item count limit
+
+Header contract for file create requests:
+- `X-Space-Batch-Size`: integer ≥ 1
+- must be ≤ current `space/quota.maxUploadFiles`
+- frontend sends this header for both batch upload and single-file create
 
 ---
 

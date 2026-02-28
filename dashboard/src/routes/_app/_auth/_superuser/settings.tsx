@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState, useEffect, useCallback } from 'react'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
 import { pb } from '@/lib/pb'
+import { parseExtListInput } from '@/lib/ext-normalize'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -49,8 +50,11 @@ interface PBSettings {
 interface SpaceQuota {
   maxSizeMB: number
   maxPerUser: number
+  maxUploadFiles: number
   shareMaxMinutes: number
   shareDefaultMinutes: number
+  uploadAllowExts: string[]
+  uploadDenyExts: string[]
 }
 
 interface ProxyNetwork {
@@ -146,8 +150,11 @@ type SectionId = typeof NAV_ITEMS[number]['id']
 const DEFAULT_SPACE_QUOTA: SpaceQuota = {
   maxSizeMB: 10,
   maxPerUser: 100,
+  maxUploadFiles: 50,
   shareMaxMinutes: 60,
   shareDefaultMinutes: 30,
+  uploadAllowExts: [],
+  uploadDenyExts: [],
 }
 
 const EMPTY_PROXY: ProxyNetwork = {
@@ -204,6 +211,8 @@ function SettingsPage() {
   const [spaceQuotaForm, setSpaceQuotaForm] = useState<SpaceQuota>(DEFAULT_SPACE_QUOTA)
   const [spaceQuotaSaving, setSpaceQuotaSaving] = useState(false)
   const [spaceQuotaErrors, setSpaceQuotaErrors] = useState<Partial<Record<keyof SpaceQuota, string>>>({})
+  const [allowExtsText, setAllowExtsText] = useState('')
+  const [denyExtsText, setDenyExtsText] = useState('')
 
   // Proxy
   const [proxyNetwork, setProxyNetwork] = useState<ProxyNetwork>(EMPTY_PROXY)
@@ -267,8 +276,16 @@ function SettingsPage() {
         pb.send('/api/ext/settings/llm', { method: 'GET' }),
       ])
       if (filesRes.status === 'fulfilled') {
-        const q = (filesRes.value as { quota: SpaceQuota }).quota ?? DEFAULT_SPACE_QUOTA
-        setSpaceQuotaForm(q)
+        const q = (filesRes.value as { quota: Partial<SpaceQuota> }).quota ?? {}
+        const merged = {
+          ...DEFAULT_SPACE_QUOTA,
+          ...q,
+          uploadAllowExts: Array.isArray(q.uploadAllowExts) ? q.uploadAllowExts : [],
+          uploadDenyExts: Array.isArray(q.uploadDenyExts) ? q.uploadDenyExts : [],
+        }
+        setSpaceQuotaForm(merged)
+        setAllowExtsText(merged.uploadAllowExts.join(', '))
+        setDenyExtsText(merged.uploadDenyExts.join(', '))
       }
       if (proxyRes.status === 'fulfilled') {
         const n = (proxyRes.value as { network: ProxyNetwork }).network ?? EMPTY_PROXY
@@ -379,6 +396,7 @@ function SettingsPage() {
     const errs: Partial<Record<keyof SpaceQuota, string>> = {}
     if (!spaceQuotaForm.maxSizeMB || spaceQuotaForm.maxSizeMB < 1) errs.maxSizeMB = 'Must be ≥ 1'
     if (!spaceQuotaForm.maxPerUser || spaceQuotaForm.maxPerUser < 1) errs.maxPerUser = 'Must be ≥ 1'
+    if (!spaceQuotaForm.maxUploadFiles || spaceQuotaForm.maxUploadFiles < 1 || spaceQuotaForm.maxUploadFiles > 200) errs.maxUploadFiles = 'Must be between 1 and 200'
     if (!spaceQuotaForm.shareMaxMinutes || spaceQuotaForm.shareMaxMinutes < 1) errs.shareMaxMinutes = 'Must be ≥ 1'
     if (!spaceQuotaForm.shareDefaultMinutes || spaceQuotaForm.shareDefaultMinutes < 1) errs.shareDefaultMinutes = 'Must be ≥ 1'
     if (spaceQuotaForm.shareDefaultMinutes > spaceQuotaForm.shareMaxMinutes) errs.shareDefaultMinutes = 'Cannot exceed max duration'
@@ -389,9 +407,24 @@ function SettingsPage() {
   const saveSpaceQuota = async () => {
     if (!validateSpaceQuota()) return
     setSpaceQuotaSaving(true)
+    // Parse raw text inputs into arrays right before save
+    const payload: SpaceQuota = {
+      ...spaceQuotaForm,
+      uploadAllowExts: parseExtListInput(allowExtsText),
+      uploadDenyExts: parseExtListInput(denyExtsText),
+    }
     try {
-      const res = await pb.send('/api/ext/settings/space', { method: 'PATCH', body: { quota: spaceQuotaForm } }) as { quota: SpaceQuota }
-      setSpaceQuotaForm(res.quota ?? spaceQuotaForm)
+      const res = await pb.send('/api/ext/settings/space', { method: 'PATCH', body: { quota: payload } }) as { quota?: Partial<SpaceQuota> }
+      const q = res.quota ?? payload
+      const merged = {
+        ...DEFAULT_SPACE_QUOTA,
+        ...q,
+        uploadAllowExts: Array.isArray(q.uploadAllowExts) ? q.uploadAllowExts : [],
+        uploadDenyExts: Array.isArray(q.uploadDenyExts) ? q.uploadDenyExts : [],
+      }
+      setSpaceQuotaForm(merged)
+      setAllowExtsText(merged.uploadAllowExts.join(', '))
+      setDenyExtsText(merged.uploadDenyExts.join(', '))
       showToast('Space quota saved')
     } catch (err: unknown) {
       showToast('Failed: ' + ((err as { message?: string })?.message ?? String(err)), false)
@@ -631,6 +664,12 @@ function SettingsPage() {
             {spaceQuotaErrors.maxPerUser && <p className="text-xs text-destructive">{spaceQuotaErrors.maxPerUser}</p>}
           </div>
           <div className="space-y-1">
+            <Label htmlFor="maxUploadFiles">Max Files per Upload</Label>
+            <Input id="maxUploadFiles" type="number" min={1} max={200} value={spaceQuotaForm.maxUploadFiles}
+              onChange={e => setSpaceQuotaForm(f => ({ ...f, maxUploadFiles: Number(e.target.value) }))} />
+            {spaceQuotaErrors.maxUploadFiles && <p className="text-xs text-destructive">{spaceQuotaErrors.maxUploadFiles}</p>}
+          </div>
+          <div className="space-y-1">
             <Label htmlFor="shareMaxMinutes">Share Max Duration (min)</Label>
             <Input id="shareMaxMinutes" type="number" min={1} value={spaceQuotaForm.shareMaxMinutes}
               onChange={e => setSpaceQuotaForm(f => ({ ...f, shareMaxMinutes: Number(e.target.value) }))} />
@@ -641,6 +680,40 @@ function SettingsPage() {
             <Input id="shareDefaultMinutes" type="number" min={1} value={spaceQuotaForm.shareDefaultMinutes}
               onChange={e => setSpaceQuotaForm(f => ({ ...f, shareDefaultMinutes: Number(e.target.value) }))} />
             {spaceQuotaErrors.shareDefaultMinutes && <p className="text-xs text-destructive">{spaceQuotaErrors.shareDefaultMinutes}</p>}
+          </div>
+          <div className="col-span-2 space-y-1">
+            <Label htmlFor="uploadAllowExts">Upload Allowlist (extensions, comma-separated)</Label>
+            <Input
+              id="uploadAllowExts"
+              value={allowExtsText}
+              onChange={e => setAllowExtsText(e.target.value)}
+              onBlur={() => {
+                const parsed = parseExtListInput(allowExtsText)
+                setAllowExtsText(parsed.join(', '))
+                setSpaceQuotaForm(f => ({ ...f, uploadAllowExts: parsed }))
+              }}
+              placeholder="yaml, yml, json, python"
+            />
+            <p className="text-xs text-muted-foreground">Examples: yaml, yml, json, python (python will be normalized to py).</p>
+          </div>
+          <div className="col-span-2 space-y-1">
+            <Label htmlFor="uploadDenyExts">Upload Denylist (extensions, comma-separated)</Label>
+            <Input
+              id="uploadDenyExts"
+              value={denyExtsText}
+              onChange={e => setDenyExtsText(e.target.value)}
+              onBlur={() => {
+                const parsed = parseExtListInput(denyExtsText)
+                setDenyExtsText(parsed.join(', '))
+                setSpaceQuotaForm(f => ({ ...f, uploadDenyExts: parsed }))
+              }}
+              placeholder="exe, dll, bat"
+              disabled={parseExtListInput(allowExtsText).length > 0}
+            />
+            <p className="text-xs text-muted-foreground">Examples: exe, dll, bat, cmd.</p>
+            {parseExtListInput(allowExtsText).length > 0 && (
+              <p className="text-xs text-muted-foreground">Allowlist is set, so denylist is ignored.</p>
+            )}
           </div>
         </div>
         <SaveBtn onClick={saveSpaceQuota} saving={spaceQuotaSaving} />

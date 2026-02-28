@@ -1,7 +1,12 @@
 package routes
 
 import (
+	"encoding/json"
+	"fmt"
+	"math"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -43,6 +48,52 @@ var (
 	defaultLLMProviders     = map[string]any{"items": []any{}}
 	defaultConnectSFTP      = map[string]any{"maxUploadFiles": 10}
 )
+
+func validateSpaceQuota(v map[string]any) error {
+	raw, ok := v["maxUploadFiles"]
+	if !ok || raw == nil {
+		v["maxUploadFiles"] = 50
+		return nil
+	}
+
+	maxUploadFiles := 0
+	switch n := raw.(type) {
+	case float64:
+		if math.Trunc(n) != n {
+			return fmt.Errorf("maxUploadFiles must be an integer")
+		}
+		maxUploadFiles = int(n)
+	case int:
+		maxUploadFiles = n
+	case int64:
+		maxUploadFiles = int(n)
+	case json.Number:
+		i, err := n.Int64()
+		if err != nil {
+			return fmt.Errorf("maxUploadFiles must be an integer")
+		}
+		maxUploadFiles = int(i)
+	case string:
+		s := strings.TrimSpace(n)
+		if s == "" {
+			maxUploadFiles = 50
+		} else {
+			i, err := strconv.Atoi(s)
+			if err != nil {
+				return fmt.Errorf("maxUploadFiles must be an integer")
+			}
+			maxUploadFiles = i
+		}
+	default:
+		return fmt.Errorf("maxUploadFiles must be an integer")
+	}
+
+	if maxUploadFiles < 1 || maxUploadFiles > 200 {
+		return fmt.Errorf("maxUploadFiles must be between 1 and 200")
+	}
+	v["maxUploadFiles"] = maxUploadFiles
+	return nil
+}
 
 // fallbackForKey returns the code-level fallback for a given (module, key) pair.
 func fallbackForKey(module, key string) map[string]any {
@@ -233,6 +284,11 @@ func handleExtSettingsPatch(e *core.RequestEvent) error {
 
 		// Replace "***" with stored values.
 		merged := preserveSensitive(incomingMap, existing)
+		if module == "space" && key == "quota" {
+			if err := validateSpaceQuota(merged); err != nil {
+				return e.BadRequestError(err.Error(), nil)
+			}
+		}
 
 		if err := settings.SetGroup(e.App, module, key, merged); err != nil {
 			return e.InternalServerError("failed to save "+module+"/"+key, err)

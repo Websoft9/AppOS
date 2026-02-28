@@ -13,7 +13,7 @@ so that I can configure infrastructure credentials without SSH access or code ch
 
 ## Acceptance Criteria
 
-- AC1: Three new cards appear in the "App Settings" section below Files Quota: "Proxy", "Docker", "LLM Providers".
+- AC1: Three new cards appear in the "App Settings" section below Space Quota: "Proxy", "Docker", "LLM Providers".
 - AC2: Each card loads current values from its respective `GET /api/ext/settings/{module}` on page mount.
 - AC3: Password / API key fields display as `type="password"` and are pre-filled with `"***"` when a value is stored; submitting unchanged `"***"` preserves the existing secret.
 - AC4: Docker Registries and LLM Providers show an editable list — each item as a row with delete button; "Add" button appends a new empty row; Save sends the entire list.

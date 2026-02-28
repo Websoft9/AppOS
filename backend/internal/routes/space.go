@@ -30,6 +30,7 @@ var defaultSpaceQuota = map[string]any{
 	"maxPerUser":          100,
 	"shareMaxMinutes":     60,
 	"shareDefaultMinutes": 30,
+	"maxUploadFiles":      50,
 }
 
 const (
@@ -85,10 +86,19 @@ func registerSpacePublicRoutes(se *core.ServeEvent) {
 // handleSpaceQuota returns the currently active quota limits read from app_settings.
 func handleSpaceQuota(e *core.RequestEvent) error {
 	quota, _ := settings.GetGroup(e.App, "space", "quota", defaultSpaceQuota)
+	maxUploadFiles := settings.Int(quota, "maxUploadFiles", 50)
+	if maxUploadFiles < 1 {
+		maxUploadFiles = 50
+	}
+	if maxUploadFiles > 200 {
+		maxUploadFiles = 200
+	}
 	return e.JSON(http.StatusOK, map[string]any{
 		"max_size_mb":            settings.Int(quota, "maxSizeMB", 10),
-		"allowed_upload_formats": strings.Split(spaceAllowedUploadFormats, ","),
 		"editable_formats":       strings.Split(spaceEditableFormats, ","),
+		"upload_allow_exts":      settings.StringSlice(quota, "uploadAllowExts"),
+		"upload_deny_exts":       settings.StringSlice(quota, "uploadDenyExts"),
+		"max_upload_files":       maxUploadFiles,
 		"max_per_user":           settings.Int(quota, "maxPerUser", 100),
 		"share_max_minutes":      settings.Int(quota, "shareMaxMinutes", 60),
 		"share_default_minutes":  settings.Int(quota, "shareDefaultMinutes", 30),

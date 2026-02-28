@@ -4,8 +4,10 @@ import {
   Upload, Trash2, Share2, FileText, Copy, Check, X, Loader2,
   Folder, FolderPlus, FilePlus, RefreshCw, Edit3, Download,
   ChevronRight, Search, ArrowUp, ArrowDown, ChevronsUpDown,
+  QrCode,
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
+import { normalizeExtToken, formatExtListHint } from '@/lib/ext-normalize'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
@@ -42,8 +44,10 @@ interface UserFile {
 
 interface Quota {
   max_size_mb: number
-  allowed_upload_formats: string[]
+  max_upload_files: number
   editable_formats: string[]
+  upload_allow_exts: string[]
+  upload_deny_exts: string[]
   max_per_user: number
   share_max_minutes: number
   share_default_minutes: number
@@ -72,6 +76,12 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleString()
 }
 
+function resolveMaxUploadFiles(raw: number | undefined) {
+  if (!raw || raw < 1) return 50
+  if (raw > 200) return 200
+  return raw
+}
+
 function isExpired(expiresAt: string) {
   if (!expiresAt) return true
   return new Date(expiresAt) < new Date()
@@ -85,6 +95,12 @@ function buildPublicShareUrl(relativeUrl: string) {
 function buildDownloadUrl(file: UserFile) {
   if (!file.content) return null
   return `/api/files/user_files/${file.id}/${file.content}`
+}
+
+function buildQrFilename(fileName: string) {
+  const base = fileName.replace(/\.[^/.]+$/, '') || 'file'
+  const safe = base.replace(/[^a-zA-Z0-9-_]+/g, '-').replace(/-+/g, '-')
+  return `${safe}-share-qr.png`
 }
 
 /** Compute the full path of an item by traversing its parent chain. */
@@ -179,7 +195,7 @@ function FilesPage() {
 
   // ── Upload dialog ──────────────────────────────────────
   const [uploadOpen, setUploadOpen] = useState(false)
-  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploadFiles, setUploadFiles] = useState<File[]>([])
   const [uploadName, setUploadName] = useState('')
   const [uploadParent, setUploadParent] = useState('')
   const [uploading, setUploading] = useState(false)
@@ -219,6 +235,9 @@ function FilesPage() {
   const shareUrlInputRef = useRef<HTMLInputElement | null>(null)
   const [sharing, setSharing] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null)
+  const [qrGenerating, setQrGenerating] = useState(false)
+  const [qrError, setQrError] = useState<string | null>(null)
 
   // ─── Data ──────────────────────────────────────────────
 
@@ -290,6 +309,22 @@ function FilesPage() {
   const totalPages = Math.max(1, Math.ceil(viewItems.length / PAGE_SIZE))
   const safePage   = Math.min(page, totalPages)
   const pagedItems = viewItems.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  const uploadMaxFiles = useMemo(
+    () => resolveMaxUploadFiles(quota?.max_upload_files),
+    [quota],
+  )
+  const uploadPolicyHint = useMemo(() => {
+    if (!quota) return 'Allowed by extension policy: any file type with an extension.'
+    const allow = (quota.upload_allow_exts ?? []).map(normalizeExtToken).filter(Boolean)
+    const deny = (quota.upload_deny_exts ?? []).map(normalizeExtToken).filter(Boolean)
+    if (allow.length > 0) {
+      return `Allowlist mode: ${formatExtListHint(allow)}.`
+    }
+    if (deny.length > 0) {
+      return `Denylist mode: blocks ${formatExtListHint(deny)}.`
+    }
+    return 'Allowed by extension policy: any file type with an extension.'
+  }, [quota])
 
   // Reset to page 1 whenever the view changes.
   useEffect(() => { setPage(1) }, [currentFolderId, search, sortBy, sortDir])
@@ -331,7 +366,7 @@ function FilesPage() {
   }
 
   function openUpload() {
-    setUploadFile(null)
+    setUploadFiles([])
     setUploadName('')
     setUploadParent(currentFolderId ?? '')
     setUploadError(null)
@@ -341,44 +376,95 @@ function FilesPage() {
   // ─── Upload ────────────────────────────────────────────
 
   function onFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0]
-    if (!f) return
-    setUploadFile(f)
-    setUploadName(f.name)
+    const selected = Array.from(e.target.files ?? [])
+    if (selected.length === 0) return
+    if (selected.length > uploadMaxFiles) {
+      setUploadFiles([])
+      setUploadName('')
+      setUploadError(`You can upload up to ${uploadMaxFiles} files at once.`)
+      return
+    }
+    setUploadFiles(selected)
+    setUploadName(selected.length === 1 ? selected[0].name : '')
     setUploadError(null)
   }
 
   async function handleUpload() {
-    if (!uploadFile || !uploadName.trim()) return
+    if (uploadFiles.length === 0) return
+    if (uploadFiles.length > uploadMaxFiles) {
+      setUploadError(`You can upload up to ${uploadMaxFiles} files at once.`)
+      return
+    }
+    const singleMode = uploadFiles.length === 1
+    if (singleMode && !uploadName.trim()) return
     if (quota) {
-      const ext = uploadName.split('.').pop()?.toLowerCase() ?? ''
-      if (!quota.allowed_upload_formats.includes(ext)) {
-        setUploadError(`Extension ".${ext}" is not allowed.`)
-        return
-      }
-      if (uploadFile.size > quota.max_size_mb * 1024 * 1024) {
-        setUploadError(`File too large. Max: ${formatBytes(quota.max_size_mb)}`)
-        return
+      const allow = (quota.upload_allow_exts ?? []).map(normalizeExtToken).filter(Boolean)
+      const deny = (quota.upload_deny_exts ?? []).map(normalizeExtToken).filter(Boolean)
+
+      for (const file of uploadFiles) {
+        const targetName = singleMode ? uploadName.trim() : file.name
+        const ext = normalizeExtToken(targetName.split('.').pop()?.toLowerCase() ?? '')
+
+        if (!ext) {
+          setUploadError(`File "${targetName}" has no extension.`)
+          return
+        }
+        if (allow.length > 0 && !allow.includes(ext)) {
+          setUploadError(`Extension ".${ext}" is not in upload allowlist.`)
+          return
+        }
+        if (allow.length === 0 && deny.includes(ext)) {
+          setUploadError(`Extension ".${ext}" is blocked by upload denylist.`)
+          return
+        }
+        if (file.size > quota.max_size_mb * 1024 * 1024) {
+          setUploadError(`File "${targetName}" is too large. Max: ${formatBytes(quota.max_size_mb)}`)
+          return
+        }
       }
     }
     setUploading(true)
     setUploadError(null)
+    const createdIds: string[] = []
     try {
-      const form = new FormData()
-      form.append('owner', pb.authStore.record?.id ?? '')
-      form.append('name', uploadName.trim())
-      form.append('mime_type', uploadFile.type || 'application/octet-stream')
-      form.append('content', uploadFile, uploadName.trim())
-      form.append('size', String(uploadFile.size))
-      if (uploadParent) form.append('parent', uploadParent)
-      await pb.collection('user_files').create(form)
+      for (const file of uploadFiles) {
+        const targetName = singleMode ? uploadName.trim() : file.name
+        const form = new FormData()
+        form.append('owner', pb.authStore.record?.id ?? '')
+        form.append('name', targetName)
+        form.append('mime_type', file.type || 'application/octet-stream')
+        form.append('content', file, targetName)
+        form.append('size', String(file.size))
+        if (uploadParent) form.append('parent', uploadParent)
+        const created = await pb.collection('user_files').create<UserFile>(form, {
+          headers: {
+            'X-Space-Batch-Size': String(uploadFiles.length),
+          },
+        })
+        createdIds.push(created.id)
+      }
       setUploadOpen(false)
-      setUploadFile(null)
+      setUploadFiles([])
       setUploadName('')
       setUploadParent('')
       fetchAll()
     } catch (e: unknown) {
-      setUploadError(e instanceof Error ? e.message : 'Upload failed')
+      if (createdIds.length > 0) {
+        const results = await Promise.allSettled(
+          createdIds.map(id => pb.collection('user_files').delete(id)),
+        )
+        const rolledBack = results.filter(r => r.status === 'fulfilled').length
+        const failed = results.filter(r => r.status === 'rejected').length
+        const baseError = e instanceof Error ? e.message : 'Upload failed'
+        if (failed > 0) {
+          setUploadError(`${baseError} Rolled back ${rolledBack} of ${createdIds.length} file(s); ${failed} may still remain.`)
+        } else {
+          setUploadError(`${baseError} Rolled back ${rolledBack} created file(s).`)
+        }
+      } else {
+        const baseError = e instanceof Error ? e.message : 'Upload failed'
+        setUploadError(baseError)
+      }
     } finally {
       setUploading(false)
     }
@@ -440,7 +526,11 @@ function FilesPage() {
       form.append('content', blob, newFileName.trim())
       form.append('size', String(blob.size))
       if (newFileParent) form.append('parent', newFileParent)
-      await pb.collection('user_files').create(form)
+      await pb.collection('user_files').create(form, {
+        headers: {
+          'X-Space-Batch-Size': '1',
+        },
+      })
       setNewFileOpen(false)
       setNewFileName('')
       setNewFileContent('')
@@ -511,6 +601,8 @@ function FilesPage() {
   function openShare(file: UserFile) {
     setShareFile(file)
     setShareMinutes(quota?.share_default_minutes ?? 30)
+    setQrCodeDataUrl(null)
+    setQrError(null)
     if (file.share_token && !isExpired(file.share_expires_at)) {
       // Reconstruct the public URL from the known token.
       setShareUrl(buildPublicShareUrl(`/api/ext/space/share/${file.share_token}/download`))
@@ -541,6 +633,8 @@ function FilesPage() {
       // This avoids any risk of reading a stale or wrong field from the response.
       const generatedUrl = buildPublicShareUrl(data.share_url as string)
       setShareUrl(generatedUrl)
+      setQrCodeDataUrl(null)
+      setQrError(null)
       fetchAll()
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : 'Share failed')
@@ -551,12 +645,51 @@ function FilesPage() {
 
   async function handleRevoke() {
     if (!shareFile) return
-    await fetch(`/api/ext/space/share/${shareFile.id}`, {
-      method: 'DELETE',
-      headers: { Authorization: pb.authStore.token },
-    })
-    setShareUrl(null)
-    fetchAll()
+    try {
+      const res = await fetch(`/api/ext/space/share/${shareFile.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: pb.authStore.token },
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.message ?? `HTTP ${res.status}`)
+      }
+      setShareUrl(null)
+      setQrCodeDataUrl(null)
+      setQrError(null)
+      fetchAll()
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Revoke failed')
+    }
+  }
+
+  async function handleGenerateQr() {
+    if (!shareUrl) return
+    setQrGenerating(true)
+    setQrError(null)
+    try {
+      const { toDataURL } = await import('qrcode')
+      const dataUrl = await toDataURL(shareUrl, {
+        errorCorrectionLevel: 'M',
+        margin: 2,
+        width: 256,
+      })
+      setQrCodeDataUrl(dataUrl)
+    } catch (e: unknown) {
+      setQrError(e instanceof Error ? e.message : 'Failed to generate QR code')
+    } finally {
+      setQrGenerating(false)
+    }
+  }
+
+  function handleDownloadQr() {
+    if (!qrCodeDataUrl || !shareFile) return
+    const link = document.createElement('a')
+    link.href = qrCodeDataUrl
+    link.download = buildQrFilename(shareFile.name)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   async function doCopy() {
@@ -942,30 +1075,38 @@ function FilesPage() {
           <DialogHeader>
             <DialogTitle>Upload File</DialogTitle>
             <DialogDescription>
-              Supports text, code, PDF and Office documents.
-              {quota && ` Max size: ${formatBytes(quota.max_size_mb)}.`}
+              {`Max size: ${formatBytes(quota?.max_size_mb ?? 10)}. `}
+              {`Max files per upload: ${uploadMaxFiles}. `}
+              {uploadPolicyHint}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
               <Label>File</Label>
-              <input ref={fileInputRef} type="file" className="hidden" onChange={onFileSelected} />
+              <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onFileSelected} />
               <Button
                 variant="outline" className="w-full mt-1"
                 onClick={() => fileInputRef.current?.click()}
               >
-                {uploadFile ? uploadFile.name : 'Choose file…'}
+                {uploadFiles.length === 0
+                  ? 'Choose file(s)…'
+                  : uploadFiles.length === 1
+                    ? uploadFiles[0].name
+                    : `${uploadFiles.length} files selected`}
               </Button>
+              <p className="text-xs text-muted-foreground mt-1">Batch upload supports up to {uploadMaxFiles} files.</p>
             </div>
-            {uploadFile && (
+            {uploadFiles.length > 0 && (
               <>
-                <div>
-                  <Label>Display name</Label>
-                  <Input
-                    className="mt-1" value={uploadName} placeholder="e.g. notes.md"
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUploadName(e.target.value)}
-                  />
-                </div>
+                {uploadFiles.length === 1 && (
+                  <div>
+                    <Label>Display name</Label>
+                    <Input
+                      className="mt-1" value={uploadName} placeholder="e.g. notes.md"
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUploadName(e.target.value)}
+                    />
+                  </div>
+                )}
                 <div>
                   <Label>Folder (optional)</Label>
                   <select
@@ -985,7 +1126,7 @@ function FilesPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setUploadOpen(false)}>Cancel</Button>
-            <Button onClick={handleUpload} disabled={!uploadFile || uploading}>
+            <Button onClick={handleUpload} disabled={uploadFiles.length === 0 || uploading}>
               {uploading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Upload
             </Button>
@@ -1055,7 +1196,14 @@ function FilesPage() {
       {/* ── Share Dialog ───────────────────────────────── */}
       <Dialog
         open={!!shareFile}
-        onOpenChange={v => { if (!v) { setShareFile(null); setShareUrl(null) } }}
+        onOpenChange={v => {
+          if (!v) {
+            setShareFile(null)
+            setShareUrl(null)
+            setQrCodeDataUrl(null)
+            setQrError(null)
+          }
+        }}
       >
         <DialogContent>
           <DialogHeader>
@@ -1097,15 +1245,36 @@ function FilesPage() {
                   >
                     <X className="h-4 w-4" />
                   </Button>
+                  <Button
+                    size="icon" variant="outline"
+                    onClick={handleGenerateQr}
+                    title="Generate QR code"
+                    disabled={qrGenerating}
+                  >
+                    {qrGenerating
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <QrCode className="h-4 w-4" />}
+                  </Button>
                 </div>
                 {copied && <p className="text-xs text-green-600">Copied to clipboard!</p>}
+                {qrError && <p className="text-xs text-destructive">{qrError}</p>}
+                {qrCodeDataUrl && (
+                  <div className="space-y-2">
+                    <div className="w-fit rounded-md border border-border p-2 bg-background">
+                      <img src={qrCodeDataUrl} alt="Share QR code" className="h-40 w-40" />
+                    </div>
+                    <Button variant="outline" size="sm" onClick={handleDownloadQr}>
+                      <Download className="h-4 w-4 mr-1" /> Download QR
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => { setShareFile(null); setShareUrl(null) }}
+              onClick={() => { setShareFile(null); setShareUrl(null); setQrCodeDataUrl(null); setQrError(null) }}
             >
               Close
             </Button>

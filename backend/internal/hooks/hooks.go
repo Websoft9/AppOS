@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/pocketbase/dbx"
@@ -24,20 +25,12 @@ var hookDefaultSpaceQuota = map[string]any{
 	"maxPerUser":          100,
 	"shareMaxMinutes":     60,
 	"shareDefaultMinutes": 30,
+	"maxUploadFiles":      50,
 }
 
 const (
 	// Reserved root-level folder names used by the system.
 	hookReservedFolderNames = "deploy,artifact"
-	// Must match spaceAllowedUploadFormats in routes/space.go.
-	hookSpaceAllowedFormats = "txt,md,yaml,yml,json,sh,bash,zsh,fish,env," +
-		"js,ts,jsx,tsx,mjs,cjs,vue,svelte," +
-		"py,rb,go,rs,java,c,cpp,h,hpp,cc,cs,php,swift,kt,scala,groovy,lua,r,m,pl,pm," +
-		"ex,exs,erl,hrl,clj,cljs,fs,fsx,ml,mli," +
-		"css,scss,sass,less,html,htm,xml,svg,sql,graphql," +
-		"toml,ini,cfg,conf,properties,gitignore,dockerignore,makefile,cmake," +
-		"editorconfig,log,diff,patch,lock," +
-		"pdf,doc,docx,xls,xlsx,ppt,pptx,odt,ods,odp"
 )
 
 // Register binds all custom event hooks to the PocketBase app.
@@ -67,8 +60,8 @@ func registerAppHooks(app *pocketbase.PocketBase) {
 // registerSpaceHooks registers hooks related to the user_files collection.
 // Enforces quota limits that cannot be expressed in PocketBase access rules.
 func registerSpaceHooks(app *pocketbase.PocketBase) {
-	app.OnRecordCreate("user_files").BindFunc(func(e *core.RecordEvent) error {
-		if err := validateFileUpload(app, e.Record); err != nil {
+	app.OnRecordCreateRequest("user_files").BindFunc(func(e *core.RecordRequestEvent) error {
+		if err := validateFileUpload(app, e.Record, e.Request.Header.Get("X-Space-Batch-Size")); err != nil {
 			return apis.NewBadRequestError(err.Error(), nil)
 		}
 		return e.Next()
@@ -77,10 +70,17 @@ func registerSpaceHooks(app *pocketbase.PocketBase) {
 
 // validateFileUpload checks file extension and per-user file count.
 // For folder records (is_folder=true) format validation is skipped.
-func validateFileUpload(app core.App, record *core.Record) error {
+func validateFileUpload(app core.App, record *core.Record, batchSizeRaw string) error {
 	// Load quota from settings DB (fallback to code defaults if unavailable).
 	quota, _ := settings.GetGroup(app, "space", "quota", hookDefaultSpaceQuota)
 	maxPerUser := settings.Int(quota, "maxPerUser", 100)
+	maxUploadFiles := settings.Int(quota, "maxUploadFiles", 50)
+	if maxUploadFiles < 1 {
+		maxUploadFiles = 50
+	}
+	if maxUploadFiles > 200 {
+		maxUploadFiles = 200
+	}
 
 	// Folders don't have a file extension — skip format check.
 	if record.GetBool("is_folder") {
@@ -112,20 +112,45 @@ func validateFileUpload(app core.App, record *core.Record) error {
 	}
 
 	name := record.GetString("name")
-	ext := strings.ToLower(path.Ext(name))
-
-	// Build allowed extension list.
-	allowed := make([]string, 0)
-	for _, p := range strings.Split(hookSpaceAllowedFormats, ",") {
-		if p = strings.TrimSpace(p); p != "" {
-			allowed = append(allowed, "."+p)
-		}
+	extToken := normalizeExtToken(strings.ToLower(path.Ext(name)))
+	if extToken == "" {
+		return fmt.Errorf("file extension is missing")
 	}
-	if ext == "" || !slices.Contains(allowed, ext) {
+
+	batchSizeRaw = strings.TrimSpace(batchSizeRaw)
+	if batchSizeRaw == "" {
+		return fmt.Errorf("missing X-Space-Batch-Size header")
+	}
+	batchSize, err := strconv.Atoi(batchSizeRaw)
+	if err != nil || batchSize < 1 {
+		return fmt.Errorf("invalid X-Space-Batch-Size header")
+	}
+	if batchSize > maxUploadFiles {
 		return fmt.Errorf(
-			"file extension %q is not allowed; permitted: %s",
-			ext, hookSpaceAllowedFormats,
+			"upload batch size %d exceeds maxUploadFiles (%d)",
+			batchSize,
+			maxUploadFiles,
 		)
+	}
+
+	allowTokens := normalizeExtTokens(settings.StringSlice(quota, "uploadAllowExts"))
+	denyTokens := normalizeExtTokens(settings.StringSlice(quota, "uploadDenyExts"))
+
+	// Whitelist mode: when allow list is set, blacklist is ignored.
+	if len(allowTokens) > 0 {
+		if !slices.Contains(allowTokens, extToken) {
+			return fmt.Errorf(
+				"file extension %q is not in upload allowlist",
+				extToken,
+			)
+		}
+	} else {
+		if slices.Contains(denyTokens, extToken) {
+			return fmt.Errorf(
+				"file extension %q is blocked by upload denylist",
+				extToken,
+			)
+		}
 	}
 
 	// Check per-user file count.
@@ -140,6 +165,29 @@ func validateFileUpload(app core.App, record *core.Record) error {
 		}
 	}
 	return nil
+}
+
+func normalizeExtToken(v string) string {
+	v = strings.ToLower(strings.TrimSpace(v))
+	v = strings.TrimPrefix(v, ".")
+	if v == "python" {
+		return "py"
+	}
+	return v
+}
+
+func normalizeExtTokens(values []string) []string {
+	out := make([]string, 0, len(values))
+	seen := make(map[string]bool, len(values))
+	for _, v := range values {
+		token := normalizeExtToken(v)
+		if token == "" || seen[token] {
+			continue
+		}
+		seen[token] = true
+		out = append(out, token)
+	}
+	return out
 }
 
 // registerUserAuditHooks writes audit records when users are created, updated, or deleted

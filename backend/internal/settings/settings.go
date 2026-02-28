@@ -19,6 +19,7 @@ package settings
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"strconv"
 
 	"github.com/pocketbase/dbx"
@@ -148,4 +149,55 @@ func String(group map[string]any, field string, fallback string) string {
 		return fallback
 	}
 	return s
+}
+
+// StringSlice reads a string-array field from a loaded group map.
+//
+// Supported underlying shapes:
+//   - []string
+//   - []any (JSON-decoded arrays)
+//   - comma-separated string (legacy/manual edits)
+//
+// Values are trimmed and empty entries are removed.
+func StringSlice(group map[string]any, field string) []string {
+	v, ok := group[field]
+	if !ok || v == nil {
+		return []string{}
+	}
+	switch raw := v.(type) {
+	case []string:
+		out := make([]string, 0, len(raw))
+		for _, item := range raw {
+			item = strings.TrimSpace(item)
+			if item != "" {
+				out = append(out, item)
+			}
+		}
+		return out
+	case []any:
+		out := make([]string, 0, len(raw))
+		for _, item := range raw {
+			s, ok := item.(string)
+			if !ok {
+				continue
+			}
+			s = strings.TrimSpace(s)
+			if s != "" {
+				out = append(out, s)
+			}
+		}
+		return out
+	case string:
+		parts := strings.Split(raw, ",")
+		out := make([]string, 0, len(parts))
+		for _, item := range parts {
+			item = strings.TrimSpace(item)
+			if item != "" {
+				out = append(out, item)
+			}
+		}
+		return out
+	default:
+		return []string{}
+	}
 }
