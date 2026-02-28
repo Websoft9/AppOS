@@ -207,9 +207,11 @@ Docker exec entry: Docker page → container row action → Dialog with `<Termin
 | 15.1 | SSH + SFTP backend | `connector.go` interface, `ssh.go`, `sftp.go`, all routes, audit log |
 | 15.2 | Terminal & File Manager UI | `<TerminalPanel>`, `<FileManagerPanel>`, server selector, reconnect, hidden file toggle |
 | 15.3 | Docker exec | `docker_exec.go`, `<TerminalPanel>` container mode, Docker page integration |
+| 15.4 | Terminal & File Manager enhancements | SFTP advanced ops, batch upload limits, share parity with Space, docker terminal shell strategy + connection fix |
 
 | Story | Status |
 |-------|--------|
 | 15.1 | ✅ Complete |
 | 15.2 | ✅ Complete |
 | 15.3 | ✅ Complete |
+| 15.4 | 🟡 Ready for Dev |

@@ -65,7 +65,7 @@ export function ServerSelector({ className }: ServerSelectorProps) {
           <MonitorSmartphone className="h-12 w-12 mx-auto text-muted-foreground" />
           <h2 className="text-xl font-semibold">Connect to Server</h2>
           <p className="text-sm text-muted-foreground">
-            Select a server to open the terminal and file manager.
+            Select a server to open the terminal for Shell, Docker,Files and Systemd management
           </p>
         </div>
 

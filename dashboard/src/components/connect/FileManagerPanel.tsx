@@ -21,6 +21,9 @@ import {
   Search,
   X,
   RefreshCw,
+  Share2,
+  Copy,
+  Check,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -42,10 +45,26 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Label } from '@/components/ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
+import { getApiErrorMessage } from '@/lib/api-error'
 import {
   sftpList,
   sftpSearch,
+  sftpConstraints,
+  sftpStat,
+  sftpChmod,
+  sftpChown,
+  sftpSymlink,
+  sftpMove,
   sftpDownloadUrl,
   sftpUpload,
   sftpMkdir,
@@ -123,6 +142,41 @@ function breadcrumbSegments(path: string): { label: string; path: string }[] {
   return segments
 }
 
+type PermissionFlags = { read: boolean; write: boolean; execute: boolean }
+type PermissionMatrix = { owner: PermissionFlags; group: PermissionFlags; others: PermissionFlags }
+
+function flagsFromDigit(digit: string): PermissionFlags {
+  const value = Number.parseInt(digit, 10)
+  return {
+    read: (value & 4) !== 0,
+    write: (value & 2) !== 0,
+    execute: (value & 1) !== 0,
+  }
+}
+
+function digitFromFlags(flags: PermissionFlags): number {
+  return (flags.read ? 4 : 0) + (flags.write ? 2 : 0) + (flags.execute ? 1 : 0)
+}
+
+function parsePermissionMatrix(mode: string): PermissionMatrix | null {
+  const text = mode.trim()
+  if (!/^[0-7]{3,4}$/.test(text)) return null
+  const digits = text.length === 4 ? text.slice(1) : text
+  return {
+    owner: flagsFromDigit(digits[0]),
+    group: flagsFromDigit(digits[1]),
+    others: flagsFromDigit(digits[2]),
+  }
+}
+
+function modeFromPermissionMatrix(matrix: PermissionMatrix, mode: string): string {
+  const prefix = /^[0-7]{4}$/.test(mode.trim()) ? mode.trim()[0] : ''
+  const owner = digitFromFlags(matrix.owner)
+  const group = digitFromFlags(matrix.group)
+  const others = digitFromFlags(matrix.others)
+  return `${prefix}${owner}${group}${others}`
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function FileManagerPanel({ serverId, className }: FileManagerPanelProps) {
@@ -148,7 +202,45 @@ export function FileManagerPanel({ serverId, className }: FileManagerPanelProps)
   const [renameName, setRenameName] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<DirEntry | null>(null)
   const [busy, setBusy] = useState(false)
+  const [busyMessage, setBusyMessage] = useState('Working...')
+  const [maxUploadFiles, setMaxUploadFiles] = useState(10)
   const [editFile, setEditFile] = useState<{ path: string; name: string; isNew?: boolean } | null>(null)
+
+  const [propertiesTarget, setPropertiesTarget] = useState<DirEntry | null>(null)
+  const [propertiesPath, setPropertiesPath] = useState('')
+  const [propertiesLoading, setPropertiesLoading] = useState(false)
+  const [propertiesSaving, setPropertiesSaving] = useState(false)
+  const [propertiesMode, setPropertiesMode] = useState('')
+  const [propertiesOwner, setPropertiesOwner] = useState('')
+  const [propertiesGroup, setPropertiesGroup] = useState('')
+  const [propertiesRecursive, setPropertiesRecursive] = useState(false)
+  const [propertiesPermissions, setPropertiesPermissions] = useState<PermissionMatrix>({
+    owner: { read: false, write: false, execute: false },
+    group: { read: false, write: false, execute: false },
+    others: { read: false, write: false, execute: false },
+  })
+  const [propertiesSize, setPropertiesSize] = useState('')
+  const [propertiesAccessed, setPropertiesAccessed] = useState('')
+  const [propertiesModified, setPropertiesModified] = useState('')
+  const [propertiesCreated, setPropertiesCreated] = useState('')
+
+  const [symlinkTargetEntry, setSymlinkTargetEntry] = useState<DirEntry | null>(null)
+  const [symlinkTargetPath, setSymlinkTargetPath] = useState('')
+  const [symlinkLinkPath, setSymlinkLinkPath] = useState('')
+  const [symlinkSaving, setSymlinkSaving] = useState(false)
+
+  const [copyMoveEntry, setCopyMoveEntry] = useState<DirEntry | null>(null)
+  const [copyMoveMode, setCopyMoveMode] = useState<'copy' | 'move'>('copy')
+  const [copyMoveTo, setCopyMoveTo] = useState('')
+  const [copyMoveSaving, setCopyMoveSaving] = useState(false)
+
+  const [shareEntry, setShareEntry] = useState<DirEntry | null>(null)
+  const [shareMinutes, setShareMinutes] = useState(30)
+  const [shareMaxMinutes, setShareMaxMinutes] = useState(60)
+  const [shareUrl, setShareUrl] = useState<string | null>(null)
+  const [shareRecordId, setShareRecordId] = useState<string | null>(null)
+  const [sharing, setSharing] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   const uploadRef = useRef<HTMLInputElement>(null)
 
@@ -168,7 +260,7 @@ export function FileManagerPanel({ serverId, className }: FileManagerPanelProps)
       setEntries(sorted)
       setCurrentPath(res.path || path)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to list directory')
+      setError(getApiErrorMessage(err, 'Failed to list directory'))
     } finally {
       setLoading(false)
     }
@@ -177,6 +269,19 @@ export function FileManagerPanel({ serverId, className }: FileManagerPanelProps)
   useEffect(() => {
     fetchEntries('/')
   }, [fetchEntries])
+
+  useEffect(() => {
+    sftpConstraints(serverId)
+      .then((res) => setMaxUploadFiles(Math.max(1, res.max_upload_files || 10)))
+      .catch(() => setMaxUploadFiles(10))
+  }, [serverId])
+
+  useEffect(() => {
+    const matrix = parsePermissionMatrix(propertiesMode)
+    if (matrix) {
+      setPropertiesPermissions(matrix)
+    }
+  }, [propertiesMode])
 
   const navigateTo = useCallback((path: string) => {
     fetchEntries(path)
@@ -237,7 +342,7 @@ export function FileManagerPanel({ serverId, className }: FileManagerPanelProps)
         const res = await sftpSearch(serverId, currentPath, q)
         setSearchResults(res.results)
       } catch (err) {
-        setSearchError(err instanceof Error ? err.message : 'Search failed')
+        setSearchError(getApiErrorMessage(err, 'Search failed'))
         setSearchResults([])
       } finally {
         setSearchLoading(false)
@@ -286,7 +391,12 @@ export function FileManagerPanel({ serverId, className }: FileManagerPanelProps)
 
   const handleUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return
+    if (files.length > maxUploadFiles) {
+      setError(`Too many files: ${files.length}. Max allowed is ${maxUploadFiles}`)
+      return
+    }
     setBusy(true)
+    setBusyMessage('Uploading files...')
     try {
       for (const file of Array.from(files)) {
         if (file.size > MAX_UPLOAD_SIZE) {
@@ -302,6 +412,256 @@ export function FileManagerPanel({ serverId, className }: FileManagerPanelProps)
     } finally {
       setBusy(false)
       if (uploadRef.current) uploadRef.current.value = ''
+    }
+  }
+
+  const handleProperties = async (entry: DirEntry) => {
+    const fullPath = joinPath(currentPath, entry.name)
+    setPropertiesTarget(entry)
+    setPropertiesPath(fullPath)
+    setPropertiesLoading(true)
+    try {
+      const { attrs } = await sftpStat(serverId, fullPath)
+      setPropertiesMode(attrs.mode)
+      setPropertiesOwner(attrs.owner_name || String(attrs.owner))
+      setPropertiesGroup(attrs.group_name || String(attrs.group))
+      setPropertiesRecursive(false)
+      setPropertiesSize(formatSize(attrs.size))
+      setPropertiesAccessed(formatDate(attrs.accessed_at))
+      setPropertiesModified(formatDate(attrs.modified_at))
+      setPropertiesCreated(formatDate(attrs.created_at))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load properties')
+      setPropertiesTarget(null)
+    } finally {
+      setPropertiesLoading(false)
+    }
+  }
+
+  const handleSaveProperties = async () => {
+    if (!propertiesTarget || !propertiesPath) return
+    setPropertiesSaving(true)
+    try {
+      const mode = propertiesMode.trim()
+      if (/^[0-7]{3,4}$/.test(mode)) {
+        await sftpChmod(serverId, propertiesPath, mode, propertiesRecursive)
+      }
+      const owner = propertiesOwner.trim()
+      const group = propertiesGroup.trim()
+      if (owner && group) {
+        await sftpChown(serverId, propertiesPath, owner, group)
+      }
+      setPropertiesTarget(null)
+      refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save properties')
+    } finally {
+      setPropertiesSaving(false)
+    }
+  }
+
+  const handlePermissionToggle = (
+    scope: keyof PermissionMatrix,
+    flag: keyof PermissionFlags,
+    checked: boolean,
+  ) => {
+    setPropertiesPermissions((previous) => {
+      const next: PermissionMatrix = {
+        owner: { ...previous.owner },
+        group: { ...previous.group },
+        others: { ...previous.others },
+      }
+      next[scope][flag] = checked
+      setPropertiesMode(modeFromPermissionMatrix(next, propertiesMode))
+      return next
+    })
+  }
+
+  const runCopyOrMove = async (entry: DirEntry, move: boolean) => {
+    const from = joinPath(currentPath, entry.name)
+    const suggested = move ? from : `${from}_copy`
+    setCopyMoveEntry(entry)
+    setCopyMoveMode(move ? 'move' : 'copy')
+    setCopyMoveTo(suggested)
+  }
+
+  const executeCopyOrMove = async () => {
+    if (!copyMoveEntry) return
+    const from = joinPath(currentPath, copyMoveEntry.name)
+    const to = copyMoveTo.trim()
+    if (!to) return
+
+    setCopyMoveSaving(true)
+    setBusy(true)
+    setBusyMessage(copyMoveMode === 'move' ? 'Moving...' : 'Copying...')
+    try {
+      if (copyMoveMode === 'move') {
+        await sftpMove(serverId, from, to)
+      } else {
+        const url = `/api/ext/terminal/sftp/${serverId}/copy-stream?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+        const res = await fetch(url, {
+          headers: { Authorization: pb.authStore.token },
+        })
+        if (!res.ok || !res.body) {
+          throw new Error(`Copy failed: ${res.status}`)
+        }
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buf = ''
+        for (;;) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buf += decoder.decode(value, { stream: true })
+          const chunks = buf.split('\n\n')
+          buf = chunks.pop() ?? ''
+          for (const chunk of chunks) {
+            const line = chunk.split('\n').find((l) => l.startsWith('data: '))
+            if (!line) continue
+            try {
+              const data = JSON.parse(line.slice(6)) as { copied?: number; total?: number; message?: string }
+              if (data.message) throw new Error(data.message)
+              if (typeof data.copied === 'number' && typeof data.total === 'number' && data.total > 0) {
+                const pct = Math.floor((data.copied / data.total) * 100)
+                setBusyMessage(`Copying... ${pct}%`)
+              }
+            } catch (parseErr) {
+              if (parseErr instanceof Error && parseErr.message) {
+                throw parseErr
+              }
+            }
+          }
+        }
+      }
+      setCopyMoveEntry(null)
+      refresh()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : (copyMoveMode === 'move' ? 'Move failed' : 'Copy failed')
+      setError(message)
+    } finally {
+      setBusy(false)
+      setCopyMoveSaving(false)
+    }
+  }
+
+  const handleCreateSymlink = async (entry: DirEntry) => {
+    const target = joinPath(currentPath, entry.name)
+    setSymlinkTargetEntry(entry)
+    setSymlinkTargetPath(target)
+    setSymlinkLinkPath(joinPath(currentPath, `${entry.name}.lnk`))
+  }
+
+  const handleConfirmSymlink = async () => {
+    if (!symlinkTargetEntry) return
+    const target = symlinkTargetPath.trim()
+    const linkPath = symlinkLinkPath.trim()
+    if (!target || !linkPath) return
+
+    setSymlinkSaving(true)
+    setBusy(true)
+    setBusyMessage('Creating symlink...')
+    try {
+      await sftpSymlink(serverId, target, linkPath)
+      setSymlinkTargetEntry(null)
+      refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create symlink')
+    } finally {
+      setBusy(false)
+      setSymlinkSaving(false)
+    }
+  }
+
+  const handleShare = async (entry: DirEntry) => {
+    if (entry.type === 'dir') {
+      setError('Only files can be shared')
+      return
+    }
+    setShareEntry(entry)
+    setShareUrl(null)
+    setCopied(false)
+    setShareRecordId(null)
+    try {
+      const quotaRes = await fetch('/api/ext/space/quota', {
+        headers: { Authorization: pb.authStore.token },
+      })
+      if (quotaRes.ok) {
+        const quota = await quotaRes.json() as { share_default_minutes?: number; share_max_minutes?: number }
+        setShareMinutes(quota.share_default_minutes ?? 30)
+        setShareMaxMinutes(quota.share_max_minutes ?? 60)
+      } else {
+        setShareMinutes(30)
+        setShareMaxMinutes(60)
+      }
+    } catch {
+      setShareMinutes(30)
+      setShareMaxMinutes(60)
+    }
+  }
+
+  const handleGenerateShare = async () => {
+    if (!shareEntry) return
+    const fullPath = joinPath(currentPath, shareEntry.name)
+    setSharing(true)
+    setBusy(true)
+    setBusyMessage('Preparing share link...')
+    try {
+      const downloadUrl = sftpDownloadUrl(serverId, fullPath)
+      const res = await fetch(downloadUrl, { headers: { Authorization: pb.authStore.token } })
+      if (!res.ok) throw new Error(`Download failed: ${res.status}`)
+      const blob = await res.blob()
+
+      const form = new FormData()
+      form.append('owner', pb.authStore.record?.id ?? '')
+      form.append('name', shareEntry.name)
+      form.append('mime_type', blob.type || 'application/octet-stream')
+      form.append('content', blob, shareEntry.name)
+      form.append('size', String(blob.size))
+
+      const created = await pb.collection('user_files').create(form) as { id: string }
+      setShareRecordId(created.id)
+      const shareRes = await fetch(`/api/ext/space/share/${created.id}`, {
+        method: 'POST',
+        headers: {
+          Authorization: pb.authStore.token,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ minutes: shareMinutes }),
+      })
+      if (!shareRes.ok) throw new Error(`Share failed: ${shareRes.status}`)
+      const data = await shareRes.json() as { share_url?: string }
+      if (!data.share_url) throw new Error('Share URL not returned')
+      const absolute = `${window.location.origin}${data.share_url}`
+      setShareUrl(absolute)
+      setCopied(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Share failed')
+    } finally {
+      setBusy(false)
+      setSharing(false)
+    }
+  }
+
+  const handleCopyShareUrl = async () => {
+    if (!shareUrl) return
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      setCopied(true)
+    } catch {
+      setError('Copy to clipboard failed')
+    }
+  }
+
+  const handleRevokeShare = async () => {
+    if (!shareRecordId) return
+    try {
+      await fetch(`/api/ext/space/share/${shareRecordId}`, {
+        method: 'DELETE',
+        headers: { Authorization: pb.authStore.token },
+      })
+      setShareUrl(null)
+      setCopied(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to revoke share')
     }
   }
 
@@ -476,6 +836,7 @@ export function FileManagerPanel({ serverId, className }: FileManagerPanelProps)
           type="file"
           multiple
           className="hidden"
+          data-testid="upload-input"
           onChange={(e) => handleUpload(e.target.files)}
         />
       </div>
@@ -706,6 +1067,28 @@ export function FileManagerPanel({ serverId, className }: FileManagerPanelProps)
                             Download
                           </DropdownMenuItem>
                         )}
+                        <DropdownMenuItem data-testid={`properties-${entry.name}`} onClick={() => handleProperties(entry)}>
+                          <Eye className="h-4 w-4 mr-2" />
+                          Properties
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleCreateSymlink(entry)}>
+                          <Link2 className="h-4 w-4 mr-2" />
+                          Create Symbolic Link
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => runCopyOrMove(entry, false)}>
+                          <FilePlus className="h-4 w-4 mr-2" />
+                          Copy
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => runCopyOrMove(entry, true)}>
+                          <FolderPlus className="h-4 w-4 mr-2" />
+                          Move
+                        </DropdownMenuItem>
+                        {entry.type !== 'dir' && (
+                          <DropdownMenuItem onClick={() => handleShare(entry)}>
+                            <Share2 className="h-4 w-4 mr-2" />
+                            Share
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onClick={() => { setRenameTarget(entry); setRenameName(entry.name) }}>
                           <Pencil className="h-4 w-4 mr-2" />
                           Rename
@@ -761,6 +1144,7 @@ export function FileManagerPanel({ serverId, className }: FileManagerPanelProps)
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
+                            data-testid={`actions-${entry.name}`}
                             variant="ghost"
                             size="icon"
                             className="h-6 w-6 opacity-0 group-hover:opacity-100"
@@ -779,6 +1163,28 @@ export function FileManagerPanel({ serverId, className }: FileManagerPanelProps)
                             <DropdownMenuItem onClick={() => handleDownload(entry)}>
                               <Download className="h-4 w-4 mr-2" />
                               Download
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem data-testid={`properties-${entry.name}`} onClick={() => handleProperties(entry)}>
+                            <Eye className="h-4 w-4 mr-2" />
+                            Properties
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleCreateSymlink(entry)}>
+                            <Link2 className="h-4 w-4 mr-2" />
+                            Create Symbolic Link
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => runCopyOrMove(entry, false)}>
+                            <FilePlus className="h-4 w-4 mr-2" />
+                            Copy
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => runCopyOrMove(entry, true)}>
+                            <FolderPlus className="h-4 w-4 mr-2" />
+                            Move
+                          </DropdownMenuItem>
+                          {entry.type !== 'dir' && (
+                            <DropdownMenuItem onClick={() => handleShare(entry)}>
+                              <Share2 className="h-4 w-4 mr-2" />
+                              Share
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuItem onClick={() => { setRenameTarget(entry); setRenameName(entry.name) }}>
@@ -838,10 +1244,240 @@ export function FileManagerPanel({ serverId, className }: FileManagerPanelProps)
         </AlertDialogContent>
       </AlertDialog>
 
+      <Dialog open={!!propertiesTarget} onOpenChange={(open) => !open && setPropertiesTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Properties: {propertiesTarget?.name}</DialogTitle>
+            <DialogDescription>
+              View metadata and manage owner, group, and permissions.
+            </DialogDescription>
+          </DialogHeader>
+          {propertiesLoading ? (
+            <div className="py-6 flex items-center justify-center text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading...
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <Label>Size</Label>
+                  <Input value={propertiesSize} readOnly className="mt-1" />
+                </div>
+                <div>
+                  <Label>Accessed</Label>
+                  <Input value={propertiesAccessed} readOnly className="mt-1" />
+                </div>
+                <div>
+                  <Label>Modified</Label>
+                  <Input value={propertiesModified} readOnly className="mt-1" />
+                </div>
+                <div>
+                  <Label>Created</Label>
+                  <Input value={propertiesCreated} readOnly className="mt-1" />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <Label>Mode (octal)</Label>
+                  <Input data-testid="properties-mode" value={propertiesMode} onChange={(e) => setPropertiesMode(e.target.value)} className="mt-1" />
+                </div>
+                <div>
+                  <Label>Owner</Label>
+                  <Input data-testid="properties-owner" value={propertiesOwner} onChange={(e) => setPropertiesOwner(e.target.value)} className="mt-1" />
+                </div>
+                <div>
+                  <Label>Group</Label>
+                  <Input data-testid="properties-group" value={propertiesGroup} onChange={(e) => setPropertiesGroup(e.target.value)} className="mt-1" />
+                </div>
+              </div>
+              <div className="rounded-md border border-border p-3 space-y-3">
+                <div className="text-sm font-medium">Permissions</div>
+                <div className="grid grid-cols-4 gap-2 text-sm items-center">
+                  <div className="text-muted-foreground">Scope</div>
+                  <div className="text-muted-foreground">Read</div>
+                  <div className="text-muted-foreground">Write</div>
+                  <div className="text-muted-foreground">Execute</div>
+
+                  <div>Owner</div>
+                  <Checkbox
+                    data-testid="perm-owner-read"
+                    checked={propertiesPermissions.owner.read}
+                    onCheckedChange={(value) => handlePermissionToggle('owner', 'read', value === true)}
+                  />
+                  <Checkbox
+                    data-testid="perm-owner-write"
+                    checked={propertiesPermissions.owner.write}
+                    onCheckedChange={(value) => handlePermissionToggle('owner', 'write', value === true)}
+                  />
+                  <Checkbox
+                    data-testid="perm-owner-execute"
+                    checked={propertiesPermissions.owner.execute}
+                    onCheckedChange={(value) => handlePermissionToggle('owner', 'execute', value === true)}
+                  />
+
+                  <div>Group</div>
+                  <Checkbox
+                    data-testid="perm-group-read"
+                    checked={propertiesPermissions.group.read}
+                    onCheckedChange={(value) => handlePermissionToggle('group', 'read', value === true)}
+                  />
+                  <Checkbox
+                    data-testid="perm-group-write"
+                    checked={propertiesPermissions.group.write}
+                    onCheckedChange={(value) => handlePermissionToggle('group', 'write', value === true)}
+                  />
+                  <Checkbox
+                    data-testid="perm-group-execute"
+                    checked={propertiesPermissions.group.execute}
+                    onCheckedChange={(value) => handlePermissionToggle('group', 'execute', value === true)}
+                  />
+
+                  <div>Public</div>
+                  <Checkbox
+                    data-testid="perm-others-read"
+                    checked={propertiesPermissions.others.read}
+                    onCheckedChange={(value) => handlePermissionToggle('others', 'read', value === true)}
+                  />
+                  <Checkbox
+                    data-testid="perm-others-write"
+                    checked={propertiesPermissions.others.write}
+                    onCheckedChange={(value) => handlePermissionToggle('others', 'write', value === true)}
+                  />
+                  <Checkbox
+                    data-testid="perm-others-execute"
+                    checked={propertiesPermissions.others.execute}
+                    onCheckedChange={(value) => handlePermissionToggle('others', 'execute', value === true)}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="properties-recursive"
+                    data-testid="properties-recursive"
+                    checked={propertiesRecursive}
+                    onCheckedChange={(value) => setPropertiesRecursive(value === true)}
+                  />
+                  <Label htmlFor="properties-recursive">Apply recursively</Label>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPropertiesTarget(null)}>Close</Button>
+            <Button data-testid="properties-save" onClick={handleSaveProperties} disabled={propertiesSaving || propertiesLoading}>
+              {propertiesSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!symlinkTargetEntry} onOpenChange={(open) => !open && setSymlinkTargetEntry(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Symbolic Link</DialogTitle>
+            <DialogDescription>
+              Create a Symbolic Link pointing to an existing target path.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Target path (existing)</Label>
+              <Input value={symlinkTargetPath} onChange={(e) => setSymlinkTargetPath(e.target.value)} className="mt-1" placeholder="/path/to/existing/file-or-dir" />
+            </div>
+            <div>
+              <Label>Link path (new symbolic link)</Label>
+              <Input value={symlinkLinkPath} onChange={(e) => setSymlinkLinkPath(e.target.value)} className="mt-1" placeholder="/path/to/new-link" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSymlinkTargetEntry(null)}>Cancel</Button>
+            <Button onClick={handleConfirmSymlink} disabled={symlinkSaving || !symlinkTargetPath.trim() || !symlinkLinkPath.trim()}>
+              {symlinkSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!copyMoveEntry} onOpenChange={(open) => !open && setCopyMoveEntry(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{copyMoveMode === 'move' ? 'Move' : 'Copy'}: {copyMoveEntry?.name}</DialogTitle>
+            <DialogDescription>
+              {copyMoveMode === 'move'
+                ? 'Move this file/folder to a destination path. Existing destination path may be overwritten by server policy.'
+                : 'Copy this file/folder to a destination path. Progress is shown while the operation is running.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div>
+            <Label>Destination path</Label>
+            <Input value={copyMoveTo} onChange={(e) => setCopyMoveTo(e.target.value)} className="mt-1" placeholder="/path/to/destination" />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCopyMoveEntry(null)}>Cancel</Button>
+            <Button onClick={executeCopyOrMove} disabled={copyMoveSaving || !copyMoveTo.trim()}>
+              {copyMoveSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              {copyMoveMode === 'move' ? 'Move' : 'Copy'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!shareEntry} onOpenChange={(open) => !open && setShareEntry(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Share: {shareEntry?.name}</DialogTitle>
+            <DialogDescription>
+              Generate a public download link — no login required.
+              This operation first copies the selected SFTP file into your personal Space,
+              then creates a Space share link. Anyone with the link can download the file.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Validity (minutes)</Label>
+              <Input
+                type="number"
+                className="mt-1"
+                min={1}
+                max={shareMaxMinutes}
+                value={shareMinutes}
+                onChange={(e) => setShareMinutes(Number(e.target.value))}
+              />
+            </div>
+            {shareUrl && (
+              <div className="space-y-2">
+                <Label>Public download link</Label>
+                <div className="flex gap-2 mt-1">
+                  <Input readOnly value={shareUrl} className="text-xs font-mono" />
+                  <Button size="icon" variant="outline" onClick={handleCopyShareUrl} title="Copy link">
+                    {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                  <Button size="icon" variant="ghost" className="text-destructive" onClick={handleRevokeShare} title="Revoke link">
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                {copied && <p className="text-xs text-green-600">Copied to clipboard!</p>}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShareEntry(null)}>Close</Button>
+            <Button onClick={handleGenerateShare} disabled={sharing || shareMinutes < 1 || shareMinutes > shareMaxMinutes}>
+              {sharing && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              {shareUrl ? 'Refresh link' : 'Generate link'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Busy overlay */}
       {busy && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-20">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          <div className="flex items-center gap-2 text-sm">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <span>{busyMessage}</span>
+          </div>
         </div>
       )}
 

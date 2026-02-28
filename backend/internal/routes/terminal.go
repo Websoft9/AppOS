@@ -4,7 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"path"
+	"regexp"
+	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -17,6 +21,7 @@ import (
 
 	"github.com/websoft9/appos/backend/internal/audit"
 	"github.com/websoft9/appos/backend/internal/crypto"
+	"github.com/websoft9/appos/backend/internal/settings"
 	"github.com/websoft9/appos/backend/internal/terminal"
 )
 
@@ -75,10 +80,18 @@ func registerTerminalRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	sftp := t.Group("/sftp/{serverId}")
 	sftp.GET("/list", handleSFTPList)
 	sftp.GET("/search", handleSFTPSearch)
+	sftp.GET("/constraints", handleSFTPConstraints)
+	sftp.GET("/stat", handleSFTPStat)
 	sftp.GET("/download", handleSFTPDownload)
 	sftp.POST("/upload", handleSFTPUpload)
 	sftp.POST("/mkdir", handleSFTPMkdir)
 	sftp.POST("/rename", handleSFTPRename)
+	sftp.POST("/chmod", handleSFTPChmod)
+	sftp.POST("/chown", handleSFTPChown)
+	sftp.POST("/symlink", handleSFTPSymlink)
+	sftp.POST("/copy", handleSFTPCopy)
+	sftp.GET("/copy-stream", handleSFTPCopyStream)
+	sftp.POST("/move", handleSFTPMove)
 	sftp.DELETE("/delete", handleSFTPDelete)
 	sftp.GET("/read", handleSFTPRead)
 	sftp.POST("/write", handleSFTPWrite)
@@ -236,6 +249,18 @@ func handleDockerExecTerminal(e *core.RequestEvent) error {
 	if shell == "" {
 		shell = "/bin/sh"
 	}
+	if shell != "/bin/sh" && shell != "/bin/bash" && shell != "/bin/zsh" {
+		shell = "/bin/sh"
+	}
+	containerPattern := regexp.MustCompile(`^[a-zA-Z0-9_.-]+$`)
+	if !containerPattern.MatchString(containerID) {
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": "invalid containerId"})
+	}
+
+	serverID := e.Request.URL.Query().Get("server_id")
+	if serverID == "" {
+		serverID = "local"
+	}
 
 	conn, err := wsUpgrader.Upgrade(e.Response, e.Request, nil)
 	if err != nil {
@@ -243,12 +268,24 @@ func handleDockerExecTerminal(e *core.RequestEvent) error {
 	}
 	defer conn.Close()
 
-	cfg := terminal.ConnectorConfig{
-		Host:  containerID,
-		Shell: shell,
+	var cfg terminal.ConnectorConfig
+	var connector terminal.Connector
+	if serverID == "local" {
+		cfg = terminal.ConnectorConfig{
+			Host:  containerID,
+			Shell: shell,
+		}
+		connector = &terminal.DockerExecConnector{}
+	} else {
+		resolvedCfg, resolveErr := resolveServerConfig(e, serverID)
+		if resolveErr != nil {
+			return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
+		}
+		resolvedCfg.Shell = fmt.Sprintf("docker exec -it %s %s", containerID, shell)
+		cfg = resolvedCfg
+		connector = &terminal.SSHConnector{}
 	}
 
-	connector := &terminal.DockerExecConnector{}
 	sess, err := connector.Connect(e.Request.Context(), cfg)
 	if err != nil {
 		_ = writeWSControl(conn, "error", err.Error())
@@ -289,7 +326,7 @@ func handleDockerExecTerminal(e *core.RequestEvent) error {
 		ResourceID:   containerID,
 		Status:       audit.StatusSuccess,
 		IP:           ip,
-		Detail:       map[string]any{"session_id": sessionID, "shell": shell},
+		Detail:       map[string]any{"session_id": sessionID, "shell": shell, "server_id": serverID},
 	})
 
 	// Bidirectional relay — same pattern as SSH
@@ -389,6 +426,36 @@ func handleSFTPSearch(e *core.RequestEvent) error {
 		"server_id": serverID,
 		"query":     query,
 		"results":   results,
+	})
+}
+
+func handleSFTPConstraints(e *core.RequestEvent) error {
+	cfg, _ := settings.GetGroup(e.App, "connect", "sftp", map[string]any{"maxUploadFiles": 10})
+	return e.JSON(http.StatusOK, map[string]any{
+		"max_upload_files": settings.Int(cfg, "maxUploadFiles", 10),
+	})
+}
+
+func handleSFTPStat(e *core.RequestEvent) error {
+	client, serverID, err := openSFTPClient(e)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
+	}
+	defer client.Close()
+
+	filePath := e.Request.URL.Query().Get("path")
+	if filePath == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": "path required"})
+	}
+
+	attrs, err := client.Stat(filePath)
+	if err != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": err.Error()})
+	}
+
+	return e.JSON(http.StatusOK, map[string]any{
+		"server_id": serverID,
+		"attrs":     attrs,
 	})
 }
 
@@ -493,6 +560,182 @@ func handleSFTPMkdir(e *core.RequestEvent) error {
 }
 
 func handleSFTPRename(e *core.RequestEvent) error {
+	client, _, err := openSFTPClient(e)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
+	}
+	defer client.Close()
+
+	var body struct {
+		From string `json:"from"`
+		To   string `json:"to"`
+	}
+	if err := json.NewDecoder(e.Request.Body).Decode(&body); err != nil || body.From == "" || body.To == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": "from and to required"})
+	}
+
+	if err := client.Rename(body.From, body.To); err != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": err.Error()})
+	}
+	return e.JSON(http.StatusOK, map[string]any{"from": body.From, "to": body.To})
+}
+
+func handleSFTPChmod(e *core.RequestEvent) error {
+	client, _, err := openSFTPClient(e)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
+	}
+	defer client.Close()
+
+	var body struct {
+		Path      string `json:"path"`
+		Mode      string `json:"mode"`
+		Recursive bool   `json:"recursive"`
+	}
+	if err := json.NewDecoder(e.Request.Body).Decode(&body); err != nil || body.Path == "" || body.Mode == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": "path and mode required"})
+	}
+
+	val, err := strconv.ParseUint(body.Mode, 8, 32)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": "mode must be octal like 755"})
+	}
+
+	if body.Recursive {
+		err = client.ChmodRecursive(body.Path, os.FileMode(val))
+	} else {
+		err = client.Chmod(body.Path, os.FileMode(val))
+	}
+	if err != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": err.Error()})
+	}
+	return e.JSON(http.StatusOK, map[string]any{"path": body.Path, "mode": body.Mode, "recursive": body.Recursive})
+}
+
+func handleSFTPChown(e *core.RequestEvent) error {
+	client, _, err := openSFTPClient(e)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
+	}
+	defer client.Close()
+
+	var body struct {
+		Path  string `json:"path"`
+		Owner any    `json:"owner"`
+		Group any    `json:"group"`
+	}
+	if err := json.NewDecoder(e.Request.Body).Decode(&body); err != nil || body.Path == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": "path required"})
+	}
+	owner := strings.TrimSpace(fmt.Sprint(body.Owner))
+	group := strings.TrimSpace(fmt.Sprint(body.Group))
+	if owner == "<nil>" {
+		owner = ""
+	}
+	if group == "<nil>" {
+		group = ""
+	}
+	if owner == "" || group == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": "owner and group are required"})
+	}
+
+	if err := client.ChownByName(body.Path, owner, group); err != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": err.Error()})
+	}
+	return e.JSON(http.StatusOK, map[string]any{"path": body.Path, "owner": owner, "group": group})
+}
+
+func handleSFTPSymlink(e *core.RequestEvent) error {
+	client, _, err := openSFTPClient(e)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
+	}
+	defer client.Close()
+
+	var body struct {
+		Target   string `json:"target"`
+		LinkPath string `json:"link_path"`
+	}
+	if err := json.NewDecoder(e.Request.Body).Decode(&body); err != nil || body.Target == "" || body.LinkPath == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": "target and link_path required"})
+	}
+
+	if err := client.Symlink(body.Target, body.LinkPath); err != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": err.Error()})
+	}
+	return e.JSON(http.StatusOK, map[string]any{"target": body.Target, "link_path": body.LinkPath})
+}
+
+func handleSFTPCopy(e *core.RequestEvent) error {
+	client, _, err := openSFTPClient(e)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
+	}
+	defer client.Close()
+
+	var body struct {
+		From string `json:"from"`
+		To   string `json:"to"`
+	}
+	if err := json.NewDecoder(e.Request.Body).Decode(&body); err != nil || body.From == "" || body.To == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": "from and to required"})
+	}
+
+	var copied, total int64
+	_, err = client.Copy(body.From, body.To, func(done, sum int64) {
+		copied = done
+		total = sum
+	})
+	if err != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": err.Error(), "progress": map[string]any{"copied": copied, "total": total}})
+	}
+
+	return e.JSON(http.StatusOK, map[string]any{"from": body.From, "to": body.To, "progress": map[string]any{"copied": copied, "total": total}})
+}
+
+func handleSFTPCopyStream(e *core.RequestEvent) error {
+	client, _, err := openSFTPClient(e)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
+	}
+	defer client.Close()
+
+	from := e.Request.URL.Query().Get("from")
+	to := e.Request.URL.Query().Get("to")
+	if from == "" || to == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": "from and to required"})
+	}
+
+	flusher, ok := e.Response.(http.Flusher)
+	if !ok {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": "streaming unsupported"})
+	}
+
+	e.Response.Header().Set("Content-Type", "text/event-stream")
+	e.Response.Header().Set("Cache-Control", "no-cache")
+	e.Response.Header().Set("Connection", "keep-alive")
+
+	push := func(event string, payload map[string]any) {
+		b, _ := json.Marshal(payload)
+		_, _ = fmt.Fprintf(e.Response, "event: %s\n", event)
+		_, _ = fmt.Fprintf(e.Response, "data: %s\n\n", string(b))
+		flusher.Flush()
+	}
+
+	push("start", map[string]any{"from": from, "to": to})
+	_, err = client.Copy(from, to, func(copied, total int64) {
+		push("progress", map[string]any{"copied": copied, "total": total})
+	})
+	if err != nil {
+		push("error", map[string]any{"message": err.Error()})
+		return nil
+	}
+
+	push("done", map[string]any{"from": from, "to": to})
+	return nil
+}
+
+func handleSFTPMove(e *core.RequestEvent) error {
 	client, _, err := openSFTPClient(e)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})

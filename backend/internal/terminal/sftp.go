@@ -6,6 +6,8 @@ import (
 	"io"
 	"net"
 	"os"
+	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -85,15 +87,109 @@ type DirEntry struct {
 	ModifiedAt time.Time `json:"modified_at"`
 }
 
-// ListDir returns all entries (including dot-files) in the given remote path.
-func (c *SFTPClient) ListDir(path string) ([]DirEntry, error) {
-	infos, err := c.sftpClient.ReadDir(path)
+// FileAttrs is full file/dir metadata for property panel editing.
+type FileAttrs struct {
+	Path       string    `json:"path"`
+	Type       string    `json:"type"`
+	Mode       string    `json:"mode"`
+	Owner      int       `json:"owner"`
+	Group      int       `json:"group"`
+	OwnerName  string    `json:"owner_name"`
+	GroupName  string    `json:"group_name"`
+	Size       int64     `json:"size"`
+	AccessedAt time.Time `json:"accessed_at"`
+	ModifiedAt time.Time `json:"modified_at"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+func (c *SFTPClient) runRemoteCommand(cmd string) (string, error) {
+	session, err := c.sshClient.NewSession()
 	if err != nil {
-		return nil, fmt.Errorf("sftp: readdir %q: %w", path, err)
+		return "", fmt.Errorf("sftp: ssh session: %w", err)
+	}
+	defer session.Close()
+
+	out, err := session.CombinedOutput(cmd)
+	if err != nil {
+		return "", fmt.Errorf("sftp: command failed: %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func (c *SFTPClient) resolveUserName(uid int) string {
+	out, err := c.runRemoteCommand(fmt.Sprintf("id -nu %d", uid))
+	if err == nil && out != "" {
+		return out
+	}
+	if uid == 0 {
+		return "root"
+	}
+	return fmt.Sprintf("uid-%d", uid)
+}
+
+func (c *SFTPClient) resolveGroupName(gid int) string {
+	out, err := c.runRemoteCommand(fmt.Sprintf("getent group %d | cut -d: -f1", gid))
+	if err == nil && out != "" {
+		return out
+	}
+	if gid == 0 {
+		return "root"
+	}
+	return fmt.Sprintf("gid-%d", gid)
+}
+
+func (c *SFTPClient) resolveUserID(name string) (int, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return 0, fmt.Errorf("empty owner name")
+	}
+	if n, err := strconv.Atoi(name); err == nil {
+		return n, nil
+	}
+	out, err := c.runRemoteCommand(fmt.Sprintf("id -u %q", name))
+	if err != nil {
+		return 0, err
+	}
+	uid, err := strconv.Atoi(strings.TrimSpace(out))
+	if err != nil {
+		return 0, fmt.Errorf("invalid uid output for %q", name)
+	}
+	return uid, nil
+}
+
+func (c *SFTPClient) resolveGroupID(name string) (int, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return 0, fmt.Errorf("empty group name")
+	}
+	if n, err := strconv.Atoi(name); err == nil {
+		return n, nil
+	}
+	out, err := c.runRemoteCommand(fmt.Sprintf("getent group %q | cut -d: -f3", name))
+	if err != nil {
+		return 0, err
+	}
+	gid, err := strconv.Atoi(strings.TrimSpace(out))
+	if err != nil {
+		return 0, fmt.Errorf("invalid gid output for %q", name)
+	}
+	return gid, nil
+}
+
+// ListDir returns all entries (including dot-files) in the given remote path.
+func (c *SFTPClient) ListDir(dirPath string) ([]DirEntry, error) {
+	infos, err := c.sftpClient.ReadDir(dirPath)
+	if err != nil {
+		return nil, fmt.Errorf("sftp: readdir %q: %w", dirPath, err)
 	}
 
 	entries := make([]DirEntry, 0, len(infos))
 	for _, fi := range infos {
+		fullPath := path.Join(dirPath, fi.Name())
+		if lfi, lerr := c.sftpClient.Lstat(fullPath); lerr == nil {
+			fi = lfi
+		}
+
 		t := "file"
 		if fi.IsDir() {
 			t = "dir"
@@ -165,9 +261,15 @@ func (c *SFTPClient) Rename(from, to string) error {
 // Delete removes a file or an empty directory. For recursive removal, callers
 // must walk the tree themselves (not exposed in MVP).
 func (c *SFTPClient) Delete(path string) error {
-	fi, err := c.sftpClient.Stat(path)
+	fi, err := c.sftpClient.Lstat(path)
 	if err != nil {
 		return fmt.Errorf("sftp: stat %q: %w", path, err)
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		if err := c.sftpClient.Remove(path); err != nil {
+			return fmt.Errorf("sftp: remove symlink %q: %w", path, err)
+		}
+		return nil
 	}
 	if fi.IsDir() {
 		if err := c.sftpClient.RemoveDirectory(path); err != nil {
@@ -269,6 +371,202 @@ func (c *SFTPClient) WriteFile(path string, content string) error {
 
 	if _, err := f.Write([]byte(content)); err != nil {
 		return fmt.Errorf("sftp: write %q: %w", path, err)
+	}
+	return nil
+}
+
+// Stat returns full metadata for a file or directory.
+func (c *SFTPClient) Stat(filePath string) (FileAttrs, error) {
+	fi, err := c.sftpClient.Stat(filePath)
+	if err != nil {
+		return FileAttrs{}, fmt.Errorf("sftp: stat %q: %w", filePath, err)
+	}
+
+	entryType := "file"
+	if fi.IsDir() {
+		entryType = "dir"
+	} else if fi.Mode()&os.ModeSymlink != 0 {
+		entryType = "symlink"
+	}
+
+	attrs := FileAttrs{
+		Path:       filePath,
+		Type:       entryType,
+		Mode:       fi.Mode().String(),
+		Size:       fi.Size(),
+		ModifiedAt: fi.ModTime().UTC(),
+		// Remote servers frequently don't provide atime/ctime over SFTP v3.
+		// Fallback to mtime for stable UI rendering.
+		AccessedAt: fi.ModTime().UTC(),
+		CreatedAt:  fi.ModTime().UTC(),
+	}
+
+	if sys, ok := fi.Sys().(*sftp.FileStat); ok {
+		attrs.Owner = int(sys.UID)
+		attrs.Group = int(sys.GID)
+		attrs.OwnerName = c.resolveUserName(attrs.Owner)
+		attrs.GroupName = c.resolveGroupName(attrs.Group)
+		if sys.Atime > 0 {
+			attrs.AccessedAt = time.Unix(int64(sys.Atime), 0).UTC()
+		}
+		if sys.Mtime > 0 {
+			attrs.ModifiedAt = time.Unix(int64(sys.Mtime), 0).UTC()
+		}
+	}
+	if attrs.OwnerName == "" {
+		attrs.OwnerName = c.resolveUserName(attrs.Owner)
+	}
+	if attrs.GroupName == "" {
+		attrs.GroupName = c.resolveGroupName(attrs.Group)
+	}
+
+	return attrs, nil
+}
+
+// Chmod updates remote file mode.
+func (c *SFTPClient) Chmod(filePath string, mode os.FileMode) error {
+	if err := c.sftpClient.Chmod(filePath, mode); err != nil {
+		return fmt.Errorf("sftp: chmod %q: %w", filePath, err)
+	}
+	return nil
+}
+
+// ChmodRecursive updates mode for the path and all children when path is a directory.
+func (c *SFTPClient) ChmodRecursive(filePath string, mode os.FileMode) error {
+	fi, err := c.sftpClient.Lstat(filePath)
+	if err != nil {
+		return fmt.Errorf("sftp: stat %q: %w", filePath, err)
+	}
+	if !fi.IsDir() {
+		return c.Chmod(filePath, mode)
+	}
+
+	walker := c.sftpClient.Walk(filePath)
+	for walker.Step() {
+		if walker.Err() != nil {
+			continue
+		}
+		if err := c.sftpClient.Chmod(walker.Path(), mode); err != nil {
+			return fmt.Errorf("sftp: chmod recursive %q: %w", walker.Path(), err)
+		}
+	}
+	return nil
+}
+
+// Chown updates remote uid/gid.
+func (c *SFTPClient) Chown(filePath string, uid, gid int) error {
+	if err := c.sftpClient.Chown(filePath, uid, gid); err != nil {
+		return fmt.Errorf("sftp: chown %q: %w", filePath, err)
+	}
+	return nil
+}
+
+// ChownByName updates remote owner/group using principal names (or numeric string).
+func (c *SFTPClient) ChownByName(filePath, ownerName, groupName string) error {
+	uid, err := c.resolveUserID(ownerName)
+	if err != nil {
+		return fmt.Errorf("sftp: resolve owner %q: %w", ownerName, err)
+	}
+	gid, err := c.resolveGroupID(groupName)
+	if err != nil {
+		return fmt.Errorf("sftp: resolve group %q: %w", groupName, err)
+	}
+	return c.Chown(filePath, uid, gid)
+}
+
+// Symlink creates a symbolic link from linkPath -> target.
+func (c *SFTPClient) Symlink(target, linkPath string) error {
+	if err := c.sftpClient.Symlink(target, linkPath); err != nil {
+		return fmt.Errorf("sftp: symlink %q -> %q: %w", linkPath, target, err)
+	}
+	return nil
+}
+
+// Copy recursively copies file/dir from source to target.
+// onProgress is called with copied and total bytes for files.
+func (c *SFTPClient) Copy(source, target string, onProgress func(copied, total int64)) (int64, error) {
+	fi, err := c.sftpClient.Stat(source)
+	if err != nil {
+		return 0, fmt.Errorf("sftp: stat %q: %w", source, err)
+	}
+
+	if fi.IsDir() {
+		return 0, c.copyDir(source, target)
+	}
+
+	total := fi.Size()
+	var copied int64
+	if err := c.copyFile(source, target, func(n int64) {
+		copied += n
+		if onProgress != nil {
+			onProgress(copied, total)
+		}
+	}); err != nil {
+		return copied, err
+	}
+
+	return copied, nil
+}
+
+func (c *SFTPClient) copyDir(source, target string) error {
+	if err := c.sftpClient.MkdirAll(target); err != nil {
+		return fmt.Errorf("sftp: mkdirall %q: %w", target, err)
+	}
+
+	items, err := c.sftpClient.ReadDir(source)
+	if err != nil {
+		return fmt.Errorf("sftp: readdir %q: %w", source, err)
+	}
+
+	for _, item := range items {
+		src := path.Join(source, item.Name())
+		dst := path.Join(target, item.Name())
+		if item.IsDir() {
+			if err := c.copyDir(src, dst); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := c.copyFile(src, dst, nil); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *SFTPClient) copyFile(source, target string, onChunk func(n int64)) error {
+	src, err := c.sftpClient.Open(source)
+	if err != nil {
+		return fmt.Errorf("sftp: open %q: %w", source, err)
+	}
+	defer src.Close()
+
+	dst, err := c.sftpClient.Create(target)
+	if err != nil {
+		return fmt.Errorf("sftp: create %q: %w", target, err)
+	}
+	defer dst.Close()
+
+	buf := make([]byte, 32*1024)
+	for {
+		n, readErr := src.Read(buf)
+		if n > 0 {
+			wn, writeErr := dst.Write(buf[:n])
+			if writeErr != nil {
+				_ = c.sftpClient.Remove(target)
+				return fmt.Errorf("sftp: write %q: %w", target, writeErr)
+			}
+			if onChunk != nil && wn > 0 {
+				onChunk(int64(wn))
+			}
+		}
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			_ = c.sftpClient.Remove(target)
+			return fmt.Errorf("sftp: read %q: %w", source, readErr)
+		}
 	}
 	return nil
 }

@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   Store,
   Settings,
-  Container,
   PanelLeftClose,
   PanelLeft,
   ChevronDown,
@@ -64,13 +63,13 @@ const workspaceGroup: NavGroup = {
   items: [
     { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" />, href: "/dashboard" },
     { id: "store", label: "App Store", icon: <Store className="h-5 w-5" />, href: "/store" },
+    { id: 'connect', label: 'Connect', icon: <TerminalSquare className="h-5 w-5" />, href: '/connect' },
     { id: "resources", label: "Resources", icon: <LayoutGrid className="h-5 w-5" />, href: "/resources" },
     { id: "space", label: "Space", icon: <FolderOpen className="h-5 w-5" />, href: "/space" },
   ],
 }
 
 const baseAdminItems: NavItem[] = [
-  { id: "docker", label: "Docker", icon: <Container className="h-5 w-5" />, href: "/docker" },
   { id: "services", label: "Services", icon: <Settings className="h-5 w-5" />, href: "/services" },
   { id: "audit", label: "Audit", icon: <ScrollText className="h-5 w-5" />, href: "/audit" },
 ]
@@ -103,13 +102,6 @@ const filesNavItem: NavItem = {
   href: '/iac',
 }
 
-const connectNavItem: NavItem = {
-  id: 'connect',
-  label: 'Connect',
-  icon: <TerminalSquare className="h-5 w-5" />,
-  href: '/connect',
-}
-
 function buildNavGroups(isSuperuser: boolean): NavGroup[] {
   return [
     workspaceGroup,
@@ -117,7 +109,7 @@ function buildNavGroups(isSuperuser: boolean): NavGroup[] {
       id: "admin",
       label: "Admin",
       items: isSuperuser
-        ? [...baseAdminItems, usersNavItem, logsNavItem, filesNavItem, connectNavItem, settingsNavItem]
+        ? [...baseAdminItems, usersNavItem, logsNavItem, filesNavItem, settingsNavItem]
         : baseAdminItems,
     },
   ]

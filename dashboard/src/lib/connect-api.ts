@@ -28,6 +28,20 @@ export interface SearchResult {
   modified_at: string
 }
 
+export interface FileAttrs {
+  path: string
+  type: 'file' | 'dir' | 'symlink'
+  mode: string
+  owner: number
+  group: number
+  owner_name?: string
+  group_name?: string
+  size: number
+  accessed_at: string
+  modified_at: string
+  created_at: string
+}
+
 export interface SFTPSearchResponse {
   path: string       // search base path
   query: string
@@ -112,6 +126,57 @@ export async function sftpSearch(
     `/api/ext/terminal/sftp/${serverId}/search?path=${encodeURIComponent(basePath)}&query=${encodeURIComponent(query)}`,
     {},
   )
+}
+
+export async function sftpConstraints(serverId: string): Promise<{ max_upload_files: number }> {
+  return pb.send<{ max_upload_files: number }>(`/api/ext/terminal/sftp/${serverId}/constraints`, {})
+}
+
+export async function sftpStat(serverId: string, path: string): Promise<{ attrs: FileAttrs }> {
+  return pb.send<{ attrs: FileAttrs }>(
+    `/api/ext/terminal/sftp/${serverId}/stat?path=${encodeURIComponent(path)}`,
+    {},
+  )
+}
+
+export async function sftpChmod(serverId: string, path: string, mode: string, recursive = false): Promise<void> {
+  await pb.send(`/api/ext/terminal/sftp/${serverId}/chmod`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path, mode, recursive }),
+  })
+}
+
+export async function sftpChown(serverId: string, path: string, owner: string, group: string): Promise<void> {
+  await pb.send(`/api/ext/terminal/sftp/${serverId}/chown`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path, owner, group }),
+  })
+}
+
+export async function sftpSymlink(serverId: string, target: string, linkPath: string): Promise<void> {
+  await pb.send(`/api/ext/terminal/sftp/${serverId}/symlink`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target, link_path: linkPath }),
+  })
+}
+
+export async function sftpCopy(serverId: string, from: string, to: string): Promise<void> {
+  await pb.send(`/api/ext/terminal/sftp/${serverId}/copy`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from, to }),
+  })
+}
+
+export async function sftpMove(serverId: string, from: string, to: string): Promise<void> {
+  await pb.send(`/api/ext/terminal/sftp/${serverId}/move`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from, to }),
+  })
 }
 
 // ─── Server list ──────────────────────────────────────────────────────────────

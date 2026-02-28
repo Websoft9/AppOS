@@ -63,6 +63,8 @@ func registerDockerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 
 	// ─── Containers ──────────────────────────────────────
 	containers := d.Group("/containers")
+	containers.GET("/stats", handleContainerStats)
+	containers.GET("/{id}/logs", handleContainerLogs)
 	containers.GET("", handleContainerList)
 	containers.GET("/{id}", handleContainerInspect)
 	containers.POST("/{id}/start", handleContainerStart)
@@ -107,6 +109,13 @@ func getDockerClient(e *core.RequestEvent) (*docker.Client, error) {
 	authType := serverRec.GetString("auth_type")
 	credentialID := serverRec.GetString("credential")
 
+	resolvedHost, resolvedPort, resolveErr := resolveDockerSSHAddress(serverRec)
+	if resolveErr != nil {
+		return nil, resolveErr
+	}
+	host = resolvedHost
+	port = resolvedPort
+
 	if port == 0 {
 		port = 22
 	}
@@ -147,6 +156,51 @@ func getDockerClient(e *core.RequestEvent) (*docker.Client, error) {
 	return docker.New(exec), nil
 }
 
+func resolveDockerSSHAddress(serverRec *core.Record) (string, int, error) {
+	host := serverRec.GetString("host")
+	port := serverRec.GetInt("port")
+	if port == 0 {
+		port = 22
+	}
+
+	if serverRec.GetString("connect_type") != "tunnel" {
+		return host, port, nil
+	}
+
+	if serverRec.GetString("tunnel_status") != "online" {
+		return "", 0, fmt.Errorf("tunnel server %s is offline", serverRec.Id)
+	}
+
+	sshPort, err := tunnelSSHPortFromServices(serverRec.GetString("tunnel_services"))
+	if err != nil {
+		return "", 0, err
+	}
+
+	return "127.0.0.1", sshPort, nil
+}
+
+func tunnelSSHPortFromServices(raw string) (int, error) {
+	if raw == "" || raw == "null" {
+		return 0, fmt.Errorf("tunnel_services is empty")
+	}
+
+	var services []struct {
+		Name       string `json:"service_name"`
+		TunnelPort int    `json:"tunnel_port"`
+	}
+	if err := json.Unmarshal([]byte(raw), &services); err != nil {
+		return 0, fmt.Errorf("invalid tunnel_services: %w", err)
+	}
+
+	for _, svc := range services {
+		if svc.Name == "ssh" && svc.TunnelPort > 0 {
+			return svc.TunnelPort, nil
+		}
+	}
+
+	return 0, fmt.Errorf("ssh tunnel service not found")
+}
+
 // handleDockerServers returns all available servers (local + resource store servers)
 // with their online/offline ping status. Pings are done concurrently.
 func handleDockerServers(e *core.RequestEvent) error {
@@ -155,6 +209,7 @@ func handleDockerServers(e *core.RequestEvent) error {
 		Label  string `json:"label"`
 		Host   string `json:"host"`
 		Status string `json:"status"`
+		Reason string `json:"reason,omitempty"`
 	}
 
 	result := []serverEntry{{
@@ -177,8 +232,16 @@ func handleDockerServers(e *core.RequestEvent) error {
 		go func(idx int) {
 			defer wg.Done()
 			status := "offline"
+			reason := "server unreachable"
 			host := s.GetString("host")
 			port := s.GetInt("port")
+			resolvedHost, resolvedPort, resolveErr := resolveDockerSSHAddress(s)
+			if resolveErr == nil {
+				host = resolvedHost
+				port = resolvedPort
+			} else {
+				reason = resolveErr.Error()
+			}
 			if port == 0 {
 				port = 22
 			}
@@ -199,23 +262,29 @@ func handleDockerServers(e *core.RequestEvent) error {
 			if srvSudoEnabled && (authType == "password" || authType == "username_password") {
 				srvSudoPassword = secretValue
 			}
-			execSSH := docker.NewSSHExecutor(docker.SSHConfig{
-				Host:         host,
-				Port:         port,
-				User:         user,
-				AuthType:     authType,
-				Secret:       secretValue,
-				SudoEnabled:  srvSudoEnabled,
-				SudoPassword: srvSudoPassword,
-			})
-			if pingErr := execSSH.Ping(e.Request.Context()); pingErr == nil {
-				status = "online"
+			if resolveErr == nil {
+				execSSH := docker.NewSSHExecutor(docker.SSHConfig{
+					Host:         host,
+					Port:         port,
+					User:         user,
+					AuthType:     authType,
+					Secret:       secretValue,
+					SudoEnabled:  srvSudoEnabled,
+					SudoPassword: srvSudoPassword,
+				})
+				if pingErr := execSSH.Ping(e.Request.Context()); pingErr == nil {
+					status = "online"
+					reason = ""
+				} else {
+					reason = pingErr.Error()
+				}
 			}
 			entries[idx] = serverEntry{
 				ID:     s.Id,
 				Label:  s.GetString("name"),
 				Host:   host,
 				Status: status,
+				Reason: reason,
 			}
 		}(i)
 	}
@@ -627,6 +696,41 @@ func handleContainerInspect(e *core.RequestEvent) error {
 	output, err := client.ContainerInspect(e.Request.Context(), id)
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "inspect container failed", err)
+	}
+	return e.JSON(http.StatusOK, map[string]any{"output": output})
+}
+
+func handleContainerStats(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
+	output, err := client.ContainerStats(e.Request.Context())
+	if err != nil {
+		return dockerError(e, http.StatusInternalServerError, "container stats failed", err)
+	}
+	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": client.Host()})
+}
+
+func handleContainerLogs(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
+	id := e.Request.PathValue("id")
+	if id == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "id is required"})
+	}
+	tail := 200
+	if t := e.Request.URL.Query().Get("tail"); t != "" {
+		fmt.Sscanf(t, "%d", &tail)
+	}
+	if tail <= 0 {
+		tail = 200
+	}
+	output, err := client.ContainerLogs(e.Request.Context(), id, tail)
+	if err != nil {
+		return dockerError(e, http.StatusInternalServerError, "container logs failed", err)
 	}
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }

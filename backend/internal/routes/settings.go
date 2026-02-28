@@ -20,6 +20,7 @@ var allowedModuleKeys = map[string][]string{
 	"proxy":  {"network"},
 	"docker": {"mirror", "registries"},
 	"llm":    {"providers"},
+	"connect": {"sftp"},
 }
 
 // sensitiveFields is the set of field names that are masked on GET and
@@ -40,6 +41,7 @@ var (
 	}
 	defaultDockerRegistries = map[string]any{"items": []any{}}
 	defaultLLMProviders     = map[string]any{"items": []any{}}
+	defaultConnectSFTP      = map[string]any{"maxUploadFiles": 10}
 )
 
 // fallbackForKey returns the code-level fallback for a given (module, key) pair.
@@ -55,6 +57,8 @@ func fallbackForKey(module, key string) map[string]any {
 		return defaultDockerRegistries
 	case "llm/providers":
 		return defaultLLMProviders
+	case "connect/sftp":
+		return defaultConnectSFTP
 	}
 	return map[string]any{}
 }

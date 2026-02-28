@@ -142,6 +142,16 @@ func (c *Client) ContainerInspect(ctx context.Context, id string) (string, error
 	return c.exec.Run(ctx, "docker", "inspect", id)
 }
 
+// ContainerStats returns one-shot stats for all containers in JSON format.
+func (c *Client) ContainerStats(ctx context.Context) (string, error) {
+	return c.exec.Run(ctx, "docker", "stats", "--no-stream", "--format", "json")
+}
+
+// ContainerLogs returns container logs with tail limit.
+func (c *Client) ContainerLogs(ctx context.Context, id string, tail int) (string, error) {
+	return c.exec.Run(ctx, "docker", "logs", "--tail", fmt.Sprintf("%d", tail), id)
+}
+
 // ContainerStart starts a container.
 func (c *Client) ContainerStart(ctx context.Context, id string) (string, error) {
 	return c.exec.Run(ctx, "docker", "start", id)

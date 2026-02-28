@@ -17,6 +17,11 @@ const (
 	defaultDockerShell  = "/bin/sh"
 )
 
+var autoDockerShellCandidates = []string{"/bin/bash", "/bin/sh", "/bin/zsh"}
+
+var dockerCreateExecFn = dockerCreateExec
+var dockerStartExecFn = dockerStartExec
+
 // DockerExecConnector implements Session by creating a Docker exec
 // instance with a TTY and hijacking the connection for bidirectional I/O.
 type DockerExecConnector struct{}
@@ -46,6 +51,8 @@ func (b *bufferedConn) Read(p []byte) (int, error) {
 func (c *DockerExecConnector) Connect(ctx context.Context, cfg ConnectorConfig) (Session, error) {
 	containerID := cfg.Host
 	shell := cfg.Shell
+	manualShell := shell != ""
+ 
 	if shell == "" {
 		shell = defaultDockerShell
 	}
@@ -56,12 +63,24 @@ func (c *DockerExecConnector) Connect(ctx context.Context, cfg ConnectorConfig) 
 	}
 	ch := make(chan result, 1)
 	go func() {
-		execID, err := dockerCreateExec(containerID, shell)
+		execID := ""
+		var err error
+		if manualShell {
+			execID, err = dockerCreateExecFn(containerID, shell)
+		} else {
+			for _, candidate := range autoDockerShellCandidates {
+				execID, err = dockerCreateExecFn(containerID, candidate)
+				if err == nil {
+					shell = candidate
+					break
+				}
+			}
+		}
 		if err != nil {
 			ch <- result{nil, fmt.Errorf("docker exec create: %w", err)}
 			return
 		}
-		conn, err := dockerStartExec(execID)
+		conn, err := dockerStartExecFn(execID)
 		if err != nil {
 			ch <- result{nil, fmt.Errorf("docker exec start: %w", err)}
 			return

@@ -135,10 +135,11 @@ development_status:
   epic14-retrospective: optional
 
   # Epic 15: Web Terminal & File Manager
-  epic15: done
+  epic15: in-progress
   15.1-ssh-sftp-backend: done
   15.2-terminal-filemanager-ui: done
   15.3-docker-exec: done
+  15.4-terminal-filemanager-enhancements: review
   epic15-retrospective: optional
 
   # Epic 16: SSH Tunnel – Local Server Management

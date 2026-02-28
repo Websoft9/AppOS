@@ -8,7 +8,7 @@ interface ContentAreaProps {
 export function ContentArea({ children, className }: ContentAreaProps) {
   return (
     <main
-      className={cn("overflow-y-auto p-6", className)}
+      className={cn("overflow-y-auto p-6 min-h-0", className)}
       style={{ gridArea: "content" }}
     >
       {children}

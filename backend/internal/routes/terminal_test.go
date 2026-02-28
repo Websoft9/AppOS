@@ -119,3 +119,47 @@ func TestDockerExecRequiresAuth(t *testing.T) {
 		t.Fatalf("expected 401, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
+
+// TestSFTPStatRequiresPath verifies SFTP stat returns 400 when path is omitted.
+func TestSFTPStatRequiresPath(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doTerminal(t, http.MethodGet, "/api/ext/terminal/sftp/nonexistent/stat", "", true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestSFTPCopyRequiresFields verifies copy endpoint validates from/to fields.
+func TestSFTPCopyRequiresFields(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doTerminal(t, http.MethodPost, "/api/ext/terminal/sftp/nonexistent/copy", `{}`, true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestSFTPSymlinkRequiresFields verifies symlink endpoint validates payload.
+func TestSFTPSymlinkRequiresFields(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doTerminal(t, http.MethodPost, "/api/ext/terminal/sftp/nonexistent/symlink", `{}`, true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestSFTPCopyStreamRequiresFields verifies copy-stream validates from/to query params.
+func TestSFTPCopyStreamRequiresFields(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doTerminal(t, http.MethodGet, "/api/ext/terminal/sftp/nonexistent/copy-stream", "", true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}

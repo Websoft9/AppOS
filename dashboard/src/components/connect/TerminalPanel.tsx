@@ -17,6 +17,8 @@ export interface TerminalPanelProps {
   containerId?: string
   /** Override shell for Docker exec (default: /bin/sh) */
   shell?: string
+  /** Docker target server ID for container exec */
+  dockerServerId?: string
   /** Additional CSS classes */
   className?: string
 }
@@ -37,18 +39,46 @@ function makeResizeFrame(cols: number, rows: number): Uint8Array {
 export interface TerminalPanelHandle {
   /** Send text data to the terminal WebSocket (as if typed). */
   sendData: (data: string) => void
+  /** Force terminal fit + resize sync (for parent layout transitions). */
+  requestFit: () => void
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>(
-  function TerminalPanel({ serverId, containerId, shell, className }, ref) {
+  function TerminalPanel({ serverId, containerId, shell, dockerServerId, className }, ref) {
   const termRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [connecting, setConnecting] = useState(false)
+  const fitTimersRef = useRef<number[]>([])
+
+  const clearFitTimers = useCallback(() => {
+    for (const timer of fitTimersRef.current) {
+      window.clearTimeout(timer)
+    }
+    fitTimersRef.current = []
+  }, [])
+
+  const fitAndSync = useCallback(() => {
+    const fitAddon = fitRef.current
+    const terminal = terminalRef.current
+    const ws = wsRef.current
+    if (!fitAddon || !terminal) return
+    fitAddon.fit()
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(makeResizeFrame(terminal.cols, terminal.rows))
+    }
+  }, [])
+
+  const scheduleFitAndSync = useCallback(() => {
+    clearFitTimers()
+    fitAndSync()
+    fitTimersRef.current.push(window.setTimeout(() => fitAndSync(), 80))
+    fitTimersRef.current.push(window.setTimeout(() => fitAndSync(), 220))
+  }, [clearFitTimers, fitAndSync])
 
   // Expose sendData to parent via ref
   useImperativeHandle(ref, () => ({
@@ -58,7 +88,10 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         ws.send(new TextEncoder().encode(data))
       }
     },
-  }), [])
+    requestFit: () => {
+      scheduleFitAndSync()
+    },
+  }), [scheduleFitAndSync])
 
   const connect = useCallback(() => {
     if (!termRef.current) return
@@ -72,18 +105,28 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     } else if (containerId) {
       // Story 15.3: Docker exec path
       const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const shellParam = shell ? `&shell=${encodeURIComponent(shell)}` : ''
-      wsUrl = `${proto}//${window.location.host}/api/ext/terminal/docker/${containerId}?_=${Date.now()}${shellParam}`
+      wsUrl = `${proto}//${window.location.host}/api/ext/terminal/docker/${containerId}`
     } else {
       setError('No server or container specified')
       setConnecting(false)
       return
     }
 
+    const url = new URL(wsUrl)
+    if (containerId) {
+      url.searchParams.set('_', String(Date.now()))
+      if (shell) {
+        url.searchParams.set('shell', shell)
+      }
+      if (dockerServerId) {
+        url.searchParams.set('server_id', dockerServerId)
+      }
+    }
+
     // Append auth token as query param
     const token = pb.authStore.token
     if (token) {
-      wsUrl += `?token=${encodeURIComponent(token)}`
+      url.searchParams.set('token', token)
     }
 
     // Load preferences
@@ -115,10 +158,10 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
 
     // Mount terminal
     terminal.open(termRef.current)
-    setTimeout(() => fitAddon.fit(), 0)
+    setTimeout(() => scheduleFitAndSync(), 0)
 
     // Open WebSocket
-    const ws = new WebSocket(wsUrl)
+    const ws = new WebSocket(url.toString())
     ws.binaryType = 'arraybuffer'
     wsRef.current = ws
 
@@ -180,7 +223,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         ws.send(makeResizeFrame(cols, rows))
       }
     })
-  }, [serverId, containerId, shell])
+  }, [serverId, containerId, shell, dockerServerId, scheduleFitAndSync])
 
   // Auto-connect on mount / serverId change
   useEffect(() => {
@@ -188,25 +231,50 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     const frame = requestAnimationFrame(() => connect())
     return () => {
       cancelAnimationFrame(frame)
+      clearFitTimers()
       wsRef.current?.close(1000, 'unmount')
       terminalRef.current?.dispose()
     }
-  }, [connect])
+  }, [connect, clearFitTimers])
 
-  // ResizeObserver for container resize → fit
+  // ResizeObserver for container resize → fit + sync
   useEffect(() => {
     const el = termRef.current
     if (!el) return
 
     const ro = new ResizeObserver(() => {
-      fitRef.current?.fit()
+      scheduleFitAndSync()
     })
     ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
+
+    const parent = el.parentElement
+    if (parent) {
+      ro.observe(parent)
+    }
+
+    const onWindowResize = () => scheduleFitAndSync()
+    window.addEventListener('resize', onWindowResize)
+
+    const mutationRoot = el.closest('#connect-container') ?? el.parentElement
+    const mutationObserver = mutationRoot
+      ? new MutationObserver(() => scheduleFitAndSync())
+      : null
+    mutationObserver?.observe(mutationRoot as Node, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class', 'style'],
+    })
+
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', onWindowResize)
+      mutationObserver?.disconnect()
+    }
+  }, [scheduleFitAndSync])
 
   return (
-    <div className={cn('relative flex flex-col h-full', className)}>
+    <div className={cn('relative flex flex-col h-full overflow-hidden', className)}>
       {/* Terminal container */}
       <div ref={termRef} className="flex-1 min-h-0" />
 
