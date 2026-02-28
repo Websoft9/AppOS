@@ -120,6 +120,24 @@ func (c *Client) ImagePull(ctx context.Context, name string) (string, error) {
 	return c.exec.Run(ctx, "docker", "pull", name)
 }
 
+// ImageInspect returns inspect output for an image id or reference.
+func (c *Client) ImageInspect(ctx context.Context, id string) (string, error) {
+	return c.exec.Run(ctx, "docker", "image", "inspect", id)
+}
+
+// RegistrySearch searches images from the default registry.
+func (c *Client) RegistrySearch(ctx context.Context, keyword string, limit int) (string, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	return c.exec.Run(ctx, "docker", "search", keyword, "--limit", fmt.Sprintf("%d", limit), "--format", "json")
+}
+
+// RegistryStatus probes whether the default registry is reachable.
+func (c *Client) RegistryStatus(ctx context.Context) (string, error) {
+	return c.exec.Run(ctx, "docker", "search", "hello-world", "--limit", "1", "--format", "json")
+}
+
 // ImageRemove removes an image by ID.
 func (c *Client) ImageRemove(ctx context.Context, id string) (string, error) {
 	return c.exec.Run(ctx, "docker", "image", "rm", id)
@@ -168,7 +186,10 @@ func (c *Client) ContainerRestart(ctx context.Context, id string) (string, error
 }
 
 // ContainerRemove removes a container.
-func (c *Client) ContainerRemove(ctx context.Context, id string) (string, error) {
+func (c *Client) ContainerRemove(ctx context.Context, id string, force bool) (string, error) {
+	if force {
+		return c.exec.Run(ctx, "docker", "rm", "-f", id)
+	}
 	return c.exec.Run(ctx, "docker", "rm", id)
 }
 
@@ -194,6 +215,11 @@ func (c *Client) NetworkRemove(ctx context.Context, id string) (string, error) {
 // VolumeList returns volumes in JSON format.
 func (c *Client) VolumeList(ctx context.Context) (string, error) {
 	return c.exec.Run(ctx, "docker", "volume", "ls", "--format", "json")
+}
+
+// VolumeInspect returns inspect output for a volume.
+func (c *Client) VolumeInspect(ctx context.Context, id string) (string, error) {
+	return c.exec.Run(ctx, "docker", "volume", "inspect", id)
 }
 
 // VolumeRemove removes a volume.

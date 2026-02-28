@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react"
+import { Fragment, useState, useEffect, useMemo } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { pb } from "@/lib/pb"
 import {
@@ -11,12 +11,22 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Trash2, MoreVertical, Eraser, ArrowUpDown } from "lucide-react"
+import { Trash2, MoreVertical, ArrowUpDown, Loader2, ChevronRight, ChevronDown, FolderOpen, ArrowUp, ArrowDown, Eraser } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { getApiErrorMessage } from "@/lib/api-error"
 
@@ -84,14 +94,35 @@ function parseVolumes(output: string): Volume[] {
     .filter(Boolean) as Volume[]
 }
 
+function shortVolumeName(name: string): string {
+  if (!name) return '-'
+  return name.length > 30 ? `${name.slice(0, 30)}…` : name
+}
+
+function normalizeContainerName(name: string): string {
+  if (!name) return '-'
+  return name.replace(/^\/+/, '')
+}
+
+function parentMountPath(path: string): string {
+  const normalized = (path || '/').replace(/\/+/g, '/')
+  if (normalized === '/' || normalized === '') return '/'
+  const trimmed = normalized.endsWith('/') && normalized.length > 1 ? normalized.slice(0, -1) : normalized
+  const index = trimmed.lastIndexOf('/')
+  if (index <= 0) return '/'
+  return trimmed.slice(0, index)
+}
+
 export function VolumesTab({
   serverId,
   refreshSignal = 0,
   onOpenContainerFilter,
+  onOpenVolumePath,
 }: {
   serverId: string
   refreshSignal?: number
   onOpenContainerFilter?: (volumeName: string, containerNames: string[]) => void
+  onOpenVolumePath?: (targetPath: string, lockedRootPath: string) => void
 }) {
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState("")
@@ -118,6 +149,11 @@ export function VolumesTab({
   const [pageSize, setPageSize] = useState<25 | 50 | 100>(loadGlobalPageSize)
   const [page, setPage] = useState(1)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [expandedVolume, setExpandedVolume] = useState<string | null>(null)
+  const [inspectMap, setInspectMap] = useState<Record<string, string>>({})
+  const [inspectLoadingMap, setInspectLoadingMap] = useState<Record<string, boolean>>({})
+  const [pendingRemoveVolume, setPendingRemoveVolume] = useState<string | null>(null)
+  const [pruneConfirmOpen, setPruneConfirmOpen] = useState(false)
 
   useEffect(() => {
     localStorage.setItem(VOLUMES_SORT_KEY, JSON.stringify({ key: sortKey, dir: sortDir }))
@@ -159,9 +195,13 @@ export function VolumesTab({
         for (const mount of mounts) {
           const mountedVolume = mount.Name
           if (mountedVolume && mapping[mountedVolume]) {
-            mapping[mountedVolume].push(containerName)
+            mapping[mountedVolume].push(normalizeContainerName(containerName))
           }
         }
+      }
+
+      for (const key of Object.keys(mapping)) {
+        mapping[key] = Array.from(new Set(mapping[key]))
       }
 
       return { volumes: nextVolumes, volumeContainers: mapping }
@@ -172,6 +212,19 @@ export function VolumesTab({
 
   const volumes = volumesData?.volumes || []
   const volumeContainers = volumesData?.volumeContainers || {}
+
+  const loadVolumeInspect = async (name: string) => {
+    if (!name || inspectMap[name] || inspectLoadingMap[name]) return
+    setInspectLoadingMap((state) => ({ ...state, [name]: true }))
+    try {
+      const res = await pb.send(`/api/ext/docker/volumes/${name}/inspect?server_id=${serverId}`, { method: "GET" })
+      setInspectMap((state) => ({ ...state, [name]: String(res.output || '') }))
+    } catch (err) {
+      setInspectMap((state) => ({ ...state, [name]: getApiErrorMessage(err, 'Failed to inspect volume') }))
+    } finally {
+      setInspectLoadingMap((state) => ({ ...state, [name]: false }))
+    }
+  }
 
   const removeVolume = async (name: string) => {
     try {
@@ -251,7 +304,13 @@ export function VolumesTab({
   const SortHead = ({ label, keyName }: { label: string; keyName: 'name' | 'driver' | 'mountpoint' | 'containers' }) => (
     <Button variant="ghost" size="sm" className="h-7 -ml-2 px-2 text-xs" onClick={() => toggleSort(keyName)}>
       {label}
-      <ArrowUpDown className="h-3 w-3 ml-1" />
+      {sortKey !== keyName ? (
+        <ArrowUpDown className="h-3 w-3 ml-1" />
+      ) : sortDir === 'asc' ? (
+        <ArrowUp className="h-3 w-3 ml-1" />
+      ) : (
+        <ArrowDown className="h-3 w-3 ml-1" />
+      )}
     </Button>
   )
 
@@ -271,10 +330,9 @@ export function VolumesTab({
           onChange={(e) => setFilter(e.target.value)}
         />
         <div className="flex-1" />
-        <Button variant="outline" size="sm" onClick={pruneVolumes}>
+        <Button variant="outline" size="sm" onClick={() => setPruneConfirmOpen(true)}>
           <Eraser className="h-4 w-4 mr-1" /> Prune unused
         </Button>
-
       </div>
       <div data-docker-scroll-root="true" className="h-0 flex-1 min-h-0 overflow-auto rounded-md border">
       <Table>
@@ -288,45 +346,99 @@ export function VolumesTab({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {paged.map((v) => (
-            <TableRow key={v.Name}>
-              <TableCell className="font-mono text-xs">{v.Name}</TableCell>
-              <TableCell className="text-xs">{v.Driver}</TableCell>
-              <TableCell className="font-mono text-xs truncate max-w-[300px]">
-                {v.Mountpoint}
-              </TableCell>
-              <TableCell className="text-xs">
-                {(volumeContainers[v.Name] || []).length > 0 ? (
-                  <Button
-                    variant="link"
-                    className="h-auto p-0 text-xs"
-                    onClick={() => onOpenContainerFilter?.(v.Name, volumeContainers[v.Name] || [])}
-                  >
-                    {(volumeContainers[v.Name] || []).length} container(s)
-                  </Button>
-                ) : (
-                  <span className="text-muted-foreground">0</span>
-                )}
-              </TableCell>
-              <TableCell>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-7 w-7">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onClick={() => removeVolume(v.Name)}
-                      className="text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" /> Remove
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+          {loading && (
+            <TableRow>
+              <TableCell colSpan={5} className="text-center text-muted-foreground">
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading...
+                </span>
               </TableCell>
             </TableRow>
-          ))}
+          )}
+          {paged.map((v) => {
+            const isExpanded = expandedVolume === v.Name
+            const linkedContainers = volumeContainers[v.Name] || []
+            return (
+              <Fragment key={v.Name}>
+                <TableRow>
+                  <TableCell className="font-mono text-xs">
+                    <Button
+                      variant="link"
+                      className="h-auto p-0 text-left font-mono text-xs gap-1"
+                      onClick={() => {
+                        setExpandedVolume((state) => {
+                          const next = state === v.Name ? null : v.Name
+                          if (next === v.Name) {
+                            void loadVolumeInspect(v.Name)
+                          }
+                          return next
+                        })
+                      }}
+                    >
+                      {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                      <span title={v.Name}>{shortVolumeName(v.Name)}</span>
+                    </Button>
+                  </TableCell>
+                  <TableCell className="text-xs">{v.Driver}</TableCell>
+                  <TableCell className="font-mono text-xs truncate max-w-[300px]">
+                    {v.Mountpoint}
+                  </TableCell>
+                  <TableCell className="text-xs">
+                    {linkedContainers.length > 0 ? (
+                      <Button
+                        variant="link"
+                        className="h-auto p-0 text-xs text-left"
+                        onClick={() => onOpenContainerFilter?.(v.Name, linkedContainers)}
+                        title={linkedContainers.join(', ')}
+                      >
+                        {linkedContainers.join(', ')}
+                      </Button>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => onOpenVolumePath?.(v.Mountpoint, parentMountPath(v.Mountpoint))}
+                        >
+                          <FolderOpen className="h-4 w-4 mr-2" /> Open in Files
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setPendingRemoveVolume(v.Name)}
+                          className="text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" /> Remove
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+                {isExpanded && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="bg-muted/20 px-4 py-3">
+                      {inspectLoadingMap[v.Name] ? (
+                        <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin" /> Loading inspect...
+                        </div>
+                      ) : (
+                        <pre className="text-xs font-mono bg-muted/40 rounded-md border p-3 overflow-auto max-h-[300px] whitespace-pre-wrap">
+                          {inspectMap[v.Name] || '(empty output)'}
+                        </pre>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </Fragment>
+            )
+          })}
           {!loading && sorted.length === 0 && (
             <TableRow>
               <TableCell colSpan={5} className="text-center text-muted-foreground">
@@ -364,6 +476,55 @@ export function VolumesTab({
           </Button>
         </div>
       </div>
+
+      <AlertDialog open={!!pendingRemoveVolume} onOpenChange={(open) => { if (!open) setPendingRemoveVolume(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove volume?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This operation is irreversible and may permanently delete data stored in the volume.
+              {pendingRemoveVolume ? `\nVolume: ${pendingRemoveVolume}` : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                const next = pendingRemoveVolume
+                setPendingRemoveVolume(null)
+                if (!next) return
+                void removeVolume(next)
+              }}
+            >
+              Delete volume
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={pruneConfirmOpen} onOpenChange={setPruneConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Prune unused volumes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove all local volumes not used by at least one container. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                setPruneConfirmOpen(false)
+                void pruneVolumes()
+              }}
+            >
+              Prune
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

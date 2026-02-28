@@ -163,3 +163,123 @@ func TestSFTPCopyStreamRequiresFields(t *testing.T) {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestServerPowerRequiresAuth(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doTerminal(t, http.MethodPost, "/api/ext/terminal/server/nonexistent/power", `{"action":"restart"}`, false)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestServerPowerRejectsInvalidAction(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doTerminal(t, http.MethodPost, "/api/ext/terminal/server/nonexistent/power", `{"action":"reboot-now"}`, true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSystemdStatusRejectsInvalidServiceName(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doTerminal(t, http.MethodGet, "/api/ext/terminal/server/nonexistent/systemd/bad$name/status", "", true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSystemdLogsRequiresAuth(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doTerminal(t, http.MethodGet, "/api/ext/terminal/server/nonexistent/systemd/ssh/logs", "", false)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSystemdContentRejectsInvalidServiceName(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doTerminal(t, http.MethodGet, "/api/ext/terminal/server/nonexistent/systemd/bad$name/content", "", true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSystemdActionRequiresAuth(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doTerminal(t, http.MethodPost, "/api/ext/terminal/server/nonexistent/systemd/ssh/action", `{"action":"restart"}`, false)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSystemdActionRejectsInvalidAction(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doTerminal(t, http.MethodPost, "/api/ext/terminal/server/nonexistent/systemd/ssh/action", `{"action":"reload"}`, true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSystemdUnitReadRequiresAuth(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doTerminal(t, http.MethodGet, "/api/ext/terminal/server/nonexistent/systemd/ssh/unit", "", false)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSystemdUnitWriteRejectsInvalidBody(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doTerminal(t, http.MethodPut, "/api/ext/terminal/server/nonexistent/systemd/ssh/unit", `{"content":`, true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSystemdUnitWriteRejectsEmptyContent(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doTerminal(t, http.MethodPut, "/api/ext/terminal/server/nonexistent/systemd/ssh/unit", `{"content":"   "}`, true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSystemdUnitVerifyRequiresAuth(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doTerminal(t, http.MethodPost, "/api/ext/terminal/server/nonexistent/systemd/ssh/unit/verify", "", false)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSystemdUnitApplyRequiresAuth(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doTerminal(t, http.MethodPost, "/api/ext/terminal/server/nonexistent/systemd/ssh/unit/apply", "", false)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d: %s", rec.Code, rec.Body.String())
+	}
+}

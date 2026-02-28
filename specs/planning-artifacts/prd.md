@@ -1,211 +1,133 @@
 ---
-stepsCompleted: ['complete']
-inputDocuments:
-  - /data/dev/websoft9/specs/planning-artifacts/product-brief.md
 workflowType: 'prd'
+workflow: 'edit'
 classification:
   projectType: 'Infrastructure Tool'
   domain: 'DevOps Tool'
   complexity: 'Medium'
+inputDocuments:
+  - /data/dev/appos/specs/planning-artifacts/prd.md
+stepsCompleted:
+  - step-e-01-discovery
+  - step-e-02-review
+  - step-e-03-edit
+lastEdited: '2026-02-28'
+editHistory:
+  - date: '2026-02-28'
+    changes: 'Restructured to BMAD minimal format and focused MVP on server resource operations and diagnostics.'
 ---
 
 # Product Requirements Document - websoft9
 
 **Author:** Websoft9  
-**Date:** 2026-02-04  
-**Version:** 1.0
+**Date:** 2026-02-28  
+**Version:** 1.1
 
-## Overview
+## Executive Summary
 
-websoft9 is a GitOps-driven application deployment platform for single-server scenarios. Target users: SMBs and developers without dedicated DevOps teams.
+websoft9 is a GitOps-driven deployment platform for single-server teams with limited DevOps capacity.  
+This PRD revision defines a minimal server resource capability set for operational reliability in constrained installation environments.  
+The MVP focuses on four user outcomes: server restart/stop actions, required runtime settings, environment pre-install, and system service diagnostics.  
+The document is intentionally concise and capability-oriented for downstream UX, architecture, and epic decomposition.
 
-**Core Value:** 300+ app store + GitOps + complete integration (reverse proxy, Git server, SSL, monitoring)
+## Success Criteria
 
----
+- Restart/stop operations complete successfully in ≥ 95% of attempts on supported systems.
+- 3 special server settings (Docker registry, Docker mirror, proxy) can be saved and applied with clear success/failure status in ≤ 30 seconds.
+- Pre-install tasks complete successfully in ≥ 90% of runs with explicit execution logs and exit status.
+- Users can locate a target system service and view recent logs within 10 seconds for common service names.
+- Failed operations return actionable error messages with a suggested next step.
+
+## Product Scope
+
+### MVP
+
+- Server lifecycle actions: restart and stop.
+- Server special settings: Docker registry address, Docker mirror address, proxy address.
+- Pre-install mechanism: online one-click script execution or AppOS push-and-run execution.
+- Service diagnostics: systemd service discovery and log viewing.
+
+### Growth (Post-MVP)
+
+- Scheduled pre-install jobs and templates.
+- Advanced service log filtering and export.
+- Fine-grained permission controls for server operations.
+
+### Out of Scope (This Revision)
+
+- Multi-server orchestration.
+- Cluster or Kubernetes management.
+- Full CI/CD workflow automation.
+
+## User Journeys
+
+### Journey 1: Execute Server Restart or Stop
+
+1. User selects a target server and chooses restart or stop.
+2. System requests confirmation before execution.
+3. System executes the operation and returns status.
+4. User sees success or failure with next-step guidance.
+
+### Journey 2: Configure Required Runtime Settings
+
+1. User opens server settings.
+2. User updates Docker registry, Docker mirror, and proxy addresses.
+3. System validates format and applies settings.
+4. User receives per-setting apply result.
+
+### Journey 3: Run Environment Pre-Install
+
+1. User chooses execution mode: online one-click script or AppOS push-and-run.
+2. User confirms execution target and starts task.
+3. System executes and streams progress.
+4. User receives completion state and run log summary.
+
+### Journey 4: Diagnose Services via systemd Logs
+
+1. User searches or browses systemd services.
+2. User selects a service.
+3. System shows recent logs.
+4. User narrows troubleshooting based on returned logs.
+
+## Project-Type Requirements
+
+- Single-server first: all flows must work without cluster dependencies.
+- GitOps aligned: configuration changes remain auditable and reproducible.
+- Technology-neutral presentation in public docs.
+- Safe operations: destructive actions require explicit confirmation.
 
 ## Functional Requirements
 
-### FR-1: Application Lifecycle Management
+### FR-1 Server Lifecycle
 
-- **FR-1.1** Browse and search application catalog
-- **FR-1.2** One-click deployment from docker-compose templates
-- **FR-1.3** Start/stop/restart applications
-- **FR-1.4** Soft delete (preserve data volumes)
-- **FR-1.5** Physical delete (complete cleanup of containers/networks/volumes)
-- **FR-1.6** Rebuild/redeploy applications
-- **FR-1.7** View real-time application logs
-- **FR-1.8** Manage application environment variables
+- Users can perform restart and stop actions for a managed server.
+- The system requires explicit confirmation before executing a lifecycle action.
+- The system returns operation state: pending, success, or failed.
 
-### FR-2: Configuration Version Management
+### FR-2 Special Server Settings
 
-- **FR-2.1** Edit docker-compose.yml files via web interface
-- **FR-2.2** Auto-save configuration versions with timestamps
-- **FR-2.3** View configuration change history (list of versions)
-- **FR-2.4** Manual deployment trigger (after config changes)
-- **FR-2.5** Compare differences between versions
-- **FR-2.6** One-click rollback to previous configurations
+- Users can configure Docker registry address.
+- Users can configure Docker mirror address.
+- Users can configure proxy address.
+- The system validates and persists each setting independently.
+- The system reports per-setting apply results.
 
-### FR-3: Network & SSL Management (External Reverse Proxy)
+### FR-3 Environment Pre-Install
 
-**Note**: Reverse proxy is an independent component, not part of the all-in-one container.
+- Users can run pre-install by online one-click script.
+- Users can run pre-install by AppOS push-and-run script.
+- The system records execution logs and final exit status for each run.
 
-- **FR-3.1** Reverse proxy configuration management (Nginx/Traefik/Caddy)
-- **FR-3.2** Domain binding to application containers
-- **FR-3.3** Automatic Let's Encrypt SSL certificates
-- **FR-3.4** Force HTTPS redirect
-- **FR-3.5** Custom SSL certificate upload support
-- **FR-3.6** Proxy configuration templates for common scenarios
+### FR-4 Service Discovery and Logs
 
-### FR-4: Monitoring & Observability
-
-- **FR-4.1** System resource monitoring (CPU, memory, disk, network)
-- **FR-4.2** Container resource usage monitoring
-- **FR-4.3** Application health status checks
-- **FR-4.4** Historical metrics data (minimum 7 days retention)
-- **FR-4.5** Real-time metric refresh (< 5 seconds)
-
-### FR-5: Server Management
-
-- **FR-5.1** Web terminal access via WebSocket (xterm.js)
-- **FR-5.2** Basic file operations (view, upload, download config files)
-- **FR-5.3** Docker service status viewing
-- **FR-5.4** System log viewing (backend logs, deployment logs)
-
-### FR-6: User Management
-
-- **FR-6.1** User authentication via PocketBase (self-hosted BaaS)
-- **FR-6.2** User registration and login
-- **FR-6.3** JWT-based session management
-- **FR-6.4** Password reset functionality
-- **FR-6.5** Basic RBAC (admin, user roles)
-
-### FR-7: Backup & Recovery
-
-- **FR-7.1** Manual backup trigger
-- **FR-7.2** Backup destination configuration (local, S3, FTP, etc.)
-- **FR-7.3** File/folder selection for backup
-- **FR-7.4** Backup encryption (AES-256)
-- **FR-7.5** Backup restoration interface
-- **FR-7.6** Backup history viewing
-
-### FR-8: API & CLI
-
-- **FR-8.1** RESTful API for application management
-- **FR-8.2** JWT-based authentication
-- **FR-8.3** CLI tool with API feature parity
-- **FR-8.4** OpenAPI/Swagger documentation
-- **FR-8.5** API response time < 200ms (P95)
-
----
+- Users can list and search systemd services on a managed server.
+- Users can open recent logs for a selected service.
+- The system supports basic time-range viewing for recent logs.
 
 ## Non-Functional Requirements
 
-### NFR-1: Performance
-
-- **NFR-1.1** System runs stably on 1C2G minimum configuration
-- **NFR-1.2** Support 50+ concurrent application instances
-- **NFR-1.3** Application deployment time < 2 minutes (average)
-- **NFR-1.4** Application start/stop operations < 5 seconds
-- **NFR-1.5** Domain + SSL setup < 30 seconds
-- **NFR-1.6** API response time < 200ms (P95)
-- **NFR-1.7** Web UI dashboard load time < 3 seconds
-
-### NFR-2: Reliability
-
-- **NFR-2.1** System availability > 99% (excluding planned maintenance)
-- **NFR-2.2** Application deployment success rate > 95%
-- **NFR-2.3** Critical services auto-restart on failure
-- **NFR-2.4** Application data persists through host reboots
-- **NFR-2.5** SSL certificates auto-renew 30 days before expiry
-- **NFR-2.6** No orphaned Docker resources after operations
-
-### NFR-3: Security
-
-- **NFR-3.1** All web interfaces enforce HTTPS/TLS 1.3
-- **NFR-3.2** Strong password requirements (8+ chars, mixed case, numbers)
-- **NFR-3.3** Session timeout after 30 minutes of inactivity
-- **NFR-3.4** Container network isolation
-- **NFR-3.5** Firewall pre-configured (only necessary ports open)
-- **NFR-3.6** Backup data encryption (AES-256)
-- **NFR-3.7** Secrets stored securely (not plain text)
-
-### NFR-4: Usability
-
-- **NFR-4.1** System installation completes in < 15 minutes
-- **NFR-4.2** First application deployment in < 2 minutes (new user)
-- **NFR-4.3** In-app help links and documentation
-- **NFR-4.4** Actionable error messages with suggested fixes
-- **NFR-4.5** Mobile responsive (tablet 1024px+ width)
-
-### NFR-5: Compatibility
-
-- **NFR-5.1** OS Support: Ubuntu 20.04+, Debian 11+, CentOS 8+/Rocky Linux 8+
-- **NFR-5.2** Docker 20.10+ (tested with 24.x)
-- **NFR-5.3** Browser Support: Chrome 90+, Firefox 88+, Edge 90+, Safari 14+
-
-### NFR-6: Maintainability
-
-- **NFR-6.1** Structured JSON logs for all services
-- **NFR-6.2** Health check endpoints for critical services
-- **NFR-6.3** One-command upgrade mechanism
-- **NFR-6.4** Backup/restore for disaster recovery
-- **NFR-6.5** Inline code documentation
-
-### NFR-7: Scalability (Single-Server Focus)
-
-- **NFR-7.1** Support 50+ installed applications per instance
-- **NFR-7.2** Support 20+ user accounts
-- **NFR-7.3** Handle 1TB+ of application data
-- **NFR-7.4** Support 100+ reverse proxy host configurations
-- **NFR-7.5** No horizontal scaling required (single-server optimization)
-
----
-
-## MVP Scope
-
-### Included in MVP
-
-All functional requirements (FR-1 through FR-8) and non-functional requirements (NFR-1 through NFR-7) listed above.
-
-### Explicitly Excluded from MVP
-
-- ❌ Application template management (separate project)
-- ❌ Permission hierarchy/RBAC (all users equal access)
-- ❌ Automated scheduled backups (manual only)
-- ❌ Multi-server/cluster support
-- ❌ Kubernetes integration
-- ❌ Advanced CI/CD pipelines
-- ❌ Advanced monitoring (distributed tracing, APM)
-- ❌ Web Application Firewall (WAF)
-
-### Post-MVP (Growth Features)
-
-**Priority 1 (3-6 months):**
-- Automated scheduled backups
-- Permission hierarchy (Admin/Developer/Viewer)
-- Webhook integration (auto-deploy on Git push)
-- Alert notifications (Email/Slack)
-
-**Priority 2 (6-12 months):**
-- Advanced monitoring (Grafana)
-- Log aggregation and search
-- Multi-language support
-- Plugin system
-
----
-
-## Success Metrics
-
-### User Success
-- Application deployment success rate > 95%
-- First deployment time < 2 minutes
-- User retention > 60% after 30 days
-
-### Business Success
-- 1,000+ active installations (6 months)
-- 5,000+ GitHub stars (12 months)
-
-### Technical Success
-- System availability > 99%
-- API response time < 200ms (P95)
-- Zero-downtime application deployments
+- Operation response: restart/stop command acknowledgement within 3 seconds.
+- Reliability: lifecycle and settings operations are idempotent for repeated submissions.
+- Observability: every operation stores timestamp, actor, target, and result.
+- Security: sensitive setting values are protected at rest and never fully exposed in UI.
+- Compatibility: MVP supports Ubuntu 20.04+, Debian 11+, and Rocky Linux 8+.

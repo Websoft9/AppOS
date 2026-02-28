@@ -1,8 +1,17 @@
 import { useState, useCallback } from "react"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { Badge } from "@/components/ui/badge"
-import { PlugZap, Loader2, Cable, Link as LinkIcon } from "lucide-react"
+import { PlugZap, Loader2, Cable, Link as LinkIcon, RotateCcw, Power } from "lucide-react"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 import {
   ResourcePage,
   type Column,
@@ -10,6 +19,7 @@ import {
 } from "@/components/resources/ResourcePage"
 import { TunnelSetupWizard } from "@/components/servers/TunnelSetupWizard"
 import { pb } from "@/lib/pb"
+import { checkServerStatus as pingServerStatus, serverPower } from "@/lib/connect-api"
 
 const fields: FieldDef[] = [
   {
@@ -93,6 +103,15 @@ function ServersPage() {
   const navigate = useNavigate()
   const [wizardServerId, setWizardServerId] = useState<string | null>(null)
   const [checkingIds, setCheckingIds] = useState<Set<string>>(new Set())
+  const [connectingOpen, setConnectingOpen] = useState(false)
+  const [connectingTarget, setConnectingTarget] = useState("")
+  const [connectingPhase, setConnectingPhase] = useState<"checking" | "offline">("checking")
+  const [connectingDetail, setConnectingDetail] = useState("")
+  const [powerDialogOpen, setPowerDialogOpen] = useState(false)
+  const [powerTarget, setPowerTarget] = useState<Record<string, unknown> | null>(null)
+  const [powerAction, setPowerAction] = useState<"restart" | "shutdown">("restart")
+  const [powerSubmitting, setPowerSubmitting] = useState(false)
+  const [powerError, setPowerError] = useState("")
   // Per-server ping results (overrides DB value in Status column)
   const [pingResults, setPingResults] = useState<Record<string, "online" | "offline">>({})
 
@@ -117,6 +136,58 @@ function ServersPage() {
       })
     }
   }, [])
+
+  const handleConnect = useCallback(async (item: Record<string, unknown>) => {
+    const id = String(item.id || "")
+    if (!id || connectingOpen) return
+    const label = String(item.name || item.host || id)
+
+    setConnectingTarget(label)
+    setConnectingPhase("checking")
+    setConnectingDetail("Running connectivity check...")
+    setConnectingOpen(true)
+
+    const status = await pingServerStatus({
+      id,
+      name: String(item.name || ""),
+      host: String(item.host || ""),
+      connect_type: String(item.connect_type || "direct"),
+    })
+
+    if (status.status === "offline") {
+      setConnectingPhase("offline")
+      setConnectingDetail(status.reason || "Server is offline.")
+      return
+    }
+
+    setConnectingOpen(false)
+    await navigate({ to: "/connect/server/$serverId", params: { serverId: id } })
+  }, [connectingOpen, navigate])
+
+  const handlePowerRequest = useCallback((item: Record<string, unknown>, action: "restart" | "shutdown") => {
+    setPowerTarget(item)
+    setPowerAction(action)
+    setPowerError("")
+    setPowerDialogOpen(true)
+  }, [])
+
+  const handlePowerConfirm = useCallback(async () => {
+    if (!powerTarget) return
+    const id = String(powerTarget.id || "")
+    if (!id) return
+    setPowerSubmitting(true)
+    setPowerError("")
+    try {
+      await serverPower(id, powerAction)
+      setPowerDialogOpen(false)
+      void checkServerStatus(powerTarget)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Operation failed"
+      setPowerError(message)
+    } finally {
+      setPowerSubmitting(false)
+    }
+  }, [checkServerStatus, powerAction, powerTarget])
 
   const columns: Column[] = [
     { key: "name", label: "Name" },
@@ -205,7 +276,7 @@ function ServersPage() {
     const isTunnel = item.connect_type === "tunnel"
     return (
       <>
-        <DropdownMenuItem onClick={() => { void navigate({ to: "/connect/server/$serverId", params: { serverId: id } }) }}>
+        <DropdownMenuItem onClick={() => { void handleConnect(item) }}>
           <LinkIcon className="h-4 w-4" />
           Connect
         </DropdownMenuItem>
@@ -219,9 +290,17 @@ function ServersPage() {
             Connect Setup
           </DropdownMenuItem>
         )}
+        <DropdownMenuItem onClick={() => handlePowerRequest(item, "restart")}>
+          <RotateCcw className="h-4 w-4" />
+          Restart
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => handlePowerRequest(item, "shutdown")}>
+          <Power className="h-4 w-4" />
+          Shutdown
+        </DropdownMenuItem>
       </>
     )
-  }, [checkingIds, checkServerStatus, navigate])
+  }, [checkingIds, checkServerStatus, handleConnect, handlePowerRequest])
 
   const refreshAllStatuses = useCallback(async ({
     items,
@@ -262,6 +341,51 @@ function ServersPage() {
           onClose={() => setWizardServerId(null)}
         />
       )}
+
+      <Dialog open={connectingOpen} onOpenChange={setConnectingOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Connecting...</DialogTitle>
+            <DialogDescription>
+              {connectingTarget ? `Target: ${connectingTarget}` : "Preparing connection"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2 text-sm">
+            {connectingPhase === "checking" ? (
+              <div className="inline-flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Running connectivity check...
+              </div>
+            ) : (
+              <div className="text-destructive">{connectingDetail}</div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConnectingOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={powerDialogOpen} onOpenChange={setPowerDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{powerAction === "restart" ? "Restart Server" : "Shutdown Server"}</DialogTitle>
+            <DialogDescription>
+              {powerTarget
+                ? `Target: ${String(powerTarget.name || powerTarget.host || powerTarget.id)}`
+                : "Confirm server operation"}
+            </DialogDescription>
+          </DialogHeader>
+          {powerError && <div className="text-sm text-destructive">{powerError}</div>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPowerDialogOpen(false)} disabled={powerSubmitting}>Cancel</Button>
+            <Button onClick={() => { void handlePowerConfirm() }} disabled={powerSubmitting}>
+              {powerSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

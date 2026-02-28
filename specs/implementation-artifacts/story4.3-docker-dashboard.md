@@ -84,9 +84,18 @@ pb.send('/api/ext/docker/volumes', { method: 'GET' })
 
 // Actions
 pb.send('/api/ext/docker/containers/{id}/stop', { method: 'POST' })
+pb.send('/api/ext/docker/containers/{id}?force=1', { method: 'DELETE' })  // force remove
 pb.send('/api/ext/docker/compose/up', { method: 'POST', body: { projectDir } })
 pb.send('/api/ext/docker/compose/logs', { method: 'GET', query: { projectDir, tail: 100 } })
 pb.send('/api/ext/docker/compose/config', { method: 'GET', query: { projectDir } })
+
+// Inspect
+pb.send('/api/ext/docker/images/{id}/inspect', { method: 'GET' })
+pb.send('/api/ext/docker/volumes/{id}/inspect', { method: 'GET' })
+
+// Registry
+pb.send('/api/ext/docker/images/registry/status', { method: 'GET' })   // Docker Hub reachability
+pb.send('/api/ext/docker/images/registry/search?q=&limit=', { method: 'GET' })  // search, limit≤100
 ```
 
 ### Files to Create
@@ -130,3 +139,19 @@ pb.send('/api/ext/docker/compose/config', { method: 'GET', query: { projectDir }
 - Dialog sizes: compose logs use `full` tier (`max-w-[90vw]`), command runner uses `lg` tier (`max-w-4xl`)
 - All tabs independently manage their own `host` state and display host column
 - `docker compose ls` response parsed as JSON array (not NDJSON like other docker commands)
+
+**Code Review Fixes (2026-session):**
+- ContainersTab: CPU% sort 改用 `parseFloat`，Memory sort 改用 `memoryTextToBytes` 字节比较
+- ContainersTab: 新增 lazy inspect/stats、force-remove checkbox、AlertDialog 确认、port 列、meta 列 toggle
+- ContainersTab: 批量加载进度条动画；running 状态下 Start 按钮禁用
+- ImagesTab: batch delete 改用 `Promise.allSettled` + 部分失败报告（原 `Promise.all` 单个失败导致全部报错）
+- ImagesTab: prune 改为真实 API 调用（原为 mock `alert()`）
+- ImagesTab: registry search + pull dialog（含连通性检查 → 搜索列表 + Official 标记 → pull 日志）
+- ImagesTab: used/unused 过滤器（交叉引用运行容器判定占用状态）
+- ImagesTab: 行展开显示 inspect JSON
+- VolumesTab: 恢复 prune 按钮 + AlertDialog 确认 + 真实后端调用
+- VolumesTab: `parentMountPath` 从组件体内移至模块级（避免每次 render 重建）
+- VolumesTab: volume inspect、volume→files 跨面板导航
+- ComposeTab: container name 可点击跳转 Containers tab；项目容器首次展开时懒加载
+- VolumesTab: 容器列显示去重后的实际容器名（替代原 "N container(s)" 计数）
+- 所有 tab: sort 方向指示器 (ArrowUp/ArrowDown)；加载中显示 Loader2 旋转图标

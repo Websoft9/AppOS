@@ -47,6 +47,9 @@ All routes under `/api/ext/docker/`. All list responses include `host` field ide
 | POST | `/images/pull` | `docker pull <name:tag>` |
 | DELETE | `/images/{id...}` | `docker image rm` (wildcard for `sha256:` prefix) |
 | POST | `/images/prune` | `docker image prune -f` |
+| GET | `/images/inspect/{id...}` | `docker image inspect` |
+| GET | `/images/registry/search` | `docker search` (limit capped at 100) |
+| GET | `/images/registry/status` | Registry connectivity check |
 
 ### Containers
 
@@ -57,7 +60,7 @@ All routes under `/api/ext/docker/`. All list responses include `host` field ide
 | POST | `/containers/:id/start` | `docker start` |
 | POST | `/containers/:id/stop` | `docker stop` |
 | POST | `/containers/:id/restart` | `docker restart` |
-| DELETE | `/containers/:id` | `docker rm` |
+| DELETE | `/containers/:id` | `docker rm` (query: `force=true` for force remove) |
 
 ### Networks
 
@@ -74,6 +77,7 @@ All routes under `/api/ext/docker/`. All list responses include `host` field ide
 | GET | `/volumes` | `docker volume ls --format json` |
 | DELETE | `/volumes/:id` | `docker volume rm` |
 | POST | `/volumes/prune` | `docker volume prune -f` |
+| GET | `/volumes/inspect/:id` | `docker volume inspect` |
 
 ### Command Execution
 

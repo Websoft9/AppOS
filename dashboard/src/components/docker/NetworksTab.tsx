@@ -16,7 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Trash2, MoreVertical, Plus, ArrowUpDown } from "lucide-react"
+import { Trash2, MoreVertical, Plus, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { getApiErrorMessage } from "@/lib/api-error"
 
@@ -188,7 +188,13 @@ export function NetworksTab({ serverId, refreshSignal = 0 }: { serverId: string;
   const SortHead = ({ label, keyName }: { label: string; keyName: 'name' | 'id' | 'driver' | 'scope' }) => (
     <Button variant="ghost" size="sm" className="h-7 -ml-2 px-2 text-xs" onClick={() => toggleSort(keyName)}>
       {label}
-      <ArrowUpDown className="h-3 w-3 ml-1" />
+      {sortKey !== keyName ? (
+        <ArrowUpDown className="h-3 w-3 ml-1" />
+      ) : sortDir === 'asc' ? (
+        <ArrowUp className="h-3 w-3 ml-1" />
+      ) : (
+        <ArrowDown className="h-3 w-3 ml-1" />
+      )}
     </Button>
   )
 
@@ -233,6 +239,16 @@ export function NetworksTab({ serverId, refreshSignal = 0 }: { serverId: string;
           </TableRow>
         </TableHeader>
         <TableBody>
+          {loading && (
+            <TableRow>
+              <TableCell colSpan={5} className="text-center text-muted-foreground">
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading...
+                </span>
+              </TableCell>
+            </TableRow>
+          )}
           {paged.map((n) => (
             <TableRow key={n.ID}>
               <TableCell className="font-mono text-xs">{n.Name}</TableCell>

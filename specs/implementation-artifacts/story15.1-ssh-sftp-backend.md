@@ -1,6 +1,6 @@
 # Story 15.1: SSH + SFTP Backend
 
-**Epic**: Epic 15 – Connect: Terminal & File Manager
+**Epic**: Epic 15 – Connect: Terminal Ops
 **Status**: Complete | **Priority**: P1 | **Depends on**: Epic 1, 3, 8
 
 ---
@@ -189,3 +189,5 @@ backend/internal/routes/routes.go                       # registerTerminalRoutes
 - Session: `registeredSession` 增加 `done chan struct{}`，`Unregister` 时关闭，idle goroutine 立即退出
 - 移除未使用的 `creack/pty` import 和 `io.Discard` 占位
 - CORS `CheckOrigin` 添加注释说明
+- SSH Host Key 验证：新增 `sshHostKeyCallback()` + `sync.Once` 进程级缓存；优先读 `~/.ssh/known_hosts` 或 `/etc/ssh/ssh_known_hosts`；无 known_hosts 时默认 `InsecureIgnoreHostKey`（与 WS 终端一致）；设 `APPOS_REQUIRE_SSH_HOST_KEY=1` 启用严格模式
+- `isExpectedPowerDisconnect()`: 仅匹配 "connection reset"、"broken pipe"、"closed network connection"（移除过宽的 "eof" 和 "connection refused"）

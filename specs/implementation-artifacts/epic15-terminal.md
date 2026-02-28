@@ -1,10 +1,10 @@
-# Epic 15: Connect – Terminal & File Manager
+# Epic 15: Connect – Terminal Ops
 
 **Module**: Connect (Part 1) | **Status**: Complete | **Priority**: P1 | **Depends on**: Epic 1, 3, 8
 
 ## Overview
 
-Browser-based server access via SSH + SFTP in a unified interface, plus Docker container terminal. Credentials are sourced exclusively from the Resource Store (`servers` collection); no credential duplication.
+Browser-based server operations with a unified Connect workspace: terminal command execution, SFTP file management, and Docker container terminal. Credentials are sourced exclusively from the Resource Store (`servers` collection); no credential duplication.
 
 ---
 
@@ -205,9 +205,10 @@ Docker exec entry: Docker page → container row action → Dialog with `<Termin
 | Story | Title | Key Deliverables |
 |-------|-------|-----------------|
 | 15.1 | SSH + SFTP backend | `connector.go` interface, `ssh.go`, `sftp.go`, all routes, audit log |
-| 15.2 | Terminal & File Manager UI | `<TerminalPanel>`, `<FileManagerPanel>`, server selector, reconnect, hidden file toggle |
-| 15.3 | Docker exec | `docker_exec.go`, `<TerminalPanel>` container mode, Docker page integration |
-| 15.4 | Terminal & File Manager enhancements | SFTP advanced ops, batch upload limits, share parity with Space, docker terminal shell strategy + connection fix |
+| 15.2 | Terminal UI | `<TerminalPanel>`, server selector, reconnect, unified terminal workspace shell execution |
+| 15.3 | Docker Terminal | `docker_exec.go`, `<TerminalPanel>` container mode, shell strategy, connection stability |
+| 15.4 | SFTP Enhancements | file properties/symlink/copy-move progress, upload limits, share parity with Space |
+| 15.5 | Server Ops | server list restart/shutdown actions, Terminal systemd dialog, service status/log APIs |
 
 | Story | Status |
 |-------|--------|
@@ -215,3 +216,4 @@ Docker exec entry: Docker page → container row action → Dialog with `<Termin
 | 15.2 | ✅ Complete |
 | 15.3 | ✅ Complete |
 | 15.4 | 🟡 Ready for Dev |
+| 15.5 | ⚪ Draft |

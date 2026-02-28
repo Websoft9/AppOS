@@ -26,9 +26,10 @@ interface HostEntry {
 interface DockerPanelProps {
   serverId: string
   className?: string
+  onOpenFilesAtPath?: (targetPath: string, lockedRootPath: string) => void
 }
 
-export function DockerPanel({ serverId, className }: DockerPanelProps) {
+export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPanelProps) {
   const queryClient = useQueryClient()
   const rootRef = useRef<HTMLDivElement | null>(null)
   const [hosts, setHosts] = useState<HostEntry[]>([])
@@ -184,6 +185,9 @@ export function DockerPanel({ serverId, className }: DockerPanelProps) {
               setContainerFilterNames(containerNames)
               setActiveTab('containers')
             }}
+            onOpenVolumePath={(targetPath, lockedRootPath) => {
+              onOpenFilesAtPath?.(targetPath, lockedRootPath)
+            }}
           />
         </TabsContent>
         <TabsContent value="networks" className="mt-0 h-0 flex-1 min-h-0 min-w-0 overflow-hidden">
@@ -194,6 +198,12 @@ export function DockerPanel({ serverId, className }: DockerPanelProps) {
             serverId={serverId}
             filterPreset={composeFilter}
             onClearFilterPreset={() => setComposeFilter('')}
+            onOpenContainerFilter={(containerName) => {
+              if (!containerName) return
+              setContainerFilter(containerName)
+              setContainerFilterNames([])
+              setActiveTab('containers')
+            }}
           />
         </TabsContent>
       </Tabs>

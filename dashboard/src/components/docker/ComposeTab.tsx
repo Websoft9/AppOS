@@ -40,6 +40,7 @@ import {
   ArrowUpDown,
   Copy,
   Download,
+  Loader2,
 } from "lucide-react"
 import { getApiErrorMessage } from "@/lib/api-error"
 
@@ -120,16 +121,21 @@ export function ComposeTab({
   serverId,
   filterPreset,
   onClearFilterPreset,
+  onOpenContainerFilter,
 }: {
   serverId: string
   filterPreset?: string
   onClearFilterPreset?: () => void
+  onOpenContainerFilter?: (containerName: string) => void
 }) {
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState("")
   const [expandedProject, setExpandedProject] = useState<string | null>(null)
   const [inlineConfig, setInlineConfig] = useState<Record<string, string>>({})
   const [inlineConfigLoading, setInlineConfigLoading] = useState<Record<string, boolean>>({})
+  const [projectContainers, setProjectContainers] = useState<Record<string, Container[]>>({})
+  const [projectContainersLoading, setProjectContainersLoading] = useState<Record<string, boolean>>({})
+  const [projectContainersHydrated, setProjectContainersHydrated] = useState(false)
   const [sortKey, setSortKey] = useState<'project' | 'status' | 'config'>(() => {
     try {
       const raw = localStorage.getItem(COMPOSE_SORT_KEY)
@@ -183,16 +189,44 @@ export function ComposeTab({
   const [configSaving, setConfigSaving] = useState(false)
 
   const {
-    data: composeData,
+    data: projects = [],
     isLoading: loading,
-    isFetching: composeFetching,
     error,
-  } = useQuery<{ projects: ComposeProject[]; projectContainers: Record<string, Container[]> }>({
+  } = useQuery<ComposeProject[]>({
     queryKey: ['docker', 'compose', serverId],
     queryFn: async () => {
       const res = await pb.send(`/api/ext/docker/compose/ls?server_id=${serverId}`, { method: "GET" })
-      const projectList = parseProjects(res.output)
+      return parseProjects(res.output)
+    },
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+    refetchOnMount: false,
+  })
 
+  useEffect(() => {
+    setProjectContainers({})
+    setProjectContainersLoading({})
+    setProjectContainersHydrated(false)
+  }, [serverId])
+
+  const hasProjectContainerLoading = useMemo(
+    () => Object.values(projectContainersLoading).some(Boolean),
+    [projectContainersLoading],
+  )
+
+  const loadProjectContainers = useCallback(async (projectName: string) => {
+    if (projectContainersHydrated || projectContainersLoading[projectName]) {
+      return
+    }
+
+    setProjectContainersLoading(() => {
+      const next: Record<string, boolean> = {}
+      for (const project of projects) {
+        next[project.Name] = true
+      }
+      return next
+    })
+    try {
       const containersRes = await pb.send(`/api/ext/docker/containers?server_id=${serverId}`, { method: "GET" })
       const containers = parseContainers(containersRes.output)
       const inspectEntries = await Promise.all(
@@ -206,26 +240,54 @@ export function ComposeTab({
         }),
       )
 
-      const nextMap: Record<string, Container[]> = {}
-      for (const project of projectList) nextMap[project.Name] = []
+      const grouped: Record<string, Container[]> = {}
+      for (const project of projects) {
+        grouped[project.Name] = []
+      }
       for (const [container, inspect] of inspectEntries) {
         const labels = inspect?.Config?.Labels as Record<string, string> | undefined
         const composeProject = labels?.['com.docker.compose.project']
         if (!composeProject) continue
-        if (!nextMap[composeProject]) nextMap[composeProject] = []
-        nextMap[composeProject].push(container)
+        if (!grouped[composeProject]) grouped[composeProject] = []
+        grouped[composeProject].push(container)
       }
 
-      return { projects: projectList, projectContainers: nextMap }
-    },
-    staleTime: 60_000,
-    gcTime: 5 * 60_000,
-    refetchOnMount: false,
-  })
+      if (!grouped[projectName]) {
+        grouped[projectName] = []
+      }
+      setProjectContainers(grouped)
+      setProjectContainersHydrated(true)
+    } finally {
+      setProjectContainersLoading((state) => {
+        const next = { ...state }
+        for (const key of Object.keys(next)) {
+          next[key] = false
+        }
+        return next
+      })
+    }
+  }, [projectContainersHydrated, projectContainersLoading, projects, serverId])
 
-  const projects = composeData?.projects || []
-  const projectContainers = composeData?.projectContainers || {}
-  const projectContainersLoading = composeFetching && !composeData
+  useEffect(() => {
+    if (!projectContainersHydrated || projects.length === 0) return
+    setProjectContainers((state) => {
+      const next = { ...state }
+      for (const project of projects) {
+        if (!next[project.Name]) next[project.Name] = []
+      }
+      return next
+    })
+  }, [projectContainersHydrated, projects])
+
+  const toggleProjectDetail = useCallback((projectName: string) => {
+    setExpandedProject((name) => {
+      if (name === projectName) return null
+      if (!projectContainersHydrated) {
+        void loadProjectContainers(projectName)
+      }
+      return projectName
+    })
+  }, [loadProjectContainers, projectContainersHydrated])
 
   // ── Compose Actions ──
 
@@ -240,6 +302,9 @@ export function ComposeTab({
         method,
         body: { projectDir },
       })
+      setProjectContainers({})
+      setProjectContainersLoading({})
+      setProjectContainersHydrated(false)
       await queryClient.invalidateQueries({ queryKey: ['docker', 'compose', serverId] })
     } catch (err) {
       setActionError(getApiErrorMessage(err, `Compose ${action} failed`))
@@ -412,7 +477,13 @@ export function ComposeTab({
   const SortHead = ({ label, keyName }: { label: string; keyName: 'project' | 'status' | 'config' }) => (
     <Button variant="ghost" size="sm" className="h-7 -ml-2 px-2 text-xs" onClick={() => toggleSort(keyName)}>
       {label}
-      <ArrowUpDown className="h-3 w-3 ml-1" />
+      {sortKey !== keyName ? (
+        <ArrowUpDown className="h-3 w-3 ml-1" />
+      ) : sortDir === 'asc' ? (
+        <ArrowUp className="h-3 w-3 ml-1" />
+      ) : (
+        <ArrowDown className="h-3 w-3 ml-1" />
+      )}
     </Button>
   )
 
@@ -450,7 +521,7 @@ export function ComposeTab({
       </div>
       <div className="flex items-center gap-2 flex-wrap shrink-0">
         {filterPreset && <Badge variant="outline">Linked project: {filterPreset}</Badge>}
-        {projectContainersLoading && <Badge variant="outline">Loading project containers...</Badge>}
+        {hasProjectContainerLoading && <Badge variant="outline">Loading project containers...</Badge>}
       </div>
 
       <div data-docker-scroll-root="true" className="h-0 flex-1 min-h-0 overflow-auto rounded-md border">
@@ -464,6 +535,16 @@ export function ComposeTab({
           </TableRow>
         </TableHeader>
         <TableBody>
+          {loading && (
+            <TableRow>
+              <TableCell colSpan={4} className="text-center text-muted-foreground">
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading...
+                </span>
+              </TableCell>
+            </TableRow>
+          )}
           {paged.map((p) => {
             const dir = p.ConfigFiles
               ? p.ConfigFiles.split(",")[0].replace(/\/[^/]+$/, "")
@@ -475,7 +556,7 @@ export function ComposeTab({
                     <Button
                       variant="link"
                       className="h-auto p-0 text-left font-mono text-xs gap-1"
-                      onClick={() => setExpandedProject((name) => (name === p.Name ? null : p.Name))}
+                      onClick={() => toggleProjectDetail(p.Name)}
                     >
                       {expandedProject === p.Name ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                       {p.Name}
@@ -492,6 +573,7 @@ export function ComposeTab({
                       className="h-auto p-0 text-xs font-mono"
                       onClick={() => {
                         setExpandedProject(p.Name)
+                        void loadProjectContainers(p.Name)
                         void openInlineConfig(p.Name, dir)
                       }}
                     >
@@ -556,13 +638,19 @@ export function ComposeTab({
                         <div className="text-sm font-medium">Compose Project Details</div>
                         <div>
                           <div className="text-xs font-medium text-muted-foreground mb-2">Containers</div>
-                          {projectContainersLoading || !(p.Name in projectContainers) ? (
+                          {projectContainersLoading[p.Name] || (!projectContainersHydrated && !(p.Name in projectContainers)) ? (
                             <div className="text-xs text-muted-foreground">Loading containers...</div>
                           ) : (projectContainers[p.Name] || []).length > 0 ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                               {(projectContainers[p.Name] || []).map((container) => (
                                 <div key={container.ID} className="rounded-md border bg-muted/20 p-3 text-xs">
-                                  <div className="font-mono">{container.Names}</div>
+                                  <Button
+                                    variant="link"
+                                    className="h-auto p-0 font-mono text-xs"
+                                    onClick={() => onOpenContainerFilter?.(container.Names)}
+                                  >
+                                    {container.Names}
+                                  </Button>
                                   <div className="text-muted-foreground">{container.Image}</div>
                                   <div className="text-muted-foreground">{container.Status}</div>
                                 </div>

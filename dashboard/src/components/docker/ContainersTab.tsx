@@ -13,6 +13,17 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { getApiErrorMessage } from "@/lib/api-error"
 import {
@@ -21,7 +32,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Play, Square, RotateCw, Trash2, MoreVertical, TerminalSquare, ScrollText, ChevronRight, ChevronDown, ArrowUpDown, Copy, Download } from "lucide-react"
+import { Play, Square, RotateCw, Trash2, MoreVertical, TerminalSquare, ScrollText, ChevronRight, ChevronDown, ArrowUpDown, ArrowUp, ArrowDown, Copy, Download, Loader2, Eye, EyeOff } from "lucide-react"
 
 const CONTAINERS_SORT_KEY = 'docker.containers.sort'
 const DOCKER_PAGE_SIZE_KEY = 'docker.list.page_size'
@@ -42,6 +53,7 @@ interface Container {
   Image: string
   State: string
   Status: string
+  Ports?: string
   RunningFor?: string
 }
 
@@ -90,6 +102,66 @@ function shortName(name: string): string {
 function memUsed(memUsage?: string): string {
   if (!memUsage) return "-"
   return memUsage.split("/")[0]?.trim() || memUsage
+}
+
+function memoryTextToBytes(raw?: string): number {
+  if (!raw) return 0
+  const value = raw.trim()
+  const matched = value.match(/^([0-9]+(?:\.[0-9]+)?)\s*([a-zA-Z]+)?$/)
+  if (!matched) return 0
+
+  const numeric = Number(matched[1])
+  if (!Number.isFinite(numeric)) return 0
+  const unit = String(matched[2] || 'B').toUpperCase()
+
+  const base1024: Record<string, number> = {
+    B: 1,
+    KI: 1024,
+    KIB: 1024,
+    MI: 1024 ** 2,
+    MIB: 1024 ** 2,
+    GI: 1024 ** 3,
+    GIB: 1024 ** 3,
+    TI: 1024 ** 4,
+    TIB: 1024 ** 4,
+  }
+  const base1000: Record<string, number> = {
+    KB: 1000,
+    MB: 1000 ** 2,
+    GB: 1000 ** 3,
+    TB: 1000 ** 4,
+  }
+
+  if (base1024[unit]) return numeric * base1024[unit]
+  if (base1000[unit]) return numeric * base1000[unit]
+  if (unit === 'K') return numeric * 1000
+  if (unit === 'M') return numeric * 1000 ** 2
+  if (unit === 'G') return numeric * 1000 ** 3
+  if (unit === 'T') return numeric * 1000 ** 4
+  return numeric
+}
+
+function memUsageBytes(memUsage?: string): number {
+  if (!memUsage) return 0
+  const used = memUsage.split('/')[0]?.trim() || ''
+  return memoryTextToBytes(used)
+}
+
+function hostPublishedPorts(rawPorts?: string): string {
+  if (!rawPorts) return "-"
+  const values = rawPorts
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.includes("->"))
+    .map((item) => item.split("->")[0]?.trim())
+    .map((left) => {
+      if (!left) return ''
+      const match = left.match(/:(\d+)$/)
+      return match?.[1] || ''
+    })
+    .filter(Boolean)
+  if (values.length === 0) return "-"
+  return Array.from(new Set(values)).join(", ")
 }
 
 function parseInspect(output: string): Record<string, any> | null {
@@ -150,7 +222,7 @@ function statusBadge(state: string) {
   return <Badge variant={variant}>{state}</Badge>
 }
 
-type SortKey = 'name' | 'state' | 'created' | 'status' | 'cpu' | 'mem' | 'compose'
+type SortKey = 'name' | 'state' | 'port' | 'created' | 'status' | 'cpu' | 'mem' | 'compose'
 
 export function ContainersTab({
   serverId,
@@ -169,6 +241,12 @@ export function ContainersTab({
   onClearIncludeNames?: () => void
   onOpenComposeFilter?: (composeName: string) => void
 }) {
+  type PendingAction = {
+    container: Container
+    action: 'stop' | 'restart' | 'remove'
+    force?: boolean
+  }
+
   const queryClient = useQueryClient()
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [logsContainer, setLogsContainer] = useState<Container | null>(null)
@@ -199,8 +277,17 @@ export function ContainersTab({
       return 'asc'
     }
   })
+  const [showMetaColumns, setShowMetaColumns] = useState(false)
   const [copiedTip, setCopiedTip] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
+  const [inspectMap, setInspectMap] = useState<Record<string, Record<string, any>>>({})
+  const [statsMap, setStatsMap] = useState<Record<string, ContainerStats>>({})
+  const [detailsLoadingMap, setDetailsLoadingMap] = useState<Record<string, boolean>>({})
+  const [allDetailsLoading, setAllDetailsLoading] = useState(false)
+  const [allDetailsCached, setAllDetailsCached] = useState(false)
+  const [detailsErrorMessage, setDetailsErrorMessage] = useState<string | null>(null)
+  const [fakeLoadingProgress, setFakeLoadingProgress] = useState(0)
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
 
   useEffect(() => {
     localStorage.setItem(CONTAINERS_SORT_KEY, JSON.stringify({ key: sortKey, dir: sortDir }))
@@ -231,14 +318,50 @@ export function ContainersTab({
   })
 
   const containerIdsKey = useMemo(() => containers.map((c) => c.ID).join(','), [containers])
-  const {
-    data: detailsData,
-    isFetching: detailsFetching,
-    error: detailsError,
-  } = useQuery<{ statsMap: Record<string, ContainerStats>; inspectMap: Record<string, Record<string, any>> }>({
-    queryKey: ['docker', 'containers', 'details', serverId, containerIdsKey],
-    enabled: containers.length > 0,
-    queryFn: async () => {
+
+  useEffect(() => {
+    const idSet = new Set(containers.map((container) => container.ID))
+    setInspectMap((state) => {
+      const next: Record<string, Record<string, any>> = {}
+      for (const [id, inspect] of Object.entries(state)) {
+        if (idSet.has(id)) next[id] = inspect
+      }
+      return next
+    })
+    setStatsMap((state) => {
+      const next: Record<string, ContainerStats> = {}
+      for (const [id, stats] of Object.entries(state)) {
+        if (idSet.has(id)) next[id] = stats
+      }
+      return next
+    })
+    setAllDetailsCached(false)
+    setDetailsErrorMessage(null)
+  }, [containerIdsKey])
+
+  const loadInspectForContainer = useCallback(async (containerId: string) => {
+    if (!containerId || inspectMap[containerId] || detailsLoadingMap[containerId]) return
+
+    setDetailsLoadingMap((state) => ({ ...state, [containerId]: true }))
+    try {
+      const inspectRes = await pb.send(`/api/ext/docker/containers/${containerId}?server_id=${serverId}`, { method: "GET" })
+      const inspect = parseInspect(inspectRes.output)
+      if (inspect) {
+        setInspectMap((state) => ({ ...state, [containerId]: inspect }))
+      }
+    } catch (err) {
+      setDetailsErrorMessage(getApiErrorMessage(err, 'Failed to load container details'))
+    } finally {
+      setDetailsLoadingMap((state) => ({ ...state, [containerId]: false }))
+    }
+  }, [detailsLoadingMap, inspectMap, serverId])
+
+  const loadAllDetails = useCallback(async () => {
+    if (containers.length === 0 || allDetailsLoading || allDetailsCached) return
+
+    setAllDetailsLoading(true)
+    setDetailsErrorMessage(null)
+    try {
       const statsRes = await pb.send(`/api/ext/docker/containers/stats?server_id=${serverId}`, { method: "GET" })
       const parsedStats = parseContainerStats(statsRes.output)
       const nextStats: Record<string, ContainerStats> = {}
@@ -262,29 +385,65 @@ export function ContainersTab({
         if (inspect) nextInspect[id] = inspect
       }
 
-      return { statsMap: nextStats, inspectMap: nextInspect }
-    },
-    staleTime: 60_000,
-    gcTime: 5 * 60_000,
-    refetchOnMount: false,
-  })
+      setStatsMap((state) => ({ ...state, ...nextStats }))
+      setInspectMap((state) => ({ ...state, ...nextInspect }))
+      setAllDetailsCached(true)
+    } catch (err) {
+      setDetailsErrorMessage(getApiErrorMessage(err, 'Failed to load container details'))
+    } finally {
+      setAllDetailsLoading(false)
+    }
+  }, [allDetailsCached, allDetailsLoading, containers, serverId])
 
-  const statsMap = detailsData?.statsMap || {}
-  const inspectMap = detailsData?.inspectMap || {}
-  const detailsLoading = detailsFetching && !detailsData
+  useEffect(() => {
+    if (!showMetaColumns) return
+    void loadAllDetails()
+  }, [loadAllDetails, showMetaColumns])
 
-  const action = async (id: string, act: string) => {
+  useEffect(() => {
+    if (!allDetailsLoading) {
+      if (fakeLoadingProgress > 0 && fakeLoadingProgress < 100) {
+        setFakeLoadingProgress(100)
+        const doneTimer = window.setTimeout(() => setFakeLoadingProgress(0), 260)
+        return () => window.clearTimeout(doneTimer)
+      }
+      return
+    }
+
+    setFakeLoadingProgress(8)
+    const timer = window.setInterval(() => {
+      setFakeLoadingProgress((value) => {
+        if (value >= 92) return value
+        const increment = Math.max(1, Math.round((100 - value) * 0.08))
+        return Math.min(92, value + increment)
+      })
+    }, 180)
+
+    return () => window.clearInterval(timer)
+  }, [allDetailsLoading])
+
+  useEffect(() => {
+    if (showMetaColumns) return
+    if (sortKey === 'created' || sortKey === 'cpu' || sortKey === 'mem' || sortKey === 'compose') {
+      setSortKey('name')
+      setSortDir('asc')
+    }
+  }, [showMetaColumns, sortKey])
+
+  const action = async (id: string, act: string, options?: { force?: boolean }) => {
     try {
       setActionError(null)
       if (act === "remove") {
-        await pb.send(`/api/ext/docker/containers/${id}?server_id=${serverId}`, { method: "DELETE" })
+        const force = options?.force ? '&force=1' : ''
+        await pb.send(`/api/ext/docker/containers/${id}?server_id=${serverId}${force}`, { method: "DELETE" })
       } else {
         await pb.send(`/api/ext/docker/containers/${id}/${act}?server_id=${serverId}`, { method: "POST" })
       }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['docker', 'containers', serverId] }),
-        queryClient.invalidateQueries({ queryKey: ['docker', 'containers', 'details', serverId] }),
       ])
+      setAllDetailsCached(false)
+      setDetailsErrorMessage(null)
     } catch (err) {
       setActionError(getApiErrorMessage(err, `Failed to ${act} container`))
     }
@@ -359,13 +518,28 @@ export function ContainersTab({
       const leftStats = statsMap[left.ID]
       const rightStats = statsMap[right.ID]
 
+      if (sortKey === 'mem') {
+        const leftMem = memUsageBytes(leftStats?.MemUsage)
+        const rightMem = memUsageBytes(rightStats?.MemUsage)
+        if (leftMem < rightMem) return sortDir === 'asc' ? -1 : 1
+        if (leftMem > rightMem) return sortDir === 'asc' ? 1 : -1
+        return 0
+      }
+
+      if (sortKey === 'cpu') {
+        const leftCpu = parseFloat(leftStats?.CPUPerc || '0')
+        const rightCpu = parseFloat(rightStats?.CPUPerc || '0')
+        if (leftCpu < rightCpu) return sortDir === 'asc' ? -1 : 1
+        if (leftCpu > rightCpu) return sortDir === 'asc' ? 1 : -1
+        return 0
+      }
+
       const leftValue = (() => {
         switch (sortKey) {
           case 'state': return left.State
+          case 'port': return hostPublishedPorts(left.Ports)
           case 'created': return String(leftInspect?.Created || '')
           case 'status': return left.Status
-          case 'cpu': return leftStats?.CPUPerc || ''
-          case 'mem': return memUsed(leftStats?.MemUsage)
           case 'compose': return composeName(leftInspect)
           default: return left.Names
         }
@@ -374,10 +548,9 @@ export function ContainersTab({
       const rightValue = (() => {
         switch (sortKey) {
           case 'state': return right.State
+          case 'port': return hostPublishedPorts(right.Ports)
           case 'created': return String(rightInspect?.Created || '')
           case 'status': return right.Status
-          case 'cpu': return rightStats?.CPUPerc || ''
-          case 'mem': return memUsed(rightStats?.MemUsage)
           case 'compose': return composeName(rightInspect)
           default: return right.Names
         }
@@ -427,13 +600,21 @@ export function ContainersTab({
   const SortHead = ({ label, keyName }: { label: string; keyName: SortKey }) => (
     <Button variant="ghost" size="sm" className="h-7 -ml-2 px-2 text-xs" onClick={() => toggleSort(keyName)}>
       {label}
-      <ArrowUpDown className="h-3 w-3 ml-1" />
+      {sortKey !== keyName ? (
+        <ArrowUpDown className="h-3 w-3 ml-1" />
+      ) : sortDir === 'asc' ? (
+        <ArrowUp className="h-3 w-3 ml-1" />
+      ) : (
+        <ArrowDown className="h-3 w-3 ml-1" />
+      )}
     </Button>
   )
 
   const loadError = containersError
     ? getApiErrorMessage(containersError, 'Failed to load containers')
-    : (detailsError ? getApiErrorMessage(detailsError, 'Failed to load container details') : null)
+    : detailsErrorMessage
+
+  const tableColSpan = showMetaColumns ? 9 : 5
 
   return (
     <div className="h-full min-h-0 flex flex-col gap-4 pt-4">
@@ -463,24 +644,47 @@ export function ContainersTab({
             <option value="created">Created</option>
           </select>
         </div>
-        {((filterPreset && onClearFilterPreset) || (includeNames && includeNames.length > 0)) && (
+        <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            size="sm"
-            onClick={() => {
-              onClearFilterPreset?.()
-              onClearIncludeNames?.()
-            }}
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setShowMetaColumns((visible) => !visible)}
+            title={showMetaColumns ? 'Hide Created / CPU / Mem' : 'Show Created / CPU / Mem'}
+            aria-label={showMetaColumns ? 'Hide Created / CPU / Mem' : 'Show Created / CPU / Mem'}
           >
-            Clear linked filter
+            {showMetaColumns ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </Button>
-        )}
+          {((filterPreset && onClearFilterPreset) || (includeNames && includeNames.length > 0)) && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                onClearFilterPreset?.()
+                onClearIncludeNames?.()
+              }}
+            >
+              Clear linked filter
+            </Button>
+          )}
+        </div>
       </div>
       <div className="flex items-center gap-2 flex-wrap shrink-0">
         {stateFilter !== 'all' && <Badge variant="secondary">State: {stateFilter}</Badge>}
         {includeNames && includeNames.length > 0 && <Badge variant="outline">Linked containers: {includeNames.length}</Badge>}
-        {detailsLoading && <Badge variant="outline">Loading metrics...</Badge>}
+        {allDetailsLoading && <Badge variant="outline">Loading container details...</Badge>}
       </div>
+      {(allDetailsLoading || (fakeLoadingProgress > 0 && fakeLoadingProgress < 100)) && (
+        <div className="shrink-0 space-y-1">
+          <div className="h-1.5 w-full rounded bg-muted overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all duration-200"
+              style={{ width: `${Math.max(6, Math.min(100, fakeLoadingProgress))}%` }}
+            />
+          </div>
+          <div className="text-[11px] text-muted-foreground">Preparing container metrics... {Math.min(100, Math.round(fakeLoadingProgress))}%</div>
+        </div>
+      )}
       {copiedTip && <div className="text-xs text-muted-foreground shrink-0">{copiedTip}</div>}
       <div data-docker-scroll-root="true" className="h-0 flex-1 min-h-0 overflow-auto rounded-md border">
       <Table>
@@ -488,15 +692,26 @@ export function ContainersTab({
           <TableRow>
             <TableHead><SortHead label="Name" keyName="name" /></TableHead>
             <TableHead><SortHead label="State" keyName="state" /></TableHead>
-            <TableHead><SortHead label="Created" keyName="created" /></TableHead>
+            <TableHead><SortHead label="Port" keyName="port" /></TableHead>
+            {showMetaColumns && <TableHead><SortHead label="Created" keyName="created" /></TableHead>}
             <TableHead><SortHead label="Status" keyName="status" /></TableHead>
-            <TableHead><SortHead label="CPU%" keyName="cpu" /></TableHead>
-            <TableHead><SortHead label="Mem" keyName="mem" /></TableHead>
-            <TableHead><SortHead label="Compose" keyName="compose" /></TableHead>
+            {showMetaColumns && <TableHead><SortHead label="CPU%" keyName="cpu" /></TableHead>}
+            {showMetaColumns && <TableHead><SortHead label="Mem" keyName="mem" /></TableHead>}
+            {showMetaColumns && <TableHead><SortHead label="Compose" keyName="compose" /></TableHead>}
             <TableHead className="w-[60px]" />
           </TableRow>
         </TableHeader>
         <TableBody>
+          {loading && (
+            <TableRow>
+              <TableCell colSpan={tableColSpan} className="text-center text-muted-foreground">
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading...
+                </span>
+              </TableCell>
+            </TableRow>
+          )}
           {paged.map((c) => {
             const inspect = inspectMap[c.ID]
             const stats = statsMap[c.ID]
@@ -507,28 +722,41 @@ export function ContainersTab({
                     <Button
                       variant="link"
                       className="h-auto p-0 text-left font-mono text-xs gap-1"
-                      onClick={() => setExpandedId((id) => (id === c.ID ? null : c.ID))}
+                      onClick={() => {
+                        setExpandedId((id) => {
+                          const nextId = id === c.ID ? null : c.ID
+                          if (nextId === c.ID) {
+                            void loadInspectForContainer(c.ID)
+                          }
+                          return nextId
+                        })
+                      }}
                     >
                       {expandedId === c.ID ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                       <span title={c.Names}>{shortName(c.Names)}</span>
                     </Button>
                   </TableCell>
                   <TableCell>{statusBadge(c.State)}</TableCell>
-                  <TableCell className="text-xs">{detailsLoading ? '...' : (inspect?.Created ? new Date(inspect.Created).toLocaleString() : '-')}</TableCell>
+                  <TableCell className="text-xs">{hostPublishedPorts(c.Ports)}</TableCell>
+                  {showMetaColumns && (
+                    <TableCell className="text-xs">{allDetailsLoading ? '...' : (inspect?.Created ? new Date(inspect.Created).toLocaleString() : '-')}</TableCell>
+                  )}
                   <TableCell className="text-xs">{c.Status}</TableCell>
-                  <TableCell className="text-xs">{detailsLoading ? '...' : (stats?.CPUPerc || '-')}</TableCell>
-                  <TableCell className="text-xs">{detailsLoading ? '...' : memUsed(stats?.MemUsage)}</TableCell>
-                  <TableCell className="text-xs">
-                    {composeName(inspect) !== '-' ? (
-                      <Button
-                        variant="link"
-                        className="h-auto p-0 text-xs"
-                        onClick={() => onOpenComposeFilter?.(composeName(inspect))}
-                      >
-                        {composeName(inspect)}
-                      </Button>
-                    ) : '-'}
-                  </TableCell>
+                  {showMetaColumns && <TableCell className="text-xs">{allDetailsLoading ? '...' : (stats?.CPUPerc || '-')}</TableCell>}
+                  {showMetaColumns && <TableCell className="text-xs">{allDetailsLoading ? '...' : memUsed(stats?.MemUsage)}</TableCell>}
+                  {showMetaColumns && (
+                    <TableCell className="text-xs">
+                      {composeName(inspect) !== '-' ? (
+                        <Button
+                          variant="link"
+                          className="h-auto p-0 text-xs"
+                          onClick={() => onOpenComposeFilter?.(composeName(inspect))}
+                        >
+                          {composeName(inspect)}
+                        </Button>
+                      ) : '-'}
+                    </TableCell>
+                  )}
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -545,17 +773,20 @@ export function ContainersTab({
                         <DropdownMenuItem onClick={() => fetchLogs(c)}>
                           <ScrollText className="h-4 w-4 mr-2" /> Logs
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => action(c.ID, "start")}>
+                        <DropdownMenuItem
+                          onClick={() => action(c.ID, "start")}
+                          disabled={(c.State || '').toLowerCase() === 'running'}
+                        >
                           <Play className="h-4 w-4 mr-2" /> Start
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => action(c.ID, "stop")}>
+                        <DropdownMenuItem onClick={() => setPendingAction({ container: c, action: 'stop' })}>
                           <Square className="h-4 w-4 mr-2" /> Stop
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => action(c.ID, "restart")}>
+                        <DropdownMenuItem onClick={() => setPendingAction({ container: c, action: 'restart' })}>
                           <RotateCw className="h-4 w-4 mr-2" /> Restart
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() => action(c.ID, "remove")}
+                          onClick={() => setPendingAction({ container: c, action: 'remove', force: false })}
                           className="text-destructive"
                         >
                           <Trash2 className="h-4 w-4 mr-2" /> Remove
@@ -566,9 +797,12 @@ export function ContainersTab({
                 </TableRow>
                 {expandedId === c.ID && (
                   <TableRow>
-                    <TableCell colSpan={8} className="bg-muted/20 px-4 py-3">
+                    <TableCell colSpan={tableColSpan} className="bg-muted/20 px-4 py-3">
                       <div className="rounded-lg border bg-background p-4 shadow-sm space-y-3">
                         <div className="text-sm font-medium">Container Details</div>
+                        {detailsLoadingMap[c.ID] && (
+                          <div className="text-xs text-muted-foreground">Loading container details...</div>
+                        )}
                         <div className="grid gap-3 md:grid-cols-2 text-xs">
                           <div className="rounded-md border bg-muted/20 p-3">
                             <div className="font-medium mb-2 text-muted-foreground">Basics</div>
@@ -632,7 +866,7 @@ export function ContainersTab({
           })}
           {!loading && sorted.length === 0 && (
             <TableRow>
-              <TableCell colSpan={8} className="text-center text-muted-foreground">
+              <TableCell colSpan={tableColSpan} className="text-center text-muted-foreground">
                 No containers found
               </TableCell>
             </TableRow>
@@ -667,6 +901,53 @@ export function ContainersTab({
           </Button>
         </div>
       </div>
+
+      <AlertDialog open={!!pendingAction} onOpenChange={(open) => { if (!open) setPendingAction(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingAction?.action === 'remove'
+                ? 'Remove container?'
+                : pendingAction?.action === 'restart'
+                  ? 'Restart container?'
+                  : 'Stop container?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingAction?.container?.Names
+                ? `Container: ${pendingAction.container.Names}`
+                : 'Please confirm this action.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {pendingAction?.action === 'remove' && (
+            <div className="flex items-center gap-2 py-1">
+              <Checkbox
+                id="container-remove-force"
+                checked={!!pendingAction.force}
+                onCheckedChange={(checked) => setPendingAction((state) => state ? { ...state, force: !!checked } : state)}
+              />
+              <label htmlFor="container-remove-force" className="text-sm text-muted-foreground cursor-pointer">
+                Force remove
+              </label>
+            </div>
+          )}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className={pendingAction?.action === 'remove' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : undefined}
+              onClick={() => {
+                const next = pendingAction
+                setPendingAction(null)
+                if (!next) return
+                void action(next.container.ID, next.action, { force: !!next.force })
+              }}
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={!!logsContainer} onOpenChange={(open) => !open && setLogsContainer(null)}>
         <DialogContent className="sm:max-w-4xl h-[70vh] flex flex-col gap-0 p-0">

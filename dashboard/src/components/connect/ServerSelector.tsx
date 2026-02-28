@@ -16,8 +16,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
-import { listServers, type Server as ServerType } from '@/lib/connect-api'
+import { listServers, checkServerStatus, type Server as ServerType } from '@/lib/connect-api'
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -32,6 +40,10 @@ export function ServerSelector({ className }: ServerSelectorProps) {
   const [selected, setSelected] = useState<ServerType | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [connectingOpen, setConnectingOpen] = useState(false)
+  const [connectingTarget, setConnectingTarget] = useState('')
+  const [connectingPhase, setConnectingPhase] = useState<'checking' | 'offline'>('checking')
+  const [connectingDetail, setConnectingDetail] = useState('')
   const navigate = useNavigate()
 
   const fetchServers = useCallback(async () => {
@@ -53,8 +65,24 @@ export function ServerSelector({ className }: ServerSelectorProps) {
     fetchServers()
   }, [fetchServers])
 
-  const handleConnect = () => {
+  const handleConnect = async () => {
     if (!selected) return
+    const targetLabel = selected.name || selected.host || selected.id
+    setConnectingTarget(targetLabel)
+    setConnectingPhase('checking')
+    setConnectingDetail('Running connectivity check...')
+    setConnectingOpen(true)
+
+    const status = await checkServerStatus(selected)
+
+    if (status?.status === 'offline') {
+      setConnectingPhase('offline')
+      setConnectingDetail(status.reason || 'Server is offline.')
+      return
+    }
+
+    setConnectingDetail('Server is online. Opening session...')
+    setConnectingOpen(false)
     navigate({ to: '/connect/server/$serverId', params: { serverId: selected.id } })
   }
 
@@ -151,6 +179,34 @@ export function ServerSelector({ className }: ServerSelectorProps) {
               Connect
               <ArrowRight className="h-4 w-4 ml-2" />
             </Button>
+
+            <Dialog open={connectingOpen} onOpenChange={setConnectingOpen}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Connecting...</DialogTitle>
+                  <DialogDescription>
+                    {connectingTarget ? `Target: ${connectingTarget}` : 'Preparing connection'}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-2 text-sm">
+                  {connectingPhase === 'checking' ? (
+                    <div className="inline-flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Running connectivity check...
+                    </div>
+                  ) : (
+                    <div className="text-destructive">
+                      {connectingDetail}
+                    </div>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setConnectingOpen(false)}>
+                    Close
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         )}
       </div>

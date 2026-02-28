@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"sync"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -57,6 +58,9 @@ func registerDockerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	// ─── Images ──────────────────────────────────────────
 	images := d.Group("/images")
 	images.GET("", handleImageList)
+	images.GET("/registry/status", handleImageRegistryStatus)
+	images.GET("/registry/search", handleImageRegistrySearch)
+	images.GET("/{id}/inspect", handleImageInspect)
 	images.POST("/pull", handleImagePull)
 	images.DELETE("/{id...}", handleImageRemove)
 	images.POST("/prune", handleImagePrune)
@@ -81,6 +85,7 @@ func registerDockerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	// ─── Volumes ─────────────────────────────────────────
 	volumes := d.Group("/volumes")
 	volumes.GET("", handleVolumeList)
+	volumes.GET("/{id}/inspect", handleVolumeInspect)
 	volumes.DELETE("/{id}", handleVolumeRemove)
 	volumes.POST("/prune", handleVolumePrune)
 
@@ -625,6 +630,66 @@ func handleImageList(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": client.Host()})
 }
 
+func handleImageRegistryStatus(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
+	_, err = client.RegistryStatus(e.Request.Context())
+	if err != nil {
+		return e.JSON(http.StatusOK, map[string]any{
+			"available": false,
+			"registry":  "Docker Hub",
+			"reason":    err.Error(),
+		})
+	}
+	return e.JSON(http.StatusOK, map[string]any{
+		"available": true,
+		"registry":  "Docker Hub",
+	})
+}
+
+func handleImageRegistrySearch(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
+	query := e.Request.URL.Query().Get("q")
+	if query == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "q is required"})
+	}
+	limit := 20
+	if raw := e.Request.URL.Query().Get("limit"); raw != "" {
+		if parsed, convErr := strconv.Atoi(raw); convErr == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	output, err := client.RegistrySearch(e.Request.Context(), query, limit)
+	if err != nil {
+		return dockerError(e, http.StatusInternalServerError, "search registry failed", err)
+	}
+	return e.JSON(http.StatusOK, map[string]any{"output": output})
+}
+
+func handleImageInspect(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
+	id := e.Request.PathValue("id")
+	if id == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "id is required"})
+	}
+	output, err := client.ImageInspect(e.Request.Context(), id)
+	if err != nil {
+		return dockerError(e, http.StatusInternalServerError, "inspect image failed", err)
+	}
+	return e.JSON(http.StatusOK, map[string]any{"output": output})
+}
+
 func handleImagePull(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -780,7 +845,9 @@ func handleContainerRemove(e *core.RequestEvent) error {
 		return dockerError(e, http.StatusBadRequest, "server not found", err)
 	}
 	id := e.Request.PathValue("id")
-	output, err := client.ContainerRemove(e.Request.Context(), id)
+	forceRaw := e.Request.URL.Query().Get("force")
+	force := forceRaw == "1" || forceRaw == "true" || forceRaw == "yes"
+	output, err := client.ContainerRemove(e.Request.Context(), id, force)
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "remove container failed", err)
 	}
@@ -846,6 +913,22 @@ func handleVolumeList(e *core.RequestEvent) error {
 		return dockerError(e, http.StatusInternalServerError, "list volumes failed", err)
 	}
 	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": client.Host()})
+}
+
+func handleVolumeInspect(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
+	id := e.Request.PathValue("id")
+	if id == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "id is required"})
+	}
+	output, err := client.VolumeInspect(e.Request.Context(), id)
+	if err != nil {
+		return dockerError(e, http.StatusInternalServerError, "inspect volume failed", err)
+	}
+	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
 func handleVolumeRemove(e *core.RequestEvent) error {

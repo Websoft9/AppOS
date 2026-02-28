@@ -86,6 +86,8 @@ const MAX_UPLOAD_SIZE = 50 * 1024 * 1024 // 50 MB
 
 export interface FileManagerPanelProps {
   serverId: string
+  initialPath?: string
+  lockedRootPath?: string
   className?: string
 }
 
@@ -129,6 +131,37 @@ function parentPath(path: string): string {
   const parts = path.split('/').filter(Boolean)
   parts.pop()
   return '/' + parts.join('/')
+}
+
+function normalizePath(path: string): string {
+  if (!path || path.trim() === '') return '/'
+  const withSlash = path.startsWith('/') ? path : `/${path}`
+  const compact = withSlash.replace(/\/+/g, '/')
+  const parts = compact.split('/')
+  const stack: string[] = []
+  for (const part of parts) {
+    if (!part || part === '.') continue
+    if (part === '..') {
+      if (stack.length > 0) stack.pop()
+      continue
+    }
+    stack.push(part)
+  }
+  return stack.length > 0 ? `/${stack.join('/')}` : '/'
+}
+
+function isPathWithinRoot(path: string, rootPath: string): boolean {
+  const normalizedPath = normalizePath(path)
+  const normalizedRoot = normalizePath(rootPath)
+  if (normalizedRoot === '/') return true
+  return normalizedPath === normalizedRoot || normalizedPath.startsWith(`${normalizedRoot}/`)
+}
+
+function clampPathToRoot(path: string, rootPath?: string): string {
+  const normalizedPath = normalizePath(path)
+  if (!rootPath) return normalizedPath
+  const normalizedRoot = normalizePath(rootPath)
+  return isPathWithinRoot(normalizedPath, normalizedRoot) ? normalizedPath : normalizedRoot
 }
 
 function breadcrumbSegments(path: string): { label: string; path: string }[] {
@@ -179,7 +212,9 @@ function modeFromPermissionMatrix(matrix: PermissionMatrix, mode: string): strin
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function FileManagerPanel({ serverId, className }: FileManagerPanelProps) {
+export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, className }: FileManagerPanelProps) {
+  const scopedRootPath = normalizePath(lockedRootPath || '/')
+  const scopedInitialPath = clampPathToRoot(initialPath, lockedRootPath)
   const [currentPath, setCurrentPath] = useState('/')
   const [entries, setEntries] = useState<DirEntry[]>([])
   const [loading, setLoading] = useState(false)
@@ -247,10 +282,11 @@ export function FileManagerPanel({ serverId, className }: FileManagerPanelProps)
   // ─── Fetch directory listing ──────────────────────────────────────────────
 
   const fetchEntries = useCallback(async (path: string) => {
+    const nextPath = clampPathToRoot(path, lockedRootPath)
     setLoading(true)
     setError(null)
     try {
-      const res = await sftpList(serverId, path)
+      const res = await sftpList(serverId, nextPath)
       // Sort: dirs first, then alphabetically
       const sorted = [...res.entries].sort((a, b) => {
         if (a.type === 'dir' && b.type !== 'dir') return -1
@@ -258,17 +294,17 @@ export function FileManagerPanel({ serverId, className }: FileManagerPanelProps)
         return a.name.localeCompare(b.name)
       })
       setEntries(sorted)
-      setCurrentPath(res.path || path)
+      setCurrentPath(clampPathToRoot(res.path || nextPath, lockedRootPath))
     } catch (err) {
       setError(getApiErrorMessage(err, 'Failed to list directory'))
     } finally {
       setLoading(false)
     }
-  }, [serverId])
+  }, [lockedRootPath, serverId])
 
   useEffect(() => {
-    fetchEntries('/')
-  }, [fetchEntries])
+    fetchEntries(scopedInitialPath)
+  }, [fetchEntries, scopedInitialPath])
 
   useEffect(() => {
     sftpConstraints(serverId)
@@ -732,14 +768,15 @@ export function FileManagerPanel({ serverId, className }: FileManagerPanelProps)
 
   // ─── Breadcrumb segments ──────────────────────────────────────────────────
 
-  const segments = breadcrumbSegments(currentPath)
+  const segments = breadcrumbSegments(currentPath).filter((segment) => isPathWithinRoot(segment.path, scopedRootPath))
+  const canGoUp = currentPath !== scopedRootPath
 
   return (
     <div className={cn('flex flex-col h-full', className)}>
       {/* Toolbar */}
       <div className="flex items-center gap-1 px-2 py-1.5 border-b bg-muted/30 shrink-0">
         {/* Breadcrumb */}
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigateTo('/')}>
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigateTo(scopedRootPath)}>
           <Home className="h-4 w-4" />
         </Button>
         <Button
@@ -747,7 +784,7 @@ export function FileManagerPanel({ serverId, className }: FileManagerPanelProps)
           size="icon"
           className="h-7 w-7"
           onClick={() => navigateTo(parentPath(currentPath))}
-          disabled={currentPath === '/'}
+          disabled={!canGoUp}
         >
           <ArrowUp className="h-4 w-4" />
         </Button>

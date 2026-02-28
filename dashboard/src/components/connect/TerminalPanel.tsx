@@ -80,6 +80,14 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     fitTimersRef.current.push(window.setTimeout(() => fitAndSync(), 220))
   }, [clearFitTimers, fitAndSync])
 
+  const applyViewportInset = useCallback(() => {
+    if (!termRef.current) return
+    const screen = termRef.current.querySelector('.xterm-screen') as HTMLElement | null
+    if (!screen) return
+    screen.style.boxSizing = 'border-box'
+    screen.style.padding = '8px 10px'
+  }, [])
+
   // Expose sendData to parent via ref
   useImperativeHandle(ref, () => ({
     sendData: (data: string) => {
@@ -158,6 +166,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
 
     // Mount terminal
     terminal.open(termRef.current)
+    applyViewportInset()
     setTimeout(() => scheduleFitAndSync(), 0)
 
     // Open WebSocket
@@ -223,7 +232,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         ws.send(makeResizeFrame(cols, rows))
       }
     })
-  }, [serverId, containerId, shell, dockerServerId, scheduleFitAndSync])
+  }, [serverId, containerId, shell, dockerServerId, scheduleFitAndSync, applyViewportInset])
 
   // Auto-connect on mount / serverId change
   useEffect(() => {
