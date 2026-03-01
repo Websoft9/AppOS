@@ -97,17 +97,14 @@ development_status:
 
   # Epic 9: User Space (formerly Files)
   # Rebrand: files→space applied 2026-02-24 (sprint-change-proposal-2026-02-24.md)
+  # Normalized split (2026-03-01): 9.1~9.4 consolidated stories
   epic9: in-progress
-  9.1-backend-collection-migration-hooks: done
-  9.2-space-list-ui: done
-  9.3-online-editor: done
-  9.4-share: done
-  9.5-settings-ui: done                # Resolved by Epic 13 (Story 13.2 + 13.4)
+  9.1-space-core-operations: done       # Includes legacy 9.1 + 9.2 + 9.10
+  9.2-space-content-operations: done    # Includes legacy 9.3 (+ rename/duplicate actions)
+  9.3-space-sharing-and-access: done    # Includes legacy 9.4 + 9.7 + 9.9
+  9.4-space-lifecycle-management: done  # Includes legacy 9.8; 9.5 resolved by Epic13
+  9.5-settings-ui-resolved-by-epic13: done
   9.6-file-version-history: backlog
-  9.7-file-preview: done
-  9.8-soft-delete-trash: done
-  9.9-preview-enhancements: done
-  9.10-fetch-url: done
   epic9-retrospective: optional
 
   # Epic 10: Internationalization (i18n)

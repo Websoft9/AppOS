@@ -4,7 +4,7 @@
 
 **Per-user private space** — each authenticated user gets an isolated space for storing, editing, organizing, and sharing files.
 
-**Status**: Stories 9.1–9.4, 9.7–9.10 complete | **Priority**: P2 | **Depends on**: Epic 1, Epic 3 (Epic 13 only for Story 9.5)
+**Status**: 4-story normalized split complete (as-built) | **Priority**: P2 | **Depends on**: Epic 1, Epic 3 (Epic 13 for settings dependency)
 
 ---
 
@@ -99,57 +99,6 @@ PB access rules: `owner = @request.auth.id` on all CRUD operations.
 Share `POST` body: `{ "minutes": N }`. Response: `{ "share_token", "share_url", "expires_at" }`.
 `share_url` is a relative path (`/api/ext/space/share/{token}/download`); the frontend prepends `window.location.origin`.
 
-**Preview endpoint** (`GET /api/ext/space/preview/{id}`):
-- Auth via `?token=` query param (allows direct browser embed in `<img>`, `<audio>`, `<video>`, `<iframe>` without custom headers)
-- Registered on public router (not behind RequireAuth middleware)
-- Rejects non-owners with 403
-- MIME whitelist (matches `spacePreviewMimeTypeList` constant): images (png, jpeg, gif, webp, svg+xml, bmp, x-icon), PDF, audio (mpeg, wav, ogg, aac, flac, webm), video (mp4, webm, ogg)
-- Returns 415 Unsupported Media Type for MIME types not in whitelist
-- Response headers on every preview: `Content-Disposition: inline`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`
-- PDF additionally gets `Content-Security-Policy: sandbox` to block embedded JS
-- SVG served as `image/svg+xml`; frontend renders via `<img>` which browser-sandboxes script execution
-
-### Header Requirements (file create)
-
-For `POST /api/collections/user_files/records` when creating a file (`is_folder=false`):
-- `X-Space-Batch-Size` is required
-- must be an integer ≥ 1
-- must be ≤ current `space/quota.maxUploadFiles`
-
-Purpose: enforce server-side max files per upload batch (not only frontend validation).
-
----
-
-## Frontend Features
-
-**Route**: `/_app/_auth/space` → `/space`
-
-| Feature | Implementation |
-|---|---|
-| Header toolbar | Single row: title → breadcrumb path (`/` for root) → search input → flex spacer → Refresh / action buttons |
-| Stats | One-line text below list: `N folders · N files · N/max items used · max file size X MB` |
-| Folder navigation | Breadcrumb in toolbar; click segment to navigate; dialogs pre-fill current folder as parent |
-| Search | Filter by name within current folder; result count shown inline when active |
-| Sort | Click Name / Type / Modified / Created column headers; folders always listed before files |
-| Pagination | Page-size select (15/45/90); Previous/Next controls |
-| Path column | Full path from root computed client-side via `buildPath()` |
-| Upload | Validates allow/deny settings, file size, and max files per batch before submit |
-| New Folder | Creates `is_folder=true` record; reserved name check at root |
-| New File | Online textarea creation for editable formats; saves as file upload |
-| Editor | `sm:max-w-3xl` (768px), `max-h-[65vh]` scrollable textarea; disabled for office/pdf |
-| File size | Column shows human-readable size (K/M) from `size` field; set on upload, create, and save |
-| Download | Native `<a download>` using authenticated PB file URL |
-| Share | Generates public link via ext API; copy button copies URL; link works without login; supports QR code generation + PNG download. **Caveat**: Radix Dialog focus-trap breaks `execCommand` on elements outside the dialog — fallback must select the in-dialog input via ref. |
-| Preview | Eye button for previewable files. Types: text/code (fetched as raw text → `<pre>`), image (`<img>`), PDF (`<iframe>`), audio (`<audio>`), video (`<video>`). Fullscreen toggle. Edit button for text files opens editor directly. Direct URL auth via `?token=` query param. |
-| Delete | Soft-delete to Trash; permanent delete from Trash view. AlertDialog confirm for empty-trash. |
-| Trash | Toggle trash view; shows all soft-deleted items flat. Restore / permanent delete / empty trash. Back-to-files button in toolbar. |
-| Fetch URL | Download file from public URL directly into Space. Backend validates scheme, SSRF, extension, size. Synchronous (blocks UI until complete). |
-| View mode | Toggle list/grid; grid shows icon + name cards |
-| File icons | Type-specific icons: code, image, video, archive, music, pdf, generic |
-| Rename | Inline rename dialog for files and folders |
-| Duplicate | Copy file with " (copy)" suffix |
-| Actions | Per-row dropdown menu (MoreVertical) with context-aware options |
-
 ---
 
 ## Migrations
@@ -165,162 +114,49 @@ Purpose: enforce server-side max files per upload batch (not only frontend valid
 
 ---
 
-## Hook Validation (`hooks.go`)
-
-`OnRecordCreateRequest("user_files")`:
-1. If `is_folder=true` and `parent=""`: reject reserved root names
-2. If `is_folder=true`: enforce item count limit
-3. If file: require `X-Space-Batch-Size` header; enforce `maxUploadFiles`
-4. If file: validate extension; enforce item count limit
-
-Header contract for file create requests:
-- `X-Space-Batch-Size`: integer ≥ 1
-- must be ≤ current `space/quota.maxUploadFiles`
-- frontend sends this header for both batch upload and single-file create
-
----
-
 ## Story Status
+
+### Normalized Stories (BMAD)
 
 | Story | Title | Status |
 |---|---|---|
-| 9.1 | Backend Collection + Migration + Hooks | ✅ Done |
-| 9.2 | Space List UI | ✅ Done |
-| 9.3 | Online Editor | ✅ Done |
-| 9.4 | Share | ✅ Done |
+| 9.1 | Space Core Operations | ✅ Done |
+| 9.2 | Space Content Operations | ✅ Done |
+| 9.3 | Space Sharing and Access | ✅ Done |
+| 9.4 | Space Lifecycle Management | ✅ Done (9.6 kept planned) |
+| 9.5 | Settings (space quotas/formats) | ✅ Resolved by Epic 13 (no standalone Epic9 story file) |
+| 9.6 | File Version History | 📋 Planned |
+
+Related documents:
+- `specs/implementation-artifacts/story9.1-space-core-operations.md`
+- `specs/implementation-artifacts/story9.2-space-content-operations.md`
+- `specs/implementation-artifacts/story9.3-space-sharing-and-access.md`
+- `specs/implementation-artifacts/story9.4-space-lifecycle-management.md`
+
+### Legacy Capability Mapping (for historical traceability)
+
+| Story | Title | Status |
+|---|---|---|
+| 9.1 | Backend Collection + Migration + Hooks | ✅ Mapped to Story 9.1 |
+| 9.2 | Space List UI | ✅ Mapped to Story 9.1 |
+| 9.3 | Online Editor | ✅ Mapped to Story 9.2 |
+| 9.4 | Share | ✅ Mapped to Story 9.3 |
 | 9.5 | Settings UI (Admin) | ⏳ Resolved by Epic 13 (Story 13.2 + 13.4) |
 | 9.6 | File Version History | 📋 Planned |
-| 9.7 | File Preview (browser-native) | ✅ Done |
-| 9.8 | Soft Delete & Trash | ✅ Done |
-| 9.9 | Preview Enhancements (fullscreen, edit, text/code) | ✅ Done |
-| 9.10 | Fetch File from URL | ✅ Done |
+| 9.7 | File Preview (browser-native) | ✅ Mapped to Story 9.3 |
+| 9.8 | Soft Delete & Trash | ✅ Mapped to Story 9.4 |
+| 9.9 | Preview Enhancements (fullscreen, edit, text/code) | ✅ Mapped to Story 9.3 |
+| 9.10 | Fetch File from URL | ✅ Mapped to Story 9.1 |
 
 ---
 
-## Story 9.7 — File Preview (Browser-Native)
+## Numbering Notes
 
-**Objective**: Users can preview files that the browser can render natively (images, SVG, PDF, audio, video) without downloading.
+- 9.5 is intentionally retained for historical traceability and is resolved by Epic 13 (Stories 13.2 + 13.4).
+- 9.6 remains planned as future scope (File Version History).
+- Legacy 9.7/9.8/9.9/9.10 details are maintained in consolidated Story files 9.1~9.4, not duplicated in this Epic document.
 
-**Backend** (`routes/space.go`):
-- `GET /api/ext/space/preview/{id}` — auth required, owner-only
-- MIME whitelist via `spacePreviewMimeTypeList` constant (mirrors frontend `PREVIEW_MIME_TYPES`)
-- Security headers: `Content-Disposition: inline`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`
-- PDF additionally: `Content-Security-Policy: sandbox`
-- Returns 415 for MIME types outside whitelist; 403 for non-owners
+## Scope Boundary (Current)
 
-**Frontend** (`routes/_app/_auth/space.tsx`):
-- `PREVIEW_MIME_TYPES` set + `getPreviewType()` helper (image / pdf / audio / video)
-- Eye button rendered only for previewable files
-- `openPreview()`: authenticated fetch → `URL.createObjectURL(blob)`; `closePreview()`: revokes blob URL
-- Preview Dialog renders: `<img>` (image/SVG) · `<iframe sandbox="allow-scripts">` (PDF) · `<audio controls>` (audio) · `<video controls>` (video)
-- Footer: Close + Download link
-
-**Security rationale**:
-- `<img>` for SVG: browser suppresses all script/event-handler execution
-- `iframe sandbox` for PDF: isolates PDF-embedded JS from page context
-- `X-Content-Type-Options: nosniff`: prevents MIME-type confusion attacks
-- `X-Frame-Options: SAMEORIGIN`: prevents clickjacking by third-party pages
-- Authenticated proxy (`/api/ext/space/preview`) keeps token out of URL
-
-**Acceptance Criteria**:
-- [x] Eye button visible only for files with previewable MIME type
-- [x] Images (png, jpg, gif, webp, bmp, ico) and SVG render in `<img>` in Dialog
-- [x] PDF renders in sandboxed `<iframe>` in Dialog
-- [x] Audio renders in `<audio controls>` in Dialog
-- [x] Video renders in `<video controls>` in Dialog
-- [x] Backend rejects non-owner access with 403
-- [x] Backend rejects unsupported MIME types with 415
-- [x] All security headers present on preview response
-- [x] Blob URL revoked on dialog close (no memory leak)
-- [x] TypeScript: no type errors; Go: no build errors
-
----
-
-## Story 9.8 — Soft Delete & Trash
-
-**Objective**: Files are soft-deleted (moved to trash) instead of permanent delete. Users can restore or permanently delete from trash.
-
-**Backend**:
-- Migration `1741600000_user_files_soft_delete.go`: adds `is_deleted` bool field
-- All list queries filter `is_deleted=false` by default in frontend
-
-**Frontend**:
-- Delete action sets `is_deleted: true` (soft-delete)
-- Trash view: flat list of all deleted items, sortable, searchable
-- Restore: sets `is_deleted: false`
-- Empty Trash: AlertDialog confirm → permanent delete all trashed items
-- Toolbar in trash view: hides New Folder/File/Upload, shows "← Back to Files"
-- Trash count badge on trash toggle button
-
----
-
-## Story 9.9 — Preview Enhancements
-
-**Objective**: Improve preview dialog with fullscreen, edit shortcut, and text/code preview.
-
-**Changes**:
-- **Text/code preview**: `getPreviewType()` uses `isEditable()` first → all editable extensions get `'text'` type, rendered as `<pre>` with fetched raw content
-- **Auth fix**: Preview route moved to `registerSpacePublicRoutes` (public router), auth resolved from `?token=` query param so browsers can embed URLs directly
-- **Fullscreen toggle**: `previewFullscreen` state; button in DialogHeader toggles DialogContent between normal (`sm:max-w-4xl`) and full-viewport mode
-- **Edit button**: Shown in DialogFooter for text-type files; closes preview and opens editor in one click
-- **Responsive sizing**: Image/PDF/video max-height adapts to fullscreen state
-
----
-
-## Story 9.10 — Fetch File from URL
-
-**Objective**: Download a file from a public URL directly into Space without manual download-then-upload.
-
-**Backend** (`POST /api/ext/space/fetch`):
-- Auth required (RequireAuth middleware)
-- Body: `{ "url": "...", "name": "optional", "parent": "optionalFolderId" }`
-- SSRF protection: only http/https; rejects localhost, 127.x, 10.x, 192.168.x, 172.x, ::1, 0.0.0.0
-- Extension compliance: same allowlist/denylist as upload
-- Size check: HEAD pre-check + `io.LimitReader` hard cap at `max_size_mb`
-- 120s download timeout; filename auto-derived from URL path if not provided
-- MIME detection: server Content-Type header, fallback `http.DetectContentType`
-- Saves via `filesystem.NewFileFromBytes` + `e.App.Save`
-
-**Frontend**:
-- "Fetch URL" button in toolbar (Globe icon), opens dialog
-- Dialog: URL input (required, Enter to submit), optional filename, folder select
-- Shows quota hint (max size, extension policy)
-- Synchronous: spinner + "Downloading…" while fetching; buttons/inputs disabled
-- Error display from server `message` field; success closes dialog and refreshes list
-
-**Objective**: Users can view and restore previous versions of a file in their space.
-
-**Requirements**:
-- Every save (create or update of a file record) automatically creates a version snapshot
-- Users can list all historical versions of a file (timestamp, size, who saved)
-- Users can preview or download any past version
-- Users can restore a past version as the current content
-- Version retention policy: configurable maximum number of versions per file (default TBD)
-- Versions are stored per file, not per folder; folders have no version history
-- Version data must not count against the user's space quota
-
-**Open Questions** (solution not decided):
-- Storage backend: PB FileField on a sibling `user_file_versions` collection vs. content-addressed storage vs. Git-backed store
-- Retention limit: time-based, count-based, or size-based
-- Whether to expose diffs between versions
-
-**Acceptance Criteria**:
-- [ ] Saving a file creates a retrievable snapshot
-- [ ] Version list shows timestamp and is ordered newest-first
-- [ ] Past version can be previewed inline and downloaded
-- [ ] Restore replaces current content and creates a new version entry for the restore action
-- [ ] Exceeding retention limit silently drops the oldest version
-
-**Dependencies**: Epic 1, Epic 3; no Epic 2 dependency anticipated.
-
----
-
-## Out of Scope (current)
-
-- Version history / diff — moved to Story 9.6 (planned)
-- Binary / non-browser-native file preview (e.g. Office formats)
-- Collaborative editing
-- Cascading folder delete
-- Global search (cross-folder)
-- Story 9.5 settings UI (resolved by Epic 13, stories 13.2 + 13.4)
-- Cascading folder delete — children remain when parent is deleted
+- In scope: normalized as-built capability mapping and epic-level architecture constraints.
+- Out of scope in this Epic document: per-story implementation details, step-by-step acceptance narratives, UI behavior breakdowns.
