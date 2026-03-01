@@ -2,9 +2,11 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Upload, Trash2, Share2, FileText, Copy, Check, X, Loader2,
-  Folder, FolderPlus, FilePlus, RefreshCw, Edit3, Download,
+  Folder, FolderPlus, FilePlus, RefreshCw, Download,
   ChevronRight, Search, ArrowUp, ArrowDown, ChevronsUpDown,
-  QrCode,
+  QrCode, Eye, MoreVertical, FolderInput,
+  LayoutGrid, List, Pencil, Edit3,
+  FileCode2, FileImage, FileVideo, FileAudio, FileType2, File, Archive, Music2,
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { normalizeExtToken, formatExtListHint } from '@/lib/ext-normalize'
@@ -22,6 +24,10 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -52,9 +58,10 @@ interface Quota {
   share_max_minutes: number
   share_default_minutes: number
   reserved_folder_names: string[]
+  disallowed_folder_names: string[]
 }
 
-type SortField = 'name' | 'type' | 'created'
+type SortField = 'name' | 'type' | 'created' | 'updated'
 type SortDir = 'asc' | 'desc'
 
 // ─── Constants ───────────────────────────────────────────
@@ -113,6 +120,81 @@ function buildPath(item: UserFile, all: UserFile[]): string {
     cur = all.find(f => f.id === cur!.parent)
   }
   return '/' + parts.join('/')
+}
+
+/** Truncate MIME type string for display (full value shown on hover via title). */
+function truncateMime(mime: string, max = 20): string {
+  return mime.length > max ? mime.slice(0, max) + '\u2026' : mime
+}
+
+// ─── File type classification ─────────────────────────────
+
+type FileCategory = 'code' | 'text' | 'image' | 'video' | 'audio' | 'pdf' | 'archive' | 'other'
+
+const CODE_EXTS = new Set([
+  'js','ts','jsx','tsx','mjs','cjs','vue','svelte','py','rb','go','rs',
+  'java','c','cpp','h','hpp','cc','cs','php','swift','kt','scala','groovy',
+  'lua','r','m','pl','pm','ex','exs','erl','hrl','clj','cljs','fs','fsx',
+  'ml','mli','css','scss','sass','less','html','htm','xml','sql','graphql',
+  'sh','bash','zsh','fish','env','dockerfile','makefile','cmake','yaml','yml',
+  'json','toml','ini','cfg','conf','properties','editorconfig',
+])
+const ARCHIVE_EXTS = new Set([
+  'zip','tar','gz','tgz','bz2','xz','7z','rar','br','zst',
+])
+
+function classifyFile(file: { name: string; mime_type: string; is_folder: boolean }): FileCategory {
+  if (file.is_folder) return 'other'
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+  const m = file.mime_type ?? ''
+  if (m.startsWith('image/')) return 'image'
+  if (m.startsWith('video/')) return 'video'
+  if (m.startsWith('audio/')) return 'audio'
+  if (m === 'application/pdf') return 'pdf'
+  if (ARCHIVE_EXTS.has(ext) || m.includes('zip') || m.includes('tar') || m.includes('archive') || m.includes('compressed')) return 'archive'
+  if (CODE_EXTS.has(ext)) return 'code'
+  if (m.startsWith('text/')) return 'text'
+  return 'other'
+}
+
+function FileIcon({ file, className = 'h-4 w-4 shrink-0' }: { file: { name: string; mime_type: string; is_folder: boolean }; className?: string }) {
+  if (file.is_folder) return <Folder className={`${className} text-yellow-500`} />
+  const cat = classifyFile(file)
+  const icons: Record<FileCategory, React.ReactElement> = {
+    code:    <FileCode2    className={`${className} text-emerald-500`} />,
+    text:    <FileText     className={`${className} text-blue-400`}    />,
+    image:   <FileImage    className={`${className} text-purple-500`}  />,
+    video:   <FileVideo    className={`${className} text-orange-500`}  />,
+    audio:   <Music2       className={`${className} text-pink-500`}    />,
+    pdf:     <FileType2    className={`${className} text-red-500`}     />,
+    archive: <Archive      className={`${className} text-amber-600`}   />,
+    other:   <File         className={`${className} text-muted-foreground`} />,
+  }
+  return icons[cat]
+}
+
+// MIME types that the browser can render natively.
+// Must mirror spacePreviewMimeTypeList in backend/internal/routes/space.go.
+const PREVIEW_MIME_TYPES = new Set([
+  'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml',
+  'image/bmp', 'image/x-icon',
+  'application/pdf',
+  'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/aac', 'audio/flac', 'audio/webm',
+  'video/mp4', 'video/webm', 'video/ogg',
+])
+
+type PreviewType = 'image' | 'pdf' | 'audio' | 'video'
+
+/** Returns the preview category, or null if not previewable. */
+function getPreviewType(file: UserFile): PreviewType | null {
+  if (file.is_folder || !file.content || !file.mime_type) return null
+  if (!PREVIEW_MIME_TYPES.has(file.mime_type)) return null
+  const m = file.mime_type
+  if (m.startsWith('image/')) return 'image'
+  if (m === 'application/pdf') return 'pdf'
+  if (m.startsWith('audio/')) return 'audio'
+  if (m.startsWith('video/')) return 'video'
+  return null
 }
 
 /** True if the file extension is in the editable (text/code) list. */
@@ -176,6 +258,82 @@ function SortIcon({
     : <ArrowDown className="h-3 w-3 ml-1" />
 }
 
+// ─── ItemMenu helper ─────────────────────────────────────
+
+interface ItemMenuProps {
+  item: UserFile
+  editable: boolean
+  previewType: PreviewType | null
+  onOpen: () => void
+  onPreview: () => void
+  onEdit: () => void
+  onDownloadUrl: string | null
+  onShare: () => void
+  onRename: () => void
+  onDuplicate: () => void
+  onDelete: () => void
+}
+
+function ItemMenu({
+  item, editable, previewType,
+  onOpen, onPreview, onEdit, onDownloadUrl, onShare, onRename, onDuplicate, onDelete,
+}: ItemMenuProps) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {item.is_folder
+          ? (
+            <>
+              <DropdownMenuItem onClick={onOpen}>
+                <ChevronRight className="h-4 w-4 mr-2" /> Open
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onRename}>
+                <Pencil className="h-4 w-4 mr-2" /> Rename
+              </DropdownMenuItem>
+            </>
+          )
+          : (
+            <>
+              {previewType && (
+                <DropdownMenuItem onClick={onPreview}>
+                  <Eye className="h-4 w-4 mr-2" /> Preview
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem disabled={!editable} onClick={() => editable && onEdit()}>
+                <Edit3 className="h-4 w-4 mr-2" /> Edit
+              </DropdownMenuItem>
+              {onDownloadUrl && (
+                <DropdownMenuItem asChild>
+                  <a href={onDownloadUrl} download={item.name}>
+                    <Download className="h-4 w-4 mr-2" /> Download
+                  </a>
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={onShare}>
+                <Share2 className="h-4 w-4 mr-2" /> Share
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onRename}>
+                <Pencil className="h-4 w-4 mr-2" /> Rename
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onDuplicate}>
+                <Copy className="h-4 w-4 mr-2" /> Create Copy
+              </DropdownMenuItem>
+            </>
+          )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={onDelete}>
+          <Trash2 className="h-4 w-4 mr-2" /> Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 // ─── Page ────────────────────────────────────────────────
 
 function FilesPage() {
@@ -192,6 +350,18 @@ function FilesPage() {
   const [sortBy, setSortBy] = useState<SortField>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [page, setPage] = useState(1)
+
+  // ── Row selection (bulk ops) ───────────────────────────
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkMoveOpen, setBulkMoveOpen] = useState(false)
+  const [bulkMoveFolderId, setBulkMoveFolderId] = useState('')
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [bulkMoving, setBulkMoving] = useState(false)
+
+  // ── Inline expand (name click → properties panel) ──────
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [expandedBlobUrl, setExpandedBlobUrl] = useState<string | null>(null)
+  const [expandedBlobLoading, setExpandedBlobLoading] = useState(false)
 
   // ── Upload dialog ──────────────────────────────────────
   const [uploadOpen, setUploadOpen] = useState(false)
@@ -224,6 +394,12 @@ function FilesPage() {
   const [saving, setSaving] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
 
+  // ── Preview dialog ─────────────────────────────────────
+  const [previewFile, setPreviewFile] = useState<UserFile | null>(null)
+  const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+
   // ── Delete confirm ─────────────────────────────────────
   const [deleteItem, setDeleteItem] = useState<UserFile | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -238,6 +414,18 @@ function FilesPage() {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null)
   const [qrGenerating, setQrGenerating] = useState(false)
   const [qrError, setQrError] = useState<string | null>(null)
+
+  // ── View mode ──────────────────────────────────────────
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
+
+  // ── Rename dialog ──────────────────────────────────────
+  const [renameItem, setRenameItem] = useState<UserFile | null>(null)
+  const [renameName, setRenameName] = useState('')
+  const [renaming, setRenaming] = useState(false)
+  const [renameError, setRenameError] = useState<string | null>(null)
+
+  // ── Header checkbox ref (for indeterminate state) ──────
+  const headerCheckboxRef = useRef<HTMLInputElement>(null)
 
   // ─── Data ──────────────────────────────────────────────
 
@@ -297,9 +485,10 @@ function FilesPage() {
       // Folders always before files.
       if (a.is_folder !== b.is_folder) return a.is_folder ? -1 : 1
       let cmp = 0
-      if (sortBy === 'name')    cmp = a.name.localeCompare(b.name)
+      if (sortBy === 'name')         cmp = a.name.localeCompare(b.name)
       else if (sortBy === 'type')    cmp = (a.mime_type ?? '').localeCompare(b.mime_type ?? '')
-      else                      cmp = a.created.localeCompare(b.created)
+      else if (sortBy === 'updated') cmp = a.updated.localeCompare(b.updated)
+      else                           cmp = a.created.localeCompare(b.created)
       return sortDir === 'asc' ? cmp : -cmp
     })
 
@@ -337,6 +526,168 @@ function FilesPage() {
     } else {
       setSortBy(field)
       setSortDir('asc')
+    }
+  }
+
+  // ─── Selection (bulk) ──────────────────────────────────
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function isAllPageSelected() {
+    return pagedItems.length > 0 && pagedItems.every(i => selectedIds.has(i.id))
+  }
+
+  function toggleSelectPage() {
+    if (isAllPageSelected()) {
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        pagedItems.forEach(i => next.delete(i.id))
+        return next
+      })
+    } else {
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        pagedItems.forEach(i => next.add(i.id))
+        return next
+      })
+    }
+  }
+
+  // ─── Inline expand ─────────────────────────────────────
+
+  async function toggleExpand(item: UserFile) {
+    if (expandedId === item.id) {
+      if (expandedBlobUrl) URL.revokeObjectURL(expandedBlobUrl)
+      setExpandedId(null)
+      setExpandedBlobUrl(null)
+      setExpandedBlobLoading(false)
+      return
+    }
+    if (expandedBlobUrl) URL.revokeObjectURL(expandedBlobUrl)
+    setExpandedId(item.id)
+    setExpandedBlobUrl(null)
+    const pt = getPreviewType(item)
+    if (pt === 'image') {
+      setExpandedBlobLoading(true)
+      try {
+        const res = await fetch(`/api/ext/space/preview/${item.id}`, {
+          headers: { Authorization: pb.authStore.token },
+        })
+        if (res.ok) {
+          const blob = await res.blob()
+          setExpandedBlobUrl(URL.createObjectURL(blob))
+        }
+      } catch {/* ignore */}
+      finally { setExpandedBlobLoading(false) }
+    }
+  }
+
+  // ─── Bulk delete ───────────────────────────────────────
+
+  async function handleBulkDelete() {
+    if (selectedIds.size === 0) return
+    setBulkDeleting(true)
+    try {
+      await Promise.all([...selectedIds].map(id => pb.collection('user_files').delete(id)))
+      setSelectedIds(new Set())
+      fetchAll()
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Failed to delete some items')
+    } finally {
+      setBulkDeleting(false)
+    }
+  }
+
+  // ─── Bulk move ─────────────────────────────────────────
+
+  async function handleBulkMove() {
+    if (selectedIds.size === 0) return
+    setBulkMoving(true)
+    try {
+      await Promise.all([...selectedIds].map(id =>
+        pb.collection('user_files').update(id, { parent: bulkMoveFolderId })
+      ))
+      setSelectedIds(new Set())
+      setBulkMoveOpen(false)
+      fetchAll()
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Failed to move some items')
+    } finally {
+      setBulkMoving(false)
+    }
+  }
+
+  // ─── Header checkbox indeterminate sync ────────────────
+
+  useEffect(() => {
+    const el = headerCheckboxRef.current
+    if (!el) return
+    const someSelected = selectedIds.size > 0 && !isAllPageSelected()
+    el.indeterminate = someSelected
+  })
+
+  // ─── Duplicate file ─────────────────────────────────────
+
+  async function handleDuplicate(file: UserFile) {
+    if (!file.content) return
+    try {
+      const downloadUrl = buildDownloadUrl(file)
+      if (!downloadUrl) return
+      const res = await fetch(downloadUrl, { headers: { Authorization: pb.authStore.token } })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const blob = await res.blob()
+      const ext = file.name.includes('.') ? '.' + file.name.split('.').pop() : ''
+      const base = ext ? file.name.slice(0, file.name.length - ext.length) : file.name
+      const copyName = `${base} (copy)${ext}`
+      const form = new FormData()
+      form.append('name', copyName)
+      form.append('owner', pb.authStore.record!.id)
+      form.append('mime_type', file.mime_type)
+      form.append('parent', file.parent)
+      form.append('is_folder', 'false')
+      form.append('size', String(blob.size))
+      form.append('content', new File([blob], copyName, { type: file.mime_type }), copyName)
+      await fetch('/api/collections/user_files/records', {
+        method: 'POST',
+        headers: {
+          Authorization: pb.authStore.token,
+          'X-Space-Batch-Size': '1',
+        },
+        body: form,
+      })
+      fetchAll()
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Failed to duplicate file')
+    }
+  }
+
+  // ─── Rename ────────────────────────────────────────────
+
+  function openRename(item: UserFile) {
+    setRenameItem(item)
+    setRenameName(item.name)
+    setRenameError(null)
+  }
+
+  async function handleRename() {
+    if (!renameItem || !renameName.trim()) return
+    setRenaming(true)
+    setRenameError(null)
+    try {
+      await pb.collection('user_files').update(renameItem.id, { name: renameName.trim() })
+      setRenameItem(null)
+      fetchAll()
+    } catch (e: unknown) {
+      setRenameError(e instanceof Error ? e.message : 'Failed to rename')
+    } finally {
+      setRenaming(false)
     }
   }
 
@@ -541,6 +892,37 @@ function FilesPage() {
     } finally {
       setCreatingFile(false)
     }
+  }
+
+  // ─── Preview ───────────────────────────────────────────
+
+  async function openPreview(file: UserFile) {
+    setPreviewFile(file)
+    setPreviewBlobUrl(null)
+    setPreviewError(null)
+    setPreviewLoading(true)
+    try {
+      const res = await fetch(`/api/ext/space/preview/${file.id}`, {
+        headers: { Authorization: pb.authStore.token },
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.message ?? `HTTP ${res.status}`)
+      }
+      const blob = await res.blob()
+      setPreviewBlobUrl(URL.createObjectURL(blob))
+    } catch (e: unknown) {
+      setPreviewError(e instanceof Error ? e.message : 'Failed to load preview')
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
+  function closePreview() {
+    if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl)
+    setPreviewFile(null)
+    setPreviewBlobUrl(null)
+    setPreviewError(null)
   }
 
   // ─── Edit ──────────────────────────────────────────────
@@ -756,6 +1138,24 @@ function FilesPage() {
         <div className="flex-1" />
 
         {/* Action buttons */}
+        <div className="flex items-center border rounded-md overflow-hidden">
+          <Button
+            variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+            size="sm" className="rounded-none border-0"
+            title="List view"
+            onClick={() => setViewMode('list')}
+          >
+            <List className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+            size="sm" className="rounded-none border-0 border-l"
+            title="Grid view"
+            onClick={() => setViewMode('grid')}
+          >
+            <LayoutGrid className="h-4 w-4" />
+          </Button>
+        </div>
         <Button
           variant="outline" size="sm"
           onClick={fetchAll} disabled={loading}
@@ -794,22 +1194,56 @@ function FilesPage() {
         </Card>
       )}
 
-      {/* ── File table ─────────────────────────────────── */}
-      {!loading && viewItems.length > 0 && (
+      {/* ── Bulk action bar ────────────────────────────── */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-md border bg-muted/50 text-sm">
+          <span className="text-muted-foreground">{selectedIds.size} selected</span>
+          <div className="flex-1" />
+          <Button
+            size="sm" variant="outline"
+            onClick={() => { setBulkMoveFolderId(''); setBulkMoveOpen(true) }}
+          >
+            <FolderInput className="h-4 w-4 mr-1" /> Move to…
+          </Button>
+          <Button
+            size="sm" variant="destructive"
+            disabled={bulkDeleting}
+            onClick={handleBulkDelete}
+          >
+            {bulkDeleting && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+            <Trash2 className="h-4 w-4 mr-1" /> Delete
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
+      {/* ── File list (table) ──────────────────────────── */}
+      {!loading && viewItems.length > 0 && viewMode === 'list' && (
         <Card>
           <CardContent className="p-0 overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>
-                    <button
-                      className="flex items-center font-semibold hover:text-foreground"
-                      onClick={() => toggleSort('name')}
-                    >
-                      Name <SortIcon field="name" sortBy={sortBy} sortDir={sortDir} />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={headerCheckboxRef}
+                        type="checkbox"
+                        className="h-4 w-4 cursor-pointer"
+                        checked={isAllPageSelected()}
+                        onChange={toggleSelectPage}
+                        title="Select all on this page"
+                      />
+                      <button
+                        className="flex items-center font-semibold hover:text-foreground"
+                        onClick={() => toggleSort('name')}
+                      >
+                        Name <SortIcon field="name" sortBy={sortBy} sortDir={sortDir} />
+                      </button>
+                    </div>
                   </TableHead>
-                  <TableHead>Path</TableHead>
                   <TableHead>
                     <button
                       className="flex items-center font-semibold hover:text-foreground"
@@ -828,112 +1262,207 @@ function FilesPage() {
                       Created <SortIcon field="created" sortBy={sortBy} sortDir={sortDir} />
                     </button>
                   </TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>
+                    <button
+                      className="flex items-center font-semibold hover:text-foreground"
+                      onClick={() => toggleSort('updated')}
+                    >
+                      Modified <SortIcon field="updated" sortBy={sortBy} sortDir={sortDir} />
+                    </button>
+                  </TableHead>
+                  <TableHead className="w-8" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {pagedItems.map(item => {
                   const editable = isEditable(item, quota)
                   const itemPath = buildPath(item, items)
+                  const previewType = getPreviewType(item)
+                  const isExpanded = expandedId === item.id
+                  const mime = item.is_folder ? 'Folder' : (item.mime_type || '—')
                   return (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-medium">
-                        {item.is_folder
-                          ? (
-                            <button
-                              className="flex items-center gap-2 whitespace-nowrap hover:underline cursor-pointer"
-                              onClick={() => navigateTo(item.id)}
-                            >
-                              <Folder className="h-4 w-4 text-yellow-500 shrink-0" />
-                              {item.name}
-                            </button>
-                          )
-                          : (
-                            <div className="flex items-center gap-2 whitespace-nowrap">
-                              <FileText className="h-4 w-4 text-blue-500 shrink-0" />
-                              {item.name}
-                            </div>
-                          )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-xs font-mono whitespace-nowrap">
-                        {itemPath}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
-                        {item.is_folder ? 'Folder' : (item.mime_type || '—')}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
-                        {item.is_folder ? '—' : formatFileSize(item.size)}
-                      </TableCell>
-                      <TableCell>
-                        {!item.is_folder && item.share_token && !isExpired(item.share_expires_at)
-                          ? (
-                            <Badge variant="secondary" className="text-xs whitespace-nowrap">
-                              Shared · expires {formatDate(item.share_expires_at)}
-                            </Badge>
-                          )
-                          : <span className="text-muted-foreground text-sm">—</span>}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                        {formatDate(item.created)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex gap-1 justify-end">
-                          {item.is_folder
+                    <>
+                      <TableRow key={item.id} className={isExpanded ? 'bg-muted/30' : ''}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 cursor-pointer shrink-0"
+                              checked={selectedIds.has(item.id)}
+                              onChange={() => toggleSelect(item.id)}
+                            />
+                            {item.is_folder
+                              ? (
+                                <button
+                                  className="flex items-center gap-1.5 hover:underline cursor-pointer whitespace-nowrap"
+                                  onClick={() => navigateTo(item.id)}
+                                >
+                                  <FileIcon file={item} />
+                                  {item.name}
+                                </button>
+                              )
+                              : (
+                                <button
+                                  className="flex items-center gap-1.5 hover:underline cursor-pointer text-left whitespace-nowrap"
+                                  onClick={() => toggleExpand(item)}
+                                >
+                                  <FileIcon file={item} />
+                                  {item.name}
+                                </button>
+                              )}
+                          </div>
+                        </TableCell>
+                        <TableCell
+                          className="text-muted-foreground text-sm max-w-[120px] truncate"
+                          title={mime}
+                        >
+                          {truncateMime(mime)}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
+                          {item.is_folder ? '—' : formatFileSize(item.size)}
+                        </TableCell>
+                        <TableCell>
+                          {!item.is_folder && item.share_token && !isExpired(item.share_expires_at)
                             ? (
-                              <Button
-                                size="sm" variant="ghost"
-                                title="Open folder"
-                                onClick={() => navigateTo(item.id)}
-                              >
-                                <ChevronRight className="h-4 w-4" />
-                              </Button>
+                              <Badge variant="secondary" className="text-xs whitespace-nowrap">
+                                Shared
+                              </Badge>
                             )
-                            : (
-                              <>
-                                <Button
-                                  size="sm" variant="ghost"
-                                  title={editable ? 'Edit' : 'Online editing not supported for this format'}
-                                  disabled={!editable}
-                                  onClick={() => editable && openEditor(item)}
-                                >
-                                  <Edit3 className="h-4 w-4" />
-                                </Button>
-                                {item.content && (
-                                  <a
-                                    href={buildDownloadUrl(item) ?? '#'}
-                                    download={item.name}
-                                    className="inline-flex items-center justify-center h-8 w-8 rounded-md text-foreground hover:bg-muted transition-colors"
-                                    title="Download"
-                                  >
-                                    <Download className="h-4 w-4" />
-                                  </a>
+                            : <span className="text-muted-foreground text-sm">—</span>}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                          {formatDate(item.created)}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                          {formatDate(item.updated)}
+                        </TableCell>
+                        <TableCell>
+                          <ItemMenu
+                            item={item}
+                            editable={editable}
+                            previewType={previewType}
+                            onOpen={() => navigateTo(item.id)}
+                            onPreview={() => openPreview(item)}
+                            onEdit={() => openEditor(item)}
+                            onDownloadUrl={buildDownloadUrl(item)}
+                            onShare={() => openShare(item)}
+                            onRename={() => openRename(item)}
+                            onDuplicate={() => handleDuplicate(item)}
+                            onDelete={() => setDeleteItem(item)}
+                          />
+                        </TableCell>
+                      </TableRow>
+                      {isExpanded && (
+                        <TableRow key={`${item.id}-expand`} className="bg-muted/20 hover:bg-muted/20">
+                          <TableCell colSpan={7} className="py-3 px-6">
+                            <div className="flex gap-6 flex-wrap">
+                              {previewType === 'image' && (
+                                <div className="shrink-0">
+                                  {expandedBlobLoading
+                                    ? (
+                                      <div className="flex items-center gap-2 text-muted-foreground h-24 w-24 justify-center border rounded">
+                                        <Loader2 className="h-5 w-5 animate-spin" />
+                                      </div>
+                                    )
+                                    : expandedBlobUrl
+                                      ? <img src={expandedBlobUrl} alt={item.name} className="max-h-48 max-w-xs object-contain rounded border" />
+                                      : null}
+                                </div>
+                              )}
+                              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+                                <dt className="text-muted-foreground font-medium">Name</dt>
+                                <dd className="font-mono break-all">{item.name}</dd>
+                                <dt className="text-muted-foreground font-medium">Path</dt>
+                                <dd className="font-mono break-all">{itemPath}</dd>
+                                <dt className="text-muted-foreground font-medium">Type</dt>
+                                <dd>{item.mime_type || '—'}</dd>
+                                <dt className="text-muted-foreground font-medium">Size</dt>
+                                <dd>{formatFileSize(item.size)}</dd>
+                                <dt className="text-muted-foreground font-medium">Created</dt>
+                                <dd>{formatDate(item.created)}</dd>
+                                <dt className="text-muted-foreground font-medium">Modified</dt>
+                                <dd>{formatDate(item.updated)}</dd>
+                                {item.share_token && !isExpired(item.share_expires_at) && (
+                                  <>
+                                    <dt className="text-muted-foreground font-medium">Shared until</dt>
+                                    <dd>{formatDate(item.share_expires_at)}</dd>
+                                  </>
                                 )}
-                                <Button
-                                  size="sm" variant="ghost"
-                                  title="Share"
-                                  onClick={() => openShare(item)}
-                                >
-                                  <Share2 className="h-4 w-4" />
-                                </Button>
-                              </>
-                            )}
-                          <Button
-                            size="sm" variant="ghost"
-                            className="text-destructive hover:text-destructive"
-                            title="Delete"
-                            onClick={() => setDeleteItem(item)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                              </dl>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
                   )
                 })}
               </TableBody>
             </Table>
           </CardContent>
         </Card>
+      )}
+
+      {/* ── File list (grid) ───────────────────────────── */}
+      {!loading && viewItems.length > 0 && viewMode === 'grid' && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          {pagedItems.map(item => {
+            const editable = isEditable(item, quota)
+            const previewType = getPreviewType(item)
+            const isSelected = selectedIds.has(item.id)
+            return (
+              <div
+                key={item.id}
+                className={`group relative flex flex-col items-center gap-1.5 rounded-lg border p-3 cursor-pointer select-none transition-colors
+                  ${isSelected ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}
+              >
+                {/* Selection checkbox */}
+                <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 cursor-pointer"
+                    checked={isSelected}
+                    onChange={() => toggleSelect(item.id)}
+                    onClick={e => e.stopPropagation()}
+                  />
+                </div>
+                {/* Icon */}
+                <div
+                  className="flex items-center justify-center h-12 w-12 mt-1"
+                  onClick={() => item.is_folder ? navigateTo(item.id) : toggleExpand(item)}
+                >
+                  <FileIcon
+                    file={item}
+                    className="h-10 w-10 shrink-0"
+                  />
+                </div>
+                {/* Name */}
+                <span
+                  className="text-xs text-center leading-tight max-w-full break-words line-clamp-2"
+                  title={item.name}
+                  onClick={() => item.is_folder ? navigateTo(item.id) : toggleExpand(item)}
+                >
+                  {item.name}
+                </span>
+                {/* More menu */}
+                <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <ItemMenu
+                    item={item}
+                    editable={editable}
+                    previewType={previewType}
+                    onOpen={() => navigateTo(item.id)}
+                    onPreview={() => openPreview(item)}
+                    onEdit={() => openEditor(item)}
+                    onDownloadUrl={buildDownloadUrl(item)}
+                    onShare={() => openShare(item)}
+                    onRename={() => openRename(item)}
+                    onDuplicate={() => handleDuplicate(item)}
+                    onDelete={() => setDeleteItem(item)}
+                  />
+                </div>
+              </div>
+            )
+          })}
+        </div>
       )}
 
       {/* ── Pagination ─────────────────────────────────── */}
@@ -970,6 +1499,64 @@ function FilesPage() {
           {' · '}max file size {formatBytes(quota.max_size_mb)}
         </p>
       )}
+
+      {/* ── Bulk Move Dialog ───────────────────────────── */}
+      <Dialog open={bulkMoveOpen} onOpenChange={v => { if (!v) setBulkMoveOpen(false) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move {selectedIds.size} item{selectedIds.size !== 1 ? 's' : ''} to…</DialogTitle>
+            <DialogDescription>Select the target folder. Choose root (/) to move to the top level.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Target folder</Label>
+            <select
+              className="mt-1 w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+              value={bulkMoveFolderId}
+              onChange={e => setBulkMoveFolderId(e.target.value)}
+            >
+              <option value="">/ (root)</option>
+              {allFolders
+                .filter(f => !selectedIds.has(f.id))
+                .map(f => (
+                  <option key={f.id} value={f.id}>{buildPath(f, items)}</option>
+                ))}
+            </select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkMoveOpen(false)}>Cancel</Button>
+            <Button onClick={handleBulkMove} disabled={bulkMoving}>
+              {bulkMoving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Move
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Rename Dialog ──────────────────────────────── */}
+      <Dialog open={!!renameItem} onOpenChange={v => { if (!v) setRenameItem(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename "{renameItem?.name}"</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>New name</Label>
+            <Input
+              autoFocus
+              value={renameName}
+              onChange={e => setRenameName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleRename() }}
+            />
+            {renameError && <p className="text-destructive text-sm">{renameError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameItem(null)}>Cancel</Button>
+            <Button onClick={handleRename} disabled={!renameName.trim() || renaming}>
+              {renaming && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Rename
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── New Folder Dialog ──────────────────────────── */}
       <Dialog open={folderOpen} onOpenChange={setFolderOpen}>
@@ -1130,6 +1717,76 @@ function FilesPage() {
               {uploading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Upload
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Preview Dialog ─────────────────────────────── */}
+      <Dialog open={!!previewFile} onOpenChange={v => { if (!v) closePreview() }}>
+        <DialogContent className="sm:max-w-4xl w-full">
+          <DialogHeader>
+            <DialogTitle>Preview: {previewFile?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-center min-h-[40vh] max-h-[70vh] overflow-auto">
+            {previewLoading && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin" /> Loading preview…
+              </div>
+            )}
+            {previewError && (
+              <p className="text-destructive text-sm">{previewError}</p>
+            )}
+            {!previewLoading && !previewError && previewBlobUrl && previewFile && (() => {
+              const type = getPreviewType(previewFile)
+              if (type === 'image') {
+                return (
+                  <img
+                    src={previewBlobUrl}
+                    alt={previewFile.name}
+                    className="max-w-full max-h-[65vh] object-contain rounded"
+                  />
+                )
+              }
+              if (type === 'pdf') {
+                return (
+                  <iframe
+                    src={previewBlobUrl}
+                    title={previewFile.name}
+                    className="w-full h-[65vh] rounded border"
+                    sandbox="allow-scripts"
+                  />
+                )
+              }
+              if (type === 'audio') {
+                return (
+                  // eslint-disable-next-line jsx-a11y/media-has-caption
+                  <audio controls src={previewBlobUrl} className="w-full" />
+                )
+              }
+              if (type === 'video') {
+                return (
+                  // eslint-disable-next-line jsx-a11y/media-has-caption
+                  <video
+                    controls
+                    src={previewBlobUrl}
+                    className="max-w-full max-h-[65vh] rounded"
+                  />
+                )
+              }
+              return null
+            })()}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closePreview}>Close</Button>
+            {previewFile?.content && (
+              <a
+                href={buildDownloadUrl(previewFile) ?? '#'}
+                download={previewFile.name}
+                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium border border-input bg-background hover:bg-muted transition-colors"
+              >
+                <Download className="h-4 w-4" /> Download
+              </a>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
