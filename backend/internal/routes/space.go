@@ -1,17 +1,20 @@
 package routes
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
 	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/filesystem"
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/websoft9/appos/backend/internal/settings"
 )
@@ -75,6 +78,7 @@ func registerSpaceRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	f.Bind(apis.RequireAuth())
 
 	f.GET("/quota", handleSpaceQuota)
+	f.POST("/fetch", handleSpaceFetch)
 	f.POST("/share/{id}", handleFileShareCreate)
 	f.DELETE("/share/{id}", handleFileShareRevoke)
 }
@@ -412,4 +416,180 @@ func isShareExpired(record *core.Record) (bool, string) {
 
 func fileError(msg string) map[string]any {
 	return map[string]any{"message": msg}
+}
+
+// handleSpaceFetch downloads a remote URL and saves it directly to the user's space.
+//
+// POST /api/ext/space/fetch
+// Body: { "url": "https://...", "name": "optional.ext", "parent": "optionalFolderId" }
+//
+// Compliance checks (same policy as upload):
+//   - URL must be http or https
+//   - Extension must pass allowlist / denylist
+//   - Downloaded size must not exceed max_size_mb quota
+func handleSpaceFetch(e *core.RequestEvent) error {
+	authRecord := e.Auth
+	if authRecord == nil {
+		return e.ForbiddenError("authentication required", nil)
+	}
+
+	var body struct {
+		URL    string `json:"url"`
+		Name   string `json:"name"`
+		Parent string `json:"parent"`
+	}
+	if err := e.BindBody(&body); err != nil {
+		return e.BadRequestError("invalid request body", err)
+	}
+	body.URL = strings.TrimSpace(body.URL)
+	if body.URL == "" {
+		return e.BadRequestError("url is required", nil)
+	}
+
+	// Validate URL scheme (http/https only, no SSRF via file:// etc.)
+	parsed, err := url.ParseRequestURI(body.URL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return e.BadRequestError("only http and https URLs are supported", nil)
+	}
+
+	// Reject private/loopback addresses to prevent SSRF.
+	host := strings.ToLower(parsed.Hostname())
+	if host == "localhost" || strings.HasPrefix(host, "127.") ||
+		strings.HasPrefix(host, "10.") || strings.HasPrefix(host, "192.168.") ||
+		strings.HasPrefix(host, "172.") || host == "::1" || host == "0.0.0.0" {
+		return e.BadRequestError("private/loopback URLs are not allowed", nil)
+	}
+
+	// Read quota settings.
+	quota, _ := settings.GetGroup(e.App, "space", "quota", defaultSpaceQuota)
+	maxSizeMB := settings.Int(quota, "maxSizeMB", 10)
+	maxBytes := int64(maxSizeMB) * 1024 * 1024
+	allowExts := settings.StringSlice(quota, "uploadAllowExts")
+	denyExts := settings.StringSlice(quota, "uploadDenyExts")
+
+	// Derive target filename.
+	name := strings.TrimSpace(body.Name)
+	if name == "" {
+		// Extract last non-empty path segment, strip query string.
+		urlPath := parsed.Path
+		parts := strings.Split(urlPath, "/")
+		for i := len(parts) - 1; i >= 0; i-- {
+			if p := strings.TrimSpace(parts[i]); p != "" {
+				name = p
+				break
+			}
+		}
+		if name == "" {
+			name = "download"
+		}
+	}
+
+	// Validate extension compliance.
+	ext := ""
+	if idx := strings.LastIndex(name, "."); idx >= 0 {
+		ext = strings.ToLower(name[idx+1:])
+	}
+	if ext == "" {
+		return e.BadRequestError("file has no extension; add a filename with an extension", nil)
+	}
+	if len(allowExts) > 0 {
+		allowed := false
+		for _, a := range allowExts {
+			if strings.EqualFold(a, ext) {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			return e.BadRequestError(fmt.Sprintf("extension .%s is not in the upload allowlist", ext), nil)
+		}
+	} else if len(denyExts) > 0 {
+		for _, d := range denyExts {
+			if strings.EqualFold(d, ext) {
+				return e.BadRequestError(fmt.Sprintf("extension .%s is blocked by the upload denylist", ext), nil)
+			}
+		}
+	}
+
+	// Optional early rejection: HEAD request to check Content-Length.
+	httpClient := &http.Client{Timeout: 15 * time.Second}
+	if headResp, err := httpClient.Head(body.URL); err == nil {
+		headResp.Body.Close()
+		if headResp.ContentLength > maxBytes {
+			return e.BadRequestError(
+				fmt.Sprintf("remote file is too large (limit %d MB)", maxSizeMB), nil)
+		}
+	}
+
+	// Download with a hard size cap and timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, body.URL, nil)
+	if err != nil {
+		return e.BadRequestError("failed to build request: "+err.Error(), nil)
+	}
+	getResp, err := httpClient.Do(req)
+	if err != nil {
+		return e.BadRequestError("failed to fetch URL: "+err.Error(), nil)
+	}
+	defer getResp.Body.Close()
+
+	if getResp.StatusCode < 200 || getResp.StatusCode > 299 {
+		return e.BadRequestError(
+			fmt.Sprintf("remote server returned HTTP %d", getResp.StatusCode), nil)
+	}
+
+	// Read up to maxBytes+1 so we can detect over-size.
+	data, err := io.ReadAll(io.LimitReader(getResp.Body, maxBytes+1))
+	if err != nil {
+		return e.BadRequestError("failed to read remote content: "+err.Error(), nil)
+	}
+	if int64(len(data)) > maxBytes {
+		return e.BadRequestError(
+			fmt.Sprintf("remote file exceeds size limit (%d MB)", maxSizeMB), nil)
+	}
+
+	// Detect MIME type; prefer server's Content-Type header.
+	mimeType := http.DetectContentType(data)
+	if ct := getResp.Header.Get("Content-Type"); ct != "" {
+		if idx := strings.Index(ct, ";"); idx >= 0 {
+			ct = ct[:idx]
+		}
+		ct = strings.TrimSpace(ct)
+		if ct != "" && ct != "application/octet-stream" {
+			mimeType = ct
+		}
+	}
+
+	// Create PocketBase file object and save record.
+	pbFile, err := filesystem.NewFileFromBytes(data, name)
+	if err != nil {
+		return e.JSON(http.StatusInternalServerError, fileError("failed to create file object"))
+	}
+
+	col, err := e.App.FindCollectionByNameOrId("user_files")
+	if err != nil {
+		return e.JSON(http.StatusInternalServerError, fileError("user_files collection not found"))
+	}
+
+	record := core.NewRecord(col)
+	record.Set("owner", authRecord.Id)
+	record.Set("name", name)
+	record.Set("mime_type", mimeType)
+	record.Set("size", len(data))
+	record.Set("parent", body.Parent)
+	record.Set("is_folder", false)
+	record.Set("content", pbFile)
+
+	if err := e.App.Save(record); err != nil {
+		return e.JSON(http.StatusInternalServerError, fileError("failed to save file: "+err.Error()))
+	}
+
+	return e.JSON(http.StatusOK, map[string]any{
+		"id":        record.Id,
+		"name":      record.GetString("name"),
+		"size":      record.GetInt("size"),
+		"mime_type": record.GetString("mime_type"),
+	})
 }

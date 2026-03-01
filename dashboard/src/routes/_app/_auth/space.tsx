@@ -5,7 +5,7 @@ import {
   Folder, FolderPlus, FilePlus, RefreshCw, Download,
   ChevronRight, Search, ArrowUp, ArrowDown, ChevronsUpDown,
   QrCode, Eye, MoreVertical, FolderInput,
-  LayoutGrid, List, Pencil, Edit3, Maximize2, Minimize2,
+  LayoutGrid, List, Pencil, Edit3, Maximize2, Minimize2, Globe,
   FileCode2, FileImage, FileVideo, FileType2, File as FileGeneric, Archive, Music2, RotateCcw,
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
@@ -461,6 +461,14 @@ function FilesPage() {
   const [emptyTrashOpen, setEmptyTrashOpen] = useState(false)
   const [emptyingTrash, setEmptyingTrash] = useState(false)
 
+  // ── Fetch from URL dialog ─────────────────────────────
+  const [fetchOpen, setFetchOpen] = useState(false)
+  const [fetchUrl, setFetchUrl] = useState('')
+  const [fetchName, setFetchName] = useState('')
+  const [fetchParent, setFetchParent] = useState('')
+  const [fetching, setFetching] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+
   // ── Header checkbox ref (for indeterminate state) ──────
   const headerCheckboxRef = useRef<HTMLInputElement>(null)
 
@@ -775,6 +783,46 @@ function FilesPage() {
     setUploadParent(currentFolderId ?? '')
     setUploadError(null)
     setUploadOpen(true)
+  }
+
+  function openFetch() {
+    setFetchUrl('')
+    setFetchName('')
+    setFetchParent(currentFolderId ?? '')
+    setFetchError(null)
+    setFetchOpen(true)
+  }
+
+  async function handleFetch() {
+    const url = fetchUrl.trim()
+    if (!url) return
+    setFetching(true)
+    setFetchError(null)
+    try {
+      const res = await fetch('/api/ext/space/fetch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: pb.authStore.token,
+        },
+        body: JSON.stringify({
+          url,
+          name: fetchName.trim() || undefined,
+          parent: fetchParent || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setFetchError(data?.message ?? `Server error ${res.status}`)
+        return
+      }
+      setFetchOpen(false)
+      fetchAll()
+    } catch (e: unknown) {
+      setFetchError(e instanceof Error ? e.message : 'Network error')
+    } finally {
+      setFetching(false)
+    }
   }
 
   // ─── Upload ────────────────────────────────────────────
@@ -1279,6 +1327,9 @@ function FilesPage() {
             </Button>
             <Button size="sm" onClick={openUpload}>
               <Upload className="h-4 w-4 mr-1" /> Upload
+            </Button>
+            <Button variant="outline" size="sm" onClick={openFetch}>
+              <Globe className="h-4 w-4 mr-1" /> Fetch URL
             </Button>
           </>
         )}
@@ -1847,6 +1898,73 @@ function FilesPage() {
             <Button onClick={handleUpload} disabled={uploadFiles.length === 0 || uploading}>
               {uploading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Upload
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Fetch from URL Dialog ───────────────────────── */}
+      <Dialog open={fetchOpen} onOpenChange={v => { if (!v && !fetching) setFetchOpen(false) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Fetch File from URL</DialogTitle>
+            <DialogDescription>
+              Download a file from a public URL directly into your Space.
+              The same upload policy (size &amp; extension limits) applies.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>URL <span className="text-destructive">*</span></Label>
+              <Input
+                className="mt-1"
+                placeholder="https://example.com/file.zip"
+                value={fetchUrl}
+                disabled={fetching}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFetchUrl(e.target.value)}
+                onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter' && fetchUrl.trim()) handleFetch() }}
+              />
+            </div>
+            <div>
+              <Label>Save as <span className="text-muted-foreground text-xs">(optional — detected from URL if blank)</span></Label>
+              <Input
+                className="mt-1"
+                placeholder="e.g. report.pdf"
+                value={fetchName}
+                disabled={fetching}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFetchName(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Destination folder</Label>
+              <select
+                className="mt-1 w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+                value={fetchParent}
+                disabled={fetching}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFetchParent(e.target.value)}
+              >
+                <option value="">/ (root)</option>
+                {allFolders.map(f => (
+                  <option key={f.id} value={f.id}>{buildPath(f, items)}</option>
+                ))}
+              </select>
+            </div>
+            {quota && (
+              <p className="text-xs text-muted-foreground">
+                Max size: {formatBytes(quota.max_size_mb)}.
+                {quota.upload_allow_exts?.length > 0
+                  ? ` Allowlist: ${quota.upload_allow_exts.join(', ')}.`
+                  : quota.upload_deny_exts?.length > 0
+                    ? ` Blocked: ${quota.upload_deny_exts.join(', ')}.`
+                    : ' Any extension allowed.'}
+              </p>
+            )}
+            {fetchError && <p className="text-destructive text-sm">{fetchError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFetchOpen(false)} disabled={fetching}>Cancel</Button>
+            <Button onClick={handleFetch} disabled={!fetchUrl.trim() || fetching}>
+              {fetching ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Downloading…</> : <><Globe className="h-4 w-4 mr-1" /> Fetch</>}
             </Button>
           </DialogFooter>
         </DialogContent>
