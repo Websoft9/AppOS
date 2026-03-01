@@ -4,9 +4,7 @@ import type { AuthRecord } from '@/lib/auth-types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter,
-} from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet'
 import { Loader2 } from 'lucide-react'
 
 interface EditUserSheetProps {
@@ -24,7 +22,13 @@ interface FieldErrors {
 
 // ─── Component ───────────────────────────────────────────
 
-export function EditUserSheet({ open, onOpenChange, record, collection, onSuccess }: EditUserSheetProps) {
+export function EditUserSheet({
+  open,
+  onOpenChange,
+  record,
+  collection,
+  onSuccess,
+}: EditUserSheetProps) {
   const [email, setEmail] = useState(record.email)
   const [name, setName] = useState(record.name ?? '')
   const [emailVisibility, setEmailVisibility] = useState(record.emailVisibility ?? false)
@@ -60,7 +64,11 @@ export function EditUserSheet({ open, onOpenChange, record, collection, onSucces
       onOpenChange(false)
       onSuccess()
     } catch (e: unknown) {
-      const err = e as { status?: number; data?: { data?: Record<string, { message?: string }> }; message?: string }
+      const err = e as {
+        status?: number
+        data?: { data?: Record<string, { message?: string }> }
+        message?: string
+      }
       if (err.status === 400 && err.data?.data) {
         const errs: FieldErrors = {}
         if (err.data.data.email?.message) errs.email = err.data.data.email.message
@@ -86,15 +94,17 @@ export function EditUserSheet({ open, onOpenChange, record, collection, onSucces
         <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4 px-4 pb-2">
           {isMember && (
             <div className="space-y-1.5">
-              <Label>Name <span className="text-muted-foreground text-xs">(optional)</span></Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} />
+              <Label>
+                Name <span className="text-muted-foreground text-xs">(optional)</span>
+              </Label>
+              <Input value={name} onChange={e => setName(e.target.value)} />
               {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
             </div>
           )}
 
           <div className="space-y-1.5">
             <Label>Email</Label>
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            <Input type="email" value={email} onChange={e => setEmail(e.target.value)} required />
             {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
           </div>
 
@@ -103,7 +113,7 @@ export function EditUserSheet({ open, onOpenChange, record, collection, onSucces
               id="emailVisibility"
               type="checkbox"
               checked={emailVisibility}
-              onChange={(e) => setEmailVisibility(e.target.checked)}
+              onChange={e => setEmailVisibility(e.target.checked)}
               className="h-4 w-4"
             />
             <Label htmlFor="emailVisibility">Make email visible to other users</Label>
@@ -111,11 +121,13 @@ export function EditUserSheet({ open, onOpenChange, record, collection, onSucces
 
           {isMember && (
             <div className="space-y-1.5">
-              <Label>Avatar <span className="text-muted-foreground text-xs">(optional)</span></Label>
+              <Label>
+                Avatar <span className="text-muted-foreground text-xs">(optional)</span>
+              </Label>
               <Input
                 type="file"
                 accept="image/*"
-                onChange={(e) => setAvatarFile(e.target.files?.[0] ?? null)}
+                onChange={e => setAvatarFile(e.target.files?.[0] ?? null)}
               />
             </div>
           )}

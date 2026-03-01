@@ -27,7 +27,7 @@ const (
 )
 
 var (
-	keyOnce sync.Once
+	keyOnce  sync.Once
 	keyBytes []byte
 
 	ErrCiphertextTooShort = errors.New("crypto: ciphertext too short")

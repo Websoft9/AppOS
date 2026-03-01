@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback, type FormEvent } from "react"
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
-import { Plus, Pencil, Trash2, Loader2, Lock, ChevronLeft } from "lucide-react"
-import { pb } from "@/lib/pb"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { useState, useEffect, useCallback, type FormEvent } from 'react'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { Plus, Pencil, Trash2, Loader2, Lock, ChevronLeft } from 'lucide-react'
+import { pb } from '@/lib/pb'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -11,7 +11,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from '@/components/ui/table'
 import {
   Dialog,
   DialogContent,
@@ -19,7 +19,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
+} from '@/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,10 +29,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+} from '@/components/ui/alert-dialog'
 
 const INPUT_CLASS =
-  "w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground text-sm"
+  'w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground text-sm'
 
 interface Group {
   id: string
@@ -46,37 +46,39 @@ function GroupsPage() {
   const navigate = useNavigate()
   const [groups, setGroups] = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
+  const [error, setError] = useState('')
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingGroup, setEditingGroup] = useState<Group | null>(null)
-  const [formName, setFormName] = useState("")
-  const [formDesc, setFormDesc] = useState("")
+  const [formName, setFormName] = useState('')
+  const [formDesc, setFormDesc] = useState('')
   const [saving, setSaving] = useState(false)
-  const [formError, setFormError] = useState("")
+  const [formError, setFormError] = useState('')
 
   const [deleteTarget, setDeleteTarget] = useState<Group | null>(null)
   const [deleting, setDeleting] = useState(false)
 
   const fetchGroups = useCallback(async () => {
     try {
-      const data = await pb.send<Group[]>("/api/ext/resources/groups", {})
+      const data = await pb.send<Group[]>('/api/ext/resources/groups', {})
       setGroups(Array.isArray(data) ? data : [])
-      setError("")
+      setError('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load groups")
+      setError(err instanceof Error ? err.message : 'Failed to load groups')
     } finally {
       setLoading(false)
     }
   }, [])
 
-  useEffect(() => { fetchGroups() }, [fetchGroups])
+  useEffect(() => {
+    fetchGroups()
+  }, [fetchGroups])
 
   function openCreate() {
     setEditingGroup(null)
-    setFormName("")
-    setFormDesc("")
-    setFormError("")
+    setFormName('')
+    setFormDesc('')
+    setFormError('')
     setDialogOpen(true)
   }
 
@@ -84,33 +86,33 @@ function GroupsPage() {
     setEditingGroup(g)
     setFormName(g.name)
     setFormDesc(g.description)
-    setFormError("")
+    setFormError('')
     setDialogOpen(true)
   }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setSaving(true)
-    setFormError("")
+    setFormError('')
     try {
       if (editingGroup) {
         await pb.send(`/api/ext/resources/groups/${editingGroup.id}`, {
-          method: "PUT",
+          method: 'PUT',
           body: { name: formName, description: formDesc },
         })
       } else {
-        const created = await pb.send<{ id: string }>("/api/ext/resources/groups", {
-          method: "POST",
+        const created = await pb.send<{ id: string }>('/api/ext/resources/groups', {
+          method: 'POST',
           body: { name: formName, description: formDesc },
         })
         setDialogOpen(false)
-        navigate({ to: "/resources/groups/$id", params: { id: created.id } })
+        navigate({ to: '/resources/groups/$id', params: { id: created.id } })
         return
       }
       setDialogOpen(false)
       await fetchGroups()
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Save failed")
+      setFormError(err instanceof Error ? err.message : 'Save failed')
     } finally {
       setSaving(false)
     }
@@ -120,11 +122,11 @@ function GroupsPage() {
     if (!deleteTarget) return
     setDeleting(true)
     try {
-      await pb.send(`/api/ext/resources/groups/${deleteTarget.id}`, { method: "DELETE" })
+      await pb.send(`/api/ext/resources/groups/${deleteTarget.id}`, { method: 'DELETE' })
       setDeleteTarget(null)
       await fetchGroups()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Delete failed")
+      setError(err instanceof Error ? err.message : 'Delete failed')
       setDeleteTarget(null)
     } finally {
       setDeleting(false)
@@ -174,7 +176,9 @@ function GroupsPage() {
           {groups.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <p>No resource groups found</p>
-              <Button variant="link" onClick={openCreate}>Create the first group</Button>
+              <Button variant="link" onClick={openCreate}>
+                Create the first group
+              </Button>
             </div>
           ) : (
             <Table>
@@ -202,27 +206,24 @@ function GroupsPage() {
                       </Link>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
-                      {g.description || "—"}
+                      {g.description || '—'}
                     </TableCell>
                     <TableCell>{g.resource_count}</TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openEdit(g)}
-                      >
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(g)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
                       {g.is_default ? (
-                        <Button variant="ghost" size="icon" disabled title="Default group cannot be deleted">
-                          <Lock className="h-4 w-4 text-muted-foreground" />
-                        </Button>
-                      ) : (
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => setDeleteTarget(g)}
+                          disabled
+                          title="Default group cannot be deleted"
                         >
+                          <Lock className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                      ) : (
+                        <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(g)}>
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       )}
@@ -239,9 +240,9 @@ function GroupsPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{editingGroup ? "Edit Group" : "New Resource Group"}</DialogTitle>
+            <DialogTitle>{editingGroup ? 'Edit Group' : 'New Resource Group'}</DialogTitle>
             <DialogDescription>
-              {editingGroup ? "Update group details." : "Create a new cross-type resource group."}
+              {editingGroup ? 'Update group details.' : 'Create a new cross-type resource group.'}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -273,7 +274,7 @@ function GroupsPage() {
               </Button>
               <Button type="submit" disabled={saving}>
                 {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {editingGroup ? "Save" : "Create"}
+                {editingGroup ? 'Save' : 'Create'}
               </Button>
             </DialogFooter>
           </form>
@@ -286,14 +287,14 @@ function GroupsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Group</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &quot;{deleteTarget?.name}&quot;?
-              Resources will not be deleted — only the group assignment is removed.
+              Are you sure you want to delete &quot;{deleteTarget?.name}&quot;? Resources will not
+              be deleted — only the group assignment is removed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} disabled={deleting}>
-              {deleting ? "Deleting…" : "Delete"}
+              {deleting ? 'Deleting…' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -302,6 +303,6 @@ function GroupsPage() {
   )
 }
 
-export const Route = createFileRoute("/_app/_auth/resources/groups/")({
+export const Route = createFileRoute('/_app/_auth/resources/groups/')({
   component: GroupsPage,
 })

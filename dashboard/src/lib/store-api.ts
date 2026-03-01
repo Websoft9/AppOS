@@ -1,5 +1,11 @@
 import { QueryClient, useQuery } from '@tanstack/react-query'
-import type { Locale, PrimaryCategory, Product, ProductWithCategories, StoreJsonType } from './store-types'
+import type {
+  Locale,
+  PrimaryCategory,
+  Product,
+  ProductWithCategories,
+  StoreJsonType,
+} from './store-types'
 
 const CDN_BASE = 'https://artifact.websoft9.com/release/websoft9/store'
 const LOCAL_BASE = '/store'
@@ -14,7 +20,7 @@ const LOCAL_BASE = '/store'
 export async function fetchStoreJson<T>(
   locale: Locale,
   type: StoreJsonType,
-  queryClient?: QueryClient,
+  queryClient?: QueryClient
 ): Promise<T> {
   const filename = `${type}_${locale}.json`
   const localUrl = `${LOCAL_BASE}/${filename}`
@@ -72,15 +78,15 @@ export function useProducts(locale: Locale, queryClient?: QueryClient) {
  */
 export async function syncLatestFromCdn(
   locale: Locale,
-  queryClient: QueryClient,
+  queryClient: QueryClient
 ): Promise<boolean> {
   try {
     const [catalog, products] = await Promise.all([
-      fetch(`${CDN_BASE}/catalog_${locale}.json`, { cache: 'no-store' }).then((r) => {
+      fetch(`${CDN_BASE}/catalog_${locale}.json`, { cache: 'no-store' }).then(r => {
         if (!r.ok) throw new Error('catalog fetch failed')
         return r.json() as Promise<PrimaryCategory[]>
       }),
-      fetch(`${CDN_BASE}/product_${locale}.json`, { cache: 'no-store' }).then((r) => {
+      fetch(`${CDN_BASE}/product_${locale}.json`, { cache: 'no-store' }).then(r => {
         if (!r.ok) throw new Error('product fetch failed')
         return r.json() as Promise<Product[]>
       }),
@@ -104,11 +110,10 @@ export async function syncLatestFromCdn(
  * Secondary match: product.catalogCollection.items[*].key
  */
 export function enrichProducts(products: Product[]): ProductWithCategories[] {
-  return products.map((p) => {
+  return products.map(p => {
     const catalogItems = p.catalogCollection?.items ?? []
-    const secondaryCategoryKeys = catalogItems.map((item) => item.key)
-    const primaryCategoryKey =
-      catalogItems[0]?.catalogCollection?.items?.[0]?.key ?? null
+    const secondaryCategoryKeys = catalogItems.map(item => item.key)
+    const primaryCategoryKey = catalogItems[0]?.catalogCollection?.items?.[0]?.key ?? null
 
     return {
       ...p,
@@ -123,7 +128,7 @@ export function enrichProducts(products: Product[]): ProductWithCategories[] {
  */
 export function countByPrimaryCategory(
   products: ProductWithCategories[],
-  primaryCategories: PrimaryCategory[],
+  primaryCategories: PrimaryCategory[]
 ): Record<string, number> {
   const counts: Record<string, number> = {}
 
@@ -144,7 +149,7 @@ export function countByPrimaryCategory(
  * Count apps per secondary category.
  */
 export function countBySecondaryCategory(
-  products: ProductWithCategories[],
+  products: ProductWithCategories[]
 ): Record<string, number> {
   const counts: Record<string, number> = {}
   for (const p of products) {
@@ -162,24 +167,22 @@ export function filterProducts(
   products: ProductWithCategories[],
   primaryCategory: string | null,
   secondaryCategory: string | null,
-  search: string,
+  search: string
 ): ProductWithCategories[] {
   let result = products
 
   if (primaryCategory) {
-    result = result.filter((p) => p.primaryCategoryKey === primaryCategory)
+    result = result.filter(p => p.primaryCategoryKey === primaryCategory)
   }
 
   if (secondaryCategory) {
-    result = result.filter((p) => p.secondaryCategoryKeys.includes(secondaryCategory))
+    result = result.filter(p => p.secondaryCategoryKeys.includes(secondaryCategory))
   }
 
   if (search.trim()) {
     const q = search.trim().toLowerCase()
     result = result.filter(
-      (p) =>
-        p.trademark.toLowerCase().includes(q) ||
-        p.overview.toLowerCase().includes(q),
+      p => p.trademark.toLowerCase().includes(q) || p.overview.toLowerCase().includes(q)
     )
   }
 
@@ -209,9 +212,21 @@ export function getGithubUrl(appKey: string): string {
  */
 export function getKeyColor(key: string): string {
   const palette = [
-    '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
-    '#06B6D4', '#84CC16', '#F97316', '#EC4899', '#6366F1',
-    '#14B8A6', '#A855F7', '#0EA5E9', '#22C55E', '#EAB308',
+    '#3B82F6',
+    '#10B981',
+    '#F59E0B',
+    '#EF4444',
+    '#8B5CF6',
+    '#06B6D4',
+    '#84CC16',
+    '#F97316',
+    '#EC4899',
+    '#6366F1',
+    '#14B8A6',
+    '#A855F7',
+    '#0EA5E9',
+    '#22C55E',
+    '#EAB308',
   ]
   let hash = 0
   for (let i = 0; i < key.length; i++) {
@@ -236,7 +251,7 @@ export function getSearchHistory(): string[] {
 
 export function addSearchHistory(term: string): void {
   if (!term.trim()) return
-  const history = getSearchHistory().filter((h) => h !== term)
+  const history = getSearchHistory().filter(h => h !== term)
   history.unshift(term)
   localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(history.slice(0, MAX_HISTORY)))
 }
@@ -245,10 +260,7 @@ export function clearSearchHistory(): void {
   localStorage.removeItem(SEARCH_HISTORY_KEY)
 }
 
-export function getSearchSuggestions(
-  products: Product[],
-  query: string,
-): Product[] {
+export function getSearchSuggestions(products: Product[], query: string): Product[] {
   if (!query.trim()) return []
   const q = query.trim().toLowerCase()
 

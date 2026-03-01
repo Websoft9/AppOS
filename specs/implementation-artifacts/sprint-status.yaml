@@ -44,9 +44,9 @@ development_status:
   epic1: in-progress
   1.1-container-build: in-progress             # Refactored: multi-stage alpine, no legacy components
   1.2-makefile: in-progress                    # Refactored: categorized commands per spec
-  1.3-ci-cd-pipeline: ready-for-dev
+  1.3-ci-cd-pipeline: done
   1.5-version-management: ready-for-dev
-  1.6-security-scanning: ready-for-dev
+  1.6-security-scanning: done
   epic1-retrospective: optional
 
   # Epic 2: Configuration Management

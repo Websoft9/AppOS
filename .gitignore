@@ -13,3 +13,6 @@ build/.env
 # Logs
 *.log
 pb_data/
+
+# Security / supply chain artifacts
+sbom.spdx.json

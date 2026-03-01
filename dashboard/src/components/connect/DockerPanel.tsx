@@ -34,7 +34,9 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
   const rootRef = useRef<HTMLDivElement | null>(null)
   const [hosts, setHosts] = useState<HostEntry[]>([])
   const [refreshSignal, setRefreshSignal] = useState(0)
-  const [activeTab, setActiveTab] = useState<'containers' | 'images' | 'volumes' | 'networks' | 'compose'>('containers')
+  const [activeTab, setActiveTab] = useState<
+    'containers' | 'images' | 'volumes' | 'networks' | 'compose'
+  >('containers')
   const [containerFilter, setContainerFilter] = useState('')
   const [containerFilterNames, setContainerFilterNames] = useState<string[]>([])
   const [composeFilter, setComposeFilter] = useState('')
@@ -47,18 +49,20 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
 
   useEffect(() => {
     pb.send('/api/ext/docker/servers', { method: 'GET' })
-      .then((res) => {
+      .then(res => {
         if (Array.isArray(res)) setHosts(res as HostEntry[])
       })
       .catch(() => setHosts([]))
   }, [])
 
-  const activeHost = hosts.find((h) => h.id === serverId)
+  const activeHost = hosts.find(h => h.id === serverId)
   const dockerDisabled = activeHost ? activeHost.status !== 'online' : false
   const dockerDisabledReason = activeHost?.reason || `${activeHost?.label ?? 'server'} is offline`
 
   useEffect(() => {
-    const container = document.querySelector('[data-docker-scroll-root="true"]') as HTMLElement | null
+    const container = document.querySelector(
+      '[data-docker-scroll-root="true"]'
+    ) as HTMLElement | null
     if (container) container.scrollTop = 0
   }, [activeTab])
 
@@ -97,16 +101,34 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
     <div
       ref={rootRef}
       className={cn('flex flex-col gap-3 h-full min-h-0 min-w-0 overflow-hidden', className)}
-      style={lockedHeight ? { height: `${lockedHeight}px`, maxHeight: `${lockedHeight}px` } : undefined}
+      style={
+        lockedHeight ? { height: `${lockedHeight}px`, maxHeight: `${lockedHeight}px` } : undefined
+      }
     >
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'containers' | 'images' | 'volumes' | 'networks' | 'compose')} className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">
+      <Tabs
+        value={activeTab}
+        onValueChange={value =>
+          setActiveTab(value as 'containers' | 'images' | 'volumes' | 'networks' | 'compose')
+        }
+        className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden"
+      >
         <div className="flex items-center gap-2 shrink-0">
           <TabsList>
-            <TabsTrigger value="containers" disabled={dockerDisabled}>Containers</TabsTrigger>
-            <TabsTrigger value="images" disabled={dockerDisabled}>Images</TabsTrigger>
-            <TabsTrigger value="volumes" disabled={dockerDisabled}>Volumes</TabsTrigger>
-            <TabsTrigger value="networks" disabled={dockerDisabled}>Networks</TabsTrigger>
-            <TabsTrigger value="compose" disabled={dockerDisabled}>Compose</TabsTrigger>
+            <TabsTrigger value="containers" disabled={dockerDisabled}>
+              Containers
+            </TabsTrigger>
+            <TabsTrigger value="images" disabled={dockerDisabled}>
+              Images
+            </TabsTrigger>
+            <TabsTrigger value="volumes" disabled={dockerDisabled}>
+              Volumes
+            </TabsTrigger>
+            <TabsTrigger value="networks" disabled={dockerDisabled}>
+              Networks
+            </TabsTrigger>
+            <TabsTrigger value="compose" disabled={dockerDisabled}>
+              Compose
+            </TabsTrigger>
           </TabsList>
 
           <div className="flex-1" />
@@ -121,21 +143,38 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
               try {
                 await Promise.all([
                   queryClient.invalidateQueries({ queryKey: ['docker', 'containers', serverId] }),
-                  queryClient.invalidateQueries({ queryKey: ['docker', 'containers', 'details', serverId] }),
+                  queryClient.invalidateQueries({
+                    queryKey: ['docker', 'containers', 'details', serverId],
+                  }),
                   queryClient.invalidateQueries({ queryKey: ['docker', 'images', serverId] }),
                   queryClient.invalidateQueries({ queryKey: ['docker', 'networks', serverId] }),
                   queryClient.invalidateQueries({ queryKey: ['docker', 'volumes', serverId] }),
                   queryClient.invalidateQueries({ queryKey: ['docker', 'compose', serverId] }),
-                  queryClient.refetchQueries({ queryKey: ['docker', 'containers', serverId], type: 'active' }, { throwOnError: true }),
-                  queryClient.refetchQueries({ queryKey: ['docker', 'images', serverId], type: 'active' }, { throwOnError: true }),
-                  queryClient.refetchQueries({ queryKey: ['docker', 'networks', serverId], type: 'active' }, { throwOnError: true }),
-                  queryClient.refetchQueries({ queryKey: ['docker', 'volumes', serverId], type: 'active' }, { throwOnError: true }),
-                  queryClient.refetchQueries({ queryKey: ['docker', 'compose', serverId], type: 'active' }, { throwOnError: true }),
+                  queryClient.refetchQueries(
+                    { queryKey: ['docker', 'containers', serverId], type: 'active' },
+                    { throwOnError: true }
+                  ),
+                  queryClient.refetchQueries(
+                    { queryKey: ['docker', 'images', serverId], type: 'active' },
+                    { throwOnError: true }
+                  ),
+                  queryClient.refetchQueries(
+                    { queryKey: ['docker', 'networks', serverId], type: 'active' },
+                    { throwOnError: true }
+                  ),
+                  queryClient.refetchQueries(
+                    { queryKey: ['docker', 'volumes', serverId], type: 'active' },
+                    { throwOnError: true }
+                  ),
+                  queryClient.refetchQueries(
+                    { queryKey: ['docker', 'compose', serverId], type: 'active' },
+                    { throwOnError: true }
+                  ),
                 ])
               } catch (err) {
                 setRefreshError(getApiErrorMessage(err, 'Failed to refresh Docker data'))
               } finally {
-                setRefreshSignal((signal) => signal + 1)
+                setRefreshSignal(signal => signal + 1)
                 setRefreshing(false)
               }
             }}
@@ -165,12 +204,12 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
             includeNames={containerFilterNames}
             onClearFilterPreset={() => setContainerFilter('')}
             onClearIncludeNames={() => setContainerFilterNames([])}
-            onOpenComposeFilter={(name) => {
+            onOpenComposeFilter={name => {
               if (!name || name === '-') return
               setComposeFilter(name)
               setActiveTab('compose')
             }}
-            onOpenTerminal={(id) => setTerminalContainerId(id)}
+            onOpenTerminal={id => setTerminalContainerId(id)}
           />
         </TabsContent>
         <TabsContent value="images" className="mt-0 h-0 flex-1 min-h-0 min-w-0 overflow-hidden">
@@ -198,7 +237,7 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
             serverId={serverId}
             filterPreset={composeFilter}
             onClearFilterPreset={() => setComposeFilter('')}
-            onOpenContainerFilter={(containerName) => {
+            onOpenContainerFilter={containerName => {
               if (!containerName) return
               setContainerFilter(containerName)
               setContainerFilterNames([])
@@ -210,7 +249,7 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
 
       <Dialog
         open={!!terminalContainerId}
-        onOpenChange={(open) => {
+        onOpenChange={open => {
           if (!open) setTerminalContainerId(null)
         }}
       >
@@ -228,24 +267,28 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
                 <Checkbox
                   id="docker-manual-shell"
                   checked={manualShell}
-                  onCheckedChange={(value) => setManualShell(!!value)}
+                  onCheckedChange={value => setManualShell(!!value)}
                   className="h-3.5 w-3.5"
                 />
-                <label htmlFor="docker-manual-shell" className="text-xs text-muted-foreground cursor-pointer">
+                <label
+                  htmlFor="docker-manual-shell"
+                  className="text-xs text-muted-foreground cursor-pointer"
+                >
                   Manual shell
                 </label>
               </div>
-              {manualShell && ['/bin/sh', '/bin/bash', '/bin/zsh'].map((shell) => (
-                <Button
-                  key={shell}
-                  variant={terminalShell === shell ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="h-6 px-2 text-xs font-mono"
-                  onClick={() => setTerminalShell(shell)}
-                >
-                  {shell.split('/').pop()}
-                </Button>
-              ))}
+              {manualShell &&
+                ['/bin/sh', '/bin/bash', '/bin/zsh'].map(shell => (
+                  <Button
+                    key={shell}
+                    variant={terminalShell === shell ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className="h-6 px-2 text-xs font-mono"
+                    onClick={() => setTerminalShell(shell)}
+                  >
+                    {shell.split('/').pop()}
+                  </Button>
+                ))}
             </div>
           </DialogHeader>
           <div className="flex-1 min-h-0">

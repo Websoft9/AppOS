@@ -172,7 +172,7 @@ const TreeItem = memo(function TreeItem({
       <button
         className={cn(
           'flex w-full items-center gap-1.5 rounded-sm px-2 py-1 text-sm text-left hover:bg-accent',
-          isSelected && 'bg-accent font-medium',
+          isSelected && 'bg-accent font-medium'
         )}
         style={{ paddingLeft: `${8 + depth * 14}px` }}
         onClick={handleClick}
@@ -199,37 +199,39 @@ const TreeItem = memo(function TreeItem({
       </button>
       {isDir && isExpanded && (
         <div>
-          {errorPaths.has(node.path) ? (
-            <div
-              className="py-0.5 text-xs text-destructive italic"
-              style={{ paddingLeft: `${8 + (depth + 1) * 14}px` }}
-            >
-              Failed to load
-            </div>
-          ) : node.children ? (
-            node.children.length === 0 ? (
+          {
+            errorPaths.has(node.path) ? (
               <div
-                className="py-0.5 text-xs text-muted-foreground italic"
+                className="py-0.5 text-xs text-destructive italic"
                 style={{ paddingLeft: `${8 + (depth + 1) * 14}px` }}
               >
-                Empty
+                Failed to load
               </div>
-            ) : (
-              node.children.map((child) => (
-                <TreeItem
-                  key={child.path}
-                  node={child}
-                  depth={depth + 1}
-                  selectedPath={selectedPath}
-                  onSelect={onSelect}
-                  onToggleDir={onToggleDir}
-                  expandedPaths={expandedPaths}
-                  loadingPaths={loadingPaths}
-                  errorPaths={errorPaths}
-                />
-              ))
-            )
-          ) : null /* loading in progress */}
+            ) : node.children ? (
+              node.children.length === 0 ? (
+                <div
+                  className="py-0.5 text-xs text-muted-foreground italic"
+                  style={{ paddingLeft: `${8 + (depth + 1) * 14}px` }}
+                >
+                  Empty
+                </div>
+              ) : (
+                node.children.map(child => (
+                  <TreeItem
+                    key={child.path}
+                    node={child}
+                    depth={depth + 1}
+                    selectedPath={selectedPath}
+                    onSelect={onSelect}
+                    onToggleDir={onToggleDir}
+                    expandedPaths={expandedPaths}
+                    loadingPaths={loadingPaths}
+                    errorPaths={errorPaths}
+                  />
+                ))
+              )
+            ) : null /* loading in progress */
+          }
         </div>
       )}
     </div>
@@ -248,7 +250,7 @@ function FilesPage() {
     : ROOTS
 
   // Tree state
-  const [roots, setRoots] = useState<TreeNode[]>(effectiveRoots.map((r) => ({ ...r })))
+  const [roots, setRoots] = useState<TreeNode[]>(effectiveRoots.map(r => ({ ...r })))
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set())
   const [errorPaths, setErrorPaths] = useState<Set<string>>(new Set())
@@ -270,22 +272,26 @@ function FilesPage() {
   // ── Load directory children ────────────────────────────────────────────────
 
   const loadDir = useCallback(async (node: TreeNode) => {
-    setLoadingPaths((prev) => new Set(prev).add(node.path))
-    setErrorPaths((prev) => { const next = new Set(prev); next.delete(node.path); return next })
+    setLoadingPaths(prev => new Set(prev).add(node.path))
+    setErrorPaths(prev => {
+      const next = new Set(prev)
+      next.delete(node.path)
+      return next
+    })
     try {
       const data = await apiList(node.path)
-      const children: TreeNode[] = data.entries.map((e) => ({
+      const children: TreeNode[] = data.entries.map(e => ({
         name: e.name,
         path: node.path === '' ? e.name : `${node.path}/${e.name}`,
         type: e.type,
         loaded: false,
       }))
-      setRoots((prev) => updateNodeChildren(prev, node.path, children))
+      setRoots(prev => updateNodeChildren(prev, node.path, children))
     } catch (err) {
       console.error('Failed to load directory:', node.path, err)
-      setErrorPaths((prev) => new Set(prev).add(node.path))
+      setErrorPaths(prev => new Set(prev).add(node.path))
     } finally {
-      setLoadingPaths((prev) => {
+      setLoadingPaths(prev => {
         const next = new Set(prev)
         next.delete(node.path)
         return next
@@ -303,13 +309,13 @@ function FilesPage() {
       const isCurrentlyExpanded = expandedPaths.has(node.path)
 
       if (isCurrentlyExpanded) {
-        setExpandedPaths((prev) => {
+        setExpandedPaths(prev => {
           const next = new Set(prev)
           next.delete(node.path)
           return next
         })
       } else {
-        setExpandedPaths((prev) => {
+        setExpandedPaths(prev => {
           const next = new Set(prev)
           next.add(node.path)
           return next
@@ -321,7 +327,7 @@ function FilesPage() {
         }
       }
     },
-    [roots, expandedPaths, loadDir, loadingPaths],
+    [roots, expandedPaths, loadDir, loadingPaths]
   )
 
   // ── Select file ────────────────────────────────────────────────────────────
@@ -329,28 +335,31 @@ function FilesPage() {
   // Track the latest file-open request to discard stale responses.
   const openFileIdRef = useRef(0)
 
-  const openFile = useCallback(async (node: TreeNode) => {
-    const requestId = ++openFileIdRef.current
-    setSelectedPath(node.path)
-    navigate({ search: { path: node.path, root: rootParam } })
-    setLoadingFile(true)
-    setFileError(null)
-    setSaveError(null)
-    try {
-      const data = await apiRead(node.path)
-      // Discard if a newer request was issued while we awaited.
-      if (requestId !== openFileIdRef.current) return
-      setEditorContent(data.content)
-      setSavedContent(data.content)
-    } catch (err) {
-      if (requestId !== openFileIdRef.current) return
-      setFileError(err instanceof Error ? err.message : 'Failed to load file')
-    } finally {
-      if (requestId === openFileIdRef.current) {
-        setLoadingFile(false)
+  const openFile = useCallback(
+    async (node: TreeNode) => {
+      const requestId = ++openFileIdRef.current
+      setSelectedPath(node.path)
+      navigate({ search: { path: node.path, root: rootParam } })
+      setLoadingFile(true)
+      setFileError(null)
+      setSaveError(null)
+      try {
+        const data = await apiRead(node.path)
+        // Discard if a newer request was issued while we awaited.
+        if (requestId !== openFileIdRef.current) return
+        setEditorContent(data.content)
+        setSavedContent(data.content)
+      } catch (err) {
+        if (requestId !== openFileIdRef.current) return
+        setFileError(err instanceof Error ? err.message : 'Failed to load file')
+      } finally {
+        if (requestId === openFileIdRef.current) {
+          setLoadingFile(false)
+        }
       }
-    }
-  }, [navigate])
+    },
+    [navigate]
+  )
 
   const handleSelectFile = useCallback(
     (node: TreeNode) => {
@@ -360,7 +369,7 @@ function FilesPage() {
         openFile(node)
       }
     },
-    [isDirty, openFile],
+    [isDirty, openFile]
   )
 
   // ── Save file ──────────────────────────────────────────────────────────────
@@ -412,7 +421,6 @@ function FilesPage() {
         type: 'file',
       })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // ── Warn on browser/tab close if dirty ────────────────────────────────────
@@ -428,7 +436,7 @@ function FilesPage() {
 
   // ── Monaco theme — tracks app dark/light mode ────────────────────────────
   const [monacoTheme, setMonacoTheme] = useState(() =>
-    document.documentElement.classList.contains('dark') ? 'vs-dark' : 'vs',
+    document.documentElement.classList.contains('dark') ? 'vs-dark' : 'vs'
   )
   useEffect(() => {
     const observer = new MutationObserver(() => {
@@ -453,7 +461,7 @@ function FilesPage() {
             className="h-6 w-6"
             title="Reload tree"
             onClick={() => {
-              setRoots(effectiveRoots.map((r) => ({ ...r })))
+              setRoots(effectiveRoots.map(r => ({ ...r })))
               setExpandedPaths(new Set())
               setLoadingPaths(new Set())
               setErrorPaths(new Set())
@@ -464,7 +472,7 @@ function FilesPage() {
         </div>
         <ScrollArea className="flex-1">
           <div className="py-1">
-            {roots.map((node) => (
+            {roots.map(node => (
               <TreeItem
                 key={node.path}
                 node={node}
@@ -541,7 +549,7 @@ function FilesPage() {
               height="100%"
               language={language}
               value={editorContent}
-              onChange={(val) => setEditorContent(val ?? '')}
+              onChange={val => setEditorContent(val ?? '')}
               theme={monacoTheme}
               options={{
                 minimap: { enabled: false },
@@ -558,13 +566,18 @@ function FilesPage() {
       </div>
 
       {/* ── Unsaved Changes Dialog ────────────────────────────────────────── */}
-      <AlertDialog open={!!pendingNode} onOpenChange={(open) => { if (!open) setPendingNode(null) }}>
+      <AlertDialog
+        open={!!pendingNode}
+        onOpenChange={open => {
+          if (!open) setPendingNode(null)
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
             <AlertDialogDescription>
-              You have unsaved changes in{' '}
-              <strong>{selectedPath?.split('/').pop()}</strong>. Discard them and open the new file?
+              You have unsaved changes in <strong>{selectedPath?.split('/').pop()}</strong>. Discard
+              them and open the new file?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -579,8 +592,12 @@ function FilesPage() {
 
 // ─── Tree helpers ─────────────────────────────────────────────────────────────
 
-function updateNodeChildren(nodes: TreeNode[], targetPath: string, children: TreeNode[]): TreeNode[] {
-  return nodes.map((n) => {
+function updateNodeChildren(
+  nodes: TreeNode[],
+  targetPath: string,
+  children: TreeNode[]
+): TreeNode[] {
+  return nodes.map(n => {
     if (n.path === targetPath) {
       return { ...n, children, loaded: true }
     }

@@ -1,5 +1,5 @@
-@import "tailwindcss";
-@import "tw-animate-css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
 @plugin "@tailwindcss/typography";
 
 /* Class-based dark mode for shadcn/ui theme toggling */
@@ -97,14 +97,14 @@
   }
   /* Tailwind v4 removes cursor:pointer from interactive elements — restore it */
   button,
-  [role="button"],
+  [role='button'],
   a,
-  [type="button"],
-  [type="reset"],
-  [type="submit"],
+  [type='button'],
+  [type='reset'],
+  [type='submit'],
   select,
   summary,
-  [data-slot="collapsible-trigger"] {
+  [data-slot='collapsible-trigger'] {
     cursor: pointer;
   }
 }

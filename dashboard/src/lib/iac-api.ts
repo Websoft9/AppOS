@@ -44,7 +44,10 @@ export async function iacLibraryList(path: string): Promise<IacListResponse> {
 
 /** Read file content from /appos/library/ (read-only). */
 export async function iacLibraryRead(path: string): Promise<IacContentResponse> {
-  return pb.send<IacContentResponse>(`/api/ext/iac/library/content?path=${encodeURIComponent(path)}`, {})
+  return pb.send<IacContentResponse>(
+    `/api/ext/iac/library/content?path=${encodeURIComponent(path)}`,
+    {}
+  )
 }
 
 /**
@@ -52,7 +55,7 @@ export async function iacLibraryRead(path: string): Promise<IacContentResponse> 
  * Returns { compose, env } — each may be null if file doesn't exist.
  */
 export async function iacLoadLibraryAppFiles(
-  appKey: string,
+  appKey: string
 ): Promise<{ compose: string | null; env: string | null }> {
   const basePath = `apps/${appKey}`
   const [compose, env] = await Promise.allSettled([
@@ -169,7 +172,7 @@ export async function iacDelete(path: string, recursive = false): Promise<void> 
 export async function iacEnsureCustomAppTemplate(
   key: string,
   composeYaml?: string,
-  envText?: string,
+  envText?: string
 ): Promise<void> {
   const dir = `templates/apps/${key}`
   await iacMkdir(dir)

@@ -58,7 +58,9 @@ function ForgotPasswordPage() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
       <div className="w-full max-w-md p-8 bg-card rounded-lg shadow-md border border-border">
-        <h2 className="text-2xl font-bold text-center mb-2 text-card-foreground">Forgot Password</h2>
+        <h2 className="text-2xl font-bold text-center mb-2 text-card-foreground">
+          Forgot Password
+        </h2>
         <p className="text-center text-sm text-muted-foreground mb-6">
           Enter your email to receive a password reset link
         </p>
@@ -78,17 +80,13 @@ function ForgotPasswordPage() {
               type="email"
               id="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={e => setEmail(e.target.value)}
               className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
               required
               disabled={loading}
             />
           </div>
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={loading}
-          >
+          <Button type="submit" className="w-full" disabled={loading}>
             {loading ? 'Sending...' : 'Send Reset Link'}
           </Button>
         </form>

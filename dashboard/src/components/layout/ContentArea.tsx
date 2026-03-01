@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils'
 
 interface ContentAreaProps {
   children: React.ReactNode
@@ -7,10 +7,7 @@ interface ContentAreaProps {
 
 export function ContentArea({ children, className }: ContentAreaProps) {
   return (
-    <main
-      className={cn("overflow-y-auto p-6 min-h-0", className)}
-      style={{ gridArea: "content" }}
-    >
+    <main className={cn('overflow-y-auto p-6 min-h-0', className)} style={{ gridArea: 'content' }}>
       {children}
     </main>
   )

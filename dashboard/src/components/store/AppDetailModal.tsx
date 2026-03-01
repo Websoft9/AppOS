@@ -2,13 +2,19 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from '@tanstack/react-router'
 import ReactMarkdown from 'react-markdown'
-import { ExternalLink, Github, BookOpen, Cpu, MemoryStick, HardDrive, Heart, Pencil, Trash2, Code } from 'lucide-react'
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+  ExternalLink,
+  Github,
+  BookOpen,
+  Cpu,
+  MemoryStick,
+  HardDrive,
+  Heart,
+  Pencil,
+  Trash2,
+  Code,
+} from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -61,8 +67,8 @@ export function AppDetailModal({
 
   if (!product) return null
 
-  const isFavorite = userApps.find((a) => a.app_key === product.key)?.is_favorite ?? false
-  const primaryCat = primaryCategories.find((c) => c.key === product.primaryCategoryKey)
+  const isFavorite = userApps.find(a => a.app_key === product.key)?.is_favorite ?? false
+  const primaryCat = primaryCategories.find(c => c.key === product.primaryCategoryKey)
   const docUrl = getDocUrl(product.key, locale)
   const githubUrl = getGithubUrl(product.key)
 
@@ -76,11 +82,24 @@ export function AppDetailModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) { setConfirmUnfavorite(false); onClose() } }}>
+    <Dialog
+      open={open}
+      onOpenChange={o => {
+        if (!o) {
+          setConfirmUnfavorite(false)
+          onClose()
+        }
+      }}
+    >
       <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-start gap-4">
-            <AppIcon appKey={product.key} trademark={product.trademark} logoUrl={product.logo?.imageurl} size="xl" />
+            <AppIcon
+              appKey={product.key}
+              trademark={product.trademark}
+              logoUrl={product.logo?.imageurl}
+              size="xl"
+            />
             <div className="flex-1 min-w-0">
               <DialogTitle className="text-xl font-bold">{product.trademark}</DialogTitle>
               <p className="text-sm text-muted-foreground mt-1">{product.overview}</p>
@@ -146,7 +165,10 @@ export function AppDetailModal({
                 <Button
                   size="sm"
                   variant="destructive"
-                  onClick={() => { onToggleFavorite(product.key); setConfirmUnfavorite(false) }}
+                  onClick={() => {
+                    onToggleFavorite(product.key)
+                    setConfirmUnfavorite(false)
+                  }}
                 >
                   {t('detail.unfavoriteYes')}
                 </Button>
@@ -178,11 +200,7 @@ export function AppDetailModal({
             )}
             {iacEditPath && (
               <Button variant="outline" size="lg" asChild>
-                <Link
-                  to="/iac"
-                  search={{ root: iacEditPath }}
-                  onClick={onClose}
-                >
+                <Link to="/iac" search={{ root: iacEditPath }} onClick={onClose}>
                   <Code className="h-4 w-4 mr-1.5" />
                   {t('customApp.editIac')}
                 </Link>
@@ -209,7 +227,7 @@ export function AppDetailModal({
                     {primaryCat.title}
                   </Badge>
                 )}
-                {product.catalogCollection.items.map((item) => (
+                {product.catalogCollection.items.map(item => (
                   <Badge
                     key={item.key}
                     variant="secondary"
@@ -288,7 +306,12 @@ export function AppDetailModal({
           {onSaveNote && (
             <>
               <Separator />
-              <NoteEditor appKey={product.key} userApps={userApps} onSave={onSaveNote} isSaving={isSavingNote} />
+              <NoteEditor
+                appKey={product.key}
+                userApps={userApps}
+                onSave={onSaveNote}
+                isSaving={isSavingNote}
+              />
             </>
           )}
         </div>

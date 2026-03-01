@@ -3,9 +3,7 @@ import { pb } from '@/lib/pb'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter,
-} from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Loader2 } from 'lucide-react'
 
@@ -90,7 +88,11 @@ export function CreateUserSheet({ open, onOpenChange, onSuccess }: CreateUserShe
       onOpenChange(false)
       onSuccess(role)
     } catch (e: unknown) {
-      const err = e as { status?: number; data?: { data?: Record<string, { message?: string }> }; message?: string }
+      const err = e as {
+        status?: number
+        data?: { data?: Record<string, { message?: string }> }
+        message?: string
+      }
       if (err.status === 400 && err.data?.data) {
         const fieldErrors = mapPBErrors(err.data.data)
         if (Object.keys(fieldErrors).length > 0) {
@@ -115,10 +117,14 @@ export function CreateUserSheet({ open, onOpenChange, onSuccess }: CreateUserShe
 
         <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-6 px-4 pb-2">
           {/* Role selector */}
-          <Tabs value={role} onValueChange={(v) => setRole(v as 'users' | '_superusers')}>
+          <Tabs value={role} onValueChange={v => setRole(v as 'users' | '_superusers')}>
             <TabsList className="w-full">
-              <TabsTrigger value="users" className="flex-1">Member</TabsTrigger>
-              <TabsTrigger value="_superusers" className="flex-1">Superuser</TabsTrigger>
+              <TabsTrigger value="users" className="flex-1">
+                Member
+              </TabsTrigger>
+              <TabsTrigger value="_superusers" className="flex-1">
+                Superuser
+              </TabsTrigger>
             </TabsList>
           </Tabs>
 
@@ -127,25 +133,21 @@ export function CreateUserSheet({ open, onOpenChange, onSuccess }: CreateUserShe
               <Input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={e => setEmail(e.target.value)}
                 required
                 autoComplete="off"
               />
             </Field>
             {role === 'users' && (
               <Field label="Name" error={errors.name} optional>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  autoComplete="off"
-                />
+                <Input value={name} onChange={e => setName(e.target.value)} autoComplete="off" />
               </Field>
             )}
             <Field label="Password" error={errors.password}>
               <Input
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={e => setPassword(e.target.value)}
                 required
                 autoComplete="new-password"
               />
@@ -154,16 +156,14 @@ export function CreateUserSheet({ open, onOpenChange, onSuccess }: CreateUserShe
               <Input
                 type="password"
                 value={passwordConfirm}
-                onChange={(e) => setPasswordConfirm(e.target.value)}
+                onChange={e => setPasswordConfirm(e.target.value)}
                 required
                 autoComplete="new-password"
               />
             </Field>
           </div>
 
-          {globalError && (
-            <p className="text-sm text-destructive">{globalError}</p>
-          )}
+          {globalError && <p className="text-sm text-destructive">{globalError}</p>}
 
           <SheetFooter>
             <Button type="submit" disabled={loading} className="w-full">

@@ -26,7 +26,7 @@ export function CategoryFilter({
 }: CategoryFilterProps) {
   const { t } = useTranslation('store')
 
-  const selectedPrimaryCat = primaryCategories.find((c) => c.key === selectedPrimary)
+  const selectedPrimaryCat = primaryCategories.find(c => c.key === selectedPrimary)
   const secondaryCategories: SecondaryCategory[] =
     selectedPrimaryCat?.linkedFrom?.catalogCollection?.items ?? []
 
@@ -49,7 +49,7 @@ export function CategoryFilter({
           <option value="">
             {t('categories.all')} ({totalCount})
           </option>
-          {primaryCategories.map((cat) => (
+          {primaryCategories.map(cat => (
             <option key={cat.key} value={cat.key}>
               {cat.title} ({primaryCounts[cat.key] ?? 0})
             </option>
@@ -60,7 +60,7 @@ export function CategoryFilter({
       {/* Secondary category chips — hidden when "All" is selected */}
       {selectedPrimary && secondaryCategories.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {secondaryCategories.map((sec) => {
+          {secondaryCategories.map(sec => {
             const count = secondaryCounts[sec.key] ?? 0
             const isActive = selectedSecondary === sec.key
             return (
@@ -71,7 +71,7 @@ export function CategoryFilter({
                   'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
                   isActive
                     ? 'bg-primary text-primary-foreground'
-                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
                 )}
                 aria-pressed={isActive}
               >

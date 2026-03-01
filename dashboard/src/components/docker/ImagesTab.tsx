@@ -1,6 +1,6 @@
-import { Fragment, useEffect, useMemo, useState } from "react"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { pb } from "@/lib/pb"
+import { Fragment, useEffect, useMemo, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { pb } from '@/lib/pb'
 import {
   Table,
   TableBody,
@@ -8,14 +8,14 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
+} from '@/components/ui/table'
+import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from '@/components/ui/dropdown-menu'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,7 +25,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+} from '@/components/ui/alert-dialog'
 import {
   Dialog,
   DialogContent,
@@ -33,12 +33,24 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Download, Trash2, MoreVertical, Eraser, ArrowUpDown, ArrowUp, ArrowDown, Loader2, ChevronRight, ChevronDown, Search } from "lucide-react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
-import { getApiErrorMessage } from "@/lib/api-error"
+} from '@/components/ui/dialog'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Download,
+  Trash2,
+  MoreVertical,
+  Eraser,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Loader2,
+  ChevronRight,
+  ChevronDown,
+  Search,
+} from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { getApiErrorMessage } from '@/lib/api-error'
 
 const IMAGES_SORT_KEY = 'docker.images.sort'
 const DOCKER_PAGE_SIZE_KEY = 'docker.list.page_size'
@@ -48,6 +60,7 @@ function loadGlobalPageSize(): 25 | 50 | 100 {
     const raw = Number(localStorage.getItem(DOCKER_PAGE_SIZE_KEY) || '50')
     if (raw === 25 || raw === 50 || raw === 100) return raw
   } catch {
+    return 50
   }
   return 50
 }
@@ -77,8 +90,8 @@ function parseImages(output: string): DockerImage[] {
   if (!output.trim()) return []
   return output
     .trim()
-    .split("\n")
-    .map((line) => {
+    .split('\n')
+    .map(line => {
       try {
         return JSON.parse(line)
       } catch {
@@ -92,8 +105,8 @@ function parseContainers(output: string): DockerContainerRow[] {
   if (!output.trim()) return []
   return output
     .trim()
-    .split("\n")
-    .map((line) => {
+    .split('\n')
+    .map(line => {
       try {
         return JSON.parse(line)
       } catch {
@@ -107,8 +120,8 @@ function parseRegistrySearch(output: string): RegistrySearchItem[] {
   if (!output.trim()) return []
   return output
     .trim()
-    .split("\n")
-    .map((line) => {
+    .split('\n')
+    .map(line => {
       try {
         return JSON.parse(line)
       } catch {
@@ -127,7 +140,10 @@ function parseRegistrySearch(output: string): RegistrySearchItem[] {
 
 function normalizeImageId(id?: string): string {
   if (!id) return ''
-  return id.replace(/^sha256:/, '').trim().toLowerCase()
+  return id
+    .replace(/^sha256:/, '')
+    .trim()
+    .toLowerCase()
 }
 
 function imageRef(image: DockerImage): string {
@@ -145,7 +161,11 @@ function isImageUsed(image: DockerImage, containers: DockerContainerRow[]): bool
     if (ref && byName === ref.toLowerCase()) return true
 
     const byImageId = normalizeImageId(container.ImageID)
-    if (targetId && byImageId && (targetId.startsWith(byImageId.slice(0, 12)) || byImageId.startsWith(targetId.slice(0, 12)))) {
+    if (
+      targetId &&
+      byImageId &&
+      (targetId.startsWith(byImageId.slice(0, 12)) || byImageId.startsWith(targetId.slice(0, 12)))
+    ) {
       return true
     }
 
@@ -156,7 +176,7 @@ function isImageUsed(image: DockerImage, containers: DockerContainerRow[]): bool
 
 export function ImagesTab({ serverId }: { serverId: string }) {
   const queryClient = useQueryClient()
-  const [filter, setFilter] = useState("")
+  const [filter, setFilter] = useState('')
   const [usageFilter, setUsageFilter] = useState<'all' | 'used' | 'unused'>('all')
   const [sortKey, setSortKey] = useState<'repo' | 'tag' | 'id' | 'size' | 'created'>(() => {
     try {
@@ -218,7 +238,7 @@ export function ImagesTab({ serverId }: { serverId: string }) {
   } = useQuery<DockerImage[]>({
     queryKey: ['docker', 'images', serverId],
     queryFn: async () => {
-      const res = await pb.send(`/api/ext/docker/images?server_id=${serverId}`, { method: "GET" })
+      const res = await pb.send(`/api/ext/docker/images?server_id=${serverId}`, { method: 'GET' })
       return parseImages(res.output)
     },
     staleTime: 10_000,
@@ -228,7 +248,9 @@ export function ImagesTab({ serverId }: { serverId: string }) {
   const { data: containers = [] } = useQuery<DockerContainerRow[]>({
     queryKey: ['docker', 'containers', 'for-images', serverId],
     queryFn: async () => {
-      const res = await pb.send(`/api/ext/docker/containers?server_id=${serverId}`, { method: "GET" })
+      const res = await pb.send(`/api/ext/docker/containers?server_id=${serverId}`, {
+        method: 'GET',
+      })
       return parseContainers(res.output)
     },
     staleTime: 15_000,
@@ -244,30 +266,37 @@ export function ImagesTab({ serverId }: { serverId: string }) {
   }, [containers, images])
 
   useEffect(() => {
-    setSelectedIds((current) => current.filter((id) => !usageMap[id]))
+    setSelectedIds(current => current.filter(id => !usageMap[id]))
   }, [usageMap])
 
   const loadImageInspect = async (id: string) => {
     if (!id || inspectMap[id] || inspectLoadingMap[id]) return
-    setInspectLoadingMap((state) => ({ ...state, [id]: true }))
+    setInspectLoadingMap(state => ({ ...state, [id]: true }))
     try {
-      const res = await pb.send(`/api/ext/docker/images/${id}/inspect?server_id=${serverId}`, { method: "GET" })
-      setInspectMap((state) => ({ ...state, [id]: String(res.output || '') }))
+      const res = await pb.send(`/api/ext/docker/images/${id}/inspect?server_id=${serverId}`, {
+        method: 'GET',
+      })
+      setInspectMap(state => ({ ...state, [id]: String(res.output || '') }))
     } catch (err) {
-      setInspectMap((state) => ({ ...state, [id]: getApiErrorMessage(err, 'Failed to inspect image') }))
+      setInspectMap(state => ({
+        ...state,
+        [id]: getApiErrorMessage(err, 'Failed to inspect image'),
+      }))
     } finally {
-      setInspectLoadingMap((state) => ({ ...state, [id]: false }))
+      setInspectLoadingMap(state => ({ ...state, [id]: false }))
     }
   }
 
   const removeImage = async (id: string) => {
     try {
       setActionError(null)
-      await pb.send(`/api/ext/docker/images/${id}?server_id=${serverId}`, { method: "DELETE" })
-      setSelectedIds((state) => state.filter((item) => item !== id))
+      await pb.send(`/api/ext/docker/images/${id}?server_id=${serverId}`, { method: 'DELETE' })
+      setSelectedIds(state => state.filter(item => item !== id))
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['docker', 'images', serverId] }),
-        queryClient.invalidateQueries({ queryKey: ['docker', 'containers', 'for-images', serverId] }),
+        queryClient.invalidateQueries({
+          queryKey: ['docker', 'containers', 'for-images', serverId],
+        }),
       ])
     } catch (err) {
       setActionError(getApiErrorMessage(err, 'Failed to remove image'))
@@ -278,16 +307,22 @@ export function ImagesTab({ serverId }: { serverId: string }) {
     if (selectedIds.length === 0) return
     try {
       setActionError(null)
-      const results = await Promise.allSettled(selectedIds.map(async (id) => {
-        await pb.send(`/api/ext/docker/images/${id}?server_id=${serverId}`, { method: "DELETE" })
-        return id
-      }))
-      const succeeded = results.filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled').map((r) => r.value)
-      const failed = results.filter((r) => r.status === 'rejected')
-      setSelectedIds((state) => state.filter((id) => !succeeded.includes(id)))
+      const results = await Promise.allSettled(
+        selectedIds.map(async id => {
+          await pb.send(`/api/ext/docker/images/${id}?server_id=${serverId}`, { method: 'DELETE' })
+          return id
+        })
+      )
+      const succeeded = results
+        .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
+        .map(r => r.value)
+      const failed = results.filter(r => r.status === 'rejected')
+      setSelectedIds(state => state.filter(id => !succeeded.includes(id)))
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['docker', 'images', serverId] }),
-        queryClient.invalidateQueries({ queryKey: ['docker', 'containers', 'for-images', serverId] }),
+        queryClient.invalidateQueries({
+          queryKey: ['docker', 'containers', 'for-images', serverId],
+        }),
       ])
       if (failed.length > 0) {
         setActionError(`${failed.length} of ${selectedIds.length} images failed to remove`)
@@ -301,12 +336,14 @@ export function ImagesTab({ serverId }: { serverId: string }) {
     try {
       setActionError(null)
       setMockPruneNotice(null)
-      await pb.send(`/api/ext/docker/images/prune?server_id=${serverId}`, { method: "POST" })
+      await pb.send(`/api/ext/docker/images/prune?server_id=${serverId}`, { method: 'POST' })
       setMockPruneNotice('Prune completed.')
       setSelectedIds([])
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['docker', 'images', serverId] }),
-        queryClient.invalidateQueries({ queryKey: ['docker', 'containers', 'for-images', serverId] }),
+        queryClient.invalidateQueries({
+          queryKey: ['docker', 'containers', 'for-images', serverId],
+        }),
       ])
     } catch (err) {
       setActionError(getApiErrorMessage(err, 'Failed to prune images'))
@@ -318,7 +355,9 @@ export function ImagesTab({ serverId }: { serverId: string }) {
     setRegistryReason('')
     setRegistryAvailable(null)
     try {
-      const res = await pb.send(`/api/ext/docker/images/registry/status?server_id=${serverId}`, { method: "GET" }) as { available?: boolean; registry?: string; reason?: string }
+      const res = (await pb.send(`/api/ext/docker/images/registry/status?server_id=${serverId}`, {
+        method: 'GET',
+      })) as { available?: boolean; registry?: string; reason?: string }
       setRegistryAvailable(!!res.available)
       setRegistryName(res.registry || 'Docker Hub')
       setRegistryReason(res.reason || '')
@@ -345,7 +384,10 @@ export function ImagesTab({ serverId }: { serverId: string }) {
     setSearching(true)
     setSearchResults([])
     try {
-      const res = await pb.send(`/api/ext/docker/images/registry/search?server_id=${serverId}&q=${encodeURIComponent(keyword)}&limit=30`, { method: "GET" })
+      const res = await pb.send(
+        `/api/ext/docker/images/registry/search?server_id=${serverId}&q=${encodeURIComponent(keyword)}&limit=30`,
+        { method: 'GET' }
+      )
       setSearchResults(parseRegistrySearch(String(res.output || '')))
     } catch (err) {
       setActionError(getApiErrorMessage(err, 'Failed to search registry'))
@@ -362,13 +404,15 @@ export function ImagesTab({ serverId }: { serverId: string }) {
       setPulling(true)
       setPullLog(`Pulling ${name}...`)
       const res = await pb.send(`/api/ext/docker/images/pull?server_id=${serverId}`, {
-        method: "POST",
+        method: 'POST',
         body: { name },
       })
       setPullLog(String(res.output || '(no output)'))
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['docker', 'images', serverId] }),
-        queryClient.invalidateQueries({ queryKey: ['docker', 'containers', 'for-images', serverId] }),
+        queryClient.invalidateQueries({
+          queryKey: ['docker', 'containers', 'for-images', serverId],
+        }),
       ])
     } catch (err) {
       setPullLog(getApiErrorMessage(err, 'Failed to pull image'))
@@ -379,8 +423,10 @@ export function ImagesTab({ serverId }: { serverId: string }) {
 
   const loadError = error ? getApiErrorMessage(error, 'Failed to load images') : null
 
-  const filtered = images.filter((image) => {
-    const textMatched = image.Repository?.toLowerCase().includes(filter.toLowerCase()) || image.Tag?.toLowerCase().includes(filter.toLowerCase())
+  const filtered = images.filter(image => {
+    const textMatched =
+      image.Repository?.toLowerCase().includes(filter.toLowerCase()) ||
+      image.Tag?.toLowerCase().includes(filter.toLowerCase())
     if (!textMatched) return false
 
     const used = !!usageMap[image.ID]
@@ -394,20 +440,30 @@ export function ImagesTab({ serverId }: { serverId: string }) {
     items.sort((left, right) => {
       const leftValue = (() => {
         switch (sortKey) {
-          case 'tag': return left.Tag || ''
-          case 'id': return left.ID || ''
-          case 'size': return left.Size || ''
-          case 'created': return left.CreatedSince || ''
-          default: return left.Repository || ''
+          case 'tag':
+            return left.Tag || ''
+          case 'id':
+            return left.ID || ''
+          case 'size':
+            return left.Size || ''
+          case 'created':
+            return left.CreatedSince || ''
+          default:
+            return left.Repository || ''
         }
       })().toLowerCase()
       const rightValue = (() => {
         switch (sortKey) {
-          case 'tag': return right.Tag || ''
-          case 'id': return right.ID || ''
-          case 'size': return right.Size || ''
-          case 'created': return right.CreatedSince || ''
-          default: return right.Repository || ''
+          case 'tag':
+            return right.Tag || ''
+          case 'id':
+            return right.ID || ''
+          case 'size':
+            return right.Size || ''
+          case 'created':
+            return right.CreatedSince || ''
+          default:
+            return right.Repository || ''
         }
       })().toLowerCase()
       if (leftValue < rightValue) return sortDir === 'asc' ? -1 : 1
@@ -433,7 +489,7 @@ export function ImagesTab({ serverId }: { serverId: string }) {
 
   const toggleSort = (key: 'repo' | 'tag' | 'id' | 'size' | 'created') => {
     if (sortKey === key) {
-      setSortDir((dir) => (dir === 'asc' ? 'desc' : 'asc'))
+      setSortDir(dir => (dir === 'asc' ? 'desc' : 'asc'))
       return
     }
     setSortKey(key)
@@ -442,11 +498,24 @@ export function ImagesTab({ serverId }: { serverId: string }) {
 
   const toggleImageSelect = (image: DockerImage) => {
     if (usageMap[image.ID]) return
-    setSelectedIds((state) => state.includes(image.ID) ? state.filter((id) => id !== image.ID) : [...state, image.ID])
+    setSelectedIds(state =>
+      state.includes(image.ID) ? state.filter(id => id !== image.ID) : [...state, image.ID]
+    )
   }
 
-  const SortHead = ({ label, keyName }: { label: string; keyName: 'repo' | 'tag' | 'id' | 'size' | 'created' }) => (
-    <Button variant="ghost" size="sm" className="h-7 -ml-2 px-2 text-xs" onClick={() => toggleSort(keyName)}>
+  const SortHead = ({
+    label,
+    keyName,
+  }: {
+    label: string
+    keyName: 'repo' | 'tag' | 'id' | 'size' | 'created'
+  }) => (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-7 -ml-2 px-2 text-xs"
+      onClick={() => toggleSort(keyName)}
+    >
       {label}
       {sortKey !== keyName ? (
         <ArrowUpDown className="h-3 w-3 ml-1" />
@@ -471,12 +540,12 @@ export function ImagesTab({ serverId }: { serverId: string }) {
           placeholder="Filter images..."
           className="border rounded-md px-3 py-1.5 text-sm bg-background"
           value={filter}
-          onChange={(e) => setFilter(e.target.value)}
+          onChange={e => setFilter(e.target.value)}
         />
         <select
           className="border rounded-md px-2 py-1.5 text-sm bg-background"
           value={usageFilter}
-          onChange={(e) => setUsageFilter(e.target.value as 'all' | 'used' | 'unused')}
+          onChange={e => setUsageFilter(e.target.value as 'all' | 'used' | 'unused')}
         >
           <option value="all">All images</option>
           <option value="used">Used</option>
@@ -509,16 +578,29 @@ export function ImagesTab({ serverId }: { serverId: string }) {
         {mockPruneNotice && <Badge variant="secondary">{mockPruneNotice}</Badge>}
       </div>
 
-      <div data-docker-scroll-root="true" className="h-0 flex-1 min-h-0 overflow-auto rounded-md border">
+      <div
+        data-docker-scroll-root="true"
+        className="h-0 flex-1 min-h-0 overflow-auto rounded-md border"
+      >
         <Table>
           <TableHeader className="sticky top-0 bg-background z-10">
             <TableRow>
               <TableHead className="w-[36px]" />
-              <TableHead><SortHead label="Repository" keyName="repo" /></TableHead>
-              <TableHead><SortHead label="Tag" keyName="tag" /></TableHead>
-              <TableHead><SortHead label="ID" keyName="id" /></TableHead>
-              <TableHead><SortHead label="Size" keyName="size" /></TableHead>
-              <TableHead><SortHead label="Created" keyName="created" /></TableHead>
+              <TableHead>
+                <SortHead label="Repository" keyName="repo" />
+              </TableHead>
+              <TableHead>
+                <SortHead label="Tag" keyName="tag" />
+              </TableHead>
+              <TableHead>
+                <SortHead label="ID" keyName="id" />
+              </TableHead>
+              <TableHead>
+                <SortHead label="Size" keyName="size" />
+              </TableHead>
+              <TableHead>
+                <SortHead label="Created" keyName="created" />
+              </TableHead>
               <TableHead className="w-[60px]" />
             </TableRow>
           </TableHeader>
@@ -533,7 +615,7 @@ export function ImagesTab({ serverId }: { serverId: string }) {
                 </TableCell>
               </TableRow>
             )}
-            {paged.map((img) => {
+            {paged.map(img => {
               const used = !!usageMap[img.ID]
               const isExpanded = expandedImageId === img.ID
               return (
@@ -551,7 +633,7 @@ export function ImagesTab({ serverId }: { serverId: string }) {
                         variant="link"
                         className="h-auto p-0 text-left font-mono text-xs gap-1"
                         onClick={() => {
-                          setExpandedImageId((state) => {
+                          setExpandedImageId(state => {
                             const next = state === img.ID ? null : img.ID
                             if (next === img.ID) {
                               void loadImageInspect(img.ID)
@@ -560,12 +642,18 @@ export function ImagesTab({ serverId }: { serverId: string }) {
                           })
                         }}
                       >
-                        {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                        {isExpanded ? (
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        )}
                         {img.Repository}
                       </Button>
                     </TableCell>
                     <TableCell className="text-xs">{img.Tag}</TableCell>
-                    <TableCell className="font-mono text-xs" title={img.ID}>{img.ID?.substring(0, 12)}</TableCell>
+                    <TableCell className="font-mono text-xs" title={img.ID}>
+                      {img.ID?.substring(0, 12)}
+                    </TableCell>
                     <TableCell className="text-xs">{img.Size}</TableCell>
                     <TableCell className="text-xs">{img.CreatedSince}</TableCell>
                     <TableCell>
@@ -576,7 +664,9 @@ export function ImagesTab({ serverId }: { serverId: string }) {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openPullDialog(imageRef(img) || img.Repository)}>
+                          <DropdownMenuItem
+                            onClick={() => openPullDialog(imageRef(img) || img.Repository)}
+                          >
                             <Download className="h-4 w-4 mr-2" /> Pull
                           </DropdownMenuItem>
                           <DropdownMenuItem
@@ -620,13 +710,15 @@ export function ImagesTab({ serverId }: { serverId: string }) {
 
       <div className="flex items-center justify-between gap-2 shrink-0">
         <div className="text-xs text-muted-foreground">
-          {sorted.length === 0 ? '0 items' : `${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, sorted.length)} of ${sorted.length}`}
+          {sorted.length === 0
+            ? '0 items'
+            : `${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, sorted.length)} of ${sorted.length}`}
         </div>
         <div className="flex items-center gap-2">
           <select
             className="h-8 rounded-md border bg-background px-2 text-xs"
             value={pageSize}
-            onChange={(e) => {
+            onChange={e => {
               const next = Number(e.target.value) as 25 | 50 | 100
               setPageSize(next)
               setPage(1)
@@ -636,11 +728,23 @@ export function ImagesTab({ serverId }: { serverId: string }) {
             <option value={50}>50 / page</option>
             <option value={100}>100 / page</option>
           </select>
-          <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page <= 1}
+          >
             Prev
           </Button>
-          <span className="text-xs text-muted-foreground w-16 text-center">{page} / {totalPages}</span>
-          <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
+          <span className="text-xs text-muted-foreground w-16 text-center">
+            {page} / {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+          >
             Next
           </Button>
         </div>
@@ -656,7 +760,10 @@ export function ImagesTab({ serverId }: { serverId: string }) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => void removeSelectedUnused()}>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => void removeSelectedUnused()}
+            >
               Remove
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -668,7 +775,8 @@ export function ImagesTab({ serverId }: { serverId: string }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Prune unused images?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove all dangling images not referenced by any container. This action cannot be undone.
+              This will remove all dangling images not referenced by any container. This action
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -698,8 +806,12 @@ export function ImagesTab({ serverId }: { serverId: string }) {
           <div className="space-y-3">
             <div className="rounded-md border p-3 text-sm">
               <div className="font-medium">Registry: {registryName}</div>
-              {registryChecking && <div className="text-xs text-muted-foreground mt-1">Checking connectivity...</div>}
-              {!registryChecking && registryAvailable === true && <div className="text-xs text-green-600 mt-1">Registry is reachable.</div>}
+              {registryChecking && (
+                <div className="text-xs text-muted-foreground mt-1">Checking connectivity...</div>
+              )}
+              {!registryChecking && registryAvailable === true && (
+                <div className="text-xs text-green-600 mt-1">Registry is reachable.</div>
+              )}
               {!registryChecking && registryAvailable === false && (
                 <div className="text-xs text-destructive mt-1">
                   Registry is not reachable. {registryReason}
@@ -715,10 +827,17 @@ export function ImagesTab({ serverId }: { serverId: string }) {
                     placeholder="Search image in registry..."
                     className="border rounded-md px-3 py-1.5 text-sm bg-background flex-1"
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), void searchRegistry())}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    onKeyDown={e =>
+                      e.key === 'Enter' && (e.preventDefault(), void searchRegistry())
+                    }
                   />
-                  <Button variant="outline" size="sm" onClick={() => void searchRegistry()} disabled={searching || !searchQuery.trim()}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void searchRegistry()}
+                    disabled={searching || !searchQuery.trim()}
+                  >
                     <Search className="h-4 w-4 mr-1" /> Search
                   </Button>
                 </div>
@@ -730,7 +849,7 @@ export function ImagesTab({ serverId }: { serverId: string }) {
                     </div>
                   ) : searchResults.length > 0 ? (
                     <div className="divide-y">
-                      {searchResults.map((item) => (
+                      {searchResults.map(item => (
                         <button
                           key={item.name}
                           type="button"
@@ -741,7 +860,9 @@ export function ImagesTab({ serverId }: { serverId: string }) {
                             {item.name}
                             {item.is_official && <Badge variant="secondary">Official</Badge>}
                           </div>
-                          <div className="text-xs text-muted-foreground">{item.description || '-'}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {item.description || '-'}
+                          </div>
                         </button>
                       ))}
                     </div>
@@ -758,7 +879,7 @@ export function ImagesTab({ serverId }: { serverId: string }) {
                 placeholder="Selected image name"
                 className="border rounded-md px-3 py-1.5 text-sm bg-background w-full"
                 value={selectedPullImage}
-                onChange={(e) => setSelectedPullImage(e.target.value)}
+                onChange={e => setSelectedPullImage(e.target.value)}
               />
               <div className="rounded-md border bg-muted/20 p-3 max-h-[200px] overflow-auto">
                 <pre className="text-xs font-mono whitespace-pre-wrap">
@@ -769,8 +890,13 @@ export function ImagesTab({ serverId }: { serverId: string }) {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPullDialogOpen(false)}>Close</Button>
-            <Button onClick={() => void pullSelectedImage()} disabled={pulling || !selectedPullImage.trim() || registryAvailable === false}>
+            <Button variant="outline" onClick={() => setPullDialogOpen(false)}>
+              Close
+            </Button>
+            <Button
+              onClick={() => void pullSelectedImage()}
+              disabled={pulling || !selectedPullImage.trim() || registryAvailable === false}
+            >
               {pulling ? 'Pulling...' : 'Pull'}
             </Button>
           </DialogFooter>

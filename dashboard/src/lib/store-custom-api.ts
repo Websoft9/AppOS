@@ -44,8 +44,7 @@ export const CUSTOM_APPS_KEY = ['store_custom_apps'] as const
 export function useCustomApps() {
   return useQuery({
     queryKey: CUSTOM_APPS_KEY,
-    queryFn: () =>
-      pb.collection('store_custom_apps').getFullList<CustomApp>(),
+    queryFn: () => pb.collection('store_custom_apps').getFullList<CustomApp>(),
     staleTime: 60 * 1000,
   })
 }
@@ -55,7 +54,7 @@ export function useCustomApps() {
 export function getCreatorName(
   app: CustomApp,
   currentUserId: string,
-  t?: (key: string) => string,
+  t?: (key: string) => string
 ): string {
   if (app.created_by === currentUserId) return t ? t('customApp.you') : 'You'
   // created_by is a plain ID string; no expand available
@@ -82,7 +81,7 @@ export function customAppToProduct(app: CustomApp): ProductWithCategories {
 
 export function useCreateCustomApp(
   onError?: (msg: string) => void,
-  onIacError?: (msg: string) => void,
+  onIacError?: (msg: string) => void
 ) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -119,12 +118,13 @@ export function useCreateCustomApp(
 
 export function useUpdateCustomApp(
   onError?: (msg: string) => void,
-  onIacError?: (msg: string) => void,
+  onIacError?: (msg: string) => void
 ) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<CustomAppFormData> }) => {
-      const { extraFiles, basedOnKey: _, ...pbData } = data
+      const { extraFiles, basedOnKey, ...pbData } = data
+      void basedOnKey
       const app = await pb.collection('store_custom_apps').update<CustomApp>(id, pbData)
       // Sync files to templates/apps/{key}/ via IAC (best-effort)
       try {

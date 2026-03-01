@@ -1,7 +1,7 @@
-import { useNavigate } from "@tanstack/react-router"
-import { useState } from "react"
-import { useAuth } from "@/contexts/AuthContext"
-import { Button } from "@/components/ui/button"
+import { useNavigate } from '@tanstack/react-router'
+import { useState } from 'react'
+import { useAuth } from '@/contexts/AuthContext'
+import { Button } from '@/components/ui/button'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,15 +11,15 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+} from '@/components/ui/alert-dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { User, LogOut, Settings } from "lucide-react"
+} from '@/components/ui/dropdown-menu'
+import { User, LogOut, Settings } from 'lucide-react'
 
 export function UserMenu() {
   const { user, logout } = useAuth()
@@ -31,11 +31,11 @@ export function UserMenu() {
     setLoggingOut(true)
     setTimeout(() => {
       logout()
-      navigate({ to: "/login" })
+      navigate({ to: '/login' })
     }, 800)
   }
 
-  const isSuperuser = user?.collectionName === "_superusers"
+  const isSuperuser = user?.collectionName === '_superusers'
 
   return (
     <>
@@ -48,9 +48,7 @@ export function UserMenu() {
         <DropdownMenuContent align="end" className="w-48">
           <div className="px-2 py-1.5 text-sm">
             <p className="font-medium truncate">{user?.email}</p>
-            <p className="text-xs text-muted-foreground">
-              {isSuperuser ? "Superuser" : "User"}
-            </p>
+            <p className="text-xs text-muted-foreground">{isSuperuser ? 'Superuser' : 'User'}</p>
           </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => navigate({ to: '/profile' })}>
@@ -64,7 +62,12 @@ export function UserMenu() {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <AlertDialog open={dialogOpen} onOpenChange={(open) => { if (!loggingOut) setDialogOpen(open) }}>
+      <AlertDialog
+        open={dialogOpen}
+        onOpenChange={open => {
+          if (!loggingOut) setDialogOpen(open)
+        }}
+      >
         <AlertDialogContent>
           {loggingOut ? (
             <div className="py-6 text-center">

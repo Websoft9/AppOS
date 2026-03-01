@@ -1,14 +1,7 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react"
-import { useMediaQuery } from "@/hooks/use-media-query"
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { useMediaQuery } from '@/hooks/use-media-query'
 
-const SIDEBAR_STORAGE_KEY = "sidebar-collapsed"
+const SIDEBAR_STORAGE_KEY = 'sidebar-collapsed'
 
 interface LayoutContextValue {
   // Sidebar
@@ -30,13 +23,13 @@ interface LayoutContextValue {
 const LayoutContext = createContext<LayoutContextValue | null>(null)
 
 export function LayoutProvider({ children }: { children: ReactNode }) {
-  const isMobile = useMediaQuery("(max-width: 767px)")
-  const isTablet = useMediaQuery("(min-width: 768px) and (max-width: 1023px)")
-  const isDesktop = useMediaQuery("(min-width: 1024px)")
+  const isMobile = useMediaQuery('(max-width: 767px)')
+  const isTablet = useMediaQuery('(min-width: 768px) and (max-width: 1023px)')
+  const isDesktop = useMediaQuery('(min-width: 1024px)')
 
   const [sidebarCollapsed, setSidebarCollapsedState] = useState(() => {
-    if (typeof window === "undefined") return false
-    return localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true"
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem(SIDEBAR_STORAGE_KEY) === 'true'
   })
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [bottomExpanded, setBottomExpanded] = useState(false)
@@ -49,9 +42,9 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
 
   const toggleSidebar = useCallback(() => {
     if (isMobile || isTablet) {
-      setSidebarOpen((prev) => !prev)
+      setSidebarOpen(prev => !prev)
     } else {
-      setSidebarCollapsedState((prev) => {
+      setSidebarCollapsedState(prev => {
         const next = !prev
         localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next))
         return next
@@ -60,7 +53,7 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
   }, [isMobile, isTablet])
 
   const toggleBottom = useCallback(() => {
-    setBottomExpanded((prev) => !prev)
+    setBottomExpanded(prev => !prev)
   }, [])
 
   // Close mobile drawer when switching to desktop
@@ -91,6 +84,6 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
 
 export function useLayout() {
   const ctx = useContext(LayoutContext)
-  if (!ctx) throw new Error("useLayout must be used within LayoutProvider")
+  if (!ctx) throw new Error('useLayout must be used within LayoutProvider')
   return ctx
 }

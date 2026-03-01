@@ -5,7 +5,12 @@ import { pb } from '@/lib/pb'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@/components/ui/table'
 
 // ─── Types ───────────────────────────────────────────────
@@ -48,15 +53,31 @@ function formatDate(iso: string) {
 
 function levelBadge(level: number) {
   if (level <= -4) {
-    return <Badge variant="outline" className="text-xs font-mono">DEBUG</Badge>
+    return (
+      <Badge variant="outline" className="text-xs font-mono">
+        DEBUG
+      </Badge>
+    )
   }
   if (level <= 0) {
-    return <Badge variant="secondary" className="text-xs font-mono text-blue-600">INFO</Badge>
+    return (
+      <Badge variant="secondary" className="text-xs font-mono text-blue-600">
+        INFO
+      </Badge>
+    )
   }
   if (level <= 4) {
-    return <Badge variant="outline" className="text-xs font-mono text-yellow-600 border-yellow-400">WARN</Badge>
+    return (
+      <Badge variant="outline" className="text-xs font-mono text-yellow-600 border-yellow-400">
+        WARN
+      </Badge>
+    )
   }
-  return <Badge variant="destructive" className="text-xs font-mono">ERROR</Badge>
+  return (
+    <Badge variant="destructive" className="text-xs font-mono">
+      ERROR
+    </Badge>
+  )
 }
 
 function buildFilter(level: string, search: string): string {
@@ -84,34 +105,35 @@ function LogsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [pageSize, setPageSize] = useState(20)
 
-  const fetchLogs = useCallback(async (
-    p: number, level: string, search: string, perPage: number,
-  ) => {
-    setLoading(true)
-    setError(null)
-    try {
-      const query = new URLSearchParams({
-        page: String(p),
-        perPage: String(perPage),
-        sort: '-created',
-        skipTotal: '0',
-      })
-      const filter = buildFilter(level, search)
-      if (filter) query.set('filter', filter)
+  const fetchLogs = useCallback(
+    async (p: number, level: string, search: string, perPage: number) => {
+      setLoading(true)
+      setError(null)
+      try {
+        const query = new URLSearchParams({
+          page: String(p),
+          perPage: String(perPage),
+          sort: '-created',
+          skipTotal: '0',
+        })
+        const filter = buildFilter(level, search)
+        if (filter) query.set('filter', filter)
 
-      const result = await pb.send(`/api/logs?${query.toString()}`, {
-        method: 'GET',
-      }) as LogsResponse
+        const result = (await pb.send(`/api/logs?${query.toString()}`, {
+          method: 'GET',
+        })) as LogsResponse
 
-      setLogs(result.items ?? [])
-      setTotalPages(result.totalPages ?? 1)
-    } catch (err: unknown) {
-      console.error('logs fetch error:', err)
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+        setLogs(result.items ?? [])
+        setTotalPages(result.totalPages ?? 1)
+      } catch (err: unknown) {
+        console.error('logs fetch error:', err)
+        setError(err instanceof Error ? err.message : String(err))
+      } finally {
+        setLoading(false)
+      }
+    },
+    []
+  )
 
   useEffect(() => {
     fetchLogs(page, filterLevel, filterSearch, pageSize)
@@ -130,13 +152,17 @@ function LogsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <Link to="/audit" className="text-muted-foreground hover:text-foreground transition-colors">
+          <Link
+            to="/audit"
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <h2 className="text-2xl font-bold">Logs</h2>
         </div>
         <Button
-          variant="ghost" size="sm"
+          variant="ghost"
+          size="sm"
           onClick={() => fetchLogs(page, filterLevel, filterSearch, pageSize)}
         >
           <RefreshCw className="h-4 w-4 mr-1" /> Refresh
@@ -154,7 +180,9 @@ function LogsPage() {
           }}
         >
           {LEVEL_OPTIONS.map(opt => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
           ))}
         </select>
 
@@ -169,7 +197,9 @@ function LogsPage() {
               if (e.key === 'Enter') applySearch()
             }}
           />
-          <Button variant="outline" size="sm" onClick={applySearch}>Search</Button>
+          <Button variant="outline" size="sm" onClick={applySearch}>
+            Search
+          </Button>
         </div>
 
         <select
@@ -180,7 +210,11 @@ function LogsPage() {
             setPage(1)
           }}
         >
-          {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n} / page</option>)}
+          {PAGE_SIZE_OPTIONS.map(n => (
+            <option key={n} value={n}>
+              {n} / page
+            </option>
+          ))}
         </select>
       </div>
 
@@ -224,9 +258,7 @@ function LogsPage() {
               const method = log.data?.method as string | undefined
               const status = log.data?.status as number | undefined
               const execTime = log.data?.execTime as number | undefined
-              const primaryText = isRequest && url
-                ? `${method ?? ''} ${url}`
-                : log.message || '—'
+              const primaryText = isRequest && url ? `${method ?? ''} ${url}` : log.message || '—'
 
               return (
                 <React.Fragment key={log.id}>
@@ -237,11 +269,12 @@ function LogsPage() {
                     }}
                   >
                     <TableCell className="pr-0 pl-3">
-                      {hasData && (
-                        expandedId === log.id
-                          ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                          : <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      )}
+                      {hasData &&
+                        (expandedId === log.id ? (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        ))}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                       {formatDate(log.created)}
@@ -252,10 +285,14 @@ function LogsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       {status != null ? (
-                        <span className={`font-mono text-xs ${status >= 400 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                        <span
+                          className={`font-mono text-xs ${status >= 400 ? 'text-destructive' : 'text-muted-foreground'}`}
+                        >
                           {status}
                         </span>
-                      ) : '—'}
+                      ) : (
+                        '—'
+                      )}
                     </TableCell>
                     <TableCell className="text-right font-mono text-xs text-muted-foreground">
                       {execTime != null ? execTime.toFixed(2) : '—'}
@@ -284,12 +321,24 @@ function LogsPage() {
 
       {/* Pagination */}
       <div className="flex items-center justify-between mt-4">
-        <span className="text-sm text-muted-foreground">Page {page} of {totalPages}</span>
+        <span className="text-sm text-muted-foreground">
+          Page {page} of {totalPages}
+        </span>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page <= 1}
+            onClick={() => setPage(p => p - 1)}
+          >
             Previous
           </Button>
-          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page >= totalPages}
+            onClick={() => setPage(p => p + 1)}
+          >
             Next
           </Button>
         </div>

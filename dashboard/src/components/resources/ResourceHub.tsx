@@ -1,19 +1,29 @@
-import { useState, useEffect } from "react"
-import { useNavigate, Link } from "@tanstack/react-router"
+import { useState, useEffect } from 'react'
+import { useNavigate, Link } from '@tanstack/react-router'
 import {
-  Server, KeyRound, Braces, Database, Cloud, FileCheck,
-  Plug, FileCode,
-  Plus, ChevronDown, Loader2, ChevronRight, Layers,
-} from "lucide-react"
-import { pb } from "@/lib/pb"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+  Server,
+  KeyRound,
+  Braces,
+  Database,
+  Cloud,
+  FileCheck,
+  Plug,
+  FileCode,
+  Plus,
+  ChevronDown,
+  Loader2,
+  ChevronRight,
+  Layers,
+} from 'lucide-react'
+import { pb } from '@/lib/pb'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from '@/components/ui/dropdown-menu'
 
 // ─── Resource definitions ────────────────────────────────
 
@@ -28,68 +38,68 @@ interface ResourceDef {
 
 const RESOURCES: ResourceDef[] = [
   {
-    key: "servers",
-    title: "Servers",
-    description: "SSH deployment targets",
+    key: 'servers',
+    title: 'Servers',
+    description: 'SSH deployment targets',
     icon: <Server className="h-5 w-5" />,
-    href: "/resources/servers",
-    apiPath: "/api/ext/resources/servers",
+    href: '/resources/servers',
+    apiPath: '/api/ext/resources/servers',
   },
   {
-    key: "secrets",
-    title: "Secrets",
-    description: "Credentials, tokens & keys",
+    key: 'secrets',
+    title: 'Secrets',
+    description: 'Credentials, tokens & keys',
     icon: <KeyRound className="h-5 w-5" />,
-    href: "/resources/secrets",
-    apiPath: "/api/ext/resources/secrets",
+    href: '/resources/secrets',
+    apiPath: '/api/ext/resources/secrets',
   },
   {
-    key: "env-groups",
-    title: "Env Groups",
-    description: "Reusable variable sets",
+    key: 'env-groups',
+    title: 'Env Groups',
+    description: 'Reusable variable sets',
     icon: <Braces className="h-5 w-5" />,
-    href: "/resources/env-groups",
-    apiPath: "/api/ext/resources/env-groups",
+    href: '/resources/env-groups',
+    apiPath: '/api/ext/resources/env-groups',
   },
   {
-    key: "databases",
-    title: "Databases",
-    description: "External DB connections",
+    key: 'databases',
+    title: 'Databases',
+    description: 'External DB connections',
     icon: <Database className="h-5 w-5" />,
-    href: "/resources/databases",
-    apiPath: "/api/ext/resources/databases",
+    href: '/resources/databases',
+    apiPath: '/api/ext/resources/databases',
   },
   {
-    key: "cloud-accounts",
-    title: "Cloud Accounts",
-    description: "AWS, GCP, Aliyun…",
+    key: 'cloud-accounts',
+    title: 'Cloud Accounts',
+    description: 'AWS, GCP, Aliyun…',
     icon: <Cloud className="h-5 w-5" />,
-    href: "/resources/cloud-accounts",
-    apiPath: "/api/ext/resources/cloud-accounts",
+    href: '/resources/cloud-accounts',
+    apiPath: '/api/ext/resources/cloud-accounts',
   },
   {
-    key: "certificates",
-    title: "Certificates",
-    description: "TLS certs & keys",
+    key: 'certificates',
+    title: 'Certificates',
+    description: 'TLS certs & keys',
     icon: <FileCheck className="h-5 w-5" />,
-    href: "/resources/certificates",
-    apiPath: "/api/ext/resources/certificates",
+    href: '/resources/certificates',
+    apiPath: '/api/ext/resources/certificates',
   },
   {
-    key: "integrations",
-    title: "Integrations",
-    description: "APIs, webhooks & MCP",
+    key: 'integrations',
+    title: 'Integrations',
+    description: 'APIs, webhooks & MCP',
     icon: <Plug className="h-5 w-5" />,
-    href: "/resources/integrations",
-    apiPath: "/api/ext/resources/integrations",
+    href: '/resources/integrations',
+    apiPath: '/api/ext/resources/integrations',
   },
   {
-    key: "scripts",
-    title: "Scripts",
-    description: "Automation scripts",
+    key: 'scripts',
+    title: 'Scripts',
+    description: 'Automation scripts',
     icon: <FileCode className="h-5 w-5" />,
-    href: "/resources/scripts",
-    apiPath: "/api/ext/resources/scripts",
+    href: '/resources/scripts',
+    apiPath: '/api/ext/resources/scripts',
   },
 ]
 
@@ -102,14 +112,15 @@ export function ResourceHub() {
 
   useEffect(() => {
     const promises = RESOURCES.map(r =>
-      pb.send<unknown[]>(r.apiPath, {})
+      pb
+        .send<unknown[]>(r.apiPath, {})
         .then(data => ({ key: r.key, count: Array.isArray(data) ? data.length : 0 }))
         .catch(() => ({ key: r.key, count: 0 }))
     )
     Promise.allSettled(promises).then(results => {
       const c: Record<string, number> = {}
       for (const r of results) {
-        if (r.status === "fulfilled") c[r.value.key] = r.value.count
+        if (r.status === 'fulfilled') c[r.value.key] = r.value.count
       }
       setCounts(c)
       setLoading(false)
@@ -117,7 +128,7 @@ export function ResourceHub() {
   }, [])
 
   function goToCreate(href: string) {
-    navigate({ to: href as never, search: { create: "1" } as never })
+    navigate({ to: href as never, search: { create: '1' } as never })
   }
 
   return (
@@ -126,7 +137,9 @@ export function ResourceHub() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Resources</h1>
-          <p className="text-muted-foreground mt-1">Manage reusable infrastructure credentials and configuration</p>
+          <p className="text-muted-foreground mt-1">
+            Manage reusable infrastructure credentials and configuration
+          </p>
         </div>
 
         {/* Hub actions */}
@@ -181,10 +194,14 @@ export function ResourceHub() {
                   <p className="text-sm font-medium leading-tight truncate">
                     {r.title}
                     {!loading && (
-                      <span className="ml-2 text-muted-foreground font-medium">({counts[r.key] ?? 0})</span>
+                      <span className="ml-2 text-muted-foreground font-medium">
+                        ({counts[r.key] ?? 0})
+                      </span>
                     )}
                     {loading && (
-                      <span className="ml-2 inline-flex"><Loader2 className="h-3 w-3 animate-spin text-muted-foreground" /></span>
+                      <span className="ml-2 inline-flex">
+                        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                      </span>
                     )}
                   </p>
                 </div>
@@ -192,7 +209,9 @@ export function ResourceHub() {
               </div>
 
               {/* Description */}
-              <p className="text-xs text-muted-foreground leading-tight mt-2 pl-7">{r.description}</p>
+              <p className="text-xs text-muted-foreground leading-tight mt-2 pl-7">
+                {r.description}
+              </p>
             </CardContent>
           </Card>
         ))}

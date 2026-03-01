@@ -1,0 +1,40 @@
+# golangci-lint configuration
+# Docs: https://golangci-lint.run/usage/configuration/
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - gosec       # Security: hardcoded credentials, unsafe crypto, etc.
+    - govet       # Correctness checks (built-in)
+    - errcheck    # Unhandled errors
+    - staticcheck # Static analysis
+    - unused      # Unused code
+    - ineffassign # Ineffectual assignments
+    - misspell    # Spelling mistakes in comments/strings
+
+linters-settings:
+  gosec:
+    # Disable noisy rules with high false-positive rate in this codebase:
+    #   G304: file path from variable (we intentionally accept user paths in some places)
+    #   G115: integer overflow (too many false positives in Go 1.22+)
+    excludes:
+      - G304
+      - G115
+    severity: medium
+
+issues:
+  # Don't fail on generated files or vendor
+  exclude-dirs:
+    - vendor
+    - dashboard
+  # Relax specific noisy rules for test files only;
+  # gosec still runs on test code to catch hardcoded secrets/weak crypto.
+  exclude-rules:
+    - path: "_test\.go"
+      linters: [errcheck, ineffassign]
+  # Surface all findings (don't cap per-linter)
+  max-issues-per-linter: 0
+  max-same-issues: 0

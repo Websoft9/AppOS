@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react"
-import { pb } from "@/lib/pb"
+import { useEffect, useRef, useState } from 'react'
+import { pb } from '@/lib/pb'
 
 interface SetupInfo {
   token?: string
@@ -26,14 +26,16 @@ echo "Done: appos-tunnel service removed."`
 export function TunnelSetupWizard({ serverId, onClose }: Props) {
   const [token, setToken] = useState<string | null>(null)
   const [setup, setSetup] = useState<SetupInfo | null>(null)
-  const [status, setStatus] = useState<"waiting" | "connected" | "error">("waiting")
-  const statusRef = useRef<"waiting" | "connected" | "error">("waiting")
-  const [errorMsg, setErrorMsg] = useState("")
+  const [status, setStatus] = useState<'waiting' | 'connected' | 'error'>('waiting')
+  const statusRef = useRef<'waiting' | 'connected' | 'error'>('waiting')
+  const [errorMsg, setErrorMsg] = useState('')
   const [copied, setCopied] = useState<string | null>(null)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Keep ref in sync with state so realtime callbacks see the current value.
-  useEffect(() => { statusRef.current = status }, [status])
+  useEffect(() => {
+    statusRef.current = status
+  }, [status])
 
   // ── Fetch setup info (no token rotation) ─────────────────────────────────
   useEffect(() => {
@@ -44,15 +46,15 @@ export function TunnelSetupWizard({ serverId, onClose }: Props) {
         let setupRes: SetupInfo
         try {
           // GET /setup returns the existing token without rotation.
-          setupRes = await pb.send(`/api/ext/tunnel/servers/${serverId}/setup`, {
-            method: "GET",
-          }) as SetupInfo
+          setupRes = (await pb.send(`/api/ext/tunnel/servers/${serverId}/setup`, {
+            method: 'GET',
+          })) as SetupInfo
         } catch {
           // Server has no token yet — create one (idempotent, no disconnect).
-          await pb.send(`/api/ext/tunnel/servers/${serverId}/token`, { method: "POST" })
-          setupRes = await pb.send(`/api/ext/tunnel/servers/${serverId}/setup`, {
-            method: "GET",
-          }) as SetupInfo
+          await pb.send(`/api/ext/tunnel/servers/${serverId}/token`, { method: 'POST' })
+          setupRes = (await pb.send(`/api/ext/tunnel/servers/${serverId}/setup`, {
+            method: 'GET',
+          })) as SetupInfo
         }
 
         if (cancelled) return
@@ -60,36 +62,44 @@ export function TunnelSetupWizard({ serverId, onClose }: Props) {
         setSetup(setupRes)
       } catch (e) {
         if (!cancelled) {
-          setStatus("error")
-          setErrorMsg(e instanceof Error ? e.message : "Failed to load tunnel setup")
+          setStatus('error')
+          setErrorMsg(e instanceof Error ? e.message : 'Failed to load tunnel setup')
         }
       }
     }
 
     void init()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [serverId])
 
   // ── Subscribe to realtime server updates ──────────────────────────────────
   useEffect(() => {
     let unsubscribe: (() => void) | null = null
 
-    pb.collection("servers")
-      .subscribe(serverId, (ev) => {
+    pb.collection('servers')
+      .subscribe(serverId, ev => {
         const rec = ev.record as Record<string, unknown>
-        if (rec.tunnel_status === "online" && statusRef.current !== "connected") {
-          setStatus("connected")
+        if (rec.tunnel_status === 'online' && statusRef.current !== 'connected') {
+          setStatus('connected')
           // Auto-close after 2 s
           closeTimerRef.current = setTimeout(() => onClose(), 2000)
         }
       })
-      .then((fn) => { unsubscribe = fn })
-      .catch(() => {/* realtime unavailable */})
+      .then(fn => {
+        unsubscribe = fn
+      })
+      .catch(() => {
+        /* realtime unavailable */
+      })
 
     return () => {
       if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
       unsubscribe?.()
-      pb.collection("servers").unsubscribe(serverId).catch(() => {})
+      pb.collection('servers')
+        .unsubscribe(serverId)
+        .catch(() => {})
     }
   }, [serverId, onClose])
 
@@ -97,25 +107,28 @@ export function TunnelSetupWizard({ serverId, onClose }: Props) {
   function copy(text: string, key: string) {
     const doSet = () => {
       setCopied(key)
-      setTimeout(() => setCopied(prev => prev === key ? null : prev), 2000)
+      setTimeout(() => setCopied(prev => (prev === key ? null : prev)), 2000)
     }
 
     if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(text).then(doSet).catch(() => copyFallback(text, doSet))
+      navigator.clipboard
+        .writeText(text)
+        .then(doSet)
+        .catch(() => copyFallback(text, doSet))
     } else {
       copyFallback(text, doSet)
     }
   }
 
   function copyFallback(text: string, onSuccess: () => void) {
-    const ta = document.createElement("textarea")
+    const ta = document.createElement('textarea')
     ta.value = text
-    ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;pointer-events:none"
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none'
     document.body.appendChild(ta)
     ta.focus()
     ta.select()
     try {
-      document.execCommand("copy")
+      document.execCommand('copy')
       onSuccess()
     } finally {
       document.body.removeChild(ta)
@@ -135,14 +148,14 @@ export function TunnelSetupWizard({ serverId, onClose }: Props) {
         </div>
 
         {/* Error state */}
-        {status === "error" && (
+        {status === 'error' && (
           <div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">
             {errorMsg}
           </div>
         )}
 
         {/* Loading setup info */}
-        {!setup && status !== "error" && (
+        {!setup && status !== 'error' && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span className="animate-spin text-base">⟳</span>
             Generating token…
@@ -160,10 +173,15 @@ export function TunnelSetupWizard({ serverId, onClose }: Props) {
                   {`curl -sSL ${window.location.origin}${setup.setup_script_url} | bash`}
                 </pre>
                 <button
-                  onClick={() => copy(`curl -sSL ${window.location.origin}${setup.setup_script_url} | bash`, "curl")}
+                  onClick={() =>
+                    copy(
+                      `curl -sSL ${window.location.origin}${setup.setup_script_url} | bash`,
+                      'curl'
+                    )
+                  }
                   className="absolute right-2 top-2 text-xs px-2 py-1 rounded bg-background border border-input hover:bg-accent"
                 >
-                  {copied === "curl" ? "Copied!" : "Copy"}
+                  {copied === 'curl' ? 'Copied!' : 'Copy'}
                 </button>
               </div>
             </div>
@@ -176,10 +194,10 @@ export function TunnelSetupWizard({ serverId, onClose }: Props) {
                   {setup.autossh_cmd}
                 </pre>
                 <button
-                  onClick={() => copy(setup.autossh_cmd, "autossh")}
+                  onClick={() => copy(setup.autossh_cmd, 'autossh')}
                   className="absolute right-2 top-2 text-xs px-2 py-1 rounded bg-background border border-input hover:bg-accent"
                 >
-                  {copied === "autossh" ? "Copied!" : "Copy"}
+                  {copied === 'autossh' ? 'Copied!' : 'Copy'}
                 </button>
               </div>
             </div>
@@ -193,10 +211,10 @@ export function TunnelSetupWizard({ serverId, onClose }: Props) {
                     {token}
                   </pre>
                   <button
-                    onClick={() => copy(token, "token")}
+                    onClick={() => copy(token, 'token')}
                     className="absolute right-2 top-2 text-xs px-2 py-1 rounded bg-background border border-input hover:bg-accent"
                   >
-                    {copied === "token" ? "Copied!" : "Copy"}
+                    {copied === 'token' ? 'Copied!' : 'Copy'}
                   </button>
                 </div>
               </div>
@@ -208,12 +226,14 @@ export function TunnelSetupWizard({ serverId, onClose }: Props) {
                 Uninstall script ▸
               </summary>
               <div className="relative mt-1">
-                <pre className="text-xs bg-muted rounded-md px-4 py-3 overflow-x-auto pr-20 whitespace-pre-wrap">{UNINSTALL_SCRIPT}</pre>
+                <pre className="text-xs bg-muted rounded-md px-4 py-3 overflow-x-auto pr-20 whitespace-pre-wrap">
+                  {UNINSTALL_SCRIPT}
+                </pre>
                 <button
-                  onClick={() => copy(UNINSTALL_SCRIPT, "uninstall")}
+                  onClick={() => copy(UNINSTALL_SCRIPT, 'uninstall')}
                   className="absolute right-2 top-2 text-xs px-2 py-1 rounded bg-background border border-input hover:bg-accent"
                 >
-                  {copied === "uninstall" ? "Copied!" : "Copy"}
+                  {copied === 'uninstall' ? 'Copied!' : 'Copy'}
                 </button>
               </div>
             </details>
@@ -222,13 +242,13 @@ export function TunnelSetupWizard({ serverId, onClose }: Props) {
 
         {/* Connection status indicator */}
         <div className="flex items-center gap-2 text-sm">
-          {status === "waiting" && (
+          {status === 'waiting' && (
             <>
               <span className="inline-block h-2.5 w-2.5 rounded-full bg-yellow-400 animate-pulse" />
               <span className="text-muted-foreground">Waiting for connection…</span>
             </>
           )}
-          {status === "connected" && (
+          {status === 'connected' && (
             <>
               <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" />
               <span className="text-green-600 font-medium">Connected! Closing…</span>

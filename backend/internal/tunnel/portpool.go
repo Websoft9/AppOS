@@ -58,9 +58,9 @@ var defaultServiceSpecs = []struct {
 //   - AcquireOrReuse hands out ports to a connecting server.
 //   - Release returns ports to the free pool when a server is deleted.
 type PortPool struct {
-	mu       sync.Mutex
-	start    int
-	end      int
+	mu    sync.Mutex
+	start int
+	end   int
 	// byServer maps serverID → assigned services (preserved across reconnects).
 	byServer map[string][]Service
 	// byPort maps tunnel port → owning serverID (reverse index for conflict detection).

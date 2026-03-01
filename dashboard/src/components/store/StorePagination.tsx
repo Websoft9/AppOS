@@ -40,13 +40,13 @@ export function StorePagination({
           <select
             className="border rounded px-2 py-1 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
             value={pageSize}
-            onChange={(e) => {
+            onChange={e => {
               onPageSizeChange(Number(e.target.value) as PageSize)
               onPageChange(1)
             }}
             aria-label={t('pagination.perPage')}
           >
-            {PAGE_SIZES.map((s) => (
+            {PAGE_SIZES.map(s => (
               <option key={s} value={s}>
                 {s} {t('pagination.perPage')}
               </option>
@@ -84,7 +84,7 @@ export function StorePagination({
               >
                 {p}
               </Button>
-            ),
+            )
           )}
 
           <Button

@@ -27,10 +27,10 @@ func init() {
 
 		// Insert default quota row.
 		return settings.SetGroup(app, "files", "quota", map[string]any{
-			"maxSizeMB":            10,
-			"maxPerUser":           100,
-			"shareMaxMinutes":      60,
-			"shareDefaultMinutes":  30,
+			"maxSizeMB":           10,
+			"maxPerUser":          100,
+			"shareMaxMinutes":     60,
+			"shareDefaultMinutes": 30,
 		})
 	}, func(app core.App) error {
 		// Down: no-op — seed data is not rolled back.

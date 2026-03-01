@@ -8,12 +8,23 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { CreateUserSheet } from '@/components/users/CreateUserSheet'
 import { EditUserSheet } from '@/components/users/EditUserSheet'
@@ -39,7 +50,7 @@ function getInitials(record: AuthRecord): string {
   if (record.name) {
     return record.name
       .split(' ')
-      .map((w) => w[0])
+      .map(w => w[0])
       .join('')
       .toUpperCase()
       .slice(0, 2)
@@ -112,7 +123,7 @@ function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
       if (page !== 1) {
         setPage(1) // page change cascades to fetchRecords
       } else {
-        setInternalKey((k) => k + 1) // page already 1 — force re-fetch directly
+        setInternalKey(k => k + 1) // page already 1 — force re-fetch directly
       }
     }
   }, [refreshKey, page])
@@ -181,7 +192,7 @@ function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
             placeholder={collection === 'users' ? 'Search by name or email…' : 'Search by email…'}
             className="pl-8"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={e => setQuery(e.target.value)}
           />
         </div>
         <Button onClick={onAddUser} size="sm">
@@ -215,13 +226,15 @@ function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {records.map((record) => (
+            {records.map(record => (
               <TableRow key={record.id}>
                 <TableCell>
                   <Avatar record={record} />
                 </TableCell>
                 <TableCell>
-                  <div className="font-medium">{record.name ?? <span className="text-muted-foreground italic">—</span>}</div>
+                  <div className="font-medium">
+                    {record.name ?? <span className="text-muted-foreground italic">—</span>}
+                  </div>
                   <div className="text-sm text-muted-foreground">{record.email}</div>
                 </TableCell>
                 <TableCell>
@@ -236,11 +249,21 @@ function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="icon" title="Edit" onClick={() => setEditTarget(record)}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Edit"
+                      onClick={() => setEditTarget(record)}
+                    >
                       <Edit2 className="h-4 w-4" />
                     </Button>
                     {record.id !== currentId && (
-                      <Button variant="ghost" size="icon" title="Reset Password" onClick={() => setResetTarget(record)}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Reset Password"
+                        onClick={() => setResetTarget(record)}
+                      >
                         <KeyRound className="h-4 w-4" />
                       </Button>
                     )}
@@ -250,7 +273,10 @@ function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
                         size="icon"
                         title="Delete"
                         className="text-destructive hover:text-destructive"
-                        onClick={() => { setDeleteTarget(record); setDeleteError(null) }}
+                        onClick={() => {
+                          setDeleteTarget(record)
+                          setDeleteError(null)
+                        }}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -272,7 +298,7 @@ function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
               variant="outline"
               size="sm"
               disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
+              onClick={() => setPage(p => p - 1)}
             >
               Previous
             </Button>
@@ -283,7 +309,7 @@ function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
               variant="outline"
               size="sm"
               disabled={page >= totalPages}
-              onClick={() => setPage((p) => p + 1)}
+              onClick={() => setPage(p => p + 1)}
             >
               Next
             </Button>
@@ -294,16 +320,20 @@ function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
       {/* Delete confirmation dialog */}
       <AlertDialog
         open={!!deleteTarget}
-        onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setDeleteError(null) } }}
+        onOpenChange={open => {
+          if (!open) {
+            setDeleteTarget(null)
+            setDeleteError(null)
+          }
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete user?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete <strong>{deleteTarget?.email}</strong>. This action cannot be undone.
-              {deleteError && (
-                <span className="mt-2 block text-destructive">{deleteError}</span>
-              )}
+              This will permanently delete <strong>{deleteTarget?.email}</strong>. This action
+              cannot be undone.
+              {deleteError && <span className="mt-2 block text-destructive">{deleteError}</span>}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -322,21 +352,30 @@ function UsersTable({ collection, onAddUser, refreshKey }: UsersTableProps) {
       {editTarget && (
         <EditUserSheet
           open={!!editTarget}
-          onOpenChange={(open) => { if (!open) setEditTarget(null) }}
+          onOpenChange={open => {
+            if (!open) setEditTarget(null)
+          }}
           record={editTarget}
           collection={collection}
-          onSuccess={() => { setEditTarget(null); fetchRecords() }}
+          onSuccess={() => {
+            setEditTarget(null)
+            fetchRecords()
+          }}
         />
       )}
 
       {/* Reset password dialog */}
       <ResetPasswordDialog
         open={!!resetTarget}
-        onOpenChange={(open) => { if (!open) setResetTarget(null) }}
+        onOpenChange={open => {
+          if (!open) setResetTarget(null)
+        }}
         userId={resetTarget?.id ?? ''}
         userEmail={resetTarget?.email ?? ''}
         collection={collection}
-        onSuccess={() => { setResetTarget(null) }}
+        onSuccess={() => {
+          setResetTarget(null)
+        }}
       />
     </div>
   )
@@ -352,10 +391,10 @@ function UsersPage() {
 
   function handleCreateSuccess(collection: 'users' | '_superusers') {
     if (collection === 'users') {
-      setMembersRefreshKey((k) => k + 1)
+      setMembersRefreshKey(k => k + 1)
       setActiveTab('members')
     } else {
-      setSuperusersRefreshKey((k) => k + 1)
+      setSuperusersRefreshKey(k => k + 1)
       setActiveTab('superusers')
     }
   }
@@ -367,7 +406,7 @@ function UsersPage() {
         <p className="text-sm text-muted-foreground">Manage platform members and superusers.</p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'members' | 'superusers')}>
+      <Tabs value={activeTab} onValueChange={v => setActiveTab(v as 'members' | 'superusers')}>
         <TabsList>
           <TabsTrigger value="members">Members</TabsTrigger>
           <TabsTrigger value="superusers">Superusers</TabsTrigger>

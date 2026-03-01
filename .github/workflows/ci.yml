@@ -1,0 +1,163 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─── Lint ────────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Install frontend deps
+        run: cd dashboard && npm ci
+
+      - name: golangci-lint (incl. gosec)
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: backend
+          args: --config ../.golangci.yml --timeout 5m
+
+      - name: ESLint
+        run: cd dashboard && npx eslint src/
+
+  # ─── Test ────────────────────────────────────────────────────────────────────
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Install frontend deps
+        run: cd dashboard && npm ci
+
+      - name: Go tests
+        run: cd backend && go test ./... -v
+
+      - name: JS tests
+        run: cd dashboard && npm test
+
+  # ─── Security ────────────────────────────────────────────────────────────────
+  sec:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history required for gitleaks git-mode scanning
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: govulncheck (Go CVE)
+        run: cd backend && govulncheck ./...
+        continue-on-error: true   # advisory; upstream CVEs may have no fix yet
+
+      - name: Install frontend deps
+        run: cd dashboard && npm ci
+
+      - name: npm audit (JS CVE, high+critical)
+        run: cd dashboard && npm audit --audit-level=high
+        continue-on-error: true   # advisory; doesn't block merge
+
+      - name: gitleaks (secret leak detection)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─── Container Image Scan ────────────────────────────────────────────────────
+  scan:
+    name: Image Scan
+    runs-on: ubuntu-latest
+    needs: [lint, test, sec]
+    # Only run on pushes to main (images are published after merge)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write          # required for SBOM dependency snapshot upload
+      security-events: write   # required for SARIF upload to GitHub Security tab
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build production image
+        run: make image build
+
+      - name: Trivy image scan — table (HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@0.30.0
+        with:
+          image-ref: websoft9/appos:latest
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: "0"   # advisory; report but don't block
+
+      - name: Trivy image scan — SARIF (GitHub Security tab)
+        uses: aquasecurity/trivy-action@0.30.0
+        with:
+          image-ref: websoft9/appos:latest
+          format: sarif
+          output: trivy-results.sarif
+          severity: HIGH,CRITICAL
+
+      - name: Upload Trivy SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Generate SBOM and upload to GitHub Dependency Graph
+        uses: anchore/sbom-action@v0
+        with:
+          image: websoft9/appos:latest
+          format: spdx-json
+          output-file: sbom.spdx.json
+          upload-artifact: true
+          artifact-name: sbom-${{ github.sha }}
+          dependency-snapshot: true   # pushes to GitHub Dependency Graph

@@ -21,10 +21,10 @@ import (
 // Phase 1 (Story 13.1): space only.
 // Phase 2 (Story 13.5): proxy, docker, llm added.
 var allowedModuleKeys = map[string][]string{
-	"space":  {"quota"},
-	"proxy":  {"network"},
-	"docker": {"mirror", "registries"},
-	"llm":    {"providers"},
+	"space":   {"quota"},
+	"proxy":   {"network"},
+	"docker":  {"mirror", "registries"},
+	"llm":     {"providers"},
 	"connect": {"sftp"},
 }
 

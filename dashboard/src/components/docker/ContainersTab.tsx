@@ -1,6 +1,6 @@
-import { Fragment, useState, useEffect, useCallback, useMemo } from "react"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { pb } from "@/lib/pb"
+import { Fragment, useState, useEffect, useCallback, useMemo } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { pb } from '@/lib/pb'
 import {
   Table,
   TableBody,
@@ -8,11 +8,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+} from '@/components/ui/table'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,17 +22,35 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Checkbox } from "@/components/ui/checkbox"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { getApiErrorMessage } from "@/lib/api-error"
+} from '@/components/ui/alert-dialog'
+import { Checkbox } from '@/components/ui/checkbox'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { getApiErrorMessage } from '@/lib/api-error'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Play, Square, RotateCw, Trash2, MoreVertical, TerminalSquare, ScrollText, ChevronRight, ChevronDown, ArrowUpDown, ArrowUp, ArrowDown, Copy, Download, Loader2, Eye, EyeOff } from "lucide-react"
+} from '@/components/ui/dropdown-menu'
+import {
+  Play,
+  Square,
+  RotateCw,
+  Trash2,
+  MoreVertical,
+  TerminalSquare,
+  ScrollText,
+  ChevronRight,
+  ChevronDown,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Copy,
+  Download,
+  Loader2,
+  Eye,
+  EyeOff,
+} from 'lucide-react'
 
 const CONTAINERS_SORT_KEY = 'docker.containers.sort'
 const DOCKER_PAGE_SIZE_KEY = 'docker.list.page_size'
@@ -68,8 +86,8 @@ function parseContainers(output: string): Container[] {
   if (!output.trim()) return []
   return output
     .trim()
-    .split("\n")
-    .map((line) => {
+    .split('\n')
+    .map(line => {
       try {
         return JSON.parse(line)
       } catch {
@@ -83,8 +101,8 @@ function parseContainerStats(output: string): ContainerStats[] {
   if (!output.trim()) return []
   return output
     .trim()
-    .split("\n")
-    .map((line) => {
+    .split('\n')
+    .map(line => {
       try {
         return JSON.parse(line)
       } catch {
@@ -95,13 +113,13 @@ function parseContainerStats(output: string): ContainerStats[] {
 }
 
 function shortName(name: string): string {
-  if (!name) return "-"
+  if (!name) return '-'
   return name.length > 20 ? `${name.slice(0, 20)}…` : name
 }
 
 function memUsed(memUsage?: string): string {
-  if (!memUsage) return "-"
-  return memUsage.split("/")[0]?.trim() || memUsage
+  if (!memUsage) return '-'
+  return memUsage.split('/')[0]?.trim() || memUsage
 }
 
 function memoryTextToBytes(raw?: string): number {
@@ -148,20 +166,20 @@ function memUsageBytes(memUsage?: string): number {
 }
 
 function hostPublishedPorts(rawPorts?: string): string {
-  if (!rawPorts) return "-"
+  if (!rawPorts) return '-'
   const values = rawPorts
-    .split(",")
-    .map((item) => item.trim())
-    .filter((item) => item.includes("->"))
-    .map((item) => item.split("->")[0]?.trim())
-    .map((left) => {
+    .split(',')
+    .map(item => item.trim())
+    .filter(item => item.includes('->'))
+    .map(item => item.split('->')[0]?.trim())
+    .map(left => {
       if (!left) return ''
       const match = left.match(/:(\d+)$/)
       return match?.[1] || ''
     })
     .filter(Boolean)
-  if (values.length === 0) return "-"
-  return Array.from(new Set(values)).join(", ")
+  if (values.length === 0) return '-'
+  return Array.from(new Set(values)).join(', ')
 }
 
 function parseInspect(output: string): Record<string, any> | null {
@@ -176,21 +194,23 @@ function parseInspect(output: string): Record<string, any> | null {
 
 function containerIP(inspect?: Record<string, any> | null): string {
   const networks = inspect?.NetworkSettings?.Networks as Record<string, any> | undefined
-  if (!networks) return "-"
+  if (!networks) return '-'
   for (const network of Object.values(networks)) {
     const ip = network?.IPAddress
     if (ip) return ip
   }
-  return "-"
+  return '-'
 }
 
 function composeName(inspect?: Record<string, any> | null): string {
   const labels = inspect?.Config?.Labels as Record<string, string> | undefined
-  return labels?.["com.docker.compose.project"] || "-"
+  return labels?.['com.docker.compose.project'] || '-'
 }
 
 function inspectPorts(inspect?: Record<string, any> | null): string[] {
-  const ports = inspect?.NetworkSettings?.Ports as Record<string, Array<{ HostIp?: string; HostPort?: string }> | null> | undefined
+  const ports = inspect?.NetworkSettings?.Ports as
+    | Record<string, Array<{ HostIp?: string; HostPort?: string }> | null>
+    | undefined
   if (!ports) return []
   const result: string[] = []
   for (const [containerPort, bindings] of Object.entries(ports)) {
@@ -206,9 +226,13 @@ function inspectPorts(inspect?: Record<string, any> | null): string[] {
 }
 
 function inspectVolumes(inspect?: Record<string, any> | null): string[] {
-  const mounts = inspect?.Mounts as Array<{ Source?: string; Destination?: string; Type?: string }> | undefined
+  const mounts = inspect?.Mounts as
+    | Array<{ Source?: string; Destination?: string; Type?: string }>
+    | undefined
   if (!Array.isArray(mounts)) return []
-  return mounts.map((mount) => `${mount.Source || '-'}:${mount.Destination || '-'} (${mount.Type || 'bind'})`)
+  return mounts.map(
+    mount => `${mount.Source || '-'}:${mount.Destination || '-'} (${mount.Type || 'bind'})`
+  )
 }
 
 function inspectNetworks(inspect?: Record<string, any> | null): string[] {
@@ -218,7 +242,7 @@ function inspectNetworks(inspect?: Record<string, any> | null): string[] {
 }
 
 function statusBadge(state: string) {
-  const variant = state === "running" ? "default" : "secondary"
+  const variant = state === 'running' ? 'default' : 'secondary'
   return <Badge variant={variant}>{state}</Badge>
 }
 
@@ -250,11 +274,13 @@ export function ContainersTab({
   const queryClient = useQueryClient()
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [logsContainer, setLogsContainer] = useState<Container | null>(null)
-  const [logsContent, setLogsContent] = useState("")
+  const [logsContent, setLogsContent] = useState('')
   const [logsLoading, setLogsLoading] = useState(false)
-  const [logsActionTip, setLogsActionTip] = useState("")
-  const [filter, setFilter] = useState("")
-  const [stateFilter, setStateFilter] = useState<'all' | 'running' | 'exited' | 'paused' | 'created'>('all')
+  const [logsActionTip, setLogsActionTip] = useState('')
+  const [filter, setFilter] = useState('')
+  const [stateFilter, setStateFilter] = useState<
+    'all' | 'running' | 'exited' | 'paused' | 'created'
+  >('all')
   const [pageSize, setPageSize] = useState<25 | 50 | 100>(loadGlobalPageSize)
   const [page, setPage] = useState(1)
   const [sortKey, setSortKey] = useState<SortKey>(() => {
@@ -309,7 +335,9 @@ export function ContainersTab({
   } = useQuery<Container[]>({
     queryKey: ['docker', 'containers', serverId],
     queryFn: async () => {
-      const res = await pb.send(`/api/ext/docker/containers?server_id=${serverId}`, { method: "GET" })
+      const res = await pb.send(`/api/ext/docker/containers?server_id=${serverId}`, {
+        method: 'GET',
+      })
       return parseContainers(res.output)
     },
     staleTime: 60_000,
@@ -317,18 +345,18 @@ export function ContainersTab({
     refetchOnMount: false,
   })
 
-  const containerIdsKey = useMemo(() => containers.map((c) => c.ID).join(','), [containers])
+  const containerIdsKey = useMemo(() => containers.map(c => c.ID).join(','), [containers])
 
   useEffect(() => {
-    const idSet = new Set(containers.map((container) => container.ID))
-    setInspectMap((state) => {
+    const idSet = new Set(containers.map(container => container.ID))
+    setInspectMap(state => {
       const next: Record<string, Record<string, any>> = {}
       for (const [id, inspect] of Object.entries(state)) {
         if (idSet.has(id)) next[id] = inspect
       }
       return next
     })
-    setStatsMap((state) => {
+    setStatsMap(state => {
       const next: Record<string, ContainerStats> = {}
       for (const [id, stats] of Object.entries(state)) {
         if (idSet.has(id)) next[id] = stats
@@ -339,22 +367,28 @@ export function ContainersTab({
     setDetailsErrorMessage(null)
   }, [containerIdsKey])
 
-  const loadInspectForContainer = useCallback(async (containerId: string) => {
-    if (!containerId || inspectMap[containerId] || detailsLoadingMap[containerId]) return
+  const loadInspectForContainer = useCallback(
+    async (containerId: string) => {
+      if (!containerId || inspectMap[containerId] || detailsLoadingMap[containerId]) return
 
-    setDetailsLoadingMap((state) => ({ ...state, [containerId]: true }))
-    try {
-      const inspectRes = await pb.send(`/api/ext/docker/containers/${containerId}?server_id=${serverId}`, { method: "GET" })
-      const inspect = parseInspect(inspectRes.output)
-      if (inspect) {
-        setInspectMap((state) => ({ ...state, [containerId]: inspect }))
+      setDetailsLoadingMap(state => ({ ...state, [containerId]: true }))
+      try {
+        const inspectRes = await pb.send(
+          `/api/ext/docker/containers/${containerId}?server_id=${serverId}`,
+          { method: 'GET' }
+        )
+        const inspect = parseInspect(inspectRes.output)
+        if (inspect) {
+          setInspectMap(state => ({ ...state, [containerId]: inspect }))
+        }
+      } catch (err) {
+        setDetailsErrorMessage(getApiErrorMessage(err, 'Failed to load container details'))
+      } finally {
+        setDetailsLoadingMap(state => ({ ...state, [containerId]: false }))
       }
-    } catch (err) {
-      setDetailsErrorMessage(getApiErrorMessage(err, 'Failed to load container details'))
-    } finally {
-      setDetailsLoadingMap((state) => ({ ...state, [containerId]: false }))
-    }
-  }, [detailsLoadingMap, inspectMap, serverId])
+    },
+    [detailsLoadingMap, inspectMap, serverId]
+  )
 
   const loadAllDetails = useCallback(async () => {
     if (containers.length === 0 || allDetailsLoading || allDetailsCached) return
@@ -362,7 +396,9 @@ export function ContainersTab({
     setAllDetailsLoading(true)
     setDetailsErrorMessage(null)
     try {
-      const statsRes = await pb.send(`/api/ext/docker/containers/stats?server_id=${serverId}`, { method: "GET" })
+      const statsRes = await pb.send(`/api/ext/docker/containers/stats?server_id=${serverId}`, {
+        method: 'GET',
+      })
       const parsedStats = parseContainerStats(statsRes.output)
       const nextStats: Record<string, ContainerStats> = {}
       for (const stat of parsedStats) {
@@ -370,14 +406,17 @@ export function ContainersTab({
       }
 
       const inspectEntries = await Promise.all(
-        containers.map(async (container) => {
+        containers.map(async container => {
           try {
-            const inspectRes = await pb.send(`/api/ext/docker/containers/${container.ID}?server_id=${serverId}`, { method: "GET" })
+            const inspectRes = await pb.send(
+              `/api/ext/docker/containers/${container.ID}?server_id=${serverId}`,
+              { method: 'GET' }
+            )
             return [container.ID, parseInspect(inspectRes.output)] as const
           } catch {
             return [container.ID, null] as const
           }
-        }),
+        })
       )
 
       const nextInspect: Record<string, Record<string, any>> = {}
@@ -385,8 +424,8 @@ export function ContainersTab({
         if (inspect) nextInspect[id] = inspect
       }
 
-      setStatsMap((state) => ({ ...state, ...nextStats }))
-      setInspectMap((state) => ({ ...state, ...nextInspect }))
+      setStatsMap(state => ({ ...state, ...nextStats }))
+      setInspectMap(state => ({ ...state, ...nextInspect }))
       setAllDetailsCached(true)
     } catch (err) {
       setDetailsErrorMessage(getApiErrorMessage(err, 'Failed to load container details'))
@@ -412,7 +451,7 @@ export function ContainersTab({
 
     setFakeLoadingProgress(8)
     const timer = window.setInterval(() => {
-      setFakeLoadingProgress((value) => {
+      setFakeLoadingProgress(value => {
         if (value >= 92) return value
         const increment = Math.max(1, Math.round((100 - value) * 0.08))
         return Math.min(92, value + increment)
@@ -433,11 +472,15 @@ export function ContainersTab({
   const action = async (id: string, act: string, options?: { force?: boolean }) => {
     try {
       setActionError(null)
-      if (act === "remove") {
+      if (act === 'remove') {
         const force = options?.force ? '&force=1' : ''
-        await pb.send(`/api/ext/docker/containers/${id}?server_id=${serverId}${force}`, { method: "DELETE" })
+        await pb.send(`/api/ext/docker/containers/${id}?server_id=${serverId}${force}`, {
+          method: 'DELETE',
+        })
       } else {
-        await pb.send(`/api/ext/docker/containers/${id}/${act}?server_id=${serverId}`, { method: "POST" })
+        await pb.send(`/api/ext/docker/containers/${id}/${act}?server_id=${serverId}`, {
+          method: 'POST',
+        })
       }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['docker', 'containers', serverId] }),
@@ -449,24 +492,30 @@ export function ContainersTab({
     }
   }
 
-  const fetchLogs = useCallback(async (container: Container) => {
-    try {
-      setLogsLoading(true)
-      setLogsContainer(container)
-      const res = await pb.send(`/api/ext/docker/containers/${container.ID}/logs?server_id=${serverId}&tail=300`, {
-        method: "GET",
-      })
-      setLogsContent(typeof res.output === "string" ? res.output : "")
-    } catch (err) {
-      setLogsContent(String(err))
-    } finally {
-      setLogsLoading(false)
-    }
-  }, [serverId])
+  const fetchLogs = useCallback(
+    async (container: Container) => {
+      try {
+        setLogsLoading(true)
+        setLogsContainer(container)
+        const res = await pb.send(
+          `/api/ext/docker/containers/${container.ID}/logs?server_id=${serverId}&tail=300`,
+          {
+            method: 'GET',
+          }
+        )
+        setLogsContent(typeof res.output === 'string' ? res.output : '')
+      } catch (err) {
+        setLogsContent(String(err))
+      } finally {
+        setLogsLoading(false)
+      }
+    },
+    [serverId]
+  )
 
   const copyLogs = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(logsContent || "")
+      await navigator.clipboard.writeText(logsContent || '')
       setLogsActionTip('Logs copied')
       window.setTimeout(() => setLogsActionTip(''), 1200)
     } catch {
@@ -495,17 +544,17 @@ export function ContainersTab({
   }, [logsContainer?.Names, logsContent])
 
   const filtered = containers.filter(
-    (c) =>
+    c =>
       c.Names?.toLowerCase().includes(filter.toLowerCase()) ||
-      c.Image?.toLowerCase().includes(filter.toLowerCase()),
+      c.Image?.toLowerCase().includes(filter.toLowerCase())
   )
 
-  const stateFiltered = filtered.filter((container) => {
+  const stateFiltered = filtered.filter(container => {
     if (stateFilter === 'all') return true
     return (container.State || '').toLowerCase() === stateFilter
   })
 
-  const nameFiltered = stateFiltered.filter((container) => {
+  const nameFiltered = stateFiltered.filter(container => {
     if (!includeNames || includeNames.length === 0) return true
     return includeNames.includes(container.Names)
   })
@@ -536,23 +585,35 @@ export function ContainersTab({
 
       const leftValue = (() => {
         switch (sortKey) {
-          case 'state': return left.State
-          case 'port': return hostPublishedPorts(left.Ports)
-          case 'created': return String(leftInspect?.Created || '')
-          case 'status': return left.Status
-          case 'compose': return composeName(leftInspect)
-          default: return left.Names
+          case 'state':
+            return left.State
+          case 'port':
+            return hostPublishedPorts(left.Ports)
+          case 'created':
+            return String(leftInspect?.Created || '')
+          case 'status':
+            return left.Status
+          case 'compose':
+            return composeName(leftInspect)
+          default:
+            return left.Names
         }
       })().toLowerCase()
 
       const rightValue = (() => {
         switch (sortKey) {
-          case 'state': return right.State
-          case 'port': return hostPublishedPorts(right.Ports)
-          case 'created': return String(rightInspect?.Created || '')
-          case 'status': return right.Status
-          case 'compose': return composeName(rightInspect)
-          default: return right.Names
+          case 'state':
+            return right.State
+          case 'port':
+            return hostPublishedPorts(right.Ports)
+          case 'created':
+            return String(rightInspect?.Created || '')
+          case 'status':
+            return right.Status
+          case 'compose':
+            return composeName(rightInspect)
+          default:
+            return right.Names
         }
       })().toLowerCase()
 
@@ -590,7 +651,7 @@ export function ContainersTab({
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
-      setSortDir((dir) => (dir === 'asc' ? 'desc' : 'asc'))
+      setSortDir(dir => (dir === 'asc' ? 'desc' : 'asc'))
       return
     }
     setSortKey(key)
@@ -598,7 +659,12 @@ export function ContainersTab({
   }
 
   const SortHead = ({ label, keyName }: { label: string; keyName: SortKey }) => (
-    <Button variant="ghost" size="sm" className="h-7 -ml-2 px-2 text-xs" onClick={() => toggleSort(keyName)}>
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-7 -ml-2 px-2 text-xs"
+      onClick={() => toggleSort(keyName)}
+    >
       {label}
       {sortKey !== keyName ? (
         <ArrowUpDown className="h-3 w-3 ml-1" />
@@ -630,12 +696,14 @@ export function ContainersTab({
             placeholder="Filter containers..."
             className="border rounded-md px-3 py-1.5 text-sm bg-background"
             value={filter}
-            onChange={(e) => setFilter(e.target.value)}
+            onChange={e => setFilter(e.target.value)}
           />
           <select
             className="border rounded-md px-2 py-1.5 text-sm bg-background"
             value={stateFilter}
-            onChange={(e) => setStateFilter(e.target.value as 'all' | 'running' | 'exited' | 'paused' | 'created')}
+            onChange={e =>
+              setStateFilter(e.target.value as 'all' | 'running' | 'exited' | 'paused' | 'created')
+            }
           >
             <option value="all">All states</option>
             <option value="running">Running</option>
@@ -649,7 +717,7 @@ export function ContainersTab({
             variant="outline"
             size="icon"
             className="h-8 w-8"
-            onClick={() => setShowMetaColumns((visible) => !visible)}
+            onClick={() => setShowMetaColumns(visible => !visible)}
             title={showMetaColumns ? 'Hide Created / CPU / Mem' : 'Show Created / CPU / Mem'}
             aria-label={showMetaColumns ? 'Hide Created / CPU / Mem' : 'Show Created / CPU / Mem'}
           >
@@ -671,7 +739,9 @@ export function ContainersTab({
       </div>
       <div className="flex items-center gap-2 flex-wrap shrink-0">
         {stateFilter !== 'all' && <Badge variant="secondary">State: {stateFilter}</Badge>}
-        {includeNames && includeNames.length > 0 && <Badge variant="outline">Linked containers: {includeNames.length}</Badge>}
+        {includeNames && includeNames.length > 0 && (
+          <Badge variant="outline">Linked containers: {includeNames.length}</Badge>
+        )}
         {allDetailsLoading && <Badge variant="outline">Loading container details...</Badge>}
       </div>
       {(allDetailsLoading || (fakeLoadingProgress > 0 && fakeLoadingProgress < 100)) && (
@@ -682,207 +752,288 @@ export function ContainersTab({
               style={{ width: `${Math.max(6, Math.min(100, fakeLoadingProgress))}%` }}
             />
           </div>
-          <div className="text-[11px] text-muted-foreground">Preparing container metrics... {Math.min(100, Math.round(fakeLoadingProgress))}%</div>
+          <div className="text-[11px] text-muted-foreground">
+            Preparing container metrics... {Math.min(100, Math.round(fakeLoadingProgress))}%
+          </div>
         </div>
       )}
       {copiedTip && <div className="text-xs text-muted-foreground shrink-0">{copiedTip}</div>}
-      <div data-docker-scroll-root="true" className="h-0 flex-1 min-h-0 overflow-auto rounded-md border">
-      <Table>
-        <TableHeader className="sticky top-0 bg-background z-10">
-          <TableRow>
-            <TableHead><SortHead label="Name" keyName="name" /></TableHead>
-            <TableHead><SortHead label="State" keyName="state" /></TableHead>
-            <TableHead><SortHead label="Port" keyName="port" /></TableHead>
-            {showMetaColumns && <TableHead><SortHead label="Created" keyName="created" /></TableHead>}
-            <TableHead><SortHead label="Status" keyName="status" /></TableHead>
-            {showMetaColumns && <TableHead><SortHead label="CPU%" keyName="cpu" /></TableHead>}
-            {showMetaColumns && <TableHead><SortHead label="Mem" keyName="mem" /></TableHead>}
-            {showMetaColumns && <TableHead><SortHead label="Compose" keyName="compose" /></TableHead>}
-            <TableHead className="w-[60px]" />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {loading && (
+      <div
+        data-docker-scroll-root="true"
+        className="h-0 flex-1 min-h-0 overflow-auto rounded-md border"
+      >
+        <Table>
+          <TableHeader className="sticky top-0 bg-background z-10">
             <TableRow>
-              <TableCell colSpan={tableColSpan} className="text-center text-muted-foreground">
-                <span className="inline-flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading...
-                </span>
-              </TableCell>
+              <TableHead>
+                <SortHead label="Name" keyName="name" />
+              </TableHead>
+              <TableHead>
+                <SortHead label="State" keyName="state" />
+              </TableHead>
+              <TableHead>
+                <SortHead label="Port" keyName="port" />
+              </TableHead>
+              {showMetaColumns && (
+                <TableHead>
+                  <SortHead label="Created" keyName="created" />
+                </TableHead>
+              )}
+              <TableHead>
+                <SortHead label="Status" keyName="status" />
+              </TableHead>
+              {showMetaColumns && (
+                <TableHead>
+                  <SortHead label="CPU%" keyName="cpu" />
+                </TableHead>
+              )}
+              {showMetaColumns && (
+                <TableHead>
+                  <SortHead label="Mem" keyName="mem" />
+                </TableHead>
+              )}
+              {showMetaColumns && (
+                <TableHead>
+                  <SortHead label="Compose" keyName="compose" />
+                </TableHead>
+              )}
+              <TableHead className="w-[60px]" />
             </TableRow>
-          )}
-          {paged.map((c) => {
-            const inspect = inspectMap[c.ID]
-            const stats = statsMap[c.ID]
-            return (
-              <Fragment key={c.ID}>
-                <TableRow className="hover:bg-muted/30">
-                  <TableCell className="font-mono text-xs">
-                    <Button
-                      variant="link"
-                      className="h-auto p-0 text-left font-mono text-xs gap-1"
-                      onClick={() => {
-                        setExpandedId((id) => {
-                          const nextId = id === c.ID ? null : c.ID
-                          if (nextId === c.ID) {
-                            void loadInspectForContainer(c.ID)
-                          }
-                          return nextId
-                        })
-                      }}
-                    >
-                      {expandedId === c.ID ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                      <span title={c.Names}>{shortName(c.Names)}</span>
-                    </Button>
-                  </TableCell>
-                  <TableCell>{statusBadge(c.State)}</TableCell>
-                  <TableCell className="text-xs">{hostPublishedPorts(c.Ports)}</TableCell>
-                  {showMetaColumns && (
-                    <TableCell className="text-xs">{allDetailsLoading ? '...' : (inspect?.Created ? new Date(inspect.Created).toLocaleString() : '-')}</TableCell>
-                  )}
-                  <TableCell className="text-xs">{c.Status}</TableCell>
-                  {showMetaColumns && <TableCell className="text-xs">{allDetailsLoading ? '...' : (stats?.CPUPerc || '-')}</TableCell>}
-                  {showMetaColumns && <TableCell className="text-xs">{allDetailsLoading ? '...' : memUsed(stats?.MemUsage)}</TableCell>}
-                  {showMetaColumns && (
-                    <TableCell className="text-xs">
-                      {composeName(inspect) !== '-' ? (
-                        <Button
-                          variant="link"
-                          className="h-auto p-0 text-xs"
-                          onClick={() => onOpenComposeFilter?.(composeName(inspect))}
-                        >
-                          {composeName(inspect)}
-                        </Button>
-                      ) : '-'}
+          </TableHeader>
+          <TableBody>
+            {loading && (
+              <TableRow>
+                <TableCell colSpan={tableColSpan} className="text-center text-muted-foreground">
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading...
+                  </span>
+                </TableCell>
+              </TableRow>
+            )}
+            {paged.map(c => {
+              const inspect = inspectMap[c.ID]
+              const stats = statsMap[c.ID]
+              return (
+                <Fragment key={c.ID}>
+                  <TableRow className="hover:bg-muted/30">
+                    <TableCell className="font-mono text-xs">
+                      <Button
+                        variant="link"
+                        className="h-auto p-0 text-left font-mono text-xs gap-1"
+                        onClick={() => {
+                          setExpandedId(id => {
+                            const nextId = id === c.ID ? null : c.ID
+                            if (nextId === c.ID) {
+                              void loadInspectForContainer(c.ID)
+                            }
+                            return nextId
+                          })
+                        }}
+                      >
+                        {expandedId === c.ID ? (
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        )}
+                        <span title={c.Names}>{shortName(c.Names)}</span>
+                      </Button>
                     </TableCell>
-                  )}
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {c.State === "running" && onOpenTerminal && (
-                          <DropdownMenuItem onClick={() => onOpenTerminal(c.ID)}>
-                            <TerminalSquare className="h-4 w-4 mr-2" /> Terminal
+                    <TableCell>{statusBadge(c.State)}</TableCell>
+                    <TableCell className="text-xs">{hostPublishedPorts(c.Ports)}</TableCell>
+                    {showMetaColumns && (
+                      <TableCell className="text-xs">
+                        {allDetailsLoading
+                          ? '...'
+                          : inspect?.Created
+                            ? new Date(inspect.Created).toLocaleString()
+                            : '-'}
+                      </TableCell>
+                    )}
+                    <TableCell className="text-xs">{c.Status}</TableCell>
+                    {showMetaColumns && (
+                      <TableCell className="text-xs">
+                        {allDetailsLoading ? '...' : stats?.CPUPerc || '-'}
+                      </TableCell>
+                    )}
+                    {showMetaColumns && (
+                      <TableCell className="text-xs">
+                        {allDetailsLoading ? '...' : memUsed(stats?.MemUsage)}
+                      </TableCell>
+                    )}
+                    {showMetaColumns && (
+                      <TableCell className="text-xs">
+                        {composeName(inspect) !== '-' ? (
+                          <Button
+                            variant="link"
+                            className="h-auto p-0 text-xs"
+                            onClick={() => onOpenComposeFilter?.(composeName(inspect))}
+                          >
+                            {composeName(inspect)}
+                          </Button>
+                        ) : (
+                          '-'
+                        )}
+                      </TableCell>
+                    )}
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-7 w-7">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {c.State === 'running' && onOpenTerminal && (
+                            <DropdownMenuItem onClick={() => onOpenTerminal(c.ID)}>
+                              <TerminalSquare className="h-4 w-4 mr-2" /> Terminal
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem onClick={() => fetchLogs(c)}>
+                            <ScrollText className="h-4 w-4 mr-2" /> Logs
                           </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem onClick={() => fetchLogs(c)}>
-                          <ScrollText className="h-4 w-4 mr-2" /> Logs
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => action(c.ID, "start")}
-                          disabled={(c.State || '').toLowerCase() === 'running'}
-                        >
-                          <Play className="h-4 w-4 mr-2" /> Start
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setPendingAction({ container: c, action: 'stop' })}>
-                          <Square className="h-4 w-4 mr-2" /> Stop
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setPendingAction({ container: c, action: 'restart' })}>
-                          <RotateCw className="h-4 w-4 mr-2" /> Restart
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => setPendingAction({ container: c, action: 'remove', force: false })}
-                          className="text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" /> Remove
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-                {expandedId === c.ID && (
-                  <TableRow>
-                    <TableCell colSpan={tableColSpan} className="bg-muted/20 px-4 py-3">
-                      <div className="rounded-lg border bg-background p-4 shadow-sm space-y-3">
-                        <div className="text-sm font-medium">Container Details</div>
-                        {detailsLoadingMap[c.ID] && (
-                          <div className="text-xs text-muted-foreground">Loading container details...</div>
-                        )}
-                        <div className="grid gap-3 md:grid-cols-2 text-xs">
-                          <div className="rounded-md border bg-muted/20 p-3">
-                            <div className="font-medium mb-2 text-muted-foreground">Basics</div>
-                            <div className="font-mono break-all">Image: {c.Image || '-'}</div>
-                            <div
-                              className="font-mono break-all cursor-copy"
-                              onDoubleClick={() => copyText(c.ID || '-', 'ID')}
-                              title="Double click to copy ID"
-                            >
-                              ID: {c.ID || '-'}
+                          <DropdownMenuItem
+                            onClick={() => action(c.ID, 'start')}
+                            disabled={(c.State || '').toLowerCase() === 'running'}
+                          >
+                            <Play className="h-4 w-4 mr-2" /> Start
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => setPendingAction({ container: c, action: 'stop' })}
+                          >
+                            <Square className="h-4 w-4 mr-2" /> Stop
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => setPendingAction({ container: c, action: 'restart' })}
+                          >
+                            <RotateCw className="h-4 w-4 mr-2" /> Restart
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              setPendingAction({ container: c, action: 'remove', force: false })
+                            }
+                            className="text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" /> Remove
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                  {expandedId === c.ID && (
+                    <TableRow>
+                      <TableCell colSpan={tableColSpan} className="bg-muted/20 px-4 py-3">
+                        <div className="rounded-lg border bg-background p-4 shadow-sm space-y-3">
+                          <div className="text-sm font-medium">Container Details</div>
+                          {detailsLoadingMap[c.ID] && (
+                            <div className="text-xs text-muted-foreground">
+                              Loading container details...
                             </div>
-                            <div
-                              className="font-mono break-all cursor-copy"
-                              onDoubleClick={() => copyText(containerIP(inspect), 'IP')}
-                              title="Double click to copy IP"
-                            >
-                              IP: {containerIP(inspect)}
-                            </div>
-                          </div>
-                          <div className="rounded-md border bg-muted/20 p-3">
-                            <div className="font-medium mb-2 text-muted-foreground">Ports</div>
-                            {inspectPorts(inspect).length > 0 ? inspectPorts(inspect).map((port) => (
-                              <div key={port} className="font-mono">{port}</div>
-                            )) : <div className="text-muted-foreground">-</div>}
-                          </div>
-                          <div className="rounded-md border bg-muted/20 p-3">
-                            <div className="font-medium mb-2 text-muted-foreground">Volumes</div>
-                            {inspectVolumes(inspect).length > 0 ? (
-                              <div className="overflow-x-auto">
-                                {inspectVolumes(inspect).map((volume) => (
-                                  <div key={volume} className="font-mono whitespace-nowrap min-w-max">{volume}</div>
-                                ))}
+                          )}
+                          <div className="grid gap-3 md:grid-cols-2 text-xs">
+                            <div className="rounded-md border bg-muted/20 p-3">
+                              <div className="font-medium mb-2 text-muted-foreground">Basics</div>
+                              <div className="font-mono break-all">Image: {c.Image || '-'}</div>
+                              <div
+                                className="font-mono break-all cursor-copy"
+                                onDoubleClick={() => copyText(c.ID || '-', 'ID')}
+                                title="Double click to copy ID"
+                              >
+                                ID: {c.ID || '-'}
                               </div>
-                            ) : <div className="text-muted-foreground">-</div>}
-                          </div>
-                          <div className="rounded-md border bg-muted/20 p-3">
-                            <div className="font-medium mb-2 text-muted-foreground">Network</div>
-                            {inspectNetworks(inspect).length > 0 ? inspectNetworks(inspect).map((network) => (
-                              <div key={network} className="font-mono">{network}</div>
-                            )) : <div className="text-muted-foreground">-</div>}
-                          </div>
-                          <div className="rounded-md border bg-muted/20 p-3">
-                            <div className="font-medium mb-2 text-muted-foreground">Env</div>
-                            <div className="max-h-32 overflow-auto">
-                              {Array.isArray(inspect?.Config?.Env) && inspect.Config.Env.length > 0 ? (
-                                inspect.Config.Env.map((env: string) => (
-                                  <div key={env} className="font-mono break-all">{env}</div>
+                              <div
+                                className="font-mono break-all cursor-copy"
+                                onDoubleClick={() => copyText(containerIP(inspect), 'IP')}
+                                title="Double click to copy IP"
+                              >
+                                IP: {containerIP(inspect)}
+                              </div>
+                            </div>
+                            <div className="rounded-md border bg-muted/20 p-3">
+                              <div className="font-medium mb-2 text-muted-foreground">Ports</div>
+                              {inspectPorts(inspect).length > 0 ? (
+                                inspectPorts(inspect).map(port => (
+                                  <div key={port} className="font-mono">
+                                    {port}
+                                  </div>
                                 ))
                               ) : (
                                 <div className="text-muted-foreground">-</div>
                               )}
                             </div>
+                            <div className="rounded-md border bg-muted/20 p-3">
+                              <div className="font-medium mb-2 text-muted-foreground">Volumes</div>
+                              {inspectVolumes(inspect).length > 0 ? (
+                                <div className="overflow-x-auto">
+                                  {inspectVolumes(inspect).map(volume => (
+                                    <div
+                                      key={volume}
+                                      className="font-mono whitespace-nowrap min-w-max"
+                                    >
+                                      {volume}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-muted-foreground">-</div>
+                              )}
+                            </div>
+                            <div className="rounded-md border bg-muted/20 p-3">
+                              <div className="font-medium mb-2 text-muted-foreground">Network</div>
+                              {inspectNetworks(inspect).length > 0 ? (
+                                inspectNetworks(inspect).map(network => (
+                                  <div key={network} className="font-mono">
+                                    {network}
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="text-muted-foreground">-</div>
+                              )}
+                            </div>
+                            <div className="rounded-md border bg-muted/20 p-3">
+                              <div className="font-medium mb-2 text-muted-foreground">Env</div>
+                              <div className="max-h-32 overflow-auto">
+                                {Array.isArray(inspect?.Config?.Env) &&
+                                inspect.Config.Env.length > 0 ? (
+                                  inspect.Config.Env.map((env: string) => (
+                                    <div key={env} className="font-mono break-all">
+                                      {env}
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="text-muted-foreground">-</div>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </Fragment>
-            )
-          })}
-          {!loading && sorted.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={tableColSpan} className="text-center text-muted-foreground">
-                No containers found
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </Fragment>
+              )
+            })}
+            {!loading && sorted.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={tableColSpan} className="text-center text-muted-foreground">
+                  No containers found
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
       </div>
       <div className="flex items-center justify-between gap-2 shrink-0">
         <div className="text-xs text-muted-foreground">
-          {sorted.length === 0 ? '0 items' : `${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, sorted.length)} of ${sorted.length}`}
+          {sorted.length === 0
+            ? '0 items'
+            : `${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, sorted.length)} of ${sorted.length}`}
         </div>
         <div className="flex items-center gap-2">
           <select
             className="h-8 rounded-md border bg-background px-2 text-xs"
             value={pageSize}
-            onChange={(e) => {
+            onChange={e => {
               const next = Number(e.target.value) as 25 | 50 | 100
               setPageSize(next)
               setPage(1)
@@ -892,17 +1043,34 @@ export function ContainersTab({
             <option value={50}>50 / page</option>
             <option value={100}>100 / page</option>
           </select>
-          <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page <= 1}
+          >
             Prev
           </Button>
-          <span className="text-xs text-muted-foreground w-16 text-center">{page} / {totalPages}</span>
-          <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
+          <span className="text-xs text-muted-foreground w-16 text-center">
+            {page} / {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+          >
             Next
           </Button>
         </div>
       </div>
 
-      <AlertDialog open={!!pendingAction} onOpenChange={(open) => { if (!open) setPendingAction(null) }}>
+      <AlertDialog
+        open={!!pendingAction}
+        onOpenChange={open => {
+          if (!open) setPendingAction(null)
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -924,9 +1092,14 @@ export function ContainersTab({
               <Checkbox
                 id="container-remove-force"
                 checked={!!pendingAction.force}
-                onCheckedChange={(checked) => setPendingAction((state) => state ? { ...state, force: !!checked } : state)}
+                onCheckedChange={checked =>
+                  setPendingAction(state => (state ? { ...state, force: !!checked } : state))
+                }
               />
-              <label htmlFor="container-remove-force" className="text-sm text-muted-foreground cursor-pointer">
+              <label
+                htmlFor="container-remove-force"
+                className="text-sm text-muted-foreground cursor-pointer"
+              >
                 Force remove
               </label>
             </div>
@@ -935,7 +1108,11 @@ export function ContainersTab({
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className={pendingAction?.action === 'remove' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : undefined}
+              className={
+                pendingAction?.action === 'remove'
+                  ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                  : undefined
+              }
               onClick={() => {
                 const next = pendingAction
                 setPendingAction(null)
@@ -949,7 +1126,7 @@ export function ContainersTab({
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog open={!!logsContainer} onOpenChange={(open) => !open && setLogsContainer(null)}>
+      <Dialog open={!!logsContainer} onOpenChange={open => !open && setLogsContainer(null)}>
         <DialogContent className="sm:max-w-4xl h-[70vh] flex flex-col gap-0 p-0">
           <DialogHeader className="px-5 pt-4 pb-2">
             <DialogTitle>Container Logs: {logsContainer?.Names}</DialogTitle>
@@ -963,27 +1140,19 @@ export function ContainersTab({
             >
               Refresh
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={copyLogs}
-              disabled={logsLoading}
-            >
+            <Button variant="outline" size="sm" onClick={copyLogs} disabled={logsLoading}>
               <Copy className="h-4 w-4 mr-1" /> Copy
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={downloadLogs}
-              disabled={logsLoading}
-            >
+            <Button variant="outline" size="sm" onClick={downloadLogs} disabled={logsLoading}>
               <Download className="h-4 w-4 mr-1" /> Download
             </Button>
-            {logsActionTip && <span className="text-xs text-muted-foreground">{logsActionTip}</span>}
+            {logsActionTip && (
+              <span className="text-xs text-muted-foreground">{logsActionTip}</span>
+            )}
           </div>
           <ScrollArea className="h-[calc(70vh-8rem)] border-t px-5 py-3">
             <pre className="text-xs font-mono whitespace-pre-wrap break-all">
-              {logsLoading ? 'Loading logs...' : (logsContent || '(no logs)')}
+              {logsLoading ? 'Loading logs...' : logsContent || '(no logs)'}
             </pre>
           </ScrollArea>
         </DialogContent>

@@ -153,13 +153,13 @@ export function ServerSelector({ className }: ServerSelectorProps) {
                 className="w-[var(--radix-dropdown-menu-trigger-width)]"
                 align="start"
               >
-                {servers.map((s) => (
+                {servers.map(s => (
                   <DropdownMenuItem
                     key={s.id}
                     onClick={() => setSelected(s)}
                     className={cn(
                       'flex items-start gap-2 py-2',
-                      selected?.id === s.id && 'font-medium bg-accent',
+                      selected?.id === s.id && 'font-medium bg-accent'
                     )}
                   >
                     <Server className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
@@ -195,9 +195,7 @@ export function ServerSelector({ className }: ServerSelectorProps) {
                       Running connectivity check...
                     </div>
                   ) : (
-                    <div className="text-destructive">
-                      {connectingDetail}
-                    </div>
+                    <div className="text-destructive">{connectingDetail}</div>
                   )}
                 </div>
                 <DialogFooter>

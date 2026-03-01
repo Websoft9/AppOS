@@ -4,8 +4,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
-  AlertDialog, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Loader2 } from 'lucide-react'
 
@@ -22,7 +27,14 @@ interface ResetPasswordDialogProps {
 
 // ─── Component ───────────────────────────────────────────
 
-export function ResetPasswordDialog({ open, onOpenChange, userId, userEmail, collection, onSuccess }: ResetPasswordDialogProps) {
+export function ResetPasswordDialog({
+  open,
+  onOpenChange,
+  userId,
+  userEmail,
+  collection,
+  onSuccess,
+}: ResetPasswordDialogProps) {
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
   const [error, setError] = useState('')
@@ -39,9 +51,18 @@ export function ResetPasswordDialog({ open, onOpenChange, userId, userEmail, col
 
   async function handleConfirm() {
     setError('')
-    if (!password) { setError('Password is required.'); return }
-    if (password.length < 8) { setError('Password must be at least 8 characters.'); return }
-    if (password !== passwordConfirm) { setError('Passwords do not match.'); return }
+    if (!password) {
+      setError('Password is required.')
+      return
+    }
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.')
+      return
+    }
+    if (password !== passwordConfirm) {
+      setError('Passwords do not match.')
+      return
+    }
 
     setLoading(true)
     try {
@@ -66,7 +87,8 @@ export function ResetPasswordDialog({ open, onOpenChange, userId, userEmail, col
         <AlertDialogHeader>
           <AlertDialogTitle>Reset Password</AlertDialogTitle>
           <AlertDialogDescription>
-            Set a new password for <strong>{userEmail}</strong>. Their existing sessions will be invalidated.
+            Set a new password for <strong>{userEmail}</strong>. Their existing sessions will be
+            invalidated.
           </AlertDialogDescription>
         </AlertDialogHeader>
 
@@ -76,7 +98,7 @@ export function ResetPasswordDialog({ open, onOpenChange, userId, userEmail, col
             <Input
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={e => setPassword(e.target.value)}
               autoComplete="new-password"
             />
           </div>
@@ -85,7 +107,7 @@ export function ResetPasswordDialog({ open, onOpenChange, userId, userEmail, col
             <Input
               type="password"
               value={passwordConfirm}
-              onChange={(e) => setPasswordConfirm(e.target.value)}
+              onChange={e => setPasswordConfirm(e.target.value)}
               autoComplete="new-password"
             />
           </div>

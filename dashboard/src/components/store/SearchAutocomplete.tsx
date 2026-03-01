@@ -45,16 +45,14 @@ export function SearchAutocomplete({
   const debouncedValue = useDebounce(value, 300)
 
   // Compute suggestions
-  const suggestions = debouncedValue.trim()
-    ? getSearchSuggestions(products, debouncedValue)
-    : []
+  const suggestions = debouncedValue.trim() ? getSearchSuggestions(products, debouncedValue) : []
 
   // Get primary category title for suggestion
   const getPrimaryTitle = (product: Product): string => {
     const catalogItems = product.catalogCollection?.items ?? []
     const primaryKey = catalogItems[0]?.catalogCollection?.items?.[0]?.key
     if (!primaryKey) return ''
-    return primaryCategories.find((c) => c.key === primaryKey)?.title ?? ''
+    return primaryCategories.find(c => c.key === primaryKey)?.title ?? ''
   }
 
   // Refresh history when dropdown opens with empty query
@@ -85,13 +83,13 @@ export function SearchAutocomplete({
       setActiveIndex(-1)
       inputRef.current?.blur()
     },
-    [onChange, onCommit],
+    [onChange, onCommit]
   )
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     const items = debouncedValue.trim()
       ? suggestions
-      : history.map((h) => ({ trademark: h } as Product))
+      : history.map(h => ({ trademark: h }) as Product)
 
     if (!open) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -102,10 +100,10 @@ export function SearchAutocomplete({
 
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setActiveIndex((i) => Math.min(i + 1, items.length - 1))
+      setActiveIndex(i => Math.min(i + 1, items.length - 1))
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
-      setActiveIndex((i) => Math.max(i - 1, -1))
+      setActiveIndex(i => Math.max(i - 1, -1))
     } else if (e.key === 'Enter') {
       e.preventDefault()
       if (activeIndex >= 0 && items[activeIndex]) {
@@ -133,7 +131,7 @@ export function SearchAutocomplete({
           value={value}
           placeholder={t('search.placeholder')}
           className="w-full pl-9 pr-9 py-2 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-          onChange={(e) => {
+          onChange={e => {
             onChange(e.target.value)
             setOpen(true)
             setActiveIndex(-1)
@@ -189,7 +187,7 @@ export function SearchAutocomplete({
                   key={term}
                   className={cn(
                     'w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent text-left',
-                    activeIndex === idx && 'bg-accent',
+                    activeIndex === idx && 'bg-accent'
                   )}
                   role="option"
                   aria-selected={activeIndex === idx}
@@ -211,7 +209,7 @@ export function SearchAutocomplete({
                   key={product.key}
                   className={cn(
                     'w-full flex items-center gap-3 px-3 py-2 hover:bg-accent text-left',
-                    activeIndex === idx && 'bg-accent',
+                    activeIndex === idx && 'bg-accent'
                   )}
                   role="option"
                   aria-selected={activeIndex === idx}

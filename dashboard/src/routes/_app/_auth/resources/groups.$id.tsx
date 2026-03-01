@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from "react"
-import { createFileRoute, Link } from "@tanstack/react-router"
-import { ChevronLeft, Loader2, Plus, X } from "lucide-react"
-import { pb } from "@/lib/pb"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
+import { useState, useEffect, useCallback } from 'react'
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { ChevronLeft, Loader2, Plus, X } from 'lucide-react'
+import { pb } from '@/lib/pb'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -12,7 +12,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from '@/components/ui/table'
 import {
   Dialog,
   DialogContent,
@@ -20,7 +20,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
+} from '@/components/ui/dialog'
 
 interface ResourceGroup {
   id: string
@@ -39,14 +39,14 @@ interface ResourceItem {
 
 // Maps API type key → friendly label
 const TYPE_LABELS: Record<string, string> = {
-  "servers": "Server",
-  "secrets": "Secret",
-  "env-groups": "Env Group",
-  "databases": "Database",
-  "cloud-accounts": "Cloud Account",
-  "certificates": "Certificate",
-  "integrations": "Integration",
-  "scripts": "Script",
+  servers: 'Server',
+  secrets: 'Secret',
+  'env-groups': 'Env Group',
+  databases: 'Database',
+  'cloud-accounts': 'Cloud Account',
+  certificates: 'Certificate',
+  integrations: 'Integration',
+  scripts: 'Script',
 }
 
 const ALL_TYPES = Object.keys(TYPE_LABELS)
@@ -57,9 +57,9 @@ function GroupDetailPage() {
   const [group, setGroup] = useState<ResourceGroup | null>(null)
   const [resources, setResources] = useState<ResourceItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
+  const [error, setError] = useState('')
 
-  const [typeFilter, setTypeFilter] = useState<string>("all")
+  const [typeFilter, setTypeFilter] = useState<string>('all')
 
   // Add Resources dialog state
   const [addDialogOpen, setAddDialogOpen] = useState(false)
@@ -77,15 +77,17 @@ function GroupDetailPage() {
       ])
       setGroup(grp)
       setResources(Array.isArray(items) ? items : [])
-      setError("")
+      setError('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load group")
+      setError(err instanceof Error ? err.message : 'Failed to load group')
     } finally {
       setLoading(false)
     }
   }, [id])
 
-  useEffect(() => { fetchGroup() }, [fetchGroup])
+  useEffect(() => {
+    fetchGroup()
+  }, [fetchGroup])
 
   // Load all resources for the add dialog
   async function openAddDialog() {
@@ -128,13 +130,13 @@ function GroupDetailPage() {
     }
     try {
       await pb.send(`/api/ext/resources/groups/${id}/resources/batch`, {
-        method: "POST",
-        body: { action: "add", items },
+        method: 'POST',
+        body: { action: 'add', items },
       })
       setAddDialogOpen(false)
       await fetchGroup()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add resources")
+      setError(err instanceof Error ? err.message : 'Failed to add resources')
     } finally {
       setAddSaving(false)
     }
@@ -143,18 +145,17 @@ function GroupDetailPage() {
   async function handleRemoveResource(type: string, resourceId: string) {
     try {
       await pb.send(`/api/ext/resources/groups/${id}/resources/batch`, {
-        method: "POST",
-        body: { action: "remove", items: [{ type, id: resourceId }] },
+        method: 'POST',
+        body: { action: 'remove', items: [{ type, id: resourceId }] },
       })
       await fetchGroup()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to remove resource")
+      setError(err instanceof Error ? err.message : 'Failed to remove resource')
     }
   }
 
-  const filteredResources = typeFilter === "all"
-    ? resources
-    : resources.filter(r => r.type === typeFilter)
+  const filteredResources =
+    typeFilter === 'all' ? resources : resources.filter(r => r.type === typeFilter)
 
   const presentTypes = [...new Set(resources.map(r => r.type))]
 
@@ -173,7 +174,9 @@ function GroupDetailPage() {
     return (
       <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md text-sm">
         {error}
-        <Button variant="ghost" size="sm" className="ml-2" onClick={fetchGroup}>Retry</Button>
+        <Button variant="ghost" size="sm" className="ml-2" onClick={fetchGroup}>
+          Retry
+        </Button>
       </div>
     )
   }
@@ -191,9 +194,7 @@ function GroupDetailPage() {
             Resource Groups
           </Link>
           <h1 className="text-2xl font-bold tracking-tight">{group?.name}</h1>
-          {group?.description && (
-            <p className="text-muted-foreground mt-1">{group.description}</p>
-          )}
+          {group?.description && <p className="text-muted-foreground mt-1">{group.description}</p>}
         </div>
         <Button onClick={openAddDialog}>
           <Plus className="h-4 w-4 mr-2" />
@@ -211,16 +212,16 @@ function GroupDetailPage() {
       {resources.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap">
           <Button
-            variant={typeFilter === "all" ? "default" : "outline"}
+            variant={typeFilter === 'all' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => setTypeFilter("all")}
+            onClick={() => setTypeFilter('all')}
           >
             All ({resources.length})
           </Button>
           {presentTypes.map(t => (
             <Button
               key={t}
-              variant={typeFilter === t ? "default" : "outline"}
+              variant={typeFilter === t ? 'default' : 'outline'}
               size="sm"
               onClick={() => setTypeFilter(t)}
             >
@@ -236,7 +237,9 @@ function GroupDetailPage() {
           {filteredResources.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <p>No resources in this group</p>
-              <Button variant="link" onClick={openAddDialog}>Add resources</Button>
+              <Button variant="link" onClick={openAddDialog}>
+                Add resources
+              </Button>
             </div>
           ) : (
             <Table>
@@ -256,7 +259,7 @@ function GroupDetailPage() {
                     </TableCell>
                     <TableCell className="font-medium">{r.name}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">
-                      {r.description || "—"}
+                      {r.description || '—'}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
@@ -282,7 +285,8 @@ function GroupDetailPage() {
           <DialogHeader>
             <DialogTitle>Add Resources to Group</DialogTitle>
             <DialogDescription>
-              Select resources to add to &quot;{group?.name}&quot;. Resources already in the group will be skipped.
+              Select resources to add to &quot;{group?.name}&quot;. Resources already in the group
+              will be skipped.
             </DialogDescription>
           </DialogHeader>
 
@@ -296,8 +300,8 @@ function GroupDetailPage() {
                   onClick={() => setAddTab(t)}
                   className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
                     addTab === t
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                   }`}
                 >
                   {TYPE_LABELS[t]}
@@ -330,9 +334,7 @@ function GroupDetailPage() {
                     <label
                       key={item.id}
                       className={`flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer transition-colors ${
-                        alreadyIn
-                          ? "opacity-40 cursor-not-allowed"
-                          : "hover:bg-muted"
+                        alreadyIn ? 'opacity-40 cursor-not-allowed' : 'hover:bg-muted'
                       }`}
                     >
                       <input
@@ -345,11 +347,15 @@ function GroupDetailPage() {
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium truncate">{item.name}</div>
                         {item.description && (
-                          <div className="text-xs text-muted-foreground truncate">{item.description}</div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {item.description}
+                          </div>
                         )}
                       </div>
                       {alreadyIn && (
-                        <span className="text-xs text-muted-foreground shrink-0">Already in group</span>
+                        <span className="text-xs text-muted-foreground shrink-0">
+                          Already in group
+                        </span>
                       )}
                     </label>
                   )
@@ -359,10 +365,13 @@ function GroupDetailPage() {
           </div>
 
           <DialogFooter className="border-t pt-4">
-            <Button variant="outline" onClick={() => setAddDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
+              Cancel
+            </Button>
             <Button onClick={handleAddResources} disabled={addSaving || totalSelected === 0}>
               {addSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Add {totalSelected > 0 ? `${totalSelected} resource${totalSelected > 1 ? "s" : ""}` : ""}
+              Add{' '}
+              {totalSelected > 0 ? `${totalSelected} resource${totalSelected > 1 ? 's' : ''}` : ''}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -371,6 +380,6 @@ function GroupDetailPage() {
   )
 }
 
-export const Route = createFileRoute("/_app/_auth/resources/groups/$id")({
+export const Route = createFileRoute('/_app/_auth/resources/groups/$id')({
   component: GroupDetailPage,
 })

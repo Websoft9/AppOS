@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from "react"
-import { pb } from "@/lib/pb"
-import { Button } from "@/components/ui/button"
-import { Play, Loader2 } from "lucide-react"
+import { useState, useRef, useEffect } from 'react'
+import { pb } from '@/lib/pb'
+import { Button } from '@/components/ui/button'
+import { Play, Loader2 } from 'lucide-react'
 
 interface HistoryEntry {
   command: string
@@ -12,13 +12,13 @@ interface HistoryEntry {
 }
 
 export function CommandTab() {
-  const [command, setCommand] = useState("")
+  const [command, setCommand] = useState('')
   const [running, setRunning] = useState(false)
   const [history, setHistory] = useState<HistoryEntry[]>([])
   const outputEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    outputEndRef.current?.scrollIntoView({ behavior: "smooth" })
+    outputEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [history])
 
   const runCommand = async () => {
@@ -27,29 +27,29 @@ export function CommandTab() {
 
     setRunning(true)
     try {
-      const res = await pb.send("/api/ext/docker/exec", {
-        method: "POST",
+      const res = await pb.send('/api/ext/docker/exec', {
+        method: 'POST',
         body: { command: cmd },
       })
-      setHistory((prev) => [
+      setHistory(prev => [
         ...prev,
         {
           command: cmd,
-          output: res.output || "",
-          error: res.error || "",
-          host: res.host || "local",
+          output: res.output || '',
+          error: res.error || '',
+          host: res.host || 'local',
           timestamp: Date.now(),
         },
       ])
-      setCommand("")
+      setCommand('')
     } catch (err) {
-      setHistory((prev) => [
+      setHistory(prev => [
         ...prev,
         {
           command: cmd,
-          output: "",
+          output: '',
           error: String(err),
-          host: "local",
+          host: 'local',
           timestamp: Date.now(),
         },
       ])
@@ -59,7 +59,7 @@ export function CommandTab() {
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
+    if (e.key === 'Enter') {
       runCommand()
     }
   }
@@ -73,16 +73,12 @@ export function CommandTab() {
           placeholder="ps -a --format json"
           className="flex-1 border rounded-md px-3 py-1.5 text-sm font-mono bg-background"
           value={command}
-          onChange={(e) => setCommand(e.target.value)}
+          onChange={e => setCommand(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={running}
         />
         <Button size="sm" onClick={runCommand} disabled={running || !command.trim()}>
-          {running ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Play className="h-4 w-4" />
-          )}
+          {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
           <span className="ml-1">Run</span>
         </Button>
       </div>
@@ -92,18 +88,17 @@ export function CommandTab() {
           <p className="text-muted-foreground">
             Enter a docker subcommand above and press Enter or click Run.
             <br />
-            Example: <code>ps -a</code>, <code>images</code>, <code>compose ls</code>, <code>network ls</code>
+            Example: <code>ps -a</code>, <code>images</code>, <code>compose ls</code>,{' '}
+            <code>network ls</code>
           </p>
         )}
-        {history.map((entry) => (
+        {history.map(entry => (
           <div key={entry.timestamp} className="mb-4">
             <div className="text-blue-500">
               $ docker {entry.command}
               <span className="text-muted-foreground ml-2">[{entry.host}]</span>
             </div>
-            {entry.output && (
-              <pre className="whitespace-pre-wrap mt-1">{entry.output}</pre>
-            )}
+            {entry.output && <pre className="whitespace-pre-wrap mt-1">{entry.output}</pre>}
             {entry.error && (
               <pre className="whitespace-pre-wrap mt-1 text-destructive">{entry.error}</pre>
             )}

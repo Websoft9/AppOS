@@ -52,7 +52,7 @@ func (c *DockerExecConnector) Connect(ctx context.Context, cfg ConnectorConfig) 
 	containerID := cfg.Host
 	shell := cfg.Shell
 	manualShell := shell != ""
- 
+
 	if shell == "" {
 		shell = defaultDockerShell
 	}

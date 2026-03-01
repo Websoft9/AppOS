@@ -1,12 +1,43 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
-  Upload, Trash2, Share2, FileText, Copy, Check, X, Loader2,
-  Folder, FolderPlus, FilePlus, RefreshCw, Download,
-  ChevronRight, Search, ArrowUp, ArrowDown, ChevronsUpDown,
-  QrCode, Eye, MoreVertical, FolderInput,
-  LayoutGrid, List, Pencil, Edit3, Maximize2, Minimize2, Globe,
-  FileCode2, FileImage, FileVideo, FileType2, File as FileGeneric, Archive, Music2, RotateCcw,
+  Upload,
+  Trash2,
+  Share2,
+  FileText,
+  Copy,
+  Check,
+  X,
+  Loader2,
+  Folder,
+  FolderPlus,
+  FilePlus,
+  RefreshCw,
+  Download,
+  ChevronRight,
+  Search,
+  ArrowUp,
+  ArrowDown,
+  ChevronsUpDown,
+  QrCode,
+  Eye,
+  MoreVertical,
+  FolderInput,
+  LayoutGrid,
+  List,
+  Pencil,
+  Edit3,
+  Maximize2,
+  Minimize2,
+  Globe,
+  FileCode2,
+  FileImage,
+  FileVideo,
+  FileType2,
+  File as FileGeneric,
+  Archive,
+  Music2,
+  RotateCcw,
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { normalizeExtToken, formatExtListHint } from '@/lib/ext-normalize'
@@ -14,18 +45,36 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@/components/ui/table'
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter,
-  DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
@@ -45,7 +94,7 @@ interface UserFile {
   created: string
   updated: string
   content: string // stored filename in PocketBase storage
-  size: number    // file size in bytes (0 for folders)
+  size: number // file size in bytes (0 for folders)
   is_deleted?: boolean
 }
 
@@ -71,7 +120,9 @@ const PAGE_SIZES = [15, 45, 90] as const
 
 // ─── Helpers ─────────────────────────────────────────────
 
-function formatBytes(mb: number) { return `${mb} MB` }
+function formatBytes(mb: number) {
+  return `${mb} MB`
+}
 
 function formatFileSize(bytes: number | undefined): string {
   if (!bytes) return '—'
@@ -133,16 +184,73 @@ function truncateMime(mime: string, max = 20): string {
 type FileCategory = 'code' | 'text' | 'image' | 'video' | 'audio' | 'pdf' | 'archive' | 'other'
 
 const CODE_EXTS = new Set([
-  'js','ts','jsx','tsx','mjs','cjs','vue','svelte','py','rb','go','rs',
-  'java','c','cpp','h','hpp','cc','cs','php','swift','kt','scala','groovy',
-  'lua','r','m','pl','pm','ex','exs','erl','hrl','clj','cljs','fs','fsx',
-  'ml','mli','css','scss','sass','less','html','htm','xml','sql','graphql',
-  'sh','bash','zsh','fish','env','dockerfile','makefile','cmake','yaml','yml',
-  'json','toml','ini','cfg','conf','properties','editorconfig',
+  'js',
+  'ts',
+  'jsx',
+  'tsx',
+  'mjs',
+  'cjs',
+  'vue',
+  'svelte',
+  'py',
+  'rb',
+  'go',
+  'rs',
+  'java',
+  'c',
+  'cpp',
+  'h',
+  'hpp',
+  'cc',
+  'cs',
+  'php',
+  'swift',
+  'kt',
+  'scala',
+  'groovy',
+  'lua',
+  'r',
+  'm',
+  'pl',
+  'pm',
+  'ex',
+  'exs',
+  'erl',
+  'hrl',
+  'clj',
+  'cljs',
+  'fs',
+  'fsx',
+  'ml',
+  'mli',
+  'css',
+  'scss',
+  'sass',
+  'less',
+  'html',
+  'htm',
+  'xml',
+  'sql',
+  'graphql',
+  'sh',
+  'bash',
+  'zsh',
+  'fish',
+  'env',
+  'dockerfile',
+  'makefile',
+  'cmake',
+  'yaml',
+  'yml',
+  'json',
+  'toml',
+  'ini',
+  'cfg',
+  'conf',
+  'properties',
+  'editorconfig',
 ])
-const ARCHIVE_EXTS = new Set([
-  'zip','tar','gz','tgz','bz2','xz','7z','rar','br','zst',
-])
+const ARCHIVE_EXTS = new Set(['zip', 'tar', 'gz', 'tgz', 'bz2', 'xz', '7z', 'rar', 'br', 'zst'])
 
 function classifyFile(file: { name: string; mime_type: string; is_folder: boolean }): FileCategory {
   if (file.is_folder) return 'other'
@@ -152,24 +260,37 @@ function classifyFile(file: { name: string; mime_type: string; is_folder: boolea
   if (m.startsWith('video/')) return 'video'
   if (m.startsWith('audio/')) return 'audio'
   if (m === 'application/pdf') return 'pdf'
-  if (ARCHIVE_EXTS.has(ext) || m.includes('zip') || m.includes('tar') || m.includes('archive') || m.includes('compressed')) return 'archive'
+  if (
+    ARCHIVE_EXTS.has(ext) ||
+    m.includes('zip') ||
+    m.includes('tar') ||
+    m.includes('archive') ||
+    m.includes('compressed')
+  )
+    return 'archive'
   if (CODE_EXTS.has(ext)) return 'code'
   if (m.startsWith('text/')) return 'text'
   return 'other'
 }
 
-function FileIcon({ file, className = 'h-4 w-4 shrink-0' }: { file: { name: string; mime_type: string; is_folder: boolean }; className?: string }) {
+function FileIcon({
+  file,
+  className = 'h-4 w-4 shrink-0',
+}: {
+  file: { name: string; mime_type: string; is_folder: boolean }
+  className?: string
+}) {
   if (file.is_folder) return <Folder className={`${className} text-yellow-500`} />
   const cat = classifyFile(file)
   const icons: Record<FileCategory, React.ReactElement> = {
-    code:    <FileCode2    className={`${className} text-emerald-500`} />,
-    text:    <FileText     className={`${className} text-blue-400`}    />,
-    image:   <FileImage    className={`${className} text-purple-500`}  />,
-    video:   <FileVideo    className={`${className} text-orange-500`}  />,
-    audio:   <Music2       className={`${className} text-pink-500`}    />,
-    pdf:     <FileType2    className={`${className} text-red-500`}     />,
-    archive: <Archive      className={`${className} text-amber-600`}   />,
-    other:   <FileGeneric  className={`${className} text-muted-foreground`} />,
+    code: <FileCode2 className={`${className} text-emerald-500`} />,
+    text: <FileText className={`${className} text-blue-400`} />,
+    image: <FileImage className={`${className} text-purple-500`} />,
+    video: <FileVideo className={`${className} text-orange-500`} />,
+    audio: <Music2 className={`${className} text-pink-500`} />,
+    pdf: <FileType2 className={`${className} text-red-500`} />,
+    archive: <Archive className={`${className} text-amber-600`} />,
+    other: <FileGeneric className={`${className} text-muted-foreground`} />,
   }
   return icons[cat]
 }
@@ -177,11 +298,23 @@ function FileIcon({ file, className = 'h-4 w-4 shrink-0' }: { file: { name: stri
 // MIME types served by the preview endpoint (image / PDF / audio / video).
 // Must mirror spacePreviewMimeTypeList in backend/internal/routes/space.go.
 const PREVIEW_MIME_TYPES = new Set([
-  'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml',
-  'image/bmp', 'image/x-icon',
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+  'image/svg+xml',
+  'image/bmp',
+  'image/x-icon',
   'application/pdf',
-  'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/aac', 'audio/flac', 'audio/webm',
-  'video/mp4', 'video/webm', 'video/ogg',
+  'audio/mpeg',
+  'audio/wav',
+  'audio/ogg',
+  'audio/aac',
+  'audio/flac',
+  'audio/webm',
+  'video/mp4',
+  'video/webm',
+  'video/ogg',
 ])
 
 type PreviewType = 'image' | 'pdf' | 'audio' | 'video' | 'text'
@@ -223,13 +356,15 @@ function isEditable(file: UserFile, quota: Quota | null): boolean {
  */
 async function copyToClipboard(
   text: string,
-  inputRef?: React.RefObject<HTMLInputElement | null>,
+  inputRef?: React.RefObject<HTMLInputElement | null>
 ): Promise<boolean> {
   // 1. Modern API (requires secure context — HTTPS or localhost).
   try {
     await navigator.clipboard.writeText(text)
     return true
-  } catch { /* fall through */ }
+  } catch {
+    /* fall through */
+  }
   // 2. Fallback: select the existing in-dialog input that already shows the URL.
   //    This avoids Radix Dialog's focus-trap stealing focus from a temporary textarea.
   if (inputRef?.current) {
@@ -239,7 +374,9 @@ async function copyToClipboard(
       el.setSelectionRange(0, el.value.length)
       const ok = document.execCommand('copy')
       return ok
-    } catch { /* fall through */ }
+    } catch {
+      /* fall through */
+    }
   }
   // 3. Last resort: temporary textarea (may fail inside a focus-trapped dialog).
   try {
@@ -260,12 +397,20 @@ async function copyToClipboard(
 // ─── SortIcon helper ──────────────────────────────────────
 
 function SortIcon({
-  field, sortBy, sortDir,
-}: { field: SortField; sortBy: SortField; sortDir: SortDir }) {
+  field,
+  sortBy,
+  sortDir,
+}: {
+  field: SortField
+  sortBy: SortField
+  sortDir: SortDir
+}) {
   if (field !== sortBy) return <ChevronsUpDown className="h-3 w-3 ml-1 text-muted-foreground" />
-  return sortDir === 'asc'
-    ? <ArrowUp className="h-3 w-3 ml-1" />
-    : <ArrowDown className="h-3 w-3 ml-1" />
+  return sortDir === 'asc' ? (
+    <ArrowUp className="h-3 w-3 ml-1" />
+  ) : (
+    <ArrowDown className="h-3 w-3 ml-1" />
+  )
 }
 
 // ─── ItemMenu helper ─────────────────────────────────────
@@ -282,15 +427,26 @@ interface ItemMenuProps {
   onShare: () => void
   onRename: () => void
   onDuplicate: () => void
-  onDelete: () => void       // soft-delete (normal view)
-  onRestore?: () => void     // restore from trash
-  onHardDelete?: () => void  // permanent delete from trash
+  onDelete: () => void // soft-delete (normal view)
+  onRestore?: () => void // restore from trash
+  onHardDelete?: () => void // permanent delete from trash
 }
 
 function ItemMenu({
-  item, editable, previewType, inTrash,
-  onOpen, onPreview, onEdit, onDownloadUrl, onShare, onRename, onDuplicate,
-  onDelete, onRestore, onHardDelete,
+  item,
+  editable,
+  previewType,
+  inTrash,
+  onOpen,
+  onPreview,
+  onEdit,
+  onDownloadUrl,
+  onShare,
+  onRename,
+  onDuplicate,
+  onDelete,
+  onRestore,
+  onHardDelete,
 }: ItemMenuProps) {
   return (
     <DropdownMenu>
@@ -300,65 +456,70 @@ function ItemMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {inTrash
-          ? (
-            <>
-              <DropdownMenuItem onClick={onRestore}>
-                <RotateCcw className="h-4 w-4 mr-2" /> Restore
+        {inTrash ? (
+          <>
+            <DropdownMenuItem onClick={onRestore}>
+              <RotateCcw className="h-4 w-4 mr-2" /> Restore
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={onHardDelete}
+            >
+              <Trash2 className="h-4 w-4 mr-2" /> Delete Permanently
+            </DropdownMenuItem>
+          </>
+        ) : item.is_folder ? (
+          <>
+            <DropdownMenuItem onClick={onOpen}>
+              <ChevronRight className="h-4 w-4 mr-2" /> Open
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onRename}>
+              <Pencil className="h-4 w-4 mr-2" /> Rename
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={onDelete}
+            >
+              <Trash2 className="h-4 w-4 mr-2" /> Move to Trash
+            </DropdownMenuItem>
+          </>
+        ) : (
+          <>
+            {previewType && (
+              <DropdownMenuItem onClick={onPreview}>
+                <Eye className="h-4 w-4 mr-2" /> Preview
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={onHardDelete}>
-                <Trash2 className="h-4 w-4 mr-2" /> Delete Permanently
-              </DropdownMenuItem>
-            </>
-          )
-          : item.is_folder
-            ? (
-              <>
-                <DropdownMenuItem onClick={onOpen}>
-                  <ChevronRight className="h-4 w-4 mr-2" /> Open
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={onRename}>
-                  <Pencil className="h-4 w-4 mr-2" /> Rename
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={onDelete}>
-                  <Trash2 className="h-4 w-4 mr-2" /> Move to Trash
-                </DropdownMenuItem>
-              </>
-            )
-            : (
-              <>
-                {previewType && (
-                  <DropdownMenuItem onClick={onPreview}>
-                    <Eye className="h-4 w-4 mr-2" /> Preview
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem disabled={!editable} onClick={() => editable && onEdit()}>
-                  <Edit3 className="h-4 w-4 mr-2" /> Edit
-                </DropdownMenuItem>
-                {onDownloadUrl && (
-                  <DropdownMenuItem asChild>
-                    <a href={onDownloadUrl} download={item.name}>
-                      <Download className="h-4 w-4 mr-2" /> Download
-                    </a>
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onClick={onShare}>
-                  <Share2 className="h-4 w-4 mr-2" /> Share
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={onRename}>
-                  <Pencil className="h-4 w-4 mr-2" /> Rename
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={onDuplicate}>
-                  <Copy className="h-4 w-4 mr-2" /> Create Copy
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={onDelete}>
-                  <Trash2 className="h-4 w-4 mr-2" /> Move to Trash
-                </DropdownMenuItem>
-              </>
             )}
+            <DropdownMenuItem disabled={!editable} onClick={() => editable && onEdit()}>
+              <Edit3 className="h-4 w-4 mr-2" /> Edit
+            </DropdownMenuItem>
+            {onDownloadUrl && (
+              <DropdownMenuItem asChild>
+                <a href={onDownloadUrl} download={item.name}>
+                  <Download className="h-4 w-4 mr-2" /> Download
+                </a>
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={onShare}>
+              <Share2 className="h-4 w-4 mr-2" /> Share
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onRename}>
+              <Pencil className="h-4 w-4 mr-2" /> Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onDuplicate}>
+              <Copy className="h-4 w-4 mr-2" /> Create Copy
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={onDelete}
+            >
+              <Trash2 className="h-4 w-4 mr-2" /> Move to Trash
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -380,7 +541,7 @@ function FilesPage() {
   const [sortBy, setSortBy] = useState<SortField>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState<typeof PAGE_SIZES[number]>(15)
+  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(15)
 
   // ── Trash view ─────────────────────────────────────────
   const [trashView, setTrashView] = useState(false)
@@ -496,12 +657,14 @@ function FilesPage() {
     }
   }, [])
 
-  useEffect(() => { fetchAll() }, [fetchAll])
+  useEffect(() => {
+    fetchAll()
+  }, [fetchAll])
 
   // ─── Derived ───────────────────────────────────────────
 
   const allFolders = useMemo(() => items.filter(i => i.is_folder && !i.is_deleted), [items])
-  const allFiles   = useMemo(() => items.filter(i => !i.is_folder && !i.is_deleted), [items])
+  const allFiles = useMemo(() => items.filter(i => !i.is_folder && !i.is_deleted), [items])
   const trashCount = useMemo(() => items.filter(i => i.is_deleted).length, [items])
 
   /** Breadcrumb trail from root → currentFolderId */
@@ -528,10 +691,10 @@ function FilesPage() {
       }
       return [...filtered].sort((a, b) => {
         let cmp = 0
-        if (sortBy === 'name')         cmp = a.name.localeCompare(b.name)
-        else if (sortBy === 'type')    cmp = (a.mime_type ?? '').localeCompare(b.mime_type ?? '')
+        if (sortBy === 'name') cmp = a.name.localeCompare(b.name)
+        else if (sortBy === 'type') cmp = (a.mime_type ?? '').localeCompare(b.mime_type ?? '')
         else if (sortBy === 'updated') cmp = a.updated.localeCompare(b.updated)
-        else                           cmp = a.created.localeCompare(b.created)
+        else cmp = a.created.localeCompare(b.created)
         return sortDir === 'asc' ? cmp : -cmp
       })
     }
@@ -548,10 +711,10 @@ function FilesPage() {
       // Folders always before files.
       if (a.is_folder !== b.is_folder) return a.is_folder ? -1 : 1
       let cmp = 0
-      if (sortBy === 'name')         cmp = a.name.localeCompare(b.name)
-      else if (sortBy === 'type')    cmp = (a.mime_type ?? '').localeCompare(b.mime_type ?? '')
+      if (sortBy === 'name') cmp = a.name.localeCompare(b.name)
+      else if (sortBy === 'type') cmp = (a.mime_type ?? '').localeCompare(b.mime_type ?? '')
       else if (sortBy === 'updated') cmp = a.updated.localeCompare(b.updated)
-      else                           cmp = a.created.localeCompare(b.created)
+      else cmp = a.created.localeCompare(b.created)
       return sortDir === 'asc' ? cmp : -cmp
     })
 
@@ -559,12 +722,9 @@ function FilesPage() {
   }, [items, currentFolderId, search, sortBy, sortDir, trashView])
 
   const totalPages = Math.max(1, Math.ceil(viewItems.length / pageSize))
-  const safePage   = Math.min(page, totalPages)
+  const safePage = Math.min(page, totalPages)
   const pagedItems = viewItems.slice((safePage - 1) * pageSize, safePage * pageSize)
-  const uploadMaxFiles = useMemo(
-    () => resolveMaxUploadFiles(quota?.max_upload_files),
-    [quota],
-  )
+  const uploadMaxFiles = useMemo(() => resolveMaxUploadFiles(quota?.max_upload_files), [quota])
   const uploadPolicyHint = useMemo(() => {
     if (!quota) return 'Allowed by extension policy: any file type with an extension.'
     const allow = (quota.upload_allow_exts ?? []).map(normalizeExtToken).filter(Boolean)
@@ -579,13 +739,15 @@ function FilesPage() {
   }, [quota])
 
   // Reset to page 1 whenever the view changes.
-  useEffect(() => { setPage(1) }, [currentFolderId, search, sortBy, sortDir, trashView, pageSize])
+  useEffect(() => {
+    setPage(1)
+  }, [currentFolderId, search, sortBy, sortDir, trashView, pageSize])
 
   // ─── Sort ──────────────────────────────────────────────
 
   function toggleSort(field: SortField) {
     if (sortBy === field) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+      setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
     } else {
       setSortBy(field)
       setSortDir('asc')
@@ -626,7 +788,7 @@ function FilesPage() {
   // ─── Inline expand ─────────────────────────────────────
 
   function toggleExpand(item: UserFile) {
-    setExpandedId(prev => prev === item.id ? null : item.id)
+    setExpandedId(prev => (prev === item.id ? null : item.id))
   }
 
   // ─── Bulk delete ───────────────────────────────────────
@@ -640,9 +802,9 @@ function FilesPage() {
         await Promise.all([...selectedIds].map(id => pb.collection('user_files').delete(id)))
       } else {
         // Normal view: soft-delete (move to trash)
-        await Promise.all([...selectedIds].map(id =>
-          pb.collection('user_files').update(id, { is_deleted: true })
-        ))
+        await Promise.all(
+          [...selectedIds].map(id => pb.collection('user_files').update(id, { is_deleted: true }))
+        )
       }
       setSelectedIds(new Set())
       fetchAll()
@@ -656,9 +818,9 @@ function FilesPage() {
   async function handleBulkRestore() {
     if (selectedIds.size === 0) return
     try {
-      await Promise.all([...selectedIds].map(id =>
-        pb.collection('user_files').update(id, { is_deleted: false })
-      ))
+      await Promise.all(
+        [...selectedIds].map(id => pb.collection('user_files').update(id, { is_deleted: false }))
+      )
       setSelectedIds(new Set())
       fetchAll()
     } catch (e: unknown) {
@@ -672,9 +834,11 @@ function FilesPage() {
     if (selectedIds.size === 0) return
     setBulkMoving(true)
     try {
-      await Promise.all([...selectedIds].map(id =>
-        pb.collection('user_files').update(id, { parent: bulkMoveFolderId })
-      ))
+      await Promise.all(
+        [...selectedIds].map(id =>
+          pb.collection('user_files').update(id, { parent: bulkMoveFolderId })
+        )
+      )
       setSelectedIds(new Set())
       setBulkMoveOpen(false)
       fetchAll()
@@ -875,7 +1039,9 @@ function FilesPage() {
           return
         }
         if (file.size > quota.max_size_mb * 1024 * 1024) {
-          setUploadError(`File "${targetName}" is too large. Max: ${formatBytes(quota.max_size_mb)}`)
+          setUploadError(
+            `File "${targetName}" is too large. Max: ${formatBytes(quota.max_size_mb)}`
+          )
           return
         }
       }
@@ -908,13 +1074,15 @@ function FilesPage() {
     } catch (e: unknown) {
       if (createdIds.length > 0) {
         const results = await Promise.allSettled(
-          createdIds.map(id => pb.collection('user_files').delete(id)),
+          createdIds.map(id => pb.collection('user_files').delete(id))
         )
         const rolledBack = results.filter(r => r.status === 'fulfilled').length
         const failed = results.filter(r => r.status === 'rejected').length
         const baseError = e instanceof Error ? e.message : 'Upload failed'
         if (failed > 0) {
-          setUploadError(`${baseError} Rolled back ${rolledBack} of ${createdIds.length} file(s); ${failed} may still remain.`)
+          setUploadError(
+            `${baseError} Rolled back ${rolledBack} of ${createdIds.length} file(s); ${failed} may still remain.`
+          )
         } else {
           setUploadError(`${baseError} Rolled back ${rolledBack} created file(s).`)
         }
@@ -967,7 +1135,7 @@ function FilesPage() {
       const ext = newFileName.split('.').pop()?.toLowerCase() ?? ''
       if (!quota.editable_formats.includes(ext)) {
         setNewFileError(
-          `Extension ".${ext}" is not a text/code format. Use Upload for binary files.`,
+          `Extension ".${ext}" is not a text/code format. Use Upload for binary files.`
         )
         return
       }
@@ -1083,7 +1251,9 @@ function FilesPage() {
       }
       setDeleteItem(null)
       fetchAll()
-    } catch { /* ignore */ } finally {
+    } catch {
+      /* ignore */
+    } finally {
       setDeleting(false)
     }
   }
@@ -1226,49 +1396,50 @@ function FilesPage() {
 
   return (
     <div className="space-y-4">
-
       {/* ── Unified toolbar ─────────────────────────── */}
       <div className="flex items-center gap-2 flex-wrap">
         <h2 className="text-2xl font-bold shrink-0">Space</h2>
 
         {/* Trash breadcrumb OR normal folder breadcrumb */}
-        {trashView
-          ? (
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="text-muted-foreground text-sm">/</span>
-              <span className="text-sm font-semibold text-foreground flex items-center gap-1">
-                <Trash2 className="h-3.5 w-3.5" /> Trash
+        {trashView ? (
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-muted-foreground text-sm">/</span>
+            <span className="text-sm font-semibold text-foreground flex items-center gap-1">
+              <Trash2 className="h-3.5 w-3.5" /> Trash
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs text-muted-foreground h-7 px-2"
+              onClick={() => {
+                setTrashView(false)
+                setSearch('')
+              }}
+            >
+              ← Back to Files
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1 text-sm shrink-0">
+            <button
+              className={`hover:underline font-mono ${!currentFolderId ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}
+              onClick={() => navigateTo(null)}
+            >
+              /
+            </button>
+            {breadcrumb.map((seg, i) => (
+              <span key={seg.id} className="flex items-center gap-1">
+                <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                <button
+                  className={`hover:underline ${i === breadcrumb.length - 1 ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}
+                  onClick={() => navigateTo(seg.id)}
+                >
+                  {seg.name}
+                </button>
               </span>
-              <Button
-                variant="ghost" size="sm"
-                className="text-xs text-muted-foreground h-7 px-2"
-                onClick={() => { setTrashView(false); setSearch('') }}
-              >
-                ← Back to Files
-              </Button>
-            </div>
-          )
-          : (
-            <div className="flex items-center gap-1 text-sm shrink-0">
-              <button
-                className={`hover:underline font-mono ${!currentFolderId ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}
-                onClick={() => navigateTo(null)}
-              >
-                /
-              </button>
-              {breadcrumb.map((seg, i) => (
-                <span key={seg.id} className="flex items-center gap-1">
-                  <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                  <button
-                    className={`hover:underline ${i === breadcrumb.length - 1 ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}
-                    onClick={() => navigateTo(seg.id)}
-                  >
-                    {seg.name}
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
+            ))}
+          </div>
+        )}
 
         {/* Search */}
         <div className="relative">
@@ -1295,18 +1466,24 @@ function FilesPage() {
 
         {/* View toggle — shows icon for the OPPOSITE mode to switch to */}
         <Button
-          variant="outline" size="sm"
+          variant="outline"
+          size="sm"
           title={viewMode === 'list' ? 'Switch to Grid view' : 'Switch to List view'}
-          onClick={() => setViewMode(m => m === 'list' ? 'grid' : 'list')}
+          onClick={() => setViewMode(m => (m === 'list' ? 'grid' : 'list'))}
         >
           {viewMode === 'list' ? <LayoutGrid className="h-4 w-4" /> : <List className="h-4 w-4" />}
         </Button>
         {/* Trash toggle */}
         <Button
-          variant={trashView ? 'secondary' : 'outline'} size="sm"
+          variant={trashView ? 'secondary' : 'outline'}
+          size="sm"
           title="Trash"
           className="relative"
-          onClick={() => { setTrashView(v => !v); setCurrentFolderId(null); setSearch('') }}
+          onClick={() => {
+            setTrashView(v => !v)
+            setCurrentFolderId(null)
+            setSearch('')
+          }}
         >
           <Trash2 className="h-4 w-4" />
           {trashCount > 0 && (
@@ -1315,11 +1492,7 @@ function FilesPage() {
             </span>
           )}
         </Button>
-        <Button
-          variant="outline" size="sm"
-          onClick={fetchAll} disabled={loading}
-          title="Refresh"
-        >
+        <Button variant="outline" size="sm" onClick={fetchAll} disabled={loading} title="Refresh">
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
         </Button>
         {!trashView && (
@@ -1350,9 +1523,11 @@ function FilesPage() {
       {!loading && viewItems.length === 0 && !error && (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            {trashView
-              ? <Trash2 className="h-10 w-10 mx-auto mb-3 opacity-30" />
-              : <Folder className="h-10 w-10 mx-auto mb-3 opacity-30" />}
+            {trashView ? (
+              <Trash2 className="h-10 w-10 mx-auto mb-3 opacity-30" />
+            ) : (
+              <Folder className="h-10 w-10 mx-auto mb-3 opacity-30" />
+            )}
             <p>
               {trashView
                 ? 'Trash is empty.'
@@ -1369,29 +1544,44 @@ function FilesPage() {
         <div className="flex items-center gap-2 px-3 py-2 rounded-md border bg-muted/50 text-sm">
           <span className="text-muted-foreground">{selectedIds.size} selected</span>
           <div className="flex-1" />
-          {trashView
-            ? (
-              <>
-                <Button size="sm" variant="outline" onClick={handleBulkRestore}>
-                  <RotateCcw className="h-4 w-4 mr-1" /> Restore
-                </Button>
-                <Button size="sm" variant="destructive" disabled={bulkDeleting} onClick={handleBulkDelete}>
-                  {bulkDeleting && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-                  <Trash2 className="h-4 w-4 mr-1" /> Delete Permanently
-                </Button>
-              </>
-            )
-            : (
-              <>
-                <Button size="sm" variant="outline" onClick={() => { setBulkMoveFolderId(''); setBulkMoveOpen(true) }}>
-                  <FolderInput className="h-4 w-4 mr-1" /> Move to…
-                </Button>
-                <Button size="sm" variant="destructive" disabled={bulkDeleting} onClick={handleBulkDelete}>
-                  {bulkDeleting && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-                  <Trash2 className="h-4 w-4 mr-1" /> Move to Trash
-                </Button>
-              </>
-            )}
+          {trashView ? (
+            <>
+              <Button size="sm" variant="outline" onClick={handleBulkRestore}>
+                <RotateCcw className="h-4 w-4 mr-1" /> Restore
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={bulkDeleting}
+                onClick={handleBulkDelete}
+              >
+                {bulkDeleting && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+                <Trash2 className="h-4 w-4 mr-1" /> Delete Permanently
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setBulkMoveFolderId('')
+                  setBulkMoveOpen(true)
+                }}
+              >
+                <FolderInput className="h-4 w-4 mr-1" /> Move to…
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={bulkDeleting}
+                onClick={handleBulkDelete}
+              >
+                {bulkDeleting && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+                <Trash2 className="h-4 w-4 mr-1" /> Move to Trash
+              </Button>
+            </>
+          )}
           <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
             <X className="h-4 w-4" />
           </Button>
@@ -1458,7 +1648,7 @@ function FilesPage() {
                   const itemPath = buildPath(item, items)
                   const previewType = getPreviewType(item, quota)
                   const isExpanded = expandedId === item.id
-                  const mime = item.is_folder ? 'Folder' : (item.mime_type || '—')
+                  const mime = item.is_folder ? 'Folder' : item.mime_type || '—'
                   return (
                     <>
                       <TableRow key={item.id} className={isExpanded ? 'bg-muted/30' : ''}>
@@ -1470,25 +1660,23 @@ function FilesPage() {
                               checked={selectedIds.has(item.id)}
                               onChange={() => toggleSelect(item.id)}
                             />
-                            {item.is_folder
-                              ? (
-                                <button
-                                  className="flex items-center gap-1.5 hover:underline cursor-pointer whitespace-nowrap"
-                                  onClick={() => navigateTo(item.id)}
-                                >
-                                  <FileIcon file={item} />
-                                  {item.name}
-                                </button>
-                              )
-                              : (
-                                <button
-                                  className="flex items-center gap-1.5 hover:underline cursor-pointer text-left whitespace-nowrap"
-                                  onClick={() => toggleExpand(item)}
-                                >
-                                  <FileIcon file={item} />
-                                  {item.name}
-                                </button>
-                              )}
+                            {item.is_folder ? (
+                              <button
+                                className="flex items-center gap-1.5 hover:underline cursor-pointer whitespace-nowrap"
+                                onClick={() => navigateTo(item.id)}
+                              >
+                                <FileIcon file={item} />
+                                {item.name}
+                              </button>
+                            ) : (
+                              <button
+                                className="flex items-center gap-1.5 hover:underline cursor-pointer text-left whitespace-nowrap"
+                                onClick={() => toggleExpand(item)}
+                              >
+                                <FileIcon file={item} />
+                                {item.name}
+                              </button>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell
@@ -1501,13 +1689,15 @@ function FilesPage() {
                           {item.is_folder ? '—' : formatFileSize(item.size)}
                         </TableCell>
                         <TableCell>
-                          {!item.is_folder && item.share_token && !isExpired(item.share_expires_at)
-                            ? (
-                              <Badge variant="secondary" className="text-xs whitespace-nowrap">
-                                Shared
-                              </Badge>
-                            )
-                            : <span className="text-muted-foreground text-sm">—</span>}
+                          {!item.is_folder &&
+                          item.share_token &&
+                          !isExpired(item.share_expires_at) ? (
+                            <Badge variant="secondary" className="text-xs whitespace-nowrap">
+                              Shared
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">—</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                           {formatDate(item.created)}
@@ -1535,7 +1725,10 @@ function FilesPage() {
                         </TableCell>
                       </TableRow>
                       {isExpanded && (
-                        <TableRow key={`${item.id}-expand`} className="bg-muted/20 hover:bg-muted/20">
+                        <TableRow
+                          key={`${item.id}-expand`}
+                          className="bg-muted/20 hover:bg-muted/20"
+                        >
                           <TableCell colSpan={7} className="py-3 px-6">
                             <div className="flex gap-6 flex-wrap">
                               {previewType === 'image' && (
@@ -1562,7 +1755,9 @@ function FilesPage() {
                                 <dd>{formatDate(item.updated)}</dd>
                                 {item.share_token && !isExpired(item.share_expires_at) && (
                                   <>
-                                    <dt className="text-muted-foreground font-medium">Shared until</dt>
+                                    <dt className="text-muted-foreground font-medium">
+                                      Shared until
+                                    </dt>
                                     <dd>{formatDate(item.share_expires_at)}</dd>
                                   </>
                                 )}
@@ -1606,18 +1801,15 @@ function FilesPage() {
                 {/* Icon */}
                 <div
                   className="flex items-center justify-center h-12 w-12 mt-1"
-                  onClick={() => item.is_folder ? navigateTo(item.id) : toggleExpand(item)}
+                  onClick={() => (item.is_folder ? navigateTo(item.id) : toggleExpand(item))}
                 >
-                  <FileIcon
-                    file={item}
-                    className="h-10 w-10 shrink-0"
-                  />
+                  <FileIcon file={item} className="h-10 w-10 shrink-0" />
                 </div>
                 {/* Name */}
                 <span
                   className="text-xs text-center leading-tight max-w-full break-words line-clamp-2"
                   title={item.name}
-                  onClick={() => item.is_folder ? navigateTo(item.id) : toggleExpand(item)}
+                  onClick={() => (item.is_folder ? navigateTo(item.id) : toggleExpand(item))}
                 >
                   {item.name}
                 </span>
@@ -1649,20 +1841,43 @@ function FilesPage() {
       {/* ── Pagination ─────────────────────────────────── */}
       {viewItems.length > 0 && (
         <div className="flex items-center justify-between text-sm text-muted-foreground flex-wrap gap-2">
-          <span>{viewItems.length} items · page {safePage} of {totalPages}</span>
+          <span>
+            {viewItems.length} items · page {safePage} of {totalPages}
+          </span>
           <div className="flex items-center gap-2">
             <label className="flex items-center gap-1.5 text-xs">
               Per page
               <select
                 className="h-7 rounded-md border border-input bg-background px-2 text-xs"
                 value={pageSize}
-                onChange={e => { setPageSize(Number(e.target.value) as typeof PAGE_SIZES[number]); setPage(1) }}
+                onChange={e => {
+                  setPageSize(Number(e.target.value) as (typeof PAGE_SIZES)[number])
+                  setPage(1)
+                }}
               >
-                {PAGE_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+                {PAGE_SIZES.map(s => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
               </select>
             </label>
-            <Button variant="outline" size="sm" disabled={safePage <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>‹</Button>
-            <Button variant="outline" size="sm" disabled={safePage >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>›</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={safePage <= 1}
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+            >
+              ‹
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={safePage >= totalPages}
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            >
+              ›
+            </Button>
           </div>
         </div>
       )}
@@ -1672,10 +1887,14 @@ function FilesPage() {
         <div className="flex items-center gap-3 flex-wrap">
           <p className="text-xs text-muted-foreground">
             {allFolders.length} folder{allFolders.length !== 1 ? 's' : ''}
-            {' · '}{allFiles.length} file{allFiles.length !== 1 ? 's' : ''}
-            {' · '}{items.filter(i => !i.is_deleted).length} / {quota.max_per_user} items used
+            {' · '}
+            {allFiles.length} file{allFiles.length !== 1 ? 's' : ''}
+            {' · '}
+            {items.filter(i => !i.is_deleted).length} / {quota.max_per_user} items used
             {' · '}max file size {formatBytes(quota.max_size_mb)}
-            {trashCount > 0 && <span className="text-destructive/70"> · {trashCount} in trash</span>}
+            {trashCount > 0 && (
+              <span className="text-destructive/70"> · {trashCount} in trash</span>
+            )}
           </p>
         </div>
       )}
@@ -1688,11 +1907,20 @@ function FilesPage() {
       )}
 
       {/* ── Bulk Move Dialog ───────────────────────────── */}
-      <Dialog open={bulkMoveOpen} onOpenChange={v => { if (!v) setBulkMoveOpen(false) }}>
+      <Dialog
+        open={bulkMoveOpen}
+        onOpenChange={v => {
+          if (!v) setBulkMoveOpen(false)
+        }}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Move {selectedIds.size} item{selectedIds.size !== 1 ? 's' : ''} to…</DialogTitle>
-            <DialogDescription>Select the target folder. Choose root (/) to move to the top level.</DialogDescription>
+            <DialogTitle>
+              Move {selectedIds.size} item{selectedIds.size !== 1 ? 's' : ''} to…
+            </DialogTitle>
+            <DialogDescription>
+              Select the target folder. Choose root (/) to move to the top level.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
             <Label>Target folder</Label>
@@ -1705,12 +1933,16 @@ function FilesPage() {
               {allFolders
                 .filter(f => !selectedIds.has(f.id))
                 .map(f => (
-                  <option key={f.id} value={f.id}>{buildPath(f, items)}</option>
+                  <option key={f.id} value={f.id}>
+                    {buildPath(f, items)}
+                  </option>
                 ))}
             </select>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkMoveOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setBulkMoveOpen(false)}>
+              Cancel
+            </Button>
             <Button onClick={handleBulkMove} disabled={bulkMoving}>
               {bulkMoving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Move
@@ -1720,7 +1952,12 @@ function FilesPage() {
       </Dialog>
 
       {/* ── Rename Dialog ──────────────────────────────── */}
-      <Dialog open={!!renameItem} onOpenChange={v => { if (!v) setRenameItem(null) }}>
+      <Dialog
+        open={!!renameItem}
+        onOpenChange={v => {
+          if (!v) setRenameItem(null)
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Rename "{renameItem?.name}"</DialogTitle>
@@ -1731,12 +1968,16 @@ function FilesPage() {
               autoFocus
               value={renameName}
               onChange={e => setRenameName(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleRename() }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') handleRename()
+              }}
             />
             {renameError && <p className="text-destructive text-sm">{renameError}</p>}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRenameItem(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setRenameItem(null)}>
+              Cancel
+            </Button>
             <Button onClick={handleRename} disabled={!renameName.trim() || renaming}>
               {renaming && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Rename
@@ -1756,7 +1997,9 @@ function FilesPage() {
             <div>
               <Label>Folder name</Label>
               <Input
-                className="mt-1" value={folderName} placeholder="e.g. scripts"
+                className="mt-1"
+                value={folderName}
+                placeholder="e.g. scripts"
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFolderName(e.target.value)}
               />
               {quota?.reserved_folder_names?.length && !folderParent && (
@@ -1771,11 +2014,15 @@ function FilesPage() {
                 <select
                   className="mt-1 w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
                   value={folderParent}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFolderParent(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                    setFolderParent(e.target.value)
+                  }
                 >
                   <option value="">/ (root)</option>
                   {allFolders.map(f => (
-                    <option key={f.id} value={f.id}>{buildPath(f, items)}</option>
+                    <option key={f.id} value={f.id}>
+                      {buildPath(f, items)}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -1783,7 +2030,9 @@ function FilesPage() {
             {folderError && <p className="text-destructive text-sm">{folderError}</p>}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setFolderOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setFolderOpen(false)}>
+              Cancel
+            </Button>
             <Button onClick={handleCreateFolder} disabled={!folderName.trim() || creatingFolder}>
               {creatingFolder && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Create
@@ -1804,8 +2053,12 @@ function FilesPage() {
               <div className="flex-1 min-w-40">
                 <Label>Filename</Label>
                 <Input
-                  className="mt-1" value={newFileName} placeholder="e.g. script.py"
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewFileName(e.target.value)}
+                  className="mt-1"
+                  value={newFileName}
+                  placeholder="e.g. script.py"
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setNewFileName(e.target.value)
+                  }
                 />
               </div>
               <div className="w-48">
@@ -1813,11 +2066,15 @@ function FilesPage() {
                 <select
                   className="mt-1 w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
                   value={newFileParent}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setNewFileParent(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                    setNewFileParent(e.target.value)
+                  }
                 >
                   <option value="">/ (root)</option>
                   {allFolders.map(f => (
-                    <option key={f.id} value={f.id}>{buildPath(f, items)}</option>
+                    <option key={f.id} value={f.id}>
+                      {buildPath(f, items)}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -1828,13 +2085,17 @@ function FilesPage() {
                 className="mt-1 font-mono text-sm min-h-[200px]"
                 value={newFileContent}
                 placeholder="# Start writing here…"
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNewFileContent(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  setNewFileContent(e.target.value)
+                }
               />
             </div>
             {newFileError && <p className="text-destructive text-sm">{newFileError}</p>}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setNewFileOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setNewFileOpen(false)}>
+              Cancel
+            </Button>
             <Button onClick={handleCreateFile} disabled={!newFileName.trim() || creatingFile}>
               {creatingFile && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Create
@@ -1857,9 +2118,16 @@ function FilesPage() {
           <div className="space-y-4">
             <div>
               <Label>File</Label>
-              <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onFileSelected} />
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={onFileSelected}
+              />
               <Button
-                variant="outline" className="w-full mt-1"
+                variant="outline"
+                className="w-full mt-1"
                 onClick={() => fileInputRef.current?.click()}
               >
                 {uploadFiles.length === 0
@@ -1868,7 +2136,9 @@ function FilesPage() {
                     ? uploadFiles[0].name
                     : `${uploadFiles.length} files selected`}
               </Button>
-              <p className="text-xs text-muted-foreground mt-1">Batch upload supports up to {uploadMaxFiles} files.</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Batch upload supports up to {uploadMaxFiles} files.
+              </p>
             </div>
             {uploadFiles.length > 0 && (
               <>
@@ -1876,8 +2146,12 @@ function FilesPage() {
                   <div>
                     <Label>Display name</Label>
                     <Input
-                      className="mt-1" value={uploadName} placeholder="e.g. notes.md"
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUploadName(e.target.value)}
+                      className="mt-1"
+                      value={uploadName}
+                      placeholder="e.g. notes.md"
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        setUploadName(e.target.value)
+                      }
                     />
                   </div>
                 )}
@@ -1886,11 +2160,15 @@ function FilesPage() {
                   <select
                     className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
                     value={uploadParent}
-                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setUploadParent(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                      setUploadParent(e.target.value)
+                    }
                   >
                     <option value="">/ (root)</option>
                     {allFolders.map(f => (
-                      <option key={f.id} value={f.id}>{buildPath(f, items)}</option>
+                      <option key={f.id} value={f.id}>
+                        {buildPath(f, items)}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -1899,7 +2177,9 @@ function FilesPage() {
             {uploadError && <p className="text-destructive text-sm">{uploadError}</p>}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setUploadOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setUploadOpen(false)}>
+              Cancel
+            </Button>
             <Button onClick={handleUpload} disabled={uploadFiles.length === 0 || uploading}>
               {uploading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Upload
@@ -1909,29 +2189,43 @@ function FilesPage() {
       </Dialog>
 
       {/* ── Fetch from URL Dialog ───────────────────────── */}
-      <Dialog open={fetchOpen} onOpenChange={v => { if (!v && !fetching) setFetchOpen(false) }}>
+      <Dialog
+        open={fetchOpen}
+        onOpenChange={v => {
+          if (!v && !fetching) setFetchOpen(false)
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Fetch File from URL</DialogTitle>
             <DialogDescription>
-              Download a file from a public URL directly into your Space.
-              The same upload policy (size & extension limits) applies.
+              Download a file from a public URL directly into your Space. The same upload policy
+              (size & extension limits) applies.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label>URL <span className="text-destructive">*</span></Label>
+              <Label>
+                URL <span className="text-destructive">*</span>
+              </Label>
               <Input
                 className="mt-1"
                 placeholder="https://example.com/file.zip"
                 value={fetchUrl}
                 disabled={fetching}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFetchUrl(e.target.value)}
-                onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter' && fetchUrl.trim()) handleFetch() }}
+                onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                  if (e.key === 'Enter' && fetchUrl.trim()) handleFetch()
+                }}
               />
             </div>
             <div>
-              <Label>Save as <span className="text-muted-foreground text-xs">(optional — detected from URL if blank)</span></Label>
+              <Label>
+                Save as{' '}
+                <span className="text-muted-foreground text-xs">
+                  (optional — detected from URL if blank)
+                </span>
+              </Label>
               <Input
                 className="mt-1"
                 placeholder="e.g. report.pdf"
@@ -1946,11 +2240,15 @@ function FilesPage() {
                 className="mt-1 w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
                 value={fetchParent}
                 disabled={fetching}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFetchParent(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                  setFetchParent(e.target.value)
+                }
               >
                 <option value="">/ (root)</option>
                 {allFolders.map(f => (
-                  <option key={f.id} value={f.id}>{buildPath(f, items)}</option>
+                  <option key={f.id} value={f.id}>
+                    {buildPath(f, items)}
+                  </option>
                 ))}
               </select>
             </div>
@@ -1967,20 +2265,37 @@ function FilesPage() {
             {fetchError && <p className="text-destructive text-sm">{fetchError}</p>}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setFetchOpen(false)} disabled={fetching}>Cancel</Button>
+            <Button variant="outline" onClick={() => setFetchOpen(false)} disabled={fetching}>
+              Cancel
+            </Button>
             <Button onClick={handleFetch} disabled={!fetchUrl.trim() || fetching}>
-              {fetching ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Downloading…</> : <><Globe className="h-4 w-4 mr-1" /> Fetch</>}
+              {fetching ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" /> Downloading…
+                </>
+              ) : (
+                <>
+                  <Globe className="h-4 w-4 mr-1" /> Fetch
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* ── Preview Dialog ─────────────────────────────── */}
-      <Dialog open={!!previewFile} onOpenChange={v => { if (!v) closePreview() }}>
+      <Dialog
+        open={!!previewFile}
+        onOpenChange={v => {
+          if (!v) closePreview()
+        }}
+      >
         <DialogContent
-          className={previewFullscreen
-            ? '!w-screen !h-screen !max-w-none !translate-x-0 !translate-y-0 !left-0 !top-0 !rounded-none flex flex-col overflow-hidden'
-            : 'sm:max-w-4xl w-full'}
+          className={
+            previewFullscreen
+              ? '!w-screen !h-screen !max-w-none !translate-x-0 !translate-y-0 !left-0 !top-0 !rounded-none flex flex-col overflow-hidden'
+              : 'sm:max-w-4xl w-full'
+          }
           aria-describedby={undefined}
         >
           <DialogHeader className="pr-10">
@@ -1993,76 +2308,89 @@ function FilesPage() {
                 onClick={() => setPreviewFullscreen(f => !f)}
                 title={previewFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
               >
-                {previewFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                {previewFullscreen ? (
+                  <Minimize2 className="h-4 w-4" />
+                ) : (
+                  <Maximize2 className="h-4 w-4" />
+                )}
               </Button>
             </div>
           </DialogHeader>
-          <div className={`flex items-center justify-center overflow-auto ${previewFullscreen ? 'flex-1' : 'min-h-[40vh] max-h-[70vh]'}`}>
+          <div
+            className={`flex items-center justify-center overflow-auto ${previewFullscreen ? 'flex-1' : 'min-h-[40vh] max-h-[70vh]'}`}
+          >
             {previewLoading && (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin" /> Loading preview…
               </div>
             )}
-            {previewError && (
-              <p className="text-destructive text-sm">{previewError}</p>
-            )}
-            {!previewLoading && !previewError && previewFile && (() => {
-              const type = getPreviewType(previewFile, quota)
-              const directUrl = buildPreviewUrl(previewFile)
-              if (type === 'text') {
-                return (
-                  <pre className="w-full text-sm font-mono whitespace-pre-wrap break-all text-left">
-                    {previewText ?? ''}
-                  </pre>
-                )
-              }
-              if (type === 'image') {
-                return (
-                  <img
-                    src={directUrl}
-                    alt={previewFile.name}
-                    className={`max-w-full object-contain rounded ${previewFullscreen ? 'max-h-full' : 'max-h-[65vh]'}`}
-                  />
-                )
-              }
-              if (type === 'pdf') {
-                return (
-                  <iframe
-                    src={directUrl}
-                    title={previewFile.name}
-                    className={`w-full rounded border ${previewFullscreen ? 'h-full' : 'h-[65vh]'}`}
-                  />
-                )
-              }
-              if (type === 'audio') {
-                return (
-                  // eslint-disable-next-line jsx-a11y/media-has-caption
-                  <audio controls src={directUrl} className="w-full" />
-                )
-              }
-              if (type === 'video') {
-                return (
-                  // eslint-disable-next-line jsx-a11y/media-has-caption
-                  <video
-                    controls
-                    src={directUrl}
-                    className={`max-w-full rounded ${previewFullscreen ? 'max-h-full' : 'max-h-[65vh]'}`}
-                  />
-                )
-              }
-              return null
-            })()}
+            {previewError && <p className="text-destructive text-sm">{previewError}</p>}
+            {!previewLoading &&
+              !previewError &&
+              previewFile &&
+              (() => {
+                const type = getPreviewType(previewFile, quota)
+                const directUrl = buildPreviewUrl(previewFile)
+                if (type === 'text') {
+                  return (
+                    <pre className="w-full text-sm font-mono whitespace-pre-wrap break-all text-left">
+                      {previewText ?? ''}
+                    </pre>
+                  )
+                }
+                if (type === 'image') {
+                  return (
+                    <img
+                      src={directUrl}
+                      alt={previewFile.name}
+                      className={`max-w-full object-contain rounded ${previewFullscreen ? 'max-h-full' : 'max-h-[65vh]'}`}
+                    />
+                  )
+                }
+                if (type === 'pdf') {
+                  return (
+                    <iframe
+                      src={directUrl}
+                      title={previewFile.name}
+                      className={`w-full rounded border ${previewFullscreen ? 'h-full' : 'h-[65vh]'}`}
+                    />
+                  )
+                }
+                if (type === 'audio') {
+                  return <audio controls src={directUrl} className="w-full" />
+                }
+                if (type === 'video') {
+                  return (
+                    <video
+                      controls
+                      src={directUrl}
+                      className={`max-w-full rounded ${previewFullscreen ? 'max-h-full' : 'max-h-[65vh]'}`}
+                    />
+                  )
+                }
+                return null
+              })()}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={closePreview}>Close</Button>
-            {previewFile && getPreviewType(previewFile, quota) === 'text' && isEditable(previewFile, quota) && (
-              <Button
-                variant="outline"
-                onClick={() => { if (previewFile) { const f = previewFile; closePreview(); openEditor(f) } }}
-              >
-                <Edit3 className="h-4 w-4 mr-1" /> Edit
-              </Button>
-            )}
+            <Button variant="outline" onClick={closePreview}>
+              Close
+            </Button>
+            {previewFile &&
+              getPreviewType(previewFile, quota) === 'text' &&
+              isEditable(previewFile, quota) && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (previewFile) {
+                      const f = previewFile
+                      closePreview()
+                      openEditor(f)
+                    }
+                  }}
+                >
+                  <Edit3 className="h-4 w-4 mr-1" /> Edit
+                </Button>
+              )}
             {previewFile?.content && (
               <a
                 href={buildDownloadUrl(previewFile) ?? '#'}
@@ -2077,29 +2405,36 @@ function FilesPage() {
       </Dialog>
 
       {/* ── Editor Dialog (max width, scrollable) ─────── */}
-      <Dialog open={!!editFile} onOpenChange={v => { if (!v) setEditFile(null) }}>
+      <Dialog
+        open={!!editFile}
+        onOpenChange={v => {
+          if (!v) setEditFile(null)
+        }}
+      >
         <DialogContent className="sm:max-w-3xl w-full">
           <DialogHeader>
             <DialogTitle>Edit: {editFile?.name}</DialogTitle>
           </DialogHeader>
           <div className="max-h-[65vh] overflow-y-auto">
-            {editLoading
-              ? (
-                <div className="flex items-center gap-2 py-8 justify-center text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Loading content…
-                </div>
-              )
-              : (
-                <Textarea
-                  className="font-mono text-sm min-h-[55vh] resize-none"
-                  value={editContent}
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditContent(e.target.value)}
-                />
-              )}
+            {editLoading ? (
+              <div className="flex items-center gap-2 py-8 justify-center text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading content…
+              </div>
+            ) : (
+              <Textarea
+                className="font-mono text-sm min-h-[55vh] resize-none"
+                value={editContent}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  setEditContent(e.target.value)
+                }
+              />
+            )}
           </div>
           {editError && <p className="text-destructive text-sm">{editError}</p>}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditFile(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setEditFile(null)}>
+              Cancel
+            </Button>
             <Button onClick={handleSave} disabled={saving || editLoading}>
               {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Save
@@ -2109,11 +2444,18 @@ function FilesPage() {
       </Dialog>
 
       {/* ── Delete Confirm ─────────────────────────────── */}
-      <AlertDialog open={!!deleteItem} onOpenChange={v => { if (!v) setDeleteItem(null) }}>
+      <AlertDialog
+        open={!!deleteItem}
+        onOpenChange={v => {
+          if (!v) setDeleteItem(null)
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {deleteItem?.is_deleted ? 'Delete Permanently?' : `Move ${deleteItem?.is_folder ? 'folder' : 'file'} to Trash?`}
+              {deleteItem?.is_deleted
+                ? 'Delete Permanently?'
+                : `Move ${deleteItem?.is_folder ? 'folder' : 'file'} to Trash?`}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {deleteItem?.is_deleted
@@ -2141,8 +2483,8 @@ function FilesPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Empty Trash?</AlertDialogTitle>
             <AlertDialogDescription>
-              All {trashCount} item{trashCount !== 1 ? 's' : ''} in Trash will be permanently deleted.
-              This action cannot be undone.
+              All {trashCount} item{trashCount !== 1 ? 's' : ''} in Trash will be permanently
+              deleted. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -2175,51 +2517,62 @@ function FilesPage() {
           <DialogHeader>
             <DialogTitle>Share: {shareFile?.name}</DialogTitle>
             <DialogDescription>
-              Generate a public download link — no login required.
-              Anyone with the link can download the file.
-              Max validity: {quota?.share_max_minutes ?? 60} min.
+              Generate a public download link — no login required. Anyone with the link can download
+              the file. Max validity: {quota?.share_max_minutes ?? 60} min.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
               <Label>Validity (minutes)</Label>
               <Input
-                type="number" className="mt-1"
-                min={1} max={quota?.share_max_minutes ?? 60}
+                type="number"
+                className="mt-1"
+                min={1}
+                max={quota?.share_max_minutes ?? 60}
                 value={shareMinutes}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setShareMinutes(Number(e.target.value))}
+                  setShareMinutes(Number(e.target.value))
+                }
               />
             </div>
             {shareUrl && (
               <div className="space-y-2">
                 <Label>Public download link</Label>
                 <div className="flex gap-2 mt-1">
-                  <Input ref={shareUrlInputRef} readOnly value={shareUrl} className="text-xs font-mono" />
-                  <Button
-                    size="icon" variant="outline"
-                    onClick={doCopy} title="Copy link"
-                  >
-                    {copied
-                      ? <Check className="h-4 w-4 text-green-500" />
-                      : <Copy className="h-4 w-4" />}
+                  <Input
+                    ref={shareUrlInputRef}
+                    readOnly
+                    value={shareUrl}
+                    className="text-xs font-mono"
+                  />
+                  <Button size="icon" variant="outline" onClick={doCopy} title="Copy link">
+                    {copied ? (
+                      <Check className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
                   </Button>
                   <Button
-                    size="icon" variant="ghost"
+                    size="icon"
+                    variant="ghost"
                     className="text-destructive"
-                    onClick={handleRevoke} title="Revoke link"
+                    onClick={handleRevoke}
+                    title="Revoke link"
                   >
                     <X className="h-4 w-4" />
                   </Button>
                   <Button
-                    size="icon" variant="outline"
+                    size="icon"
+                    variant="outline"
                     onClick={handleGenerateQr}
                     title="Generate QR code"
                     disabled={qrGenerating}
                   >
-                    {qrGenerating
-                      ? <Loader2 className="h-4 w-4 animate-spin" />
-                      : <QrCode className="h-4 w-4" />}
+                    {qrGenerating ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <QrCode className="h-4 w-4" />
+                    )}
                   </Button>
                 </div>
                 {copied && <p className="text-xs text-green-600">Copied to clipboard!</p>}
@@ -2240,7 +2593,12 @@ function FilesPage() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => { setShareFile(null); setShareUrl(null); setQrCodeDataUrl(null); setQrError(null) }}
+              onClick={() => {
+                setShareFile(null)
+                setShareUrl(null)
+                setQrCodeDataUrl(null)
+                setQrError(null)
+              }}
             >
               Close
             </Button>
@@ -2251,7 +2609,6 @@ function FilesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
     </div>
   )
 }

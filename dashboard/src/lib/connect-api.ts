@@ -20,8 +20,8 @@ export interface SFTPListResponse {
 }
 
 export interface SearchResult {
-  path: string      // full remote path
-  name: string      // base filename
+  path: string // full remote path
+  name: string // base filename
   type: 'file' | 'dir' | 'symlink'
   size: number
   mode: string
@@ -43,7 +43,7 @@ export interface FileAttrs {
 }
 
 export interface SFTPSearchResponse {
-  path: string       // search base path
+  path: string // search base path
   query: string
   results: SearchResult[]
 }
@@ -110,7 +110,7 @@ export type SystemdControlAction = 'start' | 'stop' | 'restart' | 'enable' | 'di
 export async function sftpList(serverId: string, path: string): Promise<SFTPListResponse> {
   return pb.send<SFTPListResponse>(
     `/api/ext/terminal/sftp/${serverId}/list?path=${encodeURIComponent(path)}`,
-    {},
+    {}
   )
 }
 
@@ -137,7 +137,11 @@ export async function sftpMkdir(serverId: string, path: string): Promise<void> {
   })
 }
 
-export async function sftpRename(serverId: string, oldPath: string, newPath: string): Promise<void> {
+export async function sftpRename(
+  serverId: string,
+  oldPath: string,
+  newPath: string
+): Promise<void> {
   await pb.send(`/api/ext/terminal/sftp/${serverId}/rename`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -152,14 +156,21 @@ export async function sftpDelete(serverId: string, path: string): Promise<void> 
   })
 }
 
-export async function sftpReadFile(serverId: string, path: string): Promise<{ path: string; content: string }> {
+export async function sftpReadFile(
+  serverId: string,
+  path: string
+): Promise<{ path: string; content: string }> {
   return pb.send<{ path: string; content: string }>(
     `/api/ext/terminal/sftp/${serverId}/read?path=${encodeURIComponent(path)}`,
-    {},
+    {}
   )
 }
 
-export async function sftpWriteFile(serverId: string, path: string, content: string): Promise<void> {
+export async function sftpWriteFile(
+  serverId: string,
+  path: string,
+  content: string
+): Promise<void> {
   await pb.send(`/api/ext/terminal/sftp/${serverId}/write`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -170,11 +181,11 @@ export async function sftpWriteFile(serverId: string, path: string, content: str
 export async function sftpSearch(
   serverId: string,
   basePath: string,
-  query: string,
+  query: string
 ): Promise<SFTPSearchResponse> {
   return pb.send<SFTPSearchResponse>(
     `/api/ext/terminal/sftp/${serverId}/search?path=${encodeURIComponent(basePath)}&query=${encodeURIComponent(query)}`,
-    {},
+    {}
   )
 }
 
@@ -185,11 +196,16 @@ export async function sftpConstraints(serverId: string): Promise<{ max_upload_fi
 export async function sftpStat(serverId: string, path: string): Promise<{ attrs: FileAttrs }> {
   return pb.send<{ attrs: FileAttrs }>(
     `/api/ext/terminal/sftp/${serverId}/stat?path=${encodeURIComponent(path)}`,
-    {},
+    {}
   )
 }
 
-export async function sftpChmod(serverId: string, path: string, mode: string, recursive = false): Promise<void> {
+export async function sftpChmod(
+  serverId: string,
+  path: string,
+  mode: string,
+  recursive = false
+): Promise<void> {
   await pb.send(`/api/ext/terminal/sftp/${serverId}/chmod`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -197,7 +213,12 @@ export async function sftpChmod(serverId: string, path: string, mode: string, re
   })
 }
 
-export async function sftpChown(serverId: string, path: string, owner: string, group: string): Promise<void> {
+export async function sftpChown(
+  serverId: string,
+  path: string,
+  owner: string,
+  group: string
+): Promise<void> {
   await pb.send(`/api/ext/terminal/sftp/${serverId}/chown`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -205,7 +226,11 @@ export async function sftpChown(serverId: string, path: string, owner: string, g
   })
 }
 
-export async function sftpSymlink(serverId: string, target: string, linkPath: string): Promise<void> {
+export async function sftpSymlink(
+  serverId: string,
+  target: string,
+  linkPath: string
+): Promise<void> {
   await pb.send(`/api/ext/terminal/sftp/${serverId}/symlink`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -246,76 +271,106 @@ export async function serverPower(serverId: string, action: 'restart' | 'shutdow
   })
 }
 
-export async function listSystemdServices(serverId: string, keyword = ''): Promise<SystemdService[]> {
+export async function listSystemdServices(
+  serverId: string,
+  keyword = ''
+): Promise<SystemdService[]> {
   const query = keyword.trim() ? `?keyword=${encodeURIComponent(keyword.trim())}` : ''
   const response = await pb.send<{ services?: SystemdService[] }>(
     `/api/ext/terminal/server/${serverId}/systemd/services${query}`,
-    {},
+    {}
   )
   return Array.isArray(response?.services) ? response.services : []
 }
 
-export async function getSystemdStatus(serverId: string, service: string): Promise<SystemdStatusResponse> {
+export async function getSystemdStatus(
+  serverId: string,
+  service: string
+): Promise<SystemdStatusResponse> {
   return pb.send<SystemdStatusResponse>(
     `/api/ext/terminal/server/${serverId}/systemd/${encodeURIComponent(service)}/status`,
-    {},
+    {}
   )
 }
 
-export async function getSystemdLogs(serverId: string, service: string, lines = 200): Promise<SystemdLogsResponse> {
+export async function getSystemdLogs(
+  serverId: string,
+  service: string,
+  lines = 200
+): Promise<SystemdLogsResponse> {
   return pb.send<SystemdLogsResponse>(
     `/api/ext/terminal/server/${serverId}/systemd/${encodeURIComponent(service)}/logs?lines=${Math.max(20, Math.min(1000, lines))}`,
-    {},
+    {}
   )
 }
 
-export async function getSystemdContent(serverId: string, service: string): Promise<SystemdContentResponse> {
+export async function getSystemdContent(
+  serverId: string,
+  service: string
+): Promise<SystemdContentResponse> {
   return pb.send<SystemdContentResponse>(
     `/api/ext/terminal/server/${serverId}/systemd/${encodeURIComponent(service)}/content`,
-    {},
+    {}
   )
 }
 
-export async function controlSystemdService(serverId: string, service: string, action: SystemdControlAction): Promise<void> {
+export async function controlSystemdService(
+  serverId: string,
+  service: string,
+  action: SystemdControlAction
+): Promise<void> {
   await pb.send(
     `/api/ext/terminal/server/${serverId}/systemd/${encodeURIComponent(service)}/action`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action }),
-    },
+    }
   )
 }
 
-export async function getSystemdUnit(serverId: string, service: string): Promise<SystemdUnitResponse> {
+export async function getSystemdUnit(
+  serverId: string,
+  service: string
+): Promise<SystemdUnitResponse> {
   return pb.send<SystemdUnitResponse>(
     `/api/ext/terminal/server/${serverId}/systemd/${encodeURIComponent(service)}/unit`,
-    {},
+    {}
   )
 }
 
-export async function updateSystemdUnit(serverId: string, service: string, content: string): Promise<SystemdUnitApplyResponse> {
+export async function updateSystemdUnit(
+  serverId: string,
+  service: string,
+  content: string
+): Promise<SystemdUnitApplyResponse> {
   return pb.send<SystemdUnitApplyResponse>(
     `/api/ext/terminal/server/${serverId}/systemd/${encodeURIComponent(service)}/unit`,
     {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content }),
-    },
+    }
   )
 }
 
-export async function verifySystemdUnit(serverId: string, service: string): Promise<SystemdUnitApplyResponse> {
+export async function verifySystemdUnit(
+  serverId: string,
+  service: string
+): Promise<SystemdUnitApplyResponse> {
   return pb.send<SystemdUnitApplyResponse>(
     `/api/ext/terminal/server/${serverId}/systemd/${encodeURIComponent(service)}/unit/verify`,
-    { method: 'POST' },
+    { method: 'POST' }
   )
 }
 
-export async function applySystemdUnit(serverId: string, service: string): Promise<SystemdUnitApplyResponse> {
+export async function applySystemdUnit(
+  serverId: string,
+  service: string
+): Promise<SystemdUnitApplyResponse> {
   return pb.send<SystemdUnitApplyResponse>(
     `/api/ext/terminal/server/${serverId}/systemd/${encodeURIComponent(service)}/unit/apply`,
-    { method: 'POST' },
+    { method: 'POST' }
   )
 }
 
@@ -349,18 +404,32 @@ export async function checkServerStatus(server: Server): Promise<ServerStatusRes
   const connectType = String(server.connect_type || 'direct').toLowerCase()
 
   try {
-    const response = connectType === 'tunnel'
-      ? await withTimeout(pb.send(`/api/ext/tunnel/servers/${id}/status`, { method: 'GET' }) as Promise<{ status?: string; reason?: string }>, 5000)
-      : await withTimeout(pb.send(`/api/ext/resources/servers/${id}/ping`, { method: 'GET' }) as Promise<{ status?: string; reason?: string }>, 5000)
+    const response =
+      connectType === 'tunnel'
+        ? await withTimeout(
+            pb.send(`/api/ext/tunnel/servers/${id}/status`, { method: 'GET' }) as Promise<{
+              status?: string
+              reason?: string
+            }>,
+            5000
+          )
+        : await withTimeout(
+            pb.send(`/api/ext/resources/servers/${id}/ping`, { method: 'GET' }) as Promise<{
+              status?: string
+              reason?: string
+            }>,
+            5000
+          )
 
     return {
       status: response?.status === 'online' ? 'online' : 'offline',
       reason: typeof response?.reason === 'string' ? response.reason : undefined,
     }
   } catch (error) {
-    const timeoutMessage = error instanceof Error && /Ping timeout after\s*5000ms/i.test(error.message)
-      ? 'Timed out after 5s. Server is not reachable.'
-      : undefined
+    const timeoutMessage =
+      error instanceof Error && /Ping timeout after\s*5000ms/i.test(error.message)
+        ? 'Timed out after 5s. Server is not reachable.'
+        : undefined
     return {
       status: 'offline',
       reason: timeoutMessage || (error instanceof Error ? error.message : 'server unreachable'),

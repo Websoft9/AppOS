@@ -138,38 +138,36 @@ function StorePage() {
   // Category counts (always from full product list)
   const primaryCounts = useMemo(
     () => countByPrimaryCategory(enrichedProducts, primaryCategories),
-    [enrichedProducts, primaryCategories],
+    [enrichedProducts, primaryCategories]
   )
 
   const secondaryCounts = useMemo(
     () => countBySecondaryCategory(enrichedProducts),
-    [enrichedProducts],
+    [enrichedProducts]
   )
 
   // Filtered products
   const filteredProducts = useMemo(() => {
     let products = filterProducts(enrichedProducts, primaryCategory, secondaryCategory, search)
     if (showFavoritesOnly) {
-      const favKeys = new Set(userApps.filter((a) => a.is_favorite).map((a) => a.app_key))
-      products = products.filter((p) => favKeys.has(p.key))
+      const favKeys = new Set(userApps.filter(a => a.is_favorite).map(a => a.app_key))
+      products = products.filter(p => favKeys.has(p.key))
     }
     return products
   }, [enrichedProducts, primaryCategory, secondaryCategory, search, showFavoritesOnly, userApps])
 
   // Filtered custom apps
   const visibleCustomApps = useMemo(() => {
-    let apps = customApps.filter(
-      (a) => a.created_by === currentUserId || a.visibility === 'shared',
-    )
+    let apps = customApps.filter(a => a.created_by === currentUserId || a.visibility === 'shared')
     if (search) {
       const q = search.toLowerCase()
       apps = apps.filter(
-        (a) => a.trademark.toLowerCase().includes(q) || a.key.toLowerCase().includes(q),
+        a => a.trademark.toLowerCase().includes(q) || a.key.toLowerCase().includes(q)
       )
     }
     if (showFavoritesOnly) {
-      const favKeys = new Set(userApps.filter((a) => a.is_favorite).map((a) => a.app_key))
-      apps = apps.filter((a) => favKeys.has(a.key))
+      const favKeys = new Set(userApps.filter(a => a.is_favorite).map(a => a.app_key))
+      apps = apps.filter(a => favKeys.has(a.key))
     }
     return apps
   }, [customApps, currentUserId, search, showFavoritesOnly, userApps])
@@ -202,7 +200,7 @@ function StorePage() {
     setSelectedAppIsCustom(false)
     setSelectedCustomAppRaw(null)
     // Set en screenshots for fallback when locale URLs fail
-    const enProduct = enProductsData?.find((p) => p.key === product.key)
+    const enProduct = enProductsData?.find(p => p.key === product.key)
     setEnScreenshots(enProduct?.screenshots ?? [])
     setModalOpen(true)
   }
@@ -224,7 +222,7 @@ function StorePage() {
             setCustomAppDialogOpen(false)
             setEditingCustomApp(null)
           },
-        },
+        }
       )
     } else {
       createCustomApp.mutate(data, {
@@ -287,7 +285,10 @@ function StorePage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => { setEditingCustomApp(null); setCustomAppDialogOpen(true) }}
+            onClick={() => {
+              setEditingCustomApp(null)
+              setCustomAppDialogOpen(true)
+            }}
             className="flex items-center gap-1.5"
           >
             <PlusCircle className="w-4 h-4" />
@@ -337,7 +338,7 @@ function StorePage() {
           id="show-favorites"
           type="checkbox"
           checked={showFavoritesOnly}
-          onChange={(e) => {
+          onChange={e => {
             setShowFavoritesOnly(e.target.checked)
             setPage(1)
           }}
@@ -353,7 +354,14 @@ function StorePage() {
         <div className="flex flex-col items-center justify-center py-16 gap-2 text-muted-foreground">
           <p>{showFavoritesOnly ? t('favorites.noFavorites') : t('search.noResults')}</p>
           {showFavoritesOnly && (
-            <Button variant="ghost" size="sm" onClick={() => { setShowFavoritesOnly(false); setPage(1) }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setShowFavoritesOnly(false)
+                setPage(1)
+              }}
+            >
               {t('favorites.clearFilter')}
             </Button>
           )}
@@ -370,7 +378,7 @@ function StorePage() {
                 className="grid gap-x-4 gap-y-6 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
                 role="list"
               >
-                {visibleCustomApps.map((app) => (
+                {visibleCustomApps.map(app => (
                   <div key={app.id} role="listitem">
                     <CustomAppCard
                       app={app}
@@ -390,12 +398,13 @@ function StorePage() {
                 <button
                   type="button"
                   className="flex items-center gap-1.5 group"
-                  onClick={() => setOfficialCollapsed((c) => !c)}
+                  onClick={() => setOfficialCollapsed(c => !c)}
                 >
-                  {officialCollapsed
-                    ? <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    : <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  }
+                  {officialCollapsed ? (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  )}
                   <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide group-hover:text-foreground transition-colors">
                     {t('customApp.officialGroupLabel')}
                   </h3>
@@ -407,16 +416,16 @@ function StorePage() {
                   role="list"
                   aria-label={t('title')}
                 >
-                {paginatedProducts.map((product) => (
-                  <div key={product.key} role="listitem">
-                    <AppCard
-                      product={product}
-                      primaryCategories={primaryCategories}
-                      onSelectApp={openDetail}
-                      userApps={userApps}
-                    />
-                  </div>
-                ))}
+                  {paginatedProducts.map(product => (
+                    <div key={product.key} role="listitem">
+                      <AppCard
+                        product={product}
+                        primaryCategories={primaryCategories}
+                        onSelectApp={openDetail}
+                        userApps={userApps}
+                      />
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -431,7 +440,7 @@ function StorePage() {
           pageSize={pageSize}
           total={filteredProducts.length}
           onPageChange={setPage}
-          onPageSizeChange={(size) => {
+          onPageSizeChange={size => {
             setPageSize(size)
             setPage(1)
           }}
@@ -453,7 +462,9 @@ function StorePage() {
         showDeploy
         fallbackScreenshots={enScreenshots}
         onEdit={
-          selectedAppIsCustom && selectedCustomAppRaw && selectedCustomAppRaw.created_by === currentUserId
+          selectedAppIsCustom &&
+          selectedCustomAppRaw &&
+          selectedCustomAppRaw.created_by === currentUserId
             ? () => {
                 setModalOpen(false)
                 setEditingCustomApp(selectedCustomAppRaw)
@@ -462,7 +473,9 @@ function StorePage() {
             : undefined
         }
         onDelete={
-          selectedAppIsCustom && selectedCustomAppRaw && selectedCustomAppRaw.created_by === currentUserId
+          selectedAppIsCustom &&
+          selectedCustomAppRaw &&
+          selectedCustomAppRaw.created_by === currentUserId
             ? () => {
                 deleteCustomApp.mutate(selectedCustomAppRaw.id)
                 setModalOpen(false)
@@ -480,12 +493,15 @@ function StorePage() {
       <CustomAppDialog
         key={editingCustomApp?.id ?? 'new'}
         open={customAppDialogOpen}
-        onClose={() => { setCustomAppDialogOpen(false); setEditingCustomApp(null) }}
+        onClose={() => {
+          setCustomAppDialogOpen(false)
+          setEditingCustomApp(null)
+        }}
         onSave={handleSaveCustomApp}
         isSaving={createCustomApp.isPending || updateCustomApp.isPending}
         editApp={editingCustomApp ?? undefined}
         allProducts={productsData ?? []}
-        existingCustomKeys={customApps.map((a) => a.key)}
+        existingCustomKeys={customApps.map(a => a.key)}
       />
 
       {/* Error toast */}

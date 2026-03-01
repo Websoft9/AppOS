@@ -38,8 +38,8 @@ func DefaultConfig() Config {
 
 // Client communicates with supervisord via XML-RPC.
 type Client struct {
-	cfg    Config
-	http   *http.Client
+	cfg  Config
+	http *http.Client
 }
 
 // NewClient creates a new supervisord client.
@@ -59,7 +59,7 @@ type ProcessInfo struct {
 	State       int    `json:"state"`
 	StateName   string `json:"stateName"`
 	PID         int    `json:"pid"`
-	Uptime      int64  `json:"uptime"`      // seconds since start
+	Uptime      int64  `json:"uptime"` // seconds since start
 	Description string `json:"description"`
 	LogFile     string `json:"logFile"`
 	StdoutLog   string `json:"stdoutLog"`

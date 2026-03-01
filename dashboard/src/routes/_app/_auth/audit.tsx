@@ -1,11 +1,24 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import React, { useState, useEffect, useCallback } from 'react'
-import { ChevronDown, ChevronUp, ChevronRight, ChevronsUpDown, RefreshCw, Loader2, FileText } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronUp,
+  ChevronRight,
+  ChevronsUpDown,
+  RefreshCw,
+  Loader2,
+  FileText,
+} from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@/components/ui/table'
 
 // ─── Types ───────────────────────────────────────────────
@@ -29,11 +42,21 @@ interface AuditLog {
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
 
 const ACTIONS = [
-  'app.deploy', 'app.start', 'app.restart', 'app.stop', 'app.delete', 'app.env_update',
+  'app.deploy',
+  'app.start',
+  'app.restart',
+  'app.stop',
+  'app.delete',
+  'app.env_update',
   'service.restart',
-  'backup.create', 'backup.restore',
-  'user.create', 'user.update', 'user.delete', 'user.reset_password',
-  'login.success', 'login.failed',
+  'backup.create',
+  'backup.restore',
+  'user.create',
+  'user.update',
+  'user.delete',
+  'user.reset_password',
+  'login.success',
+  'login.failed',
 ]
 
 const STATUSES = ['pending', 'success', 'failed']
@@ -64,7 +87,11 @@ function buildFilter(action: string, status: string): string | undefined {
 // ─── SortHeader ──────────────────────────────────────────
 
 function SortHeader({
-  field, label, current, dir, onSort,
+  field,
+  label,
+  current,
+  dir,
+  onSort,
 }: {
   field: string
   label: string
@@ -107,7 +134,7 @@ function AuditPage() {
 
   const handleSort = (field: string) => {
     if (field === sortField) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+      setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
     } else {
       setSortField(field)
       setSortDir('desc')
@@ -115,26 +142,27 @@ function AuditPage() {
     setPage(1)
   }
 
-  const fetchLogs = useCallback(async (
-    p: number, action: string, status: string, sort: string, perPage: number,
-  ) => {
-    setLoading(true)
-    setError(null)
-    try {
-      const result = await pb.collection('audit_logs').getList<AuditLog>(p, perPage, {
-        sort,
-        filter: buildFilter(action, status),
-      })
-      setLogs(result.items)
-      setTotalPages(result.totalPages)
-    } catch (err: unknown) {
-      console.error('audit fetch error:', err)
-      const msg = err instanceof Error ? err.message : String(err)
-      setError(msg)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const fetchLogs = useCallback(
+    async (p: number, action: string, status: string, sort: string, perPage: number) => {
+      setLoading(true)
+      setError(null)
+      try {
+        const result = await pb.collection('audit_logs').getList<AuditLog>(p, perPage, {
+          sort,
+          filter: buildFilter(action, status),
+        })
+        setLogs(result.items)
+        setTotalPages(result.totalPages)
+      } catch (err: unknown) {
+        console.error('audit fetch error:', err)
+        const msg = err instanceof Error ? err.message : String(err)
+        setError(msg)
+      } finally {
+        setLoading(false)
+      }
+    },
+    []
+  )
 
   useEffect(() => {
     fetchLogs(page, filterAction, filterStatus, sortParam, pageSize)
@@ -155,7 +183,11 @@ function AuditPage() {
               </Link>
             </Button>
           )}
-          <Button variant="ghost" size="sm" onClick={() => fetchLogs(page, filterAction, filterStatus, sortParam, pageSize)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => fetchLogs(page, filterAction, filterStatus, sortParam, pageSize)}
+          >
             <RefreshCw className="h-4 w-4 mr-1" /> Refresh
           </Button>
         </div>
@@ -172,7 +204,11 @@ function AuditPage() {
           }}
         >
           <option value="">All actions</option>
-          {ACTIONS.map(a => <option key={a} value={a}>{a}</option>)}
+          {ACTIONS.map(a => (
+            <option key={a} value={a}>
+              {a}
+            </option>
+          ))}
         </select>
 
         <select
@@ -184,7 +220,11 @@ function AuditPage() {
           }}
         >
           <option value="">All statuses</option>
-          {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+          {STATUSES.map(s => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
         </select>
 
         <select
@@ -195,7 +235,11 @@ function AuditPage() {
             setPage(1)
           }}
         >
-          {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n} / page</option>)}
+          {PAGE_SIZE_OPTIONS.map(n => (
+            <option key={n} value={n}>
+              {n} / page
+            </option>
+          ))}
         </select>
       </div>
 
@@ -218,23 +262,53 @@ function AuditPage() {
             <TableRow>
               <TableHead className="w-8" />
               <TableHead>
-                <SortHeader field="created" label="Time" current={sortField} dir={sortDir} onSort={handleSort} />
+                <SortHeader
+                  field="created"
+                  label="Time"
+                  current={sortField}
+                  dir={sortDir}
+                  onSort={handleSort}
+                />
               </TableHead>
               <TableHead>
-                <SortHeader field="action" label="Action" current={sortField} dir={sortDir} onSort={handleSort} />
+                <SortHeader
+                  field="action"
+                  label="Action"
+                  current={sortField}
+                  dir={sortDir}
+                  onSort={handleSort}
+                />
               </TableHead>
               <TableHead>Resource</TableHead>
               <TableHead>
-                <SortHeader field="status" label="Status" current={sortField} dir={sortDir} onSort={handleSort} />
+                <SortHeader
+                  field="status"
+                  label="Status"
+                  current={sortField}
+                  dir={sortDir}
+                  onSort={handleSort}
+                />
               </TableHead>
               {isSuperuser && (
                 <TableHead>
-                  <SortHeader field="ip" label="IP" current={sortField} dir={sortDir} onSort={handleSort} />
+                  <SortHeader
+                    field="ip"
+                    label="IP"
+                    current={sortField}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
                 </TableHead>
               )}
               {isSuperuser && (
                 <TableHead>
-                  <SortHeader field="user_email" label="User" current={sortField} dir={sortDir} onSort={handleSort} />
+                  <SortHeader
+                    field="user_email"
+                    label="User"
+                    current={sortField}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
                 </TableHead>
               )}
             </TableRow>
@@ -242,7 +316,10 @@ function AuditPage() {
           <TableBody>
             {logs.length === 0 && (
               <TableRow>
-                <TableCell colSpan={isSuperuser ? 7 : 5} className="text-center text-muted-foreground py-8">
+                <TableCell
+                  colSpan={isSuperuser ? 7 : 5}
+                  className="text-center text-muted-foreground py-8"
+                >
                   {loading ? 'Loading…' : 'No records found.'}
                 </TableCell>
               </TableRow>
@@ -266,23 +343,30 @@ function AuditPage() {
                     }}
                   >
                     <TableCell className="pr-0">
-                      {hasDetail && (
-                        expandedId === log.id
-                          ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                          : <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      )}
+                      {hasDetail &&
+                        (expandedId === log.id ? (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        ))}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                       {formatDate(log.created)}
                     </TableCell>
                     <TableCell className="font-mono text-sm">{log.action}</TableCell>
-                    <TableCell className="max-w-xs truncate">{log.resource_name || log.resource_id || '—'}</TableCell>
+                    <TableCell className="max-w-xs truncate">
+                      {log.resource_name || log.resource_id || '—'}
+                    </TableCell>
                     <TableCell>{statusBadge(log.status)}</TableCell>
                     {isSuperuser && (
-                      <TableCell className="font-mono text-xs text-muted-foreground">{log.ip || '—'}</TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {log.ip || '—'}
+                      </TableCell>
                     )}
                     {isSuperuser && (
-                      <TableCell className="text-sm text-muted-foreground">{log.user_email || log.user_id}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {log.user_email || log.user_id}
+                      </TableCell>
                     )}
                   </TableRow>
                   {expandedId === log.id && hasDetail && (
@@ -310,12 +394,24 @@ function AuditPage() {
 
       {/* Pagination */}
       <div className="flex items-center justify-between mt-4">
-        <span className="text-sm text-muted-foreground">Page {page} of {totalPages}</span>
+        <span className="text-sm text-muted-foreground">
+          Page {page} of {totalPages}
+        </span>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page <= 1}
+            onClick={() => setPage(p => p - 1)}
+          >
             Previous
           </Button>
-          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page >= totalPages}
+            onClick={() => setPage(p => p + 1)}
+          >
             Next
           </Button>
         </div>

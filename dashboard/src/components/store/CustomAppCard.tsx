@@ -11,11 +11,7 @@ interface CustomAppCardProps {
   onOpenDetail: (app: CustomApp) => void
 }
 
-export function CustomAppCard({
-  app,
-  currentUserId,
-  onOpenDetail,
-}: CustomAppCardProps) {
+export function CustomAppCard({ app, currentUserId, onOpenDetail }: CustomAppCardProps) {
   const { t } = useTranslation('store')
 
   return (
@@ -26,7 +22,12 @@ export function CustomAppCard({
       aria-label={app.trademark}
     >
       <div className="flex items-start gap-3">
-        <AppIcon appKey={app.key} trademark={app.trademark} logoUrl={app.logo_url ?? undefined} size="md" />
+        <AppIcon
+          appKey={app.key}
+          trademark={app.trademark}
+          logoUrl={app.logo_url ?? undefined}
+          size="md"
+        />
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-sm leading-tight truncate group-hover:text-primary transition-colors">
             {app.trademark}
@@ -37,9 +38,7 @@ export function CustomAppCard({
         </div>
       </div>
 
-      <p className="text-xs text-muted-foreground line-clamp-2 min-h-[2.5rem]">
-        {app.overview}
-      </p>
+      <p className="text-xs text-muted-foreground line-clamp-2 min-h-[2.5rem]">{app.overview}</p>
 
       {/* Creator name for shared apps */}
       {app.visibility === 'shared' && (
@@ -49,13 +48,8 @@ export function CustomAppCard({
       )}
 
       {/* Action row */}
-      <div className="flex gap-2 mt-auto" onClick={(e) => e.stopPropagation()}>
-        <Button
-          size="sm"
-          variant="outline"
-          className="flex-1"
-          onClick={() => onOpenDetail(app)}
-        >
+      <div className="flex gap-2 mt-auto" onClick={e => e.stopPropagation()}>
+        <Button size="sm" variant="outline" className="flex-1" onClick={() => onOpenDetail(app)}>
           {t('card.view')}
         </Button>
       </div>

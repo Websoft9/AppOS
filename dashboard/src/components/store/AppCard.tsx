@@ -16,10 +16,8 @@ interface AppCardProps {
 export function AppCard({ product, primaryCategories, onSelectApp, userApps = [] }: AppCardProps) {
   const { t } = useTranslation('store')
 
-  const primaryCat = primaryCategories.find(
-    (c) => c.key === product.primaryCategoryKey,
-  )
-  const isFavorite = userApps.find((a) => a.app_key === product.key)?.is_favorite ?? false
+  const primaryCat = primaryCategories.find(c => c.key === product.primaryCategoryKey)
+  const isFavorite = userApps.find(a => a.app_key === product.key)?.is_favorite ?? false
 
   return (
     <div
@@ -36,7 +34,12 @@ export function AppCard({ product, primaryCategories, onSelectApp, userApps = []
       )}
 
       <div className="flex items-start gap-3">
-        <AppIcon appKey={product.key} trademark={product.trademark} logoUrl={product.logo?.imageurl} size="md" />
+        <AppIcon
+          appKey={product.key}
+          trademark={product.trademark}
+          logoUrl={product.logo?.imageurl}
+          size="md"
+        />
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-sm leading-tight truncate group-hover:text-primary transition-colors">
             {product.trademark}
@@ -57,7 +60,7 @@ export function AppCard({ product, primaryCategories, onSelectApp, userApps = []
         size="sm"
         variant="outline"
         className="w-full mt-auto"
-        onClick={(e) => {
+        onClick={e => {
           e.stopPropagation()
           onSelectApp(product)
         }}

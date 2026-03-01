@@ -1,4 +1,4 @@
-.PHONY: help install tidy build run test lint fmt \
+.PHONY: help install tidy build run test lint fmt check sec scan sbom \
 	image start stop restart logs stats delete rm kill-port redo
 
 # ============================================================
@@ -31,8 +31,12 @@ help:
 	@echo ""
 	@printf "\033[36mTesting & Quality:\033[0m\n"
 	@echo "  make test                 Run all tests (Go + JS)"
-	@echo "  make lint                 Run linters (golangci-lint, eslint)"
+	@echo "  make lint                 Run linters (golangci-lint + gosec, eslint)"
 	@echo "  make fmt                  Format code (gofmt, prettier)"
+	@echo "  make check                Format + lint in one step (local dev)"
+	@echo "  make sec                  Security scan (govulncheck, npm audit, gitleaks)"
+	@echo "  make scan                 Container image scan (trivy, HIGH/CRITICAL)"
+	@echo "  make sbom                 Generate SBOM → sbom.spdx.json (syft)"
 	@echo ""
 	@printf "\033[36mBuild Image:\033[0m\n"
 	@echo "  make image build          Build production image (multi-stage Dockerfile)"
@@ -97,6 +101,33 @@ install:
 		cd dashboard && npm install; \
 	fi
 	@echo "✓ Dependencies installed"
+	@echo ""
+	@echo "Installing security tools..."
+	@# govulncheck
+	@if ! command -v govulncheck >/dev/null 2>&1; then \
+		echo "→ govulncheck..."; \
+		go install golang.org/x/vuln/cmd/govulncheck@latest; \
+	else \
+		echo "✓ govulncheck already installed"; \
+	fi
+	@# gitleaks
+	@if ! command -v gitleaks >/dev/null 2>&1; then \
+		echo "→ gitleaks..."; \
+		GLVER=$$(curl -s https://api.github.com/repos/gitleaks/gitleaks/releases/latest | grep '"tag_name"' | cut -d '"' -f 4 | tr -d 'v'); \
+		ARCH=$$(uname -m | sed 's/x86_64/x64/;s/aarch64/arm64/'); \
+		curl -sSfL "https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks_$${GLVER}_linux_$${ARCH}.tar.gz" | tar xz -C /tmp gitleaks; \
+		sudo mv /tmp/gitleaks /usr/local/bin/gitleaks; \
+	else \
+		echo "✓ gitleaks already installed"; \
+	fi
+	@# syft (SBOM)
+	@if ! command -v syft >/dev/null 2>&1; then \
+		echo "→ syft..."; \
+		curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sudo sh -s -- -b /usr/local/bin; \
+	else \
+		echo "✓ syft already installed"; \
+	fi
+	@echo "✓ Security tools installed"
 
 tidy:
 	@echo "Tidying Go modules..."
@@ -159,7 +190,7 @@ lint:
 	@echo "Running linters..."
 	@if command -v golangci-lint >/dev/null 2>&1; then \
 		echo "→ golangci-lint..."; \
-		cd backend && golangci-lint run ./... || true; \
+		cd backend && golangci-lint run --config ../.golangci.yml ./... || true; \
 	else \
 		echo "→ go vet (golangci-lint not installed)..."; \
 		cd backend && go vet ./... || true; \
@@ -181,6 +212,58 @@ fmt:
 		cd dashboard && npx prettier --write "src/**/*.{ts,tsx,css,json}" 2>/dev/null || true; \
 	fi
 	@echo "✓ Code formatted"
+
+check: fmt lint
+
+# ============================================================
+# Security
+# ============================================================
+sec:
+	@echo "Running security checks..."
+	@echo "→ govulncheck (Go CVE scan)..."
+	@if command -v govulncheck >/dev/null 2>&1; then \
+		cd backend && govulncheck ./... || true; \
+	else \
+		echo "  ⚠ govulncheck not installed. Run 'make install' first."; \
+	fi
+	@echo ""
+	@echo "→ npm audit (JS CVE scan, high+critical only)..."
+	@if [ -f "dashboard/package.json" ]; then \
+		cd dashboard && npm audit --audit-level=high 2>/dev/null || true; \
+	fi
+	@echo ""
+	@echo "→ gitleaks (secret / credential leak detection)..."
+	@# Note: --no-git scans working directory files only.
+	@# CI uses full git history (fetch-depth: 0) for broader coverage.
+	@# To scan local git history too: gitleaks detect --source . --redact
+	@if command -v gitleaks >/dev/null 2>&1; then \
+		gitleaks detect --source . --no-git --redact 2>/dev/null || true; \
+	else \
+		echo "  ⚠ gitleaks not installed. Run 'make install' first."; \
+	fi
+	@echo "✓ Security checks completed"
+
+scan:
+	@echo "Scanning container image for vulnerabilities (HIGH/CRITICAL)..."
+	@if ! docker image inspect websoft9/appos:latest >/dev/null 2>&1; then \
+		echo "✗ Image websoft9/appos:latest not found. Run 'make image build' first."; exit 1; \
+	fi
+	docker run --rm \
+		-v /var/run/docker.sock:/var/run/docker.sock \
+		aquasec/trivy:latest image \
+		--severity HIGH,CRITICAL \
+		--exit-code 0 \
+		websoft9/appos:latest
+	@echo "✓ Image scan completed"
+
+sbom:
+	@echo "Generating Software Bill of Materials (SBOM)..."
+	@if ! command -v syft >/dev/null 2>&1; then \
+		echo "✗ syft not installed. Run 'make install' first."; exit 1; \
+	fi
+	syft dir:backend dir:dashboard/src -o spdx-json > sbom.spdx.json
+	@echo "✓ SBOM generated → sbom.spdx.json"
+	@wc -l sbom.spdx.json | awk '{print "  Lines: " $$1}'
 
 # ============================================================
 # Build Image

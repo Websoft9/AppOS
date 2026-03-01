@@ -11,10 +11,10 @@
 
 ## Stories
 - [x] Story 1.1: Container Build & Deployment Configuration (Merged: Docker Compose + Dockerfile)
-- [ ] Story 1.3: GitHub Actions CI/CD Pipeline
+- [x] Story 1.3: GitHub Actions CI/CD Pipeline
 - [x] Story 1.4: Makefile Command Integration
 - [ ] Story 1.5: Version Management Standardization
-- [ ] Story 1.6: Image Security Scanning
+- [x] Story 1.6: Image Security Scanning
 
 ## Success Metrics
 - Development environment setup < 10 minutes

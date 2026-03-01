@@ -24,11 +24,13 @@ function LoginPage() {
 
   // Check if setup is needed → redirect to /setup
   useEffect(() => {
-    pb.send('/api/ext/setup/status', {}).then((res) => {
-      if (res.needsSetup) {
-        navigate({ to: '/setup' })
-      }
-    }).catch(() => {})
+    pb.send('/api/ext/setup/status', {})
+      .then(res => {
+        if (res.needsSetup) {
+          navigate({ to: '/setup' })
+        }
+      })
+      .catch(() => {})
   }, [navigate])
 
   const handleSubmit = async (e: FormEvent) => {
@@ -54,7 +56,7 @@ function LoginPage() {
       </div>
       <div className="w-full max-w-md p-8 bg-card rounded-lg shadow-md border border-border">
         <h2 className="text-2xl font-bold text-center mb-6 text-card-foreground">Login</h2>
-        
+
         {error && (
           <div className="mb-4 p-3 bg-destructive/10 border border-destructive/50 text-destructive rounded">
             {error}
@@ -70,7 +72,7 @@ function LoginPage() {
               type="email"
               id="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={e => setEmail(e.target.value)}
               className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
               required
               disabled={loading}
@@ -84,17 +86,13 @@ function LoginPage() {
               type="password"
               id="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={e => setPassword(e.target.value)}
               className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
               required
               disabled={loading}
             />
           </div>
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={loading}
-          >
+          <Button type="submit" className="w-full" disabled={loading}>
             {loading ? 'Signing in...' : 'Sign In'}
           </Button>
         </form>

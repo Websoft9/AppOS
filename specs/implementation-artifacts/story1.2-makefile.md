@@ -39,6 +39,7 @@ make run 9092             # Copy artifacts + restart on port 9092
 make test                 # Run all tests (Go + JS)
 make lint                 # Run linters (golangci-lint, eslint)
 make fmt                  # Format code (gofmt, prettier)
+make check                # fmt + lint in one step (local dev)
 ```
 
 ### Build Image
@@ -160,6 +161,7 @@ make start
 make test             # Run all tests
 make lint             # Check code quality
 make fmt              # Auto-format code
+make check            # fmt + lint (local dev shortcut)
 ```
 
 ### Container Management

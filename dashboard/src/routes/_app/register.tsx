@@ -21,44 +21,57 @@ function RegisterPage() {
     let cancelled = false
     if (countdown <= 0) {
       const { email: e, password: p } = credentialsRef.current
-      pb.collection('users').authWithPassword(e, p)
-        .then(() => { if (!cancelled) navigate({ to: '/dashboard' }) })
-        .catch(() => { if (!cancelled) navigate({ to: '/login' }) })
-      return () => { cancelled = true }
+      pb.collection('users')
+        .authWithPassword(e, p)
+        .then(() => {
+          if (!cancelled) navigate({ to: '/dashboard' })
+        })
+        .catch(() => {
+          if (!cancelled) navigate({ to: '/login' })
+        })
+      return () => {
+        cancelled = true
+      }
     }
-    const timer = setTimeout(() => setCountdown((c) => c - 1), 1000)
-    return () => { cancelled = true; clearTimeout(timer) }
+    const timer = setTimeout(() => setCountdown(c => c - 1), 1000)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
   }, [success, countdown, navigate])
 
-  const handleSubmit = useCallback(async (e: FormEvent) => {
-    e.preventDefault()
-    setError('')
+  const handleSubmit = useCallback(
+    async (e: FormEvent) => {
+      e.preventDefault()
+      setError('')
 
-    if (password !== passwordConfirm) {
-      setError('Passwords do not match')
-      return
-    }
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters')
-      return
-    }
+      if (password !== passwordConfirm) {
+        setError('Passwords do not match')
+        return
+      }
+      if (password.length < 8) {
+        setError('Password must be at least 8 characters')
+        return
+      }
 
-    setLoading(true)
-    try {
-      await pb.collection('users').create({
-        email,
-        password,
-        passwordConfirm,
-      })
-      credentialsRef.current = { email, password }
-      setSuccess(true)
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Registration failed'
-      setError(message)
-    } finally {
-      setLoading(false)
-    }
-  }, [email, password, passwordConfirm])
+      setLoading(true)
+      try {
+        await pb.collection('users').create({
+          email,
+          password,
+          passwordConfirm,
+        })
+        credentialsRef.current = { email, password }
+        setSuccess(true)
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Registration failed'
+        setError(message)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [email, password, passwordConfirm]
+  )
 
   if (success) {
     return (
@@ -67,7 +80,9 @@ function RegisterPage() {
           <div className="mb-4 text-4xl">✅</div>
           <h2 className="text-2xl font-bold mb-2 text-card-foreground">Registration Successful!</h2>
           <p className="text-muted-foreground mb-2">Your account has been created.</p>
-          <p className="font-mono text-sm bg-muted p-2 rounded mb-4 text-foreground">{credentialsRef.current.email}</p>
+          <p className="font-mono text-sm bg-muted p-2 rounded mb-4 text-foreground">
+            {credentialsRef.current.email}
+          </p>
           <p className="text-muted-foreground">
             Auto-login in <span className="font-bold text-foreground">{countdown}</span>s...
           </p>
@@ -96,7 +111,7 @@ function RegisterPage() {
               type="email"
               id="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={e => setEmail(e.target.value)}
               className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
               required
               disabled={loading}
@@ -110,7 +125,7 @@ function RegisterPage() {
               type="password"
               id="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={e => setPassword(e.target.value)}
               className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
               required
               disabled={loading}
@@ -118,25 +133,24 @@ function RegisterPage() {
             />
           </div>
           <div>
-            <label htmlFor="passwordConfirm" className="block text-sm font-medium mb-1 text-foreground">
+            <label
+              htmlFor="passwordConfirm"
+              className="block text-sm font-medium mb-1 text-foreground"
+            >
               Confirm Password
             </label>
             <input
               type="password"
               id="passwordConfirm"
               value={passwordConfirm}
-              onChange={(e) => setPasswordConfirm(e.target.value)}
+              onChange={e => setPasswordConfirm(e.target.value)}
               className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
               required
               disabled={loading}
               minLength={8}
             />
           </div>
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={loading}
-          >
+          <Button type="submit" className="w-full" disabled={loading}>
             {loading ? 'Creating account...' : 'Create Account'}
           </Button>
         </form>

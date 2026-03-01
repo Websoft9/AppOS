@@ -32,7 +32,7 @@ export function useToggleFavorite(onError?: (msg: string) => void) {
 
   return useMutation({
     mutationFn: async ({ appKey, userApps }: { appKey: string; userApps: UserApp[] }) => {
-      const existing = userApps.find((a) => a.app_key === appKey)
+      const existing = userApps.find(a => a.app_key === appKey)
       if (existing) {
         return pb.collection('store_user_apps').update<UserApp>(existing.id, {
           is_favorite: !existing.is_favorite,
@@ -49,13 +49,11 @@ export function useToggleFavorite(onError?: (msg: string) => void) {
     onMutate: async ({ appKey, userApps }) => {
       await queryClient.cancelQueries({ queryKey: USER_APPS_KEY })
       const prev = queryClient.getQueryData<UserApp[]>(USER_APPS_KEY)
-      const existing = userApps.find((a) => a.app_key === appKey)
+      const existing = userApps.find(a => a.app_key === appKey)
 
       queryClient.setQueryData<UserApp[]>(USER_APPS_KEY, (old = []) => {
         if (existing) {
-          return old.map((a) =>
-            a.app_key === appKey ? { ...a, is_favorite: !a.is_favorite } : a,
-          )
+          return old.map(a => (a.app_key === appKey ? { ...a, is_favorite: !a.is_favorite } : a))
         }
         return [
           ...old,
@@ -95,7 +93,7 @@ export function useSaveNote(onError?: (msg: string) => void) {
       note: string | null
       userApps: UserApp[]
     }) => {
-      const existing = userApps.find((a) => a.app_key === appKey)
+      const existing = userApps.find(a => a.app_key === appKey)
       if (existing) {
         return pb.collection('store_user_apps').update<UserApp>(existing.id, { note })
       }

@@ -1,6 +1,6 @@
-import { Fragment, useState, useEffect, useMemo } from "react"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { pb } from "@/lib/pb"
+import { Fragment, useState, useEffect, useMemo } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { pb } from '@/lib/pb'
 import {
   Table,
   TableBody,
@@ -8,8 +8,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
+} from '@/components/ui/table'
+import { Button } from '@/components/ui/button'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,16 +19,27 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+} from '@/components/ui/alert-dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Trash2, MoreVertical, ArrowUpDown, Loader2, ChevronRight, ChevronDown, FolderOpen, ArrowUp, ArrowDown, Eraser } from "lucide-react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { getApiErrorMessage } from "@/lib/api-error"
+} from '@/components/ui/dropdown-menu'
+import {
+  Trash2,
+  MoreVertical,
+  ArrowUpDown,
+  Loader2,
+  ChevronRight,
+  ChevronDown,
+  FolderOpen,
+  ArrowUp,
+  ArrowDown,
+  Eraser,
+} from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { getApiErrorMessage } from '@/lib/api-error'
 
 const VOLUMES_SORT_KEY = 'docker.volumes.sort'
 const DOCKER_PAGE_SIZE_KEY = 'docker.list.page_size'
@@ -58,8 +69,8 @@ function parseContainers(output: string): Container[] {
   if (!output.trim()) return []
   return output
     .trim()
-    .split("\n")
-    .map((line) => {
+    .split('\n')
+    .map(line => {
       try {
         return JSON.parse(line)
       } catch {
@@ -83,8 +94,8 @@ function parseVolumes(output: string): Volume[] {
   if (!output.trim()) return []
   return output
     .trim()
-    .split("\n")
-    .map((line) => {
+    .split('\n')
+    .map(line => {
       try {
         return JSON.parse(line)
       } catch {
@@ -107,7 +118,8 @@ function normalizeContainerName(name: string): string {
 function parentMountPath(path: string): string {
   const normalized = (path || '/').replace(/\/+/g, '/')
   if (normalized === '/' || normalized === '') return '/'
-  const trimmed = normalized.endsWith('/') && normalized.length > 1 ? normalized.slice(0, -1) : normalized
+  const trimmed =
+    normalized.endsWith('/') && normalized.length > 1 ? normalized.slice(0, -1) : normalized
   const index = trimmed.lastIndexOf('/')
   if (index <= 0) return '/'
   return trimmed.slice(0, index)
@@ -125,7 +137,7 @@ export function VolumesTab({
   onOpenVolumePath?: (targetPath: string, lockedRootPath: string) => void
 }) {
   const queryClient = useQueryClient()
-  const [filter, setFilter] = useState("")
+  const [filter, setFilter] = useState('')
   const [sortKey, setSortKey] = useState<'name' | 'driver' | 'mountpoint' | 'containers'>(() => {
     try {
       const raw = localStorage.getItem(VOLUMES_SORT_KEY)
@@ -170,27 +182,34 @@ export function VolumesTab({
   } = useQuery<{ volumes: Volume[]; volumeContainers: Record<string, string[]> }>({
     queryKey: ['docker', 'volumes', serverId, refreshSignal],
     queryFn: async () => {
-      const res = await pb.send(`/api/ext/docker/volumes?server_id=${serverId}`, { method: "GET" })
+      const res = await pb.send(`/api/ext/docker/volumes?server_id=${serverId}`, { method: 'GET' })
       const nextVolumes = parseVolumes(res.output)
 
-      const containersRes = await pb.send(`/api/ext/docker/containers?server_id=${serverId}`, { method: "GET" })
+      const containersRes = await pb.send(`/api/ext/docker/containers?server_id=${serverId}`, {
+        method: 'GET',
+      })
       const containers = parseContainers(containersRes.output)
 
       const inspectEntries = await Promise.all(
-        containers.map(async (container) => {
+        containers.map(async container => {
           try {
-            const inspectRes = await pb.send(`/api/ext/docker/containers/${container.ID}?server_id=${serverId}`, { method: "GET" })
+            const inspectRes = await pb.send(
+              `/api/ext/docker/containers/${container.ID}?server_id=${serverId}`,
+              { method: 'GET' }
+            )
             return [container.Names, parseInspect(inspectRes.output)] as const
           } catch {
             return [container.Names, null] as const
           }
-        }),
+        })
       )
 
       const mapping: Record<string, string[]> = {}
       for (const volume of nextVolumes) mapping[volume.Name] = []
       for (const [containerName, inspect] of inspectEntries) {
-        const mounts = inspect?.Mounts as Array<{ Name?: string; Source?: string; Type?: string }> | undefined
+        const mounts = inspect?.Mounts as
+          | Array<{ Name?: string; Source?: string; Type?: string }>
+          | undefined
         if (!Array.isArray(mounts)) continue
         for (const mount of mounts) {
           const mountedVolume = mount.Name
@@ -215,21 +234,26 @@ export function VolumesTab({
 
   const loadVolumeInspect = async (name: string) => {
     if (!name || inspectMap[name] || inspectLoadingMap[name]) return
-    setInspectLoadingMap((state) => ({ ...state, [name]: true }))
+    setInspectLoadingMap(state => ({ ...state, [name]: true }))
     try {
-      const res = await pb.send(`/api/ext/docker/volumes/${name}/inspect?server_id=${serverId}`, { method: "GET" })
-      setInspectMap((state) => ({ ...state, [name]: String(res.output || '') }))
+      const res = await pb.send(`/api/ext/docker/volumes/${name}/inspect?server_id=${serverId}`, {
+        method: 'GET',
+      })
+      setInspectMap(state => ({ ...state, [name]: String(res.output || '') }))
     } catch (err) {
-      setInspectMap((state) => ({ ...state, [name]: getApiErrorMessage(err, 'Failed to inspect volume') }))
+      setInspectMap(state => ({
+        ...state,
+        [name]: getApiErrorMessage(err, 'Failed to inspect volume'),
+      }))
     } finally {
-      setInspectLoadingMap((state) => ({ ...state, [name]: false }))
+      setInspectLoadingMap(state => ({ ...state, [name]: false }))
     }
   }
 
   const removeVolume = async (name: string) => {
     try {
       setActionError(null)
-      await pb.send(`/api/ext/docker/volumes/${name}?server_id=${serverId}`, { method: "DELETE" })
+      await pb.send(`/api/ext/docker/volumes/${name}?server_id=${serverId}`, { method: 'DELETE' })
       await queryClient.invalidateQueries({ queryKey: ['docker', 'volumes', serverId] })
     } catch (err) {
       setActionError(getApiErrorMessage(err, 'Failed to remove volume'))
@@ -239,7 +263,7 @@ export function VolumesTab({
   const pruneVolumes = async () => {
     try {
       setActionError(null)
-      await pb.send(`/api/ext/docker/volumes/prune?server_id=${serverId}`, { method: "POST" })
+      await pb.send(`/api/ext/docker/volumes/prune?server_id=${serverId}`, { method: 'POST' })
       await queryClient.invalidateQueries({ queryKey: ['docker', 'volumes', serverId] })
     } catch (err) {
       setActionError(getApiErrorMessage(err, 'Failed to prune volumes'))
@@ -248,27 +272,33 @@ export function VolumesTab({
 
   const loadError = error ? getApiErrorMessage(error, 'Failed to load volumes') : null
 
-  const filtered = volumes.filter((v) =>
-    v.Name?.toLowerCase().includes(filter.toLowerCase()),
-  )
+  const filtered = volumes.filter(v => v.Name?.toLowerCase().includes(filter.toLowerCase()))
 
   const sorted = useMemo(() => {
     const items = [...filtered]
     items.sort((left, right) => {
       const leftValue = (() => {
         switch (sortKey) {
-          case 'driver': return left.Driver || ''
-          case 'mountpoint': return left.Mountpoint || ''
-          case 'containers': return String(volumeContainers[left.Name]?.length || 0)
-          default: return left.Name || ''
+          case 'driver':
+            return left.Driver || ''
+          case 'mountpoint':
+            return left.Mountpoint || ''
+          case 'containers':
+            return String(volumeContainers[left.Name]?.length || 0)
+          default:
+            return left.Name || ''
         }
       })().toLowerCase()
       const rightValue = (() => {
         switch (sortKey) {
-          case 'driver': return right.Driver || ''
-          case 'mountpoint': return right.Mountpoint || ''
-          case 'containers': return String(volumeContainers[right.Name]?.length || 0)
-          default: return right.Name || ''
+          case 'driver':
+            return right.Driver || ''
+          case 'mountpoint':
+            return right.Mountpoint || ''
+          case 'containers':
+            return String(volumeContainers[right.Name]?.length || 0)
+          default:
+            return right.Name || ''
         }
       })().toLowerCase()
       if (leftValue < rightValue) return sortDir === 'asc' ? -1 : 1
@@ -294,15 +324,26 @@ export function VolumesTab({
 
   const toggleSort = (key: 'name' | 'driver' | 'mountpoint' | 'containers') => {
     if (sortKey === key) {
-      setSortDir((dir) => (dir === 'asc' ? 'desc' : 'asc'))
+      setSortDir(dir => (dir === 'asc' ? 'desc' : 'asc'))
       return
     }
     setSortKey(key)
     setSortDir('asc')
   }
 
-  const SortHead = ({ label, keyName }: { label: string; keyName: 'name' | 'driver' | 'mountpoint' | 'containers' }) => (
-    <Button variant="ghost" size="sm" className="h-7 -ml-2 px-2 text-xs" onClick={() => toggleSort(keyName)}>
+  const SortHead = ({
+    label,
+    keyName,
+  }: {
+    label: string
+    keyName: 'name' | 'driver' | 'mountpoint' | 'containers'
+  }) => (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-7 -ml-2 px-2 text-xs"
+      onClick={() => toggleSort(keyName)}
+    >
       {label}
       {sortKey !== keyName ? (
         <ArrowUpDown className="h-3 w-3 ml-1" />
@@ -327,137 +368,156 @@ export function VolumesTab({
           placeholder="Filter volumes..."
           className="border rounded-md px-3 py-1.5 text-sm bg-background"
           value={filter}
-          onChange={(e) => setFilter(e.target.value)}
+          onChange={e => setFilter(e.target.value)}
         />
         <div className="flex-1" />
         <Button variant="outline" size="sm" onClick={() => setPruneConfirmOpen(true)}>
           <Eraser className="h-4 w-4 mr-1" /> Prune unused
         </Button>
       </div>
-      <div data-docker-scroll-root="true" className="h-0 flex-1 min-h-0 overflow-auto rounded-md border">
-      <Table>
-        <TableHeader className="sticky top-0 bg-background z-10">
-          <TableRow>
-            <TableHead><SortHead label="Name" keyName="name" /></TableHead>
-            <TableHead><SortHead label="Driver" keyName="driver" /></TableHead>
-            <TableHead><SortHead label="Mountpoint" keyName="mountpoint" /></TableHead>
-            <TableHead><SortHead label="Containers" keyName="containers" /></TableHead>
-            <TableHead className="w-[60px]" />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {loading && (
+      <div
+        data-docker-scroll-root="true"
+        className="h-0 flex-1 min-h-0 overflow-auto rounded-md border"
+      >
+        <Table>
+          <TableHeader className="sticky top-0 bg-background z-10">
             <TableRow>
-              <TableCell colSpan={5} className="text-center text-muted-foreground">
-                <span className="inline-flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading...
-                </span>
-              </TableCell>
+              <TableHead>
+                <SortHead label="Name" keyName="name" />
+              </TableHead>
+              <TableHead>
+                <SortHead label="Driver" keyName="driver" />
+              </TableHead>
+              <TableHead>
+                <SortHead label="Mountpoint" keyName="mountpoint" />
+              </TableHead>
+              <TableHead>
+                <SortHead label="Containers" keyName="containers" />
+              </TableHead>
+              <TableHead className="w-[60px]" />
             </TableRow>
-          )}
-          {paged.map((v) => {
-            const isExpanded = expandedVolume === v.Name
-            const linkedContainers = volumeContainers[v.Name] || []
-            return (
-              <Fragment key={v.Name}>
-                <TableRow>
-                  <TableCell className="font-mono text-xs">
-                    <Button
-                      variant="link"
-                      className="h-auto p-0 text-left font-mono text-xs gap-1"
-                      onClick={() => {
-                        setExpandedVolume((state) => {
-                          const next = state === v.Name ? null : v.Name
-                          if (next === v.Name) {
-                            void loadVolumeInspect(v.Name)
-                          }
-                          return next
-                        })
-                      }}
-                    >
-                      {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                      <span title={v.Name}>{shortVolumeName(v.Name)}</span>
-                    </Button>
-                  </TableCell>
-                  <TableCell className="text-xs">{v.Driver}</TableCell>
-                  <TableCell className="font-mono text-xs truncate max-w-[300px]">
-                    {v.Mountpoint}
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    {linkedContainers.length > 0 ? (
+          </TableHeader>
+          <TableBody>
+            {loading && (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading...
+                  </span>
+                </TableCell>
+              </TableRow>
+            )}
+            {paged.map(v => {
+              const isExpanded = expandedVolume === v.Name
+              const linkedContainers = volumeContainers[v.Name] || []
+              return (
+                <Fragment key={v.Name}>
+                  <TableRow>
+                    <TableCell className="font-mono text-xs">
                       <Button
                         variant="link"
-                        className="h-auto p-0 text-xs text-left"
-                        onClick={() => onOpenContainerFilter?.(v.Name, linkedContainers)}
-                        title={linkedContainers.join(', ')}
+                        className="h-auto p-0 text-left font-mono text-xs gap-1"
+                        onClick={() => {
+                          setExpandedVolume(state => {
+                            const next = state === v.Name ? null : v.Name
+                            if (next === v.Name) {
+                              void loadVolumeInspect(v.Name)
+                            }
+                            return next
+                          })
+                        }}
                       >
-                        {linkedContainers.join(', ')}
+                        {isExpanded ? (
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        )}
+                        <span title={v.Name}>{shortVolumeName(v.Name)}</span>
                       </Button>
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7">
-                          <MoreVertical className="h-4 w-4" />
+                    </TableCell>
+                    <TableCell className="text-xs">{v.Driver}</TableCell>
+                    <TableCell className="font-mono text-xs truncate max-w-[300px]">
+                      {v.Mountpoint}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {linkedContainers.length > 0 ? (
+                        <Button
+                          variant="link"
+                          className="h-auto p-0 text-xs text-left"
+                          onClick={() => onOpenContainerFilter?.(v.Name, linkedContainers)}
+                          title={linkedContainers.join(', ')}
+                        >
+                          {linkedContainers.join(', ')}
                         </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => onOpenVolumePath?.(v.Mountpoint, parentMountPath(v.Mountpoint))}
-                        >
-                          <FolderOpen className="h-4 w-4 mr-2" /> Open in Files
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => setPendingRemoveVolume(v.Name)}
-                          className="text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" /> Remove
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-                {isExpanded && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="bg-muted/20 px-4 py-3">
-                      {inspectLoadingMap[v.Name] ? (
-                        <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                          <Loader2 className="h-4 w-4 animate-spin" /> Loading inspect...
-                        </div>
                       ) : (
-                        <pre className="text-xs font-mono bg-muted/40 rounded-md border p-3 overflow-auto max-h-[300px] whitespace-pre-wrap">
-                          {inspectMap[v.Name] || '(empty output)'}
-                        </pre>
+                        <span className="text-muted-foreground">-</span>
                       )}
                     </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-7 w-7">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() =>
+                              onOpenVolumePath?.(v.Mountpoint, parentMountPath(v.Mountpoint))
+                            }
+                          >
+                            <FolderOpen className="h-4 w-4 mr-2" /> Open in Files
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => setPendingRemoveVolume(v.Name)}
+                            className="text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" /> Remove
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
                   </TableRow>
-                )}
-              </Fragment>
-            )
-          })}
-          {!loading && sorted.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={5} className="text-center text-muted-foreground">
-                No volumes found
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
+                  {isExpanded && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="bg-muted/20 px-4 py-3">
+                        {inspectLoadingMap[v.Name] ? (
+                          <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" /> Loading inspect...
+                          </div>
+                        ) : (
+                          <pre className="text-xs font-mono bg-muted/40 rounded-md border p-3 overflow-auto max-h-[300px] whitespace-pre-wrap">
+                            {inspectMap[v.Name] || '(empty output)'}
+                          </pre>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </Fragment>
+              )
+            })}
+            {!loading && sorted.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
+                  No volumes found
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
       </div>
       <div className="flex items-center justify-between gap-2 shrink-0">
         <div className="text-xs text-muted-foreground">
-          {sorted.length === 0 ? '0 items' : `${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, sorted.length)} of ${sorted.length}`}
+          {sorted.length === 0
+            ? '0 items'
+            : `${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, sorted.length)} of ${sorted.length}`}
         </div>
         <div className="flex items-center gap-2">
           <select
             className="h-8 rounded-md border bg-background px-2 text-xs"
             value={pageSize}
-            onChange={(e) => {
+            onChange={e => {
               const next = Number(e.target.value) as 25 | 50 | 100
               setPageSize(next)
               setPage(1)
@@ -467,17 +527,34 @@ export function VolumesTab({
             <option value={50}>50 / page</option>
             <option value={100}>100 / page</option>
           </select>
-          <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page <= 1}
+          >
             Prev
           </Button>
-          <span className="text-xs text-muted-foreground w-16 text-center">{page} / {totalPages}</span>
-          <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
+          <span className="text-xs text-muted-foreground w-16 text-center">
+            {page} / {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+          >
             Next
           </Button>
         </div>
       </div>
 
-      <AlertDialog open={!!pendingRemoveVolume} onOpenChange={(open) => { if (!open) setPendingRemoveVolume(null) }}>
+      <AlertDialog
+        open={!!pendingRemoveVolume}
+        onOpenChange={open => {
+          if (!open) setPendingRemoveVolume(null)
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remove volume?</AlertDialogTitle>
@@ -508,7 +585,8 @@ export function VolumesTab({
           <AlertDialogHeader>
             <AlertDialogTitle>Prune unused volumes?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove all local volumes not used by at least one container. This action cannot be undone.
+              This will remove all local volumes not used by at least one container. This action
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

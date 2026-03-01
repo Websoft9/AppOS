@@ -28,7 +28,7 @@ export function AppIcon({ appKey, trademark, logoUrl, size = 'md', className }: 
         className={cn(
           'rounded-lg flex items-center justify-center text-white font-bold select-none flex-shrink-0',
           sizeClasses[size],
-          className,
+          className
         )}
         style={{ backgroundColor: bgColor }}
         aria-label={trademark}

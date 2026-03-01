@@ -15,8 +15,8 @@ type mockSession struct {
 
 func (m *mockSession) Write(p []byte) (int, error) { return len(p), nil }
 func (m *mockSession) Read(p []byte) (int, error)  { return 0, nil }
-func (m *mockSession) Resize(_, _ uint16) error     { return nil }
-func (m *mockSession) Close() error                  { m.closed = true; return nil }
+func (m *mockSession) Resize(_, _ uint16) error    { return nil }
+func (m *mockSession) Close() error                { m.closed = true; return nil }
 
 func TestSessionRegistryTouchPreventsTimeout(t *testing.T) {
 	sess := &mockSession{}

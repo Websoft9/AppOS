@@ -212,7 +212,12 @@ function modeFromPermissionMatrix(matrix: PermissionMatrix, mode: string): strin
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, className }: FileManagerPanelProps) {
+export function FileManagerPanel({
+  serverId,
+  initialPath = '/',
+  lockedRootPath,
+  className,
+}: FileManagerPanelProps) {
   const scopedRootPath = normalizePath(lockedRootPath || '/')
   const scopedInitialPath = clampPathToRoot(initialPath, lockedRootPath)
   const [currentPath, setCurrentPath] = useState('/')
@@ -239,7 +244,9 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
   const [busy, setBusy] = useState(false)
   const [busyMessage, setBusyMessage] = useState('Working...')
   const [maxUploadFiles, setMaxUploadFiles] = useState(10)
-  const [editFile, setEditFile] = useState<{ path: string; name: string; isNew?: boolean } | null>(null)
+  const [editFile, setEditFile] = useState<{ path: string; name: string; isNew?: boolean } | null>(
+    null
+  )
 
   const [propertiesTarget, setPropertiesTarget] = useState<DirEntry | null>(null)
   const [propertiesPath, setPropertiesPath] = useState('')
@@ -281,26 +288,29 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
 
   // ─── Fetch directory listing ──────────────────────────────────────────────
 
-  const fetchEntries = useCallback(async (path: string) => {
-    const nextPath = clampPathToRoot(path, lockedRootPath)
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await sftpList(serverId, nextPath)
-      // Sort: dirs first, then alphabetically
-      const sorted = [...res.entries].sort((a, b) => {
-        if (a.type === 'dir' && b.type !== 'dir') return -1
-        if (a.type !== 'dir' && b.type === 'dir') return 1
-        return a.name.localeCompare(b.name)
-      })
-      setEntries(sorted)
-      setCurrentPath(clampPathToRoot(res.path || nextPath, lockedRootPath))
-    } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to list directory'))
-    } finally {
-      setLoading(false)
-    }
-  }, [lockedRootPath, serverId])
+  const fetchEntries = useCallback(
+    async (path: string) => {
+      const nextPath = clampPathToRoot(path, lockedRootPath)
+      setLoading(true)
+      setError(null)
+      try {
+        const res = await sftpList(serverId, nextPath)
+        // Sort: dirs first, then alphabetically
+        const sorted = [...res.entries].sort((a, b) => {
+          if (a.type === 'dir' && b.type !== 'dir') return -1
+          if (a.type !== 'dir' && b.type === 'dir') return 1
+          return a.name.localeCompare(b.name)
+        })
+        setEntries(sorted)
+        setCurrentPath(clampPathToRoot(res.path || nextPath, lockedRootPath))
+      } catch (err) {
+        setError(getApiErrorMessage(err, 'Failed to list directory'))
+      } finally {
+        setLoading(false)
+      }
+    },
+    [lockedRootPath, serverId]
+  )
 
   useEffect(() => {
     fetchEntries(scopedInitialPath)
@@ -308,7 +318,7 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
 
   useEffect(() => {
     sftpConstraints(serverId)
-      .then((res) => setMaxUploadFiles(Math.max(1, res.max_upload_files || 10)))
+      .then(res => setMaxUploadFiles(Math.max(1, res.max_upload_files || 10)))
       .catch(() => setMaxUploadFiles(10))
   }, [serverId])
 
@@ -319,9 +329,12 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
     }
   }, [propertiesMode])
 
-  const navigateTo = useCallback((path: string) => {
-    fetchEntries(path)
-  }, [fetchEntries])
+  const navigateTo = useCallback(
+    (path: string) => {
+      fetchEntries(path)
+    },
+    [fetchEntries]
+  )
 
   const refresh = useCallback(() => {
     fetchEntries(currentPath)
@@ -330,12 +343,10 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
   // ─── Filtered entries ─────────────────────────────────────────────────────
 
   const visibleEntries = (() => {
-    let filtered = showHidden
-      ? entries
-      : entries.filter((e) => !e.name.startsWith('.'))
+    let filtered = showHidden ? entries : entries.filter(e => !e.name.startsWith('.'))
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase()
-      filtered = filtered.filter((e) => e.name.toLowerCase().includes(q))
+      filtered = filtered.filter(e => e.name.toLowerCase().includes(q))
     }
     return filtered
   })()
@@ -355,7 +366,7 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
   }
 
   const handleToggleSearch = () => {
-    setShowSearch((v) => !v)
+    setShowSearch(v => !v)
     if (showSearch) {
       setSearchQuery('')
       setSearchResults([])
@@ -410,17 +421,17 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
     a.download = entry.name
     // Use fetch with auth token; check HTTP status before creating blob
     fetch(url, { headers: { Authorization: pb.authStore.token } })
-      .then((r) => {
+      .then(r => {
         if (!r.ok) throw new Error(`Download failed: ${r.status} ${r.statusText}`)
         return r.blob()
       })
-      .then((blob) => {
+      .then(blob => {
         const blobUrl = URL.createObjectURL(blob)
         a.href = blobUrl
         a.click()
         URL.revokeObjectURL(blobUrl)
       })
-      .catch((err) => {
+      .catch(err => {
         setError(err instanceof Error ? err.message : 'Download failed')
       })
   }
@@ -499,9 +510,9 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
   const handlePermissionToggle = (
     scope: keyof PermissionMatrix,
     flag: keyof PermissionFlags,
-    checked: boolean,
+    checked: boolean
   ) => {
-    setPropertiesPermissions((previous) => {
+    setPropertiesPermissions(previous => {
       const next: PermissionMatrix = {
         owner: { ...previous.owner },
         group: { ...previous.group },
@@ -551,12 +562,20 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
           const chunks = buf.split('\n\n')
           buf = chunks.pop() ?? ''
           for (const chunk of chunks) {
-            const line = chunk.split('\n').find((l) => l.startsWith('data: '))
+            const line = chunk.split('\n').find(l => l.startsWith('data: '))
             if (!line) continue
             try {
-              const data = JSON.parse(line.slice(6)) as { copied?: number; total?: number; message?: string }
+              const data = JSON.parse(line.slice(6)) as {
+                copied?: number
+                total?: number
+                message?: string
+              }
               if (data.message) throw new Error(data.message)
-              if (typeof data.copied === 'number' && typeof data.total === 'number' && data.total > 0) {
+              if (
+                typeof data.copied === 'number' &&
+                typeof data.total === 'number' &&
+                data.total > 0
+              ) {
                 const pct = Math.floor((data.copied / data.total) * 100)
                 setBusyMessage(`Copying... ${pct}%`)
               }
@@ -571,7 +590,8 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
       setCopyMoveEntry(null)
       refresh()
     } catch (err) {
-      const message = err instanceof Error ? err.message : (copyMoveMode === 'move' ? 'Move failed' : 'Copy failed')
+      const message =
+        err instanceof Error ? err.message : copyMoveMode === 'move' ? 'Move failed' : 'Copy failed'
       setError(message)
     } finally {
       setBusy(false)
@@ -621,7 +641,10 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
         headers: { Authorization: pb.authStore.token },
       })
       if (quotaRes.ok) {
-        const quota = await quotaRes.json() as { share_default_minutes?: number; share_max_minutes?: number }
+        const quota = (await quotaRes.json()) as {
+          share_default_minutes?: number
+          share_max_minutes?: number
+        }
         setShareMinutes(quota.share_default_minutes ?? 30)
         setShareMaxMinutes(quota.share_max_minutes ?? 60)
       } else {
@@ -653,7 +676,7 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
       form.append('content', blob, shareEntry.name)
       form.append('size', String(blob.size))
 
-      const created = await pb.collection('user_files').create(form) as { id: string }
+      const created = (await pb.collection('user_files').create(form)) as { id: string }
       setShareRecordId(created.id)
       const shareRes = await fetch(`/api/ext/space/share/${created.id}`, {
         method: 'POST',
@@ -664,7 +687,7 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
         body: JSON.stringify({ minutes: shareMinutes }),
       })
       if (!shareRes.ok) throw new Error(`Share failed: ${shareRes.status}`)
-      const data = await shareRes.json() as { share_url?: string }
+      const data = (await shareRes.json()) as { share_url?: string }
       if (!data.share_url) throw new Error('Share URL not returned')
       const absolute = `${window.location.origin}${data.share_url}`
       setShareUrl(absolute)
@@ -723,7 +746,7 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
       await sftpRename(
         serverId,
         joinPath(currentPath, renameTarget.name),
-        joinPath(currentPath, renameName.trim()),
+        joinPath(currentPath, renameName.trim())
       )
       setRenameTarget(null)
       setRenameName('')
@@ -768,7 +791,9 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
 
   // ─── Breadcrumb segments ──────────────────────────────────────────────────
 
-  const segments = breadcrumbSegments(currentPath).filter((segment) => isPathWithinRoot(segment.path, scopedRootPath))
+  const segments = breadcrumbSegments(currentPath).filter(segment =>
+    isPathWithinRoot(segment.path, scopedRootPath)
+  )
   const canGoUp = currentPath !== scopedRootPath
 
   return (
@@ -776,7 +801,12 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
       {/* Toolbar */}
       <div className="flex items-center gap-1 px-2 py-1.5 border-b bg-muted/30 shrink-0">
         {/* Breadcrumb */}
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigateTo(scopedRootPath)}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={() => navigateTo(scopedRootPath)}
+        >
           <Home className="h-4 w-4" />
         </Button>
         <Button
@@ -820,7 +850,11 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
           title={viewMode === 'list' ? 'Grid view' : 'List view'}
           onClick={handleToggleViewMode}
         >
-          {viewMode === 'list' ? <LayoutGrid className="h-4 w-4" /> : <LayoutList className="h-4 w-4" />}
+          {viewMode === 'list' ? (
+            <LayoutGrid className="h-4 w-4" />
+          ) : (
+            <LayoutList className="h-4 w-4" />
+          )}
         </Button>
         <Button
           variant="ghost"
@@ -836,7 +870,10 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
           size="icon"
           className="h-7 w-7"
           title="New folder"
-          onClick={() => { setMkdirMode(true); setMkdirName('') }}
+          onClick={() => {
+            setMkdirMode(true)
+            setMkdirName('')
+          }}
         >
           <FolderPlus className="h-4 w-4" />
         </Button>
@@ -845,7 +882,10 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
           size="icon"
           className="h-7 w-7"
           title="New file"
-          onClick={() => { setCreateFileMode(true); setCreateFileName('') }}
+          onClick={() => {
+            setCreateFileMode(true)
+            setCreateFileName('')
+          }}
         >
           <FilePlus className="h-4 w-4" />
         </Button>
@@ -874,7 +914,7 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
           multiple
           className="hidden"
           data-testid="upload-input"
-          onChange={(e) => handleUpload(e.target.files)}
+          onChange={e => handleUpload(e.target.files)}
         />
       </div>
 
@@ -885,13 +925,20 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
             <Search className="h-4 w-4 text-muted-foreground shrink-0" />
             <Input
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Escape') handleToggleSearch() }}
+              onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Escape') handleToggleSearch()
+              }}
               placeholder={searchRecursive ? 'Recursive file search...' : 'Filter files by name...'}
               className="h-7 text-sm flex-1"
               autoFocus
             />
-            <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={handleToggleSearch}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0"
+              onClick={handleToggleSearch}
+            >
               <X className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -899,17 +946,24 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
             <Checkbox
               id="recursive-search"
               checked={searchRecursive}
-              onCheckedChange={(v) => { setSearchRecursive(!!v); setSearchResults([]); setSearchError(null) }}
+              onCheckedChange={v => {
+                setSearchRecursive(!!v)
+                setSearchResults([])
+                setSearchError(null)
+              }}
               className="h-3.5 w-3.5"
             />
-            <label htmlFor="recursive-search" className="text-xs text-muted-foreground cursor-pointer select-none">
+            <label
+              htmlFor="recursive-search"
+              className="text-xs text-muted-foreground cursor-pointer select-none"
+            >
               Recursive (search subdirectories)
             </label>
-            {searchLoading && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground ml-auto" />}
+            {searchLoading && (
+              <Loader2 className="h-3 w-3 animate-spin text-muted-foreground ml-auto" />
+            )}
           </div>
-          {searchError && (
-            <div className="px-3 pb-1.5 text-xs text-destructive">{searchError}</div>
-          )}
+          {searchError && <div className="px-3 pb-1.5 text-xs text-destructive">{searchError}</div>}
         </div>
       )}
 
@@ -917,7 +971,9 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
       {error && (
         <div className="px-3 py-1.5 text-xs text-destructive bg-destructive/10 border-b">
           {error}
-          <button className="ml-2 underline" onClick={() => setError(null)}>dismiss</button>
+          <button className="ml-2 underline" onClick={() => setError(null)}>
+            dismiss
+          </button>
         </div>
       )}
 
@@ -927,8 +983,8 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
           <FolderPlus className="h-4 w-4 text-blue-400" />
           <Input
             value={mkdirName}
-            onChange={(e) => setMkdirName(e.target.value)}
-            onKeyDown={(e) => {
+            onChange={e => setMkdirName(e.target.value)}
+            onKeyDown={e => {
               if (e.key === 'Enter') handleMkdir()
               if (e.key === 'Escape') setMkdirMode(false)
             }}
@@ -952,8 +1008,8 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
           <FilePlus className="h-4 w-4 text-green-400" />
           <Input
             value={createFileName}
-            onChange={(e) => setCreateFileName(e.target.value)}
-            onKeyDown={(e) => {
+            onChange={e => setCreateFileName(e.target.value)}
+            onKeyDown={e => {
               if (e.key === 'Enter') handleConfirmCreateFile()
               if (e.key === 'Escape') setCreateFileMode(false)
             }}
@@ -961,10 +1017,21 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
             className="h-7 text-sm flex-1"
             autoFocus
           />
-          <Button size="sm" variant="outline" className="h-7" onClick={handleConfirmCreateFile} disabled={!createFileName.trim()}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7"
+            onClick={handleConfirmCreateFile}
+            disabled={!createFileName.trim()}
+          >
             Open Editor
           </Button>
-          <Button size="sm" variant="ghost" className="h-7" onClick={() => setCreateFileMode(false)}>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7"
+            onClick={() => setCreateFileMode(false)}
+          >
             Cancel
           </Button>
         </div>
@@ -974,12 +1041,14 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
       {renameTarget && (
         <div className="flex items-center gap-2 px-3 py-1.5 border-b bg-muted/20">
           <Pencil className="h-4 w-4 text-orange-400" />
-          <span className="text-xs text-muted-foreground truncate max-w-[100px]">{renameTarget.name}</span>
+          <span className="text-xs text-muted-foreground truncate max-w-[100px]">
+            {renameTarget.name}
+          </span>
           <ChevronRight className="h-3 w-3 text-muted-foreground/50" />
           <Input
             value={renameName}
-            onChange={(e) => setRenameName(e.target.value)}
-            onKeyDown={(e) => {
+            onChange={e => setRenameName(e.target.value)}
+            onKeyDown={e => {
               if (e.key === 'Enter') handleRename()
               if (e.key === 'Escape') setRenameTarget(null)
             }}
@@ -988,7 +1057,13 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
             autoFocus
             disabled={busy}
           />
-          <Button size="sm" variant="outline" className="h-7" onClick={handleRename} disabled={busy}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7"
+            onClick={handleRename}
+            disabled={busy}
+          >
             Rename
           </Button>
           <Button size="sm" variant="ghost" className="h-7" onClick={() => setRenameTarget(null)}>
@@ -1021,7 +1096,7 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
                   </tr>
                 </thead>
                 <tbody>
-                  {searchResults.map((result) => (
+                  {searchResults.map(result => (
                     <tr
                       key={result.path}
                       className="border-b border-border/50 hover:bg-muted/50 cursor-default"
@@ -1059,29 +1134,34 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
             <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
               {searchQuery.trim()
                 ? `No files matching "${searchQuery.trim()}"`
-                : entries.length > 0 ? 'No visible files (hidden files filtered)' : 'Empty directory'}
+                : entries.length > 0
+                  ? 'No visible files (hidden files filtered)'
+                  : 'Empty directory'}
             </div>
           ) : viewMode === 'grid' ? (
             /* ── Grid View ────────────────────────────────────────────── */
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-1 p-2">
-              {visibleEntries.map((entry) => (
+              {visibleEntries.map(entry => (
                 <div
                   key={entry.name}
                   className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-muted/50 cursor-default group relative"
                   onDoubleClick={() => handleDoubleClick(entry)}
                 >
                   {/* Grid item icon (larger) */}
-                  {entry.type === 'dir'
-                    ? <Folder className="h-8 w-8 text-blue-400" />
-                    : entry.type === 'symlink'
-                      ? <Link2 className="h-8 w-8 text-purple-400" />
-                      : <FileIcon className="h-8 w-8 text-muted-foreground" />
-                  }
+                  {entry.type === 'dir' ? (
+                    <Folder className="h-8 w-8 text-blue-400" />
+                  ) : entry.type === 'symlink' ? (
+                    <Link2 className="h-8 w-8 text-purple-400" />
+                  ) : (
+                    <FileIcon className="h-8 w-8 text-muted-foreground" />
+                  )}
                   <span className="text-xs text-center truncate w-full" title={entry.name}>
                     {entry.name}
                   </span>
                   {entry.type !== 'dir' && (
-                    <span className="text-[10px] text-muted-foreground">{formatSize(entry.size)}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {formatSize(entry.size)}
+                    </span>
                   )}
                   {/* Context menu trigger on hover */}
                   <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100">
@@ -1093,7 +1173,14 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         {entry.type !== 'dir' && (
-                          <DropdownMenuItem onClick={() => setEditFile({ path: joinPath(currentPath, entry.name), name: entry.name })}>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              setEditFile({
+                                path: joinPath(currentPath, entry.name),
+                                name: entry.name,
+                              })
+                            }
+                          >
                             <Pencil className="h-4 w-4 mr-2" />
                             Edit
                           </DropdownMenuItem>
@@ -1104,7 +1191,10 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
                             Download
                           </DropdownMenuItem>
                         )}
-                        <DropdownMenuItem data-testid={`properties-${entry.name}`} onClick={() => handleProperties(entry)}>
+                        <DropdownMenuItem
+                          data-testid={`properties-${entry.name}`}
+                          onClick={() => handleProperties(entry)}
+                        >
                           <Eye className="h-4 w-4 mr-2" />
                           Properties
                         </DropdownMenuItem>
@@ -1126,7 +1216,12 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
                             Share
                           </DropdownMenuItem>
                         )}
-                        <DropdownMenuItem onClick={() => { setRenameTarget(entry); setRenameName(entry.name) }}>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setRenameTarget(entry)
+                            setRenameName(entry.name)
+                          }}
+                        >
                           <Pencil className="h-4 w-4 mr-2" />
                           Rename
                         </DropdownMenuItem>
@@ -1150,13 +1245,17 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
                 <tr className="text-left text-xs text-muted-foreground">
                   <th className="px-3 py-1.5 font-medium">Name</th>
                   <th className="px-3 py-1.5 font-medium w-[80px]">Size</th>
-                  <th className="px-3 py-1.5 font-medium w-[90px] hidden sm:table-cell">Permissions</th>
-                  <th className="px-3 py-1.5 font-medium w-[120px] hidden md:table-cell">Modified</th>
+                  <th className="px-3 py-1.5 font-medium w-[90px] hidden sm:table-cell">
+                    Permissions
+                  </th>
+                  <th className="px-3 py-1.5 font-medium w-[120px] hidden md:table-cell">
+                    Modified
+                  </th>
                   <th className="px-3 py-1.5 font-medium w-[40px]" />
                 </tr>
               </thead>
               <tbody>
-                {visibleEntries.map((entry) => (
+                {visibleEntries.map(entry => (
                   <tr
                     key={entry.name}
                     className="border-b border-border/50 hover:bg-muted/50 cursor-default group"
@@ -1191,7 +1290,14 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           {entry.type !== 'dir' && (
-                            <DropdownMenuItem onClick={() => setEditFile({ path: joinPath(currentPath, entry.name), name: entry.name })}>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                setEditFile({
+                                  path: joinPath(currentPath, entry.name),
+                                  name: entry.name,
+                                })
+                              }
+                            >
                               <Pencil className="h-4 w-4 mr-2" />
                               Edit
                             </DropdownMenuItem>
@@ -1202,7 +1308,10 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
                               Download
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuItem data-testid={`properties-${entry.name}`} onClick={() => handleProperties(entry)}>
+                          <DropdownMenuItem
+                            data-testid={`properties-${entry.name}`}
+                            onClick={() => handleProperties(entry)}
+                          >
                             <Eye className="h-4 w-4 mr-2" />
                             Properties
                           </DropdownMenuItem>
@@ -1224,7 +1333,12 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
                               Share
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuItem onClick={() => { setRenameTarget(entry); setRenameName(entry.name) }}>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setRenameTarget(entry)
+                              setRenameName(entry.name)
+                            }}
+                          >
                             <Pencil className="h-4 w-4 mr-2" />
                             Rename
                           </DropdownMenuItem>
@@ -1255,20 +1369,31 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
 
       {/* Status bar */}
       <div className="flex items-center justify-between px-3 py-1 border-t text-xs text-muted-foreground shrink-0">
-        {searchRecursive && searchQuery.trim()
-          ? <span>{searchResults.length} results{searchResults.length >= 500 ? ' (limit reached)' : ''}</span>
-          : <span>{visibleEntries.length} items{entries.length !== visibleEntries.length && ` (${entries.length - visibleEntries.length} hidden)`}{!searchRecursive && searchQuery.trim() && ` · filtered`}</span>
-        }
+        {searchRecursive && searchQuery.trim() ? (
+          <span>
+            {searchResults.length} results{searchResults.length >= 500 ? ' (limit reached)' : ''}
+          </span>
+        ) : (
+          <span>
+            {visibleEntries.length} items
+            {entries.length !== visibleEntries.length &&
+              ` (${entries.length - visibleEntries.length} hidden)`}
+            {!searchRecursive && searchQuery.trim() && ` · filtered`}
+          </span>
+        )}
         <span className="truncate max-w-[200px]">{currentPath}</span>
       </div>
 
       {/* Delete confirmation dialog */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+      <AlertDialog open={!!deleteTarget} onOpenChange={open => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {deleteTarget?.type === 'dir' ? 'folder' : 'file'}</AlertDialogTitle>
+            <AlertDialogTitle>
+              Delete {deleteTarget?.type === 'dir' ? 'folder' : 'file'}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete <strong>{deleteTarget?.name}</strong>? This action cannot be undone.
+              Are you sure you want to delete <strong>{deleteTarget?.name}</strong>? This action
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1281,7 +1406,7 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog open={!!propertiesTarget} onOpenChange={(open) => !open && setPropertiesTarget(null)}>
+      <Dialog open={!!propertiesTarget} onOpenChange={open => !open && setPropertiesTarget(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Properties: {propertiesTarget?.name}</DialogTitle>
@@ -1316,15 +1441,30 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <Label>Mode (octal)</Label>
-                  <Input data-testid="properties-mode" value={propertiesMode} onChange={(e) => setPropertiesMode(e.target.value)} className="mt-1" />
+                  <Input
+                    data-testid="properties-mode"
+                    value={propertiesMode}
+                    onChange={e => setPropertiesMode(e.target.value)}
+                    className="mt-1"
+                  />
                 </div>
                 <div>
                   <Label>Owner</Label>
-                  <Input data-testid="properties-owner" value={propertiesOwner} onChange={(e) => setPropertiesOwner(e.target.value)} className="mt-1" />
+                  <Input
+                    data-testid="properties-owner"
+                    value={propertiesOwner}
+                    onChange={e => setPropertiesOwner(e.target.value)}
+                    className="mt-1"
+                  />
                 </div>
                 <div>
                   <Label>Group</Label>
-                  <Input data-testid="properties-group" value={propertiesGroup} onChange={(e) => setPropertiesGroup(e.target.value)} className="mt-1" />
+                  <Input
+                    data-testid="properties-group"
+                    value={propertiesGroup}
+                    onChange={e => setPropertiesGroup(e.target.value)}
+                    className="mt-1"
+                  />
                 </div>
               </div>
               <div className="rounded-md border border-border p-3 space-y-3">
@@ -1339,51 +1479,69 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
                   <Checkbox
                     data-testid="perm-owner-read"
                     checked={propertiesPermissions.owner.read}
-                    onCheckedChange={(value) => handlePermissionToggle('owner', 'read', value === true)}
+                    onCheckedChange={value =>
+                      handlePermissionToggle('owner', 'read', value === true)
+                    }
                   />
                   <Checkbox
                     data-testid="perm-owner-write"
                     checked={propertiesPermissions.owner.write}
-                    onCheckedChange={(value) => handlePermissionToggle('owner', 'write', value === true)}
+                    onCheckedChange={value =>
+                      handlePermissionToggle('owner', 'write', value === true)
+                    }
                   />
                   <Checkbox
                     data-testid="perm-owner-execute"
                     checked={propertiesPermissions.owner.execute}
-                    onCheckedChange={(value) => handlePermissionToggle('owner', 'execute', value === true)}
+                    onCheckedChange={value =>
+                      handlePermissionToggle('owner', 'execute', value === true)
+                    }
                   />
 
                   <div>Group</div>
                   <Checkbox
                     data-testid="perm-group-read"
                     checked={propertiesPermissions.group.read}
-                    onCheckedChange={(value) => handlePermissionToggle('group', 'read', value === true)}
+                    onCheckedChange={value =>
+                      handlePermissionToggle('group', 'read', value === true)
+                    }
                   />
                   <Checkbox
                     data-testid="perm-group-write"
                     checked={propertiesPermissions.group.write}
-                    onCheckedChange={(value) => handlePermissionToggle('group', 'write', value === true)}
+                    onCheckedChange={value =>
+                      handlePermissionToggle('group', 'write', value === true)
+                    }
                   />
                   <Checkbox
                     data-testid="perm-group-execute"
                     checked={propertiesPermissions.group.execute}
-                    onCheckedChange={(value) => handlePermissionToggle('group', 'execute', value === true)}
+                    onCheckedChange={value =>
+                      handlePermissionToggle('group', 'execute', value === true)
+                    }
                   />
 
                   <div>Public</div>
                   <Checkbox
                     data-testid="perm-others-read"
                     checked={propertiesPermissions.others.read}
-                    onCheckedChange={(value) => handlePermissionToggle('others', 'read', value === true)}
+                    onCheckedChange={value =>
+                      handlePermissionToggle('others', 'read', value === true)
+                    }
                   />
                   <Checkbox
                     data-testid="perm-others-write"
                     checked={propertiesPermissions.others.write}
-                    onCheckedChange={(value) => handlePermissionToggle('others', 'write', value === true)}
+                    onCheckedChange={value =>
+                      handlePermissionToggle('others', 'write', value === true)
+                    }
                   />
                   <Checkbox
                     data-testid="perm-others-execute"
                     checked={propertiesPermissions.others.execute}
-                    onCheckedChange={(value) => handlePermissionToggle('others', 'execute', value === true)}
+                    onCheckedChange={value =>
+                      handlePermissionToggle('others', 'execute', value === true)
+                    }
                   />
                 </div>
                 <div className="flex items-center gap-2">
@@ -1391,7 +1549,7 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
                     id="properties-recursive"
                     data-testid="properties-recursive"
                     checked={propertiesRecursive}
-                    onCheckedChange={(value) => setPropertiesRecursive(value === true)}
+                    onCheckedChange={value => setPropertiesRecursive(value === true)}
                   />
                   <Label htmlFor="properties-recursive">Apply recursively</Label>
                 </div>
@@ -1399,8 +1557,14 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPropertiesTarget(null)}>Close</Button>
-            <Button data-testid="properties-save" onClick={handleSaveProperties} disabled={propertiesSaving || propertiesLoading}>
+            <Button variant="outline" onClick={() => setPropertiesTarget(null)}>
+              Close
+            </Button>
+            <Button
+              data-testid="properties-save"
+              onClick={handleSaveProperties}
+              disabled={propertiesSaving || propertiesLoading}
+            >
               {propertiesSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Save
             </Button>
@@ -1408,7 +1572,10 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!symlinkTargetEntry} onOpenChange={(open) => !open && setSymlinkTargetEntry(null)}>
+      <Dialog
+        open={!!symlinkTargetEntry}
+        onOpenChange={open => !open && setSymlinkTargetEntry(null)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create Symbolic Link</DialogTitle>
@@ -1419,16 +1586,31 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
           <div className="space-y-3">
             <div>
               <Label>Target path (existing)</Label>
-              <Input value={symlinkTargetPath} onChange={(e) => setSymlinkTargetPath(e.target.value)} className="mt-1" placeholder="/path/to/existing/file-or-dir" />
+              <Input
+                value={symlinkTargetPath}
+                onChange={e => setSymlinkTargetPath(e.target.value)}
+                className="mt-1"
+                placeholder="/path/to/existing/file-or-dir"
+              />
             </div>
             <div>
               <Label>Link path (new symbolic link)</Label>
-              <Input value={symlinkLinkPath} onChange={(e) => setSymlinkLinkPath(e.target.value)} className="mt-1" placeholder="/path/to/new-link" />
+              <Input
+                value={symlinkLinkPath}
+                onChange={e => setSymlinkLinkPath(e.target.value)}
+                className="mt-1"
+                placeholder="/path/to/new-link"
+              />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSymlinkTargetEntry(null)}>Cancel</Button>
-            <Button onClick={handleConfirmSymlink} disabled={symlinkSaving || !symlinkTargetPath.trim() || !symlinkLinkPath.trim()}>
+            <Button variant="outline" onClick={() => setSymlinkTargetEntry(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmSymlink}
+              disabled={symlinkSaving || !symlinkTargetPath.trim() || !symlinkLinkPath.trim()}
+            >
               {symlinkSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Create
             </Button>
@@ -1436,10 +1618,12 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!copyMoveEntry} onOpenChange={(open) => !open && setCopyMoveEntry(null)}>
+      <Dialog open={!!copyMoveEntry} onOpenChange={open => !open && setCopyMoveEntry(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{copyMoveMode === 'move' ? 'Move' : 'Copy'}: {copyMoveEntry?.name}</DialogTitle>
+            <DialogTitle>
+              {copyMoveMode === 'move' ? 'Move' : 'Copy'}: {copyMoveEntry?.name}
+            </DialogTitle>
             <DialogDescription>
               {copyMoveMode === 'move'
                 ? 'Move this file/folder to a destination path. Existing destination path may be overwritten by server policy.'
@@ -1448,10 +1632,17 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
           </DialogHeader>
           <div>
             <Label>Destination path</Label>
-            <Input value={copyMoveTo} onChange={(e) => setCopyMoveTo(e.target.value)} className="mt-1" placeholder="/path/to/destination" />
+            <Input
+              value={copyMoveTo}
+              onChange={e => setCopyMoveTo(e.target.value)}
+              className="mt-1"
+              placeholder="/path/to/destination"
+            />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCopyMoveEntry(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setCopyMoveEntry(null)}>
+              Cancel
+            </Button>
             <Button onClick={executeCopyOrMove} disabled={copyMoveSaving || !copyMoveTo.trim()}>
               {copyMoveSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               {copyMoveMode === 'move' ? 'Move' : 'Copy'}
@@ -1460,14 +1651,14 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!shareEntry} onOpenChange={(open) => !open && setShareEntry(null)}>
+      <Dialog open={!!shareEntry} onOpenChange={open => !open && setShareEntry(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Share: {shareEntry?.name}</DialogTitle>
             <DialogDescription>
-              Generate a public download link — no login required.
-              This operation first copies the selected SFTP file into your personal Space,
-              then creates a Space share link. Anyone with the link can download the file.
+              Generate a public download link — no login required. This operation first copies the
+              selected SFTP file into your personal Space, then creates a Space share link. Anyone
+              with the link can download the file.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -1479,7 +1670,7 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
                 min={1}
                 max={shareMaxMinutes}
                 value={shareMinutes}
-                onChange={(e) => setShareMinutes(Number(e.target.value))}
+                onChange={e => setShareMinutes(Number(e.target.value))}
               />
             </div>
             {shareUrl && (
@@ -1487,10 +1678,25 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
                 <Label>Public download link</Label>
                 <div className="flex gap-2 mt-1">
                   <Input readOnly value={shareUrl} className="text-xs font-mono" />
-                  <Button size="icon" variant="outline" onClick={handleCopyShareUrl} title="Copy link">
-                    {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    onClick={handleCopyShareUrl}
+                    title="Copy link"
+                  >
+                    {copied ? (
+                      <Check className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
                   </Button>
-                  <Button size="icon" variant="ghost" className="text-destructive" onClick={handleRevokeShare} title="Revoke link">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="text-destructive"
+                    onClick={handleRevokeShare}
+                    title="Revoke link"
+                  >
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
@@ -1499,8 +1705,13 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShareEntry(null)}>Close</Button>
-            <Button onClick={handleGenerateShare} disabled={sharing || shareMinutes < 1 || shareMinutes > shareMaxMinutes}>
+            <Button variant="outline" onClick={() => setShareEntry(null)}>
+              Close
+            </Button>
+            <Button
+              onClick={handleGenerateShare}
+              disabled={sharing || shareMinutes < 1 || shareMinutes > shareMaxMinutes}
+            >
               {sharing && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               {shareUrl ? 'Refresh link' : 'Generate link'}
             </Button>
@@ -1522,7 +1733,9 @@ export function FileManagerPanel({ serverId, initialPath = '/', lockedRootPath, 
       {editFile && (
         <FileEditorDialog
           open={!!editFile}
-          onOpenChange={(open) => { if (!open) setEditFile(null) }}
+          onOpenChange={open => {
+            if (!open) setEditFile(null)
+          }}
           serverId={serverId}
           filePath={editFile.path}
           fileName={editFile.name}

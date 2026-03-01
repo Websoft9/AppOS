@@ -91,7 +91,7 @@ export function FileEditorDialog({
 
   // Monaco theme
   const [monacoTheme, setMonacoTheme] = useState(() =>
-    document.documentElement.classList.contains('dark') ? 'vs-dark' : 'vs',
+    document.documentElement.classList.contains('dark') ? 'vs-dark' : 'vs'
   )
   useEffect(() => {
     const observer = new MutationObserver(() => {
@@ -114,11 +114,11 @@ export function FileEditorDialog({
     setLoading(true)
     setError(null)
     sftpReadFile(serverId, filePath)
-      .then((res) => {
+      .then(res => {
         setContent(res.content)
         setSavedContent(res.content)
       })
-      .catch((err) => {
+      .catch(err => {
         setError(err instanceof Error ? err.message : 'Failed to read file')
       })
       .finally(() => setLoading(false))
@@ -155,7 +155,8 @@ export function FileEditorDialog({
       <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0 gap-0">
         <DialogHeader className="px-4 py-3 border-b shrink-0">
           <DialogTitle className="flex items-center gap-2 text-sm font-medium">
-            {isNew ? <span className="text-muted-foreground text-xs">New:</span> : null}{fileName}
+            {isNew ? <span className="text-muted-foreground text-xs">New:</span> : null}
+            {fileName}
             {!isNew && isDirty && <span className="text-xs text-muted-foreground">(unsaved)</span>}
           </DialogTitle>
         </DialogHeader>
@@ -163,7 +164,9 @@ export function FileEditorDialog({
         {error && (
           <div className="px-4 py-1.5 text-xs text-destructive bg-destructive/10 border-b">
             {error}
-            <button className="ml-2 underline" onClick={() => setError(null)}>dismiss</button>
+            <button className="ml-2 underline" onClick={() => setError(null)}>
+              dismiss
+            </button>
           </div>
         )}
 
@@ -178,7 +181,7 @@ export function FileEditorDialog({
               language={language}
               theme={monacoTheme}
               value={content}
-              onChange={(value) => setContent(value ?? '')}
+              onChange={value => setContent(value ?? '')}
               options={{
                 minimap: { enabled: false },
                 fontSize: 13,

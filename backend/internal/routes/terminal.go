@@ -76,7 +76,7 @@ func wsTokenAuth() *hook.Handler[*core.RequestEvent] {
 //	/api/ext/terminal/docker/:containerId — WebSocket Docker exec (Story 15.3)
 func registerTerminalRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	t := g.Group("/terminal")
-	t.Bind(wsTokenAuth())                // copy ?token= to Authorization header for WS
+	t.Bind(wsTokenAuth())               // copy ?token= to Authorization header for WS
 	t.Bind(apis.RequireSuperuserAuth()) // MVP: superuser only
 
 	// ─── SSH WebSocket ───────────────────────────────────
@@ -991,11 +991,11 @@ func handleSystemdServices(e *core.RequestEvent) error {
 			continue
 		}
 		services = append(services, map[string]string{
-			"name":        name,
-			"load_state":  parts[1],
+			"name":         name,
+			"load_state":   parts[1],
 			"active_state": parts[2],
-			"sub_state":   parts[3],
-			"description": desc,
+			"sub_state":    parts[3],
+			"description":  desc,
 		})
 	}
 

@@ -1,9 +1,28 @@
-import { useState, useEffect, useCallback, useRef, type ReactNode, type FormEvent, type ChangeEvent } from "react"
-import { Link } from "@tanstack/react-router"
-import { Plus, Pencil, Trash2, Loader2, Upload, ChevronLeft, Tags, X, RefreshCw, MoreVertical } from "lucide-react"
-import { pb } from "@/lib/pb"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type ReactNode,
+  type FormEvent,
+  type ChangeEvent,
+} from 'react'
+import { Link } from '@tanstack/react-router'
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Loader2,
+  Upload,
+  ChevronLeft,
+  Tags,
+  X,
+  RefreshCw,
+  MoreVertical,
+} from 'lucide-react'
+import { pb } from '@/lib/pb'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -11,7 +30,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from '@/components/ui/table'
 import {
   Dialog,
   DialogContent,
@@ -19,7 +38,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
+} from '@/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,15 +48,14 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+} from '@/components/ui/alert-dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-
+} from '@/components/ui/dropdown-menu'
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -45,7 +63,7 @@ import {
 export interface RelCreateField {
   key: string
   label: string
-  type: "text" | "password" | "select" | "textarea" | "file-textarea"
+  type: 'text' | 'password' | 'select' | 'textarea' | 'file-textarea'
   required?: boolean
   hidden?: boolean
   defaultValue?: unknown
@@ -53,7 +71,7 @@ export interface RelCreateField {
   options?: { label: string; value: string }[]
   fileAccept?: string
   /** Switch type based on another field's current value */
-  dynamicType?: { field: string; values: string[]; as: "textarea" | "file-textarea" }
+  dynamicType?: { field: string; values: string[]; as: 'textarea' | 'file-textarea' }
   /** Only show when another field has one of these values */
   showWhen?: { field: string; values: string[] }
 }
@@ -67,7 +85,15 @@ export interface Column {
 export interface FieldDef {
   key: string
   label: string
-  type: "text" | "number" | "select" | "textarea" | "password" | "boolean" | "relation" | "file-textarea"
+  type:
+    | 'text'
+    | 'number'
+    | 'select'
+    | 'textarea'
+    | 'password'
+    | 'boolean'
+    | 'relation'
+    | 'file-textarea'
   required?: boolean
   placeholder?: string
   options?: { label: string; value: string }[]
@@ -92,7 +118,7 @@ export interface FieldDef {
   /** Only show when another field has one of these values */
   showWhen?: { field: string; values: string[] }
   /** Switch type when another field has one of these values */
-  dynamicType?: { field: string; values: string[]; as: "textarea" | "file-textarea" }
+  dynamicType?: { field: string; values: string[]; as: 'textarea' | 'file-textarea' }
   /** Enable file upload button (textarea / file-textarea) */
   fileAccept?: string
   /** Side effect: when this field changes, update other fields too */
@@ -102,21 +128,24 @@ export interface FieldDef {
 export interface ResourcePageConfig {
   title: string
   description?: string
-  apiPath: string           // e.g., "/api/ext/resources/servers"
+  apiPath: string // e.g., "/api/ext/resources/servers"
   columns: Column[]
   fields: FieldDef[]
-  nameField?: string        // field used as display name (default: "name")
-  autoCreate?: boolean      // open Create dialog on mount (from ?create=1)
-  parentNav?: { label: string; href: string }  // breadcrumb back link
-  enableGroupAssign?: boolean  // show batch assign-to-group toolbar on list
+  nameField?: string // field used as display name (default: "name")
+  autoCreate?: boolean // open Create dialog on mount (from ?create=1)
+  parentNav?: { label: string; href: string } // breadcrumb back link
+  enableGroupAssign?: boolean // show batch assign-to-group toolbar on list
   onCreateSuccess?: (record: Record<string, unknown>) => void
-  showRefreshButton?: boolean   // show a manual refresh button next to Create
-  onRefresh?: (ctx: { items: Record<string, unknown>[]; refreshList: () => Promise<void> }) => Promise<void> | void
+  showRefreshButton?: boolean // show a manual refresh button next to Create
+  onRefresh?: (ctx: {
+    items: Record<string, unknown>[]
+    refreshList: () => Promise<void>
+  }) => Promise<void> | void
   extraActions?: (item: Record<string, unknown>, refreshList: () => void) => ReactNode
 }
 
 const INPUT_CLASS =
-  "w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground text-sm"
+  'w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground text-sm'
 
 type RelOpt = { id: string; label: string; raw?: Record<string, unknown> }
 
@@ -125,13 +154,13 @@ type RelOpt = { id: string; label: string; raw?: Record<string, unknown> }
 export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   const [items, setItems] = useState<Record<string, unknown>[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
+  const [error, setError] = useState('')
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<Record<string, unknown> | null>(null)
   const [formData, setFormData] = useState<Record<string, unknown>>({})
   const [saving, setSaving] = useState(false)
-  const [formError, setFormError] = useState("")
+  const [formError, setFormError] = useState('')
 
   const [deleteTarget, setDeleteTarget] = useState<Record<string, unknown> | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -146,7 +175,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   const [createRelField, setCreateRelField] = useState<FieldDef | null>(null)
   const [createRelData, setCreateRelData] = useState<Record<string, unknown>>({})
   const [createRelSaving, setCreateRelSaving] = useState(false)
-  const [createRelError, setCreateRelError] = useState("")
+  const [createRelError, setCreateRelError] = useState('')
 
   // Batch group assignment
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
@@ -156,7 +185,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   const [groupAssignDialogOpen, setGroupAssignDialogOpen] = useState(false)
   const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set())
 
-  const nameField = config.nameField || "name"
+  const nameField = config.nameField || 'name'
 
   // ─── Fetch ───────────────────────────
 
@@ -164,9 +193,9 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
     try {
       const data = await pb.send<Record<string, unknown>[]>(config.apiPath, {})
       setItems(Array.isArray(data) ? data : [])
-      setError("")
+      setError('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load data")
+      setError(err instanceof Error ? err.message : 'Failed to load data')
     } finally {
       setLoading(false)
     }
@@ -180,17 +209,19 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
     await fetchItems()
   }, [config, items, fetchItems])
 
-  useEffect(() => { fetchItems() }, [fetchItems])
+  useEffect(() => {
+    fetchItems()
+  }, [fetchItems])
 
   // Pre-load available groups on mount when batch assign is enabled
   useEffect(() => {
     if (!config.enableGroupAssign) return
     setGroupsLoading(true)
-    pb.send<Record<string, unknown>[]>("/api/ext/resources/groups", {})
+    pb.send<Record<string, unknown>[]>('/api/ext/resources/groups', {})
       .then(data => {
         setAvailableGroups(
           Array.isArray(data)
-            ? data.map(g => ({ id: String(g.id), label: String(g["name"] ?? g.id) }))
+            ? data.map(g => ({ id: String(g.id), label: String(g['name'] ?? g.id) }))
             : []
         )
       })
@@ -201,14 +232,13 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   // Auto-open Create dialog once data has loaded (triggered by ?create=1)
   useEffect(() => {
     if (config.autoCreate && !loading) openCreateDialog()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading])
 
   // Load relation options whenever dialog opens
   useEffect(() => {
     if (!dialogOpen) return
     config.fields
-      .filter(f => f.type === "relation" && f.relationApiPath)
+      .filter(f => f.type === 'relation' && f.relationApiPath)
       .forEach(f => {
         pb.send<Record<string, unknown>[]>(f.relationApiPath!, {})
           .then(data => {
@@ -216,18 +246,18 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
             // Client-side filter
             if (f.relationFilter) {
               for (const [fk, fv] of Object.entries(f.relationFilter)) {
-                records = records.filter(item => String(item[fk] ?? "") === fv)
+                records = records.filter(item => String(item[fk] ?? '') === fv)
               }
             }
             const opts: RelOpt[] = records.map(item => ({
               id: String(item.id),
-              label: String(item[f.relationLabelKey ?? "name"] ?? item.id),
+              label: String(item[f.relationLabelKey ?? 'name'] ?? item.id),
               raw: item,
             }))
             setRelOpts(prev => ({ ...prev, [f.key]: opts }))
             // Auto-select default option on create
             if (f.multiSelect && f.relationAutoSelectDefault && !editingItem) {
-              const defaultOpt = opts.find(o => o.raw?.["is_default"] === true)
+              const defaultOpt = opts.find(o => o.raw?.['is_default'] === true)
               if (defaultOpt) {
                 setFormData(prev => {
                   const existing = Array.isArray(prev[f.key]) ? (prev[f.key] as string[]) : []
@@ -250,11 +280,12 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
       if (f.multiSelect) {
         defaults[f.key] = Array.isArray(f.defaultValue) ? f.defaultValue : []
       } else {
-        defaults[f.key] = f.defaultValue ?? (f.type === "boolean" ? false : f.type === "number" ? 0 : "")
+        defaults[f.key] =
+          f.defaultValue ?? (f.type === 'boolean' ? false : f.type === 'number' ? 0 : '')
       }
     }
     setFormData(defaults)
-    setFormError("")
+    setFormError('')
     setDialogOpen(true)
   }
 
@@ -265,13 +296,13 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
       const val = item[f.key]
       if (f.multiSelect) {
         // Normalize to string array
-        data[f.key] = Array.isArray(val) ? val.map(String) : (val ? [String(val)] : [])
+        data[f.key] = Array.isArray(val) ? val.map(String) : val ? [String(val)] : []
       } else {
-        data[f.key] = val ?? (f.defaultValue ?? "")
+        data[f.key] = val ?? f.defaultValue ?? ''
       }
     }
     setFormData(data)
-    setFormError("")
+    setFormError('')
     setDialogOpen(true)
   }
 
@@ -280,7 +311,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   }
 
   function handleChange(field: FieldDef, raw: unknown) {
-    const value = field.type === "number" ? Number(raw) : raw
+    const value = field.type === 'number' ? Number(raw) : raw
     updateField(field.key, value)
     field.onValueChange?.(value, updateField)
   }
@@ -289,28 +320,29 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = ev => updateField(key, String(ev.target?.result ?? ""))
+    reader.onload = ev => updateField(key, String(ev.target?.result ?? ''))
     reader.readAsText(file)
-    e.target.value = ""
+    e.target.value = ''
   }
 
   function handleCreateRelFileUpload(key: string, e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = ev => setCreateRelData(prev => ({ ...prev, [key]: String(ev.target?.result ?? "") }))
+    reader.onload = ev =>
+      setCreateRelData(prev => ({ ...prev, [key]: String(ev.target?.result ?? '') }))
     reader.readAsText(file)
-    e.target.value = ""
+    e.target.value = ''
   }
 
   function openCreateRelDialog(field: FieldDef) {
     const defaults: Record<string, unknown> = {}
     for (const f of field.relationCreate!.fields) {
-      defaults[f.key] = f.defaultValue ?? ""
+      defaults[f.key] = f.defaultValue ?? ''
     }
     setCreateRelField(field)
     setCreateRelData(defaults)
-    setCreateRelError("")
+    setCreateRelError('')
     setCreateRelOpen(true)
   }
 
@@ -318,22 +350,28 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
     e.preventDefault()
     if (!createRelField?.relationCreate) return
     setCreateRelSaving(true)
-    setCreateRelError("")
+    setCreateRelError('')
     try {
-      const created = await pb.send<Record<string, unknown>>(createRelField.relationCreate.apiPath, {
-        method: "POST",
-        body: createRelData,
-      })
-      const labelKey = createRelField.relationLabelKey ?? "name"
+      const created = await pb.send<Record<string, unknown>>(
+        createRelField.relationCreate.apiPath,
+        {
+          method: 'POST',
+          body: createRelData,
+        }
+      )
+      const labelKey = createRelField.relationLabelKey ?? 'name'
       const newLabel = String(created[labelKey] ?? created.id)
       setRelOpts(prev => ({
         ...prev,
-        [createRelField!.key]: [...(prev[createRelField!.key] ?? []), { id: String(created.id), label: newLabel }],
+        [createRelField!.key]: [
+          ...(prev[createRelField!.key] ?? []),
+          { id: String(created.id), label: newLabel },
+        ],
       }))
       updateField(createRelField!.key, String(created.id))
       setCreateRelOpen(false)
     } catch (err) {
-      setCreateRelError(err instanceof Error ? err.message : "Create failed")
+      setCreateRelError(err instanceof Error ? err.message : 'Create failed')
     } finally {
       setCreateRelSaving(false)
     }
@@ -342,17 +380,17 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setSaving(true)
-    setFormError("")
+    setFormError('')
 
     try {
       if (editingItem) {
         await pb.send(`${config.apiPath}/${editingItem.id}`, {
-          method: "PUT",
+          method: 'PUT',
           body: formData,
         })
       } else {
         const created = await pb.send(config.apiPath, {
-          method: "POST",
+          method: 'POST',
           body: formData,
         })
         setDialogOpen(false)
@@ -363,7 +401,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
       setDialogOpen(false)
       await fetchItems()
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Save failed")
+      setFormError(err instanceof Error ? err.message : 'Save failed')
     } finally {
       setSaving(false)
     }
@@ -391,14 +429,14 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   async function handleAssignToGroups() {
     if (selectedGroupIds.size === 0) return
     setAssigningGroups(true)
-    const resourceType = config.apiPath.split("/").pop() ?? ""
+    const resourceType = config.apiPath.split('/').pop() ?? ''
     const batchItems = Array.from(selectedItems).map(id => ({ type: resourceType, id }))
     try {
       await Promise.all(
         Array.from(selectedGroupIds).map(groupId =>
           pb.send(`/api/ext/resources/groups/${groupId}/resources/batch`, {
-            method: "POST",
-            body: { action: "add", items: batchItems },
+            method: 'POST',
+            body: { action: 'add', items: batchItems },
           })
         )
       )
@@ -407,7 +445,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
       setGroupAssignDialogOpen(false)
       await fetchItems()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Batch assign failed")
+      setError(err instanceof Error ? err.message : 'Batch assign failed')
     } finally {
       setAssigningGroups(false)
     }
@@ -419,11 +457,11 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
     if (!deleteTarget) return
     setDeleting(true)
     try {
-      await pb.send(`${config.apiPath}/${deleteTarget.id}`, { method: "DELETE" })
+      await pb.send(`${config.apiPath}/${deleteTarget.id}`, { method: 'DELETE' })
       setDeleteTarget(null)
       await fetchItems()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Delete failed")
+      setError(err instanceof Error ? err.message : 'Delete failed')
       setDeleteTarget(null)
     } finally {
       setDeleting(false)
@@ -455,13 +493,18 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
             </Link>
           )}
           <h1 className="text-2xl font-bold tracking-tight">{config.title}</h1>
-          {config.description && (
-            <p className="text-muted-foreground mt-1">{config.description}</p>
-          )}
+          {config.description && <p className="text-muted-foreground mt-1">{config.description}</p>}
         </div>
         <div className="flex items-center gap-2">
           {config.showRefreshButton && (
-            <Button variant="outline" size="icon" onClick={() => { void handleRefresh() }} title="Refresh">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => {
+                void handleRefresh()
+              }}
+              title="Refresh"
+            >
               <RefreshCw className="h-4 w-4" />
             </Button>
           )}
@@ -506,15 +549,18 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                       />
                     </TableHead>
                   )}
-                  {config.columns.map((col) => (
+                  {config.columns.map(col => (
                     <TableHead key={col.key}>{col.label}</TableHead>
                   ))}
                   <TableHead className="w-[72px] text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map((item) => (
-                  <TableRow key={String(item.id)} data-selected={selectedItems.has(String(item.id))}>
+                {items.map(item => (
+                  <TableRow
+                    key={String(item.id)}
+                    data-selected={selectedItems.has(String(item.id))}
+                  >
                     {config.enableGroupAssign && (
                       <TableCell>
                         <input
@@ -525,11 +571,9 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                         />
                       </TableCell>
                     )}
-                    {config.columns.map((col) => (
+                    {config.columns.map(col => (
                       <TableCell key={col.key}>
-                        {col.render
-                          ? col.render(item[col.key], item)
-                          : String(item[col.key] ?? "")}
+                        {col.render ? col.render(item[col.key], item) : String(item[col.key] ?? '')}
                       </TableCell>
                     ))}
                     <TableCell className="text-right whitespace-nowrap">
@@ -540,13 +584,18 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          {config.extraActions?.(item, () => { void fetchItems() })}
+                          {config.extraActions?.(item, () => {
+                            void fetchItems()
+                          })}
                           {config.extraActions && <DropdownMenuSeparator />}
                           <DropdownMenuItem onClick={() => openEditDialog(item)}>
                             <Pencil className="h-4 w-4" />
                             Edit
                           </DropdownMenuItem>
-                          <DropdownMenuItem variant="destructive" onClick={() => setDeleteTarget(item)}>
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onClick={() => setDeleteTarget(item)}
+                          >
                             <Trash2 className="h-4 w-4" />
                             Delete
                           </DropdownMenuItem>
@@ -569,16 +618,15 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
             variant="outline"
             size="sm"
             disabled={assigningGroups || groupsLoading}
-            onClick={() => { setSelectedGroupIds(new Set()); setGroupAssignDialogOpen(true) }}
+            onClick={() => {
+              setSelectedGroupIds(new Set())
+              setGroupAssignDialogOpen(true)
+            }}
           >
             <Tags className="h-4 w-4 mr-2" />
             Assign to Groups
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSelectedItems(new Set())}
-          >
+          <Button variant="ghost" size="sm" onClick={() => setSelectedItems(new Set())}>
             <X className="h-4 w-4 mr-1" />
             Clear
           </Button>
@@ -586,12 +634,19 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
       )}
 
       {/* Assign to Groups dialog */}
-      <Dialog open={groupAssignDialogOpen} onOpenChange={v => { setGroupAssignDialogOpen(v); if (!v) setSelectedGroupIds(new Set()) }}>
+      <Dialog
+        open={groupAssignDialogOpen}
+        onOpenChange={v => {
+          setGroupAssignDialogOpen(v)
+          if (!v) setSelectedGroupIds(new Set())
+        }}
+      >
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Assign to Groups</DialogTitle>
             <DialogDescription>
-              Select one or more groups to assign the {selectedItems.size} selected resource{selectedItems.size > 1 ? "s" : ""} to.
+              Select one or more groups to assign the {selectedItems.size} selected resource
+              {selectedItems.size > 1 ? 's' : ''} to.
             </DialogDescription>
           </DialogHeader>
           <div className="py-2">
@@ -631,27 +686,42 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setGroupAssignDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setGroupAssignDialogOpen(false)}>
+              Cancel
+            </Button>
             <Button
               onClick={handleAssignToGroups}
               disabled={assigningGroups || selectedGroupIds.size === 0}
             >
               {assigningGroups && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Assign{selectedGroupIds.size > 0 ? ` to ${selectedGroupIds.size} group${selectedGroupIds.size > 1 ? "s" : ""}` : ""}
+              Assign
+              {selectedGroupIds.size > 0
+                ? ` to ${selectedGroupIds.size} group${selectedGroupIds.size > 1 ? 's' : ''}`
+                : ''}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Create/Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) setCreateRelOpen(false) }}>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={v => {
+          setDialogOpen(v)
+          if (!v) setCreateRelOpen(false)
+        }}
+      >
         <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {editingItem ? `Edit ${config.title.replace(/s$/, "")}` : `Create ${config.title.replace(/s$/, "")}`}
+              {editingItem
+                ? `Edit ${config.title.replace(/s$/, '')}`
+                : `Create ${config.title.replace(/s$/, '')}`}
             </DialogTitle>
             <DialogDescription>
-              {editingItem ? "Update the resource details below." : "Fill in the details to create a new resource."}
+              {editingItem
+                ? 'Update the resource details below.'
+                : 'Fill in the details to create a new resource.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -660,16 +730,18 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
               .filter(f => !f.hidden)
               .filter(f => {
                 if (!f.showWhen) return true
-                return f.showWhen.values.includes(String(formData[f.showWhen.field] ?? ""))
+                return f.showWhen.values.includes(String(formData[f.showWhen.field] ?? ''))
               })
               .map(field => {
                 // Resolve effective type (dynamic override)
                 const effectiveType = field.dynamicType
-                  ? field.dynamicType.values.includes(String(formData[field.dynamicType.field] ?? ""))
+                  ? field.dynamicType.values.includes(
+                      String(formData[field.dynamicType.field] ?? '')
+                    )
                     ? field.dynamicType.as
                     : field.type
                   : field.type
-                const isUploadable = effectiveType === "file-textarea" || !!field.fileAccept
+                const isUploadable = effectiveType === 'file-textarea' || !!field.fileAccept
                 return (
                   <div key={field.key} className="space-y-1.5">
                     <label className="text-sm font-medium text-foreground">
@@ -677,38 +749,47 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                       {field.required && <span className="text-destructive ml-1">*</span>}
                     </label>
 
-                    {effectiveType === "select" ? (
+                    {effectiveType === 'select' ? (
                       <select
                         className={INPUT_CLASS}
-                        value={String(formData[field.key] ?? "")}
+                        value={String(formData[field.key] ?? '')}
                         onChange={e => handleChange(field, e.target.value)}
                         required={field.required}
                       >
                         <option value="">Select…</option>
                         {field.options?.map(o => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
                         ))}
                       </select>
-
-                    ) : effectiveType === "relation" && field.multiSelect ? (
+                    ) : effectiveType === 'relation' && field.multiSelect ? (
                       <div className="border border-input rounded-md p-2 max-h-44 overflow-y-auto space-y-1 bg-background">
                         {(relOpts[field.key] ?? []).length === 0 ? (
                           <p className="text-xs text-muted-foreground px-1">No options available</p>
                         ) : (
                           (relOpts[field.key] ?? []).map(o => {
-                            const selected = (formData[field.key] as string[] ?? []).includes(o.id)
+                            const selected = ((formData[field.key] as string[]) ?? []).includes(
+                              o.id
+                            )
                             return (
-                              <label key={o.id} className="flex items-center gap-2 cursor-pointer px-1 py-0.5 rounded hover:bg-muted transition-colors">
+                              <label
+                                key={o.id}
+                                className="flex items-center gap-2 cursor-pointer px-1 py-0.5 rounded hover:bg-muted transition-colors"
+                              >
                                 <input
                                   type="checkbox"
                                   className="h-4 w-4 rounded border-input"
                                   checked={selected}
                                   onChange={e => {
-                                    const current = (formData[field.key] as string[] ?? [])
+                                    const current = (formData[field.key] as string[]) ?? []
                                     if (e.target.checked) {
                                       updateField(field.key, [...current, o.id])
                                     } else {
-                                      updateField(field.key, current.filter(id => id !== o.id))
+                                      updateField(
+                                        field.key,
+                                        current.filter(id => id !== o.id)
+                                      )
                                     }
                                   }}
                                 />
@@ -718,18 +799,19 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                           })
                         )}
                       </div>
-
-                    ) : effectiveType === "relation" ? (
+                    ) : effectiveType === 'relation' ? (
                       <div className="flex gap-2 items-center">
                         <select
-                          className={INPUT_CLASS + " flex-1"}
-                          value={String(formData[field.key] ?? "")}
+                          className={INPUT_CLASS + ' flex-1'}
+                          value={String(formData[field.key] ?? '')}
                           onChange={e => handleChange(field, e.target.value)}
                           required={field.required}
                         >
                           <option value="">None</option>
                           {(relOpts[field.key] ?? []).map(o => (
-                            <option key={o.id} value={o.id}>{o.label}</option>
+                            <option key={o.id} value={o.id}>
+                              {o.label}
+                            </option>
                           ))}
                         </select>
                         {field.relationCreate && (
@@ -744,12 +826,11 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                           </Button>
                         )}
                       </div>
-
-                    ) : effectiveType === "textarea" || effectiveType === "file-textarea" ? (
+                    ) : effectiveType === 'textarea' || effectiveType === 'file-textarea' ? (
                       <div className="space-y-1">
                         <textarea
-                          className={INPUT_CLASS + " min-h-[120px] resize-y font-mono text-xs"}
-                          value={String(formData[field.key] ?? "")}
+                          className={INPUT_CLASS + ' min-h-[120px] resize-y font-mono text-xs'}
+                          value={String(formData[field.key] ?? '')}
                           onChange={e => updateField(field.key, e.target.value)}
                           placeholder={field.placeholder}
                           required={field.required}
@@ -758,9 +839,11 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                         {isUploadable && (
                           <>
                             <input
-                              ref={el => { fileRefs.current[field.key] = el }}
+                              ref={el => {
+                                fileRefs.current[field.key] = el
+                              }}
                               type="file"
-                              accept={field.fileAccept ?? ".pem,.key,.crt,.txt"}
+                              accept={field.fileAccept ?? '.pem,.key,.crt,.txt'}
                               className="hidden"
                               onChange={e => handleFileUpload(field.key, e)}
                             />
@@ -776,8 +859,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                           </>
                         )}
                       </div>
-
-                    ) : effectiveType === "boolean" ? (
+                    ) : effectiveType === 'boolean' ? (
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="checkbox"
@@ -787,12 +869,17 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                         />
                         <span className="text-sm text-muted-foreground">Enabled</span>
                       </label>
-
                     ) : (
                       <input
-                        type={effectiveType === "password" ? "password" : effectiveType === "number" ? "number" : "text"}
+                        type={
+                          effectiveType === 'password'
+                            ? 'password'
+                            : effectiveType === 'number'
+                              ? 'number'
+                              : 'text'
+                        }
                         className={INPUT_CLASS}
-                        value={String(formData[field.key] ?? "")}
+                        value={String(formData[field.key] ?? '')}
                         onChange={e => handleChange(field, e.target.value)}
                         placeholder={field.placeholder}
                         required={field.required}
@@ -810,7 +897,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
               </Button>
               <Button type="submit" disabled={saving}>
                 {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {editingItem ? "Save" : "Create"}
+                {editingItem ? 'Save' : 'Create'}
               </Button>
             </DialogFooter>
           </form>
@@ -827,76 +914,94 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
           <form onSubmit={handleCreateRelSubmit} className="space-y-4">
             {(createRelField?.relationCreate?.fields ?? [])
               .filter(f => !f.hidden)
-              .filter(f => !f.showWhen || f.showWhen.values.includes(String(createRelData[f.showWhen.field] ?? "")))
+              .filter(
+                f =>
+                  !f.showWhen ||
+                  f.showWhen.values.includes(String(createRelData[f.showWhen.field] ?? ''))
+              )
               .map(f => {
-              const effectiveType = f.dynamicType
-                ? f.dynamicType.values.includes(String(createRelData[f.dynamicType.field] ?? ""))
-                  ? f.dynamicType.as
+                const effectiveType = f.dynamicType
+                  ? f.dynamicType.values.includes(String(createRelData[f.dynamicType.field] ?? ''))
+                    ? f.dynamicType.as
+                    : f.type
                   : f.type
-                : f.type
-              return (
-                <div key={f.key} className="space-y-1.5">
-                  <label className="text-sm font-medium">
-                    {f.label}
-                    {f.required && <span className="text-destructive ml-1">*</span>}
-                  </label>
-                  {effectiveType === "select" ? (
-                    <select
-                      className={INPUT_CLASS}
-                      value={String(createRelData[f.key] ?? "")}
-                      onChange={e => setCreateRelData(prev => ({ ...prev, [f.key]: e.target.value }))}
-                      required={f.required}
-                    >
-                      <option value="">Select…</option>
-                      {f.options?.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                    </select>
-                  ) : effectiveType === "textarea" || effectiveType === "file-textarea" ? (
-                    <div className="space-y-1">
-                      <textarea
-                        className={INPUT_CLASS + " min-h-[120px] resize-y font-mono text-xs"}
-                        value={String(createRelData[f.key] ?? "")}
-                        onChange={e => setCreateRelData(prev => ({ ...prev, [f.key]: e.target.value }))}
+                return (
+                  <div key={f.key} className="space-y-1.5">
+                    <label className="text-sm font-medium">
+                      {f.label}
+                      {f.required && <span className="text-destructive ml-1">*</span>}
+                    </label>
+                    {effectiveType === 'select' ? (
+                      <select
+                        className={INPUT_CLASS}
+                        value={String(createRelData[f.key] ?? '')}
+                        onChange={e =>
+                          setCreateRelData(prev => ({ ...prev, [f.key]: e.target.value }))
+                        }
+                        required={f.required}
+                      >
+                        <option value="">Select…</option>
+                        {f.options?.map(o => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : effectiveType === 'textarea' || effectiveType === 'file-textarea' ? (
+                      <div className="space-y-1">
+                        <textarea
+                          className={INPUT_CLASS + ' min-h-[120px] resize-y font-mono text-xs'}
+                          value={String(createRelData[f.key] ?? '')}
+                          onChange={e =>
+                            setCreateRelData(prev => ({ ...prev, [f.key]: e.target.value }))
+                          }
+                          placeholder={f.placeholder}
+                          required={f.required}
+                          rows={5}
+                        />
+                        {effectiveType === 'file-textarea' && (
+                          <>
+                            <input
+                              ref={el => {
+                                createRelFileRefs.current[f.key] = el
+                              }}
+                              type="file"
+                              accept={f.fileAccept ?? '.pem,.key,.crt,.txt'}
+                              className="hidden"
+                              onChange={e => handleCreateRelFileUpload(f.key, e)}
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => createRelFileRefs.current[f.key]?.click()}
+                            >
+                              <Upload className="h-3 w-3 mr-1" />
+                              Upload file
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <input
+                        type={effectiveType === 'password' ? 'password' : 'text'}
+                        className={INPUT_CLASS}
+                        value={String(createRelData[f.key] ?? '')}
+                        onChange={e =>
+                          setCreateRelData(prev => ({ ...prev, [f.key]: e.target.value }))
+                        }
                         placeholder={f.placeholder}
                         required={f.required}
-                        rows={5}
                       />
-                      {effectiveType === "file-textarea" && (
-                        <>
-                          <input
-                            ref={el => { createRelFileRefs.current[f.key] = el }}
-                            type="file"
-                            accept={f.fileAccept ?? ".pem,.key,.crt,.txt"}
-                            className="hidden"
-                            onChange={e => handleCreateRelFileUpload(f.key, e)}
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => createRelFileRefs.current[f.key]?.click()}
-                          >
-                            <Upload className="h-3 w-3 mr-1" />
-                            Upload file
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  ) : (
-                    <input
-                      type={effectiveType === "password" ? "password" : "text"}
-                      className={INPUT_CLASS}
-                      value={String(createRelData[f.key] ?? "")}
-                      onChange={e => setCreateRelData(prev => ({ ...prev, [f.key]: e.target.value }))}
-                      placeholder={f.placeholder}
-                      required={f.required}
-                    />
-                  )}
-                </div>
-              )
-            })}
+                    )}
+                  </div>
+                )
+              })}
             {createRelError && <p className="text-destructive text-sm">{createRelError}</p>}
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setCreateRelOpen(false)}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={() => setCreateRelOpen(false)}>
+                Cancel
+              </Button>
               <Button type="submit" disabled={createRelSaving}>
                 {createRelSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Create
@@ -907,18 +1012,19 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
       </Dialog>
 
       {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+      <AlertDialog open={!!deleteTarget} onOpenChange={open => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {config.title.replace(/s$/, "")}</AlertDialogTitle>
+            <AlertDialogTitle>Delete {config.title.replace(/s$/, '')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &quot;{String(deleteTarget?.[nameField] ?? "")}&quot;? This action cannot be undone.
+              Are you sure you want to delete &quot;{String(deleteTarget?.[nameField] ?? '')}&quot;?
+              This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} disabled={deleting}>
-              {deleting ? "Deleting..." : "Delete"}
+              {deleting ? 'Deleting...' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

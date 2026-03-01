@@ -8,7 +8,7 @@
 // Design rules:
 //   - GetGroup ALWAYS returns a non-nil map.  On any error (row missing, DB
 //     failure, unmarshal error) it returns (fallback, err).  Callers that use
-//       v, _ := GetGroup(...)
+//     v, _ := GetGroup(...)
 //     are therefore safe; they get the fallback map and can immediately read
 //     typed values from it.
 //   - SetGroup upserts a row: find-then-update or create-then-save.
@@ -19,8 +19,8 @@ package settings
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	"strconv"
+	"strings"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"

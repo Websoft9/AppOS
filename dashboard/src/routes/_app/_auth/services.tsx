@@ -157,13 +157,10 @@ function ServicesPage() {
 
   // ─── Service Actions ─────────────────────────────────
 
-  const showNotification = useCallback(
-    (type: 'success' | 'error', message: string) => {
-      setNotification({ type, message })
-      setTimeout(() => setNotification(null), 3000)
-    },
-    [],
-  )
+  const showNotification = useCallback((type: 'success' | 'error', message: string) => {
+    setNotification({ type, message })
+    setTimeout(() => setNotification(null), 3000)
+  }, [])
 
   const executeAction = useCallback(
     async (name: string, action: 'start' | 'stop' | 'restart') => {
@@ -176,13 +173,13 @@ function ServicesPage() {
       } catch (err) {
         showNotification(
           'error',
-          err instanceof Error ? err.message : `Failed to ${action} ${name}`,
+          err instanceof Error ? err.message : `Failed to ${action} ${name}`
         )
       } finally {
         setActionLoading(null)
       }
     },
-    [fetchServices, showNotification],
+    [fetchServices, showNotification]
   )
 
   const handleAction = useCallback(
@@ -193,36 +190,31 @@ function ServicesPage() {
         executeAction(name, action)
       }
     },
-    [executeAction],
+    [executeAction]
   )
 
   // ─── Log Viewer ──────────────────────────────────────
 
-  const openLogs = useCallback(
-    async (name: string, type: 'stdout' | 'stderr' = 'stdout') => {
-      setLogDialog({ name, type, content: '', loading: true })
-      try {
-        const data = await pb.send<{ content: string }>(
-          `/api/ext/services/${name}/logs?type=${type}&length=65536`,
-          {},
-        )
-        setLogDialog((prev) =>
-          prev ? { ...prev, content: data.content, loading: false } : null,
-        )
-      } catch (err) {
-        setLogDialog((prev) =>
-          prev
-            ? {
-                ...prev,
-                content: `Error: ${err instanceof Error ? err.message : 'Failed to load logs'}`,
-                loading: false,
-              }
-            : null,
-        )
-      }
-    },
-    [],
-  )
+  const openLogs = useCallback(async (name: string, type: 'stdout' | 'stderr' = 'stdout') => {
+    setLogDialog({ name, type, content: '', loading: true })
+    try {
+      const data = await pb.send<{ content: string }>(
+        `/api/ext/services/${name}/logs?type=${type}&length=65536`,
+        {}
+      )
+      setLogDialog(prev => (prev ? { ...prev, content: data.content, loading: false } : null))
+    } catch (err) {
+      setLogDialog(prev =>
+        prev
+          ? {
+              ...prev,
+              content: `Error: ${err instanceof Error ? err.message : 'Failed to load logs'}`,
+              loading: false,
+            }
+          : null
+      )
+    }
+  }, [])
 
   const switchLogType = useCallback(
     (type: 'stdout' | 'stderr') => {
@@ -230,7 +222,7 @@ function ServicesPage() {
         openLogs(logDialog.name, type)
       }
     },
-    [logDialog, openLogs],
+    [logDialog, openLogs]
   )
 
   // ─── Render ──────────────────────────────────────────
@@ -295,17 +287,13 @@ function ServicesPage() {
           <Card>
             <CardContent className="p-4">
               <p className="text-xs text-muted-foreground">Stopped</p>
-              <p className="text-2xl font-bold text-muted-foreground">
-                {summary.stopped}
-              </p>
+              <p className="text-2xl font-bold text-muted-foreground">{summary.stopped}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
               <p className="text-xs text-muted-foreground">Error</p>
-              <p className="text-2xl font-bold text-destructive">
-                {summary.error}
-              </p>
+              <p className="text-2xl font-bold text-destructive">{summary.error}</p>
             </CardContent>
           </Card>
           <Card>
@@ -317,9 +305,7 @@ function ServicesPage() {
           <Card>
             <CardContent className="p-4">
               <p className="text-xs text-muted-foreground">Memory</p>
-              <p className="text-2xl font-bold">
-                {formatMemory(summary.totalMemory)}
-              </p>
+              <p className="text-2xl font-bold">{formatMemory(summary.totalMemory)}</p>
             </CardContent>
           </Card>
         </div>
@@ -327,9 +313,7 @@ function ServicesPage() {
 
       {/* Empty State */}
       {processes.length === 0 ? (
-        <div className="text-center py-10 text-muted-foreground">
-          No services configured
-        </div>
+        <div className="text-center py-10 text-muted-foreground">No services configured</div>
       ) : (
         /* Service Table */
         <Card>
@@ -346,10 +330,9 @@ function ServicesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {processes.map((p) => {
+              {processes.map(p => {
                 const isRunning = p.stateName === 'RUNNING'
-                const isStopped =
-                  p.stateName === 'STOPPED' || p.stateName === 'EXITED'
+                const isStopped = p.stateName === 'STOPPED' || p.stateName === 'EXITED'
                 const isTransition =
                   p.stateName === 'STARTING' ||
                   p.stateName === 'STOPPING' ||
@@ -363,11 +346,7 @@ function ServicesPage() {
                       <Badge variant={stateColor(p.stateName)}>
                         {stateIndicator(p.stateName)} {p.stateName}
                       </Badge>
-                      {p.spawnErr && (
-                        <p className="text-xs text-destructive mt-1">
-                          {p.spawnErr}
-                        </p>
-                      )}
+                      {p.spawnErr && <p className="text-xs text-destructive mt-1">{p.spawnErr}</p>}
                     </TableCell>
                     <TableCell className="hidden sm:table-cell tabular-nums">
                       {p.pid > 0 ? p.pid : '-'}
@@ -392,7 +371,11 @@ function ServicesPage() {
                           onClick={() => handleAction(p.name, 'start')}
                           title="Start"
                         >
-                          {actionLoading === `${p.name}:start` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                          {actionLoading === `${p.name}:start` ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Play className="h-4 w-4" />
+                          )}
                         </Button>
                         {/* Stop */}
                         <Button
@@ -403,7 +386,11 @@ function ServicesPage() {
                           onClick={() => handleAction(p.name, 'stop')}
                           title="Stop"
                         >
-                          {actionLoading === `${p.name}:stop` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Square className="h-4 w-4" />}
+                          {actionLoading === `${p.name}:stop` ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Square className="h-4 w-4" />
+                          )}
                         </Button>
                         {/* Restart */}
                         <Button
@@ -414,7 +401,11 @@ function ServicesPage() {
                           onClick={() => handleAction(p.name, 'restart')}
                           title="Restart"
                         >
-                          {actionLoading === `${p.name}:restart` ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
+                          {actionLoading === `${p.name}:restart` ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RotateCw className="h-4 w-4" />
+                          )}
                         </Button>
                         {/* Logs */}
                         <Button
@@ -437,10 +428,7 @@ function ServicesPage() {
       )}
 
       {/* Confirm Dialog */}
-      <AlertDialog
-        open={!!confirmAction}
-        onOpenChange={(open) => !open && setConfirmAction(null)}
-      >
+      <AlertDialog open={!!confirmAction} onOpenChange={open => !open && setConfirmAction(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -448,8 +436,8 @@ function ServicesPage() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to {confirmAction?.action}{' '}
-              <span className="font-semibold">{confirmAction?.name}</span>? This
-              may cause brief downtime.
+              <span className="font-semibold">{confirmAction?.name}</span>? This may cause brief
+              downtime.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -469,16 +457,11 @@ function ServicesPage() {
       </AlertDialog>
 
       {/* Log Viewer Dialog */}
-      <Dialog
-        open={!!logDialog}
-        onOpenChange={(open) => !open && setLogDialog(null)}
-      >
+      <Dialog open={!!logDialog} onOpenChange={open => !open && setLogDialog(null)}>
         <DialogContent className="max-w-[90vw] max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Logs: {logDialog?.name}</DialogTitle>
-            <DialogDescription>
-              Viewing {logDialog?.type} log output
-            </DialogDescription>
+            <DialogDescription>Viewing {logDialog?.type} log output</DialogDescription>
           </DialogHeader>
           <div className="flex gap-2 mb-2">
             <Button
@@ -498,9 +481,7 @@ function ServicesPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() =>
-                logDialog && openLogs(logDialog.name, logDialog.type)
-              }
+              onClick={() => logDialog && openLogs(logDialog.name, logDialog.type)}
             >
               ↻ Refresh
             </Button>

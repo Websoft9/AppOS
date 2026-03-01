@@ -29,7 +29,10 @@ export function parseExtListInput(v: string): string[] {
 /** Format an extension array into a human-readable hint (max 8 shown). */
 export function formatExtListHint(exts: string[]): string {
   if (exts.length === 0) return ''
-  const shown = exts.slice(0, 8).map(v => `.${v}`).join(', ')
+  const shown = exts
+    .slice(0, 8)
+    .map(v => `.${v}`)
+    .join(', ')
   if (exts.length <= 8) return shown
   return `${shown}, +${exts.length - 8} more`
 }

@@ -46,6 +46,14 @@ func (r *Registry) Register(serverID string, sess *Session) {
 	r.mu.Unlock()
 }
 
+// Unregister removes the session entry for serverID.
+// It is safe to call when no session exists for serverID.
+func (r *Registry) Unregister(serverID string) {
+	r.mu.Lock()
+	delete(r.sessions, serverID)
+	r.mu.Unlock()
+}
+
 // UnregisterConn removes the session entry for serverID only if the stored
 // session's Conn matches the provided connection. This prevents a closing old
 // connection from accidentally removing a newer replacement session.

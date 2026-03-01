@@ -53,7 +53,9 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
   DropdownMenuTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
   DropdownMenuContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DropdownMenuItem: ({ children, onClick, ...rest }: ComponentProps<'button'>) => (
-    <button onClick={onClick} {...rest}>{children}</button>
+    <button onClick={onClick} {...rest}>
+      {children}
+    </button>
   ),
 }))
 
@@ -93,7 +95,7 @@ describe('FileManagerPanel', () => {
 
     await waitFor(() => expect(mockSftpConstraints).toHaveBeenCalledWith('s1'))
 
-    const uploadInput = await screen.findByTestId('upload-input') as HTMLInputElement
+    const uploadInput = (await screen.findByTestId('upload-input')) as HTMLInputElement
     const f1 = new File(['a'], 'a.txt', { type: 'text/plain' })
     const f2 = new File(['b'], 'b.txt', { type: 'text/plain' })
     fireEvent.change(uploadInput, { target: { files: [f1, f2] } })
@@ -152,7 +154,7 @@ describe('FileManagerPanel', () => {
     fireEvent.click(await screen.findByTestId('perm-others-read'))
     fireEvent.click(await screen.findByTestId('perm-others-execute'))
 
-    const modeInput = await screen.findByTestId('properties-mode') as HTMLInputElement
+    const modeInput = (await screen.findByTestId('properties-mode')) as HTMLInputElement
     await waitFor(() => expect(modeInput.value).toBe('755'))
 
     fireEvent.click(await screen.findByTestId('properties-recursive'))

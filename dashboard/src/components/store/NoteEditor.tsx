@@ -15,7 +15,7 @@ interface NoteEditorProps {
 
 export function NoteEditor({ appKey, userApps, onSave, isSaving }: NoteEditorProps) {
   const { t } = useTranslation('store')
-  const noteValue = userApps.find((a) => a.app_key === appKey)?.note ?? null
+  const noteValue = userApps.find(a => a.app_key === appKey)?.note ?? null
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [expanded, setExpanded] = useState(false)
@@ -40,11 +40,19 @@ export function NoteEditor({ appKey, userApps, onSave, isSaving }: NoteEditorPro
     <div className="space-y-2">
       <div className="flex items-center gap-2">
         <StickyNote
-          className={cn('h-4 w-4 shrink-0', noteValue ? 'fill-yellow-400 text-yellow-500' : 'text-muted-foreground')}
+          className={cn(
+            'h-4 w-4 shrink-0',
+            noteValue ? 'fill-yellow-400 text-yellow-500' : 'text-muted-foreground'
+          )}
         />
         <span className="text-sm font-semibold">{t('note.label')}</span>
         {!editing && (
-          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs ml-auto" onClick={openEditor}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs ml-auto"
+            onClick={openEditor}
+          >
             {noteValue ? t('note.edit') : t('note.add')}
           </Button>
         )}
@@ -54,7 +62,7 @@ export function NoteEditor({ appKey, userApps, onSave, isSaving }: NoteEditorPro
         <div className="space-y-2">
           <Textarea
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={e => setDraft(e.target.value)}
             placeholder={t('note.placeholder')}
             className="text-sm min-h-[80px] resize-none"
             autoFocus
@@ -70,11 +78,19 @@ export function NoteEditor({ appKey, userApps, onSave, isSaving }: NoteEditorPro
         </div>
       ) : noteValue ? (
         <div>
-          <p className={cn('text-sm text-muted-foreground whitespace-pre-wrap', !expanded && 'line-clamp-3')}>
+          <p
+            className={cn(
+              'text-sm text-muted-foreground whitespace-pre-wrap',
+              !expanded && 'line-clamp-3'
+            )}
+          >
             {noteValue}
           </p>
           {!expanded && noteValue.length > 150 && (
-            <button className="text-xs text-primary mt-1 hover:underline" onClick={() => setExpanded(true)}>
+            <button
+              className="text-xs text-primary mt-1 hover:underline"
+              onClick={() => setExpanded(true)}
+            >
               {t('note.showMore')}
             </button>
           )}

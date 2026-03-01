@@ -66,9 +66,7 @@ function ResetPasswordPage() {
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="w-full max-w-md p-8 bg-card rounded-lg shadow-md border border-border text-center">
           <h2 className="text-2xl font-bold mb-4 text-card-foreground">Password Reset</h2>
-          <p className="text-muted-foreground mb-6">
-            Your password has been reset successfully.
-          </p>
+          <p className="text-muted-foreground mb-6">Your password has been reset successfully.</p>
           <Link to="/login" className="text-primary hover:underline">
             Go to Login
           </Link>
@@ -81,9 +79,7 @@ function ResetPasswordPage() {
     <div className="flex items-center justify-center min-h-screen bg-background">
       <div className="w-full max-w-md p-8 bg-card rounded-lg shadow-md border border-border">
         <h2 className="text-2xl font-bold text-center mb-2 text-card-foreground">Reset Password</h2>
-        <p className="text-center text-sm text-muted-foreground mb-6">
-          Enter your new password
-        </p>
+        <p className="text-center text-sm text-muted-foreground mb-6">Enter your new password</p>
 
         {error && (
           <div className="mb-4 p-3 bg-destructive/10 border border-destructive/50 text-destructive rounded">
@@ -100,7 +96,7 @@ function ResetPasswordPage() {
               type="password"
               id="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={e => setPassword(e.target.value)}
               className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
               required
               disabled={loading}
@@ -108,25 +104,24 @@ function ResetPasswordPage() {
             />
           </div>
           <div>
-            <label htmlFor="passwordConfirm" className="block text-sm font-medium mb-1 text-foreground">
+            <label
+              htmlFor="passwordConfirm"
+              className="block text-sm font-medium mb-1 text-foreground"
+            >
               Confirm New Password
             </label>
             <input
               type="password"
               id="passwordConfirm"
               value={passwordConfirm}
-              onChange={(e) => setPasswordConfirm(e.target.value)}
+              onChange={e => setPasswordConfirm(e.target.value)}
               className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
               required
               disabled={loading}
               minLength={8}
             />
           </div>
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={loading}
-          >
+          <Button type="submit" className="w-full" disabled={loading}>
             {loading ? 'Resetting...' : 'Reset Password'}
           </Button>
         </form>

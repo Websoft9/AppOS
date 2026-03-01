@@ -92,6 +92,7 @@ func registerDockerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	// ─── Exec (arbitrary docker command) ─────────────────
 	d.POST("/exec", handleDockerExec)
 }
+
 // ─── Server-aware executor helper ────────────────────────────────
 
 // getDockerClient returns a Docker client for the server_id in the request query.
@@ -298,6 +299,7 @@ func handleDockerServers(e *core.RequestEvent) error {
 	result = append(result, entries...)
 	return e.JSON(http.StatusOK, result)
 }
+
 // ─── Helper ──────────────────────────────────────────────
 
 // dockerError returns a PocketBase-style error response.

@@ -110,7 +110,12 @@ function ProfileSection({ collectionName, authId }: { collectionName: string; au
                   <User className="h-8 w-8" />
                 </div>
               )}
-              <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => fileRef.current?.click()}
+              >
                 <Upload className="mr-2 h-4 w-4" />
                 Upload
               </Button>
@@ -132,14 +137,16 @@ function ProfileSection({ collectionName, authId }: { collectionName: string; au
             <Input
               id="profile-name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={e => setName(e.target.value)}
               placeholder="Your name"
             />
           </div>
         )}
 
         {!isMember && (
-          <p className="text-sm text-muted-foreground">Superuser accounts do not have a name or avatar.</p>
+          <p className="text-sm text-muted-foreground">
+            Superuser accounts do not have a name or avatar.
+          </p>
         )}
 
         {profileSuccess && <SuccessMsg msg={profileSuccess} />}
@@ -223,10 +230,12 @@ function PasswordSection({ collectionName, authId }: { collectionName: string; a
             id="old-password"
             type="password"
             value={oldPassword}
-            onChange={(e) => setOldPassword(e.target.value)}
+            onChange={e => setOldPassword(e.target.value)}
             autoComplete="current-password"
           />
-          {fieldErrors.oldPassword && <p className="text-xs text-destructive">{fieldErrors.oldPassword}</p>}
+          {fieldErrors.oldPassword && (
+            <p className="text-xs text-destructive">{fieldErrors.oldPassword}</p>
+          )}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="new-password">New password</Label>
@@ -234,10 +243,12 @@ function PasswordSection({ collectionName, authId }: { collectionName: string; a
             id="new-password"
             type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={e => setPassword(e.target.value)}
             autoComplete="new-password"
           />
-          {fieldErrors.password && <p className="text-xs text-destructive">{fieldErrors.password}</p>}
+          {fieldErrors.password && (
+            <p className="text-xs text-destructive">{fieldErrors.password}</p>
+          )}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="confirm-password">Confirm new password</Label>
@@ -245,16 +256,21 @@ function PasswordSection({ collectionName, authId }: { collectionName: string; a
             id="confirm-password"
             type="password"
             value={passwordConfirm}
-            onChange={(e) => setPasswordConfirm(e.target.value)}
+            onChange={e => setPasswordConfirm(e.target.value)}
             autoComplete="new-password"
           />
-          {fieldErrors.passwordConfirm && <p className="text-xs text-destructive">{fieldErrors.passwordConfirm}</p>}
+          {fieldErrors.passwordConfirm && (
+            <p className="text-xs text-destructive">{fieldErrors.passwordConfirm}</p>
+          )}
         </div>
 
         {pwSuccess && <SuccessMsg msg={pwSuccess} />}
         {globalError && <ErrorMsg msg={globalError} />}
 
-        <Button onClick={handleSave} disabled={saving || !oldPassword || !password || !passwordConfirm}>
+        <Button
+          onClick={handleSave}
+          disabled={saving || !oldPassword || !password || !passwordConfirm}
+        >
           {saving ? 'Updating…' : 'Update Password'}
         </Button>
       </div>
@@ -305,7 +321,7 @@ function EmailSection({ collectionName }: { collectionName: string }) {
             id="new-email"
             type="email"
             value={newEmail}
-            onChange={(e) => setNewEmail(e.target.value)}
+            onChange={e => setNewEmail(e.target.value)}
             placeholder="new@example.com"
           />
         </div>
@@ -333,7 +349,9 @@ function ProfilePage() {
     <div className="container mx-auto max-w-2xl space-y-10 py-6">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold">My Profile</h1>
-        <p className="text-sm text-muted-foreground">Manage your personal information and security settings.</p>
+        <p className="text-sm text-muted-foreground">
+          Manage your personal information and security settings.
+        </p>
       </div>
 
       <ProfileSection collectionName={collectionName} authId={authId} />

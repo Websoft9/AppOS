@@ -1,9 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router"
-import { useState, useEffect, useCallback, useRef, type FormEvent, type ChangeEvent } from "react"
-import { Plus, Trash2, Loader2, Pencil, Upload, ChevronLeft } from "lucide-react"
-import { pb } from "@/lib/pb"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { useState, useEffect, useCallback, useRef, type FormEvent, type ChangeEvent } from 'react'
+import { Plus, Trash2, Loader2, Pencil, Upload, ChevronLeft } from 'lucide-react'
+import { pb } from '@/lib/pb'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -11,7 +11,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from '@/components/ui/table'
 import {
   Dialog,
   DialogContent,
@@ -19,7 +19,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
+} from '@/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,10 +29,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+} from '@/components/ui/alert-dialog'
 
 const INPUT_CLASS =
-  "w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground text-sm"
+  'w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground text-sm'
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -72,18 +72,18 @@ interface Secret {
 function EnvGroupsPage() {
   const [items, setItems] = useState<EnvGroup[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
+  const [error, setError] = useState('')
 
   // Dialog
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [name, setName] = useState("")
-  const [description, setDescription] = useState("")
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
   const [vars, setVars] = useState<EnvVar[]>([])
   const [secrets, setSecrets] = useState<Secret[]>([])
   const [saving, setSaving] = useState(false)
   const [loadingEdit, setLoadingEdit] = useState(false)
-  const [formError, setFormError] = useState("")
+  const [formError, setFormError] = useState('')
 
   // Delete
   const [deleteTarget, setDeleteTarget] = useState<EnvGroup | null>(null)
@@ -96,48 +96,49 @@ function EnvGroupsPage() {
   const [selectedGroups, setSelectedGroups] = useState<string[]>([])
   const [availableGroups, setAvailableGroups] = useState<AvailableGroup[]>([])
   const [createSecretVarIdx, setCreateSecretVarIdx] = useState<number | null>(null)
-  const [createSecretName, setCreateSecretName] = useState("")
-  const [createSecretType, setCreateSecretType] = useState("password")
-  const [createSecretUsername, setCreateSecretUsername] = useState("")
-  const [createSecretValue, setCreateSecretValue] = useState("")
+  const [createSecretName, setCreateSecretName] = useState('')
+  const [createSecretType, setCreateSecretType] = useState('password')
+  const [createSecretUsername, setCreateSecretUsername] = useState('')
+  const [createSecretValue, setCreateSecretValue] = useState('')
   const [createSecretSaving, setCreateSecretSaving] = useState(false)
-  const [createSecretError, setCreateSecretError] = useState("")
+  const [createSecretError, setCreateSecretError] = useState('')
   const createSecretFileRef = useRef<HTMLInputElement | null>(null)
 
   const fetchItems = useCallback(async () => {
     try {
-      const data = await pb.send<EnvGroup[]>("/api/ext/resources/env-groups", {})
+      const data = await pb.send<EnvGroup[]>('/api/ext/resources/env-groups', {})
       setItems(Array.isArray(data) ? data : [])
-      setError("")
+      setError('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load")
+      setError(err instanceof Error ? err.message : 'Failed to load')
     } finally {
       setLoading(false)
     }
   }, [])
 
-  useEffect(() => { fetchItems() }, [fetchItems])
+  useEffect(() => {
+    fetchItems()
+  }, [fetchItems])
 
   // Auto-open Create dialog when ?create=1
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("create") === "1") openCreateDialog()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (new URLSearchParams(window.location.search).get('create') === '1') openCreateDialog()
   }, [])
 
   // Load secrets list when dialog opens (for the secret selector in vars)
   useEffect(() => {
     if (!dialogOpen) return
-    pb.send<{id:string;name:string;type?:string}[]>("/api/ext/resources/secrets", {})
+    pb.send<{ id: string; name: string; type?: string }[]>('/api/ext/resources/secrets', {})
       .then(data => setSecrets(Array.isArray(data) ? data : []))
       .catch(() => setSecrets([]))
-    pb.send<AvailableGroup[]>("/api/ext/resources/groups", {})
+    pb.send<AvailableGroup[]>('/api/ext/resources/groups', {})
       .then(data => {
         const groups = Array.isArray(data) ? data : []
         setAvailableGroups(groups)
         // Auto-select default group when creating
         if (!editingId) {
           const def = groups.find(g => g.is_default)
-          if (def) setSelectedGroups(prev => prev.includes(def.id) ? prev : [def.id])
+          if (def) setSelectedGroups(prev => (prev.includes(def.id) ? prev : [def.id]))
         }
       })
       .catch(() => setAvailableGroups([]))
@@ -145,27 +146,27 @@ function EnvGroupsPage() {
 
   function openCreateDialog() {
     setEditingId(null)
-    setName("")
-    setDescription("")
+    setName('')
+    setDescription('')
     setVars([])
     setSelectedGroups([])
-    setFormError("")
+    setFormError('')
     setDialogOpen(true)
   }
 
   async function openEditDialog(item: EnvGroup) {
     setLoadingEdit(true)
-    setFormError("")
+    setFormError('')
     try {
       const data = await pb.send<EnvGroupDetail>(`/api/ext/resources/env-groups/${item.id}`, {})
       setEditingId(item.id)
-      setName(data.name ?? "")
-      setDescription(data.description ?? "")
+      setName(data.name ?? '')
+      setDescription(data.description ?? '')
       setVars(data.vars ?? [])
       setSelectedGroups(Array.isArray(data.groups) ? data.groups.map(String) : [])
       setDialogOpen(true)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load group")
+      setError(err instanceof Error ? err.message : 'Failed to load group')
     } finally {
       setLoadingEdit(false)
     }
@@ -173,11 +174,11 @@ function EnvGroupsPage() {
 
   function openCreateSecretForVar(idx: number) {
     setCreateSecretVarIdx(idx)
-    setCreateSecretName("")
-    setCreateSecretType("password")
-    setCreateSecretUsername("")
-    setCreateSecretValue("")
-    setCreateSecretError("")
+    setCreateSecretName('')
+    setCreateSecretType('password')
+    setCreateSecretUsername('')
+    setCreateSecretValue('')
+    setCreateSecretError('')
     setCreateSecretOpen(true)
   }
 
@@ -185,35 +186,39 @@ function EnvGroupsPage() {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = ev => setCreateSecretValue(String(ev.target?.result ?? ""))
+    reader.onload = ev => setCreateSecretValue(String(ev.target?.result ?? ''))
     reader.readAsText(file)
-    e.target.value = ""
+    e.target.value = ''
   }
 
   async function handleCreateSecret(e: FormEvent) {
     e.preventDefault()
     setCreateSecretSaving(true)
-    setCreateSecretError("")
+    setCreateSecretError('')
     try {
-      const body: Record<string, unknown> = { name: createSecretName, type: createSecretType, value: createSecretValue }
-      if (createSecretType === "username_password") body.username = createSecretUsername
-      const created = await pb.send<Secret>("/api/ext/resources/secrets", { method: "POST", body })
+      const body: Record<string, unknown> = {
+        name: createSecretName,
+        type: createSecretType,
+        value: createSecretValue,
+      }
+      if (createSecretType === 'username_password') body.username = createSecretUsername
+      const created = await pb.send<Secret>('/api/ext/resources/secrets', { method: 'POST', body })
       setSecrets(prev => [...prev, { id: created.id, name: created.name, type: createSecretType }])
       if (createSecretVarIdx !== null) updateVar(createSecretVarIdx, { secret: created.id })
       setCreateSecretOpen(false)
     } catch (err) {
-      setCreateSecretError(err instanceof Error ? err.message : "Create failed")
+      setCreateSecretError(err instanceof Error ? err.message : 'Create failed')
     } finally {
       setCreateSecretSaving(false)
     }
   }
 
   function addVar() {
-    setVars(prev => [...prev, { key: "", value: "", is_secret: false, secret: "" }])
+    setVars(prev => [...prev, { key: '', value: '', is_secret: false, secret: '' }])
   }
 
   function updateVar(index: number, patch: Partial<EnvVar>) {
-    setVars(prev => prev.map((v, i) => i === index ? { ...v, ...patch } : v))
+    setVars(prev => prev.map((v, i) => (i === index ? { ...v, ...patch } : v)))
   }
 
   function removeVar(index: number) {
@@ -223,18 +228,18 @@ function EnvGroupsPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setSaving(true)
-    setFormError("")
+    setFormError('')
     try {
       const body = { name, description, vars, groups: selectedGroups }
       if (editingId) {
-        await pb.send(`/api/ext/resources/env-groups/${editingId}`, { method: "PUT", body })
+        await pb.send(`/api/ext/resources/env-groups/${editingId}`, { method: 'PUT', body })
       } else {
-        await pb.send("/api/ext/resources/env-groups", { method: "POST", body })
+        await pb.send('/api/ext/resources/env-groups', { method: 'POST', body })
       }
       setDialogOpen(false)
       await fetchItems()
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Save failed")
+      setFormError(err instanceof Error ? err.message : 'Save failed')
     } finally {
       setSaving(false)
     }
@@ -244,11 +249,11 @@ function EnvGroupsPage() {
     if (!deleteTarget) return
     setDeleting(true)
     try {
-      await pb.send(`/api/ext/resources/env-groups/${deleteTarget.id}`, { method: "DELETE" })
+      await pb.send(`/api/ext/resources/env-groups/${deleteTarget.id}`, { method: 'DELETE' })
       setDeleteTarget(null)
       await fetchItems()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Delete failed")
+      setError(err instanceof Error ? err.message : 'Delete failed')
       setDeleteTarget(null)
     } finally {
       setDeleting(false)
@@ -269,7 +274,7 @@ function EnvGroupsPage() {
       <div className="flex items-center justify-between">
         <div>
           <Link
-            to={"/resources" as never}
+            to={'/resources' as never}
             className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-1 w-fit transition-colors"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
@@ -291,7 +296,9 @@ function EnvGroupsPage() {
       {error && (
         <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md text-sm flex items-center gap-2">
           <span className="flex-1">{error}</span>
-          <Button variant="ghost" size="sm" onClick={fetchItems}>Retry</Button>
+          <Button variant="ghost" size="sm" onClick={fetchItems}>
+            Retry
+          </Button>
         </div>
       )}
 
@@ -301,7 +308,9 @@ function EnvGroupsPage() {
           {items.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <p>No env groups found</p>
-              <Button variant="link" onClick={openCreateDialog}>Create your first one</Button>
+              <Button variant="link" onClick={openCreateDialog}>
+                Create your first one
+              </Button>
             </div>
           ) : (
             <Table>
@@ -317,9 +326,13 @@ function EnvGroupsPage() {
                 {items.map(item => (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{item.description || "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {item.description || '—'}
+                    </TableCell>
                     <TableCell>
-                      <span className="text-sm text-muted-foreground">{item.vars_count ?? 0} vars</span>
+                      <span className="text-sm text-muted-foreground">
+                        {item.vars_count ?? 0} vars
+                      </span>
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
@@ -346,7 +359,7 @@ function EnvGroupsPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingId ? "Edit Env Group" : "Create Env Group"}</DialogTitle>
+            <DialogTitle>{editingId ? 'Edit Env Group' : 'Create Env Group'}</DialogTitle>
             <DialogDescription>
               Define a named set of environment variables that can be shared across apps.
             </DialogDescription>
@@ -386,7 +399,10 @@ function EnvGroupsPage() {
                   <p className="text-xs text-muted-foreground px-1">Loading groups…</p>
                 ) : (
                   availableGroups.map(g => (
-                    <label key={g.id} className="flex items-center gap-2 cursor-pointer px-1 py-0.5 rounded hover:bg-muted transition-colors">
+                    <label
+                      key={g.id}
+                      className="flex items-center gap-2 cursor-pointer px-1 py-0.5 rounded hover:bg-muted transition-colors"
+                    >
                       <input
                         type="checkbox"
                         className="h-4 w-4 rounded border-input"
@@ -430,7 +446,7 @@ function EnvGroupsPage() {
                   >
                     {/* Key */}
                     <input
-                      className={INPUT_CLASS + " font-mono"}
+                      className={INPUT_CLASS + ' font-mono'}
                       value={v.key}
                       onChange={e => updateVar(i, { key: e.target.value })}
                       placeholder="KEY_NAME"
@@ -440,14 +456,15 @@ function EnvGroupsPage() {
                     {v.is_secret ? (
                       <div className="flex gap-1 items-center">
                         <select
-                          className={INPUT_CLASS + " flex-1"}
+                          className={INPUT_CLASS + ' flex-1'}
                           value={v.secret}
                           onChange={e => updateVar(i, { secret: e.target.value })}
                         >
                           <option value="">Select secret…</option>
                           {secrets.map(s => (
                             <option key={s.id} value={s.id}>
-                              {s.name}{s.type ? ` (${s.type})` : ""}
+                              {s.name}
+                              {s.type ? ` (${s.type})` : ''}
                             </option>
                           ))}
                         </select>
@@ -477,7 +494,9 @@ function EnvGroupsPage() {
                         type="checkbox"
                         className="h-3.5 w-3.5"
                         checked={v.is_secret}
-                        onChange={e => updateVar(i, { is_secret: e.target.checked, value: "", secret: "" })}
+                        onChange={e =>
+                          updateVar(i, { is_secret: e.target.checked, value: '', secret: '' })
+                        }
                       />
                       Secret
                     </label>
@@ -505,7 +524,7 @@ function EnvGroupsPage() {
               </Button>
               <Button type="submit" disabled={saving}>
                 {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {editingId ? "Save" : "Create"}
+                {editingId ? 'Save' : 'Create'}
               </Button>
             </DialogFooter>
           </form>
@@ -521,12 +540,31 @@ function EnvGroupsPage() {
           </DialogHeader>
           <form onSubmit={handleCreateSecret} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Name <span className="text-destructive">*</span></label>
-              <input className={INPUT_CLASS} value={createSecretName} onChange={e => setCreateSecretName(e.target.value)} placeholder="my-api-key" required />
+              <label className="text-sm font-medium">
+                Name <span className="text-destructive">*</span>
+              </label>
+              <input
+                className={INPUT_CLASS}
+                value={createSecretName}
+                onChange={e => setCreateSecretName(e.target.value)}
+                placeholder="my-api-key"
+                required
+              />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Type <span className="text-destructive">*</span></label>
-              <select className={INPUT_CLASS} value={createSecretType} onChange={e => { setCreateSecretType(e.target.value); setCreateSecretValue(""); setCreateSecretUsername("") }} required>
+              <label className="text-sm font-medium">
+                Type <span className="text-destructive">*</span>
+              </label>
+              <select
+                className={INPUT_CLASS}
+                value={createSecretType}
+                onChange={e => {
+                  setCreateSecretType(e.target.value)
+                  setCreateSecretValue('')
+                  setCreateSecretUsername('')
+                }}
+                required
+              >
                 <option value="password">Password</option>
                 <option value="username_password">Username + Password</option>
                 <option value="api_key">API Key</option>
@@ -534,36 +572,63 @@ function EnvGroupsPage() {
                 <option value="ssh_key">SSH Key</option>
               </select>
             </div>
-            {createSecretType === "username_password" && (
+            {createSecretType === 'username_password' && (
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Username</label>
-                <input className={INPUT_CLASS} value={createSecretUsername} onChange={e => setCreateSecretUsername(e.target.value)} placeholder="admin" />
+                <input
+                  className={INPUT_CLASS}
+                  value={createSecretUsername}
+                  onChange={e => setCreateSecretUsername(e.target.value)}
+                  placeholder="admin"
+                />
               </div>
             )}
             <div className="space-y-1">
-              <label className="text-sm font-medium">Password / Value <span className="text-destructive">*</span></label>
-              {createSecretType === "ssh_key" ? (
+              <label className="text-sm font-medium">
+                Password / Value <span className="text-destructive">*</span>
+              </label>
+              {createSecretType === 'ssh_key' ? (
                 <>
                   <textarea
-                    className={INPUT_CLASS + " min-h-[100px] resize-y font-mono text-xs"}
+                    className={INPUT_CLASS + ' min-h-[100px] resize-y font-mono text-xs'}
                     value={createSecretValue}
                     onChange={e => setCreateSecretValue(e.target.value)}
                     placeholder="-----BEGIN PRIVATE KEY-----"
                     required
                     rows={4}
                   />
-                  <input ref={createSecretFileRef} type="file" accept=".pem,.key,.txt" className="hidden" onChange={handleCreateSecretFileUpload} />
-                  <Button type="button" variant="outline" size="sm" onClick={() => createSecretFileRef.current?.click()}>
-                    <Upload className="h-3 w-3 mr-1" />Upload file
+                  <input
+                    ref={createSecretFileRef}
+                    type="file"
+                    accept=".pem,.key,.txt"
+                    className="hidden"
+                    onChange={handleCreateSecretFileUpload}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => createSecretFileRef.current?.click()}
+                  >
+                    <Upload className="h-3 w-3 mr-1" />
+                    Upload file
                   </Button>
                 </>
               ) : (
-                <input type="password" className={INPUT_CLASS} value={createSecretValue} onChange={e => setCreateSecretValue(e.target.value)} required />
+                <input
+                  type="password"
+                  className={INPUT_CLASS}
+                  value={createSecretValue}
+                  onChange={e => setCreateSecretValue(e.target.value)}
+                  required
+                />
               )}
             </div>
             {createSecretError && <p className="text-destructive text-sm">{createSecretError}</p>}
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setCreateSecretOpen(false)}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={() => setCreateSecretOpen(false)}>
+                Cancel
+              </Button>
               <Button type="submit" disabled={createSecretSaving}>
                 {createSecretSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Create
@@ -579,14 +644,14 @@ function EnvGroupsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Env Group</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &quot;{deleteTarget?.name}&quot;?
-              All its variables will also be deleted. This action cannot be undone.
+              Are you sure you want to delete &quot;{deleteTarget?.name}&quot;? All its variables
+              will also be deleted. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} disabled={deleting}>
-              {deleting ? "Deleting…" : "Delete"}
+              {deleting ? 'Deleting…' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -595,6 +660,6 @@ function EnvGroupsPage() {
   )
 }
 
-export const Route = createFileRoute("/_app/_auth/resources/env-groups")({
+export const Route = createFileRoute('/_app/_auth/resources/env-groups')({
   component: EnvGroupsPage,
 })

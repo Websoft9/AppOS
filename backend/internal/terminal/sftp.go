@@ -16,7 +16,7 @@ import (
 )
 
 const sftpMaxUploadBytes = 50 << 20 // 50 MB
-const sftpMaxWriteBytes  = 2 << 20  // 2 MB — consistent with the text-read limit
+const sftpMaxWriteBytes = 2 << 20   // 2 MB — consistent with the text-read limit
 
 // SFTPClient wraps an SFTP session opened over a dedicated SSH connection.
 // It is short-lived: open it, perform one or more operations, then Close.
