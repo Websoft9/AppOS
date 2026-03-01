@@ -5,7 +5,7 @@ import {
   Folder, FolderPlus, FilePlus, RefreshCw, Download,
   ChevronRight, Search, ArrowUp, ArrowDown, ChevronsUpDown,
   QrCode, Eye, MoreVertical, FolderInput,
-  LayoutGrid, List, Pencil, Edit3,
+  LayoutGrid, List, Pencil, Edit3, Maximize2, Minimize2,
   FileCode2, FileImage, FileVideo, FileType2, File as FileGeneric, Archive, Music2, RotateCcw,
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
@@ -431,6 +431,7 @@ function FilesPage() {
   const [previewText, setPreviewText] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewError, setPreviewError] = useState<string | null>(null)
+  const [previewFullscreen, setPreviewFullscreen] = useState(false)
 
   // ── Delete confirm ─────────────────────────────────────
   const [deleteItem, setDeleteItem] = useState<UserFile | null>(null)
@@ -974,6 +975,7 @@ function FilesPage() {
     setPreviewFile(null)
     setPreviewText(null)
     setPreviewError(null)
+    setPreviewFullscreen(false)
   }
 
   // ─── Edit ──────────────────────────────────────────────
@@ -1852,11 +1854,27 @@ function FilesPage() {
 
       {/* ── Preview Dialog ─────────────────────────────── */}
       <Dialog open={!!previewFile} onOpenChange={v => { if (!v) closePreview() }}>
-        <DialogContent className="sm:max-w-4xl w-full" aria-describedby={undefined}>
-          <DialogHeader>
-            <DialogTitle>Preview: {previewFile?.name}</DialogTitle>
+        <DialogContent
+          className={previewFullscreen
+            ? '!w-screen !h-screen !max-w-none !translate-x-0 !translate-y-0 !left-0 !top-0 !rounded-none flex flex-col overflow-hidden'
+            : 'sm:max-w-4xl w-full'}
+          aria-describedby={undefined}
+        >
+          <DialogHeader className="pr-10">
+            <div className="flex items-center gap-2">
+              <DialogTitle className="truncate">{previewFile?.name}</DialogTitle>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="ml-auto h-7 w-7 shrink-0"
+                onClick={() => setPreviewFullscreen(f => !f)}
+                title={previewFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+              >
+                {previewFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+              </Button>
+            </div>
           </DialogHeader>
-          <div className="flex items-center justify-center min-h-[40vh] max-h-[70vh] overflow-auto">
+          <div className={`flex items-center justify-center overflow-auto ${previewFullscreen ? 'flex-1' : 'min-h-[40vh] max-h-[70vh]'}`}>
             {previewLoading && (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin" /> Loading preview…
@@ -1880,7 +1898,7 @@ function FilesPage() {
                   <img
                     src={directUrl}
                     alt={previewFile.name}
-                    className="max-w-full max-h-[65vh] object-contain rounded"
+                    className={`max-w-full object-contain rounded ${previewFullscreen ? 'max-h-full' : 'max-h-[65vh]'}`}
                   />
                 )
               }
@@ -1889,7 +1907,7 @@ function FilesPage() {
                   <iframe
                     src={directUrl}
                     title={previewFile.name}
-                    className="w-full h-[65vh] rounded border"
+                    className={`w-full rounded border ${previewFullscreen ? 'h-full' : 'h-[65vh]'}`}
                   />
                 )
               }
@@ -1905,7 +1923,7 @@ function FilesPage() {
                   <video
                     controls
                     src={directUrl}
-                    className="max-w-full max-h-[65vh] rounded"
+                    className={`max-w-full rounded ${previewFullscreen ? 'max-h-full' : 'max-h-[65vh]'}`}
                   />
                 )
               }
@@ -1914,6 +1932,14 @@ function FilesPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={closePreview}>Close</Button>
+            {previewFile && getPreviewType(previewFile, quota) === 'text' && isEditable(previewFile, quota) && (
+              <Button
+                variant="outline"
+                onClick={() => { if (previewFile) { const f = previewFile; closePreview(); openEditor(f) } }}
+              >
+                <Edit3 className="h-4 w-4 mr-1" /> Edit
+              </Button>
+            )}
             {previewFile?.content && (
               <a
                 href={buildDownloadUrl(previewFile) ?? '#'}
