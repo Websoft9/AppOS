@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"path"
@@ -455,9 +456,10 @@ func handleSpaceFetch(e *core.RequestEvent) error {
 
 	// Reject private/loopback addresses to prevent SSRF.
 	host := strings.ToLower(parsed.Hostname())
-	if host == "localhost" || strings.HasPrefix(host, "127.") ||
-		strings.HasPrefix(host, "10.") || strings.HasPrefix(host, "192.168.") ||
-		strings.HasPrefix(host, "172.") || host == "::1" || host == "0.0.0.0" {
+	if host == "localhost" {
+		return e.BadRequestError("private/loopback URLs are not allowed", nil)
+	}
+	if ip := net.ParseIP(host); ip != nil && isBlockedFetchIP(ip) {
 		return e.BadRequestError("private/loopback URLs are not allowed", nil)
 	}
 
@@ -629,4 +631,17 @@ func normalizeSpaceExtToken(v string) string {
 		return "py"
 	}
 	return v
+}
+
+func isBlockedFetchIP(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() {
+		return true
+	}
+	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return true
+	}
+	return false
 }
