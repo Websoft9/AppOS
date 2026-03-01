@@ -811,7 +811,12 @@ function FilesPage() {
           parent: fetchParent || undefined,
         }),
       })
-      const data = await res.json()
+      let data: { message?: string } | null = null
+      try {
+        data = await res.json()
+      } catch {
+        data = null
+      }
       if (!res.ok) {
         setFetchError(data?.message ?? `Server error ${res.status}`)
         return

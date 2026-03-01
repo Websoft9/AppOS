@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/filesystem"
@@ -29,11 +30,11 @@ import (
 //   - routes/settings.go  fallbackForKey("space/quota")
 //   - migrations/1741200001_seed_app_settings.go  (seed defaults)
 var defaultSpaceQuota = map[string]any{
-	"maxSizeMB":              10,
-	"maxPerUser":             100,
-	"shareMaxMinutes":        60,
-	"shareDefaultMinutes":    30,
-	"maxUploadFiles":         50,
+	"maxSizeMB":             10,
+	"maxPerUser":            100,
+	"shareMaxMinutes":       60,
+	"shareDefaultMinutes":   30,
+	"maxUploadFiles":        50,
 	"disallowedFolderNames": []string{},
 }
 
@@ -108,16 +109,16 @@ func handleSpaceQuota(e *core.RequestEvent) error {
 		maxUploadFiles = 200
 	}
 	return e.JSON(http.StatusOK, map[string]any{
-		"max_size_mb":              settings.Int(quota, "maxSizeMB", 10),
-		"editable_formats":         strings.Split(spaceEditableFormats, ","),
-		"upload_allow_exts":        settings.StringSlice(quota, "uploadAllowExts"),
-		"upload_deny_exts":         settings.StringSlice(quota, "uploadDenyExts"),
-		"max_upload_files":         maxUploadFiles,
-		"max_per_user":             settings.Int(quota, "maxPerUser", 100),
-		"share_max_minutes":        settings.Int(quota, "shareMaxMinutes", 60),
-		"share_default_minutes":    settings.Int(quota, "shareDefaultMinutes", 30),
-		"reserved_folder_names":    strings.Split(spaceReservedFolderNames, ","),
-		"disallowed_folder_names":  settings.StringSlice(quota, "disallowedFolderNames"),
+		"max_size_mb":             settings.Int(quota, "maxSizeMB", 10),
+		"editable_formats":        strings.Split(spaceEditableFormats, ","),
+		"upload_allow_exts":       settings.StringSlice(quota, "uploadAllowExts"),
+		"upload_deny_exts":        settings.StringSlice(quota, "uploadDenyExts"),
+		"max_upload_files":        maxUploadFiles,
+		"max_per_user":            settings.Int(quota, "maxPerUser", 100),
+		"share_max_minutes":       settings.Int(quota, "shareMaxMinutes", 60),
+		"share_default_minutes":   settings.Int(quota, "shareDefaultMinutes", 30),
+		"reserved_folder_names":   strings.Split(spaceReservedFolderNames, ","),
+		"disallowed_folder_names": settings.StringSlice(quota, "disallowedFolderNames"),
 	})
 }
 
@@ -126,10 +127,10 @@ func handleSpaceQuota(e *core.RequestEvent) error {
 // Only MIME types in spacePreviewMimeTypeList are allowed; all others return 415.
 // Security headers applied to every response:
 //
-//	- X-Content-Type-Options: nosniff       (prevent MIME sniffing)
-//	- X-Frame-Options: SAMEORIGIN           (block embedding by third-party pages)
-//	- Content-Disposition: inline           (render in browser, not download)
-//	- Content-Security-Policy: sandbox      (PDF only — isolates embedded JS)
+//   - X-Content-Type-Options: nosniff       (prevent MIME sniffing)
+//   - X-Frame-Options: SAMEORIGIN           (block embedding by third-party pages)
+//   - Content-Disposition: inline           (render in browser, not download)
+//   - Content-Security-Policy: sandbox      (PDF only — isolates embedded JS)
 //
 // SVG is served as image/svg+xml; the frontend MUST render via <img>, which
 // silently blocks all script execution — no extra server-side handling needed.
@@ -464,9 +465,36 @@ func handleSpaceFetch(e *core.RequestEvent) error {
 	quota, _ := settings.GetGroup(e.App, "space", "quota", defaultSpaceQuota)
 	maxSizeMB := settings.Int(quota, "maxSizeMB", 10)
 	maxBytes := int64(maxSizeMB) * 1024 * 1024
+	maxPerUser := settings.Int(quota, "maxPerUser", 100)
 	allowExts := settings.StringSlice(quota, "uploadAllowExts")
 	denyExts := settings.StringSlice(quota, "uploadDenyExts")
 
+	// Validate parent folder if provided.
+	body.Parent = strings.TrimSpace(body.Parent)
+	if body.Parent != "" {
+		parent, err := e.App.FindRecordById("user_files", body.Parent)
+		if err != nil {
+			return e.BadRequestError("parent folder not found", nil)
+		}
+		if parent.GetString("owner") != authRecord.Id {
+			return e.ForbiddenError("access denied to parent folder", nil)
+		}
+		if !parent.GetBool("is_folder") {
+			return e.BadRequestError("parent must be a folder", nil)
+		}
+		if parent.GetBool("is_deleted") {
+			return e.BadRequestError("cannot save into trash folder", nil)
+		}
+	}
+
+	// Enforce per-user item limit (same behavior as create hooks).
+	if maxPerUser > 0 {
+		existing, err := e.App.FindAllRecords("user_files", dbx.HashExp{"owner": authRecord.Id})
+		if err == nil && len(existing) >= maxPerUser {
+			return e.BadRequestError(
+				fmt.Sprintf("file limit reached (%d); delete some files before uploading new ones", maxPerUser), nil)
+		}
+	}
 	// Derive target filename.
 	name := strings.TrimSpace(body.Name)
 	if name == "" {
@@ -487,7 +515,7 @@ func handleSpaceFetch(e *core.RequestEvent) error {
 	// Validate extension compliance.
 	ext := ""
 	if idx := strings.LastIndex(name, "."); idx >= 0 {
-		ext = strings.ToLower(name[idx+1:])
+		ext = normalizeSpaceExtToken(name[idx+1:])
 	}
 	if ext == "" {
 		return e.BadRequestError("file has no extension; add a filename with an extension", nil)
@@ -495,7 +523,7 @@ func handleSpaceFetch(e *core.RequestEvent) error {
 	if len(allowExts) > 0 {
 		allowed := false
 		for _, a := range allowExts {
-			if strings.EqualFold(a, ext) {
+			if normalizeSpaceExtToken(a) == ext {
 				allowed = true
 				break
 			}
@@ -505,7 +533,7 @@ func handleSpaceFetch(e *core.RequestEvent) error {
 		}
 	} else if len(denyExts) > 0 {
 		for _, d := range denyExts {
-			if strings.EqualFold(d, ext) {
+			if normalizeSpaceExtToken(d) == ext {
 				return e.BadRequestError(fmt.Sprintf("extension .%s is blocked by the upload denylist", ext), nil)
 			}
 		}
@@ -592,4 +620,13 @@ func handleSpaceFetch(e *core.RequestEvent) error {
 		"size":      record.GetInt("size"),
 		"mime_type": record.GetString("mime_type"),
 	})
+}
+
+func normalizeSpaceExtToken(v string) string {
+	v = strings.ToLower(strings.TrimSpace(v))
+	v = strings.TrimPrefix(v, ".")
+	if v == "python" {
+		return "py"
+	}
+	return v
 }
