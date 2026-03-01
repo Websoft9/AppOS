@@ -512,8 +512,8 @@ func handleSpaceFetch(e *core.RequestEvent) error {
 	}
 
 	// Optional early rejection: HEAD request to check Content-Length.
-	httpClient := &http.Client{Timeout: 15 * time.Second}
-	if headResp, err := httpClient.Head(body.URL); err == nil {
+	headClient := &http.Client{Timeout: 15 * time.Second}
+	if headResp, err := headClient.Head(body.URL); err == nil {
 		headResp.Body.Close()
 		if headResp.ContentLength > maxBytes {
 			return e.BadRequestError(
@@ -529,7 +529,7 @@ func handleSpaceFetch(e *core.RequestEvent) error {
 	if err != nil {
 		return e.BadRequestError("failed to build request: "+err.Error(), nil)
 	}
-	getResp, err := httpClient.Do(req)
+	getResp, err := (&http.Client{}).Do(req)
 	if err != nil {
 		return e.BadRequestError("failed to fetch URL: "+err.Error(), nil)
 	}

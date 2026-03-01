@@ -1910,7 +1910,7 @@ function FilesPage() {
             <DialogTitle>Fetch File from URL</DialogTitle>
             <DialogDescription>
               Download a file from a public URL directly into your Space.
-              The same upload policy (size &amp; extension limits) applies.
+              The same upload policy (size & extension limits) applies.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
