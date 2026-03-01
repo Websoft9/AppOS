@@ -6,7 +6,7 @@ import {
   ChevronRight, Search, ArrowUp, ArrowDown, ChevronsUpDown,
   QrCode, Eye, MoreVertical, FolderInput,
   LayoutGrid, List, Pencil, Edit3,
-  FileCode2, FileImage, FileVideo, FileAudio, FileType2, File, Archive, Music2,
+  FileCode2, FileImage, FileVideo, FileType2, File as FileGeneric, Archive, Music2,
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { normalizeExtToken, formatExtListHint } from '@/lib/ext-normalize'
@@ -168,7 +168,7 @@ function FileIcon({ file, className = 'h-4 w-4 shrink-0' }: { file: { name: stri
     audio:   <Music2       className={`${className} text-pink-500`}    />,
     pdf:     <FileType2    className={`${className} text-red-500`}     />,
     archive: <Archive      className={`${className} text-amber-600`}   />,
-    other:   <File         className={`${className} text-muted-foreground`} />,
+    other:   <FileGeneric  className={`${className} text-muted-foreground`} />,
   }
   return icons[cat]
 }
