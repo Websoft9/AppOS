@@ -55,6 +55,7 @@ interface SpaceQuota {
   shareDefaultMinutes: number
   uploadAllowExts: string[]
   uploadDenyExts: string[]
+  disallowedFolderNames: string[]
 }
 
 interface ProxyNetwork {
@@ -155,6 +156,7 @@ const DEFAULT_SPACE_QUOTA: SpaceQuota = {
   shareDefaultMinutes: 30,
   uploadAllowExts: [],
   uploadDenyExts: [],
+  disallowedFolderNames: [],
 }
 
 const EMPTY_PROXY: ProxyNetwork = {
@@ -213,6 +215,7 @@ function SettingsPage() {
   const [spaceQuotaErrors, setSpaceQuotaErrors] = useState<Partial<Record<keyof SpaceQuota, string>>>({})
   const [allowExtsText, setAllowExtsText] = useState('')
   const [denyExtsText, setDenyExtsText] = useState('')
+  const [disallowedFolderNamesText, setDisallowedFolderNamesText] = useState('')
 
   // Proxy
   const [proxyNetwork, setProxyNetwork] = useState<ProxyNetwork>(EMPTY_PROXY)
@@ -282,10 +285,12 @@ function SettingsPage() {
           ...q,
           uploadAllowExts: Array.isArray(q.uploadAllowExts) ? q.uploadAllowExts : [],
           uploadDenyExts: Array.isArray(q.uploadDenyExts) ? q.uploadDenyExts : [],
+          disallowedFolderNames: Array.isArray(q.disallowedFolderNames) ? q.disallowedFolderNames : [],
         }
         setSpaceQuotaForm(merged)
         setAllowExtsText(merged.uploadAllowExts.join(', '))
         setDenyExtsText(merged.uploadDenyExts.join(', '))
+        setDisallowedFolderNamesText(merged.disallowedFolderNames.join(', '))
       }
       if (proxyRes.status === 'fulfilled') {
         const n = (proxyRes.value as { network: ProxyNetwork }).network ?? EMPTY_PROXY
@@ -412,6 +417,7 @@ function SettingsPage() {
       ...spaceQuotaForm,
       uploadAllowExts: parseExtListInput(allowExtsText),
       uploadDenyExts: parseExtListInput(denyExtsText),
+      disallowedFolderNames: disallowedFolderNamesText.split(',').map(s => s.trim()).filter(Boolean),
     }
     try {
       const res = await pb.send('/api/ext/settings/space', { method: 'PATCH', body: { quota: payload } }) as { quota?: Partial<SpaceQuota> }
@@ -421,10 +427,12 @@ function SettingsPage() {
         ...q,
         uploadAllowExts: Array.isArray(q.uploadAllowExts) ? q.uploadAllowExts : [],
         uploadDenyExts: Array.isArray(q.uploadDenyExts) ? q.uploadDenyExts : [],
+        disallowedFolderNames: Array.isArray(q.disallowedFolderNames) ? q.disallowedFolderNames : [],
       }
       setSpaceQuotaForm(merged)
       setAllowExtsText(merged.uploadAllowExts.join(', '))
       setDenyExtsText(merged.uploadDenyExts.join(', '))
+      setDisallowedFolderNamesText(merged.disallowedFolderNames.join(', '))
       showToast('Space quota saved')
     } catch (err: unknown) {
       showToast('Failed: ' + ((err as { message?: string })?.message ?? String(err)), false)
@@ -669,17 +677,19 @@ function SettingsPage() {
               onChange={e => setSpaceQuotaForm(f => ({ ...f, maxUploadFiles: Number(e.target.value) }))} />
             {spaceQuotaErrors.maxUploadFiles && <p className="text-xs text-destructive">{spaceQuotaErrors.maxUploadFiles}</p>}
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="shareMaxMinutes">Share Max Duration (min)</Label>
-            <Input id="shareMaxMinutes" type="number" min={1} value={spaceQuotaForm.shareMaxMinutes}
-              onChange={e => setSpaceQuotaForm(f => ({ ...f, shareMaxMinutes: Number(e.target.value) }))} />
-            {spaceQuotaErrors.shareMaxMinutes && <p className="text-xs text-destructive">{spaceQuotaErrors.shareMaxMinutes}</p>}
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="shareDefaultMinutes">Share Default Duration (min)</Label>
-            <Input id="shareDefaultMinutes" type="number" min={1} value={spaceQuotaForm.shareDefaultMinutes}
-              onChange={e => setSpaceQuotaForm(f => ({ ...f, shareDefaultMinutes: Number(e.target.value) }))} />
-            {spaceQuotaErrors.shareDefaultMinutes && <p className="text-xs text-destructive">{spaceQuotaErrors.shareDefaultMinutes}</p>}
+          <div className="col-span-2 grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <Label htmlFor="shareDefaultMinutes">Share Default Duration (min)</Label>
+              <Input id="shareDefaultMinutes" type="number" min={1} value={spaceQuotaForm.shareDefaultMinutes}
+                onChange={e => setSpaceQuotaForm(f => ({ ...f, shareDefaultMinutes: Number(e.target.value) }))} />
+              {spaceQuotaErrors.shareDefaultMinutes && <p className="text-xs text-destructive">{spaceQuotaErrors.shareDefaultMinutes}</p>}
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="shareMaxMinutes">Share Max Duration (min)</Label>
+              <Input id="shareMaxMinutes" type="number" min={1} value={spaceQuotaForm.shareMaxMinutes}
+                onChange={e => setSpaceQuotaForm(f => ({ ...f, shareMaxMinutes: Number(e.target.value) }))} />
+              {spaceQuotaErrors.shareMaxMinutes && <p className="text-xs text-destructive">{spaceQuotaErrors.shareMaxMinutes}</p>}
+            </div>
           </div>
           <div className="col-span-2 space-y-1">
             <Label htmlFor="uploadAllowExts">Upload Allowlist (extensions, comma-separated)</Label>
@@ -714,6 +724,16 @@ function SettingsPage() {
             {parseExtListInput(allowExtsText).length > 0 && (
               <p className="text-xs text-muted-foreground">Allowlist is set, so denylist is ignored.</p>
             )}
+          </div>
+          <div className="col-span-2 space-y-1">
+            <Label htmlFor="disallowedFolderNames">Disallowed Folder Names (comma-separated)</Label>
+            <Input
+              id="disallowedFolderNames"
+              value={disallowedFolderNamesText}
+              onChange={e => setDisallowedFolderNamesText(e.target.value)}
+              placeholder="e.g. private, tmp, archive"
+            />
+            <p className="text-xs text-muted-foreground">Folder names users are not allowed to create at any level. Case-sensitive.</p>
           </div>
         </div>
         <SaveBtn onClick={saveSpaceQuota} saving={spaceQuotaSaving} />

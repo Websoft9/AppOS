@@ -90,11 +90,20 @@ PB access rules: `owner = @request.auth.id` on all CRUD operations.
 | `GET` | `/api/ext/space/quota` | Required | Return effective quota limits |
 | `POST` | `/api/ext/space/share/{id}` | Required | Create/refresh share token (max 60 min) |
 | `DELETE` | `/api/ext/space/share/{id}` | Required | Revoke share |
+| `GET` | `/api/ext/space/preview/{id}` | Required | Stream file content for inline browser preview |
 | `GET` | `/api/ext/space/share/{token}` | None | Validate token, return file metadata |
 | `GET` | `/api/ext/space/share/{token}/download` | None | Stream file content (public) |
 
 Share `POST` body: `{ "minutes": N }`. Response: `{ "share_token", "share_url", "expires_at" }`.
 `share_url` is a relative path (`/api/ext/space/share/{token}/download`); the frontend prepends `window.location.origin`.
+
+**Preview endpoint** (`GET /api/ext/space/preview/{id}`):
+- Authentication required; rejects non-owners with 403
+- MIME whitelist (matches `spacePreviewMimeTypeList` constant): images (png, jpeg, gif, webp, svg+xml, bmp, x-icon), PDF, audio (mpeg, wav, ogg, aac, flac, webm), video (mp4, webm, ogg)
+- Returns 415 Unsupported Media Type for MIME types not in whitelist
+- Response headers on every preview: `Content-Disposition: inline`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`
+- PDF additionally gets `Content-Security-Policy: sandbox` to block embedded JS
+- SVG served as `image/svg+xml`; frontend renders via `<img>` which browser-sandboxes script execution
 
 ### Header Requirements (file create)
 
@@ -127,6 +136,7 @@ Purpose: enforce server-side max files per upload batch (not only frontend valid
 | File size | Column shows human-readable size (K/M) from `size` field; set on upload, create, and save |
 | Download | Native `<a download>` using authenticated PB file URL |
 | Share | Generates public link via ext API; copy button copies URL; link works without login; supports QR code generation + PNG download. **Caveat**: Radix Dialog focus-trap breaks `execCommand` on elements outside the dialog — fallback must select the in-dialog input via ref. |
+| Preview | Eye button (shown only for previewable MIME types). Fetches `/api/ext/space/preview/{id}` as authenticated request, creates Blob URL, renders in Dialog: `<img>` for images & SVG, `<iframe sandbox="allow-scripts">` for PDF, `<audio>` for audio, `<video>` for video. Dialog footer includes inline Download link. Blob URL revoked on close. |
 | Delete | AlertDialog confirm; warns folder does not cascade-delete children |
 | Refresh | Spinner icon button in toolbar |
 
@@ -169,6 +179,46 @@ Header contract for file create requests:
 | 9.4 | Share | ✅ Done |
 | 9.5 | Settings UI (Admin) | ⏳ Resolved by Epic 13 (Story 13.2 + 13.4) |
 | 9.6 | File Version History | 📋 Planned |
+| 9.7 | File Preview (browser-native) | ✅ Done |
+
+---
+
+## Story 9.7 — File Preview (Browser-Native)
+
+**Objective**: Users can preview files that the browser can render natively (images, SVG, PDF, audio, video) without downloading.
+
+**Backend** (`routes/space.go`):
+- `GET /api/ext/space/preview/{id}` — auth required, owner-only
+- MIME whitelist via `spacePreviewMimeTypeList` constant (mirrors frontend `PREVIEW_MIME_TYPES`)
+- Security headers: `Content-Disposition: inline`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`
+- PDF additionally: `Content-Security-Policy: sandbox`
+- Returns 415 for MIME types outside whitelist; 403 for non-owners
+
+**Frontend** (`routes/_app/_auth/space.tsx`):
+- `PREVIEW_MIME_TYPES` set + `getPreviewType()` helper (image / pdf / audio / video)
+- Eye button rendered only for previewable files
+- `openPreview()`: authenticated fetch → `URL.createObjectURL(blob)`; `closePreview()`: revokes blob URL
+- Preview Dialog renders: `<img>` (image/SVG) · `<iframe sandbox="allow-scripts">` (PDF) · `<audio controls>` (audio) · `<video controls>` (video)
+- Footer: Close + Download link
+
+**Security rationale**:
+- `<img>` for SVG: browser suppresses all script/event-handler execution
+- `iframe sandbox` for PDF: isolates PDF-embedded JS from page context
+- `X-Content-Type-Options: nosniff`: prevents MIME-type confusion attacks
+- `X-Frame-Options: SAMEORIGIN`: prevents clickjacking by third-party pages
+- Authenticated proxy (`/api/ext/space/preview`) keeps token out of URL
+
+**Acceptance Criteria**:
+- [x] Eye button visible only for files with previewable MIME type
+- [x] Images (png, jpg, gif, webp, bmp, ico) and SVG render in `<img>` in Dialog
+- [x] PDF renders in sandboxed `<iframe>` in Dialog
+- [x] Audio renders in `<audio controls>` in Dialog
+- [x] Video renders in `<video controls>` in Dialog
+- [x] Backend rejects non-owner access with 403
+- [x] Backend rejects unsupported MIME types with 415
+- [x] All security headers present on preview response
+- [x] Blob URL revoked on dialog close (no memory leak)
+- [x] TypeScript: no type errors; Go: no build errors
 
 ---
 
@@ -204,7 +254,7 @@ Header contract for file create requests:
 ## Out of Scope (current)
 
 - Version history / diff — moved to Story 9.6 (planned)
-- Binary file preview
+- Binary / non-browser-native file preview (e.g. Office formats)
 - Collaborative editing
 - Cascading folder delete
 - Global search (cross-folder)

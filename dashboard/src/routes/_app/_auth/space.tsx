@@ -6,7 +6,7 @@ import {
   ChevronRight, Search, ArrowUp, ArrowDown, ChevronsUpDown,
   QrCode, Eye, MoreVertical, FolderInput,
   LayoutGrid, List, Pencil, Edit3,
-  FileCode2, FileImage, FileVideo, FileType2, File as FileGeneric, Archive, Music2,
+  FileCode2, FileImage, FileVideo, FileType2, File as FileGeneric, Archive, Music2, RotateCcw,
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { normalizeExtToken, formatExtListHint } from '@/lib/ext-normalize'
@@ -46,6 +46,7 @@ interface UserFile {
   updated: string
   content: string // stored filename in PocketBase storage
   size: number    // file size in bytes (0 for folders)
+  is_deleted?: boolean
 }
 
 interface Quota {
@@ -66,7 +67,7 @@ type SortDir = 'asc' | 'desc'
 
 // ─── Constants ───────────────────────────────────────────
 
-const PAGE_SIZE = 20
+const PAGE_SIZES = [15, 45, 90] as const
 
 // ─── Helpers ─────────────────────────────────────────────
 
@@ -173,7 +174,7 @@ function FileIcon({ file, className = 'h-4 w-4 shrink-0' }: { file: { name: stri
   return icons[cat]
 }
 
-// MIME types that the browser can render natively.
+// MIME types served by the preview endpoint (image / PDF / audio / video).
 // Must mirror spacePreviewMimeTypeList in backend/internal/routes/space.go.
 const PREVIEW_MIME_TYPES = new Set([
   'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml',
@@ -183,18 +184,26 @@ const PREVIEW_MIME_TYPES = new Set([
   'video/mp4', 'video/webm', 'video/ogg',
 ])
 
-type PreviewType = 'image' | 'pdf' | 'audio' | 'video'
+type PreviewType = 'image' | 'pdf' | 'audio' | 'video' | 'text'
 
 /** Returns the preview category, or null if not previewable. */
 function getPreviewType(file: UserFile): PreviewType | null {
   if (file.is_folder || !file.content || !file.mime_type) return null
-  if (!PREVIEW_MIME_TYPES.has(file.mime_type)) return null
   const m = file.mime_type
+  // Text/code: fetch via download URL and show raw in <pre>
+  if (m.startsWith('text/') || m === 'application/json' || m === 'application/xml') return 'text'
+  // Media / PDF: streamed via authenticated preview endpoint
+  if (!PREVIEW_MIME_TYPES.has(m)) return null
   if (m.startsWith('image/')) return 'image'
   if (m === 'application/pdf') return 'pdf'
   if (m.startsWith('audio/')) return 'audio'
   if (m.startsWith('video/')) return 'video'
   return null
+}
+
+/** Build a preview URL with an auth token so browsers can embed it directly. */
+function buildPreviewUrl(file: UserFile) {
+  return `/api/ext/space/preview/${file.id}?token=${encodeURIComponent(pb.authStore.token)}`
 }
 
 /** True if the file extension is in the editable (text/code) list. */
@@ -264,6 +273,7 @@ interface ItemMenuProps {
   item: UserFile
   editable: boolean
   previewType: PreviewType | null
+  inTrash?: boolean
   onOpen: () => void
   onPreview: () => void
   onEdit: () => void
@@ -271,12 +281,15 @@ interface ItemMenuProps {
   onShare: () => void
   onRename: () => void
   onDuplicate: () => void
-  onDelete: () => void
+  onDelete: () => void       // soft-delete (normal view)
+  onRestore?: () => void     // restore from trash
+  onHardDelete?: () => void  // permanent delete from trash
 }
 
 function ItemMenu({
-  item, editable, previewType,
-  onOpen, onPreview, onEdit, onDownloadUrl, onShare, onRename, onDuplicate, onDelete,
+  item, editable, previewType, inTrash,
+  onOpen, onPreview, onEdit, onDownloadUrl, onShare, onRename, onDuplicate,
+  onDelete, onRestore, onHardDelete,
 }: ItemMenuProps) {
   return (
     <DropdownMenu>
@@ -286,49 +299,65 @@ function ItemMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {item.is_folder
+        {inTrash
           ? (
             <>
-              <DropdownMenuItem onClick={onOpen}>
-                <ChevronRight className="h-4 w-4 mr-2" /> Open
+              <DropdownMenuItem onClick={onRestore}>
+                <RotateCcw className="h-4 w-4 mr-2" /> Restore
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={onRename}>
-                <Pencil className="h-4 w-4 mr-2" /> Rename
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={onHardDelete}>
+                <Trash2 className="h-4 w-4 mr-2" /> Delete Permanently
               </DropdownMenuItem>
             </>
           )
-          : (
-            <>
-              {previewType && (
-                <DropdownMenuItem onClick={onPreview}>
-                  <Eye className="h-4 w-4 mr-2" /> Preview
+          : item.is_folder
+            ? (
+              <>
+                <DropdownMenuItem onClick={onOpen}>
+                  <ChevronRight className="h-4 w-4 mr-2" /> Open
                 </DropdownMenuItem>
-              )}
-              <DropdownMenuItem disabled={!editable} onClick={() => editable && onEdit()}>
-                <Edit3 className="h-4 w-4 mr-2" /> Edit
-              </DropdownMenuItem>
-              {onDownloadUrl && (
-                <DropdownMenuItem asChild>
-                  <a href={onDownloadUrl} download={item.name}>
-                    <Download className="h-4 w-4 mr-2" /> Download
-                  </a>
+                <DropdownMenuItem onClick={onRename}>
+                  <Pencil className="h-4 w-4 mr-2" /> Rename
                 </DropdownMenuItem>
-              )}
-              <DropdownMenuItem onClick={onShare}>
-                <Share2 className="h-4 w-4 mr-2" /> Share
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onRename}>
-                <Pencil className="h-4 w-4 mr-2" /> Rename
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onDuplicate}>
-                <Copy className="h-4 w-4 mr-2" /> Create Copy
-              </DropdownMenuItem>
-            </>
-          )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={onDelete}>
-          <Trash2 className="h-4 w-4 mr-2" /> Delete
-        </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={onDelete}>
+                  <Trash2 className="h-4 w-4 mr-2" /> Move to Trash
+                </DropdownMenuItem>
+              </>
+            )
+            : (
+              <>
+                {previewType && (
+                  <DropdownMenuItem onClick={onPreview}>
+                    <Eye className="h-4 w-4 mr-2" /> Preview
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem disabled={!editable} onClick={() => editable && onEdit()}>
+                  <Edit3 className="h-4 w-4 mr-2" /> Edit
+                </DropdownMenuItem>
+                {onDownloadUrl && (
+                  <DropdownMenuItem asChild>
+                    <a href={onDownloadUrl} download={item.name}>
+                      <Download className="h-4 w-4 mr-2" /> Download
+                    </a>
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={onShare}>
+                  <Share2 className="h-4 w-4 mr-2" /> Share
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onRename}>
+                  <Pencil className="h-4 w-4 mr-2" /> Rename
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onDuplicate}>
+                  <Copy className="h-4 w-4 mr-2" /> Create Copy
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={onDelete}>
+                  <Trash2 className="h-4 w-4 mr-2" /> Move to Trash
+                </DropdownMenuItem>
+              </>
+            )}
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -350,6 +379,10 @@ function FilesPage() {
   const [sortBy, setSortBy] = useState<SortField>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<typeof PAGE_SIZES[number]>(15)
+
+  // ── Trash view ─────────────────────────────────────────
+  const [trashView, setTrashView] = useState(false)
 
   // ── Row selection (bulk ops) ───────────────────────────
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -360,8 +393,6 @@ function FilesPage() {
 
   // ── Inline expand (name click → properties panel) ──────
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [expandedBlobUrl, setExpandedBlobUrl] = useState<string | null>(null)
-  const [expandedBlobLoading, setExpandedBlobLoading] = useState(false)
 
   // ── Upload dialog ──────────────────────────────────────
   const [uploadOpen, setUploadOpen] = useState(false)
@@ -396,7 +427,7 @@ function FilesPage() {
 
   // ── Preview dialog ─────────────────────────────────────
   const [previewFile, setPreviewFile] = useState<UserFile | null>(null)
-  const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null)
+  const [previewText, setPreviewText] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewError, setPreviewError] = useState<string | null>(null)
 
@@ -455,8 +486,9 @@ function FilesPage() {
 
   // ─── Derived ───────────────────────────────────────────
 
-  const allFolders = useMemo(() => items.filter(i => i.is_folder), [items])
-  const allFiles   = useMemo(() => items.filter(i => !i.is_folder), [items])
+  const allFolders = useMemo(() => items.filter(i => i.is_folder && !i.is_deleted), [items])
+  const allFiles   = useMemo(() => items.filter(i => !i.is_folder && !i.is_deleted), [items])
+  const trashCount = useMemo(() => items.filter(i => i.is_deleted).length, [items])
 
   /** Breadcrumb trail from root → currentFolderId */
   const breadcrumb = useMemo((): UserFile[] => {
@@ -471,10 +503,27 @@ function FilesPage() {
     return trail
   }, [currentFolderId, items])
 
-  /** Items in the current folder only, after search + sort. */
+  /** Items visible in the current view, after search + sort. */
   const viewItems = useMemo((): UserFile[] => {
+    // Trash view: flat list of all deleted items regardless of folder.
+    if (trashView) {
+      let filtered = items.filter(i => i.is_deleted)
+      if (search.trim()) {
+        const q = search.toLowerCase()
+        filtered = filtered.filter(i => i.name.toLowerCase().includes(q))
+      }
+      return [...filtered].sort((a, b) => {
+        let cmp = 0
+        if (sortBy === 'name')         cmp = a.name.localeCompare(b.name)
+        else if (sortBy === 'type')    cmp = (a.mime_type ?? '').localeCompare(b.mime_type ?? '')
+        else if (sortBy === 'updated') cmp = a.updated.localeCompare(b.updated)
+        else                           cmp = a.created.localeCompare(b.created)
+        return sortDir === 'asc' ? cmp : -cmp
+      })
+    }
+    // Normal view: children of currentFolder that are NOT deleted.
     const parentId = currentFolderId ?? ''
-    let filtered = items.filter(i => i.parent === parentId)
+    let filtered = items.filter(i => !i.is_deleted && i.parent === parentId)
 
     if (search.trim()) {
       const q = search.toLowerCase()
@@ -493,11 +542,11 @@ function FilesPage() {
     })
 
     return filtered
-  }, [items, currentFolderId, search, sortBy, sortDir])
+  }, [items, currentFolderId, search, sortBy, sortDir, trashView])
 
-  const totalPages = Math.max(1, Math.ceil(viewItems.length / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(viewItems.length / pageSize))
   const safePage   = Math.min(page, totalPages)
-  const pagedItems = viewItems.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  const pagedItems = viewItems.slice((safePage - 1) * pageSize, safePage * pageSize)
   const uploadMaxFiles = useMemo(
     () => resolveMaxUploadFiles(quota?.max_upload_files),
     [quota],
@@ -516,7 +565,7 @@ function FilesPage() {
   }, [quota])
 
   // Reset to page 1 whenever the view changes.
-  useEffect(() => { setPage(1) }, [currentFolderId, search, sortBy, sortDir])
+  useEffect(() => { setPage(1) }, [currentFolderId, search, sortBy, sortDir, trashView, pageSize])
 
   // ─── Sort ──────────────────────────────────────────────
 
@@ -562,31 +611,8 @@ function FilesPage() {
 
   // ─── Inline expand ─────────────────────────────────────
 
-  async function toggleExpand(item: UserFile) {
-    if (expandedId === item.id) {
-      if (expandedBlobUrl) URL.revokeObjectURL(expandedBlobUrl)
-      setExpandedId(null)
-      setExpandedBlobUrl(null)
-      setExpandedBlobLoading(false)
-      return
-    }
-    if (expandedBlobUrl) URL.revokeObjectURL(expandedBlobUrl)
-    setExpandedId(item.id)
-    setExpandedBlobUrl(null)
-    const pt = getPreviewType(item)
-    if (pt === 'image') {
-      setExpandedBlobLoading(true)
-      try {
-        const res = await fetch(`/api/ext/space/preview/${item.id}`, {
-          headers: { Authorization: pb.authStore.token },
-        })
-        if (res.ok) {
-          const blob = await res.blob()
-          setExpandedBlobUrl(URL.createObjectURL(blob))
-        }
-      } catch {/* ignore */}
-      finally { setExpandedBlobLoading(false) }
-    }
+  function toggleExpand(item: UserFile) {
+    setExpandedId(prev => prev === item.id ? null : item.id)
   }
 
   // ─── Bulk delete ───────────────────────────────────────
@@ -595,13 +621,34 @@ function FilesPage() {
     if (selectedIds.size === 0) return
     setBulkDeleting(true)
     try {
-      await Promise.all([...selectedIds].map(id => pb.collection('user_files').delete(id)))
+      if (trashView) {
+        // Already in trash: hard delete permanently
+        await Promise.all([...selectedIds].map(id => pb.collection('user_files').delete(id)))
+      } else {
+        // Normal view: soft-delete (move to trash)
+        await Promise.all([...selectedIds].map(id =>
+          pb.collection('user_files').update(id, { is_deleted: true })
+        ))
+      }
       setSelectedIds(new Set())
       fetchAll()
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : 'Failed to delete some items')
     } finally {
       setBulkDeleting(false)
+    }
+  }
+
+  async function handleBulkRestore() {
+    if (selectedIds.size === 0) return
+    try {
+      await Promise.all([...selectedIds].map(id =>
+        pb.collection('user_files').update(id, { is_deleted: false })
+      ))
+      setSelectedIds(new Set())
+      fetchAll()
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Failed to restore some items')
     }
   }
 
@@ -897,31 +944,30 @@ function FilesPage() {
   // ─── Preview ───────────────────────────────────────────
 
   async function openPreview(file: UserFile) {
+    const type = getPreviewType(file)
     setPreviewFile(file)
-    setPreviewBlobUrl(null)
+    setPreviewText(null)
     setPreviewError(null)
-    setPreviewLoading(true)
-    try {
-      const res = await fetch(`/api/ext/space/preview/${file.id}`, {
-        headers: { Authorization: pb.authStore.token },
-      })
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}))
-        throw new Error(json.message ?? `HTTP ${res.status}`)
+    setPreviewLoading(type === 'text')
+    if (type === 'text') {
+      try {
+        const url = buildDownloadUrl(file)
+        if (!url) throw new Error('No file content')
+        const res = await fetch(url, { headers: { Authorization: pb.authStore.token } })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        setPreviewText(await res.text())
+      } catch (e: unknown) {
+        setPreviewError(e instanceof Error ? e.message : 'Failed to load preview')
+      } finally {
+        setPreviewLoading(false)
       }
-      const blob = await res.blob()
-      setPreviewBlobUrl(URL.createObjectURL(blob))
-    } catch (e: unknown) {
-      setPreviewError(e instanceof Error ? e.message : 'Failed to load preview')
-    } finally {
-      setPreviewLoading(false)
     }
+    // For image/pdf/audio/video: buildPreviewUrl() used inline in JSX.
   }
 
   function closePreview() {
-    if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl)
     setPreviewFile(null)
-    setPreviewBlobUrl(null)
+    setPreviewText(null)
     setPreviewError(null)
   }
 
@@ -970,11 +1016,36 @@ function FilesPage() {
     if (!deleteItem) return
     setDeleting(true)
     try {
-      await pb.collection('user_files').delete(deleteItem.id)
+      if (deleteItem.is_deleted) {
+        await pb.collection('user_files').delete(deleteItem.id)
+      } else {
+        await pb.collection('user_files').update(deleteItem.id, { is_deleted: true })
+      }
       setDeleteItem(null)
       fetchAll()
     } catch { /* ignore */ } finally {
       setDeleting(false)
+    }
+  }
+
+  async function handleRestore(item: UserFile) {
+    try {
+      await pb.collection('user_files').update(item.id, { is_deleted: false })
+      fetchAll()
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Failed to restore')
+    }
+  }
+
+  async function handleEmptyTrash() {
+    const trashItems = items.filter(i => i.is_deleted)
+    if (trashItems.length === 0) return
+    if (!confirm(`Permanently delete all ${trashItems.length} item(s) in Trash? This cannot be undone.`)) return
+    try {
+      await Promise.all(trashItems.map(i => pb.collection('user_files').delete(i.id)))
+      fetchAll()
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Failed to empty trash')
     }
   }
 
@@ -1137,25 +1208,28 @@ function FilesPage() {
 
         <div className="flex-1" />
 
-        {/* Action buttons */}
-        <div className="flex items-center border rounded-md overflow-hidden">
-          <Button
-            variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-            size="sm" className="rounded-none border-0"
-            title="List view"
-            onClick={() => setViewMode('list')}
-          >
-            <List className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
-            size="sm" className="rounded-none border-0 border-l"
-            title="Grid view"
-            onClick={() => setViewMode('grid')}
-          >
-            <LayoutGrid className="h-4 w-4" />
-          </Button>
-        </div>
+        {/* View toggle — shows icon for the OPPOSITE mode to switch to */}
+        <Button
+          variant="outline" size="sm"
+          title={viewMode === 'list' ? 'Switch to Grid view' : 'Switch to List view'}
+          onClick={() => setViewMode(m => m === 'list' ? 'grid' : 'list')}
+        >
+          {viewMode === 'list' ? <LayoutGrid className="h-4 w-4" /> : <List className="h-4 w-4" />}
+        </Button>
+        {/* Trash toggle */}
+        <Button
+          variant={trashView ? 'secondary' : 'outline'} size="sm"
+          title="Trash"
+          className="relative"
+          onClick={() => { setTrashView(v => !v); setCurrentFolderId(null); setSearch('') }}
+        >
+          <Trash2 className="h-4 w-4" />
+          {trashCount > 0 && (
+            <span className="absolute -top-1 -right-1 h-4 min-w-4 rounded-full bg-destructive text-[9px] text-white flex items-center justify-center px-0.5">
+              {trashCount > 9 ? '9+' : trashCount}
+            </span>
+          )}
+        </Button>
         <Button
           variant="outline" size="sm"
           onClick={fetchAll} disabled={loading}
@@ -1184,11 +1258,15 @@ function FilesPage() {
       {!loading && viewItems.length === 0 && !error && (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            <Folder className="h-10 w-10 mx-auto mb-3 opacity-30" />
+            {trashView
+              ? <Trash2 className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              : <Folder className="h-10 w-10 mx-auto mb-3 opacity-30" />}
             <p>
-              {search
-                ? `No items match "${search}".`
-                : 'This folder is empty. Create a subfolder or upload your first file.'}
+              {trashView
+                ? 'Trash is empty.'
+                : search
+                  ? `No items match "${search}".`
+                  : 'This folder is empty. Create a subfolder or upload your first file.'}
             </p>
           </CardContent>
         </Card>
@@ -1199,20 +1277,29 @@ function FilesPage() {
         <div className="flex items-center gap-2 px-3 py-2 rounded-md border bg-muted/50 text-sm">
           <span className="text-muted-foreground">{selectedIds.size} selected</span>
           <div className="flex-1" />
-          <Button
-            size="sm" variant="outline"
-            onClick={() => { setBulkMoveFolderId(''); setBulkMoveOpen(true) }}
-          >
-            <FolderInput className="h-4 w-4 mr-1" /> Move to…
-          </Button>
-          <Button
-            size="sm" variant="destructive"
-            disabled={bulkDeleting}
-            onClick={handleBulkDelete}
-          >
-            {bulkDeleting && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-            <Trash2 className="h-4 w-4 mr-1" /> Delete
-          </Button>
+          {trashView
+            ? (
+              <>
+                <Button size="sm" variant="outline" onClick={handleBulkRestore}>
+                  <RotateCcw className="h-4 w-4 mr-1" /> Restore
+                </Button>
+                <Button size="sm" variant="destructive" disabled={bulkDeleting} onClick={handleBulkDelete}>
+                  {bulkDeleting && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+                  <Trash2 className="h-4 w-4 mr-1" /> Delete Permanently
+                </Button>
+              </>
+            )
+            : (
+              <>
+                <Button size="sm" variant="outline" onClick={() => { setBulkMoveFolderId(''); setBulkMoveOpen(true) }}>
+                  <FolderInput className="h-4 w-4 mr-1" /> Move to…
+                </Button>
+                <Button size="sm" variant="destructive" disabled={bulkDeleting} onClick={handleBulkDelete}>
+                  {bulkDeleting && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+                  <Trash2 className="h-4 w-4 mr-1" /> Move to Trash
+                </Button>
+              </>
+            )}
           <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
             <X className="h-4 w-4" />
           </Button>
@@ -1341,6 +1428,7 @@ function FilesPage() {
                             item={item}
                             editable={editable}
                             previewType={previewType}
+                            inTrash={trashView}
                             onOpen={() => navigateTo(item.id)}
                             onPreview={() => openPreview(item)}
                             onEdit={() => openEditor(item)}
@@ -1349,6 +1437,8 @@ function FilesPage() {
                             onRename={() => openRename(item)}
                             onDuplicate={() => handleDuplicate(item)}
                             onDelete={() => setDeleteItem(item)}
+                            onRestore={() => handleRestore(item)}
+                            onHardDelete={() => setDeleteItem(item)}
                           />
                         </TableCell>
                       </TableRow>
@@ -1358,15 +1448,11 @@ function FilesPage() {
                             <div className="flex gap-6 flex-wrap">
                               {previewType === 'image' && (
                                 <div className="shrink-0">
-                                  {expandedBlobLoading
-                                    ? (
-                                      <div className="flex items-center gap-2 text-muted-foreground h-24 w-24 justify-center border rounded">
-                                        <Loader2 className="h-5 w-5 animate-spin" />
-                                      </div>
-                                    )
-                                    : expandedBlobUrl
-                                      ? <img src={expandedBlobUrl} alt={item.name} className="max-h-48 max-w-xs object-contain rounded border" />
-                                      : null}
+                                  <img
+                                    src={buildPreviewUrl(item)}
+                                    alt={item.name}
+                                    className="max-h-48 max-w-xs object-contain rounded border"
+                                  />
                                 </div>
                               )}
                               <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
@@ -1449,6 +1535,7 @@ function FilesPage() {
                     item={item}
                     editable={editable}
                     previewType={previewType}
+                    inTrash={trashView}
                     onOpen={() => navigateTo(item.id)}
                     onPreview={() => openPreview(item)}
                     onEdit={() => openEditor(item)}
@@ -1457,6 +1544,8 @@ function FilesPage() {
                     onRename={() => openRename(item)}
                     onDuplicate={() => handleDuplicate(item)}
                     onDelete={() => setDeleteItem(item)}
+                    onRestore={() => handleRestore(item)}
+                    onHardDelete={() => setDeleteItem(item)}
                   />
                 </div>
               </div>
@@ -1466,38 +1555,43 @@ function FilesPage() {
       )}
 
       {/* ── Pagination ─────────────────────────────────── */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>
-            {viewItems.length} items · page {safePage} of {totalPages}
-          </span>
-          <div className="flex gap-1">
-            <Button
-              variant="outline" size="sm"
-              disabled={safePage <= 1}
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline" size="sm"
-              disabled={safePage >= totalPages}
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            >
-              Next
-            </Button>
+      {viewItems.length > 0 && (
+        <div className="flex items-center justify-between text-sm text-muted-foreground flex-wrap gap-2">
+          <span>{viewItems.length} items · page {safePage} of {totalPages}</span>
+          <div className="flex items-center gap-1 flex-wrap">
+            <span className="text-xs mr-1">Per page:</span>
+            {PAGE_SIZES.map(s => (
+              <Button
+                key={s} size="sm"
+                variant={pageSize === s ? 'secondary' : 'outline'}
+                className="h-7 px-2 text-xs"
+                onClick={() => { setPageSize(s); setPage(1) }}
+              >
+                {s}
+              </Button>
+            ))}
+            <Button variant="outline" size="sm" disabled={safePage <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>‹</Button>
+            <Button variant="outline" size="sm" disabled={safePage >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>›</Button>
           </div>
         </div>
       )}
 
       {/* ── Stats ──────────────────────────────────────── */}
-      {quota && !loading && (
-        <p className="text-xs text-muted-foreground">
-          {allFolders.length} folder{allFolders.length !== 1 ? 's' : ''}
-          {' · '}{allFiles.length} file{allFiles.length !== 1 ? 's' : ''}
-          {' · '}{items.length} / {quota.max_per_user} items used
-          {' · '}max file size {formatBytes(quota.max_size_mb)}
-        </p>
+      {quota && !loading && !trashView && (
+        <div className="flex items-center gap-3 flex-wrap">
+          <p className="text-xs text-muted-foreground">
+            {allFolders.length} folder{allFolders.length !== 1 ? 's' : ''}
+            {' · '}{allFiles.length} file{allFiles.length !== 1 ? 's' : ''}
+            {' · '}{items.filter(i => !i.is_deleted).length} / {quota.max_per_user} items used
+            {' · '}max file size {formatBytes(quota.max_size_mb)}
+            {trashCount > 0 && <span className="text-destructive/70"> · {trashCount} in trash</span>}
+          </p>
+        </div>
+      )}
+      {trashView && trashCount > 0 && (
+        <Button variant="destructive" size="sm" onClick={handleEmptyTrash}>
+          <Trash2 className="h-4 w-4 mr-1" /> Empty Trash
+        </Button>
       )}
 
       {/* ── Bulk Move Dialog ───────────────────────────── */}
@@ -1723,7 +1817,7 @@ function FilesPage() {
 
       {/* ── Preview Dialog ─────────────────────────────── */}
       <Dialog open={!!previewFile} onOpenChange={v => { if (!v) closePreview() }}>
-        <DialogContent className="sm:max-w-4xl w-full">
+        <DialogContent className="sm:max-w-4xl w-full" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Preview: {previewFile?.name}</DialogTitle>
           </DialogHeader>
@@ -1736,12 +1830,20 @@ function FilesPage() {
             {previewError && (
               <p className="text-destructive text-sm">{previewError}</p>
             )}
-            {!previewLoading && !previewError && previewBlobUrl && previewFile && (() => {
+            {!previewLoading && !previewError && previewFile && (() => {
               const type = getPreviewType(previewFile)
+              const directUrl = buildPreviewUrl(previewFile)
+              if (type === 'text') {
+                return (
+                  <pre className="w-full text-sm font-mono whitespace-pre-wrap break-all text-left">
+                    {previewText ?? ''}
+                  </pre>
+                )
+              }
               if (type === 'image') {
                 return (
                   <img
-                    src={previewBlobUrl}
+                    src={directUrl}
                     alt={previewFile.name}
                     className="max-w-full max-h-[65vh] object-contain rounded"
                   />
@@ -1750,17 +1852,16 @@ function FilesPage() {
               if (type === 'pdf') {
                 return (
                   <iframe
-                    src={previewBlobUrl}
+                    src={directUrl}
                     title={previewFile.name}
                     className="w-full h-[65vh] rounded border"
-                    sandbox="allow-scripts"
                   />
                 )
               }
               if (type === 'audio') {
                 return (
                   // eslint-disable-next-line jsx-a11y/media-has-caption
-                  <audio controls src={previewBlobUrl} className="w-full" />
+                  <audio controls src={directUrl} className="w-full" />
                 )
               }
               if (type === 'video') {
@@ -1768,7 +1869,7 @@ function FilesPage() {
                   // eslint-disable-next-line jsx-a11y/media-has-caption
                   <video
                     controls
-                    src={previewBlobUrl}
+                    src={directUrl}
                     className="max-w-full max-h-[65vh] rounded"
                   />
                 )
@@ -1828,12 +1929,12 @@ function FilesPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Delete {deleteItem?.is_folder ? 'folder' : 'file'}?
+              {deleteItem?.is_deleted ? 'Delete Permanently?' : `Move ${deleteItem?.is_folder ? 'folder' : 'file'} to Trash?`}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              "{deleteItem?.name}" will be permanently deleted.
-              {deleteItem?.is_folder &&
-                ' Note: files inside this folder are NOT automatically removed.'}
+              {deleteItem?.is_deleted
+                ? `"${deleteItem?.name}" will be permanently deleted and cannot be recovered.`
+                : `"${deleteItem?.name}" will be moved to Trash.${deleteItem?.is_folder ? ' Note: files inside this folder are NOT automatically moved.' : ''}`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1844,7 +1945,7 @@ function FilesPage() {
               className="bg-destructive text-white hover:bg-destructive/90"
             >
               {deleting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Delete
+              {deleteItem?.is_deleted ? 'Delete Permanently' : 'Move to Trash'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

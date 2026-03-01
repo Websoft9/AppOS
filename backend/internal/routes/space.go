@@ -26,16 +26,24 @@ import (
 //   - routes/settings.go  fallbackForKey("space/quota")
 //   - migrations/1741200001_seed_app_settings.go  (seed defaults)
 var defaultSpaceQuota = map[string]any{
-	"maxSizeMB":           10,
-	"maxPerUser":          100,
-	"shareMaxMinutes":     60,
-	"shareDefaultMinutes": 30,
-	"maxUploadFiles":      50,
+	"maxSizeMB":              10,
+	"maxPerUser":             100,
+	"shareMaxMinutes":        60,
+	"shareDefaultMinutes":    30,
+	"maxUploadFiles":         50,
+	"disallowedFolderNames": []string{},
 }
 
 const (
 	// Root-level folder names reserved by the system (not creatable by users).
 	spaceReservedFolderNames = "deploy,artifact"
+
+	// MIME types allowed for authenticated inline preview.
+	// SVG is included — the frontend renders it via <img> which blocks JS execution.
+	spacePreviewMimeTypeList = "image/png,image/jpeg,image/gif,image/webp,image/svg+xml," +
+		"image/bmp,image/x-icon,application/pdf," +
+		"audio/mpeg,audio/wav,audio/ogg,audio/aac,audio/flac,audio/webm," +
+		"video/mp4,video/webm,video/ogg"
 
 	// All extensions that may be uploaded (text, code, office, pdf).
 	spaceAllowedUploadFormats = "txt,md,yaml,yml,json,sh,bash,zsh,fish,env,js,ts,jsx,tsx,mjs,cjs,vue,svelte," +
@@ -69,6 +77,10 @@ func registerSpaceRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	f.GET("/quota", handleSpaceQuota)
 	f.POST("/share/{id}", handleFileShareCreate)
 	f.DELETE("/share/{id}", handleFileShareRevoke)
+
+	// Preview is registered WITHOUT the RequireAuth middleware so browsers can embed
+	// the URL directly in <img>, <iframe>, <audio>, <video> tags using ?token=<token>.
+	g.GET("/space/preview/{id}", handleSpacePreview)
 }
 
 // registerSpacePublicRoutes registers unauthenticated share routes on se.Router directly.
@@ -94,16 +106,118 @@ func handleSpaceQuota(e *core.RequestEvent) error {
 		maxUploadFiles = 200
 	}
 	return e.JSON(http.StatusOK, map[string]any{
-		"max_size_mb":            settings.Int(quota, "maxSizeMB", 10),
-		"editable_formats":       strings.Split(spaceEditableFormats, ","),
-		"upload_allow_exts":      settings.StringSlice(quota, "uploadAllowExts"),
-		"upload_deny_exts":       settings.StringSlice(quota, "uploadDenyExts"),
-		"max_upload_files":       maxUploadFiles,
-		"max_per_user":           settings.Int(quota, "maxPerUser", 100),
-		"share_max_minutes":      settings.Int(quota, "shareMaxMinutes", 60),
-		"share_default_minutes":  settings.Int(quota, "shareDefaultMinutes", 30),
-		"reserved_folder_names":  strings.Split(spaceReservedFolderNames, ","),
+		"max_size_mb":              settings.Int(quota, "maxSizeMB", 10),
+		"editable_formats":         strings.Split(spaceEditableFormats, ","),
+		"upload_allow_exts":        settings.StringSlice(quota, "uploadAllowExts"),
+		"upload_deny_exts":         settings.StringSlice(quota, "uploadDenyExts"),
+		"max_upload_files":         maxUploadFiles,
+		"max_per_user":             settings.Int(quota, "maxPerUser", 100),
+		"share_max_minutes":        settings.Int(quota, "shareMaxMinutes", 60),
+		"share_default_minutes":    settings.Int(quota, "shareDefaultMinutes", 30),
+		"reserved_folder_names":    strings.Split(spaceReservedFolderNames, ","),
+		"disallowed_folder_names":  settings.StringSlice(quota, "disallowedFolderNames"),
 	})
+}
+
+// handleSpacePreview streams a file for authenticated inline preview.
+//
+// Only MIME types in spacePreviewMimeTypeList are allowed; all others return 415.
+// Security headers applied to every response:
+//
+//	- X-Content-Type-Options: nosniff       (prevent MIME sniffing)
+//	- X-Frame-Options: SAMEORIGIN           (block embedding by third-party pages)
+//	- Content-Disposition: inline           (render in browser, not download)
+//	- Content-Security-Policy: sandbox      (PDF only — isolates embedded JS)
+//
+// SVG is served as image/svg+xml; the frontend MUST render via <img>, which
+// silently blocks all script execution — no extra server-side handling needed.
+func handleSpacePreview(e *core.RequestEvent) error {
+	id := e.Request.PathValue("id")
+
+	// Resolve auth from Authorization header OR ?token= query param.
+	// The query param path exists so browsers can embed the URL directly in
+	// <img src>, <audio src>, <video src>, <iframe src> tags which cannot
+	// set custom request headers.
+	auth := e.Auth
+	if auth == nil {
+		if tok := e.Request.URL.Query().Get("token"); tok != "" {
+			rec, err := e.App.FindAuthRecordByToken(tok, core.TokenTypeAuth)
+			if err == nil {
+				auth = rec
+			}
+		}
+	}
+	if auth == nil {
+		return e.ForbiddenError("Authentication required", nil)
+	}
+
+	record, err := e.App.FindRecordById("user_files", id)
+	if err != nil {
+		return e.NotFoundError("File not found", err)
+	}
+
+	// Ownership check.
+	if record.GetString("owner") != auth.Id {
+		return e.ForbiddenError("Access denied", nil)
+	}
+
+	// Deny folders.
+	if record.GetBool("is_folder") {
+		return e.BadRequestError("Folders cannot be previewed", nil)
+	}
+
+	mimeType := record.GetString("mime_type")
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+
+	// Whitelist check.
+	allowed := false
+	for _, m := range strings.Split(spacePreviewMimeTypeList, ",") {
+		if strings.TrimSpace(m) == mimeType {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return e.JSON(http.StatusUnsupportedMediaType,
+			fileError("preview not supported for this file type"))
+	}
+
+	storedFilename := record.GetString("content")
+	if storedFilename == "" {
+		return e.NotFoundError("File content not found", nil)
+	}
+
+	fs, err := e.App.NewFilesystem()
+	if err != nil {
+		return e.JSON(http.StatusInternalServerError, fileError("storage unavailable"))
+	}
+	defer fs.Close()
+
+	col := record.Collection()
+	storageKey := path.Join(col.Id, record.Id, storedFilename)
+
+	f, err := fs.GetFile(storageKey)
+	if err != nil {
+		return e.NotFoundError("File not found in storage", err)
+	}
+	defer f.Close()
+
+	h := e.Response.Header()
+	h.Set("Content-Type", mimeType)
+	h.Set("Content-Disposition", "inline")
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("X-Frame-Options", "SAMEORIGIN")
+
+	// For PDF: add CSP sandbox to isolate embedded JavaScript.
+	if mimeType == "application/pdf" {
+		h.Set("Content-Security-Policy", "sandbox")
+	}
+
+	e.Response.WriteHeader(http.StatusOK)
+	_, _ = io.Copy(e.Response, f)
+	return nil
 }
 
 // handleFileShareCreate creates or refreshes a share token on a user_files record.
