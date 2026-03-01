@@ -104,6 +104,10 @@ development_status:
   9.4-share: done
   9.5-settings-ui: done                # Resolved by Epic 13 (Story 13.2 + 13.4)
   9.6-file-version-history: backlog
+  9.7-file-preview: done
+  9.8-soft-delete-trash: done
+  9.9-preview-enhancements: done
+  9.10-fetch-url: done
   epic9-retrospective: optional
 
   # Epic 10: Internationalization (i18n)

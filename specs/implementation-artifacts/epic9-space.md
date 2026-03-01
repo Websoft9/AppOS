@@ -4,7 +4,7 @@
 
 **Per-user private space** — each authenticated user gets an isolated space for storing, editing, organizing, and sharing files.
 
-**Status**: Stories 9.1–9.4 complete | **Priority**: P2 | **Depends on**: Epic 1, Epic 3 (Epic 13 only for Story 9.5)
+**Status**: Stories 9.1–9.4, 9.7–9.10 complete | **Priority**: P2 | **Depends on**: Epic 1, Epic 3 (Epic 13 only for Story 9.5)
 
 ---
 
@@ -20,6 +20,7 @@ user_files (PocketBase Collection)
   ├── parent           → parent folder record ID (empty = root)
   ├── share_token      → platform share URL token (empty = not shared)
   ├── share_expires_at → expiry timestamp (empty = no active share)
+  ├── is_deleted        → bool (true = soft-deleted / in trash)
   ├── created          → AutodateField
   └── updated          → AutodateField
 ```
@@ -90,7 +91,8 @@ PB access rules: `owner = @request.auth.id` on all CRUD operations.
 | `GET` | `/api/ext/space/quota` | Required | Return effective quota limits |
 | `POST` | `/api/ext/space/share/{id}` | Required | Create/refresh share token (max 60 min) |
 | `DELETE` | `/api/ext/space/share/{id}` | Required | Revoke share |
-| `GET` | `/api/ext/space/preview/{id}` | Required | Stream file content for inline browser preview |
+| `GET` | `/api/ext/space/preview/{id}` | `?token=` query | Stream file for inline browser preview |
+| `POST` | `/api/ext/space/fetch` | Required | Download remote URL into user's space |
 | `GET` | `/api/ext/space/share/{token}` | None | Validate token, return file metadata |
 | `GET` | `/api/ext/space/share/{token}/download` | None | Stream file content (public) |
 
@@ -98,7 +100,9 @@ Share `POST` body: `{ "minutes": N }`. Response: `{ "share_token", "share_url", 
 `share_url` is a relative path (`/api/ext/space/share/{token}/download`); the frontend prepends `window.location.origin`.
 
 **Preview endpoint** (`GET /api/ext/space/preview/{id}`):
-- Authentication required; rejects non-owners with 403
+- Auth via `?token=` query param (allows direct browser embed in `<img>`, `<audio>`, `<video>`, `<iframe>` without custom headers)
+- Registered on public router (not behind RequireAuth middleware)
+- Rejects non-owners with 403
 - MIME whitelist (matches `spacePreviewMimeTypeList` constant): images (png, jpeg, gif, webp, svg+xml, bmp, x-icon), PDF, audio (mpeg, wav, ogg, aac, flac, webm), video (mp4, webm, ogg)
 - Returns 415 Unsupported Media Type for MIME types not in whitelist
 - Response headers on every preview: `Content-Disposition: inline`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`
@@ -126,8 +130,8 @@ Purpose: enforce server-side max files per upload batch (not only frontend valid
 | Stats | One-line text below list: `N folders · N files · N/max items used · max file size X MB` |
 | Folder navigation | Breadcrumb in toolbar; click segment to navigate; dialogs pre-fill current folder as parent |
 | Search | Filter by name within current folder; result count shown inline when active |
-| Sort | Click Name / Type / Created column headers; folders always listed before files |
-| Pagination | 20 items per page; Previous/Next controls |
+| Sort | Click Name / Type / Modified / Created column headers; folders always listed before files |
+| Pagination | Page-size select (15/45/90); Previous/Next controls |
 | Path column | Full path from root computed client-side via `buildPath()` |
 | Upload | Validates allow/deny settings, file size, and max files per batch before submit |
 | New Folder | Creates `is_folder=true` record; reserved name check at root |
@@ -136,9 +140,15 @@ Purpose: enforce server-side max files per upload batch (not only frontend valid
 | File size | Column shows human-readable size (K/M) from `size` field; set on upload, create, and save |
 | Download | Native `<a download>` using authenticated PB file URL |
 | Share | Generates public link via ext API; copy button copies URL; link works without login; supports QR code generation + PNG download. **Caveat**: Radix Dialog focus-trap breaks `execCommand` on elements outside the dialog — fallback must select the in-dialog input via ref. |
-| Preview | Eye button (shown only for previewable MIME types). Fetches `/api/ext/space/preview/{id}` as authenticated request, creates Blob URL, renders in Dialog: `<img>` for images & SVG, `<iframe sandbox="allow-scripts">` for PDF, `<audio>` for audio, `<video>` for video. Dialog footer includes inline Download link. Blob URL revoked on close. |
-| Delete | AlertDialog confirm; warns folder does not cascade-delete children |
-| Refresh | Spinner icon button in toolbar |
+| Preview | Eye button for previewable files. Types: text/code (fetched as raw text → `<pre>`), image (`<img>`), PDF (`<iframe>`), audio (`<audio>`), video (`<video>`). Fullscreen toggle. Edit button for text files opens editor directly. Direct URL auth via `?token=` query param. |
+| Delete | Soft-delete to Trash; permanent delete from Trash view. AlertDialog confirm for empty-trash. |
+| Trash | Toggle trash view; shows all soft-deleted items flat. Restore / permanent delete / empty trash. Back-to-files button in toolbar. |
+| Fetch URL | Download file from public URL directly into Space. Backend validates scheme, SSRF, extension, size. Synchronous (blocks UI until complete). |
+| View mode | Toggle list/grid; grid shows icon + name cards |
+| File icons | Type-specific icons: code, image, video, archive, music, pdf, generic |
+| Rename | Inline rename dialog for files and folders |
+| Duplicate | Copy file with " (copy)" suffix |
+| Actions | Per-row dropdown menu (MoreVertical) with context-aware options |
 
 ---
 
@@ -151,6 +161,7 @@ Purpose: enforce server-side max files per upload batch (not only frontend valid
 | `1740300002_user_files_folder_support.go` | Adds `is_folder` (bool) + `parent` (text) fields |
 | `1740300003_user_files_add_size.go` | Adds `size` (number, bytes) field for file-size display |
 | `1741300010_rename_settings_files_to_space.go` | Renames `app_settings` module key from `files` → `space` (Epic 9 rebrand) |
+| `1741600000_user_files_soft_delete.go` | Adds `is_deleted` (bool) field for soft-delete / trash |
 
 ---
 
@@ -180,6 +191,9 @@ Header contract for file create requests:
 | 9.5 | Settings UI (Admin) | ⏳ Resolved by Epic 13 (Story 13.2 + 13.4) |
 | 9.6 | File Version History | 📋 Planned |
 | 9.7 | File Preview (browser-native) | ✅ Done |
+| 9.8 | Soft Delete & Trash | ✅ Done |
+| 9.9 | Preview Enhancements (fullscreen, edit, text/code) | ✅ Done |
+| 9.10 | Fetch File from URL | ✅ Done |
 
 ---
 
@@ -222,7 +236,57 @@ Header contract for file create requests:
 
 ---
 
-## Story 9.6 — File Version History
+## Story 9.8 — Soft Delete & Trash
+
+**Objective**: Files are soft-deleted (moved to trash) instead of permanent delete. Users can restore or permanently delete from trash.
+
+**Backend**:
+- Migration `1741600000_user_files_soft_delete.go`: adds `is_deleted` bool field
+- All list queries filter `is_deleted=false` by default in frontend
+
+**Frontend**:
+- Delete action sets `is_deleted: true` (soft-delete)
+- Trash view: flat list of all deleted items, sortable, searchable
+- Restore: sets `is_deleted: false`
+- Empty Trash: AlertDialog confirm → permanent delete all trashed items
+- Toolbar in trash view: hides New Folder/File/Upload, shows "← Back to Files"
+- Trash count badge on trash toggle button
+
+---
+
+## Story 9.9 — Preview Enhancements
+
+**Objective**: Improve preview dialog with fullscreen, edit shortcut, and text/code preview.
+
+**Changes**:
+- **Text/code preview**: `getPreviewType()` uses `isEditable()` first → all editable extensions get `'text'` type, rendered as `<pre>` with fetched raw content
+- **Auth fix**: Preview route moved to `registerSpacePublicRoutes` (public router), auth resolved from `?token=` query param so browsers can embed URLs directly
+- **Fullscreen toggle**: `previewFullscreen` state; button in DialogHeader toggles DialogContent between normal (`sm:max-w-4xl`) and full-viewport mode
+- **Edit button**: Shown in DialogFooter for text-type files; closes preview and opens editor in one click
+- **Responsive sizing**: Image/PDF/video max-height adapts to fullscreen state
+
+---
+
+## Story 9.10 — Fetch File from URL
+
+**Objective**: Download a file from a public URL directly into Space without manual download-then-upload.
+
+**Backend** (`POST /api/ext/space/fetch`):
+- Auth required (RequireAuth middleware)
+- Body: `{ "url": "...", "name": "optional", "parent": "optionalFolderId" }`
+- SSRF protection: only http/https; rejects localhost, 127.x, 10.x, 192.168.x, 172.x, ::1, 0.0.0.0
+- Extension compliance: same allowlist/denylist as upload
+- Size check: HEAD pre-check + `io.LimitReader` hard cap at `max_size_mb`
+- 120s download timeout; filename auto-derived from URL path if not provided
+- MIME detection: server Content-Type header, fallback `http.DetectContentType`
+- Saves via `filesystem.NewFileFromBytes` + `e.App.Save`
+
+**Frontend**:
+- "Fetch URL" button in toolbar (Globe icon), opens dialog
+- Dialog: URL input (required, Enter to submit), optional filename, folder select
+- Shows quota hint (max size, extension policy)
+- Synchronous: spinner + "Downloading…" while fetching; buttons/inputs disabled
+- Error display from server `message` field; success closes dialog and refreshes list
 
 **Objective**: Users can view and restore previous versions of a file in their space.
 
@@ -259,3 +323,4 @@ Header contract for file create requests:
 - Cascading folder delete
 - Global search (cross-folder)
 - Story 9.5 settings UI (resolved by Epic 13, stories 13.2 + 13.4)
+- Cascading folder delete — children remain when parent is deleted
