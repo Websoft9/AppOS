@@ -541,13 +541,20 @@ func handleSpaceFetch(e *core.RequestEvent) error {
 		}
 	}
 
+	client := newSafeFetchHTTPClient()
+
 	// Optional early rejection: HEAD request to check Content-Length.
-	headClient := &http.Client{Timeout: 15 * time.Second}
-	if headResp, err := headClient.Head(body.URL); err == nil {
-		headResp.Body.Close()
-		if headResp.ContentLength > maxBytes {
-			return e.BadRequestError(
-				fmt.Sprintf("remote file is too large (limit %d MB)", maxSizeMB), nil)
+	headCtx, headCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer headCancel()
+	headReq, headReqErr := http.NewRequestWithContext(headCtx, http.MethodHead, body.URL, nil)
+	if headReqErr == nil {
+		headResp, err := client.Do(headReq)
+		if err == nil {
+			headResp.Body.Close()
+			if headResp.ContentLength > maxBytes {
+				return e.BadRequestError(
+					fmt.Sprintf("remote file is too large (limit %d MB)", maxSizeMB), nil)
+			}
 		}
 	}
 
@@ -559,7 +566,7 @@ func handleSpaceFetch(e *core.RequestEvent) error {
 	if err != nil {
 		return e.BadRequestError("failed to build request: "+err.Error(), nil)
 	}
-	getResp, err := (&http.Client{}).Do(req)
+	getResp, err := client.Do(req)
 	if err != nil {
 		return e.BadRequestError("failed to fetch URL: "+err.Error(), nil)
 	}
@@ -644,4 +651,71 @@ func isBlockedFetchIP(ip net.IP) bool {
 		return true
 	}
 	return false
+}
+
+func newSafeFetchHTTPClient() *http.Client {
+	dialer := &net.Dialer{Timeout: 15 * time.Second}
+
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, err
+			}
+			host = strings.TrimSpace(host)
+
+			if strings.EqualFold(host, "localhost") {
+				return nil, fmt.Errorf("blocked private/loopback target")
+			}
+
+			if ip := net.ParseIP(host); ip != nil {
+				if isBlockedFetchIP(ip) {
+					return nil, fmt.Errorf("blocked private/loopback target")
+				}
+				return dialer.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
+			}
+
+			ips, err := net.DefaultResolver.LookupIP(ctx, "ip", host)
+			if err != nil {
+				return nil, err
+			}
+
+			for _, ip := range ips {
+				if isBlockedFetchIP(ip) {
+					return nil, fmt.Errorf("blocked private/loopback target")
+				}
+			}
+
+			for _, ip := range ips {
+				if conn, dialErr := dialer.DialContext(ctx, network, net.JoinHostPort(ip.String(), port)); dialErr == nil {
+					return conn, nil
+				}
+			}
+
+			return nil, fmt.Errorf("failed to connect to resolved host")
+		},
+	}
+
+	return &http.Client{
+		Transport: transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if req.URL == nil {
+				return fmt.Errorf("invalid redirect URL")
+			}
+			if req.URL.Scheme != "http" && req.URL.Scheme != "https" {
+				return fmt.Errorf("only http and https URLs are supported")
+			}
+			host := strings.ToLower(req.URL.Hostname())
+			if host == "localhost" {
+				return fmt.Errorf("blocked private/loopback redirect")
+			}
+			if ip := net.ParseIP(host); ip != nil && isBlockedFetchIP(ip) {
+				return fmt.Errorf("blocked private/loopback redirect")
+			}
+			if len(via) >= 10 {
+				return fmt.Errorf("stopped after too many redirects")
+			}
+			return nil
+		},
+	}
 }
