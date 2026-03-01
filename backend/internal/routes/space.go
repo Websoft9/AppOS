@@ -77,20 +77,18 @@ func registerSpaceRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	f.GET("/quota", handleSpaceQuota)
 	f.POST("/share/{id}", handleFileShareCreate)
 	f.DELETE("/share/{id}", handleFileShareRevoke)
-
-	// Preview is registered WITHOUT the RequireAuth middleware so browsers can embed
-	// the URL directly in <img>, <iframe>, <audio>, <video> tags using ?token=<token>.
-	g.GET("/space/preview/{id}", handleSpacePreview)
 }
 
-// registerSpacePublicRoutes registers unauthenticated share routes on se.Router directly.
+// registerSpacePublicRoutes registers unauthenticated space routes on se.Router.
 //
-//	GET /api/ext/space/share/{token}           — resolve share: return file metadata
-//	GET /api/ext/space/share/{token}/download  — stream file content (no auth)
+//	GET /api/ext/space/preview/{id}          — authenticated preview via ?token= (for browser embed)
+//	GET /api/ext/space/share/{token}          — resolve share: return file metadata
+//	GET /api/ext/space/share/{token}/download — stream file content (no auth)
 func registerSpacePublicRoutes(se *core.ServeEvent) {
-	pub := se.Router.Group("/api/ext/space/share")
-	pub.GET("/{token}", handleFileShareResolve)
-	pub.GET("/{token}/download", handleFileShareDownload)
+	pub := se.Router.Group("/api/ext/space")
+	pub.GET("/preview/{id}", handleSpacePreview)
+	pub.GET("/share/{token}", handleFileShareResolve)
+	pub.GET("/share/{token}/download", handleFileShareDownload)
 }
 
 // ─── Handlers ──────────────────────────────────────────────────────────────

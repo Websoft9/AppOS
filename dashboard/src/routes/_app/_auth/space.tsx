@@ -187,12 +187,13 @@ const PREVIEW_MIME_TYPES = new Set([
 type PreviewType = 'image' | 'pdf' | 'audio' | 'video' | 'text'
 
 /** Returns the preview category, or null if not previewable. */
-function getPreviewType(file: UserFile): PreviewType | null {
-  if (file.is_folder || !file.content || !file.mime_type) return null
+function getPreviewType(file: UserFile, quota: Quota | null): PreviewType | null {
+  if (file.is_folder || !file.content) return null
+  // Any editable (text/code) file can be previewed as raw text.
+  if (isEditable(file, quota)) return 'text'
+  // Media / PDF: streamed via ?token= URL.
+  if (!file.mime_type) return null
   const m = file.mime_type
-  // Text/code: fetch via download URL and show raw in <pre>
-  if (m.startsWith('text/') || m === 'application/json' || m === 'application/xml') return 'text'
-  // Media / PDF: streamed via authenticated preview endpoint
   if (!PREVIEW_MIME_TYPES.has(m)) return null
   if (m.startsWith('image/')) return 'image'
   if (m === 'application/pdf') return 'pdf'
@@ -454,6 +455,10 @@ function FilesPage() {
   const [renameName, setRenameName] = useState('')
   const [renaming, setRenaming] = useState(false)
   const [renameError, setRenameError] = useState<string | null>(null)
+
+  // ── Empty trash confirm ────────────────────────────────
+  const [emptyTrashOpen, setEmptyTrashOpen] = useState(false)
+  const [emptyingTrash, setEmptyingTrash] = useState(false)
 
   // ── Header checkbox ref (for indeterminate state) ──────
   const headerCheckboxRef = useRef<HTMLInputElement>(null)
@@ -944,7 +949,7 @@ function FilesPage() {
   // ─── Preview ───────────────────────────────────────────
 
   async function openPreview(file: UserFile) {
-    const type = getPreviewType(file)
+    const type = getPreviewType(file, quota)
     setPreviewFile(file)
     setPreviewText(null)
     setPreviewError(null)
@@ -1037,15 +1042,22 @@ function FilesPage() {
     }
   }
 
-  async function handleEmptyTrash() {
+  function handleEmptyTrash() {
+    if (items.filter(i => i.is_deleted).length === 0) return
+    setEmptyTrashOpen(true)
+  }
+
+  async function doEmptyTrash() {
     const trashItems = items.filter(i => i.is_deleted)
-    if (trashItems.length === 0) return
-    if (!confirm(`Permanently delete all ${trashItems.length} item(s) in Trash? This cannot be undone.`)) return
+    setEmptyingTrash(true)
     try {
       await Promise.all(trashItems.map(i => pb.collection('user_files').delete(i.id)))
+      setEmptyTrashOpen(false)
       fetchAll()
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : 'Failed to empty trash')
+    } finally {
+      setEmptyingTrash(false)
     }
   }
 
@@ -1164,26 +1176,44 @@ function FilesPage() {
       <div className="flex items-center gap-2 flex-wrap">
         <h2 className="text-2xl font-bold shrink-0">Space</h2>
 
-        {/* Breadcrumb / path */}
-        <div className="flex items-center gap-1 text-sm shrink-0">
-          <button
-            className={`hover:underline font-mono ${!currentFolderId ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}
-            onClick={() => navigateTo(null)}
-          >
-            /
-          </button>
-          {breadcrumb.map((seg, i) => (
-            <span key={seg.id} className="flex items-center gap-1">
-              <ChevronRight className="h-3 w-3 text-muted-foreground" />
-              <button
-                className={`hover:underline ${i === breadcrumb.length - 1 ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}
-                onClick={() => navigateTo(seg.id)}
+        {/* Trash breadcrumb OR normal folder breadcrumb */}
+        {trashView
+          ? (
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-muted-foreground text-sm">/</span>
+              <span className="text-sm font-semibold text-foreground flex items-center gap-1">
+                <Trash2 className="h-3.5 w-3.5" /> Trash
+              </span>
+              <Button
+                variant="ghost" size="sm"
+                className="text-xs text-muted-foreground h-7 px-2"
+                onClick={() => { setTrashView(false); setSearch('') }}
               >
-                {seg.name}
+                ← Back to Files
+              </Button>
+            </div>
+          )
+          : (
+            <div className="flex items-center gap-1 text-sm shrink-0">
+              <button
+                className={`hover:underline font-mono ${!currentFolderId ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}
+                onClick={() => navigateTo(null)}
+              >
+                /
               </button>
-            </span>
-          ))}
-        </div>
+              {breadcrumb.map((seg, i) => (
+                <span key={seg.id} className="flex items-center gap-1">
+                  <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                  <button
+                    className={`hover:underline ${i === breadcrumb.length - 1 ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}
+                    onClick={() => navigateTo(seg.id)}
+                  >
+                    {seg.name}
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
 
         {/* Search */}
         <div className="relative">
@@ -1237,15 +1267,19 @@ function FilesPage() {
         >
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
         </Button>
-        <Button variant="outline" size="sm" onClick={openNewFolder}>
-          <FolderPlus className="h-4 w-4 mr-1" /> New Folder
-        </Button>
-        <Button variant="outline" size="sm" onClick={openNewFile}>
-          <FilePlus className="h-4 w-4 mr-1" /> New File
-        </Button>
-        <Button size="sm" onClick={openUpload}>
-          <Upload className="h-4 w-4 mr-1" /> Upload
-        </Button>
+        {!trashView && (
+          <>
+            <Button variant="outline" size="sm" onClick={openNewFolder}>
+              <FolderPlus className="h-4 w-4 mr-1" /> New Folder
+            </Button>
+            <Button variant="outline" size="sm" onClick={openNewFile}>
+              <FilePlus className="h-4 w-4 mr-1" /> New File
+            </Button>
+            <Button size="sm" onClick={openUpload}>
+              <Upload className="h-4 w-4 mr-1" /> Upload
+            </Button>
+          </>
+        )}
       </div>
 
       {loading && (
@@ -1364,7 +1398,7 @@ function FilesPage() {
                 {pagedItems.map(item => {
                   const editable = isEditable(item, quota)
                   const itemPath = buildPath(item, items)
-                  const previewType = getPreviewType(item)
+                  const previewType = getPreviewType(item, quota)
                   const isExpanded = expandedId === item.id
                   const mime = item.is_folder ? 'Folder' : (item.mime_type || '—')
                   return (
@@ -1493,7 +1527,7 @@ function FilesPage() {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {pagedItems.map(item => {
             const editable = isEditable(item, quota)
-            const previewType = getPreviewType(item)
+            const previewType = getPreviewType(item, quota)
             const isSelected = selectedIds.has(item.id)
             return (
               <div
@@ -1558,18 +1592,17 @@ function FilesPage() {
       {viewItems.length > 0 && (
         <div className="flex items-center justify-between text-sm text-muted-foreground flex-wrap gap-2">
           <span>{viewItems.length} items · page {safePage} of {totalPages}</span>
-          <div className="flex items-center gap-1 flex-wrap">
-            <span className="text-xs mr-1">Per page:</span>
-            {PAGE_SIZES.map(s => (
-              <Button
-                key={s} size="sm"
-                variant={pageSize === s ? 'secondary' : 'outline'}
-                className="h-7 px-2 text-xs"
-                onClick={() => { setPageSize(s); setPage(1) }}
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-1.5 text-xs">
+              Per page
+              <select
+                className="h-7 rounded-md border border-input bg-background px-2 text-xs"
+                value={pageSize}
+                onChange={e => { setPageSize(Number(e.target.value) as typeof PAGE_SIZES[number]); setPage(1) }}
               >
-                {s}
-              </Button>
-            ))}
+                {PAGE_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </label>
             <Button variant="outline" size="sm" disabled={safePage <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>‹</Button>
             <Button variant="outline" size="sm" disabled={safePage >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>›</Button>
           </div>
@@ -1589,9 +1622,11 @@ function FilesPage() {
         </div>
       )}
       {trashView && trashCount > 0 && (
-        <Button variant="destructive" size="sm" onClick={handleEmptyTrash}>
-          <Trash2 className="h-4 w-4 mr-1" /> Empty Trash
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="destructive" size="sm" onClick={handleEmptyTrash}>
+            <Trash2 className="h-4 w-4 mr-1" /> Empty Trash ({trashCount})
+          </Button>
+        </div>
       )}
 
       {/* ── Bulk Move Dialog ───────────────────────────── */}
@@ -1831,7 +1866,7 @@ function FilesPage() {
               <p className="text-destructive text-sm">{previewError}</p>
             )}
             {!previewLoading && !previewError && previewFile && (() => {
-              const type = getPreviewType(previewFile)
+              const type = getPreviewType(previewFile, quota)
               const directUrl = buildPreviewUrl(previewFile)
               if (type === 'text') {
                 return (
@@ -1946,6 +1981,30 @@ function FilesPage() {
             >
               {deleting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               {deleteItem?.is_deleted ? 'Delete Permanently' : 'Move to Trash'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Empty Trash Confirm ─────────────────────────── */}
+      <AlertDialog open={emptyTrashOpen} onOpenChange={setEmptyTrashOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Empty Trash?</AlertDialogTitle>
+            <AlertDialogDescription>
+              All {trashCount} item{trashCount !== 1 ? 's' : ''} in Trash will be permanently deleted.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={emptyingTrash}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={doEmptyTrash}
+              disabled={emptyingTrash}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              {emptyingTrash && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Empty Trash
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
