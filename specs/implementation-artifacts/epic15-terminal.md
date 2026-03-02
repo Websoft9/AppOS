@@ -1,10 +1,60 @@
 # Epic 15: Connect – Terminal Ops
 
-**Module**: Connect (Part 1) | **Status**: Complete | **Priority**: P1 | **Depends on**: Epic 1, 3, 8
+**Module**: Connect (Part 1) | **Status**: In Progress | **Priority**: P1 | **Depends on**: Epic 1, 3, 8, 13
 
 ## Overview
 
 Browser-based server operations with a unified Connect workspace: terminal command execution, SFTP file management, and Docker container terminal. Credentials are sourced exclusively from the Resource Store (`servers` collection); no credential duplication.
+
+---
+
+## Change Request (2026-03-02)
+
+Terminal UI enters optimization phase with the following targets:
+
+1. Support multiple active server connections with vertical tab list and collapse/expand behavior.
+2. Add location navigation in Terminal header: `Connect > Servers`.
+3. Replace direct disconnect with fixed 2-second safe-exit experience ("Safely disconnecting") before session close.
+4. In split view (Docker/Files + Terminal), terminal shell area must support horizontal scrolling and keep visual focus at bottom for current active tab.
+5. Replace current split icon usage with two-pane icon semantics; split preset menu includes: `30/70`, `0/100` (hide Terminal shell), `50/50`, `70/30`, `reset`; preset rows are text-only (no per-row icon).
+6. Mirror the safe-exit pattern on connect: show a minimum 2-second "Establishing secure connection..." feedback before the terminal tab opens, even when the connectivity check completes faster.
+
+Connect settings ownership clarification:
+
+- Terminal idle timeout
+- Max connections (default: `0`, means unlimited)
+
+These settings are managed under Epic 13 (Settings Management), not Epic 15.
+
+---
+
+## Optimization Snapshot (2026-03-02)
+
+The Connect Terminal workspace has completed a major UX stabilization pass in this chat cycle:
+
+- Multi-connection rail now supports dynamic width, improved list-item affordance, and reduced visual redundancy.
+- `+ New` action is simplified for creating sessions; repeated connection to an already-connected server now requires explicit confirmation.
+- Switching active terminal tabs no longer forces WebSocket reconnect.
+- Idle timer is refreshed on active-session switch.
+- Files / Docker side panel state is preserved across terminal-tab switching (same server context).
+- Server-bound side-panel cache is pruned automatically when all tabs for that server are closed.
+- Docker Containers list avoids forced oversized viewport behavior for small datasets.
+- Connect flow enforces a minimum 2-second "Establishing secure connection..." feedback (symmetric with the disconnect safe-exit experience).
+
+---
+
+## Proposed Next Improvements (Backlog)
+
+Epic 15 keeps only cross-story themes here to avoid duplication with story-level specs:
+
+- Session reliability and status semantics
+- Session restore and quick-return UX
+- Side-panel persistence and bounded cache strategy
+- Docker tab scroll behavior consistency
+- Keyboard accessibility for connect workflows
+
+Detailed implementation candidates are maintained in Story 15.2 follow-up section:
+`specs/implementation-artifacts/story15.2-terminal-ui.md`.
 
 ---
 
@@ -117,6 +167,8 @@ Resize via WebSocket control frame (same protocol as SSH).
 | `connect.terminal.scrollback` | `1000` | Scrollback buffer lines |
 | `connect.sftp.show_hidden` | `false` | Show dot-files in file manager (frontend filter; backend always returns all entries) |
 
+Terminal behavior settings (idle timeout, max connections) are governed by Epic 13 settings domain.
+
 ### Server-side limits (hard-coded for MVP)
 
 | Setting | Value |
@@ -152,25 +204,26 @@ Post-MVP: session recording/playback, JIT access approval, MFA on connect.
 
 Route: `/connect` (server selector) → `/connect/server/:serverId` (active session)
 
-Single page with two tabs only (`Terminal`, `Files`); SSH and SFTP are not split into separate pages.
+Multi-connection workspace with vertical connection tab rail (collapsible), terminal pane, and optional Docker/Files side panel.
 
 ```
-┌──────────────────────────────────────────────┐
-│ [Server selector ▼]  [Terminal | Files]  [⛶] │
-├──────────────────────────────────────────────┤
-│                                              │
-│   xterm.js  /  File Manager  (tab-switched) │
-│                                              │
-└──────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│ Connect Servers            [Terminal][Files][Docker][⛶]│
+├───────────┬─────────────────────────┬────────────────┤
+│ [+ New]   │                         │                │
+│ ● srv-1   │   xterm.js terminal     │  Files/Docker  │
+│ ○ srv-2   │   (active tab content)  │  side panel    │
+│           │                         │  (optional)    │
+└───────────┴─────────────────────────┴────────────────┘
 ```
 
-SSH and SFTP share the same server context – switching to the Files tab reuses the active server; no separate authentication.
+SSH and SFTP share the same server context – switching to the Files side panel reuses the active server; no separate authentication.
 
 **Terminal tab**: xterm.js, auto-fit on window resize, reconnect button on disconnect.
 
-**Files tab:**
-- Directory tree (left pane) + file list (right pane)
-- Breadcrumb navigation; double-click to enter directory
+**Files side panel:**
+- Single-pane table layout with breadcrumb navigation
+- Double-click to enter directory
 - Context menu: download / rename / delete
 - Drag-and-drop or button upload
 - Hidden files toggle (persisted to localStorage)
@@ -190,7 +243,6 @@ Docker exec entry: Docker page → container row action → Dialog with `<Termin
 
 ## Out of Scope (MVP)
 
-- Multi-tab / session multiplexing
 - In-browser SFTP file editing (download → edit locally)
 - SCP batch transfer, SSH port forwarding
 - WinRM / legacy Windows without OpenSSH
@@ -205,7 +257,7 @@ Docker exec entry: Docker page → container row action → Dialog with `<Termin
 | Story | Title | Key Deliverables |
 |-------|-------|-----------------|
 | 15.1 | SSH + SFTP backend | `connector.go` interface, `ssh.go`, `sftp.go`, all routes, audit log |
-| 15.2 | Terminal UI | `<TerminalPanel>`, server selector, reconnect, unified terminal workspace shell execution |
+| 15.2 | Terminal UI | `<TerminalPanel>`, server selector, reconnect, unified terminal workspace shell execution + 2026-03 optimization scope |
 | 15.3 | Docker Terminal | `docker_exec.go`, `<TerminalPanel>` container mode, shell strategy, connection stability |
 | 15.4 | SFTP Enhancements | file properties/symlink/copy-move progress, upload limits, share parity with Space |
 | 15.5 | Server Ops | server list restart/shutdown actions, Terminal systemd dialog, service status/log APIs |

@@ -760,7 +760,8 @@ export function ContainersTab({
       {copiedTip && <div className="text-xs text-muted-foreground shrink-0">{copiedTip}</div>}
       <div
         data-docker-scroll-root="true"
-        className="h-0 flex-1 min-h-0 overflow-auto rounded-md border"
+        className="overflow-auto rounded-md border"
+        style={{ maxHeight: 'min(560px, 70vh)' }}
       >
         <Table>
           <TableHeader className="sticky top-0 bg-background z-10">

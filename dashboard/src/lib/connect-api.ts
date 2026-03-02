@@ -105,6 +105,81 @@ export interface SystemdUnitApplyResponse {
 
 export type SystemdControlAction = 'start' | 'stop' | 'restart' | 'enable' | 'disable'
 
+export type ServerPortProtocol = 'tcp' | 'udp'
+export type ServerPortView = 'occupancy' | 'reservation' | 'all'
+
+export interface ServerPortProcess {
+  name?: string
+  pid?: number
+}
+
+export interface ServerPortListener {
+  state: string
+  local_address: string
+  peer_address: string
+  raw: string
+  process?: ServerPortProcess
+  processes?: ServerPortProcess[]
+  pids?: number[]
+}
+
+export interface ServerPortOccupancy {
+  occupied: boolean
+  listeners: ServerPortListener[]
+  process?: ServerPortProcess
+  pids?: number[]
+}
+
+export interface ServerPortReservationSource {
+  type: string
+  confidence: 'high' | 'medium' | 'low'
+  matches: Record<string, unknown>[]
+}
+
+export interface ServerPortContainerProbe {
+  available: boolean
+  status: 'ok' | 'not_available' | 'error'
+}
+
+export interface ServerPortReservation {
+  reserved: boolean
+  sources: ServerPortReservationSource[]
+  container_probe?: ServerPortContainerProbe
+}
+
+export interface ServerPortItem {
+  port: number
+  occupancy?: ServerPortOccupancy
+  reservation?: ServerPortReservation
+}
+
+export interface ServerPortsResponse {
+  server_id: string
+  protocol: ServerPortProtocol
+  view: ServerPortView
+  detected_at: string
+  ports: ServerPortItem[]
+  total: number
+  reservation_meta?: {
+    container_probe?: ServerPortContainerProbe
+  }
+}
+
+export interface ReleaseServerPortResponse {
+  server_id: string
+  port: number
+  protocol: ServerPortProtocol
+  mode: 'graceful' | 'force'
+  owner_type: 'container' | 'host_process' | string
+  action_taken: string
+  pid_targets: number[]
+  container_owner?: Record<string, unknown>
+  container_probe?: ServerPortContainerProbe
+  released: boolean
+  before?: ServerPortOccupancy
+  after?: ServerPortOccupancy
+}
+
 // ─── SFTP operations ──────────────────────────────────────────────────────────
 
 export async function sftpList(serverId: string, path: string): Promise<SFTPListResponse> {
@@ -269,6 +344,33 @@ export async function serverPower(serverId: string, action: 'restart' | 'shutdow
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action }),
   })
+}
+
+export async function listServerPorts(
+  serverId: string,
+  view: ServerPortView = 'all',
+  protocol: ServerPortProtocol = 'tcp'
+): Promise<ServerPortsResponse> {
+  return pb.send<ServerPortsResponse>(
+    `/api/ext/terminal/server/${serverId}/ports?view=${encodeURIComponent(view)}&protocol=${encodeURIComponent(protocol)}`,
+    {}
+  )
+}
+
+export async function releaseServerPort(
+  serverId: string,
+  port: number,
+  protocol: ServerPortProtocol = 'tcp',
+  mode: 'graceful' | 'force' = 'graceful'
+): Promise<ReleaseServerPortResponse> {
+  return pb.send<ReleaseServerPortResponse>(
+    `/api/ext/terminal/server/${serverId}/ports/${port}/release?protocol=${encodeURIComponent(protocol)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode }),
+    }
+  )
 }
 
 export async function listSystemdServices(
@@ -453,6 +555,39 @@ export async function listScripts(): Promise<Script[]> {
   return result
 }
 
+export interface ConnectTerminalSettings {
+  idleTimeoutSeconds: number
+  maxConnections: number
+}
+
+const DEFAULT_CONNECT_TERMINAL_SETTINGS: ConnectTerminalSettings = {
+  idleTimeoutSeconds: 1800,
+  maxConnections: 0,
+}
+
+export async function getConnectTerminalSettings(): Promise<ConnectTerminalSettings> {
+  try {
+    const response = (await pb.send('/api/ext/settings/connect', {
+      method: 'GET',
+    })) as { terminal?: Partial<ConnectTerminalSettings> }
+    const terminal = response?.terminal ?? {}
+    const idleTimeoutSeconds = Number(terminal.idleTimeoutSeconds)
+    const maxConnections = Number(terminal.maxConnections)
+    return {
+      idleTimeoutSeconds:
+        Number.isFinite(idleTimeoutSeconds) && idleTimeoutSeconds >= 60
+          ? Math.floor(idleTimeoutSeconds)
+          : DEFAULT_CONNECT_TERMINAL_SETTINGS.idleTimeoutSeconds,
+      maxConnections:
+        Number.isFinite(maxConnections) && maxConnections >= 0
+          ? Math.floor(maxConnections)
+          : DEFAULT_CONNECT_TERMINAL_SETTINGS.maxConnections,
+    }
+  } catch {
+    return { ...DEFAULT_CONNECT_TERMINAL_SETTINGS }
+  }
+}
+
 // ─── WebSocket URL helper ─────────────────────────────────────────────────────
 
 export function sshWebSocketUrl(serverId: string): string {
@@ -469,6 +604,8 @@ export interface ConnectPreferences {
   terminal_scrollback: number
   sftp_show_hidden: boolean
   sftp_view_mode: 'list' | 'grid'
+  connect_terminal_idle_timeout_seconds: number
+  connect_terminal_max_connections: number
 }
 
 const DEFAULT_PREFS: ConnectPreferences = {
@@ -476,6 +613,8 @@ const DEFAULT_PREFS: ConnectPreferences = {
   terminal_scrollback: 1000,
   sftp_show_hidden: false,
   sftp_view_mode: 'list',
+  connect_terminal_idle_timeout_seconds: 1800,
+  connect_terminal_max_connections: 0,
 }
 
 export function loadPreferences(): ConnectPreferences {

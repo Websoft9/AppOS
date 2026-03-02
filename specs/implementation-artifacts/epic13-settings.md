@@ -4,7 +4,7 @@
 
 **Objective**: Unified settings page — PocketBase built-in settings + AppOS custom (Ext) settings in one Dashboard view.
 
-**Priority**: P2 | **Status**: done | **Depends on**: Epic 1, Epic 3
+**Priority**: P2 | **Status**: in-progress | **Depends on**: Epic 1, Epic 3
 
 ---
 
@@ -35,10 +35,13 @@ Dashboard calls PB `/api/settings` directly — no new backend code.
 | Module | Group | Fields |
 |--------|-------|--------|
 | `space` | `quota` | `maxSizeMB`, `maxPerUser`, `maxUploadFiles`, `shareMaxMinutes`, `shareDefaultMinutes`, `uploadAllowExts[]`, `uploadDenyExts[]` |
+| `connect` | `terminal` | `idleTimeoutSeconds`, `maxConnections` |
 | `proxy` | `network` | `httpProxy`, `httpsProxy`, `noProxy`, `username`, `password`* |
 | `docker` | `mirror` | `mirrors[]`, `insecureRegistries[]` |
 | `docker` | `registries` | `items: [{host, username, password*}]` |
 | `llm` | `providers` | `items: [{name, endpoint, apiKey*}]` |
+
+`connect.terminal.maxConnections` default is `0` (unlimited).
 
 Data model (`app_settings` collection), API contract, seed values, mask semantics → Story 13.1 / 13.2 / 13.5.
 
@@ -63,8 +66,9 @@ Data model (`app_settings` collection), API contract, seed values, mask semantic
 | 13.4 | Ext Settings UI — Space quota (+ upload allow/deny lists) |
 | 13.5 | Ext infra backend (proxy/docker/llm seed + mask) |
 | 13.6 | Ext infra UI (proxy/docker/llm cards) |
+| 13.7 | Connect terminal settings UI (`idleTimeoutSeconds`, `maxConnections`) |
 
-**Execution**: 13.1 → 13.2 → 13.3 (parallelisable after 13.1) → 13.4 → 13.5 → 13.6
+**Execution**: 13.1 → 13.2 → 13.3 (parallelisable after 13.1) → 13.4 → 13.5 → 13.6 → 13.7 (after 13.6)
 
 ---
 
@@ -75,3 +79,17 @@ Data model (`app_settings` collection), API contract, seed values, mask semantic
 - Non-superuser preferences
 - Settings import/export
 - Settings change audit
+
+---
+
+## Proposed Follow-up (from Epic 15 UX cycle)
+
+Epic keeps only theme-level follow-up direction:
+
+- Connect session continuity policy (resume TTL)
+- Per-server panel cache governance (bounded memory)
+- Optional persistence policy for split/layout preferences
+
+Detailed field proposals are maintained in Story 13.7 to avoid Epic/Story duplication.
+
+These are backlog items and not required for current Epic 13 completion.

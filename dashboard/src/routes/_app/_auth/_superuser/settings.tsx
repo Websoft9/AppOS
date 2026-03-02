@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState, useEffect, useCallback } from 'react'
+import { ClientResponseError } from 'pocketbase'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { parseExtListInput } from '@/lib/ext-normalize'
@@ -79,6 +80,52 @@ interface DockerRegistries {
   items: RegistryItem[]
 }
 
+interface ConnectTerminalGroup {
+  idleTimeoutSeconds: number
+  maxConnections: number
+}
+
+function extractFieldError(value: unknown): string | null {
+  if (typeof value === 'string' && value.trim()) {
+    return value.trim()
+  }
+  if (value && typeof value === 'object') {
+    const maybeObj = value as Record<string, unknown>
+    if (typeof maybeObj.message === 'string' && maybeObj.message.trim()) {
+      return maybeObj.message.trim()
+    }
+    if (typeof maybeObj.code === 'string' && maybeObj.code.trim()) {
+      return maybeObj.code.trim()
+    }
+  }
+  return null
+}
+
+function parseConnectTerminalApiErrors(
+  payload: unknown
+): Partial<Record<keyof ConnectTerminalGroup, string>> {
+  const parsed: Partial<Record<keyof ConnectTerminalGroup, string>> = {}
+  if (!payload || typeof payload !== 'object') {
+    return parsed
+  }
+
+  const root = payload as Record<string, unknown>
+  const bag =
+    root.errors && typeof root.errors === 'object' ? (root.errors as Record<string, unknown>) : root
+
+  const idleError = extractFieldError(bag.idleTimeoutSeconds)
+  if (idleError) {
+    parsed.idleTimeoutSeconds = idleError
+  }
+
+  const maxError = extractFieldError(bag.maxConnections)
+  if (maxError) {
+    parsed.maxConnections = maxError
+  }
+
+  return parsed
+}
+
 // LLM vendor catalog — pre-fills name + endpoint when user selects a vendor
 const LLM_VENDORS: { label: string; endpoint: string }[] = [
   { label: 'OpenAI', endpoint: 'https://api.openai.com/v1' },
@@ -148,6 +195,7 @@ const NAV_ITEMS = [
   { id: 's3', group: 'System', label: 'S3 Storage' },
   { id: 'logs', group: 'System', label: 'Logs' },
   { id: 'space', group: 'App', label: 'Space Quota' },
+  { id: 'connect-terminal', group: 'App', label: 'Connect Terminal' },
   { id: 'proxy', group: 'App', label: 'Proxy' },
   { id: 'docker-mirrors', group: 'App', label: 'Docker Mirrors' },
   { id: 'docker-registries', group: 'App', label: 'Docker Registries' },
@@ -175,6 +223,11 @@ const EMPTY_PROXY: ProxyNetwork = {
   noProxy: '',
   username: '',
   password: '',
+}
+
+const DEFAULT_CONNECT_TERMINAL: ConnectTerminalGroup = {
+  idleTimeoutSeconds: 1800,
+  maxConnections: 0,
 }
 
 // ─── Component ────────────────────────────────────────────────────────────
@@ -232,6 +285,14 @@ function SettingsPage() {
   const [allowExtsText, setAllowExtsText] = useState('')
   const [denyExtsText, setDenyExtsText] = useState('')
   const [disallowedFolderNamesText, setDisallowedFolderNamesText] = useState('')
+
+  // Connect terminal settings
+  const [connectTerminalForm, setConnectTerminalForm] =
+    useState<ConnectTerminalGroup>(DEFAULT_CONNECT_TERMINAL)
+  const [connectTerminalSaving, setConnectTerminalSaving] = useState(false)
+  const [connectTerminalErrors, setConnectTerminalErrors] = useState<
+    Partial<Record<keyof ConnectTerminalGroup, string>>
+  >({})
 
   // Proxy
   const [proxyNetwork, setProxyNetwork] = useState<ProxyNetwork>(EMPTY_PROXY)
@@ -291,8 +352,9 @@ function SettingsPage() {
   // ── Load Ext settings ──
   const loadExtSettings = useCallback(async () => {
     try {
-      const [filesRes, proxyRes, dockerRes, llmRes] = await Promise.allSettled([
+      const [filesRes, connectRes, proxyRes, dockerRes, llmRes] = await Promise.allSettled([
         pb.send('/api/ext/settings/space', { method: 'GET' }),
+        pb.send('/api/ext/settings/connect', { method: 'GET' }),
         pb.send('/api/ext/settings/proxy', { method: 'GET' }),
         pb.send('/api/ext/settings/docker', { method: 'GET' }),
         pb.send('/api/ext/settings/llm', { method: 'GET' }),
@@ -312,6 +374,21 @@ function SettingsPage() {
         setAllowExtsText(merged.uploadAllowExts.join(', '))
         setDenyExtsText(merged.uploadDenyExts.join(', '))
         setDisallowedFolderNamesText(merged.disallowedFolderNames.join(', '))
+      }
+      if (connectRes.status === 'fulfilled') {
+        const terminal = (connectRes.value as { terminal?: Partial<ConnectTerminalGroup> }).terminal
+        const idleTimeoutSeconds = Number(terminal?.idleTimeoutSeconds)
+        const maxConnections = Number(terminal?.maxConnections)
+        setConnectTerminalForm({
+          idleTimeoutSeconds:
+            Number.isFinite(idleTimeoutSeconds) && idleTimeoutSeconds >= 60
+              ? Math.floor(idleTimeoutSeconds)
+              : DEFAULT_CONNECT_TERMINAL.idleTimeoutSeconds,
+          maxConnections:
+            Number.isFinite(maxConnections) && maxConnections >= 0
+              ? Math.floor(maxConnections)
+              : DEFAULT_CONNECT_TERMINAL.maxConnections,
+        })
       }
       if (proxyRes.status === 'fulfilled') {
         const n = (proxyRes.value as { network: ProxyNetwork }).network ?? EMPTY_PROXY
@@ -542,6 +619,54 @@ function SettingsPage() {
       showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
     } finally {
       setProxySaving(false)
+    }
+  }
+
+  const validateConnectTerminal = (): boolean => {
+    const errors: Partial<Record<keyof ConnectTerminalGroup, string>> = {}
+    if (
+      !Number.isInteger(connectTerminalForm.idleTimeoutSeconds) ||
+      connectTerminalForm.idleTimeoutSeconds < 60
+    ) {
+      errors.idleTimeoutSeconds = 'Must be an integer ≥ 60 seconds'
+    }
+    if (
+      !Number.isInteger(connectTerminalForm.maxConnections) ||
+      connectTerminalForm.maxConnections < 0
+    ) {
+      errors.maxConnections = 'Must be an integer ≥ 0 (0 means unlimited)'
+    }
+    setConnectTerminalErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const saveConnectTerminal = async () => {
+    if (!validateConnectTerminal()) return
+    setConnectTerminalSaving(true)
+    setConnectTerminalErrors({})
+    try {
+      await pb.send('/api/ext/settings/connect', {
+        method: 'PATCH',
+        body: {
+          terminal: {
+            idleTimeoutSeconds: connectTerminalForm.idleTimeoutSeconds,
+            maxConnections: connectTerminalForm.maxConnections,
+          },
+        },
+      })
+      showToast('Connect terminal settings saved')
+    } catch (err) {
+      if (err instanceof ClientResponseError && (err.status === 400 || err.status === 422)) {
+        const inlineErrors = parseConnectTerminalApiErrors(err.response)
+        if (Object.keys(inlineErrors).length > 0) {
+          setConnectTerminalErrors(inlineErrors)
+          showToast('Please fix validation errors and try again.', false)
+          return
+        }
+      }
+      showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
+    } finally {
+      setConnectTerminalSaving(false)
     }
   }
 
@@ -1063,6 +1188,59 @@ function SettingsPage() {
     </Card>
   )
 
+  const renderConnectTerminal = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Connect Terminal</CardTitle>
+        <CardDescription>Connection policy for Connect terminal sessions</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <Label htmlFor="connectIdleTimeout">Terminal Idle Timeout (seconds)</Label>
+            <Input
+              id="connectIdleTimeout"
+              type="number"
+              min={60}
+              step={1}
+              value={connectTerminalForm.idleTimeoutSeconds}
+              onChange={event =>
+                setConnectTerminalForm(form => ({
+                  ...form,
+                  idleTimeoutSeconds: Number(event.target.value),
+                }))
+              }
+            />
+            {connectTerminalErrors.idleTimeoutSeconds && (
+              <p className="text-xs text-destructive">{connectTerminalErrors.idleTimeoutSeconds}</p>
+            )}
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="connectMaxConnections">Max Connections</Label>
+            <Input
+              id="connectMaxConnections"
+              type="number"
+              min={0}
+              step={1}
+              value={connectTerminalForm.maxConnections}
+              onChange={event =>
+                setConnectTerminalForm(form => ({
+                  ...form,
+                  maxConnections: Number(event.target.value),
+                }))
+              }
+            />
+            <p className="text-xs text-muted-foreground">0 means unlimited.</p>
+            {connectTerminalErrors.maxConnections && (
+              <p className="text-xs text-destructive">{connectTerminalErrors.maxConnections}</p>
+            )}
+          </div>
+        </div>
+        <SaveBtn onClick={saveConnectTerminal} saving={connectTerminalSaving} />
+      </CardContent>
+    </Card>
+  )
+
   const renderDockerMirrors = () => (
     <Card>
       <CardHeader>
@@ -1341,6 +1519,8 @@ function SettingsPage() {
         return renderLogs()
       case 'space':
         return renderSpace()
+      case 'connect-terminal':
+        return renderConnectTerminal()
       case 'proxy':
         return renderProxy()
       case 'docker-mirrors':

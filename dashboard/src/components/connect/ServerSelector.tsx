@@ -26,6 +26,9 @@ import {
 } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { listServers, checkServerStatus, type Server as ServerType } from '@/lib/connect-api'
+import { loadConnectSession } from '@/lib/connect-session'
+
+const CONNECT_MIN_FEEDBACK_MS = 2000
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -44,6 +47,8 @@ export function ServerSelector({ className }: ServerSelectorProps) {
   const [connectingTarget, setConnectingTarget] = useState('')
   const [connectingPhase, setConnectingPhase] = useState<'checking' | 'offline'>('checking')
   const [connectingDetail, setConnectingDetail] = useState('')
+  const [resumeServerId, setResumeServerId] = useState<string | null>(null)
+  const [resumeUpdatedAt, setResumeUpdatedAt] = useState<number | null>(null)
   const navigate = useNavigate()
 
   const fetchServers = useCallback(async () => {
@@ -65,25 +70,47 @@ export function ServerSelector({ className }: ServerSelectorProps) {
     fetchServers()
   }, [fetchServers])
 
+  useEffect(() => {
+    const session = loadConnectSession()
+    if (!session || session.tabs.length === 0) {
+      setResumeServerId(null)
+      setResumeUpdatedAt(null)
+      return
+    }
+    const activeTab = session.tabs.find(tab => tab.id === session.activeTabId) || session.tabs[0]
+    setResumeServerId(activeTab?.serverId || null)
+    setResumeUpdatedAt(session.updatedAt)
+  }, [])
+
+  const resumeLabel = (() => {
+    if (!resumeUpdatedAt) return null
+    const minutes = Math.max(1, Math.floor((Date.now() - resumeUpdatedAt) / 60000))
+    return `Last session saved ${minutes} min ago`
+  })()
+
   const handleConnect = async () => {
     if (!selected) return
     const targetLabel = selected.name || selected.host || selected.id
     setConnectingTarget(targetLabel)
     setConnectingPhase('checking')
-    setConnectingDetail('Running connectivity check...')
+    setConnectingDetail('Establishing secure connection...')
     setConnectingOpen(true)
-
-    const status = await checkServerStatus(selected)
-
-    if (status?.status === 'offline') {
+    try {
+      const minDelay = new Promise<void>(resolve =>
+        window.setTimeout(resolve, CONNECT_MIN_FEEDBACK_MS)
+      )
+      const [status] = await Promise.all([checkServerStatus(selected), minDelay])
+      if (status?.status === 'offline') {
+        setConnectingPhase('offline')
+        setConnectingDetail(status.reason || 'Server is offline.')
+        return
+      }
+      setConnectingOpen(false)
+      navigate({ to: '/connect/server/$serverId', params: { serverId: selected.id } })
+    } catch (err) {
       setConnectingPhase('offline')
-      setConnectingDetail(status.reason || 'Server is offline.')
-      return
+      setConnectingDetail(err instanceof Error ? err.message : 'Connection check failed.')
     }
-
-    setConnectingDetail('Server is online. Opening session...')
-    setConnectingOpen(false)
-    navigate({ to: '/connect/server/$serverId', params: { serverId: selected.id } })
   }
 
   return (
@@ -125,6 +152,26 @@ export function ServerSelector({ className }: ServerSelectorProps) {
           </div>
         ) : (
           <div className="space-y-3">
+            {resumeServerId && (
+              <div className="space-y-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-between"
+                  onClick={() =>
+                    navigate({
+                      to: '/connect/server/$serverId',
+                      params: { serverId: resumeServerId },
+                    })
+                  }
+                >
+                  <span className="truncate">Resume last session</span>
+                  <ArrowRight className="h-4 w-4 ml-2 shrink-0" />
+                </Button>
+                {resumeLabel && <p className="text-xs text-muted-foreground">{resumeLabel}</p>}
+              </div>
+            )}
+
             {/* Dropdown picker */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -180,7 +227,13 @@ export function ServerSelector({ className }: ServerSelectorProps) {
               <ArrowRight className="h-4 w-4 ml-2" />
             </Button>
 
-            <Dialog open={connectingOpen} onOpenChange={setConnectingOpen}>
+            <Dialog
+              open={connectingOpen}
+              onOpenChange={open => {
+                if (connectingPhase === 'checking' && !open) return
+                setConnectingOpen(open)
+              }}
+            >
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle>Connecting...</DialogTitle>
@@ -192,14 +245,18 @@ export function ServerSelector({ className }: ServerSelectorProps) {
                   {connectingPhase === 'checking' ? (
                     <div className="inline-flex items-center gap-2 text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Running connectivity check...
+                      {connectingDetail || 'Establishing secure connection...'}
                     </div>
                   ) : (
                     <div className="text-destructive">{connectingDetail}</div>
                   )}
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setConnectingOpen(false)}>
+                  <Button
+                    variant="outline"
+                    onClick={() => setConnectingOpen(false)}
+                    disabled={connectingPhase === 'checking'}
+                  >
                     Close
                   </Button>
                 </DialogFooter>

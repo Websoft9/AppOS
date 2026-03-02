@@ -25,7 +25,7 @@ var allowedModuleKeys = map[string][]string{
 	"proxy":   {"network"},
 	"docker":  {"mirror", "registries"},
 	"llm":     {"providers"},
-	"connect": {"sftp"},
+	"connect": {"sftp", "terminal"},
 }
 
 // sensitiveFields is the set of field names that are masked on GET and
@@ -47,6 +47,7 @@ var (
 	defaultDockerRegistries = map[string]any{"items": []any{}}
 	defaultLLMProviders     = map[string]any{"items": []any{}}
 	defaultConnectSFTP      = map[string]any{"maxUploadFiles": 10}
+	defaultConnectTerminal  = map[string]any{"idleTimeoutSeconds": 1800, "maxConnections": 0}
 )
 
 func validateSpaceQuota(v map[string]any) error {
@@ -95,6 +96,69 @@ func validateSpaceQuota(v map[string]any) error {
 	return nil
 }
 
+func parseIntWithDefault(raw any, defaultValue int) (int, error) {
+	if raw == nil {
+		return defaultValue, nil
+	}
+
+	switch n := raw.(type) {
+	case float64:
+		if math.Trunc(n) != n {
+			return 0, fmt.Errorf("must be an integer")
+		}
+		return int(n), nil
+	case int:
+		return n, nil
+	case int64:
+		return int(n), nil
+	case json.Number:
+		i, err := n.Int64()
+		if err != nil {
+			return 0, fmt.Errorf("must be an integer")
+		}
+		return int(i), nil
+	case string:
+		s := strings.TrimSpace(n)
+		if s == "" {
+			return defaultValue, nil
+		}
+		i, err := strconv.Atoi(s)
+		if err != nil {
+			return 0, fmt.Errorf("must be an integer")
+		}
+		return i, nil
+	default:
+		return 0, fmt.Errorf("must be an integer")
+	}
+}
+
+func validateConnectTerminal(v map[string]any) map[string]string {
+	errors := map[string]string{}
+
+	idleTimeoutSeconds, err := parseIntWithDefault(v["idleTimeoutSeconds"], 1800)
+	if err != nil {
+		errors["idleTimeoutSeconds"] = "must be an integer"
+	} else if idleTimeoutSeconds < 60 {
+		errors["idleTimeoutSeconds"] = "must be >= 60"
+	} else {
+		v["idleTimeoutSeconds"] = idleTimeoutSeconds
+	}
+
+	maxConnections, err := parseIntWithDefault(v["maxConnections"], 0)
+	if err != nil {
+		errors["maxConnections"] = "must be an integer"
+	} else if maxConnections < 0 {
+		errors["maxConnections"] = "must be >= 0"
+	} else {
+		v["maxConnections"] = maxConnections
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
 // fallbackForKey returns the code-level fallback for a given (module, key) pair.
 func fallbackForKey(module, key string) map[string]any {
 	switch module + "/" + key {
@@ -110,6 +174,8 @@ func fallbackForKey(module, key string) map[string]any {
 		return defaultLLMProviders
 	case "connect/sftp":
 		return defaultConnectSFTP
+	case "connect/terminal":
+		return defaultConnectTerminal
 	}
 	return map[string]any{}
 }
@@ -287,6 +353,13 @@ func handleExtSettingsPatch(e *core.RequestEvent) error {
 		if module == "space" && key == "quota" {
 			if err := validateSpaceQuota(merged); err != nil {
 				return e.BadRequestError(err.Error(), nil)
+			}
+		}
+		if module == "connect" && key == "terminal" {
+			if validationErrors := validateConnectTerminal(merged); validationErrors != nil {
+				return e.JSON(http.StatusUnprocessableEntity, map[string]any{
+					"errors": validationErrors,
+				})
 			}
 		}
 

@@ -21,6 +21,8 @@ export interface TerminalPanelProps {
   dockerServerId?: string
   /** Additional CSS classes */
   className?: string
+  /** Whether this terminal tab is currently active in UI */
+  isActive?: boolean
 }
 
 // ─── Control frame helpers ────────────────────────────────────────────────────
@@ -46,7 +48,10 @@ export interface TerminalPanelHandle {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>(
-  function TerminalPanel({ serverId, containerId, shell, dockerServerId, className }, ref) {
+  function TerminalPanel(
+    { serverId, containerId, shell, dockerServerId, className, isActive },
+    ref
+  ) {
     const termRef = useRef<HTMLDivElement>(null)
     const terminalRef = useRef<Terminal | null>(null)
     const wsRef = useRef<WebSocket | null>(null)
@@ -54,6 +59,11 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     const [error, setError] = useState<string | null>(null)
     const [connecting, setConnecting] = useState(false)
     const fitTimersRef = useRef<number[]>([])
+    const isActiveRef = useRef(!!isActive)
+
+    useEffect(() => {
+      isActiveRef.current = !!isActive
+    }, [isActive])
 
     const clearFitTimers = useCallback(() => {
       for (const timer of fitTimersRef.current) {
@@ -86,6 +96,19 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       if (!screen) return
       screen.style.boxSizing = 'border-box'
       screen.style.padding = '8px 10px'
+      screen.style.width = '100%'
+    }, [])
+
+    const scrollToBottom = useCallback(() => {
+      if (!isActiveRef.current) return
+      const terminal = terminalRef.current
+      if (terminal) {
+        terminal.scrollToBottom()
+      }
+      const viewport = termRef.current?.querySelector('.xterm-viewport') as HTMLElement | null
+      if (viewport) {
+        viewport.scrollTop = viewport.scrollHeight
+      }
     }, [])
 
     // Expose sendData to parent via ref
@@ -171,7 +194,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       // Mount terminal
       terminal.open(termRef.current)
       applyViewportInset()
-      setTimeout(() => scheduleFitAndSync(), 0)
+      window.setTimeout(() => scheduleFitAndSync(), 0)
 
       // Open WebSocket
       const ws = new WebSocket(url.toString())
@@ -206,8 +229,10 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
             return
           }
           terminal.write(bytes)
+          scrollToBottom()
         } else {
           terminal.write(event.data)
+          scrollToBottom()
         }
       }
 
@@ -236,7 +261,24 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
           ws.send(makeResizeFrame(cols, rows))
         }
       })
-    }, [serverId, containerId, shell, dockerServerId, scheduleFitAndSync, applyViewportInset])
+    }, [
+      serverId,
+      containerId,
+      shell,
+      dockerServerId,
+      scheduleFitAndSync,
+      applyViewportInset,
+      scrollToBottom,
+    ])
+
+    useEffect(() => {
+      if (!isActive) return
+      const timer = window.setTimeout(() => {
+        scheduleFitAndSync()
+        scrollToBottom()
+      }, 0)
+      return () => window.clearTimeout(timer)
+    }, [isActive, scheduleFitAndSync, scrollToBottom])
 
     // Auto-connect on mount / serverId change
     useEffect(() => {
@@ -268,28 +310,16 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       const onWindowResize = () => scheduleFitAndSync()
       window.addEventListener('resize', onWindowResize)
 
-      const mutationRoot = el.closest('#connect-container') ?? el.parentElement
-      const mutationObserver = mutationRoot
-        ? new MutationObserver(() => scheduleFitAndSync())
-        : null
-      mutationObserver?.observe(mutationRoot as Node, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['class', 'style'],
-      })
-
       return () => {
         ro.disconnect()
         window.removeEventListener('resize', onWindowResize)
-        mutationObserver?.disconnect()
       }
     }, [scheduleFitAndSync])
 
     return (
       <div className={cn('relative flex flex-col h-full overflow-hidden', className)}>
         {/* Terminal container */}
-        <div ref={termRef} className="flex-1 min-h-0" />
+        <div ref={termRef} className="flex-1 min-h-0 overflow-hidden" />
 
         {/* Error overlay */}
         {(error || connecting) && (
