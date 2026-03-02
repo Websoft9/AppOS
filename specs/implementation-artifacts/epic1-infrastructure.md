@@ -15,6 +15,7 @@
 - [x] Story 1.4: Makefile Command Integration
 - [ ] Story 1.5: Version Management Standardization
 - [x] Story 1.6: Image Security Scanning
+- [ ] [Story 1.7: Swagger Baseline](specs/implementation-artifacts/story1.7-swagger.md)
 
 ## Success Metrics
 - Development environment setup < 10 minutes

@@ -1,5 +1,6 @@
 .PHONY: help install tidy build run test lint fmt check sec scan sbom \
-	image start stop restart logs stats delete rm kill-port redo
+	image start stop restart logs stats delete rm kill-port redo \
+	openapi-gen openapi-check
 
 # ============================================================
 # Default values
@@ -34,6 +35,8 @@ help:
 	@echo "  make lint                 Run linters (golangci-lint + gosec, eslint)"
 	@echo "  make fmt                  Format code (gofmt, prettier)"
 	@echo "  make check                Format + lint in one step (local dev)"
+	@echo "  make openapi-gen          Auto-generate OpenAPI spec skeleton from route source"
+	@echo "  make openapi-check        Assert all /api/ext routes are in the spec (CI gate)"
 	@echo "  make sec                  Security scan (govulncheck, npm audit, gitleaks)"
 	@echo "  make scan                 Container image scan (trivy, HIGH/CRITICAL)"
 	@echo "  make sbom                 Generate SBOM → sbom.spdx.json (syft)"
@@ -137,6 +140,7 @@ tidy:
 build:
 ifeq ($(ARG2),backend)
 	@echo "Building backend (static binary, no dependencies)..."
+	@$(MAKE) openapi-gen
 	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
 	@echo "✓ Backend built → backend/appos (statically linked)"
 else ifeq ($(ARG2),dashboard)
@@ -147,6 +151,7 @@ else ifeq ($(ARG2),library)
 	@echo "'make build library' is no longer needed - library is downloaded during Docker build (cached)"
 else
 	@echo "Building all..."
+	@$(MAKE) openapi-gen
 	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
 	@echo "✓ Backend built → backend/appos"
 	@cd dashboard && npm run build
@@ -200,6 +205,15 @@ lint:
 		cd dashboard && npx eslint src/ || true; \
 	fi
 	@echo "✓ Linting completed"
+
+openapi-gen:
+	@echo "Generating OpenAPI spec skeleton from route source..."
+	@go run backend/cmd/gen-openapi/main.go
+	@echo "→ spec: backend/docs/openapi/ext-api.yaml"
+
+openapi-check:
+	@echo "Checking all /api/ext routes are covered by OpenAPI spec..."
+	@cd backend && go test ./internal/routes/ -run TestAllExtRoutesCoveredByOpenAPISpec -v
 
 fmt:
 	@echo "Formatting code..."

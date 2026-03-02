@@ -6,6 +6,7 @@
 //   - /api/ext/system     — system metrics, terminal, file browser
 //   - /api/ext/services   — supervisord service management (Epic 6)
 //   - /api/ext/backup     — backup/restore operations
+//   - /api/ext/audit      — audit logs query
 //   - /api/ext/resources  — Resource Store CRUD (Epic 8)
 //   - /api/ext/space      — User private space (Epic 9)
 //   - /api/ext/iac        — IaC file management (Epic 14, superuser-only)
@@ -28,6 +29,9 @@ func SetAsynqClient(c *asynq.Client) {
 
 // Register mounts all custom route groups on the PocketBase router.
 func Register(se *core.ServeEvent) {
+	// OpenAPI docs — public, no auth required
+	registerOpenAPIRoutes(se)
+
 	// Setup routes (unauthenticated — only works when no superuser exists)
 	registerSetupRoutes(se)
 
@@ -49,6 +53,7 @@ func Register(se *core.ServeEvent) {
 	registerSystemRoutes(g)
 	registerServiceRoutes(g)
 	registerBackupRoutes(g)
+	registerAuditRoutes(g)
 	registerResourceRoutes(g)
 	registerSpaceRoutes(g)
 	registerUserRoutes(g)

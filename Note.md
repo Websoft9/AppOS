@@ -14,6 +14,7 @@
 
 - 增加一个隧道管理页面
 - Create Server 是，需要针对两种类型做一定的体验改善
+- 为什么 /tunnel 被 Nginx 代理了？
 
 ## Workflow
 
