@@ -1,176 +1,95 @@
-# Story 1.7: Swagger Baseline
+# Story 1.7: OpenAPI Contract (Final)
 
 **Epic**: Epic 1 - Infrastructure & Build System  
 **Priority**: P1  
-**Status**: Ready for Dev
+**Status**: Done
 
----
+## Objective
+Provide a stable, generated OpenAPI contract for AppOS and serve Swagger UI directly from backend runtime.
 
-## User Story
+## Final Implementation (As Built)
+- Ext spec is generated: `backend/docs/openapi/ext-api.yaml`
+- Native spec is manually maintained: `backend/docs/openapi/native-api.yaml`
+- Final merged spec is generated: `backend/docs/openapi/api.yaml`
+- Runtime serves docs at:
+  - `GET /openapi` (Swagger UI)
+  - `GET /openapi/spec` (embedded merged YAML)
+- Embedded source in binary: `backend/docs/openapi/docs.go` (`APISpec`)
 
-As a frontend developer and API integrator, I want a stable OpenAPI/Swagger contract for AppOS custom extension APIs, so that I can develop and validate integrations without guessing request/response shapes.
+## Single Source of Truth
+- For **Ext generation**, `backend/docs/openapi/group-matrix.yaml` is the only source of truth.
+- Generator behavior is matrix-driven:
+  - scan files from `groups[*].sources.extRouteFiles`
+  - include routes matched by `groups[*].extSurface` (any path prefix, not limited to `/api/ext`)
+  - assign tags from matrix group mapping
+  - parse `@Summary` and `@Description` from handler comments; fall back to auto-generated summary if absent
+  - allow route-comment marker overrides (`@swagger summary/auth`)
 
----
+## Documentation Types (Critical)
+1) Business Logic Routes (named handlers)
+- Scope: custom handlers in `backend/internal/routes/*.go` (for example audit, docker, terminal, iac, settings).
+- Authoring: handler comment annotations (`@Summary`, `@Description`) are parsed and written to spec; `@swagger summary/auth` markers provide additional overrides.
+- Output: generated into `backend/docs/openapi/ext-api.yaml` by matrix-driven generator.
 
-## Scope (MVP)
+2) PB Collection CRUD / Native Web APIs
+- Scope: PocketBase native endpoints (records, auth actions, collections, settings, files, realtime, backups, health, crons).
+- Authoring: manually maintained in `backend/docs/openapi/native-api.yaml`.
+- Output: merged into final API contract via openapi merge.
 
-- Only cover AppOS custom routes under `/api/ext/*`
-- Do not document PocketBase built-in dynamic APIs in this story
-- Serve one Swagger UI page from backend runtime
+3) Final Runtime Contract (delivery artifact)
+- Scope: single runtime-facing OpenAPI contract used by Swagger UI and external tooling.
+- Authoring: generated only, never manual edit.
+- Output: `backend/docs/openapi/api.yaml`, embedded and served at `/openapi/spec`.
 
----
+## Commands
+- Generate Ext: `make openapi-gen`
+- Merge Ext + Native: `make openapi-merge`
+- Full sync + validation: `make openapi-sync`
+- Direct CLI: `cd backend && go run ./cmd/openapi <gen|merge|sync>`
 
-## Domain Grouping (Business-first)
+## Tasks / Subtasks
+- [x] Task 1: Establish OpenAPI asset model
+  - [x] 1.1 Generate Ext spec to `backend/docs/openapi/ext-api.yaml`
+  - [x] 1.2 Maintain Native spec in `backend/docs/openapi/native-api.yaml`
+  - [x] 1.3 Merge final runtime spec to `backend/docs/openapi/api.yaml`
 
-Swagger tags are grouped by business domain (not by Go file name):
+- [x] Task 2: Serve runtime documentation
+  - [x] 2.1 Expose Swagger UI at `GET /openapi`
+  - [x] 2.2 Expose embedded spec at `GET /openapi/spec`
+  - [x] 2.3 Embed merged spec via `backend/docs/openapi/docs.go`
 
-- `Platform Bootstrap` → `/api/ext/setup/*`, `/api/ext/auth/*`
-- `Runtime Operations` → `/api/ext/docker/*`, `/api/ext/services/*`, `/api/ext/proxy/*`, `/api/ext/system/*`, `/api/ext/backup/*`
-- `Resource` → `/api/ext/resources/*`
-- `Settings` → `/api/ext/settings/*`
-- `Users` → `/api/ext/users/*`
-- `Space` → `/api/ext/space/*`
-- `IaC` → `/api/ext/iac/*`
-- `Servers Operate` → `/api/ext/terminal/*`
-- `Tunnel` → `/api/ext/tunnel/*`
-- `Logs` → `*/logs` related endpoints across domains
-- `Audit` → `/api/ext/audit/*` (reserved for current/future audit APIs)
+- [x] Task 3: Enforce matrix-driven generation
+  - [x] 3.1 Use `backend/docs/openapi/group-matrix.yaml` as single source of truth for Ext generation
+  - [x] 3.2 Scan route files from `groups[*].sources.extRouteFiles`
+  - [x] 3.3 Filter generated Ext routes by `groups[*].extSurface`
 
-Notes:
-- Tag naming must remain stable even if handlers move between files
-- Each endpoint belongs to exactly one primary business tag
+- [x] Task 4: Build and quality gates
+  - [x] 4.1 Provide unified command entry `backend/cmd/openapi` (`gen|merge|sync`)
+  - [x] 4.2 Keep route coverage gate in `backend/internal/routes/routes_coverage_test.go`
+  - [x] 4.3 Keep ext route ownership gate in `backend/internal/routes/ext_route_ownership_test.go`
 
----
+## Verification Gates
+- Route coverage gate: `backend/internal/routes/routes_coverage_test.go`
+- Ownership gate: `backend/internal/routes/ext_route_ownership_test.go`
+- Expected quality bar: no uncovered `/api/ext/*` route in CI.
 
-## Acceptance Criteria
+## Known Pitfalls
+- `@Description` text containing `: ` (colon + space) breaks YAML if unquoted. Generator auto-wraps descriptions in double quotes; keep descriptions single-line.
 
-- [ ] OpenAPI 3.0 spec file exists for `/api/ext/*` core groups (docker, proxy, system, services, backup, resources, space, iac, terminal, tunnel)
-- [ ] Backend exposes Swagger UI at `/api/ext/docs` (or `/docs`) in dev and production
-- [ ] `make openapi-lint` command validates spec successfully in CI/local
-- [ ] At least 5 representative endpoints include request body schema, response schema, and auth requirement
-- [ ] API auth in docs explicitly states: routes require authenticated user/superuser according to route group
-- [ ] README includes where to access docs and the MVP boundary (custom ext routes only)
-- [ ] OpenAPI uses business-domain tags and every documented endpoint is tagged exactly once
-- [ ] Mock execution is available for at least one happy-path collection (importable request examples or mock server from OpenAPI)
-- [ ] A Go test (`routes_coverage_test.go`) asserts every registered `/api/ext/*` route has a matching path in `ext-api.yaml`; test runs in CI and fails on missing coverage
+## Maintenance Rules (Minimal)
+- Change Ext grouping/tag/surface/file ownership: edit `group-matrix.yaml` first.
+- Change Native endpoints: edit `native-api.yaml`.
+- Do not manually edit generated files: `ext-api.yaml`, `api.yaml`.
 
----
+## Native Update Governance (Mandatory)
+- Any update to `backend/docs/openapi/native-api.yaml` MUST follow the top-of-file rules in that file.
+- The top-of-file rule block in `native-api.yaml` is mandatory and MUST NOT be deleted.
+- If rule content needs adjustment, update both places in the same change:
+  - `backend/docs/openapi/native-api.yaml` (top rule block)
+  - this story section (for policy redundancy)
 
-## Non-Goals
-
-- Full PocketBase built-in API OpenAPI coverage
-- Auto-generating schema from runtime collection metadata
-- SDK generation and versioned API portal
-
----
-
-## Implementation Notes (Minimal Path)
-
-- Keep one source-of-truth spec file in repo: `backend/docs/openapi/ext-api.yaml`
-- Spec is embedded into the appos binary via `backend/docs/openapi/docs.go` (`//go:embed`) — no nginx dependency
-- Swagger UI served at `GET /openapi` (HTML, loads UI assets from CDN; only the YAML is embedded)
-- Raw spec served at `GET /openapi/spec` (YAML, public, CORS-open for tooling)
-- Start manual-first: hand-written schemas for high-value endpoints, then iterate
-- Add CI step to prevent broken spec merge
-
----
-
-## Mock Execution Strategy (Beyond Static Docs)
-
-Goal: let frontend/integration work continue when backend endpoint is incomplete.
-
-MVP decision: use an OpenAPI-driven mock server (e.g. Prism, Stoplight) for selected paths.
-
-MVP requirement for this story:
-- At least one domain (`Runtime Operations` or `Workspace & Files`) has a runnable mock server config
-- Mock covers one happy-path response and one error response (`401` or `400`)
-
----
-
-## Implementation Tasks
-
-- [x] Create endpoint inventory table (pre-seeded below; complete remaining rows)
-- [x] Finalize tag taxonomy and add to OpenAPI top-level `tags`
-- [ ] Document P0 domain endpoints with schemas and examples
-- [x] Add Swagger UI route and static spec hosting (`GET /openapi`, `GET /openapi/spec`)
-- [x] Add `openapi-lint` command and CI check (`make openapi-check`)
-- [x] Add one runnable mock workflow and short usage note in README
-- [x] Write `routes_coverage_test.go` and add `go test` to CI
-
-### Route Coverage Test
-
-File: `backend/internal/routes/routes_coverage_test.go` (already committed)
-
-How it works (no runtime router introspection needed):
-
-1. Scans every non-test `.go` file in the `routes` package line-by-line
-2. Seeds known base paths: `g → /api/ext`, then tracks each `.Group()` chain
-3. Collects all `.GET/.POST/.PUT/.DELETE/.PATCH` calls whose resolved prefix starts with `/api/ext`
-4. Reads `docs/openapi/ext-api.yaml`, extracts all `paths:` keys starting with `/api/ext`
-5. Reports any code route not present in the spec → `go test` fails
-
-Current detection count: **150 routes** across all route files.
-
-The test skips (not fails) if the spec file doesn't exist yet, enabling gradual rollout.
-Once the spec exists, any new unspecced route will break CI automatically.
-
-Spec location: `backend/docs/openapi/ext-api.yaml`
-Embed package: `backend/docs/openapi/docs.go`
-
----
-
-## Endpoint Inventory (Merged)
-
-Purpose: provide a single source of truth for Swagger scope, ownership, and rollout order.
-
-### Fill Rules
-
-- One row per endpoint (method + path)
-- `Business Domain` must match Story 1.7 tag taxonomy
-- `Auth Type` uses one of: `public`, `auth`, `superuser`
-- `Priority` uses one of: `P0`, `P1`, `P2`
-- `Swagger Status` uses one of: `not-started`, `in-progress`, `done`
-- `Mock Ready` uses one of: `yes`, `no`
-
-### Endpoint Inventory Table
-
-| Business Domain | Route Group | Method | Path | Auth Type | Request Schema | Response Schema | Error Cases | Priority | Owner | Swagger Status | Mock Ready | Notes |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Runtime Operations | docker | GET | /api/ext/docker/servers | auth | query: server_id? | 200: DockerServer[] | 401, 500 | P0 | backend | not-started | no | |
-| Runtime Operations | services | GET | /api/ext/services | auth | none | 200: ServiceStatus[] | 401, 500 | P0 | backend | not-started | no | |
-| IaC | iac | GET | /api/ext/iac | superuser | query: path | 200: FileListResponse | 400, 401, 403 | P0 | backend | not-started | no | |
-| Space | space | GET | /api/ext/space/quota | auth | none | 200: SpaceQuota | 401, 500 | P0 | backend | not-started | no | |
-| Remote Access | terminal | GET | /api/ext/terminal/ssh/{serverId} | auth | path: serverId | 101 websocket | 401, 404, 500 | P1 | backend | not-started | no | ws endpoint |
-
-### Domain Coverage Checklist
-
-> Track which domains have all P0 endpoints documented in the table above.
-
-- [ ] Platform Bootstrap (`setup`, `auth`)
-- [ ] Runtime Operations (`docker`, `proxy`, `system`, `services`, `backup`)
-- [ ] Resource (`resources`)
-- [ ] Settings (`settings`)
-- [ ] Users (`users`)
-- [ ] Space (`space`)
-- [ ] IaC (`iac`)
-- [ ] Servers Operate (`terminal`)
-- [ ] Tunnel (`tunnel`)
-- [ ] Logs (`*/logs`)
-- [ ] Audit (`audit`)
-
-### Delivery Gates
-
-- [ ] P0 endpoints all have request/response schema
-- [ ] P0 endpoints all have auth annotation
-- [ ] At least one domain has `Mock Ready = yes`
-- [ ] No duplicated method+path rows
-- [ ] Story 1.7 acceptance criteria can be checked from this table
-- [ ] `routes_coverage_test.go` passes (zero uncovered routes in CI)
-
----
-
-## Definition of Done
-
-- [ ] Story acceptance criteria all checked
-- [ ] Team can open Swagger UI locally and from container deployment
-- [ ] One frontend flow can complete integration using documented contract only
+Canonical rule block (must stay semantically consistent):
+1. Maintain native endpoints only (non-/api/ext/*).
+2. method+path must align with group-matrix Native|Mixed nativeSurface.
+3. Use Native wording in all description fields (avoid vendor naming).
+4. After edits run: make openapi-merge (recommended: make openapi-sync).

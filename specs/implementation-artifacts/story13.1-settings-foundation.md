@@ -14,8 +14,8 @@ so that any backend module can read/write grouped settings from the database ins
 ## Acceptance Criteria
 
 - AC1: `app_settings` collection migration is applied with unique index on `(module, key)`.
-- AC2: `GET /api/ext/settings/{module}` returns all groups for the module as grouped JSON; sensitive fields (`password`, `apiKey`, `secret`) are masked to `"***"`; superuser auth required.
-- AC3: `PATCH /api/ext/settings/{module}` replaces full group object(s); if incoming sensitive field is `"***"`, existing stored value is preserved; superuser auth required; `422` on validation failure; `400` on unknown module/key.
+- AC2: `GET /api/settings/workspace/{module}` returns all groups for the module as grouped JSON; sensitive fields (`password`, `apiKey`, `secret`) are masked to `"***"`; superuser auth required.
+- AC3: `PATCH /api/settings/workspace/{module}` replaces full group object(s); if incoming sensitive field is `"***"`, existing stored value is preserved; superuser auth required; `422` on validation failure; `400` on unknown module/key.
 - AC4: Non-superuser callers receive `403` from both GET and PATCH.
 - AC5: `internal/settings/settings.go` exports `GetGroup` and `SetGroup`; callers can read a missing group and receive a fallback without error.
 
@@ -36,7 +36,7 @@ so that any backend module can read/write grouped settings from the database ins
 
 - [x] Task 3: Ext API routes (AC2, AC3, AC4)
   - [x] 3.1 Create `backend/internal/routes/settings.go`
-  - [x] 3.2 Register routes under superuser-only group: `GET /api/ext/settings/{module}` and `PATCH /api/ext/settings/{module}`
+  - [x] 3.2 Register routes under superuser-only group: `GET /api/settings/workspace/{module}` and `PATCH /api/settings/workspace/{module}`
   - [x] 3.3 `GET` handler: query all `app_settings` rows where `module = {module}`, return `{ groupKey: { ...fields } }` JSON; **mask** string fields named `password`, `apiKey`, `secret` to `"***"` before returning
   - [x] 3.4 `PATCH` handler: for each key in request body, call `SetGroup` with masked fields preserved: if incoming value `=== "***"`, load existing row and keep original value; validate `module` and `key` are known (allowlist per module); return `400` for unknown, `422` for type mismatch
   - [x] 3.5 Register via `routes.RegisterSettings(se)` in main alongside other ext route registrations

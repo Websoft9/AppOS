@@ -127,6 +127,18 @@ func registerTerminalRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 // SSH WebSocket handler
 // ════════════════════════════════════════════════════════════
 
+// handleSSHTerminal upgrades the HTTP connection to a WebSocket SSH PTY session for the given server.
+//
+// @Summary SSH WebSocket terminal
+// @Description Upgrades to a WebSocket PTY session for the given server via SSH. Auth via ?token= or Authorization header. Superuser only.
+// @Tags Terminal SSH
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param token query string false "auth token (for WebSocket clients that cannot set headers)"
+// @Success 101 {string} string "WebSocket upgrade"
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Router /api/ext/terminal/ssh/{serverId} [get]
 func handleSSHTerminal(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
 	cfg, err := resolveServerConfig(e, serverID)
@@ -261,6 +273,19 @@ func writeWSControl(conn *websocket.Conn, msgType, message string) error {
 // Docker exec WebSocket handler
 // ════════════════════════════════════════════════════════════
 
+// handleDockerExecTerminal upgrades to a WebSocket PTY for docker exec on a container.
+//
+// @Summary Docker exec WebSocket terminal
+// @Description Upgrades to a WebSocket PTY session inside the given container via docker exec. Supports remote servers via server_id. Superuser only.
+// @Tags Terminal Docker
+// @Security BearerAuth
+// @Param containerId path string true "container ID or name"
+// @Param server_id query string false "server ID (omit for local)"
+// @Param shell query string false "shell binary" Enums(/bin/sh, /bin/bash, /bin/zsh)
+// @Success 101 {string} string "WebSocket upgrade"
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Router /api/ext/terminal/docker/{containerId} [get]
 func handleDockerExecTerminal(e *core.RequestEvent) error {
 	containerID := e.Request.PathValue("containerId")
 	if containerID == "" {
@@ -399,6 +424,19 @@ func handleDockerExecTerminal(e *core.RequestEvent) error {
 // SFTP REST handlers
 // ════════════════════════════════════════════════════════════
 
+// handleSFTPList returns a directory listing on the remote server via SFTP.
+//
+// @Summary List directory
+// @Description Returns a directory listing for the given path on the remote server. Superuser only.
+// @Tags Terminal Files
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param path query string false "directory path (default /)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/sftp/{serverId}/list [get]
 func handleSFTPList(e *core.RequestEvent) error {
 	client, serverID, err := openSFTPClient(e)
 	if err != nil {
@@ -423,6 +461,20 @@ func handleSFTPList(e *core.RequestEvent) error {
 	})
 }
 
+// handleSFTPSearch searches for files matching a query string under a base path.
+//
+// @Summary Search files
+// @Description Recursively searches for files matching the query under the base path. Superuser only.
+// @Tags Terminal Files
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param path query string false "base path (default /)"
+// @Param query query string true "search term"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/sftp/{serverId}/search [get]
 func handleSFTPSearch(e *core.RequestEvent) error {
 	client, serverID, err := openSFTPClient(e)
 	if err != nil {
@@ -452,6 +504,16 @@ func handleSFTPSearch(e *core.RequestEvent) error {
 	})
 }
 
+// handleSFTPConstraints returns the effective SFTP upload constraints (from settings).
+//
+// @Summary File constraints
+// @Description Returns effective upload limits (max_upload_files) from settings. Superuser only.
+// @Tags Terminal Files
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Success 200 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Router /api/ext/terminal/sftp/{serverId}/constraints [get]
 func handleSFTPConstraints(e *core.RequestEvent) error {
 	cfg, _ := settings.GetGroup(e.App, "connect", "sftp", map[string]any{"maxUploadFiles": 10})
 	return e.JSON(http.StatusOK, map[string]any{
@@ -459,6 +521,19 @@ func handleSFTPConstraints(e *core.RequestEvent) error {
 	})
 }
 
+// handleSFTPStat returns file/directory metadata for a remote path.
+//
+// @Summary Stat path
+// @Description Returns stat attributes (size, permissions, mtime, etc.) for the given remote path. Superuser only.
+// @Tags Terminal Files
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param path query string true "remote path"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/sftp/{serverId}/stat [get]
 func handleSFTPStat(e *core.RequestEvent) error {
 	client, serverID, err := openSFTPClient(e)
 	if err != nil {
@@ -482,6 +557,19 @@ func handleSFTPStat(e *core.RequestEvent) error {
 	})
 }
 
+// handleSFTPDownload streams a remote file as a download attachment.
+//
+// @Summary Download file
+// @Description Streams a remote file as Content-Disposition: attachment. Writes an audit entry. Superuser only.
+// @Tags Terminal Files
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param path query string true "remote file path"
+// @Success 200 {string} string "file content"
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/sftp/{serverId}/download [get]
 func handleSFTPDownload(e *core.RequestEvent) error {
 	client, serverID, err := openSFTPClient(e)
 	if err != nil {
@@ -519,6 +607,21 @@ func handleSFTPDownload(e *core.RequestEvent) error {
 	return downloadErr
 }
 
+// handleSFTPUpload uploads a file to a remote directory via SFTP.
+//
+// @Summary Upload file
+// @Description Accepts a multipart upload and saves the file to the given remote directory. Writes an audit entry. Superuser only.
+// @Tags Terminal Files
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param path query string true "remote destination directory"
+// @Param file formData file true "file to upload"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 413 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/sftp/{serverId}/upload [post]
 func handleSFTPUpload(e *core.RequestEvent) error {
 	client, serverID, err := openSFTPClient(e)
 	if err != nil {
@@ -562,6 +665,19 @@ func handleSFTPUpload(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"path": dest, "size": header.Size})
 }
 
+// handleSFTPMkdir creates a directory (mkdir -p) on the remote server.
+//
+// @Summary Create directory
+// @Description Creates the given directory (and parents) on the remote server. Superuser only.
+// @Tags Terminal Files
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param body body object true "path: directory to create"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/sftp/{serverId}/mkdir [post]
 func handleSFTPMkdir(e *core.RequestEvent) error {
 	client, _, err := openSFTPClient(e)
 	if err != nil {
@@ -582,6 +698,19 @@ func handleSFTPMkdir(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"path": body.Path})
 }
 
+// handleSFTPRename renames (moves) a file or directory on the remote server.
+//
+// @Summary Rename
+// @Description Renames a file or directory from one path to another on the remote server. Superuser only.
+// @Tags Terminal Files
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param body body object true "from, to (remote paths)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/sftp/{serverId}/rename [post]
 func handleSFTPRename(e *core.RequestEvent) error {
 	client, _, err := openSFTPClient(e)
 	if err != nil {
@@ -603,6 +732,19 @@ func handleSFTPRename(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"from": body.From, "to": body.To})
 }
 
+// handleSFTPChmod changes permissions on a remote file or directory.
+//
+// @Summary Change permissions
+// @Description Sets file permissions (octal mode) on a remote path. Superuser only.
+// @Tags Terminal Files
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param body body object true "path, mode (octal string, e.g. \"755\"), recursive (bool)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/sftp/{serverId}/chmod [post]
 func handleSFTPChmod(e *core.RequestEvent) error {
 	client, _, err := openSFTPClient(e)
 	if err != nil {
@@ -635,6 +777,19 @@ func handleSFTPChmod(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"path": body.Path, "mode": body.Mode, "recursive": body.Recursive})
 }
 
+// handleSFTPChown changes ownership of a remote file or directory.
+//
+// @Summary Change owner
+// @Description Sets owner and group for a remote path by name. Superuser only.
+// @Tags Terminal Files
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param body body object true "path, owner (username string), group (group name string)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/sftp/{serverId}/chown [post]
 func handleSFTPChown(e *core.RequestEvent) error {
 	client, _, err := openSFTPClient(e)
 	if err != nil {
@@ -668,6 +823,19 @@ func handleSFTPChown(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"path": body.Path, "owner": owner, "group": group})
 }
 
+// handleSFTPSymlink creates a symbolic link on the remote server.
+//
+// @Summary Create symlink
+// @Description Creates a symbolic link on the remote server. Superuser only.
+// @Tags Terminal Files
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param body body object true "target (link destination), link_path (new symlink path)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/sftp/{serverId}/symlink [post]
 func handleSFTPSymlink(e *core.RequestEvent) error {
 	client, _, err := openSFTPClient(e)
 	if err != nil {
@@ -689,6 +857,19 @@ func handleSFTPSymlink(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"target": body.Target, "link_path": body.LinkPath})
 }
 
+// handleSFTPCopy copies a file or directory to another path on the remote server (blocking).
+//
+// @Summary Copy
+// @Description Copies a remote file or directory to the destination path. Returns final progress. Superuser only.
+// @Tags Terminal Files
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param body body object true "from, to (remote paths)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/sftp/{serverId}/copy [post]
 func handleSFTPCopy(e *core.RequestEvent) error {
 	client, _, err := openSFTPClient(e)
 	if err != nil {
@@ -716,6 +897,19 @@ func handleSFTPCopy(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"from": body.From, "to": body.To, "progress": map[string]any{"copied": copied, "total": total}})
 }
 
+// handleSFTPCopyStream copies a remote file/directory and streams SSE progress events.
+//
+// @Summary Copy with progress
+// @Description Copies a remote file/directory and streams Server-Sent Events with progress updates. Superuser only.
+// @Tags Terminal Files
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param from query string true "source remote path"
+// @Param to query string true "destination remote path"
+// @Success 200 {string} string "SSE stream (text/event-stream)"
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Router /api/ext/terminal/sftp/{serverId}/copy-stream [get]
 func handleSFTPCopyStream(e *core.RequestEvent) error {
 	client, _, err := openSFTPClient(e)
 	if err != nil {
@@ -758,6 +952,19 @@ func handleSFTPCopyStream(e *core.RequestEvent) error {
 	return nil
 }
 
+// handleSFTPMove moves a file or directory to another path on the remote server.
+//
+// @Summary Move
+// @Description Moves (renames) a remote file or directory. Superuser only.
+// @Tags Terminal Files
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param body body object true "from, to (remote paths)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/sftp/{serverId}/move [post]
 func handleSFTPMove(e *core.RequestEvent) error {
 	client, _, err := openSFTPClient(e)
 	if err != nil {
@@ -779,6 +986,19 @@ func handleSFTPMove(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"from": body.From, "to": body.To})
 }
 
+// handleSFTPDelete deletes a file or directory on the remote server.
+//
+// @Summary Delete
+// @Description Deletes the file or directory at the given remote path. Writes an audit entry. Superuser only.
+// @Tags Terminal Files
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param path query string true "remote path to delete"
+// @Success 204 {string} string "no content"
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/sftp/{serverId}/delete [delete]
 func handleSFTPDelete(e *core.RequestEvent) error {
 	client, serverID, err := openSFTPClient(e)
 	if err != nil {
@@ -814,6 +1034,20 @@ func handleSFTPDelete(e *core.RequestEvent) error {
 
 const sftpMaxReadBytes = 2 << 20 // 2 MB — reasonable limit for text editing
 
+// handleSFTPRead returns the text content of a remote file (up to 2 MB).
+//
+// @Summary Read file
+// @Description Returns UTF-8 text content of a remote file via SFTP (max 2 MB). Superuser only.
+// @Tags Terminal Files
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param path query string true "remote file path"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 413 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/sftp/{serverId}/read [get]
 func handleSFTPRead(e *core.RequestEvent) error {
 	client, _, err := openSFTPClient(e)
 	if err != nil {
@@ -837,6 +1071,19 @@ func handleSFTPRead(e *core.RequestEvent) error {
 	})
 }
 
+// handleSFTPWrite writes text content to a remote file via SFTP.
+//
+// @Summary Write file
+// @Description Overwrites the content of a remote file with the provided text. Writes audit entry. Superuser only.
+// @Tags Terminal Files
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param body body object true "path, content"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/sftp/{serverId}/write [post]
 func handleSFTPWrite(e *core.RequestEvent) error {
 	client, serverID, err := openSFTPClient(e)
 	if err != nil {
@@ -924,6 +1171,20 @@ func normalizePortReleaseMode(raw string) (string, error) {
 	return mode, nil
 }
 
+// handleServerPortsList lists all ports in use (occupied and/or reserved) on a remote server.
+//
+// @Summary List ports
+// @Description Returns aggregated port occupancy and/or reservation data for all detected ports on the remote server. Superuser only.
+// @Tags Server Ops
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param protocol query string false "tcp or udp (default: tcp)"
+// @Param view query string false "occupancy, reservation, or all (default: all)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/server/{serverId}/ports [get]
 func handleServerPortsList(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
 	if serverID == "" {
@@ -1024,6 +1285,21 @@ func handleServerPortsList(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, result)
 }
 
+// handleServerPortInspect returns occupancy and/or reservation details for a single port on a remote server.
+//
+// @Summary Inspect port
+// @Description Returns detailed occupancy and reservation information for a specific port. Superuser only.
+// @Tags Server Ops
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param port path integer true "port number (1-65535)"
+// @Param protocol query string false "tcp or udp (default: tcp)"
+// @Param view query string false "occupancy, reservation, or all (default: all)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/server/{serverId}/ports/{port} [get]
 func handleServerPortInspect(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
 	if serverID == "" {
@@ -1088,6 +1364,22 @@ func handleServerPortInspect(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, result)
 }
 
+// handleServerPortRelease releases (kills) the process or container occupying a port on a remote server.
+//
+// @Summary Release port
+// @Description Terminates the process or Docker container occupying a specific port. Supports graceful and force modes. Superuser only.
+// @Tags Server Ops
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param port path integer true "port number (1-65535)"
+// @Param protocol query string false "tcp or udp (default: tcp)"
+// @Param body body object false "mode (graceful or force)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 409 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/server/{serverId}/ports/{port}/release [post]
 func handleServerPortRelease(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
 	if serverID == "" {
@@ -1717,6 +2009,19 @@ func parseDockerPublishedPorts(portsField string, protocol string) []int {
 	return ports
 }
 
+// handleServerPower performs a power action (reboot or shutdown) on a remote server.
+//
+// @Summary Power action
+// @Description Executes a reboot or shutdown command on the remote server over SSH. Superuser only.
+// @Tags Server Ops
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param body body object true "action (reboot or shutdown)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/server/{serverId}/power [post]
 func handleServerPower(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
 	if serverID == "" {
@@ -1788,6 +2093,18 @@ func isExpectedPowerDisconnect(err error) bool {
 		strings.Contains(message, "unexpected eof")
 }
 
+// handleSystemdServices lists all systemd services on a remote server.
+//
+// @Summary List services
+// @Description Returns the list of all systemd services and their statuses from the remote server. Superuser only.
+// @Tags Server Ops
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/server/{serverId}/systemd/services [get]
 func handleSystemdServices(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
 	if serverID == "" {
@@ -1843,6 +2160,19 @@ func handleSystemdServices(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"server_id": serverID, "services": services})
 }
 
+// handleSystemdServiceStatus returns the status of a single systemd service on a remote server.
+//
+// @Summary Service status
+// @Description Returns the current status and properties of a systemd service. Superuser only.
+// @Tags Server Ops
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param service path string true "systemd service name"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/server/{serverId}/systemd/{service}/status [get]
 func handleSystemdServiceStatus(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
 	service, err := normalizeServiceName(e.Request.PathValue("service"))
@@ -1896,6 +2226,20 @@ func handleSystemdServiceStatus(e *core.RequestEvent) error {
 	})
 }
 
+// handleSystemdServiceLogs streams or returns recent journal logs for a systemd service.
+//
+// @Summary Service logs
+// @Description Returns recent journalctl log lines for the specified systemd service. Superuser only.
+// @Tags Server Ops
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param service path string true "systemd service name"
+// @Param lines query integer false "number of log lines to return (default: 100)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/server/{serverId}/systemd/{service}/logs [get]
 func handleSystemdServiceLogs(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
 	service, err := normalizeServiceName(e.Request.PathValue("service"))
@@ -1956,6 +2300,19 @@ func handleSystemdServiceLogs(e *core.RequestEvent) error {
 	})
 }
 
+// handleSystemdServiceContent returns the unit file content for a systemd service.
+//
+// @Summary Service content
+// @Description Returns the raw content of the unit file for the specified systemd service. Superuser only.
+// @Tags Server Ops
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param service path string true "systemd service name"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/server/{serverId}/systemd/{service}/content [get]
 func handleSystemdServiceContent(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
 	service, err := normalizeServiceName(e.Request.PathValue("service"))
@@ -1992,6 +2349,20 @@ func handleSystemdServiceContent(e *core.RequestEvent) error {
 	})
 }
 
+// handleSystemdServiceAction performs a control action on a systemd service (start, stop, restart, enable, disable).
+//
+// @Summary Service action
+// @Description Executes a systemctl action on the specified service. Superuser only.
+// @Tags Server Ops
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param service path string true "systemd service name"
+// @Param body body object true "action (start, stop, restart, enable, disable)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/server/{serverId}/systemd/{service}/action [post]
 func handleSystemdServiceAction(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
 	service, err := normalizeServiceName(e.Request.PathValue("service"))
@@ -2054,6 +2425,19 @@ func handleSystemdServiceAction(e *core.RequestEvent) error {
 	})
 }
 
+// handleSystemdServiceUnitRead reads the active unit file for a systemd service from /etc/systemd/system/.
+//
+// @Summary Read unit file
+// @Description Returns the editable unit file content for the specified systemd service. Superuser only.
+// @Tags Server Ops
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param service path string true "systemd service name"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/server/{serverId}/systemd/{service}/unit [get]
 func handleSystemdServiceUnitRead(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
 	service, err := normalizeServiceName(e.Request.PathValue("service"))
@@ -2084,6 +2468,20 @@ func handleSystemdServiceUnitRead(e *core.RequestEvent) error {
 	})
 }
 
+// handleSystemdServiceUnitWrite writes updated unit file content to /etc/systemd/system/ on the remote server.
+//
+// @Summary Write unit file
+// @Description Saves new unit file content to the remote server and runs systemctl daemon-reload. Superuser only.
+// @Tags Server Ops
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param service path string true "systemd service name"
+// @Param body body object true "content (unit file text)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/server/{serverId}/systemd/{service}/unit [put]
 func handleSystemdServiceUnitWrite(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
 	service, err := normalizeServiceName(e.Request.PathValue("service"))
@@ -2149,6 +2547,20 @@ func handleSystemdServiceUnitWrite(e *core.RequestEvent) error {
 	})
 }
 
+// handleSystemdServiceUnitVerify validates the syntax of a systemd unit file content before saving.
+//
+// @Summary Verify unit file
+// @Description Runs systemd-analyze verify on the provided unit file content. Superuser only.
+// @Tags Server Ops
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param service path string true "systemd service name"
+// @Param body body object true "content (unit file text to verify)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/server/{serverId}/systemd/{service}/unit/verify [post]
 func handleSystemdServiceUnitVerify(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
 	service, err := normalizeServiceName(e.Request.PathValue("service"))
@@ -2201,6 +2613,20 @@ func handleSystemdServiceUnitVerify(e *core.RequestEvent) error {
 	})
 }
 
+// handleSystemdServiceUnitApply writes and immediately applies a new unit file, then restarts the service.
+//
+// @Summary Apply unit file
+// @Description Writes the unit file content, reloads systemd daemon, and optionally restarts the service. Superuser only.
+// @Tags Server Ops
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param service path string true "systemd service name"
+// @Param body body object true "content, restart (bool)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/terminal/server/{serverId}/systemd/{service}/unit/apply [post]
 func handleSystemdServiceUnitApply(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
 	service, err := normalizeServiceName(e.Request.PathValue("service"))

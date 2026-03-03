@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -185,8 +186,9 @@ func fallbackForKey(module, key string) map[string]any {
 // RegisterSettings mounts the Ext Settings API on the given ServeEvent.
 // Routes require superuser authentication.
 func RegisterSettings(se *core.ServeEvent) {
-	g := se.Router.Group("/api/ext/settings")
+	g := se.Router.Group("/api/settings/workspace")
 	g.Bind(apis.RequireSuperuserAuth())
+	g.GET("", handleExtSettingsDiscover)
 	g.GET("/{module}", handleExtSettingsGet)
 	g.PATCH("/{module}", handleExtSettingsPatch)
 }
@@ -288,8 +290,52 @@ func preserveItemsSensitive(rawIncoming, rawExisting any) any {
 
 // ─── Handlers ─────────────────────────────────────────────────────────────
 
+// handleExtSettingsDiscover lists all available settings modules and their group keys.
+//
+// @Summary Discover settings modules
+// @Description Lists all available setting modules (e.g. space, proxy, docker, llm, connect). Each entry includes the module name, its group keys, and the full URL to call. Use the returned `module` value directly as the path parameter in GET/PATCH /api/settings/workspace/{module}. Superuser only.
+// @Tags Settings
+// @Security BearerAuth
+// @Success 200 {array} object
+// @Failure 401 {object} map[string]any
+// @Router /api/settings/workspace [get]
+func handleExtSettingsDiscover(e *core.RequestEvent) error {
+	type moduleEntry struct {
+		Module string   `json:"module"`
+		Keys   []string `json:"keys"`
+		URL    string   `json:"url"`
+	}
+
+	// Collect and sort module names for deterministic output
+	names := make([]string, 0, len(allowedModuleKeys))
+	for m := range allowedModuleKeys {
+		names = append(names, m)
+	}
+	sort.Strings(names)
+
+	out := make([]moduleEntry, 0, len(names))
+	for _, m := range names {
+		out = append(out, moduleEntry{
+			Module: m,
+			Keys:   allowedModuleKeys[m],
+			URL:    "/api/settings/workspace/" + m,
+		})
+	}
+	return e.JSON(http.StatusOK, out)
+}
+
 // handleExtSettingsGet returns all settings groups for the given module.
 // Sensitive string fields are masked to "***".
+//
+// @Summary Get settings module
+// @Description Returns all group keys and their values for the given module. Supported modules include `space` (file quota), `proxy` (HTTP proxy), `docker` (mirrors & registries), and others — call GET /api/settings/workspace first to discover all available modules. Sensitive fields (password, apiKey, secret) are masked to "***". Superuser only.
+// @Tags Settings
+// @Security BearerAuth
+// @Param module path string true "settings module" Enums(space, proxy, docker, llm, connect)
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Router /api/settings/workspace/{module} [get]
 func handleExtSettingsGet(e *core.RequestEvent) error {
 	module := e.Request.PathValue("module")
 
@@ -310,6 +356,18 @@ func handleExtSettingsGet(e *core.RequestEvent) error {
 
 // handleExtSettingsPatch updates one or more settings groups for the given module.
 // For each incoming group key, "***" sentinel values are preserved from the existing DB row.
+//
+// @Summary Patch settings module
+// @Description Partially updates settings groups for the given module. Use \"***\" to preserve existing sensitive values. Superuser only.
+// @Tags Settings
+// @Security BearerAuth
+// @Param module path string true "settings module" Enums(space, proxy, docker, llm, connect)
+// @Param body body object true "map of group key to partial settings object"
+// @Success 200 {object} map[string]any "updated settings (masked)"
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 422 {object} map[string]any
+// @Router /api/settings/workspace/{module} [patch]
 func handleExtSettingsPatch(e *core.RequestEvent) error {
 	module := e.Request.PathValue("module")
 

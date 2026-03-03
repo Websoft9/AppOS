@@ -1,0 +1,289 @@
+version: 1
+name: openapi-group-matrix
+source: specs/implementation-artifacts/story1.7-swagger.md
+routerfilepath: backend/internal/routes
+
+# Documentation types (critical):
+# 1) Business Logic Routes -> matrix-driven generation from route code to ext-api.yaml
+# 2) PB Native Web APIs -> manual maintenance in native-api.yaml
+# 3) Final Runtime Contract -> merged api.yaml (served at /openapi/spec)
+
+groups:
+  - group: Auth
+    description: User and authentication operations across Ext admin APIs and Native users auth + record CRUD actions.
+    apiType: Mixed
+    extSurface:
+      - /api/ext/users/*
+    nativeSurface:
+      - POST /api/collections/users/auth-with-password
+      - POST /api/collections/users/auth-refresh
+      - POST /api/collections/users/request-password-reset
+      - POST /api/collections/users/confirm-password-reset
+      - POST /api/collections/users/request-verification
+      - POST /api/collections/users/confirm-verification
+      - POST /api/collections/users/request-email-change
+      - POST /api/collections/users/confirm-email-change
+      - GET /api/collections/users/records
+      - POST /api/collections/users/records
+      - GET /api/collections/users/records/{id}
+      - PATCH /api/collections/users/records/{id}
+      - DELETE /api/collections/users/records/{id}
+    sources:
+      extRouteFiles:
+        - users.go
+      nativeRefs:
+        - https://pocketbase.io/docs/api-records/#auth-record-actions
+        - https://pocketbase.io/docs/api-records/#crud-actions
+
+  - group: Audit
+    description: Audit querying and audit trail visibility endpoints.
+    apiType: Ext
+    extSurface:
+      - /api/ext/audit/*
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - audit.go
+      nativeRefs: []
+
+  - group: Backups
+    description: Backups management APIs.
+    apiType: Mixed
+    extSurface:
+      - /api/ext/backup/*
+    nativeSurface:
+      - GET /api/backups
+      - POST /api/backups
+      - GET /api/backups/{name}
+      - DELETE /api/backups/{name}
+      - POST /api/backups/{name}/restore
+    sources:
+      extRouteFiles:
+        - backup.go
+      nativeRefs:
+        - https://pocketbase.io/docs/api-backups/
+
+  - group: Docker
+    description: Docker operations including compose, image, container, network and volume management.
+    apiType: Ext
+    extSurface:
+      - /api/ext/docker/*
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - docker.go
+      nativeRefs: []
+
+  - group: Health
+    description: Platform liveness and health status endpoints.
+    apiType: Native
+    extSurface: []
+    nativeSurface:
+      - GET /api/health
+    sources:
+      extRouteFiles: []
+      nativeRefs:
+        - https://pocketbase.io/docs/api-health/
+
+  - group: IaC
+    description: Infrastructure-as-Code workspace and template file operations.
+    apiType: Ext
+    extSurface:
+      - /api/ext/iac/*
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - iac.go
+      nativeRefs: []
+
+  - group: OpenAPI Docs
+    description: OpenAPI UI and raw specification serving endpoints.
+    apiType: Ext
+    extSurface:
+      - /openapi
+      - /openapi/spec
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - openapi.go
+      nativeRefs: []
+
+  - group: Proxy
+    description: Reverse proxy domain management and SSL automation endpoints.
+    apiType: Ext
+    extSurface:
+      - /api/ext/proxy/*
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - proxy.go
+      nativeRefs: []
+
+  - group: Setup
+    description: Initial setup and login bootstrap workflows for AppOS.
+    apiType: Ext
+    extSurface:
+      - /api/ext/setup/*
+      - /api/ext/auth/*
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - setup.go
+        - auth.go
+      nativeRefs: []
+
+  - group: Realtime
+    description: PocketBase realtime connect and subscription APIs.
+    apiType: Native
+    extSurface: []
+    nativeSurface:
+      - GET /api/realtime
+      - POST /api/realtime
+    sources:
+      extRouteFiles: []
+      nativeRefs:
+        - https://pocketbase.io/docs/api-realtime/
+
+  - group: Resource
+    description: Host and runtime resource discovery and inspection APIs.
+    apiType: Ext
+    extSurface:
+      - /api/ext/resources/*
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - resources.go
+      nativeRefs: []
+
+  - group: Route Registry
+    description: Route assembly entrypoint only; no direct API endpoint is exposed by this file.
+    apiType: Ext
+    extSurface: []
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - routes.go
+      nativeRefs: []
+
+  - group: Terminal SSH
+    description: SSH PTY session management. Opens an interactive WebSocket terminal to a registered server via SSH.
+    apiType: Ext
+    extSurface:
+      - /api/ext/terminal/ssh/*
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - terminal.go
+      nativeRefs: []
+
+  - group: Terminal Docker
+    description: Docker container exec PTY session. Opens a WebSocket terminal into a running container. Superuser only.
+    apiType: Ext
+    extSurface:
+      - /api/ext/terminal/docker/*
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - terminal.go
+      nativeRefs: []
+
+  - group: Terminal Files
+    description: File management over SFTP/SSH. Full lifecycle including browse, read, write, upload, download, permissions and bulk operations.
+    apiType: Ext
+    extSurface:
+      - /api/ext/terminal/sftp/*
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - terminal.go
+      nativeRefs: []
+
+  - group: Server Ops
+    description: Server lifecycle management via SSH. Power actions, port inspection, and systemd service control including logs and unit file editing.
+    apiType: Ext
+    extSurface:
+      - /api/ext/terminal/server/*
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - terminal.go
+      nativeRefs: []
+
+  - group: Services
+    description: Service lifecycle operations exposed via supervisord integration.
+    apiType: Ext
+    extSurface:
+      - /api/ext/services/*
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - services.go
+      nativeRefs: []
+
+  - group: Settings
+    description: Configuration management spanning System and Workspace settings APIs.
+    apiType: Mixed
+    extSurface:
+      - /api/settings/workspace/*
+    nativeSurface:
+      - GET /api/settings
+      - PATCH /api/settings
+      - POST /api/settings/test/s3
+      - POST /api/settings/test/email
+      - POST /api/settings/apple/generate-client-secret
+    sources:
+      extRouteFiles:
+        - settings.go
+      nativeRefs:
+        - https://pocketbase.io/docs/api-settings/
+
+  - group: Space & User Files
+    description: Workspace and storage-space related operations.
+    apiType: Mixed
+    extSurface:
+      - /api/ext/space/*
+    nativeSurface:
+      - GET /api/files/{collection}/{recordId}/{filename}
+      - POST /api/files/token
+    sources:
+      extRouteFiles:
+        - space.go
+      nativeRefs:
+        - https://pocketbase.io/docs/api-files/
+
+  - group: System
+    description: Host metrics, file browser and system shell utility endpoints.
+    apiType: Ext
+    extSurface:
+      - /api/ext/system/*
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - system.go
+      nativeRefs: []
+
+  - group: System Cron
+    description: PocketBase scheduled tasks and cron management APIs.
+    apiType: Native
+    extSurface: []
+    nativeSurface:
+      - GET /api/crons
+      - POST /api/crons/{jobId}
+    sources:
+      extRouteFiles: []
+      nativeRefs:
+        - https://pocketbase.io/docs/api-crons/
+
+  - group: Tunnel
+    description: Tunnel lifecycle and connectivity management APIs.
+    apiType: Ext
+    extSurface:
+      - /api/ext/tunnel/*
+      - /tunnel/setup/*
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - tunnel.go
+      nativeRefs: []
+
+

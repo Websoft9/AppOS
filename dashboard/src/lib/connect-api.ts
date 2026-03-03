@@ -567,7 +567,7 @@ const DEFAULT_CONNECT_TERMINAL_SETTINGS: ConnectTerminalSettings = {
 
 export async function getConnectTerminalSettings(): Promise<ConnectTerminalSettings> {
   try {
-    const response = (await pb.send('/api/ext/settings/connect', {
+    const response = (await pb.send('/api/settings/workspace/connect', {
       method: 'GET',
     })) as { terminal?: Partial<ConnectTerminalSettings> }
     const terminal = response?.terminal ?? {}

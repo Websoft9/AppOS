@@ -51,6 +51,24 @@ Use `make redo` whenever schema migrations or binary changes require a clean env
 
 Decision: for each module, define constants, error codes, and variable configuration in a dedicated `config.go` file.
 
+## Ext Route Ownership & Guard{#ext-route-guard}
+
+**Decision**: all custom `/api/ext/*` APIs must be defined in `backend/internal/routes/` only.
+
+**Decision**: route registration entrypoint is centralized at `routes.Register(se)` from `backend/cmd/appos/main.go`; adding `/api/ext/*` registrations outside `backend/internal/routes/` is prohibited.
+
+**Decision**: architecture guard is enforced as a **test gate**, not a lint rule.
+
+**Execution policy**:
+- Primary gate: `make test` (or targeted Go test) should fail when ownership rule is violated.
+- Fast OpenAPI guard remains available via `make openapi-check`.
+- `make lint` is reserved for static style/code-quality checks and should not carry route-ownership architecture assertions.
+
+**Rationale**:
+- Keeps ownership checks deterministic and CI-friendly.
+- Aligns with existing OpenAPI coverage checks under Go test flow.
+- Avoids mixing architectural contract enforcement with formatter/linter responsibilities.
+
 ## Testing
 
 **Decision**: use `http://127.0.0.1:<port>` for external testing; do not use `http://localhost:<port>`.

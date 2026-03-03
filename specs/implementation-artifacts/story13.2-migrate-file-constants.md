@@ -19,7 +19,7 @@ This story also resolves the long-standing Story 9.5 blocker.
 - AC2: `hooks/hooks.go` reads `maxPerUser` from `app_settings` via `settings.GetGroup`; hardcoded `hookSpaceMaxPerUser` constant is removed.
 - AC3: Seed migration inserts the `space/quota` default row on first boot (insert-if-not-exists); subsequent boots leave existing values untouched.
 - AC4: If the `space/quota` row is missing at runtime, fallback defaults `10/100/60/30` are used (no panic, no error logged to user).
-- AC5: `GET /api/ext/settings/space` response values reflect the database values, not hardcoded constants.
+- AC5: `GET /api/settings/workspace/space` response values reflect the database values, not hardcoded constants.
 
 ## Tasks / Subtasks
 

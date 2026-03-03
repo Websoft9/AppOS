@@ -100,6 +100,14 @@ func registerSpacePublicRoutes(se *core.ServeEvent) {
 // ─── Handlers ──────────────────────────────────────────────────────────────
 
 // handleSpaceQuota returns the currently active quota limits read from app_settings.
+//
+// @Summary Get space quota limits
+// @Description Returns effective upload/share quota limits for the authenticated user. Auth required.
+// @Tags Space
+// @Security BearerAuth
+// @Success 200 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Router /api/ext/space/quota [get]
 func handleSpaceQuota(e *core.RequestEvent) error {
 	quota, _ := settings.GetGroup(e.App, "space", "quota", defaultSpaceQuota)
 	maxUploadFiles := settings.Int(quota, "maxUploadFiles", 50)
@@ -135,6 +143,18 @@ func handleSpaceQuota(e *core.RequestEvent) error {
 //
 // SVG is served as image/svg+xml; the frontend MUST render via <img>, which
 // silently blocks all script execution — no extra server-side handling needed.
+//
+// @Summary Preview file inline
+// @Description Streams a file for inline browser preview. Accepts auth via JWT Authorization header or ?token= query param. Public route (token validated internally).
+// @Tags Space
+// @Param id path string true "user_files record ID"
+// @Param token query string false "auth token (for browser embed contexts)"
+// @Success 200 {string} string "file content"
+// @Failure 401 {object} map[string]any
+// @Failure 403 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 415 {object} map[string]any
+// @Router /api/ext/space/preview/{id} [get]
 func handleSpacePreview(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 
@@ -233,6 +253,20 @@ func handleSpacePreview(e *core.RequestEvent) error {
 // Response:
 //
 //	{ "share_token": "...", "share_url": "/files/share/...", "expires_at": "..." }
+// handleFileShareCreate creates or refreshes a time-limited share token for a file.
+//
+// @Summary Create file share token
+// @Description Creates or refreshes a share link for the file record (max 60 minutes). Auth required.
+// @Tags Space
+// @Security BearerAuth
+// @Param id path string true "user_files record ID"
+// @Param body body object false "expiresInMinutes (optional, default: shareDefaultMinutes from settings)"
+// @Success 200 {object} map[string]any "shareToken, expiresAt"
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 403 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Router /api/ext/space/share/{id} [post]
 func handleFileShareCreate(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 
@@ -289,6 +323,18 @@ func handleFileShareCreate(e *core.RequestEvent) error {
 }
 
 // handleFileShareRevoke clears the share token and expiry on a user_files record.
+// handleFileShareRevoke revokes an active share token for a file.
+//
+// @Summary Revoke file share token
+// @Description Deletes the share token for the file, immediately invalidating public share links. Auth required.
+// @Tags Space
+// @Security BearerAuth
+// @Param id path string true "user_files record ID"
+// @Success 200 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 403 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Router /api/ext/space/share/{id} [delete]
 func handleFileShareRevoke(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 
@@ -316,6 +362,15 @@ func handleFileShareRevoke(e *core.RequestEvent) error {
 // and returns file metadata. The client uses this to display the share page.
 //
 // Returns 200 with metadata on success, 404 if token unknown, 403 if expired.
+// handleFileShareResolve resolves a share token and returns file metadata without streaming the content.
+//
+// @Summary Resolve share token
+// @Description Returns file metadata (name, size, mime type) for a valid share token. Public.
+// @Tags Space
+// @Param token path string true "share token"
+// @Success 200 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Router /api/ext/space/share/{token} [get]
 func handleFileShareResolve(e *core.RequestEvent) error {
 	token := e.Request.PathValue("token")
 
@@ -339,6 +394,16 @@ func handleFileShareResolve(e *core.RequestEvent) error {
 
 // handleFileShareDownload is a public (no auth) endpoint that streams the file
 // content directly from PocketBase storage after validating the share token.
+// handleFileShareDownload streams the file content for a valid share token.
+//
+// @Summary Download shared file
+// @Description Streams the file content for a valid public share token. No authentication required.
+// @Tags Space
+// @Param token path string true "share token"
+// @Success 200 {string} string "file content"
+// @Failure 404 {object} map[string]any
+// @Failure 410 {object} map[string]any "share expired"
+// @Router /api/ext/space/share/{token}/download [get]
 func handleFileShareDownload(e *core.RequestEvent) error {
 	token := e.Request.PathValue("token")
 
@@ -429,6 +494,18 @@ func fileError(msg string) map[string]any {
 //   - URL must be http or https
 //   - Extension must pass allowlist / denylist
 //   - Downloaded size must not exceed max_size_mb quota
+// handleSpaceFetch fetches a remote resource and saves it to the user's space.
+//
+// @Summary Fetch remote file into space
+// @Description Downloads a remote URL and stores the result as a user_files record. Auth required.
+// @Tags Space
+// @Security BearerAuth
+// @Param body body object true "url to fetch, optional folderPath"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/space/fetch [post]
 func handleSpaceFetch(e *core.RequestEvent) error {
 	authRecord := e.Auth
 	if authRecord == nil {

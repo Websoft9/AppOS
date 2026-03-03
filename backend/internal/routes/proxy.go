@@ -29,6 +29,18 @@ func registerProxyRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	proxy.POST("/reload", handleProxyReload)
 }
 
+// handleProxyAddDomain adds a domain binding to the reverse proxy configuration.
+//
+// @Summary Add proxy domain
+// @Description Creates a new reverse proxy domain binding (virtual host). Superuser only.
+// @Tags Settings
+// @Security BearerAuth
+// @Param body body object true "domain binding configuration"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/proxy/domains [post]
 func handleProxyAddDomain(e *core.RequestEvent) error {
 	// TODO: generate proxy config, add domain binding
 	return e.JSON(http.StatusOK, map[string]any{
@@ -36,6 +48,16 @@ func handleProxyAddDomain(e *core.RequestEvent) error {
 	})
 }
 
+// handleProxyListDomains returns all configured reverse proxy domain bindings.
+//
+// @Summary List proxy domains
+// @Description Returns all active reverse proxy domain bindings. Superuser only.
+// @Tags Settings
+// @Security BearerAuth
+// @Success 200 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/proxy/domains [get]
 func handleProxyListDomains(e *core.RequestEvent) error {
 	// TODO: list all domain bindings
 	return e.JSON(http.StatusOK, map[string]any{
@@ -43,6 +65,19 @@ func handleProxyListDomains(e *core.RequestEvent) error {
 	})
 }
 
+// handleProxyRemoveDomain removes a domain binding from the reverse proxy configuration.
+//
+// @Summary Remove proxy domain
+// @Description Deletes a reverse proxy domain binding. Superuser only.
+// @Tags Settings
+// @Security BearerAuth
+// @Param domain path string true "domain name to remove"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/proxy/domains/{domain} [delete]
 func handleProxyRemoveDomain(e *core.RequestEvent) error {
 	// TODO: remove domain binding
 	return e.JSON(http.StatusOK, map[string]any{
@@ -50,6 +85,19 @@ func handleProxyRemoveDomain(e *core.RequestEvent) error {
 	})
 }
 
+// handleProxyRequestSSL requests an SSL/TLS certificate for a domain via the configured ACME provider.
+//
+// @Summary Request SSL certificate
+// @Description Triggers SSL certificate provisioning for the given domain. Superuser only.
+// @Tags Settings
+// @Security BearerAuth
+// @Param domain path string true "domain to issue certificate for"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/proxy/domains/{domain}/ssl [post]
 func handleProxyRequestSSL(e *core.RequestEvent) error {
 	// TODO: request SSL certificate for domain
 	return e.JSON(http.StatusOK, map[string]any{
@@ -57,6 +105,16 @@ func handleProxyRequestSSL(e *core.RequestEvent) error {
 	})
 }
 
+// handleProxyReload reloads the reverse proxy configuration without downtime.
+//
+// @Summary Reload proxy config
+// @Description Sends a reload signal to the reverse proxy, applying pending configuration changes. Superuser only.
+// @Tags Settings
+// @Security BearerAuth
+// @Success 200 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/proxy/reload [post]
 func handleProxyReload(e *core.RequestEvent) error {
 	// TODO: reload reverse proxy configuration
 	return e.JSON(http.StatusOK, map[string]any{

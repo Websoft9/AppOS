@@ -14,9 +14,9 @@ so that I can adjust quotas without modifying code or restarting the service.
 ## Acceptance Criteria
 
 - AC1: "App Settings" section appears on the `/settings` page below the PB settings sections.
-- AC2: Space Quota card loads current values from `GET /api/ext/settings/space` on page mount.
+- AC2: Space Quota card loads current values from `GET /api/settings/workspace/space` on page mount.
 - AC3: Form fields: `maxSizeMB`, `maxPerUser`, `maxUploadFiles`, `shareMaxMinutes`, `shareDefaultMinutes`, `uploadAllowExts[]`, `uploadDenyExts[]`.
-- AC4: Save calls `PATCH /api/ext/settings/space` with `{ quota: { ...formValues } }` and shows success toast.
+- AC4: Save calls `PATCH /api/settings/workspace/space` with `{ quota: { ...formValues } }` and shows success toast.
 - AC5: Client-side validation: all fields required, positive integers; `maxUploadFiles` in `[1,200]`; `shareDefaultMinutes` ≤ `shareMaxMinutes`.
 - AC6: API errors (`400`, `422`) are shown as specific error messages, not generic toasts.
 - AC7: Whitelist precedence: when `uploadAllowExts` is non-empty, denylist is ignored.
@@ -28,7 +28,7 @@ so that I can adjust quotas without modifying code or restarting the service.
   - [x] 1.2 `<FilesQuotaCard />` rendered inline in same file
 
 - [x] Task 2: Load Ext settings on mount (AC2)
-  - [x] 2.1 On mount, call `pb.send('/api/ext/settings/space')`
+  - [x] 2.1 On mount, call `pb.send('/api/settings/workspace/space')`
   - [x] 2.2 Extract `quota` group from response
   - [x] 2.3 On load error, toast shown
 
@@ -38,7 +38,7 @@ so that I can adjust quotas without modifying code or restarting the service.
   - [x] 3.3 Controlled state (no react-hook-form — not in project deps)
 
 - [x] Task 4: Save handler (AC4, AC6)
-  - [x] 4.1 PATCH /api/ext/settings/space
+  - [x] 4.1 PATCH /api/settings/workspace/space
   - [x] 4.2 Success toast
   - [x] 4.3 400 error shown as specific message
   - [x] 4.4 Save button disabled while in-flight

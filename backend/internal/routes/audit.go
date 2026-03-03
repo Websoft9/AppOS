@@ -19,9 +19,31 @@ import (
 func registerAuditRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	audit := g.Group("/audit")
 	audit.Bind(apis.RequireSuperuserAuth())
+	// @swagger group="Audit" summary="List audit logs with pagination and filters" auth=superuser
 	audit.GET("", handleAuditList)
 }
 
+// handleAuditList returns paginated audit log entries.
+//
+// @Summary List audit logs
+// @Description Returns paginated audit log entries with optional filters. Superuser only.
+// @Tags Audit
+// @Security BearerAuth
+// @Param page query int false "Page index (default 1, max 100000)"
+// @Param perPage query int false "Items per page (default 20, max 200)"
+// @Param sort query string false "Sort field; prefix with - for descending. Allowed: created, updated, action, status, user_email, resource_type, resource_name"
+// @Param status query string false "Filter by status"
+// @Param action query string false "Filter by action"
+// @Param resource_type query string false "Filter by resource type"
+// @Param resource_id query string false "Filter by resource ID"
+// @Param user_id query string false "Filter by user ID"
+// @Param from query string false "Filter created >= from (RFC3339)"
+// @Param to query string false "Filter created <= to (RFC3339)"
+// @Param q query string false "Full-text search across action, resource_name, user_email, ip"
+// @Success 200 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/audit [get]
 func handleAuditList(e *core.RequestEvent) error {
 	query := e.Request.URL.Query()
 

@@ -5,7 +5,7 @@ package openapidocs
 
 import _ "embed"
 
-// ExtAPISpec is the raw OpenAPI 3.0 YAML for all /api/ext/* routes.
+// APISpec is the raw merged OpenAPI 3.0 YAML (Ext + Native).
 //
-//go:embed ext-api.yaml
-var ExtAPISpec []byte
+//go:embed api.yaml
+var APISpec []byte

@@ -14,9 +14,9 @@ so that administrators can set these without modifying code or environment varia
 ## Acceptance Criteria
 
 - AC1: Seed migration inserts default rows for `proxy/network`, `docker/mirror`, `docker/registries`, `llm/providers` on first boot (insert-if-not-exists); existing rows untouched.
-- AC2: `GET /api/ext/settings/proxy` returns `network` group with `password` masked to `"***"`.
-- AC3: `GET /api/ext/settings/docker` returns `mirror` and `registries` groups; `password` in registries items masked.
-- AC4: `GET /api/ext/settings/llm` returns `providers` group; `apiKey` in providers items masked.
+- AC2: `GET /api/settings/workspace/proxy` returns `network` group with `password` masked to `"***"`.
+- AC3: `GET /api/settings/workspace/docker` returns `mirror` and `registries` groups; `password` in registries items masked.
+- AC4: `GET /api/settings/workspace/llm` returns `providers` group; `apiKey` in providers items masked.
 - AC5: `PATCH` for each module correctly preserves `"***"` values (does not overwrite with literal `"***"`).
 - AC6: Unknown module/key returns `400`; all new module/key combinations are added to the allowlist.
 

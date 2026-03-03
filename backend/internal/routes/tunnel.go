@@ -283,6 +283,19 @@ func registerTunnelRoutes(se *core.ServeEvent, g *router.RouterGroup[*core.Reque
 //
 // On first call (no credential): creates a new secrets record (type = tunnel_token)
 // and links it to the server via the credential field.
+//
+// @Summary Get or rotate tunnel token
+// @Description Returns the existing tunnel auth token for a server. Pass ?rotate=true to generate a new token and disconnect any active session. Superuser only.
+// @Tags Tunnel
+// @Security BearerAuth
+// @Param id path string true "server record ID"
+// @Param rotate query boolean false "set true to rotate the token"
+// @Success 200 {object} map[string]any "token"
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/tunnel/servers/{id}/token [post]
 func handleTunnelToken(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 	wantRotate := e.Request.URL.Query().Get("rotate") == "true"
@@ -367,6 +380,20 @@ func handleTunnelToken(e *core.RequestEvent) error {
 
 // handleTunnelSetup returns the autossh command, systemd unit text, and setup
 // script URL needed to connect the local server.
+// handleTunnelSetup returns the tunnel setup information for a server,
+// including the autossh command, systemd unit file, and setup script URL.
+//
+// @Summary Get tunnel setup info
+// @Description Returns autossh command, systemd unit, and setup script URL for configuring the reverse tunnel on a remote server. Superuser only.
+// @Tags Tunnel
+// @Security BearerAuth
+// @Param id path string true "server record ID"
+// @Success 200 {object} map[string]any "token, autossh_cmd, systemd_unit, setup_script_url"
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/tunnel/servers/{id}/setup [get]
 func handleTunnelSetup(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 
@@ -456,6 +483,16 @@ func resolveApposHost(e *core.RequestEvent) string {
 
 // handleTunnelStatus returns live tunnel state from the in-memory registry.
 // Falls back to the DB value when the server is offline.
+//
+// @Summary Get tunnel status
+// @Description Returns live tunnel connection status for a server (online/offline, services, last seen). Superuser only.
+// @Tags Tunnel
+// @Security BearerAuth
+// @Param id path string true "server record ID"
+// @Success 200 {object} map[string]any "status, services, connected_at/last_seen"
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Router /api/ext/tunnel/servers/{id}/status [get]
 func handleTunnelStatus(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 
@@ -494,6 +531,15 @@ func handleTunnelStatus(e *core.RequestEvent) error {
 
 // handleTunnelSetupScript responds with a shell script that installs autossh
 // and creates + enables a systemd service for the appos tunnel.
+//
+// @Summary Download tunnel setup script
+// @Description Returns a self-contained shell script to install autossh and configure the reverse tunnel systemd service on a remote server. Public (token is the auth credential).
+// @Tags Tunnel
+// @Param token path string true "tunnel auth token"
+// @Success 200 {string} string "shell script"
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Router /tunnel/setup/{token} [get]
 func handleTunnelSetupScript(e *core.RequestEvent) error {
 	token := e.Request.PathValue("token")
 	if token == "" {

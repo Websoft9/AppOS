@@ -13,7 +13,7 @@
 | Domain | Storage | API | Auth |
 |--------|---------|-----|------|
 | **PB Settings** | `_params` table (PB internal) | `/api/settings` | superuser |
-| **Ext Settings** | `app_settings` collection | `/api/ext/settings/{module}` | superuser |
+| **Ext Settings** | `app_settings` collection | `/api/settings/workspace/{module}` | superuser |
 
 ---
 

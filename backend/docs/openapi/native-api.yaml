@@ -1,0 +1,630 @@
+# Native update rules (authoritative):
+# 1) Maintain native endpoints only (non-/api/ext/*).
+# 2) method+path must align with group-matrix Native|Mixed nativeSurface.
+# 3) Use Native wording in all description fields (avoid vendor naming).
+# 4) After edits run: make openapi-merge (recommended: make openapi-sync).
+# 5) For Auth-tag endpoints, use fixed /api/collections/users/... paths in docs
+#    to reduce cognition and avoid placeholder confusion.
+# 6) For Users-tag Native endpoints, use concrete /api/collections/users/records...
+#    paths; these are specific projections of Native Record CRUD APIs.
+
+openapi: "3.0.3"
+
+info:
+  title: AppOS Native API
+  description: >
+    Manually maintained OpenAPI specification for Native endpoints used by AppOS.
+  version: "0.36.5"
+
+externalDocs:
+  description: Native API Reference
+  url: https://pocketbase.io/docs/
+
+servers:
+  - url: http://localhost:8090
+    description: Local development
+
+tags:
+  - name: Auth
+    description: Native record auth actions
+    externalDocs:
+      description: Native auth record actions
+      url: https://pocketbase.io/docs/api-records/#auth-record-actions
+  - name: Backups
+    description: Native backups management APIs
+    externalDocs:
+      description: Native backups API
+      url: https://pocketbase.io/docs/api-backups/
+  - name: Health
+    description: Native service health endpoint
+    externalDocs:
+      description: Native health API
+      url: https://pocketbase.io/docs/api-health/
+  - name: Realtime
+    description: Native realtime connect and subscribe APIs
+    externalDocs:
+      description: Native realtime API
+      url: https://pocketbase.io/docs/api-realtime/
+  - name: Users
+    description: Concrete users collection APIs derived from Native Record CRUD actions
+    externalDocs:
+      description: Native record CRUD actions
+      url: https://pocketbase.io/docs/api-records/#crud-actions
+  - name: Settings
+    description: Native settings APIs
+    externalDocs:
+      description: Native settings API
+      url: https://pocketbase.io/docs/api-settings/
+  - name: Space & User Files
+    description: Native file and token APIs
+    externalDocs:
+      description: Native files API
+      url: https://pocketbase.io/docs/api-files/
+  - name: System Cron
+    description: Native cron jobs API
+    externalDocs:
+      description: Native cron API
+      url: https://pocketbase.io/docs/api-crons/
+
+components:
+  schemas:
+    PBRecord:
+      type: object
+      additionalProperties: true
+      description: Generic Native record payload
+    PBRecordList:
+      type: object
+      additionalProperties: true
+      description: Generic Native record list payload
+    PBAuthResponse:
+      type: object
+      additionalProperties: true
+      description: Generic Native auth response
+    PBSettings:
+      type: object
+      additionalProperties: true
+      description: Native app settings payload
+    PBAuthWithPasswordRequest:
+      type: object
+      required: [identity, password]
+      properties:
+        identity:
+          type: string
+          description: Username or email.
+        password:
+          type: string
+          format: password
+    PBRequestPasswordReset:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+    PBConfirmPasswordReset:
+      type: object
+      required: [token, password, passwordConfirm]
+      properties:
+        token:
+          type: string
+        password:
+          type: string
+          format: password
+        passwordConfirm:
+          type: string
+          format: password
+    PBRequestVerification:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+    PBConfirmVerification:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+    PBRequestEmailChange:
+      type: object
+      required: [newEmail]
+      properties:
+        newEmail:
+          type: string
+          format: email
+    PBConfirmEmailChange:
+      type: object
+      required: [token, password]
+      properties:
+        token:
+          type: string
+        password:
+          type: string
+          format: password
+
+# This file is manually maintained.
+# It contains Native endpoints only (non-/api/ext/*).
+paths:
+  /api/health:
+    get:
+      tags: [Health]
+      summary: Get Native health status
+      operationId: pb_health
+      security: []
+      responses:
+        "200":
+          description: OK
+
+  /api/crons:
+    get:
+      tags: [System Cron]
+      summary: List Native cron jobs
+      operationId: pb_crons_list
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  /api/crons/{jobId}:
+    post:
+      tags: [System Cron]
+      summary: Trigger a Native cron job
+      operationId: pb_crons_trigger
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: No Content
+
+  /api/settings:
+    get:
+      tags: [Settings]
+      summary: Get Native settings
+      operationId: pb_settings_get
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PBSettings'
+    patch:
+      tags: [Settings]
+      summary: Patch Native settings
+      operationId: pb_settings_patch
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  /api/settings/test/s3:
+    post:
+      tags: [Settings]
+      summary: Test S3 settings
+      operationId: pb_settings_test_s3
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: No Content
+
+  /api/settings/test/email:
+    post:
+      tags: [Settings]
+      summary: Test email settings
+      operationId: pb_settings_test_email
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: No Content
+
+  /api/settings/apple/generate-client-secret:
+    post:
+      tags: [Settings]
+      summary: Generate Apple client secret
+      operationId: pb_settings_apple_generate_client_secret
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  /api/files/{collection}/{recordId}/{filename}:
+    get:
+      tags: [Space & User Files]
+      summary: Get file content
+      operationId: pb_files_get
+      parameters:
+        - name: collection
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: recordId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: token
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: thumb
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: download
+          in: query
+          required: false
+          schema:
+            type: boolean
+      security: []
+      responses:
+        "200":
+          description: OK
+
+  /api/files/token:
+    post:
+      tags: [Space & User Files]
+      summary: Create file token
+      operationId: pb_files_token
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  /api/collections/users/records:
+    get:
+      tags: [Users]
+      summary: List users records
+      description: Concrete users endpoint projected from Native Record CRUD list records.
+      operationId: pb_users_records_list
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: perPage
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: filter
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: expand
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: fields
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: skipTotal
+          in: query
+          required: false
+          schema:
+            type: boolean
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PBRecordList'
+    post:
+      tags: [Users]
+      summary: Create users record
+      description: Concrete users endpoint projected from Native Record CRUD create record.
+      operationId: pb_users_records_create
+      security: []
+      responses:
+        "200":
+          description: OK
+
+  /api/collections/users/records/{id}:
+    get:
+      tags: [Users]
+      summary: Get users record by id
+      description: Concrete users endpoint projected from Native Record CRUD get record by id.
+      operationId: pb_users_records_get
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: expand
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: fields
+          in: query
+          required: false
+          schema:
+            type: string
+      security: []
+      responses:
+        "200":
+          description: OK
+    patch:
+      tags: [Users]
+      summary: Update users record by id
+      description: Concrete users endpoint projected from Native Record CRUD update record by id.
+      operationId: pb_users_records_patch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security: []
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [Users]
+      summary: Delete users record by id
+      description: Concrete users endpoint projected from Native Record CRUD delete record by id.
+      operationId: pb_users_records_delete
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security: []
+      responses:
+        "204":
+          description: No Content
+
+  /api/collections/users/auth-with-password:
+    post:
+      tags: [Auth]
+      summary: Auth with password
+      operationId: pb_auth_with_password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PBAuthWithPasswordRequest'
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PBAuthResponse'
+
+  /api/collections/users/auth-refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh auth token
+      operationId: pb_auth_refresh
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PBAuthResponse'
+
+  /api/collections/users/request-password-reset:
+    post:
+      tags: [Auth]
+      summary: Request password reset
+      operationId: pb_auth_request_password_reset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PBRequestPasswordReset'
+      security: []
+      responses:
+        "204":
+          description: No Content
+
+  /api/collections/users/confirm-password-reset:
+    post:
+      tags: [Auth]
+      summary: Confirm password reset
+      operationId: pb_auth_confirm_password_reset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PBConfirmPasswordReset'
+      security: []
+      responses:
+        "204":
+          description: No Content
+
+  /api/collections/users/request-verification:
+    post:
+      tags: [Auth]
+      summary: Request verification email
+      operationId: pb_auth_request_verification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PBRequestVerification'
+      security: []
+      responses:
+        "204":
+          description: No Content
+
+  /api/collections/users/confirm-verification:
+    post:
+      tags: [Auth]
+      summary: Confirm verification token
+      operationId: pb_auth_confirm_verification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PBConfirmVerification'
+      security: []
+      responses:
+        "204":
+          description: No Content
+
+  /api/collections/users/request-email-change:
+    post:
+      tags: [Auth]
+      summary: Request email change
+      operationId: pb_auth_request_email_change
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PBRequestEmailChange'
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: No Content
+
+  /api/collections/users/confirm-email-change:
+    post:
+      tags: [Auth]
+      summary: Confirm email change
+      operationId: pb_auth_confirm_email_change
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PBConfirmEmailChange'
+      security: []
+      responses:
+        "204":
+          description: No Content
+
+  /api/realtime:
+    get:
+      tags: [Realtime]
+      summary: Establish realtime connection
+      operationId: pb_realtime_get
+      security: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [Realtime]
+      summary: Submit realtime subscriptions
+      operationId: pb_realtime_post
+      security: []
+      responses:
+        "200":
+          description: OK
+
+  /api/backups:
+    get:
+      tags: [Backups]
+      summary: List backups
+      operationId: pb_backups_list
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [Backups]
+      summary: Create backup
+      operationId: pb_backups_create
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  /api/backups/{name}:
+    get:
+      tags: [Backups]
+      summary: Download backup by name
+      operationId: pb_backups_get
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [Backups]
+      summary: Delete backup by name
+      operationId: pb_backups_delete
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: No Content
+
+  /api/backups/{name}/restore:
+    post:
+      tags: [Backups]
+      summary: Restore backup by name
+      operationId: pb_backups_restore
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: No Content

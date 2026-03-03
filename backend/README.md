@@ -33,6 +33,38 @@ go build -o appos cmd/appos/main.go
 ./appos serve --http=0.0.0.0:8090
 ```
 
+## OpenAPI Maintenance
+
+OpenAPI docs are embedded into the `appos` binary and served at:
+
+- `/openapi` (Swagger UI)
+- `/openapi/spec` (raw YAML)
+
+Primary spec file:
+
+- `backend/docs/openapi/api.yaml` (generated merged artifact)
+
+Recommended workflow after route changes:
+
+```bash
+# from project root
+make openapi-sync
+```
+
+Available commands:
+
+- `make openapi-gen` — regenerate `ext-api.yaml` from `/api/ext/*` route source (machine-generated)
+- `make openapi-merge` — merge `ext-api.yaml` + `native-api.yaml` into `api.yaml`
+- `make openapi-check` — fail when Ext route/spec drift or duplicate YAML keys exist
+- `make openapi-sync` — run generate + merge + check in order
+
+Maintenance rules:
+
+- Keep `native-api.yaml` manually curated.
+- Treat `ext-api.yaml` as generated file (do not edit manually).
+- Treat `api.yaml` as generated merge artifact (do not edit manually).
+- Rebuild backend (`make build backend`) after spec updates so embedded docs are refreshed.
+
 ## Project Structure
 
 ```

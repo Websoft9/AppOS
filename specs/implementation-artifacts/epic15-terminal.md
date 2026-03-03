@@ -116,13 +116,25 @@ backend/internal/routes/terminal.go
 
 ## Backend API
 
-All routes under `/api/ext/terminal/`, require `RequireAuth()`.
+All routes under `/api/ext/terminal/`, require `RequireSuperuserAuth()`.
 
-### SSH Terminal
+API groups (OpenAPI tags):
+
+| Tag | Scope |
+|-----|-------|
+| `Terminal SSH` | SSH PTY session |
+| `Terminal Docker` | Docker exec PTY session |
+| `Terminal Files` | SFTP-backed file management (protocol-transparent) |
+| `Server Ops` | Server lifecycle, ports, systemd |
+| `Terminal Database` | _(future)_ DB CLI sessions and query execution |
+| `Terminal Cloud` | _(future)_ Cloud provider CLI sessions |
+| `Terminal API` | _(future)_ HTTP API Explorer |
+
+### Terminal SSH
 
 | Method | Path | Description |
 |--------|------|-------------|
-| WS | `/ssh/:serverId` | Open PTY session |
+| WS | `/terminal/ssh/:serverId` | Open SSH PTY session |
 
 **WebSocket protocol:**
 - Raw bytes: stdin (client→server), stdout/stderr (server→client)
@@ -130,24 +142,57 @@ All routes under `/api/ext/terminal/`, require `RequireAuth()`.
 
 Resize is handled via WebSocket control frame only – no separate REST endpoint.
 
-### SFTP
+### Terminal Docker
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/sftp/:serverId/list?path=` | List directory (includes name, type, size, mode, modified_at) |
-| GET | `/sftp/:serverId/download?path=` | Stream download |
-| POST | `/sftp/:serverId/upload?path=` | Multipart upload |
-| POST | `/sftp/:serverId/mkdir` | `{ path }` |
-| POST | `/sftp/:serverId/rename` | `{ from, to }` |
-| DELETE | `/sftp/:serverId/delete?path=` | File or directory |
-
-### Docker exec
-
-| Method | Path | Description |
-|--------|------|-------------|
-| WS | `/docker/:containerId` | `?shell=/bin/sh` |
+| WS | `/terminal/docker/:containerId` | `?shell=/bin/sh` — Docker exec PTY |
 
 Resize via WebSocket control frame (same protocol as SSH).
+
+### Terminal Files
+
+Backed by SFTP over the server's SSH connection. Path prefix is protocol-transparent; future connectors (container filesystem, cloud storage) will share the same surface.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/terminal/sftp/:serverId/list` | List directory (name, type, size, mode, modified_at) |
+| GET | `/terminal/sftp/:serverId/search` | Search files by name pattern |
+| GET | `/terminal/sftp/:serverId/constraints` | Upload/permission constraints for this server |
+| GET | `/terminal/sftp/:serverId/stat` | Stat a single path |
+| GET | `/terminal/sftp/:serverId/download` | Stream download |
+| POST | `/terminal/sftp/:serverId/upload` | Multipart upload |
+| POST | `/terminal/sftp/:serverId/mkdir` | `{ path }` |
+| POST | `/terminal/sftp/:serverId/rename` | `{ from, to }` |
+| POST | `/terminal/sftp/:serverId/chmod` | `{ path, mode }` |
+| POST | `/terminal/sftp/:serverId/chown` | `{ path, uid, gid }` |
+| POST | `/terminal/sftp/:serverId/symlink` | `{ linkpath, target }` |
+| POST | `/terminal/sftp/:serverId/copy` | `{ src, dst }` |
+| GET | `/terminal/sftp/:serverId/copy-stream` | SSE progress stream for copy |
+| POST | `/terminal/sftp/:serverId/move` | `{ src, dst }` |
+| DELETE | `/terminal/sftp/:serverId/delete` | File or directory |
+| GET | `/terminal/sftp/:serverId/read` | Read file content as text |
+| POST | `/terminal/sftp/:serverId/write` | Write/overwrite file content |
+
+### Server Ops
+
+Server lifecycle management and OS-level inspection via the SSH connection.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/terminal/server/:serverId/power` | `{ action: reboot\|shutdown }` |
+| GET | `/terminal/server/:serverId/ports` | List listening ports |
+| GET | `/terminal/server/:serverId/ports/:port` | Inspect a single port (process, state) |
+| POST | `/terminal/server/:serverId/ports/:port/release` | Kill process holding port |
+| GET | `/terminal/server/:serverId/systemd/services` | List systemd services |
+| GET | `/terminal/server/:serverId/systemd/:service/status` | Service status |
+| GET | `/terminal/server/:serverId/systemd/:service/content` | Service unit file content |
+| GET | `/terminal/server/:serverId/systemd/:service/logs` | Journald logs |
+| POST | `/terminal/server/:serverId/systemd/:service/action` | `{ action: start\|stop\|restart\|enable\|disable }` |
+| GET | `/terminal/server/:serverId/systemd/:service/unit` | Read unit file |
+| PUT | `/terminal/server/:serverId/systemd/:service/unit` | Write unit file |
+| POST | `/terminal/server/:serverId/systemd/:service/unit/verify` | Validate unit file syntax |
+| POST | `/terminal/server/:serverId/systemd/:service/unit/apply` | Write + reload unit |
 
 ---
 

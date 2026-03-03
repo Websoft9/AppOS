@@ -353,11 +353,11 @@ function SettingsPage() {
   const loadExtSettings = useCallback(async () => {
     try {
       const [filesRes, connectRes, proxyRes, dockerRes, llmRes] = await Promise.allSettled([
-        pb.send('/api/ext/settings/space', { method: 'GET' }),
-        pb.send('/api/ext/settings/connect', { method: 'GET' }),
-        pb.send('/api/ext/settings/proxy', { method: 'GET' }),
-        pb.send('/api/ext/settings/docker', { method: 'GET' }),
-        pb.send('/api/ext/settings/llm', { method: 'GET' }),
+        pb.send('/api/settings/workspace/space', { method: 'GET' }),
+        pb.send('/api/settings/workspace/connect', { method: 'GET' }),
+        pb.send('/api/settings/workspace/proxy', { method: 'GET' }),
+        pb.send('/api/settings/workspace/docker', { method: 'GET' }),
+        pb.send('/api/settings/workspace/llm', { method: 'GET' }),
       ])
       if (filesRes.status === 'fulfilled') {
         const q = (filesRes.value as { quota: Partial<SpaceQuota> }).quota ?? {}
@@ -583,7 +583,7 @@ function SettingsPage() {
         .filter(Boolean),
     }
     try {
-      const res = (await pb.send('/api/ext/settings/space', {
+      const res = (await pb.send('/api/settings/workspace/space', {
         method: 'PATCH',
         body: { quota: payload },
       })) as { quota?: Partial<SpaceQuota> }
@@ -612,7 +612,7 @@ function SettingsPage() {
   const saveProxy = async () => {
     setProxySaving(true)
     try {
-      await pb.send('/api/ext/settings/proxy', { method: 'PATCH', body: { network: proxyForm } })
+      await pb.send('/api/settings/workspace/proxy', { method: 'PATCH', body: { network: proxyForm } })
       setProxyNetwork(proxyForm)
       showToast('Proxy settings saved')
     } catch (err) {
@@ -645,7 +645,7 @@ function SettingsPage() {
     setConnectTerminalSaving(true)
     setConnectTerminalErrors({})
     try {
-      await pb.send('/api/ext/settings/connect', {
+      await pb.send('/api/settings/workspace/connect', {
         method: 'PATCH',
         body: {
           terminal: {
@@ -673,7 +673,7 @@ function SettingsPage() {
   const saveDockerMirrors = async () => {
     setMirrorsSaving(true)
     try {
-      await pb.send('/api/ext/settings/docker', {
+      await pb.send('/api/settings/workspace/docker', {
         method: 'PATCH',
         body: {
           mirror: {
@@ -693,7 +693,7 @@ function SettingsPage() {
   const saveDockerRegistries = async () => {
     setRegsSaving(true)
     try {
-      await pb.send('/api/ext/settings/docker', {
+      await pb.send('/api/settings/workspace/docker', {
         method: 'PATCH',
         body: { registries: { items: dockerRegistries } },
       })
@@ -708,7 +708,7 @@ function SettingsPage() {
   const saveLlm = async () => {
     setLlmSaving(true)
     try {
-      await pb.send('/api/ext/settings/llm', {
+      await pb.send('/api/settings/workspace/llm', {
         method: 'PATCH',
         body: { providers: { items: llmItems } },
       })

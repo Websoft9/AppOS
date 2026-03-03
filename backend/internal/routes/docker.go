@@ -209,6 +209,14 @@ func tunnelSSHPortFromServices(raw string) (int, error) {
 
 // handleDockerServers returns all available servers (local + resource store servers)
 // with their online/offline ping status. Pings are done concurrently.
+//
+// @Summary List Docker servers
+// @Description Returns all configured servers with concurrent online/offline ping status. Superuser only.
+// @Tags Servers Operate
+// @Security BearerAuth
+// @Success 200 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Router /api/ext/docker/servers [get]
 func handleDockerServers(e *core.RequestEvent) error {
 	type serverEntry struct {
 		ID     string `json:"id"`
@@ -361,6 +369,18 @@ func bodyBool(body map[string]any, key string) bool {
 
 // ─── Compose Handlers ────────────────────────────────────
 
+// handleComposeLs lists all Docker Compose projects on the target server.
+//
+// @Summary List Compose projects
+// @Description Returns all docker compose projects on the specified server. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/compose/ls [get]
 func handleComposeLs(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -373,6 +393,19 @@ func handleComposeLs(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": client.Host()})
 }
 
+// handleComposeUp deploys a Docker Compose project (docker compose up -d).
+//
+// @Summary Deploy Compose project
+// @Description Runs `docker compose up -d` in the given project directory. Writes audit entry. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Param body body object true "projectDir: absolute path to the compose project"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/compose/up [post]
 func handleComposeUp(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -409,6 +442,19 @@ func handleComposeUp(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
+// handleComposeDown tears down a Docker Compose project (docker compose down).
+//
+// @Summary Tear down Compose project
+// @Description Runs `docker compose down` in the given project directory. Writes audit entry. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Param body body object true "projectDir, removeVolumes (optional bool)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/compose/down [post]
 func handleComposeDown(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -446,6 +492,19 @@ func handleComposeDown(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
+// handleComposeStart starts a stopped Docker Compose project.
+//
+// @Summary Start Compose project
+// @Description Runs `docker compose start` in the given project directory. Writes audit entry. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Param body body object true "projectDir"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/compose/start [post]
 func handleComposeStart(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -482,6 +541,19 @@ func handleComposeStart(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
+// handleComposeStop stops a running Docker Compose project.
+//
+// @Summary Stop Compose project
+// @Description Runs `docker compose stop` in the given project directory. Writes audit entry. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Param body body object true "projectDir"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/compose/stop [post]
 func handleComposeStop(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -518,6 +590,19 @@ func handleComposeStop(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
+// handleComposeRestart restarts a Docker Compose project.
+//
+// @Summary Restart Compose project
+// @Description Runs `docker compose restart` in the given project directory. Writes audit entry. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Param body body object true "projectDir"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/compose/restart [post]
 func handleComposeRestart(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -554,6 +639,20 @@ func handleComposeRestart(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
+// handleComposeLogs returns recent log output for a Docker Compose project.
+//
+// @Summary Get Compose logs
+// @Description Returns recent log output for all services in the compose project. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Param projectDir query string true "absolute path to the compose project"
+// @Param tail query integer false "number of log lines (default 100)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/compose/logs [get]
 func handleComposeLogs(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -574,6 +673,18 @@ func handleComposeLogs(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
+// handleComposeConfigGet reads the docker-compose.yml content for a project (local only).
+//
+// @Summary Get Compose config
+// @Description Returns the raw docker-compose.yml content for the specified project directory (local server only). Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param projectDir query string true "absolute path to the compose project"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/compose/config [get]
 func handleComposeConfigGet(e *core.RequestEvent) error {
 	projectDir := e.Request.URL.Query().Get("projectDir")
 	if projectDir == "" {
@@ -586,6 +697,18 @@ func handleComposeConfigGet(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"content": content})
 }
 
+// handleComposeConfigWrite writes updated content to docker-compose.yml for a project (local only).
+//
+// @Summary Write Compose config
+// @Description Overwrites docker-compose.yml for the specified project directory. Writes audit entry. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param body body object true "projectDir, content"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/compose/config [put]
 func handleComposeConfigWrite(e *core.RequestEvent) error {
 	body, err := readBody(e)
 	if err != nil {
@@ -620,6 +743,18 @@ func handleComposeConfigWrite(e *core.RequestEvent) error {
 
 // ─── Image Handlers ──────────────────────────────────────
 
+// handleImageList returns all Docker images on the target server.
+//
+// @Summary List Docker images
+// @Description Returns all local images on the specified server. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/images [get]
 func handleImageList(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -632,6 +767,17 @@ func handleImageList(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": client.Host()})
 }
 
+// handleImageRegistryStatus checks whether Docker Hub is reachable from the target server.
+//
+// @Summary Check registry status
+// @Description Pings Docker Hub to verify registry connectivity from the target server. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Success 200 {object} map[string]any "available: bool"
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Router /api/ext/docker/images/registry/status [get]
 func handleImageRegistryStatus(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -651,6 +797,20 @@ func handleImageRegistryStatus(e *core.RequestEvent) error {
 	})
 }
 
+// handleImageRegistrySearch searches Docker Hub for images matching a query.
+//
+// @Summary Search image registry
+// @Description Searches Docker Hub for images matching the query string. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Param q query string true "search query"
+// @Param limit query integer false "max results (default 20, max 100)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/images/registry/search [get]
 func handleImageRegistrySearch(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -676,6 +836,19 @@ func handleImageRegistrySearch(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
+// handleImageInspect returns detailed metadata for a Docker image.
+//
+// @Summary Inspect Docker image
+// @Description Returns docker inspect output for the given image ID or name. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Param id path string true "image ID or name"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/images/{id}/inspect [get]
 func handleImageInspect(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -692,6 +865,19 @@ func handleImageInspect(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
+// handleImagePull pulls a Docker image from the registry.
+//
+// @Summary Pull Docker image
+// @Description Pulls the specified image from the registry. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Param body body object true "name: image name/tag"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/images/pull [post]
 func handleImagePull(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -712,6 +898,19 @@ func handleImagePull(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
+// handleImageRemove removes a Docker image by ID or name.
+//
+// @Summary Remove Docker image
+// @Description Removes the specified image from the server. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Param id path string true "image ID or name (supports path wildcard)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/images/{id} [delete]
 func handleImageRemove(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -728,6 +927,18 @@ func handleImageRemove(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
+// handleImagePrune removes all unused Docker images.
+//
+// @Summary Prune unused images
+// @Description Removes all dangling and unused Docker images. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/images/prune [post]
 func handleImagePrune(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -742,6 +953,18 @@ func handleImagePrune(e *core.RequestEvent) error {
 
 // ─── Container Handlers ──────────────────────────────────
 
+// handleContainerList returns all Docker containers on the target server.
+//
+// @Summary List containers
+// @Description Returns all containers (running and stopped) on the specified server. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/containers [get]
 func handleContainerList(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -754,6 +977,19 @@ func handleContainerList(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": client.Host()})
 }
 
+// handleContainerInspect returns detailed metadata for a container.
+//
+// @Summary Inspect container
+// @Description Returns docker inspect output for the given container ID. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Param id path string true "container ID or name"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/containers/{id} [get]
 func handleContainerInspect(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -767,6 +1003,18 @@ func handleContainerInspect(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
+// handleContainerStats returns real-time resource usage stats for all running containers.
+//
+// @Summary Get container stats
+// @Description Returns CPU/memory/network usage for all running containers. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/containers/stats [get]
 func handleContainerStats(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -779,6 +1027,20 @@ func handleContainerStats(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": client.Host()})
 }
 
+// handleContainerLogs returns recent log output for a container.
+//
+// @Summary Get container logs
+// @Description Returns recent stdout/stderr output for the given container. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Param id path string true "container ID or name"
+// @Param tail query integer false "number of log lines (default 200)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/containers/{id}/logs [get]
 func handleContainerLogs(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -802,6 +1064,19 @@ func handleContainerLogs(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
+// handleContainerStart starts a stopped Docker container.
+//
+// @Summary Start container
+// @Description Starts the specified container. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Param id path string true "container ID or name"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/containers/{id}/start [post]
 func handleContainerStart(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -815,6 +1090,19 @@ func handleContainerStart(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
+// handleContainerStop stops a running Docker container.
+//
+// @Summary Stop container
+// @Description Stops the specified container. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Param id path string true "container ID or name"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/containers/{id}/stop [post]
 func handleContainerStop(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -828,6 +1116,19 @@ func handleContainerStop(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
+// handleContainerRestart restarts a Docker container.
+//
+// @Summary Restart container
+// @Description Restarts the specified container. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Param id path string true "container ID or name"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/containers/{id}/restart [post]
 func handleContainerRestart(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -841,6 +1142,20 @@ func handleContainerRestart(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
+// handleContainerRemove removes a Docker container.
+//
+// @Summary Remove container
+// @Description Removes the specified container. Use ?force=true to force-remove a running container. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Param id path string true "container ID or name"
+// @Param force query boolean false "force remove a running container"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/containers/{id} [delete]
 func handleContainerRemove(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -858,6 +1173,18 @@ func handleContainerRemove(e *core.RequestEvent) error {
 
 // ─── Network Handlers ────────────────────────────────────
 
+// handleNetworkList returns all Docker networks on the target server.
+//
+// @Summary List networks
+// @Description Returns all Docker networks on the specified server. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/networks [get]
 func handleNetworkList(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -870,6 +1197,19 @@ func handleNetworkList(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": client.Host()})
 }
 
+// handleNetworkCreate creates a new Docker network.
+//
+// @Summary Create network
+// @Description Creates a new Docker user-defined network. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Param body body object true "name: network name"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/networks [post]
 func handleNetworkCreate(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -890,6 +1230,19 @@ func handleNetworkCreate(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
+// handleNetworkRemove removes a Docker network by ID.
+//
+// @Summary Remove network
+// @Description Removes the specified Docker network. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Param id path string true "network ID or name"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/networks/{id} [delete]
 func handleNetworkRemove(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -905,6 +1258,18 @@ func handleNetworkRemove(e *core.RequestEvent) error {
 
 // ─── Volume Handlers ─────────────────────────────────────
 
+// handleVolumeList returns all Docker volumes on the target server.
+//
+// @Summary List volumes
+// @Description Returns all Docker volumes on the specified server. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/volumes [get]
 func handleVolumeList(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -917,6 +1282,19 @@ func handleVolumeList(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": client.Host()})
 }
 
+// handleVolumeInspect returns detailed metadata for a Docker volume.
+//
+// @Summary Inspect volume
+// @Description Returns docker inspect output for the given volume. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Param id path string true "volume name"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/volumes/{id}/inspect [get]
 func handleVolumeInspect(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -933,6 +1311,19 @@ func handleVolumeInspect(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
+// handleVolumeRemove removes a Docker volume by name.
+//
+// @Summary Remove volume
+// @Description Removes the specified Docker volume. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Param id path string true "volume name"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/volumes/{id} [delete]
 func handleVolumeRemove(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -946,6 +1337,18 @@ func handleVolumeRemove(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
+// handleVolumePrune removes all unused Docker volumes.
+//
+// @Summary Prune unused volumes
+// @Description Removes all unused Docker volumes. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/docker/volumes/prune [post]
 func handleVolumePrune(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {
@@ -960,6 +1363,18 @@ func handleVolumePrune(e *core.RequestEvent) error {
 
 // ─── Exec Handler ────────────────────────────────────────
 
+// handleDockerExec runs an arbitrary Docker CLI command on the target server.
+//
+// @Summary Run arbitrary Docker command
+// @Description Executes a docker CLI command string on the specified server. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param server_id query string false "server ID (omit for local)"
+// @Param body body object true "command: docker command string (e.g. \"info\")"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Router /api/ext/docker/exec [post]
 func handleDockerExec(e *core.RequestEvent) error {
 	client, err := getDockerClient(e)
 	if err != nil {

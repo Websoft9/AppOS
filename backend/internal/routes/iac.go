@@ -79,6 +79,18 @@ type listResponse struct {
 	Entries []fileEntry `json:"entries"`
 }
 
+// handleFileList lists files and directories under a given IaC path.
+//
+// @Summary List IaC directory
+// @Description Returns a sorted directory listing under /appos/data (dirs first). Superuser only.
+// @Tags IaC
+// @Security BearerAuth
+// @Param path query string false "relative path (e.g. apps/myapp); defaults to root"
+// @Success 200 {object} listResponse
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Router /api/ext/iac [get]
 func handleFileList(e *core.RequestEvent) error {
 	rel := e.Request.URL.Query().Get("path")
 
@@ -145,6 +157,20 @@ type contentResponse struct {
 	ModifiedAt time.Time `json:"modified_at"`
 }
 
+// handleFileRead reads the text content of a single IaC file.
+//
+// @Summary Read IaC file content
+// @Description Returns the UTF-8 text content of a file under /appos/data. Binary files are rejected. Superuser only.
+// @Tags IaC
+// @Security BearerAuth
+// @Param path query string true "relative file path (e.g. apps/myapp/docker-compose.yml)"
+// @Success 200 {object} contentResponse
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 413 {object} map[string]any
+// @Failure 415 {object} map[string]any
+// @Router /api/ext/iac/content [get]
 func handleFileRead(e *core.RequestEvent) error {
 	rel := e.Request.URL.Query().Get("path")
 
@@ -202,6 +228,18 @@ type createRequest struct {
 	Content string `json:"content"` // optional initial content for files
 }
 
+// handleFileCreate creates a new file or directory under an IaC root.
+//
+// @Summary Create IaC file or directory
+// @Description Creates a file (with optional initial content) or an empty directory. Superuser only.
+// @Tags IaC
+// @Security BearerAuth
+// @Param body body createRequest true "path, type (file|dir), content (optional)"
+// @Success 201 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 409 {object} map[string]any "already exists"
+// @Router /api/ext/iac [post]
 func handleFileCreate(e *core.RequestEvent) error {
 	var req createRequest
 	if err := e.BindBody(&req); err != nil {
@@ -248,6 +286,18 @@ type updateRequest struct {
 	Content string `json:"content"`
 }
 
+// handleFileUpdate overwrites the content of an existing IaC file.
+//
+// @Summary Update IaC file content
+// @Description Overwrites the text content of an existing file. Superuser only.
+// @Tags IaC
+// @Security BearerAuth
+// @Param body body updateRequest true "path, content"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Router /api/ext/iac/content [put]
 func handleFileUpdate(e *core.RequestEvent) error {
 	var req updateRequest
 	if err := e.BindBody(&req); err != nil {
@@ -280,6 +330,19 @@ func handleFileUpdate(e *core.RequestEvent) error {
 
 // ─── DELETE /api/ext/iac?path=<rel>&recursive=true ──────────────────────────
 
+// handleFileDelete deletes a file or directory under an IaC root.
+//
+// @Summary Delete IaC file or directory
+// @Description Deletes a file or directory. Directories require recursive=true. Root directories cannot be deleted. Superuser only.
+// @Tags IaC
+// @Security BearerAuth
+// @Param path query string true "relative path to delete"
+// @Param recursive query boolean false "set true to delete a non-empty directory"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Router /api/ext/iac [delete]
 func handleFileDelete(e *core.RequestEvent) error {
 	rel := e.Request.URL.Query().Get("path")
 	recursive := e.Request.URL.Query().Get("recursive") == "true"
@@ -326,6 +389,18 @@ type moveRequest struct {
 	To   string `json:"to"`
 }
 
+// handleFileMove moves or renames a file or directory within the IaC workspace.
+//
+// @Summary Move / rename IaC path
+// @Description Moves a file or directory from one path to another within /appos/data. Superuser only.
+// @Tags IaC
+// @Security BearerAuth
+// @Param body body moveRequest true "from, to (relative paths)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Router /api/ext/iac/move [post]
 func handleFileMove(e *core.RequestEvent) error {
 	var req moveRequest
 	if err := e.BindBody(&req); err != nil {
@@ -372,6 +447,20 @@ func handleFileMove(e *core.RequestEvent) error {
 // ─── POST /api/ext/iac/upload ───────────────────────────────────────────────
 // multipart/form-data fields: file (file), path (string, target directory)
 
+// handleFileUpload accepts a multipart file upload and saves it into an IaC directory.
+//
+// @Summary Upload file to IaC workspace
+// @Description Accepts a multipart upload and saves the file to the specified directory under /appos/data. ZIP archives are extracted. Superuser only.
+// @Tags IaC
+// @Security BearerAuth
+// @Param file formData file true "file to upload"
+// @Param path formData string true "target directory (relative, e.g. apps/myapp)"
+// @Success 201 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 413 {object} map[string]any
+// @Failure 415 {object} map[string]any
+// @Router /api/ext/iac/upload [post]
 func handleFileUpload(e *core.RequestEvent) error {
 	cfg, _ := settings.GetGroup(e.App, "files", "limits", defaultFileSettings)
 	maxSizeMB := int64(settings.Int(cfg, "maxSizeMB", 10))
@@ -470,6 +559,18 @@ func handleFileUpload(e *core.RequestEvent) error {
 
 // ─── GET /api/ext/iac/download?path=<rel> ───────────────────────────────────
 
+// handleFileDownload streams a single IaC file as an attachment download.
+//
+// @Summary Download IaC file
+// @Description Streams the raw file content as an attachment (Content-Disposition: attachment). Superuser only.
+// @Tags IaC
+// @Security BearerAuth
+// @Param path query string true "relative file path"
+// @Success 200 {string} string "file content"
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Router /api/ext/iac/download [get]
 func handleFileDownload(e *core.RequestEvent) error {
 	rel := e.Request.URL.Query().Get("path")
 
@@ -523,9 +624,18 @@ func rootOf(rel string) string {
 	return parts[0]
 }
 
-// ─── GET /api/ext/iac/library?path=<rel> ────────────────────────────────────
-// Read-only directory listing under /appos/library/.
-// Allowed roots: "apps" only. Used by "Based on existing app" custom-app flow.
+// handleLibraryList lists directories and files under the read-only app library.
+//
+// @Summary List library directory
+// @Description Returns a directory listing under /appos/library (read-only). Used for custom-app template pre-fill. Superuser only.
+// @Tags IaC
+// @Security BearerAuth
+// @Param path query string false "relative path under apps/ (e.g. myapp)"
+// @Success 200 {object} listResponse
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Router /api/ext/iac/library [get]
 func handleLibraryList(e *core.RequestEvent) error {
 	rel := e.Request.URL.Query().Get("path")
 
@@ -582,7 +692,19 @@ func handleLibraryList(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, result)
 }
 
-// ─── GET /api/ext/iac/library/content?path=<rel> ────────────────────────────
+// handleLibraryRead reads the text content of a library file.
+//
+// @Summary Read library file content
+// @Description Returns the text content of a read-only library file under /appos/library. Superuser only.
+// @Tags IaC
+// @Security BearerAuth
+// @Param path query string true "relative file path (e.g. apps/wordpress/docker-compose.yml)"
+// @Success 200 {object} contentResponse
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 415 {object} map[string]any
+// @Router /api/ext/iac/library/content [get]
 // Read-only file content from /appos/library/.
 func handleLibraryRead(e *core.RequestEvent) error {
 	rel := e.Request.URL.Query().Get("path")
@@ -631,7 +753,18 @@ func handleLibraryRead(e *core.RequestEvent) error {
 	})
 }
 
-// ─── POST /api/ext/iac/library/copy ─────────────────────────────────────────
+// handleLibraryCopy copies a library app template into the IaC workspace templates directory.
+//
+// @Summary Copy library app to workspace
+// @Description Copies /appos/library/apps/{sourceKey}/ to /appos/data/templates/apps/{destKey}/. Superuser only.
+// @Tags IaC
+// @Security BearerAuth
+// @Param body body object true "sourceKey (library app name), destKey (optional, defaults to sourceKey)"
+// @Success 200 {object} map[string]any "source, destination"
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Router /api/ext/iac/library/copy [post]
 // Copy library/apps/{sourceKey}/ → data/templates/apps/{destKey}/.
 // Body: {"sourceKey": "wordpress", "destKey": "my-wordpress"}
 func handleLibraryCopy(e *core.RequestEvent) error {

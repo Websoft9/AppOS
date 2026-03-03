@@ -34,6 +34,16 @@ func newSupervisorClient() *supervisor.Client {
 	return supervisor.NewClient(supervisor.DefaultConfig())
 }
 
+// handleServiceList returns all supervisord programs with their status and resource usage.
+//
+// @Summary List services
+// @Description Returns all supervisord programs with runtime status (RUNNING/STOPPED/etc.) and CPU/memory usage. Superuser only.
+// @Tags Runtime Operations
+// @Security BearerAuth
+// @Success 200 {object} map[string]any "processes array + summary stats"
+// @Failure 401 {object} map[string]any
+// @Failure 503 {object} map[string]any "supervisord unavailable"
+// @Router /api/ext/services [get]
 func handleServiceList(e *core.RequestEvent) error {
 	client := newSupervisorClient()
 
@@ -93,6 +103,19 @@ func handleServiceList(e *core.RequestEvent) error {
 	})
 }
 
+// handleServiceStart starts a supervisord program by name. Idempotent: already-running is not an error.
+//
+// @Summary Start service
+// @Description Starts the named supervisord program. Already-running is treated as success. Superuser only.
+// @Tags Runtime Operations
+// @Security BearerAuth
+// @Param name path string true "program name"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/services/{name}/start [post]
 func handleServiceStart(e *core.RequestEvent) error {
 	name := e.Request.PathValue("name")
 	if name == "" {
@@ -128,6 +151,19 @@ func handleServiceStart(e *core.RequestEvent) error {
 	})
 }
 
+// handleServiceStop stops a supervisord program by name. Idempotent: already-stopped is not an error.
+//
+// @Summary Stop service
+// @Description Stops the named supervisord program. Already-stopped is treated as success. Superuser only.
+// @Tags Runtime Operations
+// @Security BearerAuth
+// @Param name path string true "program name"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/services/{name}/stop [post]
 func handleServiceStop(e *core.RequestEvent) error {
 	name := e.Request.PathValue("name")
 	if name == "" {
@@ -163,6 +199,19 @@ func handleServiceStop(e *core.RequestEvent) error {
 	})
 }
 
+// handleServiceRestart restarts a supervisord program by name.
+//
+// @Summary Restart service
+// @Description Restarts the named supervisord program. Writes an audit entry. Superuser only.
+// @Tags Runtime Operations
+// @Security BearerAuth
+// @Param name path string true "program name"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/services/{name}/restart [post]
 func handleServiceRestart(e *core.RequestEvent) error {
 	name := e.Request.PathValue("name")
 	if name == "" {
@@ -207,6 +256,21 @@ func handleServiceRestart(e *core.RequestEvent) error {
 	})
 }
 
+// handleServiceLogs returns recent log output for a supervisord program.
+//
+// @Summary Get service logs
+// @Description Returns recent stdout or stderr log output for the named supervisord program. Superuser only.
+// @Tags Runtime Operations
+// @Security BearerAuth
+// @Param name path string true "program name"
+// @Param type query string false "log stream" Enums(stdout, stderr)
+// @Param length query integer false "max bytes to return (default 65536)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/services/{name}/logs [get]
 func handleServiceLogs(e *core.RequestEvent) error {
 	name := e.Request.PathValue("name")
 	if name == "" {

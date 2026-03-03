@@ -33,6 +33,17 @@ func registerBackupRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 // No pending audit is written because there is no update path once the task
 // is handed off to the worker — the worker will write success/failed directly
 // when the operation is implemented.
+//
+// @Summary Enqueue backup creation
+// @Description Enqueues an asynchronous task to create a named backup of the platform state. Superuser only.
+// @Tags Runtime Operations
+// @Security BearerAuth
+// @Param body body object true "name: backup filename (without extension)"
+// @Success 202 {object} map[string]any "taskId: asynq task ID"
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 503 {object} map[string]any
+// @Router /api/ext/backup/create [post]
 func handleBackupCreate(e *core.RequestEvent) error {
 	body, err := readBody(e)
 	if err != nil {
@@ -78,6 +89,17 @@ func handleBackupCreate(e *core.RequestEvent) error {
 }
 
 // handleBackupRestore runs a backup restore synchronously and writes the audit result.
+//
+// @Summary Restore from backup
+// @Description Restores platform state from a named backup synchronously. Superuser only.
+// @Tags Runtime Operations
+// @Security BearerAuth
+// @Param body body object true "name: backup filename to restore"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/backup/restore [post]
 func handleBackupRestore(e *core.RequestEvent) error {
 	body, err := readBody(e)
 	if err != nil {
@@ -115,6 +137,16 @@ func handleBackupRestore(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"message": "ok"})
 }
 
+// handleBackupList returns a list of available backups from storage.
+//
+// @Summary List available backups
+// @Description Returns all available backup files from platform storage. Superuser only.
+// @Tags Runtime Operations
+// @Security BearerAuth
+// @Success 200 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/backup/list [get]
 func handleBackupList(e *core.RequestEvent) error {
 	// TODO: list available backups from storage
 	return e.JSON(http.StatusOK, map[string]any{

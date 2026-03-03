@@ -24,6 +24,22 @@ func registerUserRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	users.POST("/{collection}/{id}/reset-password", handleAdminResetPassword)
 }
 
+// handleAdminResetPassword force-resets a user's password without requiring the current password.
+// Works for both regular users and superusers. All existing tokens for the record are invalidated.
+//
+// @Summary Admin reset user password
+// @Description Force-resets a user's password (no current password required). Invalidates all existing tokens. Superuser only.
+// @Tags Users
+// @Security BearerAuth
+// @Param collection path string true "auth collection" Enums(users, _superusers)
+// @Param id path string true "record ID"
+// @Param body body object true "password and passwordConfirm"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/ext/users/{collection}/{id}/reset-password [post]
 func handleAdminResetPassword(e *core.RequestEvent) error {
 	collection := e.Request.PathValue("collection")
 	id := e.Request.PathValue("id")

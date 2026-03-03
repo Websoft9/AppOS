@@ -21,8 +21,8 @@ Add Connect settings card under App Settings:
 ## Acceptance Criteria
 
 - AC1: Settings page shows a new `Connect` card with terminal group fields `idleTimeoutSeconds` and `maxConnections`.
-- AC2: Data loads from `GET /api/ext/settings/connect` with fallback defaults when group not found.
-- AC3: Save uses `PATCH /api/ext/settings/connect` with group payload `{ terminal: { idleTimeoutSeconds, maxConnections } }`.
+- AC2: Data loads from `GET /api/settings/workspace/connect` with fallback defaults when group not found.
+- AC3: Save uses `PATCH /api/settings/workspace/connect` with group payload `{ terminal: { idleTimeoutSeconds, maxConnections } }`.
 - AC4: `maxConnections` default is `0` (unlimited).
 - AC5: `idleTimeoutSeconds` validates as integer and must be `>= 60`.
 - AC6: Save success shows toast and persists after page refresh.
@@ -64,7 +64,7 @@ These items are backlog only and should not block current Story 13.7 completion.
 
 - Added Connect Terminal settings card in superuser Settings page with fields `idleTimeoutSeconds` and `maxConnections`.
 - Added client-side validation (`idleTimeoutSeconds >= 60`, `maxConnections >= 0`, integer semantics).
-- Added save handler via `PATCH /api/ext/settings/connect` and load fallback behavior.
+- Added save handler via `PATCH /api/settings/workspace/connect` and load fallback behavior.
 - Integrated `maxConnections` runtime gate into Connect multi-tab connection flow (`0` means unlimited).
 - Added backend settings contract support for `connect/terminal` (allowlist + fallback defaults + migration seed).
 - Integrated `idleTimeoutSeconds` runtime idle-close hook in Connect page with fixed safe-exit flow.

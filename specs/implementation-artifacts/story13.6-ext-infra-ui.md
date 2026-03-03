@@ -14,10 +14,10 @@ so that I can configure infrastructure credentials without SSH access or code ch
 ## Acceptance Criteria
 
 - AC1: Three new cards appear in the "App Settings" section below Space Quota: "Proxy", "Docker", "LLM Providers".
-- AC2: Each card loads current values from its respective `GET /api/ext/settings/{module}` on page mount.
+- AC2: Each card loads current values from its respective `GET /api/settings/workspace/{module}` on page mount.
 - AC3: Password / API key fields display as `type="password"` and are pre-filled with `"***"` when a value is stored; submitting unchanged `"***"` preserves the existing secret.
 - AC4: Docker Registries and LLM Providers show an editable list — each item as a row with delete button; "Add" button appends a new empty row; Save sends the entire list.
-- AC5: Save calls `PATCH /api/ext/settings/{module}` with the full group object; success shows toast.
+- AC5: Save calls `PATCH /api/settings/workspace/{module}` with the full group object; success shows toast.
 - AC6: API errors (`400`, `422`) shown as specific inline messages.
 
 ## Tasks / Subtasks
@@ -25,7 +25,7 @@ so that I can configure infrastructure credentials without SSH access or code ch
 - [x] Task 1: Proxy card (AC1–AC3, AC5)
   - [x] 1.1 All fields implemented (httpProxy, httpsProxy, noProxy, username, password)
   - [x] 1.2 Password field pre-filled with `***` placeholder when stored value is masked
-  - [x] 1.3 Save: PATCH /api/ext/settings/proxy
+  - [x] 1.3 Save: PATCH /api/settings/workspace/proxy
 
 - [x] Task 2: Docker card (AC1–AC5)
   - [x] 2.1 Mirror sub-section with comma-separated inputs for mirrors and insecureRegistries
@@ -34,7 +34,7 @@ so that I can configure infrastructure credentials without SSH access or code ch
 
 - [x] Task 3: LLM Providers card (AC1–AC5)
   - [x] 3.1 List of {name, endpoint, apiKey} rows with Add/Delete buttons
-  - [x] 3.2 Save: PATCH /api/ext/settings/llm
+  - [x] 3.2 Save: PATCH /api/settings/workspace/llm
 
 ## Dev Notes
 

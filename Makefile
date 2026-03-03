@@ -1,6 +1,6 @@
 .PHONY: help install tidy build run test lint fmt check sec scan sbom \
 	image start stop restart logs stats delete rm kill-port redo \
-	openapi-gen openapi-check
+	openapi-gen openapi-merge openapi-check openapi-sync
 
 # ============================================================
 # Default values
@@ -36,7 +36,9 @@ help:
 	@echo "  make fmt                  Format code (gofmt, prettier)"
 	@echo "  make check                Format + lint in one step (local dev)"
 	@echo "  make openapi-gen          Auto-generate OpenAPI spec skeleton from route source"
+	@echo "  make openapi-merge        Merge ext-api.yaml + native-api.yaml -> api.yaml"
 	@echo "  make openapi-check        Assert all /api/ext routes are in the spec (CI gate)"
+	@echo "  make openapi-sync         Generate + validate OpenAPI in one command"
 	@echo "  make sec                  Security scan (govulncheck, npm audit, gitleaks)"
 	@echo "  make scan                 Container image scan (trivy, HIGH/CRITICAL)"
 	@echo "  make sbom                 Generate SBOM → sbom.spdx.json (syft)"
@@ -140,7 +142,7 @@ tidy:
 build:
 ifeq ($(ARG2),backend)
 	@echo "Building backend (static binary, no dependencies)..."
-	@$(MAKE) openapi-gen
+	@$(MAKE) openapi-sync
 	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
 	@echo "✓ Backend built → backend/appos (statically linked)"
 else ifeq ($(ARG2),dashboard)
@@ -151,7 +153,7 @@ else ifeq ($(ARG2),library)
 	@echo "'make build library' is no longer needed - library is downloaded during Docker build (cached)"
 else
 	@echo "Building all..."
-	@$(MAKE) openapi-gen
+	@$(MAKE) openapi-sync
 	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
 	@echo "✓ Backend built → backend/appos"
 	@cd dashboard && npm run build
@@ -183,11 +185,11 @@ test:
 	@echo "Running tests..."
 	@if [ -f "backend/go.mod" ]; then \
 		echo "→ Go tests..."; \
-		cd backend && go test ./... -v || true; \
+		cd backend && go test ./... -v; \
 	fi
 	@if [ -f "dashboard/package.json" ]; then \
 		echo "→ JS tests..."; \
-		cd dashboard && npm test 2>/dev/null || true; \
+		cd dashboard && npm test 2>/dev/null; \
 	fi
 	@echo "✓ Tests completed"
 
@@ -207,13 +209,25 @@ lint:
 	@echo "✓ Linting completed"
 
 openapi-gen:
-	@echo "Generating OpenAPI spec skeleton from route source..."
-	@go run backend/cmd/gen-openapi/main.go
+	@echo "Generating OpenAPI ext spec from route source..."
+	@cd backend && go run ./cmd/openapi gen
 	@echo "→ spec: backend/docs/openapi/ext-api.yaml"
+
+openapi-merge:
+	@echo "Merging OpenAPI specs (ext + native)..."
+	@cd backend && go run ./cmd/openapi merge
+	@echo "→ spec: backend/docs/openapi/api.yaml"
 
 openapi-check:
 	@echo "Checking all /api/ext routes are covered by OpenAPI spec..."
 	@cd backend && go test ./internal/routes/ -run TestAllExtRoutesCoveredByOpenAPISpec -v
+
+openapi-sync:
+	@echo "Syncing OpenAPI spec (generate + merge + validate)..."
+	@$(MAKE) openapi-gen
+	@$(MAKE) openapi-merge
+	@$(MAKE) openapi-check
+	@echo "✓ OpenAPI sync completed"
 
 fmt:
 	@echo "Formatting code..."
