@@ -1,82 +1,44 @@
-# Epic 15: Connect – Terminal Ops
+# Epic 15: Connect – Terminal Framework
 
-**Module**: Connect (Part 1) | **Status**: In Progress | **Priority**: P1 | **Depends on**: Epic 1, 3, 8, 13
+**Module**: Connect | **Status**: In Progress | **Priority**: P1 | **Depends on**: Epic 1, 3, 13
 
 ## Overview
 
-Browser-based server operations with a unified Connect workspace: terminal command execution, SFTP file management, and Docker container terminal. Credentials are sourced exclusively from the Resource Store (`servers` collection); no credential duplication.
+Provides the generic, resource-agnostic Terminal UI framework for the Connect workspace. This epic owns the shared connector abstraction, the multi-tab connection workspace layout, and the embeddable `<TerminalPanel>` component. It does **not** implement any specific resource type — those live in their own epics (Epic 20 for Servers, future epics for databases, cloud, etc.).
 
 ---
 
-## Change Request (2026-03-02)
+## Scope Boundaries
 
-Terminal UI enters optimization phase with the following targets:
-
-1. Support multiple active server connections with vertical tab list and collapse/expand behavior.
-2. Add location navigation in Terminal header: `Connect > Servers`.
-3. Replace direct disconnect with fixed 2-second safe-exit experience ("Safely disconnecting") before session close.
-4. In split view (Docker/Files + Terminal), terminal shell area must support horizontal scrolling and keep visual focus at bottom for current active tab.
-5. Replace current split icon usage with two-pane icon semantics; split preset menu includes: `30/70`, `0/100` (hide Terminal shell), `50/50`, `70/30`, `reset`; preset rows are text-only (no per-row icon).
-6. Mirror the safe-exit pattern on connect: show a minimum 2-second "Establishing secure connection..." feedback before the terminal tab opens, even when the connectivity check completes faster.
-
-Connect settings ownership clarification:
-
-- Terminal idle timeout
-- Max connections (default: `0`, means unlimited)
-
-These settings are managed under Epic 13 (Settings Management), not Epic 15.
-
----
-
-## Optimization Snapshot (2026-03-02)
-
-The Connect Terminal workspace has completed a major UX stabilization pass in this chat cycle:
-
-- Multi-connection rail now supports dynamic width, improved list-item affordance, and reduced visual redundancy.
-- `+ New` action is simplified for creating sessions; repeated connection to an already-connected server now requires explicit confirmation.
-- Switching active terminal tabs no longer forces WebSocket reconnect.
-- Idle timer is refreshed on active-session switch.
-- Files / Docker side panel state is preserved across terminal-tab switching (same server context).
-- Server-bound side-panel cache is pruned automatically when all tabs for that server are closed.
-- Docker Containers list avoids forced oversized viewport behavior for small datasets.
-- Connect flow enforces a minimum 2-second "Establishing secure connection..." feedback (symmetric with the disconnect safe-exit experience).
-
----
-
-## Proposed Next Improvements (Backlog)
-
-Epic 15 keeps only cross-story themes here to avoid duplication with story-level specs:
-
-- Session reliability and status semantics
-- Session restore and quick-return UX
-- Side-panel persistence and bounded cache strategy
-- Docker tab scroll behavior consistency
-- Keyboard accessibility for connect workflows
-
-Detailed implementation candidates are maintained in Story 15.2 follow-up section:
-`specs/implementation-artifacts/story15.2-terminal-ui.md`.
+| In scope | Out of scope |
+|----------|-------------|
+| Connector / Session interfaces | SSH, SFTP, Docker Exec implementations (→ Epic 20) |
+| ConnectError classification system | Resource-specific error handling |
+| Connect page layout & routing | Server-specific side panels |
+| `<TerminalPanel>` generic component | Server Registry, Server Ops APIs |
+| UX conventions (establish, disconnect, split, breadcrumb) | Terminal settings (→ Epic 13) |
+| Security principles (Zero Trust) | Per-resource permission models |
 
 ---
 
 ## Architecture
 
 ```
-Resource Store (servers)
+Resource Store (any collection: servers, databases, …)
         ↓
-Connector Layer  (backend/internal/terminal/)
+Connector Interface  (backend/internal/servers/)
         ↓
-WebSocket / REST  (PocketBase custom route)
+WebSocket / REST  (PocketBase custom route, resource-scoped)
         ↓
-React Components  (xterm.js + file manager)
+<TerminalPanel>  (generic React component, resource-agnostic)
 ```
 
-**Connectors:**
-- `SSHConnector` – SSH session + PTY relay
-- `SFTPConnector` – reuses SSH connection, REST-based file operations
-- `DockerExecConnector` – Docker socket exec, PTY relay
+### Connector Interface
 
-**Connector interface** – for streaming (terminal) connectors only; reusable by Epic 16, 17:
+Defined in `backend/internal/servers/connector.go`. All resource-specific connectors must implement these interfaces.
+
 ```go
+// Streaming connectors (PTY / shell)
 type Session interface {
     Write(p []byte) (n int, err error)
     Read(p []byte) (n int, err error)
@@ -89,146 +51,140 @@ type Connector interface {
 }
 ```
 
-`SFTPConnector` does **not** implement this interface – it is a stateless REST service that opens a short-lived SFTP session per request (reusing the SSH transport when possible).
+Non-streaming connectors (e.g. SFTP) do not implement `Connector` — they open short-lived transport connections per request.
 
-**Tech Stack:**
+### ConnectError Classification
 
-| Layer | Tech |
-|-------|------|
-| Terminal render | xterm.js + xterm-addon-fit |
-| WebSocket | PocketBase custom route |
-| PTY | `creack/pty` |
-| SSH | `golang.org/x/crypto/ssh` |
-| SFTP | `github.com/pkg/sftp` |
+`ConnectError` is the canonical error type returned by all `Connector.Connect()` implementations. Categories are defined in `connector.go`; individual connectors map their native errors into these categories.
 
-**Go structure:**
+```go
+type ConnectErrorCategory string
+
+const (
+    ErrCatAuthFailed         ConnectErrorCategory = "auth_failed"
+    ErrCatNetworkUnreachable ConnectErrorCategory = "network_unreachable"
+    ErrCatConnectionRefused  ConnectErrorCategory = "connection_refused"
+    ErrCatCredentialInvalid  ConnectErrorCategory = "credential_invalid"
+    ErrCatSessionFailed      ConnectErrorCategory = "session_failed"
+    ErrCatServerDisconnected ConnectErrorCategory = "server_disconnected"
+)
+
+type ConnectError struct {
+    Category ConnectErrorCategory
+    Message  string
+    Cause    error
+}
 ```
-backend/internal/terminal/
-  connector.go      # Connector & Session interfaces
-  ssh.go            # SSHConnector (PTY, relay)
-  sftp.go           # SFTPConnector
-  docker_exec.go    # DockerExecConnector
-  session.go        # session lifecycle, timeout, cleanup
-backend/internal/routes/terminal.go
+
+WebSocket control frame schema (JSON, prefixed `0x00`):
+
+```json
+{ "type": "error", "category": "<ConnectErrorCategory>", "message": "<human-readable>" }
 ```
+
+REST connectivity responses include `"category"` and `"reason"` fields when `"status": "offline"`.
 
 ---
 
-## Backend API
+## Frontend
 
-All routes under `/api/ext/terminal/`, require `RequireSuperuserAuth()`.
+### Routing
 
-API groups (OpenAPI tags):
+```
+/connect                              → resource selector
+/connect/<resource-type>/:resourceId  → resource-specific workspace (defined per resource epic)
+```
 
-| Tag | Scope |
-|-----|-------|
-| `Terminal SSH` | SSH PTY session |
-| `Terminal Docker` | Docker exec PTY session |
-| `Terminal Files` | SFTP-backed file management (protocol-transparent) |
-| `Server Ops` | Server lifecycle, ports, systemd |
-| `Terminal Database` | _(future)_ DB CLI sessions and query execution |
-| `Terminal Cloud` | _(future)_ Cloud provider CLI sessions |
-| `Terminal API` | _(future)_ HTTP API Explorer |
+### Connect Page Layout
 
-### Terminal SSH
+Multi-connection workspace with a collapsible vertical tab rail, terminal pane, and optional side panel:
 
-| Method | Path | Description |
-|--------|------|-------------|
-| WS | `/terminal/ssh/:serverId` | Open SSH PTY session |
+```
+┌──────────────────────────────────────────────────────────┐
+│ Connect > [Resource Type]         [Tab1][Tab2][Split][⛶] │
+├───────────┬──────────────────────────┬───────────────────┤
+│ [+ New]   │                          │                   │
+│ ● conn-1  │   <TerminalPanel>        │  Side Panel       │
+│ ○ conn-2  │   (active tab content)   │  (optional)       │
+│           │                          │                   │
+└───────────┴──────────────────────────┴───────────────────┘
+```
 
-**WebSocket protocol:**
-- Raw bytes: stdin (client→server), stdout/stderr (server→client)
-- Control frames (JSON, prefixed `0x00`): `resize`, `error`, `close`
+**Tab rail**: vertical, collapsible, supports `active` / `idle` / `error` states per tab.
 
-Resize is handled via WebSocket control frame only – no separate REST endpoint.
+**Location breadcrumb**: `Connect > [Resource Type]` in the page header.
 
-### Terminal Docker
+**Split presets** (text-only rows, no per-row icon):
+- `30/70` — side panel narrow
+- `50/50` — equal split
+- `70/30` — side panel wide
+- `0/100` — hide terminal shell
+- `reset` — restore last manual split
 
-| Method | Path | Description |
-|--------|------|-------------|
-| WS | `/terminal/docker/:containerId` | `?shell=/bin/sh` — Docker exec PTY |
+### UX Conventions
 
-Resize via WebSocket control frame (same protocol as SSH).
+**Connect flow (minimum 2 s feedback)**
+Show "Establishing secure connection…" spinner for at least 2 seconds, even when the connectivity check completes faster.
 
-### Terminal Files
+**Disconnect flow (minimum 2 s feedback)**
+Replace disconnect action with a 2-second "Safely disconnecting…" phase before session teardown.
 
-Backed by SFTP over the server's SSH connection. Path prefix is protocol-transparent; future connectors (container filesystem, cloud storage) will share the same surface.
+**Idle indicator**: inactive tabs show a visual idle badge; timer defined in Epic 13 settings.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/terminal/sftp/:serverId/list` | List directory (name, type, size, mode, modified_at) |
-| GET | `/terminal/sftp/:serverId/search` | Search files by name pattern |
-| GET | `/terminal/sftp/:serverId/constraints` | Upload/permission constraints for this server |
-| GET | `/terminal/sftp/:serverId/stat` | Stat a single path |
-| GET | `/terminal/sftp/:serverId/download` | Stream download |
-| POST | `/terminal/sftp/:serverId/upload` | Multipart upload |
-| POST | `/terminal/sftp/:serverId/mkdir` | `{ path }` |
-| POST | `/terminal/sftp/:serverId/rename` | `{ from, to }` |
-| POST | `/terminal/sftp/:serverId/chmod` | `{ path, mode }` |
-| POST | `/terminal/sftp/:serverId/chown` | `{ path, uid, gid }` |
-| POST | `/terminal/sftp/:serverId/symlink` | `{ linkpath, target }` |
-| POST | `/terminal/sftp/:serverId/copy` | `{ src, dst }` |
-| GET | `/terminal/sftp/:serverId/copy-stream` | SSE progress stream for copy |
-| POST | `/terminal/sftp/:serverId/move` | `{ src, dst }` |
-| DELETE | `/terminal/sftp/:serverId/delete` | File or directory |
-| GET | `/terminal/sftp/:serverId/read` | Read file content as text |
-| POST | `/terminal/sftp/:serverId/write` | Write/overwrite file content |
+**Multiple connections**: opening an already-connected resource requires explicit confirmation before creating a second tab.
 
-### Server Ops
+**Side panel state**: preserved across tab switches within the same resource context; pruned when all tabs for that resource are closed.
 
-Server lifecycle management and OS-level inspection via the SSH connection.
+### `<TerminalPanel>` Component
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/terminal/server/:serverId/power` | `{ action: reboot\|shutdown }` |
-| GET | `/terminal/server/:serverId/ports` | List listening ports |
-| GET | `/terminal/server/:serverId/ports/:port` | Inspect a single port (process, state) |
-| POST | `/terminal/server/:serverId/ports/:port/release` | Kill process holding port |
-| GET | `/terminal/server/:serverId/systemd/services` | List systemd services |
-| GET | `/terminal/server/:serverId/systemd/:service/status` | Service status |
-| GET | `/terminal/server/:serverId/systemd/:service/content` | Service unit file content |
-| GET | `/terminal/server/:serverId/systemd/:service/logs` | Journald logs |
-| POST | `/terminal/server/:serverId/systemd/:service/action` | `{ action: start\|stop\|restart\|enable\|disable }` |
-| GET | `/terminal/server/:serverId/systemd/:service/unit` | Read unit file |
-| PUT | `/terminal/server/:serverId/systemd/:service/unit` | Write unit file |
-| POST | `/terminal/server/:serverId/systemd/:service/unit/verify` | Validate unit file syntax |
-| POST | `/terminal/server/:serverId/systemd/:service/unit/apply` | Write + reload unit |
+Embeddable, resource-agnostic terminal component. Each resource epic supplies the WebSocket URL.
 
----
+```
+dashboard/src/components/connect/TerminalPanel.tsx
+```
 
-## Configuration
+**Responsibilities:**
+- xterm.js render, auto-fit on resize
+- WebSocket lifecycle (connect, ping, reconnect button on drop)
+- Control frame parsing: `resize`, `error`, `close`
+- ConnectError display with category icon and human-readable label
 
-### Per-server (`servers` collection – new optional fields)
+| Category | Icon | Label |
+|----------|------|-------|
+| `auth_failed` | KeyRound | Authentication Failed |
+| `network_unreachable` | WifiOff | Network Unreachable |
+| `connection_refused` | ShieldX | Connection Refused |
+| `credential_invalid` | Settings | Credential Config Error |
+| `session_failed` | ServerCrash | Session Failed |
+| `server_disconnected` | Unplug | Server Disconnected |
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `shell` | text | _(empty)_ | Override login shell. Empty = server default login shell (SSH default). Set `powershell.exe` for Windows. |
-
-### Per-user preferences (localStorage)
+**Local preferences** (localStorage):
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `connect.terminal.font_size` | `14` | Terminal font size (px) |
 | `connect.terminal.scrollback` | `1000` | Scrollback buffer lines |
-| `connect.sftp.show_hidden` | `false` | Show dot-files in file manager (frontend filter; backend always returns all entries) |
 
-Terminal behavior settings (idle timeout, max connections) are governed by Epic 13 settings domain.
+Terminal behavior settings (idle timeout, max connections) are owned by Epic 13.
 
-### Server-side limits (hard-coded for MVP)
+### File Structure
 
-| Setting | Value |
-|---------|-------|
-| SSH connect timeout | 10 s |
-| Session idle timeout | 30 min |
-| SFTP upload max size | 50 MB |
+```
+dashboard/src/
+  routes/_app/_auth/_superuser/
+    connect.index.tsx                      # /connect – resource selector
+  components/connect/
+    TerminalPanel.tsx                      # generic terminal component
+    ServerSelector.tsx                     # resource selector dropdown (sourced from resource collections)
+```
 
 ---
 
-## Security (Zero Trust MVP)
+## Security Principles (Zero Trust MVP)
 
-1. **Credentials never leave backend** – Frontend sends only `serverId`; backend decrypts and injects into connector in-memory only; no secret ever appears in any HTTP response or WebSocket message.
-2. **Every connection is audited** – All SSH / SFTP / Docker exec sessions written to the Epic 12 audit log: `user_id`, `server_id`, `session_id`, `ip`, `started_at`, `ended_at`, `bytes_in`, `bytes_out`. Key SFTP events (upload, download, delete) logged individually.
-3. **Minimal session lifecycle** – Valid PB auth token required on WebSocket upgrade; session auto-closes on token expiry or 30-min idle; Docker exec restricted to Superuser only.
+1. **Credentials never leave the backend** — Frontend sends only a resource ID; backend decrypts and injects credentials in-memory only. No secret appears in any HTTP response or WebSocket message.
+2. **Every session is audited** — All streaming sessions write to the Epic 12 audit log: `user_id`, `resource_id`, `session_id`, `ip`, `started_at`, `ended_at`, `bytes_in`, `bytes_out`.
+3. **Minimal session lifecycle** — Valid PB auth token required on WebSocket upgrade; session auto-closes on token expiry or Epic 13 idle timeout.
 
 Post-MVP: session recording/playback, JIT access approval, MFA on connect.
 
@@ -236,81 +192,28 @@ Post-MVP: session recording/playback, JIT access approval, MFA on connect.
 
 ## Permissions
 
-| Role | SSH terminal | SFTP | Docker exec |
-|------|-------------|------|-------------|
-| Superuser | ✅ All servers | ✅ All servers | ✅ All containers |
-| Member | Phase 2 | Phase 2 | ❌ |
-
----
-
-## Frontend
-
-### Unified Server Connect View
-
-Route: `/connect` (server selector) → `/connect/server/:serverId` (active session)
-
-Multi-connection workspace with vertical connection tab rail (collapsible), terminal pane, and optional Docker/Files side panel.
-
-```
-┌──────────────────────────────────────────────────────┐
-│ Connect Servers            [Terminal][Files][Docker][⛶]│
-├───────────┬─────────────────────────┬────────────────┤
-│ [+ New]   │                         │                │
-│ ● srv-1   │   xterm.js terminal     │  Files/Docker  │
-│ ○ srv-2   │   (active tab content)  │  side panel    │
-│           │                         │  (optional)    │
-└───────────┴─────────────────────────┴────────────────┘
-```
-
-SSH and SFTP share the same server context – switching to the Files side panel reuses the active server; no separate authentication.
-
-**Terminal tab**: xterm.js, auto-fit on window resize, reconnect button on disconnect.
-
-**Files side panel:**
-- Single-pane table layout with breadcrumb navigation
-- Double-click to enter directory
-- Context menu: download / rename / delete
-- Drag-and-drop or button upload
-- Hidden files toggle (persisted to localStorage)
-
-### Embeddable Components
-
-Both panels are standalone React components, usable outside the Connect route:
-
-| Component | Props | Embedded in |
-|-----------|-------|-------------|
-| `<TerminalPanel>` | `serverId` or `containerId` | Connect page; Docker page (container row → "Open Terminal") |
-| `<FileManagerPanel>` | `serverId` | Connect page; future integrations |
-
-Docker exec entry: Docker page → container row action → Dialog with `<TerminalPanel containerId={id} />`.
+| Role | Terminal access |
+|------|----------------|
+| Superuser | All resources |
+| Member | Phase 2 (per-resource grants) |
 
 ---
 
 ## Out of Scope (MVP)
 
-- In-browser SFTP file editing (download → edit locally)
+- In-browser file editing
 - SCP batch transfer, SSH port forwarding
-- WinRM / legacy Windows without OpenSSH
-- RDP (→ deploy Apache Guacamole via app store)
-- Session recording/playback, JIT access, MFA (Zero Trust post-MVP)
-- Member-level server access control (Phase 2)
+- WinRM / RDP (→ deploy Guacamole via app store)
+- Session recording/playback, JIT access, MFA
+- Member-level resource access control (Phase 2)
+- Database / cloud resource connectors (future epics)
 
 ---
 
 ## Stories
 
-| Story | Title | Key Deliverables |
-|-------|-------|-----------------|
-| 15.1 | SSH + SFTP backend | `connector.go` interface, `ssh.go`, `sftp.go`, all routes, audit log |
-| 15.2 | Terminal UI | `<TerminalPanel>`, server selector, reconnect, unified terminal workspace shell execution + 2026-03 optimization scope |
-| 15.3 | Docker Terminal | `docker_exec.go`, `<TerminalPanel>` container mode, shell strategy, connection stability |
-| 15.4 | SFTP Enhancements | file properties/symlink/copy-move progress, upload limits, share parity with Space |
-| 15.5 | Server Ops | server list restart/shutdown actions, Terminal systemd dialog, service status/log APIs |
+| Story | Title | Status |
+|-------|-------|--------|
+| 15.1 | Terminal UI | ✅ Complete |
 
-| Story | Status |
-|-------|--------|
-| 15.1 | ✅ Complete |
-| 15.2 | ✅ Complete |
-| 15.3 | ✅ Complete |
-| 15.4 | 🟡 Ready for Dev |
-| 15.5 | ⚪ Draft |
+All resource-specific stories are tracked in their respective resource epics (e.g. Epic 20 for Servers).

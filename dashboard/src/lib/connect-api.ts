@@ -1,5 +1,5 @@
 // Connect API client — helpers for SFTP file operations on remote servers
-// Backend: /api/ext/terminal/sftp/:serverId/*
+// Backend: /api/servers/:serverId/files/*
 // Requires superuser auth; callers should handle 401/403 gracefully.
 
 import { pb } from '@/lib/pb'
@@ -184,13 +184,13 @@ export interface ReleaseServerPortResponse {
 
 export async function sftpList(serverId: string, path: string): Promise<SFTPListResponse> {
   return pb.send<SFTPListResponse>(
-    `/api/ext/terminal/sftp/${serverId}/list?path=${encodeURIComponent(path)}`,
+    `/api/servers/${serverId}/files/list?path=${encodeURIComponent(path)}`,
     {}
   )
 }
 
 export function sftpDownloadUrl(serverId: string, path: string): string {
-  return `/api/ext/terminal/sftp/${serverId}/download?path=${encodeURIComponent(path)}`
+  return `/api/servers/${serverId}/files/download?path=${encodeURIComponent(path)}`
 }
 
 // sftpUpload uploads a single file to the given remote DIRECTORY.
@@ -198,14 +198,14 @@ export function sftpDownloadUrl(serverId: string, path: string): string {
 export async function sftpUpload(serverId: string, remoteDir: string, file: File): Promise<void> {
   const formData = new FormData()
   formData.append('file', file)
-  await pb.send(`/api/ext/terminal/sftp/${serverId}/upload?path=${encodeURIComponent(remoteDir)}`, {
+  await pb.send(`/api/servers/${serverId}/files/upload?path=${encodeURIComponent(remoteDir)}`, {
     method: 'POST',
     body: formData,
   })
 }
 
 export async function sftpMkdir(serverId: string, path: string): Promise<void> {
-  await pb.send(`/api/ext/terminal/sftp/${serverId}/mkdir`, {
+  await pb.send(`/api/servers/${serverId}/files/mkdir`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path }),
@@ -217,7 +217,7 @@ export async function sftpRename(
   oldPath: string,
   newPath: string
 ): Promise<void> {
-  await pb.send(`/api/ext/terminal/sftp/${serverId}/rename`, {
+  await pb.send(`/api/servers/${serverId}/files/rename`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     // Backend expects { from, to } — matches routes/terminal.go handleSFTPRename
@@ -226,7 +226,7 @@ export async function sftpRename(
 }
 
 export async function sftpDelete(serverId: string, path: string): Promise<void> {
-  await pb.send(`/api/ext/terminal/sftp/${serverId}/delete?path=${encodeURIComponent(path)}`, {
+  await pb.send(`/api/servers/${serverId}/files/delete?path=${encodeURIComponent(path)}`, {
     method: 'DELETE',
   })
 }
@@ -236,7 +236,7 @@ export async function sftpReadFile(
   path: string
 ): Promise<{ path: string; content: string }> {
   return pb.send<{ path: string; content: string }>(
-    `/api/ext/terminal/sftp/${serverId}/read?path=${encodeURIComponent(path)}`,
+    `/api/servers/${serverId}/files/read?path=${encodeURIComponent(path)}`,
     {}
   )
 }
@@ -246,7 +246,7 @@ export async function sftpWriteFile(
   path: string,
   content: string
 ): Promise<void> {
-  await pb.send(`/api/ext/terminal/sftp/${serverId}/write`, {
+  await pb.send(`/api/servers/${serverId}/files/write`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path, content }),
@@ -259,18 +259,18 @@ export async function sftpSearch(
   query: string
 ): Promise<SFTPSearchResponse> {
   return pb.send<SFTPSearchResponse>(
-    `/api/ext/terminal/sftp/${serverId}/search?path=${encodeURIComponent(basePath)}&query=${encodeURIComponent(query)}`,
+    `/api/servers/${serverId}/files/search?path=${encodeURIComponent(basePath)}&query=${encodeURIComponent(query)}`,
     {}
   )
 }
 
 export async function sftpConstraints(serverId: string): Promise<{ max_upload_files: number }> {
-  return pb.send<{ max_upload_files: number }>(`/api/ext/terminal/sftp/${serverId}/constraints`, {})
+  return pb.send<{ max_upload_files: number }>(`/api/servers/${serverId}/files/constraints`, {})
 }
 
 export async function sftpStat(serverId: string, path: string): Promise<{ attrs: FileAttrs }> {
   return pb.send<{ attrs: FileAttrs }>(
-    `/api/ext/terminal/sftp/${serverId}/stat?path=${encodeURIComponent(path)}`,
+    `/api/servers/${serverId}/files/stat?path=${encodeURIComponent(path)}`,
     {}
   )
 }
@@ -281,7 +281,7 @@ export async function sftpChmod(
   mode: string,
   recursive = false
 ): Promise<void> {
-  await pb.send(`/api/ext/terminal/sftp/${serverId}/chmod`, {
+  await pb.send(`/api/servers/${serverId}/files/chmod`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path, mode, recursive }),
@@ -294,7 +294,7 @@ export async function sftpChown(
   owner: string,
   group: string
 ): Promise<void> {
-  await pb.send(`/api/ext/terminal/sftp/${serverId}/chown`, {
+  await pb.send(`/api/servers/${serverId}/files/chown`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path, owner, group }),
@@ -306,7 +306,7 @@ export async function sftpSymlink(
   target: string,
   linkPath: string
 ): Promise<void> {
-  await pb.send(`/api/ext/terminal/sftp/${serverId}/symlink`, {
+  await pb.send(`/api/servers/${serverId}/files/symlink`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ target, link_path: linkPath }),
@@ -314,7 +314,7 @@ export async function sftpSymlink(
 }
 
 export async function sftpCopy(serverId: string, from: string, to: string): Promise<void> {
-  await pb.send(`/api/ext/terminal/sftp/${serverId}/copy`, {
+  await pb.send(`/api/servers/${serverId}/files/copy`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ from, to }),
@@ -322,7 +322,7 @@ export async function sftpCopy(serverId: string, from: string, to: string): Prom
 }
 
 export async function sftpMove(serverId: string, from: string, to: string): Promise<void> {
-  await pb.send(`/api/ext/terminal/sftp/${serverId}/move`, {
+  await pb.send(`/api/servers/${serverId}/files/move`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ from, to }),
@@ -339,7 +339,7 @@ export async function listServers(): Promise<Server[]> {
 // ─── Server ops (Story 15.5) ─────────────────────────────────────────────────
 
 export async function serverPower(serverId: string, action: 'restart' | 'shutdown'): Promise<void> {
-  await pb.send(`/api/ext/terminal/server/${serverId}/power`, {
+  await pb.send(`/api/servers/${serverId}/ops/power`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action }),
@@ -352,7 +352,7 @@ export async function listServerPorts(
   protocol: ServerPortProtocol = 'tcp'
 ): Promise<ServerPortsResponse> {
   return pb.send<ServerPortsResponse>(
-    `/api/ext/terminal/server/${serverId}/ports?view=${encodeURIComponent(view)}&protocol=${encodeURIComponent(protocol)}`,
+    `/api/servers/${serverId}/ops/ports?view=${encodeURIComponent(view)}&protocol=${encodeURIComponent(protocol)}`,
     {}
   )
 }
@@ -364,7 +364,7 @@ export async function releaseServerPort(
   mode: 'graceful' | 'force' = 'graceful'
 ): Promise<ReleaseServerPortResponse> {
   return pb.send<ReleaseServerPortResponse>(
-    `/api/ext/terminal/server/${serverId}/ports/${port}/release?protocol=${encodeURIComponent(protocol)}`,
+    `/api/servers/${serverId}/ops/ports/${port}/release?protocol=${encodeURIComponent(protocol)}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -379,7 +379,7 @@ export async function listSystemdServices(
 ): Promise<SystemdService[]> {
   const query = keyword.trim() ? `?keyword=${encodeURIComponent(keyword.trim())}` : ''
   const response = await pb.send<{ services?: SystemdService[] }>(
-    `/api/ext/terminal/server/${serverId}/systemd/services${query}`,
+    `/api/servers/${serverId}/ops/systemd/services${query}`,
     {}
   )
   return Array.isArray(response?.services) ? response.services : []
@@ -390,7 +390,7 @@ export async function getSystemdStatus(
   service: string
 ): Promise<SystemdStatusResponse> {
   return pb.send<SystemdStatusResponse>(
-    `/api/ext/terminal/server/${serverId}/systemd/${encodeURIComponent(service)}/status`,
+    `/api/servers/${serverId}/ops/systemd/${encodeURIComponent(service)}/status`,
     {}
   )
 }
@@ -401,7 +401,7 @@ export async function getSystemdLogs(
   lines = 200
 ): Promise<SystemdLogsResponse> {
   return pb.send<SystemdLogsResponse>(
-    `/api/ext/terminal/server/${serverId}/systemd/${encodeURIComponent(service)}/logs?lines=${Math.max(20, Math.min(1000, lines))}`,
+    `/api/servers/${serverId}/ops/systemd/${encodeURIComponent(service)}/logs?lines=${Math.max(20, Math.min(1000, lines))}`,
     {}
   )
 }
@@ -411,7 +411,7 @@ export async function getSystemdContent(
   service: string
 ): Promise<SystemdContentResponse> {
   return pb.send<SystemdContentResponse>(
-    `/api/ext/terminal/server/${serverId}/systemd/${encodeURIComponent(service)}/content`,
+    `/api/servers/${serverId}/ops/systemd/${encodeURIComponent(service)}/content`,
     {}
   )
 }
@@ -422,7 +422,7 @@ export async function controlSystemdService(
   action: SystemdControlAction
 ): Promise<void> {
   await pb.send(
-    `/api/ext/terminal/server/${serverId}/systemd/${encodeURIComponent(service)}/action`,
+    `/api/servers/${serverId}/ops/systemd/${encodeURIComponent(service)}/action`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -436,7 +436,7 @@ export async function getSystemdUnit(
   service: string
 ): Promise<SystemdUnitResponse> {
   return pb.send<SystemdUnitResponse>(
-    `/api/ext/terminal/server/${serverId}/systemd/${encodeURIComponent(service)}/unit`,
+    `/api/servers/${serverId}/ops/systemd/${encodeURIComponent(service)}/unit`,
     {}
   )
 }
@@ -447,7 +447,7 @@ export async function updateSystemdUnit(
   content: string
 ): Promise<SystemdUnitApplyResponse> {
   return pb.send<SystemdUnitApplyResponse>(
-    `/api/ext/terminal/server/${serverId}/systemd/${encodeURIComponent(service)}/unit`,
+    `/api/servers/${serverId}/ops/systemd/${encodeURIComponent(service)}/unit`,
     {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -461,7 +461,7 @@ export async function verifySystemdUnit(
   service: string
 ): Promise<SystemdUnitApplyResponse> {
   return pb.send<SystemdUnitApplyResponse>(
-    `/api/ext/terminal/server/${serverId}/systemd/${encodeURIComponent(service)}/unit/verify`,
+    `/api/servers/${serverId}/ops/systemd/${encodeURIComponent(service)}/unit/verify`,
     { method: 'POST' }
   )
 }
@@ -471,7 +471,7 @@ export async function applySystemdUnit(
   service: string
 ): Promise<SystemdUnitApplyResponse> {
   return pb.send<SystemdUnitApplyResponse>(
-    `/api/ext/terminal/server/${serverId}/systemd/${encodeURIComponent(service)}/unit/apply`,
+    `/api/servers/${serverId}/ops/systemd/${encodeURIComponent(service)}/unit/apply`,
     { method: 'POST' }
   )
 }
@@ -506,22 +506,16 @@ export async function checkServerStatus(server: Server): Promise<ServerStatusRes
   const connectType = String(server.connect_type || 'direct').toLowerCase()
 
   try {
-    const response =
-      connectType === 'tunnel'
-        ? await withTimeout(
-            pb.send(`/api/ext/tunnel/servers/${id}/status`, { method: 'GET' }) as Promise<{
-              status?: string
-              reason?: string
-            }>,
-            5000
-          )
-        : await withTimeout(
-            pb.send(`/api/ext/resources/servers/${id}/ping`, { method: 'GET' }) as Promise<{
-              status?: string
-              reason?: string
-            }>,
-            5000
-          )
+    const mode = connectType === 'tunnel' ? 'tunnel' : 'tcp'
+    const response = await withTimeout(
+      pb.send(`/api/servers/${id}/ops/connectivity?mode=${encodeURIComponent(mode)}`, {
+        method: 'GET',
+      }) as Promise<{
+        status?: string
+        reason?: string
+      }>,
+      5000
+    )
 
     return {
       status: response?.status === 'online' ? 'online' : 'offline',
@@ -592,7 +586,7 @@ export async function getConnectTerminalSettings(): Promise<ConnectTerminalSetti
 
 export function sshWebSocketUrl(serverId: string): string {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${proto}//${window.location.host}/api/ext/terminal/ssh/${serverId}`
+  return `${proto}//${window.location.host}/api/servers/${serverId}/shell`
 }
 
 // ─── Preferences ──────────────────────────────────────────────────────────────

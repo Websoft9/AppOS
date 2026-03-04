@@ -51,11 +51,11 @@ Use `make redo` whenever schema migrations or binary changes require a clean env
 
 Decision: for each module, define constants, error codes, and variable configuration in a dedicated `config.go` file.
 
-## Ext Route Ownership & Guard{#ext-route-guard}
+## Custom Route Ownership & Guard{#custom-route-guard}
 
-**Decision**: all custom `/api/ext/*` APIs must be defined in `backend/internal/routes/` only.
+**Decision**: all custom `/api/<domain>/*` APIs must be defined in `backend/internal/routes/` only.
 
-**Decision**: route registration entrypoint is centralized at `routes.Register(se)` from `backend/cmd/appos/main.go`; adding `/api/ext/*` registrations outside `backend/internal/routes/` is prohibited.
+**Decision**: route registration entrypoint is centralized at `routes.Register(se)` from `backend/cmd/appos/main.go`; adding custom route registrations outside `backend/internal/routes/` is prohibited.
 
 **Decision**: architecture guard is enforced as a **test gate**, not a lint rule.
 
@@ -68,6 +68,46 @@ Decision: for each module, define constants, error codes, and variable configura
 - Keeps ownership checks deterministic and CI-friendly.
 - Aligns with existing OpenAPI coverage checks under Go test flow.
 - Avoids mixing architectural contract enforcement with formatter/linter responsibilities.
+
+## API Naming Baseline{#api-baseline}
+
+**Decision**: separate **resource registry APIs** from **runtime operation APIs**.
+
+### Domain split (industry-aligned)
+
+- **Resource domain** = inventory/control-plane records (CRUD and metadata).
+- **Server domain** = runtime actions on a specific server (shell/files/ops/containers).
+
+### Prefix baseline
+
+- Registry APIs use PocketBase native records paths.
+	- Example: `/api/collections/servers/records`, `/api/collections/databases/records`.
+- Runtime operation APIs use server-scoped custom paths.
+	- Current implementation: `/api/servers/*` (server shell/files/ops/container actions).
+
+### Server capability groups (product-level)
+
+- `Server Registry` (in Resource domain)
+- `Server Shell`
+- `Server Files`
+- `Server Ops`
+- `Server Containers`
+
+### OpenAPI tagging baseline
+
+- Use one-level tags with stable prefixes (Swagger UI has no native nested groups).
+- Required tags for server-related APIs:
+	- `Server Registry`
+	- `Server Shell`
+	- `Server Files`
+	- `Server Ops`
+	- `Server Containers`
+
+### Compatibility policy
+
+- Do not break existing routes solely for naming cleanup.
+- Prefer additive migration: add new semantic path first, keep old path alias during transition, then remove old path in a scheduled versioned change.
+- Group-matrix remains the source of truth for route-to-tag mapping.
 
 ## Testing
 

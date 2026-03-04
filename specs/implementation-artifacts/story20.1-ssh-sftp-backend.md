@@ -1,7 +1,7 @@
-# Story 15.1: SSH + SFTP Backend
+# Story 20.1: SSH + SFTP Backend
 
-**Epic**: Epic 15 – Connect: Terminal Ops
-**Status**: Complete | **Priority**: P1 | **Depends on**: Epic 1, 3, 8
+**Epic**: Epic 20 – Servers
+**Status**: Complete | **Priority**: P1 | **Depends on**: Epic 1, 3, 8, 15
 
 ---
 
@@ -16,12 +16,12 @@ As a superuser, I can open a terminal session and browse files on any registered
 ### New files
 
 ```
-backend/internal/terminal/
+backend/internal/servers/
   connector.go      # Session & Connector interfaces
   ssh.go            # SSHConnector: dial, PTY alloc, stdin/stdout relay
   sftp.go           # SFTPConnector: per-request SFTP session over SSH transport
   session.go        # idle timeout (30 min), cleanup on PB token expiry
-backend/internal/routes/terminal.go   # register all routes below
+backend/internal/routes/server.go   # register all routes below
 ```
 
 ### Connector interfaces (`connector.go`)
@@ -53,12 +53,12 @@ route handler receives serverId
 
 Supports `auth_type`: `password` and `private_key`. Uses `servers.shell` if set; otherwise SSH server default.
 
-### Routes (`/api/ext/terminal/`, `RequireAuth()`)
+### Routes (`/api/servers/`, `RequireAuth()`)
 
 **SSH – WebSocket**
 
 ```
-WS  /ssh/:serverId
+WS  /:serverId/shell
 ```
 
 Protocol:
@@ -70,12 +70,12 @@ Timeouts: SSH dial = 10 s; idle = 30 min; close immediately on PB token expiry.
 **SFTP – REST**
 
 ```
-GET     /sftp/:serverId/list?path=      → { path, entries[] }   # includes name, type, size, mode, modified_at
-GET     /sftp/:serverId/download?path=  → stream
-POST    /sftp/:serverId/upload?path=    → multipart, max 50 MB
-POST    /sftp/:serverId/mkdir           → { path }
-POST    /sftp/:serverId/rename          → { from, to }
-DELETE  /sftp/:serverId/delete?path=
+GET     /:serverId/files/list?path=      → { path, entries[] }   # includes name, type, size, mode, modified_at
+GET     /:serverId/files/download?path=  → stream
+POST    /:serverId/files/upload?path=    → multipart, max 50 MB
+POST    /:serverId/files/mkdir           → { path }
+POST    /:serverId/files/rename          → { from, to }
+DELETE  /:serverId/files/delete?path=
 ```
 
 Backend always returns all directory entries (including dot-files). Hidden file filtering is the frontend's responsibility.
@@ -104,7 +104,7 @@ WebSocket 无法通过 header 传 Authorization token，改用 URL query param `
 ### SFTP recursive search
 
 ```
-GET  /sftp/:serverId/search?path=&keyword=&recursive=true  → { results[] }
+GET  /:serverId/files/search?path=&keyword=&recursive=true  → { results[] }
 ```
 
 `sftp.go` 新增 `SearchFiles()` 方法，使用 `sftp.Walk` 递归遍历。返回 `SearchResult{Path, Name, Size, IsDir, ModTime}`。
@@ -114,7 +114,7 @@ GET  /sftp/:serverId/search?path=&keyword=&recursive=true  → { results[] }
 nginx.conf 需在 `/api/` location 之前添加 WS 专用 location：
 
 ```nginx
-location ~ ^/api/ext/terminal/(ssh|docker)/ {
+location ~ ^/api/servers/(.+/shell|containers/.+/shell)$ {
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
@@ -134,7 +134,7 @@ location ~ ^/api/ext/terminal/(ssh|docker)/ {
 
 ## Acceptance Criteria
 
-- [x] `WS /ssh/:serverId` opens a PTY session; stdin/stdout relay works end-to-end
+- [x] `WS /:serverId/shell` opens a PTY session; stdin/stdout relay works end-to-end
 - [x] Resize control frame correctly resizes the remote PTY
 - [x] Session closes after 30 min idle or on PB token expiry
 - [x] SFTP list returns all entries including dot-files
@@ -158,15 +158,15 @@ location ~ ^/api/ext/terminal/(ssh|docker)/ {
 backend/go.mod                                          # added github.com/pkg/sftp
 backend/go.sum                                          # updated
 backend/internal/migrations/1741400000_add_server_shell.go  # servers.shell field
-backend/internal/terminal/connector.go                  # Session & Connector interfaces, ConnectorConfig
-backend/internal/terminal/terminal.go                   # LocalSession rename (was Session, conflicts with interface)
-backend/internal/terminal/ssh.go                        # SSHConnector: dial, auth, PTY relay
-backend/internal/terminal/sftp.go                       # SFTPClient: list, download, upload, mkdir, rename, delete
-backend/internal/terminal/session.go                    # session registry with idle timeout (30 min)
-backend/internal/terminal/terminal_test.go              # 7 unit tests (session registry, auth method, config)
-backend/internal/routes/terminal.go                     # SSH WS + SFTP REST routes, resolveServerConfig, audit
-backend/internal/routes/terminal_test.go                # 6 route tests (auth, validation, 400 paths)
-backend/internal/routes/routes.go                       # registerTerminalRoutes added
+backend/internal/servers/connector.go                  # Session & Connector interfaces, ConnectorConfig
+backend/internal/servers/terminal.go                   # LocalSession rename (was Session, conflicts with interface)
+backend/internal/servers/ssh.go                        # SSHConnector: dial, auth, PTY relay
+backend/internal/servers/sftp.go                       # SFTPClient: list, download, upload, mkdir, rename, delete
+backend/internal/servers/session.go                    # session registry with idle timeout (30 min)
+backend/internal/servers/terminal_test.go              # 7 unit tests (session registry, auth method, config)
+backend/internal/routes/server.go                     # SSH WS + SFTP REST routes, resolveServerConfig, audit
+backend/internal/routes/server_test.go                  # route tests (auth, validation, 400 paths)
+backend/internal/routes/routes.go                       # registerServerRoutes added
 ```
 
 ### Decisions

@@ -20,7 +20,7 @@ Asynq Worker (async)  → audit.Write() → audit_logs
 OnRecord* Hook        → audit.Write() → audit_logs  (可选，覆盖 PB CRUD)
 ```
 
-Frontend queries via `pb.collection('audit_logs').getList()` — no extra backend endpoints needed.
+Frontend queries via the **native PocketBase collection API** (`GET /api/collections/audit_logs/records`) using `pb.collection('audit_logs').getList()` — no custom backend endpoint needed or created. Native API already provides full filter expression, pagination, sorting, expand, and field selection.
 
 ---
 
@@ -117,3 +117,4 @@ Execution order: 12.1 → 12.2 → 12.3
 - Audit alerts and notifications
 - Exposing or processing PB built-in `_logs`
 - Per-file operation auditing (upload/download)
+- Custom backend query endpoint for `audit_logs` (evaluated and rejected — native PocketBase API is a strict superset)

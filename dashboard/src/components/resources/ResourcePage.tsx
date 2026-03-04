@@ -128,7 +128,7 @@ export interface FieldDef {
 export interface ResourcePageConfig {
   title: string
   description?: string
-  apiPath: string // e.g., "/api/ext/resources/servers"
+  apiPath: string // e.g., "/api/collections/servers/records"
   columns: Column[]
   fields: FieldDef[]
   nameField?: string // field used as display name (default: "name")
@@ -142,6 +142,11 @@ export interface ResourcePageConfig {
     refreshList: () => Promise<void>
   }) => Promise<void> | void
   extraActions?: (item: Record<string, unknown>, refreshList: () => void) => ReactNode
+  resourceType?: string
+  listItems?: () => Promise<Record<string, unknown>[]>
+  createItem?: (payload: Record<string, unknown>) => Promise<Record<string, unknown>>
+  updateItem?: (id: string, payload: Record<string, unknown>) => Promise<void>
+  deleteItem?: (id: string) => Promise<void>
 }
 
 const INPUT_CLASS =
@@ -191,7 +196,9 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
 
   const fetchItems = useCallback(async () => {
     try {
-      const data = await pb.send<Record<string, unknown>[]>(config.apiPath, {})
+      const data = config.listItems
+        ? await config.listItems()
+        : await pb.send<Record<string, unknown>[]>(config.apiPath, {})
       setItems(Array.isArray(data) ? data : [])
       setError('')
     } catch (err) {
@@ -384,15 +391,21 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
 
     try {
       if (editingItem) {
-        await pb.send(`${config.apiPath}/${editingItem.id}`, {
-          method: 'PUT',
-          body: formData,
-        })
+        if (config.updateItem) {
+          await config.updateItem(String(editingItem.id), formData)
+        } else {
+          await pb.send(`${config.apiPath}/${editingItem.id}`, {
+            method: 'PUT',
+            body: formData,
+          })
+        }
       } else {
-        const created = await pb.send(config.apiPath, {
-          method: 'POST',
-          body: formData,
-        })
+        const created = config.createItem
+          ? await config.createItem(formData)
+          : await pb.send(config.apiPath, {
+              method: 'POST',
+              body: formData,
+            })
         setDialogOpen(false)
         await fetchItems()
         config.onCreateSuccess?.(created as Record<string, unknown>)
@@ -429,7 +442,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   async function handleAssignToGroups() {
     if (selectedGroupIds.size === 0) return
     setAssigningGroups(true)
-    const resourceType = config.apiPath.split('/').pop() ?? ''
+    const resourceType = config.resourceType || config.apiPath.split('/').pop() || ''
     const batchItems = Array.from(selectedItems).map(id => ({ type: resourceType, id }))
     try {
       await Promise.all(
@@ -457,7 +470,11 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
     if (!deleteTarget) return
     setDeleting(true)
     try {
-      await pb.send(`${config.apiPath}/${deleteTarget.id}`, { method: 'DELETE' })
+      if (config.deleteItem) {
+        await config.deleteItem(String(deleteTarget.id))
+      } else {
+        await pb.send(`${config.apiPath}/${deleteTarget.id}`, { method: 'DELETE' })
+      }
       setDeleteTarget(null)
       await fetchItems()
     } catch (err) {

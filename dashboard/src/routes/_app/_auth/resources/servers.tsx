@@ -113,19 +113,15 @@ function ServersPage() {
 
   const checkServerStatus = useCallback(async (item: Record<string, unknown>) => {
     const id = String(item.id)
+    const mode = item.connect_type === 'tunnel' ? 'tunnel' : 'tcp'
     setCheckingIds(prev => new Set(prev).add(id))
     try {
-      if (item.connect_type === 'tunnel') {
-        const res = (await pb.send(`/api/ext/tunnel/servers/${id}/status`, { method: 'GET' })) as {
-          status?: string
-        }
-        setPingResults(prev => ({ ...prev, [id]: res.status === 'online' ? 'online' : 'offline' }))
-      } else {
-        const res = (await pb.send(`/api/ext/resources/servers/${id}/ping`, { method: 'GET' })) as {
-          status?: string
-        }
-        setPingResults(prev => ({ ...prev, [id]: res.status === 'online' ? 'online' : 'offline' }))
+      const res = (await pb.send(`/api/servers/${id}/ops/connectivity?mode=${encodeURIComponent(mode)}`, {
+        method: 'GET',
+      })) as {
+        status?: string
       }
+      setPingResults(prev => ({ ...prev, [id]: res.status === 'online' ? 'online' : 'offline' }))
     } catch {
       setPingResults(prev => ({ ...prev, [id]: 'offline' }))
     } finally {
@@ -347,7 +343,16 @@ function ServersPage() {
         config={{
           title: 'Servers',
           description: 'SSH deployment targets',
-          apiPath: '/api/ext/resources/servers',
+          apiPath: '/api/collections/servers/records',
+          resourceType: 'servers',
+          listItems: async () => await pb.collection('servers').getFullList({ sort: 'name' }),
+          createItem: async payload => await pb.collection('servers').create(payload),
+          updateItem: async (id, payload) => {
+            await pb.collection('servers').update(id, payload)
+          },
+          deleteItem: async id => {
+            await pb.collection('servers').delete(id)
+          },
           columns,
           fields,
           parentNav: { label: 'Resources', href: '/resources' },

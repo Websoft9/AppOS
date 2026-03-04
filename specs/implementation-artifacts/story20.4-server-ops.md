@@ -1,17 +1,17 @@
-# Story 15.5: Server Ops
+# Story 20.4: Server Ops
 
-**Epic**: Epic 15 – Connect: Terminal Ops
-**Status**: review | **Priority**: P1 | **Depends on**: Story 15.1, 15.2
+**Epic**: Epic 20 – Servers
+**Status**: review | **Priority**: P1 | **Depends on**: Story 20.1, Epic 15
 
 ## Scope Positioning
 
-This story adds minimal server operations in Connect/Terminal domain:
+This story adds minimal server operations in the Server runtime domain:
 - power actions: restart / shutdown
 - systemd service discovery
 - single service status and logs
 - lightweight UI entry points in Resource list and Terminal workspace
 
-Resources CRUD stays in Epic 8 (`/api/ext/resources/servers*`).
+Resources CRUD stays in Epic 8 (`/api/collections/servers/records*`).
 
 ## UI Scope
 
@@ -30,10 +30,11 @@ No extra pages are introduced.
 
 ## Backend API
 
-All routes are under `/api/ext/terminal/server/{serverId}`.
+All routes are under `/api/servers/{serverId}/ops`.
 
 | Method | Path | Purpose |
 |--------|------|---------|
+| GET | `/connectivity` | Connectivity check (`mode=tcp\|ssh\|tunnel`) |
 | POST | `/power` | Restart / Shutdown (`action` in body) |
 | GET | `/ports` | List all currently occupied/reserved ports (`view=occupancy\|reservation\|all`, optional `protocol=tcp\|udp`) |
 | GET | `/ports/{port}` | Unified port occupancy/reservation inspection (`view=occupancy\|reservation\|all`, optional `protocol=tcp\|udp`) |
@@ -50,19 +51,19 @@ All routes are under `/api/ext/terminal/server/{serverId}`.
 
 ## Frontend Integration
 
-- Resource servers page action menu calls `POST /terminal/server/{serverId}/power`.
+- Resource servers page action menu calls `POST /servers/{serverId}/ops/power`.
 - Terminal page `Port Inspector` dialog calls:
-  - list: `/terminal/server/{serverId}/ports`
-  - release: `POST /terminal/server/{serverId}/ports/{port}/release`
+  - list: `/servers/{serverId}/ops/ports`
+  - release: `POST /servers/{serverId}/ops/ports/{port}/release`
 - Terminal page `Service Manager` dialog calls:
-  - list: `/terminal/server/{serverId}/systemd/services`
-  - status: `/terminal/server/{serverId}/systemd/{service}/status`
-  - content: `/terminal/server/{serverId}/systemd/{service}/content`
-  - logs: `/terminal/server/{serverId}/systemd/{service}/logs`
-  - action: `/terminal/server/{serverId}/systemd/{service}/action`
-  - unit CRUD: GET/PUT `/terminal/server/{serverId}/systemd/{service}/unit`
-  - verify: POST `/terminal/server/{serverId}/systemd/{service}/unit/verify`
-  - apply: POST `/terminal/server/{serverId}/systemd/{service}/unit/apply`
+  - list: `/servers/{serverId}/ops/systemd/services`
+  - status: `/servers/{serverId}/ops/systemd/{service}/status`
+  - content: `/servers/{serverId}/ops/systemd/{service}/content`
+  - logs: `/servers/{serverId}/ops/systemd/{service}/logs`
+  - action: `/servers/{serverId}/ops/systemd/{service}/action`
+  - unit CRUD: GET/PUT `/servers/{serverId}/ops/systemd/{service}/unit`
+  - verify: POST `/servers/{serverId}/ops/systemd/{service}/unit/verify`
+  - apply: POST `/servers/{serverId}/ops/systemd/{service}/unit/apply`
 
 ## Acceptance Criteria
 
@@ -84,7 +85,7 @@ All routes are under `/api/ext/terminal/server/{serverId}`.
 
 - No arbitrary command passthrough.
 - Only allowlisted operations are exposed.
-- Keep route shape consistent with existing `/api/ext/terminal/*` design.
+- Keep route shape consistent with `/api/servers/{serverId}/ops/*` design.
 - Keep UX in existing pages and one modal only (no additional view hierarchy).
 
 ## Out of Scope
@@ -95,7 +96,7 @@ All routes are under `/api/ext/terminal/server/{serverId}`.
 
 ## Tasks / Subtasks
 
-- [x] Task 1: Add backend Server Ops API routes under `/api/ext/terminal/server/{serverId}`
+- [x] Task 1: Add backend Server Ops API routes under `/api/servers/{serverId}/ops`
   - [x] 1.1 Add power endpoint with allowlist action validation (`restart`/`shutdown`)
   - [x] 1.1b Add unified port inspect endpoint (`/ports/{port}`) with `view` and `protocol` validation
   - [x] 1.2 Add systemd services list endpoint with keyword filter
@@ -114,26 +115,26 @@ All routes are under `/api/ext/terminal/server/{serverId}`.
   - [x] 3.4 Layout preset dropdown changed to 2-column icon-style grid
 - [x] Task 4: Validation
   - [x] 4.1 Backend route tests updated for Server Ops
-  - [x] 4.2 Backend regression tests pass (`./internal/routes`, `./internal/terminal`)
+  - [x] 4.2 Backend regression tests pass (`./internal/routes`, `./internal/servers`)
   - [x] 4.3 Frontend typecheck and tests pass
 
 ## Dev Agent Record
 
 ### File List
 
-- backend/internal/routes/terminal.go
-- backend/internal/routes/terminal_test.go
+- backend/internal/routes/server.go
+- backend/internal/routes/server_test.go
 - dashboard/src/lib/connect-api.ts
 - dashboard/src/routes/_app/_auth/resources/servers.tsx
 - dashboard/src/pages/connect/ConnectServerPage.tsx
-- specs/implementation-artifacts/story15.5-server-ops.md
+- specs/implementation-artifacts/story20.4-server-ops.md
 
 ### Completion Notes
 
-- Implemented Story 15.5 backend APIs in existing terminal route domain with strict action/service validation.
-- Added unified port inspection endpoint `GET /api/ext/terminal/server/{serverId}/ports/{port}` with `view=occupancy|reservation|all` and optional `protocol=tcp|udp`.
-- Added all-ports endpoint `GET /api/ext/terminal/server/{serverId}/ports` for full occupied/reserved listing.
-- Added occupied-port release endpoint `POST /api/ext/terminal/server/{serverId}/ports/{port}/release` with graceful/force mode.
+- Implemented Story 20.4 backend APIs in the Server runtime route domain with strict action/service validation.
+- Added unified port inspection endpoint `GET /api/servers/{serverId}/ops/ports/{port}` with `view=occupancy|reservation|all` and optional `protocol=tcp|udp`.
+- Added all-ports endpoint `GET /api/servers/{serverId}/ops/ports` for full occupied/reserved listing.
+- Added occupied-port release endpoint `POST /api/servers/{serverId}/ops/ports/{port}/release` with graceful/force mode.
 - Reservation detection now includes `container_declared`; when target host has no Docker (or Docker probe fails), API returns a safe probe status instead of failing.
 - Port Inspector now uses compact sortable table, dedicated PID column, and per-row release action.
 - Release uses styled confirmation dialog with optional force mode, danger warning, and progress feedback.
@@ -147,7 +148,7 @@ All routes are under `/api/ext/terminal/server/{serverId}`.
 
 ### Change Log
 
-- 2026-02-28: Implemented Story 15.5 Server Ops backend + minimal UI flows; aligned server connect UX and terminal layout preset UX.
+- 2026-02-28: Implemented Story 20.4 Server Ops backend + minimal UI flows; aligned server connect UX and terminal layout preset UX.
 - 2026-03-02: Added unified server port inspection endpoint and reservation-source extension (`container_declared`) with Docker-unavailable robustness.
 - 2026-03-02: Added all-ports list API and Connect Terminal `Ports` dialog entry.
 - 2026-03-02: Added port release API + Port Inspector release button and PID-oriented occupancy details.

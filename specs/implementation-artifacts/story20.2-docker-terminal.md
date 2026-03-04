@@ -1,7 +1,7 @@
-# Story 15.3: Docker Terminal
+# Story 20.2: Docker Terminal
 
-**Epic**: Epic 15 – Connect: Terminal Ops
-**Status**: Complete | **Priority**: P1 | **Depends on**: Story 15.1, 15.2
+**Epic**: Epic 20 – Servers
+**Status**: Complete | **Priority**: P1 | **Depends on**: Story 20.1, Epic 15
 
 ## Scope Positioning
 
@@ -17,12 +17,12 @@ As a superuser, I can open a terminal inside any running container directly from
 
 ## Implementation
 
-### Backend (`backend/internal/terminal/docker_exec.go`)
+### Backend (`backend/internal/servers/docker_exec.go`)
 
 `DockerExecConnector` implements the `Session` interface via Docker socket (`/var/run/docker.sock`).
 
 ```
-WS  /api/ext/terminal/docker/:containerId   ?shell=/bin/sh (default)
+WS  /api/servers/containers/:containerId/shell   ?shell=/bin/sh (default)
 ```
 
 - Calls Docker API `POST /containers/{id}/exec` → `POST /exec/{id}/start` with `AttachStdin`, `AttachStdout`, `Tty: true`
@@ -43,7 +43,7 @@ No new route. Entry point: Docker page → container row action menu → **"Open
 
 Opens a `<Dialog size="full">` containing `<TerminalPanel containerId={containerId} />`.
 
-`TerminalPanel` already supports `{ containerId }` prop (Story 15.2); this story wires the Docker page trigger.
+`TerminalPanel` already supports `{ containerId }` prop (Story 15.1); this story wires the Docker page trigger.
 
 ```
 dashboard/src/routes/_app/_auth/docker.tsx
@@ -77,10 +77,10 @@ No file manager for containers (SFTP targets registered servers, not ephemeral c
 ### Files Created/Modified
 
 ```
-backend/internal/terminal/docker_exec.go            # DockerExecConnector, Session impl via Docker socket
-backend/internal/terminal/terminal_test.go          # +3 tests: default shell, socket, interface check
-backend/internal/routes/terminal.go                 # handleDockerExecTerminal + route registration
-backend/internal/routes/terminal_test.go            # +1 test: TestDockerExecRequiresAuth
+backend/internal/servers/docker_exec.go            # DockerExecConnector, Session impl via Docker socket
+backend/internal/servers/terminal_test.go          # +3 tests: default shell, socket, interface check
+backend/internal/routes/server.go                 # handleDockerExecTerminal + route registration
+backend/internal/routes/server_test.go              # +1 test: TestDockerExecRequiresAuth
 dashboard/src/components/docker/ContainersTab.tsx   # Added onOpenTerminal prop + "Terminal" menu item
 dashboard/src/routes/_app/_auth/docker.tsx           # Added TerminalPanel Dialog for docker exec
 ```
@@ -91,9 +91,9 @@ dashboard/src/routes/_app/_auth/docker.tsx           # Added TerminalPanel Dialo
 - exec/start with Connection: Upgrade → hijacked bidirectional I/O, same relay pattern as SSH
 - Terminal action only visible for running containers (`c.State === "running"`)
 - Default shell `/bin/sh` (not bash) since many containers don't have bash
-- Reused `<TerminalPanel containerId={id} />` from Story 15.2 — zero duplication
-- Docker exec WS 同样受益于 `wsTokenAuth` Priority=-1019 修复（共享同一 terminal group），无需额外处理
-- nginx WS location regex 同时覆盖 `/api/ext/terminal/ssh/` 和 `/api/ext/terminal/docker/`
+- Reused `<TerminalPanel containerId={id} />` from Story 15.1 — zero duplication
+- Docker exec WS 同样受益于 `wsTokenAuth` Priority=-1019 修复（共享同一 server runtime group），无需额外处理
+- nginx WS location regex 同时覆盖 `/api/servers/:serverId/shell` 和 `/api/servers/containers/:containerId/shell`
 
 ### Code Review Fixes
 

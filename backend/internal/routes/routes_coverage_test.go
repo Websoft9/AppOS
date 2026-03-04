@@ -1,18 +1,5 @@
 package routes
 
-// TestAllExtRoutesCoveredByOpenAPISpec enforces that every /api/ext/* route
-// registered in source files has a matching path entry in ext-api.yaml.
-//
-// Failure means a developer added or renamed a route without updating the spec.
-// Fix: add the missing path to backend/docs/openapi/ext-api.yaml.
-//
-// How it works (static analysis, no runtime router introspection needed):
-//  1. Scan every non-test .go file in this package line-by-line.
-//  2. Track variable→path assignments from .Group() calls.
-//  3. Collect all .GET/.POST/.PUT/.DELETE/.PATCH calls on /api/ext/* prefixes.
-//  4. Load ext-api.yaml and extract all documented `paths:` keys.
-//  5. Report any code routes absent from the spec.
-
 import (
 	"bufio"
 	"fmt"
@@ -26,34 +13,24 @@ import (
 )
 
 var (
-	// Matches: varName := parent.Group("/path")  or  varName = parent.Group("/path")
-	reGroupAssign = regexp.MustCompile(`(\w+)\s*:?=\s*(\w+)\.Group\("([^"]*)"\)`)
-
-	// Matches: varName := se.Router.Group("/path")
+	reGroupAssign       = regexp.MustCompile(`(\w+)\s*:?=\s*(\w+)\.Group\("([^"]*)"\)`)
 	reRouterGroupAssign = regexp.MustCompile(`(\w+)\s*:?=\s*(\w+)\.Router\.Group\("([^"]*)"\)`)
-
-	// Matches: varName.METHOD("/path", ...)
-	reRouteMethod = regexp.MustCompile(`(\w+)\.(GET|POST|PUT|DELETE|PATCH|HEAD)\("([^"]*)"`)
-
-	// Matches top-level OpenAPI path keys inside the `paths:` block.
-	reSpecPathKey = regexp.MustCompile(`^  (/api/ext[^\s:]*):\s*$`)
+	reRouteMethod       = regexp.MustCompile(`(\w+)\.(GET|POST|PUT|DELETE|PATCH|HEAD)\("([^"]*)"`)
+	reSpecPathKey       = regexp.MustCompile(`^  (/(?:api/ext|api/servers)[^\s:]*):\s*$`)
 )
 
 func TestAllExtRoutesCoveredByOpenAPISpec(t *testing.T) {
 	_, thisFile, _, _ := runtime.Caller(0)
 	routesDir := filepath.Dir(thisFile)
 
-	// ── Step 1: Extract all /api/ext routes from source files ──────────────
-	codeRoutes, err := extractExtRoutes(routesDir)
+	codeRoutes, err := extractCustomRoutes(routesDir)
 	if err != nil {
 		t.Fatalf("failed to extract routes from source: %v", err)
 	}
 
-	// ── Step 2: Load OpenAPI spec ───────────────────────────────────────────
 	specPath := filepath.Join(routesDir, "../../docs/openapi/ext-api.yaml")
 	specPaths, err := extractSpecPaths(specPath)
 	if err != nil {
-		// Skip (not fail) if the spec file does not exist yet — allows gradual rollout.
 		t.Skipf("OpenAPI spec not found at %s (create it to enable enforcement): %v", specPath, err)
 	}
 
@@ -63,16 +40,11 @@ func TestAllExtRoutesCoveredByOpenAPISpec(t *testing.T) {
 	}
 	if len(duplicates) > 0 {
 		sort.Strings(duplicates)
-		t.Fatalf(
-			"OpenAPI spec has duplicated path key(s), YAML is invalid.\n\n%s",
-			strings.Join(duplicates, "\n"),
-		)
+		t.Fatalf("OpenAPI spec has duplicated path key(s), YAML is invalid.\n\n%s", strings.Join(duplicates, "\n"))
 	}
 
-	// ── Step 3: Report coverage gaps ───────────────────────────────────────
 	var missing []string
 	for _, cr := range codeRoutes {
-		// cr format: "METHOD /api/ext/some/path"
 		parts := strings.SplitN(cr, " ", 2)
 		if len(parts) != 2 {
 			continue
@@ -83,22 +55,13 @@ func TestAllExtRoutesCoveredByOpenAPISpec(t *testing.T) {
 	}
 
 	t.Logf("Coverage check: %d code routes detected, %d paths in spec", len(codeRoutes), len(specPaths))
-
 	if len(missing) > 0 {
 		sort.Strings(missing)
-		t.Errorf(
-			"%d route(s) registered in code but missing from ext-api.yaml.\n"+
-				"Add the following paths to backend/docs/openapi/ext-api.yaml:\n\n%s",
-			len(missing), strings.Join(missing, "\n"),
-		)
+		t.Errorf("%d route(s) registered in code but missing from ext-api.yaml.\nAdd the following paths to backend/docs/openapi/ext-api.yaml:\n\n%s", len(missing), strings.Join(missing, "\n"))
 	}
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-// extractExtRoutes scans all non-test .go files in dir and returns routes in
-// "METHOD /full/path" format for paths that start with /api/ext.
-func extractExtRoutes(dir string) ([]string, error) {
+func extractCustomRoutes(dir string) ([]string, error) {
 	files, err := filepath.Glob(filepath.Join(dir, "*.go"))
 	if err != nil {
 		return nil, err
@@ -118,23 +81,21 @@ func extractExtRoutes(dir string) ([]string, error) {
 	return all, nil
 }
 
-// extractRoutesFromFile performs per-file static analysis:
-//   - seeds known entry-point variable names with their base paths
-//   - tracks Group() chain assignments
-//   - collects HTTP method calls on /api/ext prefixes
 func extractRoutesFromFile(path string) ([]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 
-	// Seed: variables that arrive as function parameters already pointing at /api/ext.
-	// Most registerXxxRoutes(g) receive the /api/ext RouterGroup.
-	// Files that use se.Router.Group() directly are handled by the reGroupAssign pass below.
+	defaultG := "/api/ext"
+	if strings.HasPrefix(filepath.Base(path), "server") {
+		defaultG = "/api/servers"
+	}
+
 	vars := map[string]string{
-		"g":  "/api/ext", // parameter in registerXxxRoutes(g)
-		"se": "",         // ServeEvent — Group() calls on se.Router chain below
-		"r":  "",         // raw router root
+		"g":  defaultG,
+		"se": "",
+		"r":  "",
 	}
 
 	var routes []string
@@ -142,8 +103,6 @@ func extractRoutesFromFile(path string) ([]string, error) {
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		// Track Group assignments so nested groups resolve correctly.
-		// Example: compose := d.Group("/compose") → compose = /api/ext/docker/compose
 		if m := reGroupAssign.FindStringSubmatch(line); m != nil {
 			newVar, parent, suffix := m[1], m[2], m[3]
 			if base, ok := vars[parent]; ok {
@@ -158,21 +117,17 @@ func extractRoutesFromFile(path string) ([]string, error) {
 			}
 		}
 
-		// Collect route registrations on any variable whose resolved path is under /api/ext.
-		// Example: compose.POST("/up", ...) → POST /api/ext/docker/compose/up
 		if m := reRouteMethod.FindStringSubmatch(line); m != nil {
 			varName, method, suffix := m[1], m[2], m[3]
-			if base, ok := vars[varName]; ok && strings.HasPrefix(base, "/api/ext") {
+			if base, ok := vars[varName]; ok && (strings.HasPrefix(base, "/api/ext") || strings.HasPrefix(base, "/api/servers")) {
 				routes = append(routes, method+" "+base+suffix)
 			}
 		}
 	}
+
 	return routes, scanner.Err()
 }
 
-// extractSpecPaths reads an OpenAPI YAML file and returns all path keys that
-// start with /api/ext. Parsing is intentionally line-based to avoid introducing
-// a yaml dependency — the format is stable for top-level path keys.
 func extractSpecPaths(specPath string) (map[string]struct{}, error) {
 	f, err := os.Open(specPath)
 	if err != nil {
@@ -190,8 +145,6 @@ func extractSpecPaths(specPath string) (map[string]struct{}, error) {
 	return paths, scanner.Err()
 }
 
-// extractDuplicateSpecPathKeys returns any repeated top-level /api/ext path
-// keys in the OpenAPI YAML file.
 func extractDuplicateSpecPathKeys(specPath string) ([]string, error) {
 	f, err := os.Open(specPath)
 	if err != nil {

@@ -236,7 +236,7 @@ Falls back to DB value if server not in registry (i.e., `offline`).
 
 ---
 
-### `resolveServerConfig` extension (`routes/terminal.go`)
+### `resolveServerConfig` extension (`routes/server.go`)
 
 ```go
 // After existing direct-SSH resolution:
@@ -390,7 +390,7 @@ Add a "Rotate Token" button in the server edit view (tunnel servers only):
 - [x] After `autossh` connects, `tunnel_status` changes to `"online"` in PocketBase within 5 s
 - [x] `TunnelSetupWizard` detects `tunnel_status = online` via PB Realtime and shows "Connected" state
 - [x] After appos restart, reconnecting `autossh` restores the same `tunnel_port` values (persistent assignment)
-- [x] `WS /api/ext/terminal/ssh/:serverId` works for a tunnel server (resolveServerConfig override)
+- [x] `WS /api/servers/:serverId/shell` works for a tunnel server (resolveServerConfig override)
 - [x] All SFTP routes work for a tunnel server
 - [x] `connect_type = direct` Add Server flow is unchanged
 - [x] Token rotation immediately closes the active tunnel; old token rejected on reconnect
@@ -412,7 +412,7 @@ Add a "Rotate Token" button in the server edit view (tunnel servers only):
 ### Modified
 - `backend/internal/routes/routes.go` — added `registerTunnelRoutes(se, g)` call
 - `backend/internal/routes/resources.go` — added `connect_type` to serverFields
-- `backend/internal/routes/terminal.go` — added tunnel SSH port override in resolveServerConfig
+- `backend/internal/routes/server.go` — added tunnel SSH port override in resolveServerConfig
 - `dashboard/src/components/resources/ResourcePage.tsx` — added `onCreateSuccess` callback to ResourcePageConfig
 - `dashboard/src/routes/_app/_auth/resources/servers.tsx` — connect_type field, tunnel_status column, wizard integration
 

@@ -545,7 +545,7 @@ export function FileManagerPanel({
       if (copyMoveMode === 'move') {
         await sftpMove(serverId, from, to)
       } else {
-        const url = `/api/ext/terminal/sftp/${serverId}/copy-stream?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+        const url = `/api/servers/${serverId}/files/copy-stream?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
         const res = await fetch(url, {
           headers: { Authorization: pb.authStore.token },
         })

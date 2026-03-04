@@ -43,7 +43,7 @@ const RESOURCES: ResourceDef[] = [
     description: 'SSH deployment targets',
     icon: <Server className="h-5 w-5" />,
     href: '/resources/servers',
-    apiPath: '/api/ext/resources/servers',
+    apiPath: '/api/collections/servers/records',
   },
   {
     key: 'secrets',
@@ -112,10 +112,15 @@ export function ResourceHub() {
 
   useEffect(() => {
     const promises = RESOURCES.map(r =>
-      pb
-        .send<unknown[]>(r.apiPath, {})
-        .then(data => ({ key: r.key, count: Array.isArray(data) ? data.length : 0 }))
-        .catch(() => ({ key: r.key, count: 0 }))
+      (r.key === 'servers'
+        ? pb
+            .collection('servers')
+            .getList(1, 1)
+            .then(data => ({ key: r.key, count: data.totalItems ?? 0 }))
+        : pb
+            .send<unknown[]>(r.apiPath, {})
+            .then(data => ({ key: r.key, count: Array.isArray(data) ? data.length : 0 }))
+      ).catch(() => ({ key: r.key, count: 0 }))
     )
     Promise.allSettled(promises).then(results => {
       const c: Record<string, number> = {}

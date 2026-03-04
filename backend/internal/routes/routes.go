@@ -6,10 +6,10 @@
 //   - /api/ext/system     — system metrics, terminal, file browser
 //   - /api/ext/services   — supervisord service management (Epic 6)
 //   - /api/ext/backup     — backup/restore operations
-//   - /api/ext/audit      — audit logs query
 //   - /api/ext/resources  — Resource Store CRUD (Epic 8)
 //   - /api/ext/space      — User private space (Epic 9)
 //   - /api/ext/iac        — IaC file management (Epic 14, superuser-only)
+//   - /api/servers        — Server operations: shell, files, containers, ops (Epic 20)
 package routes
 
 import (
@@ -44,20 +44,23 @@ func Register(se *core.ServeEvent) {
 	// Ext Settings API (superuser-only — registered directly on se.Router)
 	RegisterSettings(se)
 
-	// All other custom routes require authentication
+	// All /api/ext custom routes require authentication
 	g := se.Router.Group("/api/ext")
 	g.Bind(apis.RequireAuth())
+
+	// Server operation routes use /api/servers prefix
+	servers := se.Router.Group("/api/servers")
+	servers.Bind(apis.RequireAuth())
 
 	registerDockerRoutes(g)
 	registerProxyRoutes(g)
 	registerSystemRoutes(g)
 	registerServiceRoutes(g)
 	registerBackupRoutes(g)
-	registerAuditRoutes(g)
 	registerResourceRoutes(g)
 	registerSpaceRoutes(g)
 	registerUserRoutes(g)
 	registerIaCRoutes(g)
-	registerTerminalRoutes(g)
+	registerServerRoutes(servers)
 	registerTunnelRoutes(se, g)
 }

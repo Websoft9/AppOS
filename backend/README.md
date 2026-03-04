@@ -53,7 +53,7 @@ make openapi-sync
 
 Available commands:
 
-- `make openapi-gen` — regenerate `ext-api.yaml` from `/api/ext/*` route source (machine-generated)
+- `make openapi-gen` — regenerate `ext-api.yaml` from custom route source (`/api/ext/*` + `/api/servers/*`, machine-generated)
 - `make openapi-merge` — merge `ext-api.yaml` + `native-api.yaml` into `api.yaml`
 - `make openapi-check` — fail when Ext route/spec drift or duplicate YAML keys exist
 - `make openapi-sync` — run generate + merge + check in order
@@ -89,7 +89,12 @@ backend/
 
 ## API Endpoints
 
-### Custom Routes (all under `/api/ext/`)
+### Custom Routes
+
+Custom business APIs use two prefixes:
+
+- `/api/ext/*` for most extension domains
+- `/api/servers/*` for server runtime operations (shell/files/ops/containers)
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|

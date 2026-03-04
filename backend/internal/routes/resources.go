@@ -1,10 +1,7 @@
 package routes
 
 import (
-	"fmt"
-	"net"
 	"net/http"
-	"time"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/apis"
@@ -19,7 +16,6 @@ import (
 // Route groups:
 //
 //	/api/ext/resources/groups/*
-//	/api/ext/resources/servers/*
 //	/api/ext/resources/secrets/*
 //	/api/ext/resources/env-groups/*
 //	/api/ext/resources/databases/*
@@ -31,7 +27,6 @@ func registerResourceRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	r := g.Group("/resources")
 
 	registerResourceGroupsCRUD(r)
-	registerServersCRUD(r)
 	registerSecretsCRUD(r)
 	registerEnvGroupsCRUD(r)
 	registerDatabasesCRUD(r)
@@ -43,7 +38,6 @@ func registerResourceRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 
 // allResourceTypes maps URL-segment → collection name for cross-type operations.
 var allResourceTypes = map[string]string{
-	"servers":        "servers",
 	"secrets":        "secrets",
 	"env-groups":     "env_groups",
 	"databases":      "databases",
@@ -310,82 +304,6 @@ func bindAndSave(e *core.RequestEvent, record *core.Record, fields []string) err
 		return e.BadRequestError("Validation failed", err)
 	}
 	return e.JSON(http.StatusOK, recordToMap(record))
-}
-
-// ═══════════════════════════════════════════════════════════
-// Servers
-// ═══════════════════════════════════════════════════════════
-
-var serverFields = []string{"name", "host", "port", "user", "auth_type", "credential", "description", "groups", "connect_type"}
-
-func registerServersCRUD(r *router.RouterGroup[*core.RequestEvent]) {
-	s := r.Group("/servers")
-	s.Bind(apis.RequireSuperuserAuth())
-
-	s.GET("", func(e *core.RequestEvent) error {
-		return listRecords(e, "servers")
-	})
-	s.GET("/{id}", func(e *core.RequestEvent) error {
-		return getRecord(e, "servers")
-	})
-	s.POST("", func(e *core.RequestEvent) error {
-		col, err := e.App.FindCollectionByNameOrId("servers")
-		if err != nil {
-			return resourceError(e, http.StatusInternalServerError, "collection not found", err)
-		}
-		record := core.NewRecord(col)
-		return bindAndSave(e, record, serverFields)
-	})
-	s.PUT("/{id}", func(e *core.RequestEvent) error {
-		id := e.Request.PathValue("id")
-		record, err := e.App.FindRecordById("servers", id)
-		if err != nil {
-			return e.NotFoundError("Record not found", err)
-		}
-		return bindAndSave(e, record, serverFields)
-	})
-	s.DELETE("/{id}", func(e *core.RequestEvent) error {
-		return deleteRecord(e, "servers")
-	})
-
-	// Ping — test whether the server is reachable.
-	// Tunnel servers: check in-memory session registry.
-	// Direct servers: attempt a TCP dial to host:port.
-	s.GET("/{id}/ping", func(e *core.RequestEvent) error {
-		id := e.Request.PathValue("id")
-		server, err := e.App.FindRecordById("servers", id)
-		if err != nil {
-			return e.NotFoundError("server not found", err)
-		}
-
-		if server.GetString("connect_type") == "tunnel" {
-			// Delegate to tunnel registry.
-			if tunnelSessions != nil {
-				if _, ok := tunnelSessions.Get(id); ok {
-					return e.JSON(http.StatusOK, map[string]any{"status": "online"})
-				}
-			}
-			return e.JSON(http.StatusOK, map[string]any{"status": "offline"})
-		}
-
-		// Direct server: TCP dial.
-		host := server.GetString("host")
-		port := server.GetInt("port")
-		if port == 0 {
-			port = 22
-		}
-		addr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
-		start := time.Now()
-		conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
-		if err != nil {
-			return e.JSON(http.StatusOK, map[string]any{"status": "offline"})
-		}
-		_ = conn.Close()
-		return e.JSON(http.StatusOK, map[string]any{
-			"status":     "online",
-			"latency_ms": time.Since(start).Milliseconds(),
-		})
-	})
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -772,7 +690,7 @@ func registerCloudAccountsCRUD(r *router.RouterGroup[*core.RequestEvent]) {
 // Certificates
 // ═══════════════════════════════════════════════════════════
 
-var certificateFields = []string{"name", "domain", "cert_pem", "key", "expires_at", "auto_renew", "description", "groups"}
+var certificateFields = []string{"name", "domain", "cert_pem", "key", "auto_renew", "expires_at", "description", "groups"}
 
 func registerCertificatesCRUD(r *router.RouterGroup[*core.RequestEvent]) {
 	c := r.Group("/certificates")

@@ -77,12 +77,12 @@ func (c *DockerExecConnector) Connect(ctx context.Context, cfg ConnectorConfig) 
 			}
 		}
 		if err != nil {
-			ch <- result{nil, fmt.Errorf("docker exec create: %w", err)}
+			ch <- result{nil, classifyDockerExecError(err, "create", containerID)}
 			return
 		}
 		conn, err := dockerStartExecFn(execID)
 		if err != nil {
-			ch <- result{nil, fmt.Errorf("docker exec start: %w", err)}
+			ch <- result{nil, NewConnectError(ErrCatSessionFailed, fmt.Sprintf("docker exec start failed for container %q", containerID), err)}
 			return
 		}
 		ch <- result{&dockerExecSession{conn: conn, execID: execID}, nil}
@@ -90,10 +90,25 @@ func (c *DockerExecConnector) Connect(ctx context.Context, cfg ConnectorConfig) 
 
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, NewConnectError(ErrCatNetworkUnreachable, fmt.Sprintf("docker exec timed out for container %q", cfg.Host), ctx.Err())
 	case r := <-ch:
 		return r.sess, r.err
 	}
+}
+
+// classifyDockerExecError maps Docker exec errors into ConnectError categories.
+func classifyDockerExecError(err error, phase, containerID string) *ConnectError {
+	s := strings.ToLower(err.Error())
+	if strings.Contains(s, "no such container") || strings.Contains(s, "is not running") || strings.Contains(s, "is restarting") {
+		return NewConnectError(ErrCatSessionFailed,
+			fmt.Sprintf("container %q is not available — verify it is running", containerID), err)
+	}
+	if strings.Contains(s, "permission denied") || strings.Contains(s, "no such file or directory") {
+		return NewConnectError(ErrCatConnectionRefused,
+			"Docker daemon is not accessible — check socket permissions", err)
+	}
+	return NewConnectError(ErrCatSessionFailed,
+		fmt.Sprintf("docker exec %s failed for container %q", phase, containerID), err)
 }
 
 func (s *dockerExecSession) Write(p []byte) (int, error) {

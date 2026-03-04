@@ -111,6 +111,28 @@ func parseJSONArray(t *testing.T, rec *httptest.ResponseRecorder) []map[string]a
 	return result
 }
 
+func createServerRecord(t *testing.T, te *testEnv, name, host string, port int, user, authType string) *core.Record {
+	t.Helper()
+
+	serversCol, err := te.app.FindCollectionByNameOrId("servers")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	record := core.NewRecord(serversCol)
+	record.Set("name", name)
+	record.Set("host", host)
+	record.Set("port", port)
+	record.Set("user", user)
+	record.Set("auth_type", authType)
+
+	if err := te.app.Save(record); err != nil {
+		t.Fatal(err)
+	}
+
+	return record
+}
+
 // ═══════════════════════════════════════════════════════════
 // Servers
 // ═══════════════════════════════════════════════════════════
@@ -119,41 +141,34 @@ func TestServersCreateAndList(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	// Create server
-	rec := te.do(t, http.MethodPost, "/api/ext/resources/servers",
-		`{"name":"test-server","host":"192.168.1.1","port":22,"user":"root","auth_type":"password"}`, true)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("create: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	created := createServerRecord(t, te, "test-server", "192.168.1.1", 22, "root", "password")
+	if created.GetString("name") != "test-server" {
+		t.Errorf("expected name 'test-server', got %v", created.GetString("name"))
 	}
 
-	created := parseJSON(t, rec)
-	if created["name"] != "test-server" {
-		t.Errorf("expected name 'test-server', got %v", created["name"])
+	serversCol, err := te.app.FindCollectionByNameOrId("servers")
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	// List servers
-	rec = te.do(t, http.MethodGet, "/api/ext/resources/servers", "", true)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("list: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	list, err := te.app.FindRecordsByFilter(serversCol, "", "", 100, 0)
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	list := parseJSONArray(t, rec)
 	if len(list) != 1 {
 		t.Fatalf("expected 1 server, got %d", len(list))
 	}
-	if list[0]["host"] != "192.168.1.1" {
-		t.Errorf("expected host '192.168.1.1', got %v", list[0]["host"])
+	if list[0].GetString("host") != "192.168.1.1" {
+		t.Errorf("expected host '192.168.1.1', got %v", list[0].GetString("host"))
 	}
 }
 
-func TestServersRequiresAuth(t *testing.T) {
+func TestServersRouteRemovedFromExt(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	rec := te.do(t, http.MethodGet, "/api/ext/resources/servers", "", false)
-	if rec.Code == http.StatusOK {
-		t.Fatal("expected non-200 for unauthenticated request")
+	rec := te.do(t, http.MethodGet, "/api/ext/resources/servers", "", true)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 after ext server route removal, got %d", rec.Code)
 	}
 }
 
@@ -462,23 +477,22 @@ func TestResourceGroupsCrossTypeListAndBatch(t *testing.T) {
 	group := parseJSON(t, rec)
 	groupId := group["id"].(string)
 
-	// Create a server
-	rec = te.do(t, http.MethodPost, "/api/ext/resources/servers",
-		`{"name":"infra-server","host":"10.0.0.1","port":22,"user":"root","auth_type":"password"}`, true)
+	rec = te.do(t, http.MethodPost, "/api/ext/resources/secrets",
+		`{"name":"infra-secret","type":"password","value":"super-secret-123"}`, true)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("create server: expected 200, got %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("create secret: expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
-	server := parseJSON(t, rec)
-	serverId := server["id"].(string)
+	secret := parseJSON(t, rec)
+	secretId := secret["id"].(string)
 
-	// Batch add server to the infra group
-	batchBody := `{"action":"add","items":[{"type":"servers","id":"` + serverId + `"}]}`
+	// Batch add secret to the infra group
+	batchBody := `{"action":"add","items":[{"type":"secrets","id":"` + secretId + `"}]}`
 	rec = te.do(t, http.MethodPost, "/api/ext/resources/groups/"+groupId+"/resources/batch", batchBody, true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("batch add: expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 
-	// Cross-type list should include the server
+	// Cross-type list should include the secret
 	rec = te.do(t, http.MethodGet, "/api/ext/resources/groups/"+groupId+"/resources", "", true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("cross-type list: expected 200, got %d: %s", rec.Code, rec.Body.String())
@@ -487,15 +501,15 @@ func TestResourceGroupsCrossTypeListAndBatch(t *testing.T) {
 	if len(resources) != 1 {
 		t.Fatalf("expected 1 resource in group, got %d", len(resources))
 	}
-	if resources[0]["type"] != "servers" {
-		t.Errorf("expected type 'servers', got %v", resources[0]["type"])
+	if resources[0]["type"] != "secrets" {
+		t.Errorf("expected type 'secrets', got %v", resources[0]["type"])
 	}
-	if resources[0]["name"] != "infra-server" {
-		t.Errorf("expected name 'infra-server', got %v", resources[0]["name"])
+	if resources[0]["name"] != "infra-secret" {
+		t.Errorf("expected name 'infra-secret', got %v", resources[0]["name"])
 	}
 
-	// Batch remove server from the infra group
-	batchBody = `{"action":"remove","items":[{"type":"servers","id":"` + serverId + `"}]}`
+	// Batch remove secret from the infra group
+	batchBody = `{"action":"remove","items":[{"type":"secrets","id":"` + secretId + `"}]}`
 	rec = te.do(t, http.MethodPost, "/api/ext/resources/groups/"+groupId+"/resources/batch", batchBody, true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("batch remove: expected 200, got %d: %s", rec.Code, rec.Body.String())

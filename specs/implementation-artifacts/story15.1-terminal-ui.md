@@ -1,11 +1,11 @@
-# Story 15.2: Terminal UI
+# Story 15.1: Terminal UI
 
-**Epic**: Epic 15 – Connect: Terminal Ops
-**Status**: complete | **Priority**: P1 | **Depends on**: Story 15.1, Epic 13
+**Epic**: Epic 15 – Connect: Terminal Framework
+**Status**: complete | **Priority**: P1 | **Depends on**: Epic 13
 
 ## Scope Positioning
 
-This story establishes the unified Connect workspace baseline with terminal command execution and basic file manager integration. Advanced SFTP file operations are tracked in Story 15.4.
+This story establishes the unified Connect workspace baseline with terminal command execution and basic file manager integration. Advanced SFTP file operations are tracked in Story 20.3.
 
 2026-03 optimization scope is added for multi-connection UX, split presets, and disconnect experience.
 
@@ -42,7 +42,7 @@ dashboard/src/
 ### TerminalPanel
 
 - Renders `xterm.js` + `xterm-addon-fit`
-- Opens `WS /api/ext/terminal/ssh/:serverId` (or `/docker/:containerId`)
+- Opens `WS /api/servers/:serverId/shell` (or `/api/servers/containers/:containerId/shell`)
 - Sends resize control frame on container resize (ResizeObserver)
 - Displays error overlay with **Reconnect** button on disconnect
 - Reads `connect.terminal.font_size` and `connect.terminal.scrollback` from localStorage
@@ -55,11 +55,11 @@ Single-pane table layout with breadcrumb navigation.
 | Interaction | Behaviour |
 |-------------|-----------|
 | Double-click directory | Navigate into, update breadcrumb |
-| Context menu → Download | `GET /sftp/:serverId/download?path=` |
-| Context menu → Rename | `POST /sftp/:serverId/rename` |
-| Context menu → Delete | `DELETE /sftp/:serverId/delete?path=` (confirm dialog) |
-| Drag-and-drop / Upload button | `POST /sftp/:serverId/upload?path=` |
-| New folder button | `POST /sftp/:serverId/mkdir` |
+| Context menu → Download | `GET /api/servers/:serverId/files/download?path=` |
+| Context menu → Rename | `POST /api/servers/:serverId/files/rename` |
+| Context menu → Delete | `DELETE /api/servers/:serverId/files/delete?path=` (confirm dialog) |
+| Drag-and-drop / Upload button | `POST /api/servers/:serverId/files/upload?path=` |
+| New folder button | `POST /api/servers/:serverId/files/mkdir` |
 | Hidden files toggle | Toggle `connect.sftp.show_hidden` in localStorage; re-filter current listing (no refetch) |
 
 File list columns: Name, Size, Permissions, Modified.

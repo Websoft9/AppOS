@@ -5,7 +5,7 @@ import '@xterm/xterm/css/xterm.css'
 import { sshWebSocketUrl, loadPreferences } from '@/lib/connect-api'
 import { pb } from '@/lib/pb'
 import { Button } from '@/components/ui/button'
-import { AlertCircle, RefreshCw } from 'lucide-react'
+import { AlertCircle, KeyRound, WifiOff, ShieldX, Settings, ServerCrash, Unplug, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -26,6 +26,25 @@ export interface TerminalPanelProps {
 }
 
 // ─── Control frame helpers ────────────────────────────────────────────────────
+
+// ─── Error category display helpers ───────────────────────────────────────────
+
+type ConnectErrorCategory =
+  | 'auth_failed'
+  | 'network_unreachable'
+  | 'connection_refused'
+  | 'credential_invalid'
+  | 'session_failed'
+  | 'server_disconnected'
+
+const categoryMeta: Record<ConnectErrorCategory, { icon: typeof AlertCircle; label: string }> = {
+  auth_failed:         { icon: KeyRound,    label: 'Authentication Failed' },
+  network_unreachable: { icon: WifiOff,     label: 'Network Unreachable' },
+  connection_refused:  { icon: ShieldX,     label: 'Connection Refused' },
+  credential_invalid:  { icon: Settings,    label: 'Credential Config Error' },
+  session_failed:      { icon: ServerCrash, label: 'Session Setup Failed' },
+  server_disconnected: { icon: Unplug,      label: 'Server Disconnected' },
+}
 
 function makeResizeFrame(cols: number, rows: number): Uint8Array {
   const json = JSON.stringify({ type: 'resize', cols, rows })
@@ -57,6 +76,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     const wsRef = useRef<WebSocket | null>(null)
     const fitRef = useRef<FitAddon | null>(null)
     const [error, setError] = useState<string | null>(null)
+    const [errorCategory, setErrorCategory] = useState<ConnectErrorCategory | null>(null)
     const [connecting, setConnecting] = useState(false)
     const fitTimersRef = useRef<number[]>([])
     const isActiveRef = useRef(!!isActive)
@@ -131,6 +151,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     const connect = useCallback(() => {
       if (!termRef.current) return
       setError(null)
+      setErrorCategory(null)
       setConnecting(true)
 
       // Determine WebSocket URL
@@ -140,7 +161,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       } else if (containerId) {
         // Story 15.3: Docker exec path
         const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-        wsUrl = `${proto}//${window.location.host}/api/ext/terminal/docker/${containerId}`
+        wsUrl = `${proto}//${window.location.host}/api/servers/containers/${containerId}/shell`
       } else {
         setError('No server or container specified')
         setConnecting(false)
@@ -217,10 +238,16 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
             try {
               const ctrl = JSON.parse(new TextDecoder().decode(bytes.slice(1))) as {
                 type: string
+                category?: string
                 message?: string
               }
               if (ctrl.type === 'error' || ctrl.type === 'close') {
                 setError(ctrl.message ?? `Connection ${ctrl.type}`)
+                if (ctrl.category && ctrl.category in categoryMeta) {
+                  setErrorCategory(ctrl.category as ConnectErrorCategory)
+                } else {
+                  setErrorCategory(null)
+                }
                 ws.close(1000)
               }
             } catch {
@@ -239,13 +266,16 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       ws.onclose = event => {
         setConnecting(false)
         if (event.code !== 1000) {
-          setError(`Connection closed (code ${event.code})`)
+          const detail = event.reason ? `: ${event.reason}` : ''
+          setError(`Connection closed (code ${event.code}${detail})`)
+          setErrorCategory(null)
         }
       }
 
       ws.onerror = () => {
         setConnecting(false)
         setError('WebSocket connection failed')
+        setErrorCategory(null)
       }
 
       // Terminal → WebSocket
@@ -324,15 +354,24 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         {/* Error overlay */}
         {(error || connecting) && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
-            <div className="text-center space-y-3">
+            <div className="text-center space-y-3 max-w-md px-6">
               {connecting ? (
                 <p className="text-muted-foreground text-sm">Connecting...</p>
               ) : (
                 <>
-                  <div className="flex items-center justify-center gap-2 text-destructive">
-                    <AlertCircle className="h-5 w-5" />
-                    <span className="text-sm">{error}</span>
-                  </div>
+                  {(() => {
+                    const meta = errorCategory ? categoryMeta[errorCategory] : null
+                    const Icon = meta?.icon ?? AlertCircle
+                    return (
+                      <>
+                        <div className="flex items-center justify-center gap-2 text-destructive">
+                          <Icon className="h-5 w-5 shrink-0" />
+                          <span className="text-sm font-medium">{meta?.label ?? 'Connection Error'}</span>
+                        </div>
+                        <p className="text-muted-foreground text-xs leading-relaxed">{error}</p>
+                      </>
+                    )
+                  })()}
                   <Button variant="outline" size="sm" onClick={connect}>
                     <RefreshCw className="h-4 w-4 mr-1" />
                     Reconnect

@@ -81,22 +81,22 @@ func authForPath(path string, superuserVarPaths map[string]bool) string {
 
 // route is a single discovered route entry.
 type route struct {
-	method        string
-	path          string
-	handler       string
-	queryParams   []string
-	queryRequired map[string]bool
-	headerParams  []swaggerParamHint
-	cookieParams  []swaggerParamHint
+	method         string
+	path           string
+	handler        string
+	queryParams    []string
+	queryRequired  map[string]bool
+	headerParams   []swaggerParamHint
+	cookieParams   []swaggerParamHint
 	formDataParams []swaggerParamHint
-	bodyRequired  *bool
-	successCodes  []int
-	failureCodes  []int
-	markerGroup   string
-	markerSummary string
-	markerAuth    string
-	summary       string
-	description   string
+	bodyRequired   *bool
+	successCodes   []int
+	failureCodes   []int
+	markerGroup    string
+	markerSummary  string
+	markerAuth     string
+	summary        string
+	description    string
 }
 
 type swaggerParamHint struct {
@@ -133,8 +133,13 @@ func scanFile(filePath string) ([]route, map[string]bool) {
 	handlerSummaries := extractHandlerSummaries(string(data))
 	handlerDescriptions := extractHandlerDescriptions(string(data))
 
+	defaultG := "/api/ext"
+	if strings.HasPrefix(filepath.Base(filePath), "server") {
+		defaultG = "/api/servers"
+	}
+
 	vars := map[string]string{
-		"g":  "/api/ext",
+		"g":  defaultG,
 		"se": "",
 		"r":  "",
 	}
@@ -1140,6 +1145,24 @@ func summaryFrom(method, path string) string {
 	return strings.TrimSpace(action + " " + strings.Join(clean, " "))
 }
 
+func sanitizeContentText(raw string) string {
+	text := strings.TrimSpace(raw)
+	if text == "" {
+		return ""
+	}
+	text = strings.ReplaceAll(text, ":", " ")
+	text = strings.ReplaceAll(text, "：", " ")
+	text = strings.Join(strings.Fields(text), " ")
+	return text
+}
+
+func yamlQuotedScalar(raw string) string {
+	text := strings.TrimSpace(raw)
+	text = strings.ReplaceAll(text, `\`, `\\`)
+	text = strings.ReplaceAll(text, `"`, `\"`)
+	return "\"" + text + "\""
+}
+
 func operationID(method, path string) string {
 	clean := strings.ToLower(path)
 	clean = strings.ReplaceAll(clean, "/", "_")
@@ -1220,13 +1243,13 @@ func runGen() error {
 	out.WriteString("tags:\n")
 	for _, tag := range tags {
 		name := strings.TrimSpace(tag.Group)
-		desc := strings.TrimSpace(tag.Description)
+		desc := sanitizeContentText(tag.Description)
 		if name == "" {
 			continue
 		}
 		fmt.Fprintf(&out, "  - name: %s\n", name)
 		if desc != "" {
-			fmt.Fprintf(&out, "    description: %s\n", desc)
+			fmt.Fprintf(&out, "    description: %s\n", yamlQuotedScalar(desc))
 		}
 	}
 	out.WriteString("\n")
@@ -1284,14 +1307,12 @@ func runGen() error {
 				} else if strings.TrimSpace(op.markerSummary) != "" {
 					resolvedSummary = strings.TrimSpace(op.markerSummary)
 				}
+				resolvedSummary = sanitizeContentText(resolvedSummary)
 				block = strings.Replace(block, "      summary: "+summaryFrom(m, p), "      summary: "+resolvedSummary, 1)
 				// Inject description after summary line if @Description is set
 				if strings.TrimSpace(op.description) != "" {
-					desc := strings.TrimSpace(op.description)
-					// Escape for YAML: wrap in double quotes, escape inner quotes and backslashes
-					desc = strings.ReplaceAll(desc, `\`, `\\`)
-					desc = strings.ReplaceAll(desc, `"`, `\"`)
-					block = strings.Replace(block, "      summary: "+resolvedSummary+"\n", "      summary: "+resolvedSummary+"\n      description: \""+desc+"\"\n", 1)
+					desc := sanitizeContentText(op.description)
+					block = strings.Replace(block, "      summary: "+resolvedSummary+"\n", "      summary: "+resolvedSummary+"\n      description: "+yamlQuotedScalar(desc)+"\n", 1)
 				}
 				out.WriteString(block)
 			}

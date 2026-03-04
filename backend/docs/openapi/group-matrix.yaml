@@ -36,15 +36,16 @@ groups:
         - https://pocketbase.io/docs/api-records/#crud-actions
 
   - group: Audit
-    description: Audit querying and audit trail visibility endpoints.
-    apiType: Ext
-    extSurface:
-      - /api/ext/audit/*
-    nativeSurface: []
+    description: Audit querying and audit trail visibility endpoints from Native Record CRUD actions.
+    apiType: Native
+    extSurface: []
+    nativeSurface:
+      - GET /api/collections/audit_logs/records
+      - GET /api/collections/audit_logs/records/{id}
     sources:
-      extRouteFiles:
-        - audit.go
-      nativeRefs: []
+      extRouteFiles: []
+      nativeRefs:
+        - https://pocketbase.io/docs/api-records/#crud-actions
 
   - group: Backups
     description: Backups management APIs.
@@ -145,10 +146,17 @@ groups:
         - https://pocketbase.io/docs/api-realtime/
 
   - group: Resource
-    description: Host and runtime resource discovery and inspection APIs.
+    description: Resource catalog APIs excluding server registry.
     apiType: Ext
     extSurface:
-      - /api/ext/resources/*
+      - /api/ext/resources/certificates*
+      - /api/ext/resources/cloud-accounts*
+      - /api/ext/resources/databases*
+      - /api/ext/resources/env-groups*
+      - /api/ext/resources/groups*
+      - /api/ext/resources/integrations*
+      - /api/ext/resources/scripts*
+      - /api/ext/resources/secrets*
     nativeSurface: []
     sources:
       extRouteFiles:
@@ -165,48 +173,65 @@ groups:
         - routes.go
       nativeRefs: []
 
-  - group: Terminal SSH
-    description: SSH PTY session management. Opens an interactive WebSocket terminal to a registered server via SSH.
-    apiType: Ext
-    extSurface:
-      - /api/ext/terminal/ssh/*
-    nativeSurface: []
+  - group: Server Registry
+    description: Server asset registry CRUD via PocketBase native records API.
+    apiType: Native
+    extSurface: []
+    nativeSurface:
+      - GET /api/collections/servers/records
+      - POST /api/collections/servers/records
+      - GET /api/collections/servers/records/{id}
+      - PATCH /api/collections/servers/records/{id}
+      - DELETE /api/collections/servers/records/{id}
     sources:
       extRouteFiles:
-        - terminal.go
+        - resources.go
       nativeRefs: []
 
-  - group: Terminal Docker
-    description: Docker container exec PTY session. Opens a WebSocket terminal into a running container. Superuser only.
+  - group: Server Shell
+    description: SSH interactive shell sessions.
     apiType: Ext
     extSurface:
-      - /api/ext/terminal/docker/*
+      - GET /api/servers/{serverId}/shell
     nativeSurface: []
     sources:
       extRouteFiles:
-        - terminal.go
+        - server_shell.go
       nativeRefs: []
 
-  - group: Terminal Files
-    description: File management over SFTP/SSH. Full lifecycle including browse, read, write, upload, download, permissions and bulk operations.
+  - group: Server Containers
+    description: Container operations on managed servers.
     apiType: Ext
     extSurface:
-      - /api/ext/terminal/sftp/*
+      - GET /api/servers/containers/{containerId}/shell
     nativeSurface: []
     sources:
       extRouteFiles:
-        - terminal.go
+        - server_containers.go
+      nativeRefs: []
+
+  - group: Server Files
+    description: Server file management over SSH/SFTP.
+    apiType: Ext
+    extSurface:
+      - /api/servers/{serverId}/files*
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - server.go
+        - server_files.go
       nativeRefs: []
 
   - group: Server Ops
-    description: Server lifecycle management via SSH. Power actions, port inspection, and systemd service control including logs and unit file editing.
+    description: Server operations for connectivity, power, ports, and systemd.
     apiType: Ext
     extSurface:
-      - /api/ext/terminal/server/*
+      - /api/servers/{serverId}/ops*
     nativeSurface: []
     sources:
       extRouteFiles:
-        - terminal.go
+        - server.go
+        - server_ops.go
       nativeRefs: []
 
   - group: Services

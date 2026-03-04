@@ -1,10 +1,10 @@
-# Story 15.4: SFTP Enhancements
+# Story 20.3: SFTP Enhancements
 
-**Epic**: 15 | **Status**: Review | **Depends on**: 15.2
+**Epic**: Epic 20 – Servers | **Status**: Review | **Depends on**: 20.1, Epic 15
 
 ## Scope Positioning
 
-This story is limited to SFTP/file manager enhancements only. Docker terminal behavior, shell strategy, and Docker connection fixes are tracked in Story 15.3.
+This story is limited to SFTP/file manager enhancements only. Docker terminal behavior, shell strategy, and Docker connection fixes are tracked in Story 20.2.
 
 ## Acceptance Criteria
 
@@ -35,9 +35,9 @@ This story is limited to SFTP/file manager enhancements only. Docker terminal be
 
 ### File List
 
-- backend/internal/terminal/sftp.go
-- backend/internal/routes/terminal.go
-- backend/internal/routes/terminal_test.go
+- backend/internal/servers/sftp.go
+- backend/internal/routes/server.go
+- backend/internal/routes/server_test.go
 - backend/internal/routes/settings.go
 - dashboard/src/lib/connect-api.ts
 - dashboard/src/components/connect/FileManagerPanel.tsx
@@ -54,7 +54,7 @@ This story is limited to SFTP/file manager enhancements only. Docker terminal be
 - Implemented backend SFTP metadata/property operations: `constraints`, `stat`, `chmod`, `chown`, `symlink`, `copy`, `move`, and `copy-stream` (SSE progress).
 - Implemented frontend FileManager actions for properties edit, symlink creation, copy/move with busy-state progress and retry prompt, settings-backed max upload file count, and Space-aligned sharing entry.
 - Upgraded copy operation to stream progress from backend SSE (`copy-stream`) and render percentage during copy.
-- Validation: `go test ./internal/terminal ./internal/routes` passed; `npm run typecheck` passed.
+- Validation: `go test ./internal/servers ./internal/routes` passed; `npm run typecheck` passed.
 - Added minimal Vitest test harness and component tests for AC1/AC4 in FileManagerPanel.
 - Validation: `npm test` passed (2 tests), `npm run typecheck` passed, backend tests still passed.
 - Fixed `make build` error by removing unused `sftpCopy` import.
@@ -63,8 +63,8 @@ This story is limited to SFTP/file manager enhancements only. Docker terminal be
 - Added permission matrix UI (Owner/Group/Public with rwx toggles) and recursive apply option, synchronized with octal mode input.
 - Added reverse matrix test (mode -> checkbox state sync) and forward matrix test (checkbox -> mode + recursive save).
 - Replaced fixed 50/50 Connect split with draggable divider and persisted ratio.
-- Validation: `go test ./internal/terminal ./internal/routes`, `npm test`, `npm run typecheck`, and `make build` all passed.
-- Docker-related completion items were reclassified to Story 15.3 to keep ownership boundaries clear.
+- Validation: `go test ./internal/servers ./internal/routes`, `npm test`, `npm run typecheck`, and `make build` all passed.
+- Docker-related completion items were reclassified to Story 20.2 to keep ownership boundaries clear.
 
 ### Change Log
 
@@ -75,7 +75,7 @@ This story is limited to SFTP/file manager enhancements only. Docker terminal be
 - 2026-02-28: Fixed build break (`TS6133`).
 - 2026-02-28: Refined FileManager operation dialogs to standard modal style and synchronized AC tests.
 - 2026-02-28: Added owner/group name-based properties, permission matrix UI, and recursive permission apply flow.
-- 2026-02-28: Reclassified Docker-related scope to Story 15.3 (documentation boundary refactor only).
+- 2026-02-28: Reclassified Docker-related scope to Story 20.2 (documentation boundary refactor only).
 
 **Code Review Fixes (2026-session):**
 - `connect-api.ts`: Server 接口新增 `connect_type` 字段（`'direct' | 'tunnel' | string`），移除 ConnectServerPage 中的 `as any` 强转

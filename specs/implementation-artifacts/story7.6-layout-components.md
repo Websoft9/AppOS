@@ -4,7 +4,7 @@
 
 **Epic**: Epic 7 - Dashboard Foundation  
 **Story**: 7.6 - Layout Components  
-**Status**: Not Started  
+**Status**: Done  
 **Priority**: P0 (Foundation for all feature modules)
 
 ## Objective
@@ -28,7 +28,7 @@ Build 5-zone layout structure for the dashboard. All zones are reusable layout c
 │         │                                                   │
 │         ├───────────────────────────────────────────────────┤
 │         │                    BOTTOM                         │
-│[Toggle] │  [Status]    [Notifications]    [Quick Actions]   │
+│[Toggle] │  [Status]    [Notifications]    [Docs][API][Help] │
 └─────────┴───────────────────────────────────────────────────┘
 ```
 
@@ -87,7 +87,7 @@ Main container, orchestrates all zones using CSS Grid layout.
 |----------|---------|
 | Left | System status, connection state |
 | Center | Notification/alert summary with badge count |
-| Right | Quick action links (help, docs) |
+| Right | Quick action links (help, docs, api) |
 
 - Height: 40px default, expandable to show notification list
 - Collapse when clicking outside
@@ -117,7 +117,7 @@ Main container, orchestrates all zones using CSS Grid layout.
 | [⚙️] Serv|                                                       |
 |          +-------------------------------------------------------+
 |          |              BOTTOM (40px)                             |
-| [◀ Hide] | [✓ Connected]  [🔔 2 Alerts]    [📚 Docs] [❓ Help]  |
+| [◀ Hide] | [✓ Connected]  [🔔 2 Alerts]    [📚 Docs] [🔌 API] [❓ Help]  |
 +----------+-------------------------------------------------------+
 ```
 
@@ -132,7 +132,7 @@ Main container, orchestrates all zones using CSS Grid layout.
 |          (Page Content)                    |
 +--------------------------------------------+
 |           BOTTOM (40px)                    |
-| [✓ OK]   [🔔 2]                  [❓]     |
+| [✓ OK]   [🔔 2]           [🔌] [❓]     |
 +--------------------------------------------+
 
 Sidebar: Drawer overlay (tablet) / full-screen (mobile)
@@ -166,19 +166,19 @@ src/components/layout/
 
 ## Acceptance Criteria
 
-- [ ] AppShell renders 5-zone layout (Header, Sidebar, Content, Bottom)
-- [ ] Header: logo, breadcrumbs, theme toggle, language switcher, user menu slot
-- [ ] Sidebar: nav items with icons, collapse/expand, active route highlight
-- [ ] Sidebar: mobile drawer mode with open/close animation
-- [ ] ContentArea: renders `<Outlet />`, independent scroll
-- [ ] Bottom: status, notifications (expandable), quick actions
-- [ ] Bottom width aligned with Content Area
-- [ ] Responsive at 3 breakpoints (desktop/tablet/mobile)
-- [ ] Dark/Light mode styling for all zones
-- [ ] Keyboard navigation (Tab, Escape to close drawers)
-- [ ] ARIA labels on interactive elements
-- [ ] Sidebar collapsed state persists across page reloads
-- [ ] No layout shift on initial load
+- [x] AppShell renders 5-zone layout (Header, Sidebar, Content, Bottom)
+- [x] Header: logo, breadcrumbs, theme toggle, language switcher, user menu slot
+- [x] Sidebar: nav items with icons, collapse/expand, active route highlight
+- [x] Sidebar: mobile drawer mode with open/close animation
+- [x] ContentArea: renders `<Outlet />`, independent scroll
+- [x] Bottom: status, notifications (expandable), quick actions (docs, api, help)
+- [x] Bottom width aligned with Content Area
+- [x] Responsive at 3 breakpoints (desktop/tablet/mobile)
+- [x] Dark/Light mode styling for all zones
+- [x] Keyboard navigation (Tab, Escape to close drawers)
+- [x] ARIA labels on interactive elements
+- [x] Sidebar collapsed state persists across page reloads
+- [x] No layout shift on initial load
 
 ## Implementation Notes
 

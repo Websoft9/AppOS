@@ -2,8 +2,8 @@
 //
 // Connectors:
 //   - LocalSession  — local bash PTY (system terminal, Epic 1)
-//   - SSHConnector  — SSH PTY for registered servers (Epic 15)
-//   - SFTPConnector — REST file operations over SSH (Epic 15)
+//   - SSHConnector  — SSH PTY for registered servers (Epic 20)
+//   - SFTPConnector — REST file operations over SSH (Epic 20)
 package terminal
 
 import (

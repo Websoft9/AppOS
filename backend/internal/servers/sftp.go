@@ -28,9 +28,9 @@ type SFTPClient struct {
 // NewSFTPClient dials SSH and opens an SFTP subsystem session.
 // The caller must call Close when done.
 func NewSFTPClient(ctx context.Context, cfg ConnectorConfig) (*SFTPClient, error) {
-	authMethod, err := authMethodFromConfig(cfg)
+	authMethod, err := AuthMethodFromConfig(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("sftp: auth config: %w", err)
+		return nil, NewConnectError(ErrCatCredentialInvalid, fmt.Sprintf("credential config error for user %q", cfg.User), err)
 	}
 
 	clientCfg := &cryptossh.ClientConfig{
@@ -55,10 +55,10 @@ func NewSFTPClient(ctx context.Context, cfg ConnectorConfig) (*SFTPClient, error
 	var sshClient *cryptossh.Client
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, NewConnectError(ErrCatNetworkUnreachable, fmt.Sprintf("SFTP connection to %s timed out or cancelled", addr), ctx.Err())
 	case r := <-ch:
 		if r.err != nil {
-			return nil, fmt.Errorf("sftp: dial %s: %w", addr, r.err)
+			return nil, classifyDialError(r.err, addr, cfg.User)
 		}
 		sshClient = r.client
 	}
@@ -66,7 +66,7 @@ func NewSFTPClient(ctx context.Context, cfg ConnectorConfig) (*SFTPClient, error
 	sftpClient, err := sftp.NewClient(sshClient)
 	if err != nil {
 		sshClient.Close()
-		return nil, fmt.Errorf("sftp: open subsystem: %w", err)
+		return nil, NewConnectError(ErrCatSessionFailed, "SFTP subsystem not supported by server", err)
 	}
 
 	return &SFTPClient{sshClient: sshClient, sftpClient: sftpClient}, nil
