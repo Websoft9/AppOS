@@ -274,7 +274,7 @@ Route: `/connect/server/:serverId` — uses Epic 15 Connect workspace layout.
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│ Connect > Servers         [Terminal][Files][Docker][Split]│
+│ Connect > Servers      [Shell][Files][Docker][Split]│
 ├───────────┬──────────────────────────┬───────────────────┤
 │ [+ New]   │                          │                   │
 │ ● srv-1   │   <TerminalPanel>        │  Files / Docker   │
@@ -353,3 +353,24 @@ dashboard/src/
 | 20.2 | ✅ Complete |
 | 20.3 | ✅ Complete |
 | 20.4 | 🟡 In Review |
+
+---
+
+## Maintenance Updates (2026-03-04)
+
+### 1) Package naming consistency (Review item #13)
+
+- The backend package under `backend/internal/servers/` now uses `package servers` in all source files.
+- Route-layer imports were normalized to `servers ".../internal/servers"` for readability and onboarding consistency.
+- This aligns Go package naming with directory naming and removes the previous `terminal`/`servers` mismatch.
+
+### 2) Session registry lifecycle control (Review item #14)
+
+- `session.go` was refactored from per-session goroutines to a single background idle monitor (janitor).
+- Explicit lifecycle APIs were added:
+  - `StartIdleMonitor()`
+  - `StopIdleMonitor()`
+- Application lifecycle integration:
+  - Start on PocketBase `OnServe`
+  - Stop on PocketBase `OnTerminate`
+- `StopIdleMonitor()` is idempotent and performs cleanup of tracked sessions, improving test isolation and graceful shutdown behavior.

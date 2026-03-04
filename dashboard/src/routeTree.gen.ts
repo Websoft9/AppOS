@@ -40,9 +40,9 @@ import { Route as AppAuthSuperuserLogsRouteImport } from './routes/_app/_auth/_s
 import { Route as AppAuthSuperuserIacRouteImport } from './routes/_app/_auth/_superuser/iac'
 import { Route as AppAuthResourcesGroupsIndexRouteImport } from './routes/_app/_auth/resources/groups.index'
 import { Route as AppAuthSuperuserUsersIndexRouteImport } from './routes/_app/_auth/_superuser/users/index'
-import { Route as AppAuthSuperuserConnectIndexRouteImport } from './routes/_app/_auth/_superuser/connect.index'
+import { Route as AppAuthSuperuserTerminalIndexRouteImport } from './routes/_app/_auth/_superuser/terminal.index'
 import { Route as AppAuthResourcesGroupsIdRouteImport } from './routes/_app/_auth/resources/groups.$id'
-import { Route as AppAuthSuperuserConnectServerServerIdRouteImport } from './routes/_app/_auth/_superuser/connect.server.$serverId'
+import { Route as AppAuthSuperuserTerminalServerServerIdRouteImport } from './routes/_app/_auth/_superuser/terminal.server.$serverId'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -204,10 +204,10 @@ const AppAuthSuperuserUsersIndexRoute =
     path: '/users/',
     getParentRoute: () => AppAuthSuperuserRoute,
   } as any)
-const AppAuthSuperuserConnectIndexRoute =
-  AppAuthSuperuserConnectIndexRouteImport.update({
-    id: '/connect/',
-    path: '/connect/',
+const AppAuthSuperuserTerminalIndexRoute =
+  AppAuthSuperuserTerminalIndexRouteImport.update({
+    id: '/terminal/',
+    path: '/terminal/',
     getParentRoute: () => AppAuthSuperuserRoute,
   } as any)
 const AppAuthResourcesGroupsIdRoute =
@@ -216,10 +216,10 @@ const AppAuthResourcesGroupsIdRoute =
     path: '/$id',
     getParentRoute: () => AppAuthResourcesGroupsRoute,
   } as any)
-const AppAuthSuperuserConnectServerServerIdRoute =
-  AppAuthSuperuserConnectServerServerIdRouteImport.update({
-    id: '/connect/server/$serverId',
-    path: '/connect/server/$serverId',
+const AppAuthSuperuserTerminalServerServerIdRoute =
+  AppAuthSuperuserTerminalServerServerIdRouteImport.update({
+    id: '/terminal/server/$serverId',
+    path: '/terminal/server/$serverId',
     getParentRoute: () => AppAuthSuperuserRoute,
   } as any)
 
@@ -251,10 +251,10 @@ export interface FileRoutesByFullPath {
   '/resources/': typeof AppAuthResourcesIndexRoute
   '/store/': typeof AppAuthStoreIndexRoute
   '/resources/groups/$id': typeof AppAuthResourcesGroupsIdRoute
-  '/connect/': typeof AppAuthSuperuserConnectIndexRoute
+  '/terminal/': typeof AppAuthSuperuserTerminalIndexRoute
   '/users/': typeof AppAuthSuperuserUsersIndexRoute
   '/resources/groups/': typeof AppAuthResourcesGroupsIndexRoute
-  '/connect/server/$serverId': typeof AppAuthSuperuserConnectServerServerIdRoute
+  '/terminal/server/$serverId': typeof AppAuthSuperuserTerminalServerServerIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -283,10 +283,10 @@ export interface FileRoutesByTo {
   '/resources': typeof AppAuthResourcesIndexRoute
   '/store': typeof AppAuthStoreIndexRoute
   '/resources/groups/$id': typeof AppAuthResourcesGroupsIdRoute
-  '/connect': typeof AppAuthSuperuserConnectIndexRoute
+  '/terminal': typeof AppAuthSuperuserTerminalIndexRoute
   '/users': typeof AppAuthSuperuserUsersIndexRoute
   '/resources/groups': typeof AppAuthResourcesGroupsIndexRoute
-  '/connect/server/$serverId': typeof AppAuthSuperuserConnectServerServerIdRoute
+  '/terminal/server/$serverId': typeof AppAuthSuperuserTerminalServerServerIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -320,10 +320,10 @@ export interface FileRoutesById {
   '/_app/_auth/resources/': typeof AppAuthResourcesIndexRoute
   '/_app/_auth/store/': typeof AppAuthStoreIndexRoute
   '/_app/_auth/resources/groups/$id': typeof AppAuthResourcesGroupsIdRoute
-  '/_app/_auth/_superuser/connect/': typeof AppAuthSuperuserConnectIndexRoute
+  '/_app/_auth/_superuser/terminal/': typeof AppAuthSuperuserTerminalIndexRoute
   '/_app/_auth/_superuser/users/': typeof AppAuthSuperuserUsersIndexRoute
   '/_app/_auth/resources/groups/': typeof AppAuthResourcesGroupsIndexRoute
-  '/_app/_auth/_superuser/connect/server/$serverId': typeof AppAuthSuperuserConnectServerServerIdRoute
+  '/_app/_auth/_superuser/terminal/server/$serverId': typeof AppAuthSuperuserTerminalServerServerIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -355,10 +355,10 @@ export interface FileRouteTypes {
     | '/resources/'
     | '/store/'
     | '/resources/groups/$id'
-    | '/connect/'
+    | '/terminal/'
     | '/users/'
     | '/resources/groups/'
-    | '/connect/server/$serverId'
+    | '/terminal/server/$serverId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -387,10 +387,10 @@ export interface FileRouteTypes {
     | '/resources'
     | '/store'
     | '/resources/groups/$id'
-    | '/connect'
+    | '/terminal'
     | '/users'
     | '/resources/groups'
-    | '/connect/server/$serverId'
+    | '/terminal/server/$serverId'
   id:
     | '__root__'
     | '/'
@@ -423,10 +423,10 @@ export interface FileRouteTypes {
     | '/_app/_auth/resources/'
     | '/_app/_auth/store/'
     | '/_app/_auth/resources/groups/$id'
-    | '/_app/_auth/_superuser/connect/'
+    | '/_app/_auth/_superuser/terminal/'
     | '/_app/_auth/_superuser/users/'
     | '/_app/_auth/resources/groups/'
-    | '/_app/_auth/_superuser/connect/server/$serverId'
+    | '/_app/_auth/_superuser/terminal/server/$serverId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -653,11 +653,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthSuperuserUsersIndexRouteImport
       parentRoute: typeof AppAuthSuperuserRoute
     }
-    '/_app/_auth/_superuser/connect/': {
-      id: '/_app/_auth/_superuser/connect/'
-      path: '/connect'
-      fullPath: '/connect/'
-      preLoaderRoute: typeof AppAuthSuperuserConnectIndexRouteImport
+    '/_app/_auth/_superuser/terminal/': {
+      id: '/_app/_auth/_superuser/terminal/'
+      path: '/terminal'
+      fullPath: '/terminal/'
+      preLoaderRoute: typeof AppAuthSuperuserTerminalIndexRouteImport
       parentRoute: typeof AppAuthSuperuserRoute
     }
     '/_app/_auth/resources/groups/$id': {
@@ -667,11 +667,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthResourcesGroupsIdRouteImport
       parentRoute: typeof AppAuthResourcesGroupsRoute
     }
-    '/_app/_auth/_superuser/connect/server/$serverId': {
-      id: '/_app/_auth/_superuser/connect/server/$serverId'
-      path: '/connect/server/$serverId'
-      fullPath: '/connect/server/$serverId'
-      preLoaderRoute: typeof AppAuthSuperuserConnectServerServerIdRouteImport
+    '/_app/_auth/_superuser/terminal/server/$serverId': {
+      id: '/_app/_auth/_superuser/terminal/server/$serverId'
+      path: '/terminal/server/$serverId'
+      fullPath: '/terminal/server/$serverId'
+      preLoaderRoute: typeof AppAuthSuperuserTerminalServerServerIdRouteImport
       parentRoute: typeof AppAuthSuperuserRoute
     }
   }
@@ -681,19 +681,19 @@ interface AppAuthSuperuserRouteChildren {
   AppAuthSuperuserIacRoute: typeof AppAuthSuperuserIacRoute
   AppAuthSuperuserLogsRoute: typeof AppAuthSuperuserLogsRoute
   AppAuthSuperuserSettingsRoute: typeof AppAuthSuperuserSettingsRoute
-  AppAuthSuperuserConnectIndexRoute: typeof AppAuthSuperuserConnectIndexRoute
+  AppAuthSuperuserTerminalIndexRoute: typeof AppAuthSuperuserTerminalIndexRoute
   AppAuthSuperuserUsersIndexRoute: typeof AppAuthSuperuserUsersIndexRoute
-  AppAuthSuperuserConnectServerServerIdRoute: typeof AppAuthSuperuserConnectServerServerIdRoute
+  AppAuthSuperuserTerminalServerServerIdRoute: typeof AppAuthSuperuserTerminalServerServerIdRoute
 }
 
 const AppAuthSuperuserRouteChildren: AppAuthSuperuserRouteChildren = {
   AppAuthSuperuserIacRoute: AppAuthSuperuserIacRoute,
   AppAuthSuperuserLogsRoute: AppAuthSuperuserLogsRoute,
   AppAuthSuperuserSettingsRoute: AppAuthSuperuserSettingsRoute,
-  AppAuthSuperuserConnectIndexRoute: AppAuthSuperuserConnectIndexRoute,
+  AppAuthSuperuserTerminalIndexRoute: AppAuthSuperuserTerminalIndexRoute,
   AppAuthSuperuserUsersIndexRoute: AppAuthSuperuserUsersIndexRoute,
-  AppAuthSuperuserConnectServerServerIdRoute:
-    AppAuthSuperuserConnectServerServerIdRoute,
+  AppAuthSuperuserTerminalServerServerIdRoute:
+    AppAuthSuperuserTerminalServerServerIdRoute,
 }
 
 const AppAuthSuperuserRouteWithChildren =

@@ -7,7 +7,7 @@ const LazyConnectServerPage = lazy(() =>
   }))
 )
 
-export const Route = createFileRoute('/_app/_auth/_superuser/connect/server/$serverId')({
+export const Route = createFileRoute('/_app/_auth/_superuser/terminal/server/$serverId')({
   component: ConnectServerRoute,
 })
 
@@ -18,7 +18,7 @@ function ConnectServerRoute() {
     <Suspense
       fallback={
         <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-          Loading connect page...
+          Loading terminal...
         </div>
       }
     >

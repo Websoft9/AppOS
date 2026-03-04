@@ -24,7 +24,7 @@
 
 ## User Story
 
-As a superuser, I can add a local server (behind NAT) to appos by copying a generated `autossh` command, so that the server becomes manageable via Terminal, Files, and Docker without a public IP or agent software.
+As a superuser, I can add a local server (behind NAT) to appos by copying a generated `autossh` command, so that the server becomes manageable via Shell, Files, and Docker without a public IP or agent software.
 
 ---
 

@@ -17,6 +17,7 @@ import {
   ScrollText,
   Plus,
   Container,
+  SquareTerminal,
   PanelsLeftRight,
   Search,
   Network,
@@ -469,7 +470,7 @@ export function ConnectServerPage({ serverId }: { serverId: string }) {
         delete terminalRefs.current[tabId]
         setConnectingOpen(false)
         if (willLeavePage) {
-          navigate({ to: '/connect' })
+          navigate({ to: '/terminal' })
         }
       }, 2000)
     },
@@ -940,7 +941,8 @@ export function ConnectServerPage({ serverId }: { serverId: string }) {
           className="gap-1.5 h-7"
           onClick={() => setSidePanel('none')}
         >
-          Terminal
+          <SquareTerminal className="h-4 w-4" />
+          Shell
         </Button>
 
         <Button

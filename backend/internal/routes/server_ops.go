@@ -18,7 +18,7 @@ import (
 	"golang.org/x/crypto/ssh/knownhosts"
 
 	"github.com/websoft9/appos/backend/internal/audit"
-	terminal "github.com/websoft9/appos/backend/internal/servers"
+	servers "github.com/websoft9/appos/backend/internal/servers"
 )
 
 func registerServerOpsRoutes(g *router.RouterGroup[*core.RequestEvent]) {
@@ -152,10 +152,10 @@ func handleServerConnectivity(e *core.RequestEvent) error {
 		defer cancel()
 
 		start := time.Now()
-		sess, connErr := (&terminal.SSHConnector{}).Connect(ctx, cfg)
+		sess, connErr := (&servers.SSHConnector{}).Connect(ctx, cfg)
 		if connErr != nil {
 			response["reason"] = connErr.Error()
-			var ce *terminal.ConnectError
+			var ce *servers.ConnectError
 			if errors.As(connErr, &ce) {
 				response["category"] = string(ce.Category)
 				response["reason"] = ce.Message
@@ -329,14 +329,14 @@ func resolveHostKeyCallback() (cryptossh.HostKeyCallback, error) {
 	return cryptossh.InsecureIgnoreHostKey(), nil
 }
 
-func executeSSHCommand(ctx context.Context, cfg terminal.ConnectorConfig, command string, timeout time.Duration) (string, error) {
+func executeSSHCommand(ctx context.Context, cfg servers.ConnectorConfig, command string, timeout time.Duration) (string, error) {
 	if timeout <= 0 {
 		timeout = 20 * time.Second
 	}
 	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	authMethod, err := terminal.AuthMethodFromConfig(cfg)
+	authMethod, err := servers.AuthMethodFromConfig(cfg)
 	if err != nil {
 		return "", err
 	}

@@ -12,7 +12,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/websoft9/appos/backend/internal/audit"
-	terminal "github.com/websoft9/appos/backend/internal/servers"
+	servers "github.com/websoft9/appos/backend/internal/servers"
 )
 
 // ════════════════════════════════════════════════════════════
@@ -346,7 +346,7 @@ func handleServerPortRelease(e *core.RequestEvent) error {
 // Port detection helpers
 // ════════════════════════════════════════════════════════════
 
-func detectPortOccupancy(ctx context.Context, cfg terminal.ConnectorConfig, port int, protocol string) (map[string]any, error) {
+func detectPortOccupancy(ctx context.Context, cfg servers.ConnectorConfig, port int, protocol string) (map[string]any, error) {
 	all, err := detectAllPortOccupancy(ctx, cfg, protocol)
 	if err != nil {
 		return nil, err
@@ -360,7 +360,7 @@ func detectPortOccupancy(ctx context.Context, cfg terminal.ConnectorConfig, port
 	}, nil
 }
 
-func detectAllPortOccupancy(ctx context.Context, cfg terminal.ConnectorConfig, protocol string) (map[int]map[string]any, error) {
+func detectAllPortOccupancy(ctx context.Context, cfg servers.ConnectorConfig, protocol string) (map[int]map[string]any, error) {
 	command := "ss -lntpH 2>/dev/null || true"
 	if protocol == "udp" {
 		command = "ss -lnupH 2>/dev/null || true"
@@ -478,7 +478,7 @@ func parseSSPortListeners(raw string) []map[string]any {
 	return listeners
 }
 
-func detectPortReservation(ctx context.Context, cfg terminal.ConnectorConfig, port int, protocol string) (map[string]any, error) {
+func detectPortReservation(ctx context.Context, cfg servers.ConnectorConfig, port int, protocol string) (map[string]any, error) {
 	all, containerProbe, err := detectAllPortReservations(ctx, cfg, protocol)
 	if err != nil {
 		return nil, err
@@ -491,7 +491,7 @@ func detectPortReservation(ctx context.Context, cfg terminal.ConnectorConfig, po
 	}, nil
 }
 
-func detectAllPortReservations(ctx context.Context, cfg terminal.ConnectorConfig, protocol string) (map[int][]map[string]any, map[string]any, error) {
+func detectAllPortReservations(ctx context.Context, cfg servers.ConnectorConfig, protocol string) (map[int][]map[string]any, map[string]any, error) {
 	byPort := make(map[int][]map[string]any)
 
 	systemdByPort, err := detectSystemdSocketReservationsAll(ctx, cfg)
@@ -535,7 +535,7 @@ func detectAllPortReservations(ctx context.Context, cfg terminal.ConnectorConfig
 	return byPort, containerProbe, nil
 }
 
-func detectSystemdSocketReservationsAll(ctx context.Context, cfg terminal.ConnectorConfig) (map[int][]map[string]any, error) {
+func detectSystemdSocketReservationsAll(ctx context.Context, cfg servers.ConnectorConfig) (map[int][]map[string]any, error) {
 	raw, err := executeSSHCommand(ctx, cfg, "systemctl list-sockets --all --no-legend --no-pager 2>/dev/null || true", 20*time.Second)
 	if err != nil {
 		return nil, err
@@ -567,7 +567,7 @@ func detectSystemdSocketReservationsAll(ctx context.Context, cfg terminal.Connec
 	return byPort, nil
 }
 
-func detectKernelReservedPorts(ctx context.Context, cfg terminal.ConnectorConfig) ([]int, string, error) {
+func detectKernelReservedPorts(ctx context.Context, cfg servers.ConnectorConfig) ([]int, string, error) {
 	raw, err := executeSSHCommand(ctx, cfg, "cat /proc/sys/net/ipv4/ip_local_reserved_ports 2>/dev/null || true", 20*time.Second)
 	if err != nil {
 		return nil, "", err
@@ -627,7 +627,7 @@ func parseRangePorts(ranges string) []int {
 	return ports
 }
 
-func detectContainerDeclaredReservationsAll(ctx context.Context, cfg terminal.ConnectorConfig, protocol string) (map[int][]map[string]any, map[string]any, error) {
+func detectContainerDeclaredReservationsAll(ctx context.Context, cfg servers.ConnectorConfig, protocol string) (map[int][]map[string]any, map[string]any, error) {
 	command := "if command -v docker >/dev/null 2>&1; then (docker ps -a --format '{{.ID}}\\t{{.Names}}\\t{{.Status}}\\t{{.Ports}}' 2>/dev/null || echo '__DOCKER_CLI_ERROR__'); else echo '__DOCKER_NOT_AVAILABLE__'; fi"
 	raw, err := executeSSHCommand(ctx, cfg, command, 20*time.Second)
 	if err != nil {
@@ -637,7 +637,7 @@ func detectContainerDeclaredReservationsAll(ctx context.Context, cfg terminal.Co
 	return matchesByPort, probe, nil
 }
 
-func detectRunningContainerByPort(ctx context.Context, cfg terminal.ConnectorConfig, port int, protocol string) (map[string]string, map[string]any, error) {
+func detectRunningContainerByPort(ctx context.Context, cfg servers.ConnectorConfig, port int, protocol string) (map[string]string, map[string]any, error) {
 	command := "if command -v docker >/dev/null 2>&1; then (docker ps --format '{{.ID}}\\t{{.Names}}\\t{{.Status}}\\t{{.Ports}}' 2>/dev/null || echo '__DOCKER_CLI_ERROR__'); else echo '__DOCKER_NOT_AVAILABLE__'; fi"
 	raw, err := executeSSHCommand(ctx, cfg, command, 20*time.Second)
 	if err != nil {

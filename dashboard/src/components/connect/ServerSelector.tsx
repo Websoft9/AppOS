@@ -106,7 +106,7 @@ export function ServerSelector({ className }: ServerSelectorProps) {
         return
       }
       setConnectingOpen(false)
-      navigate({ to: '/connect/server/$serverId', params: { serverId: selected.id } })
+      navigate({ to: '/terminal/server/$serverId', params: { serverId: selected.id } })
     } catch (err) {
       setConnectingPhase('offline')
       setConnectingDetail(err instanceof Error ? err.message : 'Connection check failed.')
@@ -160,7 +160,7 @@ export function ServerSelector({ className }: ServerSelectorProps) {
                   className="w-full justify-between"
                   onClick={() =>
                     navigate({
-                      to: '/connect/server/$serverId',
+                      to: '/terminal/server/$serverId',
                       params: { serverId: resumeServerId },
                     })
                   }

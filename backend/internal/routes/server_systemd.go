@@ -12,7 +12,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/websoft9/appos/backend/internal/audit"
-	terminal "github.com/websoft9/appos/backend/internal/servers"
+	servers "github.com/websoft9/appos/backend/internal/servers"
 )
 
 // ════════════════════════════════════════════════════════════
@@ -482,7 +482,7 @@ func handleSystemdServiceUnitApply(e *core.RequestEvent) error {
 	})
 }
 
-func resolveSystemdUnitPath(ctx context.Context, cfg terminal.ConnectorConfig, service string) (string, error) {
+func resolveSystemdUnitPath(ctx context.Context, cfg servers.ConnectorConfig, service string) (string, error) {
 	cmd := fmt.Sprintf("systemctl show %s --property=FragmentPath --value --no-pager", service)
 	raw, err := executeSSHCommand(ctx, cfg, cmd, 20*time.Second)
 	if err != nil {

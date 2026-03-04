@@ -14,7 +14,7 @@ import (
 	"github.com/pocketbase/pocketbase/tools/router"
 
 	"github.com/websoft9/appos/backend/internal/audit"
-	terminal "github.com/websoft9/appos/backend/internal/servers"
+	servers "github.com/websoft9/appos/backend/internal/servers"
 )
 
 func registerServerContainerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
@@ -63,11 +63,11 @@ func handleDockerExecTerminal(e *core.RequestEvent) error {
 	}
 	defer conn.Close()
 
-	var cfg terminal.ConnectorConfig
-	var connector terminal.Connector
+	var cfg servers.ConnectorConfig
+	var connector servers.Connector
 	if serverID == "local" {
-		cfg = terminal.ConnectorConfig{Host: containerID, Shell: shell}
-		connector = &terminal.DockerExecConnector{}
+		cfg = servers.ConnectorConfig{Host: containerID, Shell: shell}
+		connector = &servers.DockerExecConnector{}
 	} else {
 		resolvedCfg, resolveErr := resolveServerConfig(e, serverID)
 		if resolveErr != nil {
@@ -75,12 +75,12 @@ func handleDockerExecTerminal(e *core.RequestEvent) error {
 		}
 		resolvedCfg.Shell = fmt.Sprintf("docker exec -it %s %s", containerID, shell)
 		cfg = resolvedCfg
-		connector = &terminal.SSHConnector{}
+		connector = &servers.SSHConnector{}
 	}
 
 	sess, err := connector.Connect(e.Request.Context(), cfg)
 	if err != nil {
-		var ce *terminal.ConnectError
+		var ce *servers.ConnectError
 		if errors.As(err, &ce) {
 			_ = writeWSConnectError(conn, ce)
 		} else {
@@ -95,9 +95,9 @@ func handleDockerExecTerminal(e *core.RequestEvent) error {
 	startedAt := time.Now().UTC()
 	var bytesOut, bytesIn atomic.Int64
 
-	terminal.Register(sessionID, sess)
+	servers.Register(sessionID, sess)
 	defer func() {
-		terminal.Unregister(sessionID)
+		servers.Unregister(sessionID)
 		_ = sess.Close()
 		audit.Write(e.App, audit.Entry{
 			UserID:       userID,
@@ -149,7 +149,7 @@ func handleDockerExecTerminal(e *core.RequestEvent) error {
 			if err != nil {
 				break
 			}
-			terminal.Touch(sessionID)
+			servers.Touch(sessionID)
 			if mt == websocket.TextMessage || (len(msg) > 0 && msg[0] == 0x00) {
 				handleControlFrame(sess, msg)
 				continue

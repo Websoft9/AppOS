@@ -1,10 +1,10 @@
-// Package terminal provides WebSocket-based terminal (PTY) support.
+// Package servers provides WebSocket-based terminal (PTY) support.
 //
 // Connectors:
 //   - LocalSession  — local bash PTY (system terminal, Epic 1)
 //   - SSHConnector  — SSH PTY for registered servers (Epic 20)
 //   - SFTPConnector — REST file operations over SSH (Epic 20)
-package terminal
+package servers
 
 import (
 	"io"

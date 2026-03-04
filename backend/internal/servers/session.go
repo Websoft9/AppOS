@@ -1,4 +1,4 @@
-package terminal
+package servers
 
 import (
 	"sync"
@@ -6,63 +6,121 @@ import (
 )
 
 const sessionIdleTimeout = 30 * time.Minute
+const idleMonitorInterval = time.Minute
 
 // sessionRegistry tracks active SSH/Docker sessions and enforces idle timeouts.
 // The WebSocket route handler calls Touch on each message received; the
 // background janitor calls Close on sessions that have been idle too long.
 type sessionRegistry struct {
-	mu       sync.Mutex
-	sessions map[string]*registeredSession
+	mu             sync.Mutex
+	sessions       map[string]*registeredSession
+	monitorStopCh  chan struct{}
+	monitorDoneCh  chan struct{}
+	monitorRunning bool
 }
 
 type registeredSession struct {
 	id      string
 	session Session
 	lastMsg time.Time
-	done    chan struct{} // closed by Unregister to stop the idle goroutine immediately
 }
 
 var registry = &sessionRegistry{
 	sessions: make(map[string]*registeredSession),
 }
 
+// StartIdleMonitor starts the background idle-session janitor.
+// Safe to call multiple times.
+func StartIdleMonitor() {
+	registry.mu.Lock()
+	if registry.monitorRunning {
+		registry.mu.Unlock()
+		return
+	}
+	stopCh := make(chan struct{})
+	doneCh := make(chan struct{})
+	registry.monitorStopCh = stopCh
+	registry.monitorDoneCh = doneCh
+	registry.monitorRunning = true
+	registry.mu.Unlock()
+
+	go func() {
+		ticker := time.NewTicker(idleMonitorInterval)
+		defer ticker.Stop()
+		defer close(doneCh)
+
+		for {
+			select {
+			case <-stopCh:
+				return
+			case <-ticker.C:
+				registry.closeExpiredSessions(time.Now())
+			}
+		}
+	}()
+}
+
+// StopIdleMonitor stops the background idle-session janitor and closes all
+// currently tracked sessions. Safe to call multiple times.
+func StopIdleMonitor() {
+	registry.mu.Lock()
+	if !registry.monitorRunning {
+		registry.mu.Unlock()
+		return
+	}
+	stopCh := registry.monitorStopCh
+	doneCh := registry.monitorDoneCh
+	registry.monitorStopCh = nil
+	registry.monitorDoneCh = nil
+	registry.monitorRunning = false
+	registry.mu.Unlock()
+
+	close(stopCh)
+	<-doneCh
+
+	registry.closeAllSessions()
+}
+
+func (r *sessionRegistry) closeExpiredSessions(now time.Time) {
+	r.mu.Lock()
+	toClose := make([]Session, 0)
+	for id, rs := range r.sessions {
+		if now.Sub(rs.lastMsg) >= sessionIdleTimeout {
+			delete(r.sessions, id)
+			toClose = append(toClose, rs.session)
+		}
+	}
+	r.mu.Unlock()
+
+	for _, sess := range toClose {
+		_ = sess.Close()
+	}
+}
+
+func (r *sessionRegistry) closeAllSessions() {
+	r.mu.Lock()
+	toClose := make([]Session, 0, len(r.sessions))
+	for id, rs := range r.sessions {
+		delete(r.sessions, id)
+		toClose = append(toClose, rs.session)
+	}
+	r.mu.Unlock()
+
+	for _, sess := range toClose {
+		_ = sess.Close()
+	}
+}
+
 // Register adds a session to the registry and starts idle monitoring.
 // The session is automatically closed after sessionIdleTimeout of inactivity.
 func Register(id string, sess Session) {
-	done := make(chan struct{})
 	registry.mu.Lock()
 	registry.sessions[id] = &registeredSession{
 		id:      id,
 		session: sess,
 		lastMsg: time.Now(),
-		done:    done,
 	}
 	registry.mu.Unlock()
-
-	go func() {
-		ticker := time.NewTicker(time.Minute)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-done:
-				return // Unregister called; exit immediately
-			case <-ticker.C:
-				registry.mu.Lock()
-				rs, ok := registry.sessions[id]
-				if !ok {
-					registry.mu.Unlock()
-					return
-				}
-				if time.Since(rs.lastMsg) >= sessionIdleTimeout {
-					delete(registry.sessions, id)
-					registry.mu.Unlock()
-					_ = sess.Close()
-					return
-				}
-				registry.mu.Unlock()
-			}
-		}
-	}()
 }
 
 // Touch updates the last-activity timestamp for the session, resetting the
@@ -77,13 +135,10 @@ func Touch(id string) {
 
 // Unregister removes the session from the registry (called on WebSocket close).
 // It does NOT close the Session itself; the caller is responsible for that.
-// The idle-monitoring goroutine is signalled to exit immediately via done.
 func Unregister(id string) {
 	registry.mu.Lock()
-	rs, ok := registry.sessions[id]
-	if ok {
+	if _, ok := registry.sessions[id]; ok {
 		delete(registry.sessions, id)
-		close(rs.done)
 	}
 	registry.mu.Unlock()
 }

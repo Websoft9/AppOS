@@ -1,10 +1,10 @@
-// Package terminal provides browser-based terminal access via WebSocket.
+// Package servers provides browser-based terminal access via WebSocket.
 //
 // Supported connectors:
 //   - SSHConnector  — SSH PTY relay for registered servers (Resource Store)
 //   - SFTPConnector — REST file operations over SSH transport
 //   - DockerExecConnector — Docker exec PTY relay (Story 20.2)
-package terminal
+package servers
 
 import (
 	"context"

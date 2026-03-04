@@ -56,10 +56,10 @@ const workspaceGroup: NavGroup = {
     },
     { id: 'store', label: 'App Store', icon: <Store className="h-5 w-5" />, href: '/store' },
     {
-      id: 'connect',
-      label: 'Connect',
+      id: 'terminal',
+      label: 'Terminal',
       icon: <TerminalSquare className="h-5 w-5" />,
-      href: '/connect',
+      href: '/terminal',
     },
     {
       id: 'resources',

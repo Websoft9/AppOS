@@ -1,4 +1,4 @@
-package terminal
+package servers
 
 import (
 	"context"
@@ -53,6 +53,36 @@ func TestSessionRegistryUnregister(t *testing.T) {
 
 	if ok {
 		t.Fatal("session should have been removed after Unregister")
+	}
+}
+
+func TestIdleMonitorStartStopIdempotent(t *testing.T) {
+	StopIdleMonitor()
+	StartIdleMonitor()
+	StartIdleMonitor()
+	StopIdleMonitor()
+	StopIdleMonitor()
+}
+
+func TestStopIdleMonitorClosesTrackedSessions(t *testing.T) {
+	StopIdleMonitor()
+	StartIdleMonitor()
+
+	id := "test-stop-closes"
+	sess := &mockSession{}
+	Register(id, sess)
+
+	StopIdleMonitor()
+
+	if !sess.closed {
+		t.Fatal("expected tracked session to be closed on StopIdleMonitor")
+	}
+
+	registry.mu.Lock()
+	_, ok := registry.sessions[id]
+	registry.mu.Unlock()
+	if ok {
+		t.Fatal("expected registry to be emptied on StopIdleMonitor")
 	}
 }
 

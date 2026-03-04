@@ -54,7 +54,7 @@ To support Epic 15 session continuity UX, consider extending connect settings wi
 
 - `resumeTTLSeconds`: controls how long “resume last session” remains valid.
 - `panelCacheMaxServers`: upper bound for retained per-server side-panel cache instances.
-- `rememberSplitRatio`: enables persistence of Terminal/Files(Docker) split ratio preference.
+- `rememberSplitRatio`: enables persistence of Shell/Files(Docker) split ratio preference.
 
 These items are backlog only and should not block current Story 13.7 completion.
 

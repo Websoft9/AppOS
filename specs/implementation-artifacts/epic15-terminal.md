@@ -1,10 +1,10 @@
-# Epic 15: Connect – Terminal Framework
+# Epic 15: Terminal – Connection Framework
 
-**Module**: Connect | **Status**: In Progress | **Priority**: P1 | **Depends on**: Epic 1, 3, 13
+**Module**: Terminal | **Status**: In Progress | **Priority**: P1 | **Depends on**: Epic 1, 3, 13
 
 ## Overview
 
-Provides the generic, resource-agnostic Terminal UI framework for the Connect workspace. This epic owns the shared connector abstraction, the multi-tab connection workspace layout, and the embeddable `<TerminalPanel>` component. It does **not** implement any specific resource type — those live in their own epics (Epic 20 for Servers, future epics for databases, cloud, etc.).
+Provides the generic, resource-agnostic Terminal UI framework. This epic owns the shared connector abstraction, the multi-tab connection workspace layout, and the embeddable `<TerminalPanel>` component. It does **not** implement any specific resource type — those live in their own epics (Epic 20 for Servers, future epics for databases, cloud, etc.).
 
 ---
 
@@ -17,7 +17,6 @@ Provides the generic, resource-agnostic Terminal UI framework for the Connect wo
 | Connect page layout & routing | Server-specific side panels |
 | `<TerminalPanel>` generic component | Server Registry, Server Ops APIs |
 | UX conventions (establish, disconnect, split, breadcrumb) | Terminal settings (→ Epic 13) |
-| Security principles (Zero Trust) | Per-resource permission models |
 
 ---
 
@@ -91,35 +90,47 @@ REST connectivity responses include `"category"` and `"reason"` fields when `"st
 ### Routing
 
 ```
-/connect                              → resource selector
-/connect/<resource-type>/:resourceId  → resource-specific workspace (defined per resource epic)
+/terminal                              → Terminal index (resource hub)
+/terminal/server/:serverId             → server workspace (Epic 20)
 ```
 
-### Connect Page Layout
+> Sidebar menu item: **Terminal** (`/terminal`), icon `TerminalSquare`.
 
-Multi-connection workspace with a collapsible vertical tab rail, terminal pane, and optional side panel:
+### Terminal Index Page
+
+Two-zone layout: top header + bottom split.
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│ Connect > [Resource Type]         [Tab1][Tab2][Split][⛶] │
-├───────────┬──────────────────────────┬───────────────────┤
-│ [+ New]   │                          │                   │
-│ ● conn-1  │   <TerminalPanel>        │  Side Panel       │
-│ ○ conn-2  │   (active tab content)   │  (optional)       │
-│           │                          │                   │
-└───────────┴──────────────────────────┴───────────────────┘
+┌──────────────────────────────────────────────┐
+│ Terminal                                     │  ← header (border-b)
+│ Connecting your remote resources at one place│
+├────────┬─────────────────────────────────────┤
+│[icons] │                                     │  ← collapsible nav + content
+│Overview│  Overview / Servers / Cloud /       │
+│Servers │  Databases / APIs panel             │
+│Cloud…  │                                     │
+└────────┴─────────────────────────────────────┘
 ```
 
-**Tab rail**: vertical, collapsible, supports `active` / `idle` / `error` states per tab.
+**Left nav** (collapsible vertical tab bar):
+- Default state: **collapsed** (icon-only, `w-12`); click anywhere to expand (`w-44`).
+- Toggle button: `PanelLeft` / `PanelLeftClose`.
+- Collapsed state shows icon tooltips on hover.
+- Auto-collapses when `activeTab === 'overview'`.
 
-**Location breadcrumb**: `Connect > [Resource Type]` in the page header.
+**Tabs**:
 
-**Split presets** (text-only rows, no per-row icon):
-- `30/70` — side panel narrow
-- `50/50` — equal split
-- `70/30` — side panel wide
-- `0/100` — hide terminal shell
-- `reset` — restore last manual split
+| Tab | Status | Notes |
+|-----|--------|-------|
+| Overview | ✅ | Capability cards + Connected Resources list |
+| Servers | ✅ | Active Sessions + Available Servers |
+| Cloud | 🔜 Coming Soon | |
+| Databases | 🔜 Coming Soon | |
+| APIs | 🔜 Coming Soon | |
+
+**Overview panel**: capability cards (click Servers card → navigates to Servers tab) + list of resources with an active session.
+
+**Servers panel**: Active Sessions section (from `loadConnectSession()`) + Available Servers section with Add Server shortcut. Connecting triggers a 2-second minimum feedback dialog.
 
 ### UX Conventions
 
@@ -172,10 +183,13 @@ Terminal behavior settings (idle timeout, max connections) are owned by Epic 13.
 ```
 dashboard/src/
   routes/_app/_auth/_superuser/
-    connect.index.tsx                      # /connect – resource selector
+    terminal.index.tsx                     # /terminal – resource hub
+    terminal.server.$serverId.tsx          # /terminal/server/:id
+  pages/terminal/
+    TerminalIndexPage.tsx                  # Terminal index page component
   components/connect/
     TerminalPanel.tsx                      # generic terminal component
-    ServerSelector.tsx                     # resource selector dropdown (sourced from resource collections)
+    ServerSelector.tsx                     # (legacy, kept for compatibility)
 ```
 
 ---

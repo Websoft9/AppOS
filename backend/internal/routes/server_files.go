@@ -14,7 +14,7 @@ import (
 
 	"github.com/websoft9/appos/backend/internal/audit"
 	"github.com/websoft9/appos/backend/internal/settings"
-	terminal "github.com/websoft9/appos/backend/internal/servers"
+	servers "github.com/websoft9/appos/backend/internal/servers"
 )
 
 func registerServerFileRoutes(g *router.RouterGroup[*core.RequestEvent]) {
@@ -738,13 +738,13 @@ func handleSFTPWrite(e *core.RequestEvent) error {
 
 // openSFTPClient resolves server config and opens an SFTP session.
 // Returns the client, serverID, and any error.
-func openSFTPClient(e *core.RequestEvent) (*terminal.SFTPClient, string, error) {
+func openSFTPClient(e *core.RequestEvent) (*servers.SFTPClient, string, error) {
 	serverID := e.Request.PathValue("serverId")
 	cfg, err := resolveServerConfig(e, serverID)
 	if err != nil {
 		return nil, serverID, err
 	}
-	client, err := terminal.NewSFTPClient(e.Request.Context(), cfg)
+	client, err := servers.NewSFTPClient(e.Request.Context(), cfg)
 	if err != nil {
 		return nil, serverID, err
 	}

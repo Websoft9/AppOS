@@ -13,7 +13,7 @@ import (
 	"github.com/pocketbase/pocketbase/tools/router"
 
 	"github.com/websoft9/appos/backend/internal/crypto"
-	terminal "github.com/websoft9/appos/backend/internal/servers"
+	servers "github.com/websoft9/appos/backend/internal/servers"
 )
 
 var wsUpgrader = websocket.Upgrader{
@@ -58,8 +58,8 @@ func registerServerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 
 // resolveServerConfig looks up the server record + decrypted credential and
 // returns a ConnectorConfig.
-func resolveServerConfig(e *core.RequestEvent, serverID string) (terminal.ConnectorConfig, error) {
-	var cfg terminal.ConnectorConfig
+func resolveServerConfig(e *core.RequestEvent, serverID string) (servers.ConnectorConfig, error) {
+	var cfg servers.ConnectorConfig
 
 	server, err := e.App.FindRecordById("servers", serverID)
 	if err != nil {

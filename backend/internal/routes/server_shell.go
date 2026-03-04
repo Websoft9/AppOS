@@ -14,7 +14,7 @@ import (
 	"github.com/pocketbase/pocketbase/tools/router"
 
 	"github.com/websoft9/appos/backend/internal/audit"
-	terminal "github.com/websoft9/appos/backend/internal/servers"
+	servers "github.com/websoft9/appos/backend/internal/servers"
 )
 
 func registerServerShellRoutes(g *router.RouterGroup[*core.RequestEvent]) {
@@ -48,12 +48,12 @@ func handleSSHTerminal(e *core.RequestEvent) error {
 	}
 	defer conn.Close()
 
-	connector := &terminal.SSHConnector{}
+	connector := &servers.SSHConnector{}
 	sess, err := connector.Connect(e.Request.Context(), cfg)
 	if err != nil {
 		log.Printf("[server-shell] ssh connect failed serverId=%s host=%s port=%d user=%s authType=%s err=%v", serverID, cfg.Host, cfg.Port, cfg.User, cfg.AuthType, err)
 		// Extract structured category if available
-		var ce *terminal.ConnectError
+		var ce *servers.ConnectError
 		if errors.As(err, &ce) {
 			_ = writeWSConnectError(conn, ce)
 		} else {
@@ -68,9 +68,9 @@ func handleSSHTerminal(e *core.RequestEvent) error {
 	startedAt := time.Now().UTC()
 	var bytesOut, bytesIn atomic.Int64
 
-	terminal.Register(sessionID, sess)
+	servers.Register(sessionID, sess)
 	defer func() {
-		terminal.Unregister(sessionID)
+		servers.Unregister(sessionID)
 		_ = sess.Close()
 		audit.Write(e.App, audit.Entry{
 			UserID:       userID,
@@ -126,7 +126,7 @@ func handleSSHTerminal(e *core.RequestEvent) error {
 				log.Printf("[server-shell] websocket read closed serverId=%s sessionId=%s err=%v", serverID, sessionID, err)
 				break
 			}
-			terminal.Touch(sessionID)
+			servers.Touch(sessionID)
 
 			if mt == websocket.TextMessage || (len(msg) > 0 && msg[0] == 0x00) {
 				handleControlFrame(sess, msg)
@@ -144,7 +144,7 @@ func handleSSHTerminal(e *core.RequestEvent) error {
 	return nil
 }
 
-func handleControlFrame(sess terminal.Session, raw []byte) {
+func handleControlFrame(sess servers.Session, raw []byte) {
 	if len(raw) > 0 && raw[0] == 0x00 {
 		raw = raw[1:]
 	}
@@ -169,7 +169,7 @@ func writeWSControl(conn *websocket.Conn, msgType, message string) error {
 }
 
 // writeWSConnectError sends a structured error control frame with category.
-func writeWSConnectError(conn *websocket.Conn, ce *terminal.ConnectError) error {
+func writeWSConnectError(conn *websocket.Conn, ce *servers.ConnectError) error {
 	ctrl := map[string]string{
 		"type":     "error",
 		"category": string(ce.Category),
