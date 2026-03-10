@@ -2,7 +2,7 @@
 
 **Epic**: Epic 1 - Infrastructure & Build System  
 **Priority**: P0  
-**Status**: Ready for Dev
+**Status**: Done
 
 ---
 
@@ -25,6 +25,7 @@ As a developer, I need Dockerfiles and container configurations to package the A
    - Asynq worker (embedded in same process)
 2. **Redis (port 6379)** - Asynq task queue backend (optional)
 3. **Nginx (port 80)** - Internal proxy serving Dashboard + routing requests
+4. **Pi Coding Agent (optional, on-demand)** - Node runtime + `pi` CLI, started by PB process via RPC mode (`pi --mode rpc`)
 
 ## Build Strategies
 
@@ -43,6 +44,7 @@ As a developer, I need Dockerfiles and container configurations to package the A
 - [x] Dashboard accessible at `/` 
 - [x] PocketBase API accessible at `/api/` and `/_/` (Admin UI)
 - [x] Custom routes at `/api/ext/*` (apps, proxy, system, backup)
+- [x] Terraform CLI pre-installed in container image (`terraform version` available)
 - [ ] Data persists in `/appos/data` after restart
 
 ## Build Strategy Comparison
@@ -76,6 +78,7 @@ As a developer, I need Dockerfiles and container configurations to package the A
 - Config: supervisord.conf, nginx.conf, entrypoint.sh
 - Data dirs: `/appos/data/{pb_data,redis,apps}`
 - HEALTHCHECK: `curl -f http://localhost/api/health`
+- Optional AI runtime: Node.js + `@mariozechner/pi-coding-agent`
 
 **Note**: PocketBase framework compiled into `appos` binary (Go 1.26.0, PB 0.36.2)
 
@@ -84,6 +87,8 @@ As a developer, I need Dockerfiles and container configurations to package the A
 **Stage 1 - Dashboard**: `node:20-alpine` → build to `/build/dist`
 **Stage 2 - Backend**: `golang:1.26-alpine` → build `cmd/appos/main.go` to `/build/appos`
 **Stage 3 - Runtime**: `alpine:3.19` → copy artifacts + configs
+
+Runtime includes optional Node.js + `pi` CLI to support in-process PB integration via RPC mode.
 
 ### Store Library Plugin
 
@@ -161,7 +166,7 @@ RUN mkdir -p \
 - **nginx.conf**: Routes: `/` (dashboard), `/api/` + `/_/` (PocketBase + custom routes)
 - **entrypoint.sh**: Init data dirs, handle INIT_MODE (auto/setup), start supervisord
 - **docker-compose.yml**: Named volume (`appos_data`), health check, port mapping
-- **.env**: HTTP_PORT, REDIS_ADDR, IMAGE_NAME, SUPERUSER_EMAIL, SUPERUSER_PASSWORD
+- **.env**: HTTP_PORT, REDIS_ADDR, IMAGE_NAME, SUPERUSER_EMAIL, SUPERUSER_PASSWORD, PI_CODING_AGENT_DIR
 - **.dockerignore**: Exclude node_modules, .git, *.log, pb_data
 
 ---
@@ -206,6 +211,8 @@ docker restart appos && docker exec appos ls /appos/data/
 - [x] Verify data persistence after restart
 - [x] Migrate pb_data → pb/pb_data; add workflows/, templates/ dirs
 - [x] Add Store Library baked into image (`build/library/` via COPY; `make build library` to download)
+- [x] Pre-install Terraform CLI from official image (`hashicorp/terraform:1.14`)
+- [x] Install Node.js + `@mariozechner/pi-coding-agent` in runtime image for PB RPC integration
 
 ---
 
@@ -261,10 +268,41 @@ docker restart appos && docker exec appos ls /appos/data/
 
 ---
 
+**2026-03-05**: Terraform CLI 预装（Story 1.1 范围）
+
+- **Change**: 在 `build/Dockerfile` 与 `build/Dockerfile.local` 的 runtime stage 增加 Terraform CLI 预装
+- **Install Method**: 采用官方镜像 `hashicorp/terraform:1.14`，在多阶段构建中直接 `COPY --from=terraform-bin /bin/terraform /usr/local/bin/terraform`
+- **Versioning**: 固定主版本 `1.14`
+- **Verification**: 容器运行后执行 `terraform version` 校验可用
+- **Files changed**: `build/Dockerfile`, `build/Dockerfile.local`, `specs/implementation-artifacts/story1.1-container-build.md`
+- **Status**: Terraform 预装实现完成 ✅
+
+---
+
+**2026-03-05**: Build 链路清理（Story 1.1 收尾）
+
+- **Change**: 删除未被当前构建链路引用的 `backend/Dockerfile`
+- **Verification**: 全仓检索 `backend/Dockerfile` 引用为 0；Makefile 与镜像构建路径仅使用 `build/Dockerfile` 与 `build/Dockerfile.local`
+- **Docs updated**: `backend/README.md` 移除该文件结构条目；`story1.6-security-scanning.md` 移除对该文件的固定版本描述并改为通用表述
+- **Files changed**: `backend/Dockerfile`(deleted), `backend/README.md`, `specs/implementation-artifacts/story1.6-security-scanning.md`, `specs/implementation-artifacts/story1.1-container-build.md`
+- **Status**: 清理完成 ✅
+
+---
+
+**2026-03-09**: Pi Coding Agent 运行时集成（方案B）
+
+- **Change**: 在 `build/Dockerfile` 与 `build/Dockerfile.local` runtime stage 增加 Node.js、npm，并全局安装 `@mariozechner/pi-coding-agent`
+- **Runtime Path**: `PI_CODING_AGENT_DIR=/appos/data/pi`（持久化于数据卷）
+- **Integration Mode**: 不由 supervisord 常驻，供 PocketBase 进程按需 `exec pi --mode rpc` 启动
+- **Files changed**: `build/Dockerfile`, `build/Dockerfile.local`, `build/entrypoint.sh`, `build/docker-compose.yml`, `build/.env`, `specs/implementation-artifacts/story1.1-container-build.md`
+- **Status**: 集成完成 ✅
+
+---
+
 ## Status
 
 **Current**: Done
-**Last Updated**: 2026-02-24  
+**Last Updated**: 2026-03-05  
 **Estimated Effort**: 2-3 days  
 
 **Dependencies**:

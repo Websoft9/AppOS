@@ -82,7 +82,6 @@ backend/
 │   ├── docker/docker.go           # Docker Engine API client
 │   ├── terminal/terminal.go       # WebSocket + PTY terminal
 │   └── migrations/                # PocketBase auto-migrations
-├── Dockerfile
 ├── .air.toml                      # Hot-reload config
 └── .env.example
 ```

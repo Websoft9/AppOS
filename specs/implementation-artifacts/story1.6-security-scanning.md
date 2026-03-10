@@ -14,7 +14,7 @@
 - [x] `.golangci.yml`: gosec 纳入 lint 流程，豁免 G304/G115，测试文件仅豁免 errcheck/ineffassign
 - [x] CI `scan` job: trivy SARIF 推送 GitHub Security 标签页，SBOM 推送 GitHub Dependency Graph
 - [x] 工具安装集成到 `make install`（govulncheck/gitleaks/syft；trivy 通过 Docker 运行无需安装）
-- [x] `backend/Dockerfile` 固定 `alpine:3.21`（替换 `alpine:latest`）
+- [x] 容器构建文件使用固定基础镜像标签（避免 `latest` 漂移风险）
 - [x] `sbom.spdx.json` 加入 `.gitignore`
 
 ## 实现

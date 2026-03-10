@@ -20,7 +20,12 @@ RUN apk add --no-cache curl unzip && \
     rm /tmp/library.zip
 
 # ===========================
-# Stage 2: Runtime
+# Stage 2: Terraform Binary
+# ===========================
+FROM hashicorp/terraform:1.14 AS terraform-bin
+
+# ===========================
+# Stage 3: Runtime
 # ===========================
 FROM alpine:3.19
 
@@ -38,13 +43,18 @@ RUN apk add --no-cache \
     ca-certificates \
     tzdata \
     bash \
+    nodejs \
+    npm \
     docker-cli \
     docker-cli-compose \
     && rm -rf /var/cache/apk/*
 
+RUN npm install -g @mariozechner/pi-coding-agent
+
 # Copy pre-built artifacts from host (appos is statically linked)
 COPY dashboard/dist /usr/share/nginx/html/dashboard
 COPY backend/appos /usr/local/bin/appos
+COPY --from=terraform-bin /bin/terraform /usr/local/bin/terraform
 RUN chmod +x /usr/local/bin/appos
 
 # Store Library plugin (from download stage, Docker-cached after first build)
@@ -56,6 +66,7 @@ RUN mkdir -p \
     /appos/data/pb/pb_migrations \
     /appos/data/redis \
     /appos/data/apps \
+    /appos/data/pi \
     /appos/data/workflows \
     /appos/data/templates/apps \
     /appos/data/templates/workflows \
@@ -69,6 +80,12 @@ RUN mkdir -p \
 COPY build/supervisord.conf /etc/supervisor/supervisord.conf
 COPY build/nginx.conf /etc/nginx/nginx.conf
 COPY --chmod=755 build/entrypoint.sh /entrypoint.sh
+
+RUN set -eux; \
+    test -x /usr/local/bin/appos || { echo "ERROR: appos binary not found"; exit 1; }; \
+    test -x /usr/local/bin/pi || { echo "ERROR: pi binary not found"; exit 1; }
+
+ENV PI_CODING_AGENT_DIR=/appos/data/pi
 
 EXPOSE 80
 
