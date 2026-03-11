@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
 import { PlugZap, Loader2, Cable, Link as LinkIcon, RotateCcw, Power } from 'lucide-react'
@@ -12,10 +12,27 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { ResourcePage, type Column, type FieldDef } from '@/components/resources/ResourcePage'
 import { TunnelSetupWizard } from '@/components/servers/TunnelSetupWizard'
+import { SecretForm, type SecretTemplate } from '@/components/secrets/SecretForm'
 import { pb } from '@/lib/pb'
 import { checkServerStatus as pingServerStatus, serverPower } from '@/lib/connect-api'
+
+// Template-id → display alias used in the credential dropdown
+const TEMPLATE_ALIASES: Record<string, string> = {
+  single_value: 'Password',
+  ssh_key: 'SSH Key',
+}
+const ALLOWED_TEMPLATES = new Set(Object.keys(TEMPLATE_ALIASES))
+
+function formatSecretLabel(raw: Record<string, unknown>): string {
+  const name = String(raw.name ?? raw.id)
+  const tid = String(raw.template_id ?? '')
+  const alias = TEMPLATE_ALIASES[tid]
+  return alias ? `${name}  (${alias})` : name
+}
 
 const fields: FieldDef[] = [
   {
@@ -33,53 +50,12 @@ const fields: FieldDef[] = [
   { key: 'port', label: 'Port', type: 'number', defaultValue: 22 },
   { key: 'user', label: 'User', type: 'text', placeholder: 'root' },
   {
-    key: 'auth_type',
-    label: 'Auth Type',
-    type: 'select',
-    options: [
-      { label: 'Password', value: 'password' },
-      { label: 'SSH Key', value: 'key' },
-    ],
-  },
-  {
     key: 'credential',
     label: 'Credential (Secret)',
     type: 'relation',
-    relationApiPath: '/api/ext/resources/secrets',
-    relationCreate: {
-      label: 'New Credential Secret',
-      apiPath: '/api/ext/resources/secrets',
-      fields: [
-        { key: 'name', label: 'Name', type: 'text', required: true, placeholder: 'my-server-cred' },
-        {
-          key: 'type',
-          label: 'Type',
-          type: 'select',
-          required: true,
-          options: [
-            { label: 'Password', value: 'password' },
-            { label: 'Username + Password', value: 'username_password' },
-            { label: 'SSH Key', value: 'ssh_key' },
-          ],
-        },
-        {
-          key: 'username',
-          label: 'Username',
-          type: 'text',
-          placeholder: 'root',
-          showWhen: { field: 'type', values: ['username_password'] },
-        },
-        {
-          key: 'value',
-          label: 'Password / Key',
-          type: 'password',
-          required: true,
-          dynamicType: { field: 'type', values: ['ssh_key'], as: 'file-textarea' },
-          fileAccept: '.pem,.key,.txt',
-        },
-        { key: 'description', label: 'Description (optional)', type: 'text' },
-      ],
-    },
+    relationApiPath: "/api/collections/secrets/records?filter=(status='active'%26%26(template_id='single_value'||template_id='ssh_key'))&sort=name",
+    relationLabelKey: 'name',
+    relationFormatLabel: formatSecretLabel,
   },
   { key: 'description', label: 'Description', type: 'textarea' },
   {
@@ -108,9 +84,91 @@ function ServersPage() {
   const [powerAction, setPowerAction] = useState<'restart' | 'shutdown'>('restart')
   const [powerSubmitting, setPowerSubmitting] = useState(false)
   const [powerError, setPowerError] = useState('')
-  // Per-server ping results (overrides DB value in Status column)
   const [pingResults, setPingResults] = useState<Record<string, 'online' | 'offline'>>({})
 
+  // ── Create-Secret dialog (reuses SecretForm) ──
+  const [secretDialogOpen, setSecretDialogOpen] = useState(false)
+  const [secretName, setSecretName] = useState('')
+  const [secretTemplateId, setSecretTemplateId] = useState('')
+  const [secretPayload, setSecretPayload] = useState<Record<string, string>>({})
+  const [secretTemplates, setSecretTemplates] = useState<SecretTemplate[]>([])
+  const [secretSaving, setSecretSaving] = useState(false)
+  const [secretError, setSecretError] = useState('')
+  // callback provided by ResourcePage's addOption
+  const [secretAddOption, setSecretAddOption] = useState<((id: string, label: string) => void) | null>(null)
+
+  // Load secret templates on mount (only the allowed ones)
+  useEffect(() => {
+    void (async () => {
+      try {
+        const data = await pb.send<SecretTemplate[]>('/api/secrets/templates', { method: 'GET' })
+        const filtered = (Array.isArray(data) ? data : []).filter(t => ALLOWED_TEMPLATES.has(t.id))
+        // Rename labels to user-friendly aliases
+        setSecretTemplates(
+          filtered.map(t => ({ ...t, label: TEMPLATE_ALIASES[t.id] ?? t.label }))
+        )
+      } catch {
+        // ignore
+      }
+    })()
+  }, [])
+
+  const openSecretDialog = useCallback(
+    (callbacks: { addOption: (id: string, label: string) => void }) => {
+      setSecretName('')
+      setSecretTemplateId('')
+      setSecretPayload({})
+      setSecretError('')
+      setSecretAddOption(() => callbacks.addOption)
+      setSecretDialogOpen(true)
+    },
+    []
+  )
+
+  const handleSecretCreate = useCallback(
+    async () => {
+      setSecretSaving(true)
+      setSecretError('')
+      try {
+        const created = await pb.collection('secrets').create({
+          name: secretName,
+          template_id: secretTemplateId,
+          scope: 'global',
+          access_mode: 'use_only',
+          payload: secretPayload,
+        })
+        const label = formatSecretLabel({
+          name: secretName,
+          template_id: secretTemplateId,
+          id: created.id,
+        })
+        secretAddOption?.(String(created.id), label)
+        setSecretDialogOpen(false)
+      } catch (err) {
+        setSecretError(err instanceof Error ? err.message : 'Create failed')
+      } finally {
+        setSecretSaving(false)
+      }
+    },
+    [secretName, secretTemplateId, secretPayload, secretAddOption]
+  )
+
+  // Build fields (credential's create button needs component-level handler)
+  const serverFields = useMemo<FieldDef[]>(
+    () =>
+      fields.map(f =>
+        f.key === 'credential'
+          ? {
+              ...f,
+              relationCreateButton: {
+                label: 'Create new credential secret',
+                onClick: openSecretDialog,
+              },
+            }
+          : f
+      ),
+    [openSecretDialog]
+  )
   const checkServerStatus = useCallback(async (item: Record<string, unknown>) => {
     const id = String(item.id)
     const mode = item.connect_type === 'tunnel' ? 'tunnel' : 'tcp'
@@ -354,7 +412,7 @@ function ServersPage() {
             await pb.collection('servers').delete(id)
           },
           columns,
-          fields,
+          fields: serverFields,
           parentNav: { label: 'Resources', href: '/resources' },
           autoCreate,
           enableGroupAssign: true,
@@ -429,6 +487,69 @@ function ServersPage() {
               Confirm
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create credential secret dialog – reuses SecretForm */}
+      <Dialog open={secretDialogOpen} onOpenChange={setSecretDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create Credential Secret</DialogTitle>
+            <DialogDescription>
+              Choose a type and fill in the credential details.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={e => {
+              e.preventDefault()
+              void handleSecretCreate()
+            }}
+          >
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="secret-name">Name</Label>
+                <Input
+                  id="secret-name"
+                  value={secretName}
+                  onChange={e => setSecretName(e.target.value)}
+                  placeholder="e.g. my-server-key"
+                  required
+                />
+              </div>
+
+              <SecretForm
+                templates={secretTemplates}
+                templateId={secretTemplateId}
+                payload={secretPayload}
+                onTemplateChange={id => {
+                  setSecretTemplateId(id)
+                  setSecretPayload({})
+                }}
+                onPayloadChange={(k, v) =>
+                  setSecretPayload(prev => ({ ...prev, [k]: v }))
+                }
+              />
+
+              {secretError && (
+                <div className="text-sm text-destructive">{secretError}</div>
+              )}
+            </div>
+
+            <DialogFooter className="mt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setSecretDialogOpen(false)}
+                disabled={secretSaving}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={secretSaving || !secretName.trim()}>
+                {secretSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Create
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </>

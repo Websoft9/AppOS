@@ -19,6 +19,7 @@ import { Route as AppForgotPasswordRouteImport } from './routes/_app/forgot-pass
 import { Route as AppAuthRouteImport } from './routes/_app/_auth'
 import { Route as AppAuthSpaceRouteImport } from './routes/_app/_auth/space'
 import { Route as AppAuthServicesRouteImport } from './routes/_app/_auth/services'
+import { Route as AppAuthSecretsRouteImport } from './routes/_app/_auth/secrets'
 import { Route as AppAuthProfileRouteImport } from './routes/_app/_auth/profile'
 import { Route as AppAuthDockerRouteImport } from './routes/_app/_auth/docker'
 import { Route as AppAuthDashboardRouteImport } from './routes/_app/_auth/dashboard'
@@ -27,7 +28,6 @@ import { Route as AppAuthSuperuserRouteImport } from './routes/_app/_auth/_super
 import { Route as AppAuthStoreIndexRouteImport } from './routes/_app/_auth/store/index'
 import { Route as AppAuthResourcesIndexRouteImport } from './routes/_app/_auth/resources/index'
 import { Route as AppAuthResourcesServersRouteImport } from './routes/_app/_auth/resources/servers'
-import { Route as AppAuthResourcesSecretsRouteImport } from './routes/_app/_auth/resources/secrets'
 import { Route as AppAuthResourcesScriptsRouteImport } from './routes/_app/_auth/resources/scripts'
 import { Route as AppAuthResourcesIntegrationsRouteImport } from './routes/_app/_auth/resources/integrations'
 import { Route as AppAuthResourcesGroupsRouteImport } from './routes/_app/_auth/resources/groups'
@@ -42,6 +42,7 @@ import { Route as AppAuthResourcesGroupsIndexRouteImport } from './routes/_app/_
 import { Route as AppAuthSuperuserUsersIndexRouteImport } from './routes/_app/_auth/_superuser/users/index'
 import { Route as AppAuthSuperuserTerminalIndexRouteImport } from './routes/_app/_auth/_superuser/terminal.index'
 import { Route as AppAuthResourcesGroupsIdRouteImport } from './routes/_app/_auth/resources/groups.$id'
+import { Route as AppAuthAdminCredentialsEnvVarsRouteImport } from './routes/_app/_auth/admin/credentials/env-vars'
 import { Route as AppAuthSuperuserTerminalServerServerIdRouteImport } from './routes/_app/_auth/_superuser/terminal.server.$serverId'
 
 const AppRoute = AppRouteImport.update({
@@ -92,6 +93,11 @@ const AppAuthServicesRoute = AppAuthServicesRouteImport.update({
   path: '/services',
   getParentRoute: () => AppAuthRoute,
 } as any)
+const AppAuthSecretsRoute = AppAuthSecretsRouteImport.update({
+  id: '/secrets',
+  path: '/secrets',
+  getParentRoute: () => AppAuthRoute,
+} as any)
 const AppAuthProfileRoute = AppAuthProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -129,11 +135,6 @@ const AppAuthResourcesIndexRoute = AppAuthResourcesIndexRouteImport.update({
 const AppAuthResourcesServersRoute = AppAuthResourcesServersRouteImport.update({
   id: '/resources/servers',
   path: '/resources/servers',
-  getParentRoute: () => AppAuthRoute,
-} as any)
-const AppAuthResourcesSecretsRoute = AppAuthResourcesSecretsRouteImport.update({
-  id: '/resources/secrets',
-  path: '/resources/secrets',
   getParentRoute: () => AppAuthRoute,
 } as any)
 const AppAuthResourcesScriptsRoute = AppAuthResourcesScriptsRouteImport.update({
@@ -216,6 +217,12 @@ const AppAuthResourcesGroupsIdRoute =
     path: '/$id',
     getParentRoute: () => AppAuthResourcesGroupsRoute,
   } as any)
+const AppAuthAdminCredentialsEnvVarsRoute =
+  AppAuthAdminCredentialsEnvVarsRouteImport.update({
+    id: '/admin/credentials/env-vars',
+    path: '/admin/credentials/env-vars',
+    getParentRoute: () => AppAuthRoute,
+  } as any)
 const AppAuthSuperuserTerminalServerServerIdRoute =
   AppAuthSuperuserTerminalServerServerIdRouteImport.update({
     id: '/terminal/server/$serverId',
@@ -234,6 +241,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AppAuthDashboardRoute
   '/docker': typeof AppAuthDockerRoute
   '/profile': typeof AppAuthProfileRoute
+  '/secrets': typeof AppAuthSecretsRoute
   '/services': typeof AppAuthServicesRoute
   '/space': typeof AppAuthSpaceRoute
   '/iac': typeof AppAuthSuperuserIacRoute
@@ -246,10 +254,10 @@ export interface FileRoutesByFullPath {
   '/resources/groups': typeof AppAuthResourcesGroupsRouteWithChildren
   '/resources/integrations': typeof AppAuthResourcesIntegrationsRoute
   '/resources/scripts': typeof AppAuthResourcesScriptsRoute
-  '/resources/secrets': typeof AppAuthResourcesSecretsRoute
   '/resources/servers': typeof AppAuthResourcesServersRoute
   '/resources/': typeof AppAuthResourcesIndexRoute
   '/store/': typeof AppAuthStoreIndexRoute
+  '/admin/credentials/env-vars': typeof AppAuthAdminCredentialsEnvVarsRoute
   '/resources/groups/$id': typeof AppAuthResourcesGroupsIdRoute
   '/terminal/': typeof AppAuthSuperuserTerminalIndexRoute
   '/users/': typeof AppAuthSuperuserUsersIndexRoute
@@ -267,6 +275,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AppAuthDashboardRoute
   '/docker': typeof AppAuthDockerRoute
   '/profile': typeof AppAuthProfileRoute
+  '/secrets': typeof AppAuthSecretsRoute
   '/services': typeof AppAuthServicesRoute
   '/space': typeof AppAuthSpaceRoute
   '/iac': typeof AppAuthSuperuserIacRoute
@@ -278,10 +287,10 @@ export interface FileRoutesByTo {
   '/resources/env-groups': typeof AppAuthResourcesEnvGroupsRoute
   '/resources/integrations': typeof AppAuthResourcesIntegrationsRoute
   '/resources/scripts': typeof AppAuthResourcesScriptsRoute
-  '/resources/secrets': typeof AppAuthResourcesSecretsRoute
   '/resources/servers': typeof AppAuthResourcesServersRoute
   '/resources': typeof AppAuthResourcesIndexRoute
   '/store': typeof AppAuthStoreIndexRoute
+  '/admin/credentials/env-vars': typeof AppAuthAdminCredentialsEnvVarsRoute
   '/resources/groups/$id': typeof AppAuthResourcesGroupsIdRoute
   '/terminal': typeof AppAuthSuperuserTerminalIndexRoute
   '/users': typeof AppAuthSuperuserUsersIndexRoute
@@ -303,6 +312,7 @@ export interface FileRoutesById {
   '/_app/_auth/dashboard': typeof AppAuthDashboardRoute
   '/_app/_auth/docker': typeof AppAuthDockerRoute
   '/_app/_auth/profile': typeof AppAuthProfileRoute
+  '/_app/_auth/secrets': typeof AppAuthSecretsRoute
   '/_app/_auth/services': typeof AppAuthServicesRoute
   '/_app/_auth/space': typeof AppAuthSpaceRoute
   '/_app/_auth/_superuser/iac': typeof AppAuthSuperuserIacRoute
@@ -315,10 +325,10 @@ export interface FileRoutesById {
   '/_app/_auth/resources/groups': typeof AppAuthResourcesGroupsRouteWithChildren
   '/_app/_auth/resources/integrations': typeof AppAuthResourcesIntegrationsRoute
   '/_app/_auth/resources/scripts': typeof AppAuthResourcesScriptsRoute
-  '/_app/_auth/resources/secrets': typeof AppAuthResourcesSecretsRoute
   '/_app/_auth/resources/servers': typeof AppAuthResourcesServersRoute
   '/_app/_auth/resources/': typeof AppAuthResourcesIndexRoute
   '/_app/_auth/store/': typeof AppAuthStoreIndexRoute
+  '/_app/_auth/admin/credentials/env-vars': typeof AppAuthAdminCredentialsEnvVarsRoute
   '/_app/_auth/resources/groups/$id': typeof AppAuthResourcesGroupsIdRoute
   '/_app/_auth/_superuser/terminal/': typeof AppAuthSuperuserTerminalIndexRoute
   '/_app/_auth/_superuser/users/': typeof AppAuthSuperuserUsersIndexRoute
@@ -338,6 +348,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/docker'
     | '/profile'
+    | '/secrets'
     | '/services'
     | '/space'
     | '/iac'
@@ -350,10 +361,10 @@ export interface FileRouteTypes {
     | '/resources/groups'
     | '/resources/integrations'
     | '/resources/scripts'
-    | '/resources/secrets'
     | '/resources/servers'
     | '/resources/'
     | '/store/'
+    | '/admin/credentials/env-vars'
     | '/resources/groups/$id'
     | '/terminal/'
     | '/users/'
@@ -371,6 +382,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/docker'
     | '/profile'
+    | '/secrets'
     | '/services'
     | '/space'
     | '/iac'
@@ -382,10 +394,10 @@ export interface FileRouteTypes {
     | '/resources/env-groups'
     | '/resources/integrations'
     | '/resources/scripts'
-    | '/resources/secrets'
     | '/resources/servers'
     | '/resources'
     | '/store'
+    | '/admin/credentials/env-vars'
     | '/resources/groups/$id'
     | '/terminal'
     | '/users'
@@ -406,6 +418,7 @@ export interface FileRouteTypes {
     | '/_app/_auth/dashboard'
     | '/_app/_auth/docker'
     | '/_app/_auth/profile'
+    | '/_app/_auth/secrets'
     | '/_app/_auth/services'
     | '/_app/_auth/space'
     | '/_app/_auth/_superuser/iac'
@@ -418,10 +431,10 @@ export interface FileRouteTypes {
     | '/_app/_auth/resources/groups'
     | '/_app/_auth/resources/integrations'
     | '/_app/_auth/resources/scripts'
-    | '/_app/_auth/resources/secrets'
     | '/_app/_auth/resources/servers'
     | '/_app/_auth/resources/'
     | '/_app/_auth/store/'
+    | '/_app/_auth/admin/credentials/env-vars'
     | '/_app/_auth/resources/groups/$id'
     | '/_app/_auth/_superuser/terminal/'
     | '/_app/_auth/_superuser/users/'
@@ -506,6 +519,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthServicesRouteImport
       parentRoute: typeof AppAuthRoute
     }
+    '/_app/_auth/secrets': {
+      id: '/_app/_auth/secrets'
+      path: '/secrets'
+      fullPath: '/secrets'
+      preLoaderRoute: typeof AppAuthSecretsRouteImport
+      parentRoute: typeof AppAuthRoute
+    }
     '/_app/_auth/profile': {
       id: '/_app/_auth/profile'
       path: '/profile'
@@ -560,13 +580,6 @@ declare module '@tanstack/react-router' {
       path: '/resources/servers'
       fullPath: '/resources/servers'
       preLoaderRoute: typeof AppAuthResourcesServersRouteImport
-      parentRoute: typeof AppAuthRoute
-    }
-    '/_app/_auth/resources/secrets': {
-      id: '/_app/_auth/resources/secrets'
-      path: '/resources/secrets'
-      fullPath: '/resources/secrets'
-      preLoaderRoute: typeof AppAuthResourcesSecretsRouteImport
       parentRoute: typeof AppAuthRoute
     }
     '/_app/_auth/resources/scripts': {
@@ -667,6 +680,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthResourcesGroupsIdRouteImport
       parentRoute: typeof AppAuthResourcesGroupsRoute
     }
+    '/_app/_auth/admin/credentials/env-vars': {
+      id: '/_app/_auth/admin/credentials/env-vars'
+      path: '/admin/credentials/env-vars'
+      fullPath: '/admin/credentials/env-vars'
+      preLoaderRoute: typeof AppAuthAdminCredentialsEnvVarsRouteImport
+      parentRoute: typeof AppAuthRoute
+    }
     '/_app/_auth/_superuser/terminal/server/$serverId': {
       id: '/_app/_auth/_superuser/terminal/server/$serverId'
       path: '/terminal/server/$serverId'
@@ -721,6 +741,7 @@ interface AppAuthRouteChildren {
   AppAuthDashboardRoute: typeof AppAuthDashboardRoute
   AppAuthDockerRoute: typeof AppAuthDockerRoute
   AppAuthProfileRoute: typeof AppAuthProfileRoute
+  AppAuthSecretsRoute: typeof AppAuthSecretsRoute
   AppAuthServicesRoute: typeof AppAuthServicesRoute
   AppAuthSpaceRoute: typeof AppAuthSpaceRoute
   AppAuthResourcesCertificatesRoute: typeof AppAuthResourcesCertificatesRoute
@@ -730,10 +751,10 @@ interface AppAuthRouteChildren {
   AppAuthResourcesGroupsRoute: typeof AppAuthResourcesGroupsRouteWithChildren
   AppAuthResourcesIntegrationsRoute: typeof AppAuthResourcesIntegrationsRoute
   AppAuthResourcesScriptsRoute: typeof AppAuthResourcesScriptsRoute
-  AppAuthResourcesSecretsRoute: typeof AppAuthResourcesSecretsRoute
   AppAuthResourcesServersRoute: typeof AppAuthResourcesServersRoute
   AppAuthResourcesIndexRoute: typeof AppAuthResourcesIndexRoute
   AppAuthStoreIndexRoute: typeof AppAuthStoreIndexRoute
+  AppAuthAdminCredentialsEnvVarsRoute: typeof AppAuthAdminCredentialsEnvVarsRoute
 }
 
 const AppAuthRouteChildren: AppAuthRouteChildren = {
@@ -742,6 +763,7 @@ const AppAuthRouteChildren: AppAuthRouteChildren = {
   AppAuthDashboardRoute: AppAuthDashboardRoute,
   AppAuthDockerRoute: AppAuthDockerRoute,
   AppAuthProfileRoute: AppAuthProfileRoute,
+  AppAuthSecretsRoute: AppAuthSecretsRoute,
   AppAuthServicesRoute: AppAuthServicesRoute,
   AppAuthSpaceRoute: AppAuthSpaceRoute,
   AppAuthResourcesCertificatesRoute: AppAuthResourcesCertificatesRoute,
@@ -751,10 +773,10 @@ const AppAuthRouteChildren: AppAuthRouteChildren = {
   AppAuthResourcesGroupsRoute: AppAuthResourcesGroupsRouteWithChildren,
   AppAuthResourcesIntegrationsRoute: AppAuthResourcesIntegrationsRoute,
   AppAuthResourcesScriptsRoute: AppAuthResourcesScriptsRoute,
-  AppAuthResourcesSecretsRoute: AppAuthResourcesSecretsRoute,
   AppAuthResourcesServersRoute: AppAuthResourcesServersRoute,
   AppAuthResourcesIndexRoute: AppAuthResourcesIndexRoute,
   AppAuthStoreIndexRoute: AppAuthStoreIndexRoute,
+  AppAuthAdminCredentialsEnvVarsRoute: AppAuthAdminCredentialsEnvVarsRoute,
 }
 
 const AppAuthRouteWithChildren =

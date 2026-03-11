@@ -84,19 +84,16 @@ backend/internal/routes/
 | `host` | text | ✅ | Hostname or IP |
 | `port` | number | ✅ | SSH port (default: 22) |
 | `user` | text | ✅ | Login username |
-| `auth_type` | select | ✅ | `password` \| `key` |
 | `connect_type` | select | ✅ | `direct` \| `tunnel` |
-| `credential` | relation → secrets | ✅ | Encrypted credential reference |
+| `credential` | relation → secrets | ✅ | Credential secret (Password or SSH Key only) |
 | `shell` | text | — | Override login shell (empty = server default) |
 | `tunnel_server` | relation → servers | — | Required when `connect_type=tunnel` |
 
+> `auth_type` removed — credential type is determined by the secret's `template_id` (`single_value` = Password, `ssh_key` = SSH Key).
+
 ### `secrets` collection
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `name` | text | Label |
-| `type` | select | `password` \| `key` |
-| `value` | text | AES-256-GCM encrypted payload (key from Epic 13 settings) |
+See [Epic 19](epic19-secrets.md) for full data model. Servers consume secrets via `credential` relation field, filtered to `template_id ∈ {single_value, ssh_key}` and `status = active`.
 
 ---
 

@@ -44,6 +44,15 @@ func init() {
 		secrets.Fields.Add(&core.TextField{
 			Name: "description",
 		})
+		secrets.Fields.Add(&core.AutodateField{
+			Name:     "created",
+			OnCreate: true,
+		})
+		secrets.Fields.Add(&core.AutodateField{
+			Name:     "updated",
+			OnCreate: true,
+			OnUpdate: true,
+		})
 		secrets.AddIndex("idx_secrets_name", true, "name", "")
 
 		if err := app.Save(secrets); err != nil {

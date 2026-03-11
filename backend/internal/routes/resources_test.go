@@ -173,54 +173,6 @@ func TestServersRouteRemovedFromExt(t *testing.T) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// Secrets
-// ═══════════════════════════════════════════════════════════
-
-func TestSecretsCreateValueMasked(t *testing.T) {
-	te := newTestEnv(t)
-	defer te.cleanup()
-
-	rec := te.do(t, http.MethodPost, "/api/ext/resources/secrets",
-		`{"name":"db-password","type":"password","value":"super-secret-123"}`, true)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	created := parseJSON(t, rec)
-	if created["value"] != "***" {
-		t.Errorf("expected value '***', got %v", created["value"])
-	}
-}
-
-func TestSecretsGetReturnsDecrypted(t *testing.T) {
-	te := newTestEnv(t)
-	defer te.cleanup()
-
-	// Create a secret
-	rec := te.do(t, http.MethodPost, "/api/ext/resources/secrets",
-		`{"name":"api-key","type":"api_key","value":"my-secret-value"}`, true)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("create: expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	created := parseJSON(t, rec)
-	id := created["id"].(string)
-
-	// Get should return decrypted value
-	rec = te.do(t, http.MethodGet, "/api/ext/resources/secrets/"+id, "", true)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("get: expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	got := parseJSON(t, rec)
-	if got["value"] != "my-secret-value" {
-		t.Errorf("expected decrypted value 'my-secret-value', got %v", got["value"])
-	}
-}
-
-// ═══════════════════════════════════════════════════════════
 // Databases
 // ═══════════════════════════════════════════════════════════
 
@@ -477,13 +429,22 @@ func TestResourceGroupsCrossTypeListAndBatch(t *testing.T) {
 	group := parseJSON(t, rec)
 	groupId := group["id"].(string)
 
-	rec = te.do(t, http.MethodPost, "/api/ext/resources/secrets",
-		`{"name":"infra-secret","type":"password","value":"super-secret-123"}`, true)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("create secret: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	// Create a secret record directly (the old /api/ext/resources/secrets endpoint was removed)
+	secretsCol, err := te.app.FindCollectionByNameOrId("secrets")
+	if err != nil {
+		t.Fatalf("find secrets collection: %v", err)
 	}
-	secret := parseJSON(t, rec)
-	secretId := secret["id"].(string)
+	secretRec := core.NewRecord(secretsCol)
+	secretRec.Set("name", "infra-secret")
+	secretRec.Set("template_id", "single_value")
+	secretRec.Set("scope", "global")
+	secretRec.Set("access_mode", "use_only")
+	secretRec.Set("status", "active")
+	secretRec.Set("version", 1)
+	if err := te.app.Save(secretRec); err != nil {
+		t.Fatalf("create secret: %v", err)
+	}
+	secretId := secretRec.Id
 
 	// Batch add secret to the infra group
 	batchBody := `{"action":"add","items":[{"type":"secrets","id":"` + secretId + `"}]}`

@@ -1,10 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/websoft9/appos/backend/internal/hooks"
 	"github.com/websoft9/appos/backend/internal/routes"
+	"github.com/websoft9/appos/backend/internal/secrets"
 	servers "github.com/websoft9/appos/backend/internal/servers"
 	"github.com/websoft9/appos/backend/internal/worker"
 
@@ -16,6 +18,13 @@ import (
 )
 
 func main() {
+	if err := secrets.LoadKeyFromEnv(); err != nil {
+		log.Fatal(fmt.Errorf("secrets init failed: %w", err))
+	}
+	if err := secrets.LoadTemplatesFromDefaultPath(); err != nil {
+		log.Fatal(fmt.Errorf("secrets templates init failed: %w", err))
+	}
+
 	app := pocketbase.New()
 
 	// Initialize Asynq worker (created once, shared across app lifecycle)

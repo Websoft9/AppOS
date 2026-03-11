@@ -311,4 +311,24 @@ groups:
         - tunnel.go
       nativeRefs: []
 
+  - group: Secrets
+    description: Secrets lifecycle management — encrypted credential CRUD, template listing, payload rotation, internal resolve, and reveal APIs. Uses PB native collection for storage with application-layer AES-256-GCM encryption.
+    apiType: Mixed
+    extSurface:
+      - GET /api/secrets/templates
+      - PUT /api/secrets/{id}/payload
+      - POST /api/secrets/resolve
+      - GET /api/secrets/{id}/reveal
+    nativeSurface:
+      - GET /api/collections/secrets/records
+      - POST /api/collections/secrets/records
+      - GET /api/collections/secrets/records/{id}
+      - PATCH /api/collections/secrets/records/{id}
+      - DELETE /api/collections/secrets/records/{id}
+    sources:
+      extRouteFiles:
+        - secrets.go
+      nativeRefs:
+        - https://pocketbase.io/docs/api-records/#crud-actions
+
 

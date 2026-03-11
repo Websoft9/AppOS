@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import {
   LayoutDashboard,
@@ -10,11 +10,9 @@ import {
   LayoutGrid,
   FolderOpen,
   Users,
-  ScrollText,
   Cog,
-  FileText,
-  FolderCode,
   TerminalSquare,
+  KeyRound,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -31,9 +29,10 @@ import { cn } from '@/lib/utils'
 export interface NavItem {
   id: string
   label: string
-  icon: React.ReactNode
+  icon?: React.ReactNode
   href: string
   badge?: number | string
+  children?: NavItem[]
 }
 
 export interface NavGroup {
@@ -61,20 +60,40 @@ const workspaceGroup: NavGroup = {
       icon: <TerminalSquare className="h-5 w-5" />,
       href: '/terminal',
     },
-    {
-      id: 'resources',
-      label: 'Resources',
-      icon: <LayoutGrid className="h-5 w-5" />,
-      href: '/resources',
-    },
     { id: 'space', label: 'Space', icon: <FolderOpen className="h-5 w-5" />, href: '/space' },
   ],
 }
 
-const baseAdminItems: NavItem[] = [
-  { id: 'services', label: 'Services', icon: <Settings className="h-5 w-5" />, href: '/services' },
-  { id: 'audit', label: 'Audit', icon: <ScrollText className="h-5 w-5" />, href: '/audit' },
-]
+const resourcesNavItem: NavItem = {
+  id: 'resources',
+  label: 'Resources',
+  icon: <LayoutGrid className="h-5 w-5" />,
+  href: '/resources',
+}
+
+const systemNavItem: NavItem = {
+  id: 'system',
+  label: 'System',
+  icon: <Settings className="h-5 w-5" />,
+  href: '/services',
+  children: [
+    { id: 'services', label: 'Services', href: '/services' },
+    { id: 'logs', label: 'Logs', href: '/logs' },
+    { id: 'audit', label: 'Audit', href: '/audit' },
+    { id: 'iac', label: 'IaC Browser', href: '/iac' },
+  ],
+}
+
+const systemNavItemBasic: NavItem = {
+  id: 'system',
+  label: 'System',
+  icon: <Settings className="h-5 w-5" />,
+  href: '/services',
+  children: [
+    { id: 'services', label: 'Services', href: '/services' },
+    { id: 'audit', label: 'Audit', href: '/audit' },
+  ],
+}
 
 const usersNavItem: NavItem = {
   id: 'users',
@@ -90,18 +109,23 @@ const settingsNavItem: NavItem = {
   href: '/settings',
 }
 
-const logsNavItem: NavItem = {
-  id: 'logs',
-  label: 'Logs',
-  icon: <FileText className="h-5 w-5" />,
-  href: '/logs',
-}
-
-const filesNavItem: NavItem = {
-  id: 'files',
-  label: 'IaC Browser',
-  icon: <FolderCode className="h-5 w-5" />,
-  href: '/iac',
+const credentialsNavItem: NavItem = {
+  id: 'credentials',
+  label: 'Credentials',
+  icon: <KeyRound className="h-5 w-5" />,
+  href: '/secrets',
+  children: [
+    {
+      id: 'credentials-secrets',
+      label: 'Secrets',
+      href: '/secrets',
+    },
+    {
+      id: 'credentials-env-vars',
+      label: 'Environment',
+      href: '/admin/credentials/env-vars',
+    },
+  ],
 }
 
 function buildNavGroups(isSuperuser: boolean): NavGroup[] {
@@ -111,8 +135,8 @@ function buildNavGroups(isSuperuser: boolean): NavGroup[] {
       id: 'admin',
       label: 'Admin',
       items: isSuperuser
-        ? [...baseAdminItems, usersNavItem, logsNavItem, filesNavItem, settingsNavItem]
-        : baseAdminItems,
+        ? [systemNavItem, resourcesNavItem, credentialsNavItem, usersNavItem, settingsNavItem]
+        : [systemNavItemBasic, resourcesNavItem],
     },
   ]
 }
@@ -121,22 +145,7 @@ interface SidebarProps {
   groups?: NavGroup[]
 }
 
-// ─── Storage helpers for group collapse state ────────────
 
-const GROUP_STORAGE_KEY = 'sidebar-groups'
-
-function loadGroupState(): Record<string, boolean> {
-  try {
-    const raw = localStorage.getItem(GROUP_STORAGE_KEY)
-    return raw ? JSON.parse(raw) : {}
-  } catch {
-    return {}
-  }
-}
-
-function saveGroupState(state: Record<string, boolean>) {
-  localStorage.setItem(GROUP_STORAGE_KEY, JSON.stringify(state))
-}
 
 // ─── NavLink ─────────────────────────────────────────────
 
@@ -144,30 +153,70 @@ function NavLink({
   item,
   collapsed,
   onNavigate,
+  depth = 0,
 }: {
   item: NavItem
   collapsed: boolean
   onNavigate?: () => void
+  depth?: number
 }) {
   const router = useRouterState()
+  const [childrenOpen, setChildrenOpen] = useState(true)
+  const hasChildren = !!(item.children && item.children.length > 0)
   const isActive =
     router.location.pathname === item.href ||
     (item.href !== '/dashboard' && router.location.pathname.startsWith(item.href))
+  // For parent items with children, highlight text only (no bg) when a child is active
+  const isChildActive = hasChildren && item.children!.some(
+    child => router.location.pathname === child.href || router.location.pathname.startsWith(child.href)
+  )
+
+  if (hasChildren && !collapsed) {
+    return (
+      <Collapsible open={childrenOpen} onOpenChange={setChildrenOpen}>
+        <CollapsibleTrigger
+          className={cn(
+            'flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+            'hover:bg-accent hover:text-accent-foreground',
+            isChildActive ? 'text-accent-foreground' : 'text-muted-foreground'
+          )}
+        >
+          {item.icon}
+          <span className="truncate flex-1 text-left">{item.label}</span>
+          <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', !childrenOpen && '-rotate-90')} />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="mt-1 flex flex-col gap-1">
+            {item.children!.map(child => (
+              <NavLink
+                key={child.id}
+                item={child}
+                collapsed={false}
+                onNavigate={onNavigate}
+                depth={depth + 1}
+              />
+            ))}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    )
+  }
 
   const link = (
     <Link
       to={item.href}
       onClick={onNavigate}
       className={cn(
-        'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+        'flex items-center justify-start gap-3 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors',
         'hover:bg-accent hover:text-accent-foreground',
         isActive ? 'bg-accent text-accent-foreground' : 'text-muted-foreground',
+        depth > 0 && 'py-1.5 pl-11 text-xs font-normal',
         collapsed && 'justify-center px-2'
       )}
       aria-current={isActive ? 'page' : undefined}
     >
       {item.icon}
-      {!collapsed && <span className="truncate">{item.label}</span>}
+      {!collapsed && <span className="flex-1 truncate text-left">{item.label}</span>}
       {!collapsed && item.badge != null && (
         <span className="ml-auto text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
           {item.badge}
@@ -195,14 +244,10 @@ function NavLink({
 function NavGroupSection({
   group,
   collapsed: sidebarCollapsed,
-  open,
-  onToggle,
   onNavigate,
 }: {
   group: NavGroup
   collapsed: boolean
-  open: boolean
-  onToggle: () => void
   onNavigate?: () => void
 }) {
   // When sidebar is collapsed, show only icons (no group headers)
@@ -217,21 +262,16 @@ function NavGroupSection({
   }
 
   return (
-    <Collapsible open={open} onOpenChange={onToggle}>
-      <CollapsibleTrigger className="flex items-center w-full px-4 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors">
-        <span className="flex-1 text-left">{group.label}</span>
-        <ChevronDown
-          className={cn('h-3.5 w-3.5 transition-transform duration-200', !open && '-rotate-90')}
-        />
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <nav className="flex flex-col gap-1 px-2 pb-1" aria-label={`${group.label} navigation`}>
-          {group.items.map(item => (
-            <NavLink key={item.id} item={item} collapsed={false} onNavigate={onNavigate} />
-          ))}
-        </nav>
-      </CollapsibleContent>
-    </Collapsible>
+    <div>
+      <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        {group.label}
+      </div>
+      <nav className="flex flex-col gap-1 px-2 pb-1" aria-label={`${group.label} navigation`}>
+        {group.items.map(item => (
+          <NavLink key={item.id} item={item} collapsed={false} onNavigate={onNavigate} />
+        ))}
+      </nav>
+    </div>
   )
 }
 
@@ -246,16 +286,6 @@ function SidebarNav({
   collapsed: boolean
   onNavigate?: () => void
 }) {
-  const [groupState, setGroupState] = useState<Record<string, boolean>>(loadGroupState)
-
-  const toggleGroup = useCallback((groupId: string) => {
-    setGroupState(prev => {
-      const next = { ...prev, [groupId]: !(prev[groupId] ?? true) }
-      saveGroupState(next)
-      return next
-    })
-  }, [])
-
   return (
     <div className="flex flex-col gap-2">
       {groups.map(group => (
@@ -263,8 +293,6 @@ function SidebarNav({
           key={group.id}
           group={group}
           collapsed={collapsed}
-          open={groupState[group.id] ?? true}
-          onToggle={() => toggleGroup(group.id)}
           onNavigate={onNavigate}
         />
       ))}

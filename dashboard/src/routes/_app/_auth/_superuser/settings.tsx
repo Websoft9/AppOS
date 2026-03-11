@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, type FormEvent } from 'react'
 import { ClientResponseError } from 'pocketbase'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
 import { pb } from '@/lib/pb'
@@ -8,6 +8,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -312,6 +320,17 @@ function SettingsPage() {
   const [llmItems, setLlmItems] = useState<LLMProviderItem[]>([])
   const [llmSaving, setLlmSaving] = useState(false)
 
+  // Secrets picker (for LLM apiKey references)
+  const [secretPickerItems, setSecretPickerItems] = useState<{ id: string; name: string }[]>([])
+
+  // Inline create-secret dialog (LLM apiKey)
+  const [llmSecretCreateOpen, setLlmSecretCreateOpen] = useState(false)
+  const [llmSecretCreateIdx, setLlmSecretCreateIdx] = useState(-1)
+  const [llmSecretCreateName, setLlmSecretCreateName] = useState('')
+  const [llmSecretCreateKey, setLlmSecretCreateKey] = useState('')
+  const [llmSecretCreateSaving, setLlmSecretCreateSaving] = useState(false)
+  const [llmSecretCreateError, setLlmSecretCreateError] = useState('')
+
   // ── Load PB settings ──
   const loadPBSettings = useCallback(async () => {
     setPbLoading(true)
@@ -417,6 +436,50 @@ function SettingsPage() {
     loadPBSettings()
     loadExtSettings()
   }, [loadPBSettings, loadExtSettings])
+
+  // Load secrets list when LLM section is active (for apiKey secret picker)
+  const loadSecretPickerItems = useCallback(async () => {
+    try {
+      const res = await pb.send<{ items: { id: string; name: string }[] }>(
+        '/api/collections/secrets/records?sort=name&fields=id,name&filter=(status=%27active%27)',
+        { method: 'GET' }
+      )
+      setSecretPickerItems(res.items ?? [])
+    } catch {
+      // ignore — picker just won't show options
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activeSection !== 'llm') return
+    void loadSecretPickerItems()
+  }, [activeSection, loadSecretPickerItems])
+
+  const handleLlmSecretCreate = async (e: FormEvent) => {
+    e.preventDefault()
+    setLlmSecretCreateSaving(true)
+    setLlmSecretCreateError('')
+    try {
+      const created = await pb.collection('secrets').create({
+        name: llmSecretCreateName,
+        template_id: 'api_key',
+        scope: 'global',
+        access_mode: 'use_only',
+        payload: { api_key: llmSecretCreateKey },
+      })
+      // Refresh picker then select the new secret
+      await loadSecretPickerItems()
+      const idx = llmSecretCreateIdx
+      setLlmItems(p =>
+        p.map((item, j) => (j === idx ? { ...item, apiKey: `secretRef:${created.id}` } : item))
+      )
+      setLlmSecretCreateOpen(false)
+    } catch (err) {
+      setLlmSecretCreateError(err instanceof Error ? err.message : 'Create failed')
+    } finally {
+      setLlmSecretCreateSaving(false)
+    }
+  }
 
   // ── Save handlers ──
 
@@ -1407,6 +1470,7 @@ function SettingsPage() {
       LLM_VENDORS.find(v => v.label === label)?.endpoint ?? ''
 
     return (
+    <>
       <Card>
         <CardHeader>
           <CardTitle>LLM Providers</CardTitle>
@@ -1485,18 +1549,46 @@ function SettingsPage() {
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">API Key</Label>
-                  <Input
-                    type="password"
-                    value={prov.apiKey}
-                    onChange={e =>
-                      setLlmItems(p =>
-                        p.map((item, idx) =>
-                          idx === i ? { ...item, apiKey: e.target.value } : item
+                  <div className="flex gap-2 items-center">
+                    <select
+                      className={selectClass + ' flex-1'}
+                      value={
+                        prov.apiKey.startsWith('secretRef:')
+                          ? prov.apiKey.slice('secretRef:'.length)
+                          : ''
+                      }
+                      onChange={e => {
+                        const val = e.target.value
+                        setLlmItems(p =>
+                          p.map((item, idx) =>
+                            idx === i ? { ...item, apiKey: val ? `secretRef:${val}` : '' } : item
+                          )
                         )
-                      )
-                    }
-                    placeholder={prov.apiKey === '***' ? '***' : 'sk-...'}
-                  />
+                      }}
+                    >
+                      <option value="">Select a secret…</option>
+                      {secretPickerItems.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      title="Create new API key secret"
+                      onClick={() => {
+                        setLlmSecretCreateIdx(i)
+                        setLlmSecretCreateName(`${prov.name} API Key`)
+                        setLlmSecretCreateKey('')
+                        setLlmSecretCreateError('')
+                        setLlmSecretCreateOpen(true)
+                      }}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             )
@@ -1504,6 +1596,48 @@ function SettingsPage() {
           <SaveBtn onClick={saveLlm} saving={llmSaving} />
         </CardContent>
       </Card>
+
+      {/* Inline create-secret dialog for LLM API key */}
+      <Dialog open={llmSecretCreateOpen} onOpenChange={setLlmSecretCreateOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create API Key Secret</DialogTitle>
+            <DialogDescription>Create a new secret and select it automatically.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleLlmSecretCreate} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Name<span className="text-destructive ml-1">*</span></Label>
+              <Input
+                value={llmSecretCreateName}
+                onChange={e => setLlmSecretCreateName(e.target.value)}
+                placeholder="OpenAI API Key"
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">API Key<span className="text-destructive ml-1">*</span></Label>
+              <Input
+                type="password"
+                value={llmSecretCreateKey}
+                onChange={e => setLlmSecretCreateKey(e.target.value)}
+                placeholder="sk-..."
+                required
+              />
+            </div>
+            {llmSecretCreateError && <p className="text-destructive text-sm">{llmSecretCreateError}</p>}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setLlmSecretCreateOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={llmSecretCreateSaving}>
+                {llmSecretCreateSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Create
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
     )
   }
 

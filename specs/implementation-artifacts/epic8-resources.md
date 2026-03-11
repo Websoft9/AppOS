@@ -382,10 +382,10 @@ All resource types except Env Groups use the shared `ResourcePage` component (`s
 | `onValueChange` | Side-effect callback on field change (used for port auto-fill in databases) |
 
 ### Sensitive credential handling
-All sensitive values are always stored in the `secrets` collection. Other collections reference secrets via PocketBase Relation fields — never store raw credentials in `databases.password`, `cloud_accounts.secret`, `certificates.key`, `servers.credential`, or `env_group_vars.secret`. This is enforced at the UI level by using `type: "relation"` with `relationApiPath: "/api/ext/resources/secrets"`.
+All sensitive values are stored in the `secrets` collection (see [Epic 19](epic19-secrets.md)). Other collections reference secrets via PocketBase Relation fields — never store raw credentials directly. Servers now use PB collection API (`/api/collections/secrets/records`) with server-side filter; other resource types will be migrated in Story 19.4.
 
 ### SSH Key
-The `secrets.value` field is a single-line password input for `password / api_key / token` types. When `type === "ssh_key"`, `dynamicType` switches the input to `file-textarea`, allowing multi-line PEM content and optional file upload (`.pem`, `.key`, `.txt`).
+The `secrets` module uses file-based templates (`templates.json`). The `ssh_key` template supports `textarea` + `upload: true` for PEM key content.
 
 ### Env Groups — custom component
 Env Groups require a nested dynamic vars editor (each row: key + value or secret selector) which cannot be expressed in flat `FieldDef[]`. The route uses a standalone `EnvGroupsPage` component instead of `ResourcePage`.

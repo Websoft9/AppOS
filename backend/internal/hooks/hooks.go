@@ -13,6 +13,7 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/internal/audit"
+	"github.com/websoft9/appos/backend/internal/secrets"
 	"github.com/websoft9/appos/backend/internal/settings"
 )
 
@@ -40,6 +41,7 @@ func Register(app *pocketbase.PocketBase) {
 	registerSuperuserHooks(app)
 	registerUserAuditHooks(app)
 	registerLoginAuditHooks(app)
+	secrets.RegisterHooks(app)
 }
 
 // registerAppHooks registers hooks related to the apps collection.

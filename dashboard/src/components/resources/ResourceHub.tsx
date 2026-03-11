@@ -50,8 +50,8 @@ const RESOURCES: ResourceDef[] = [
     title: 'Secrets',
     description: 'Credentials, tokens & keys',
     icon: <KeyRound className="h-5 w-5" />,
-    href: '/resources/secrets',
-    apiPath: '/api/ext/resources/secrets',
+    href: '/secrets',
+    apiPath: '/api/collections/secrets/records',
   },
   {
     key: 'env-groups',
@@ -112,9 +112,9 @@ export function ResourceHub() {
 
   useEffect(() => {
     const promises = RESOURCES.map(r =>
-      (r.key === 'servers'
+      (r.key === 'servers' || r.key === 'secrets'
         ? pb
-            .collection('servers')
+            .collection(r.key)
             .getList(1, 1)
             .then(data => ({ key: r.key, count: data.totalItems ?? 0 }))
         : pb

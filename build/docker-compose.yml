@@ -12,6 +12,7 @@ services:
       - appos_data:/appos/data
     environment:
       - TZ=UTC
+      - APPOS_SECRET_KEY=${APPOS_SECRET_KEY}
       - SUPERVISOR_PASSWORD=${SUPERVISOR_PASSWORD:-changeme}
       - INIT_MODE=${INIT_MODE:-setup}
       - SUPERUSER_EMAIL=${SUPERUSER_EMAIL:-admin@example.com}

@@ -50,3 +50,18 @@
 ## Access Portal
 
 免登录访问 saas 系统的控制台
+
+## 凭据的分布
+
+Secrets（基础设施层）
+└── 哑存储：只管加密存取，不懂业务，不知道值是给谁用的
+
+Integrations（业务层）
+└── 智能连接器：知道"GitHub 需要什么"，管理 API key + endpoint + 客户端安装 + OAuth 等
+    └── 其中，敏感字段通过 secretRef 指向 Secrets，自己不存明文
+
+Settings（配置层）
+└── 非敏感的全局配置
+
+## LLM
+- 本地小模型内嵌？

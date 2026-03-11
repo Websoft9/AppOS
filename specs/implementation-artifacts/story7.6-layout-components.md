@@ -60,11 +60,11 @@ Main container, orchestrates all zones using CSS Grid layout.
 
 **Left side**: 240px expanded / 64px collapsed / hidden on mobile
 
-- Two navigation groups with collapsible headers:
-  - **Workspace** (top): Dashboard, App Store
-  - **Admin** (bottom): Services
-- Each group header shows label + chevron; click to collapse/expand children
-- Group collapse state persisted to `localStorage` (`sidebar-groups` key)
+- Two navigation groups with static (non-collapsible) headers:
+  - **Workspace** (top): Dashboard, App Store, Terminal, Space
+  - **Admin** (bottom): System (→ Services, Logs, Audit, IaC Browser), Resources, Credentials, Users, Settings
+- Group headers are always visible; items are never hidden by group collapse
+- Parent menu items (e.g. System, Credentials) use collapsible children (chevron toggle)
 - When sidebar is collapsed (icon-only mode), group headers are hidden
 - Active route highlighted
 - Sidebar collapse toggle button at bottom

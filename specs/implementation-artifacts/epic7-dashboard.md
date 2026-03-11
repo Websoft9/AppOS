@@ -77,10 +77,9 @@ Implement frontend infrastructure only (framework, not features):
 - [ ] 7.6: Layout Components (5-Zone Structure)
   - `<AppShell>` main layout container orchestrating 5 zones
   - `<Header>` with logo, breadcrumbs, theme toggle, language switcher, user menu slot
-  - `<Sidebar>` with grouped, collapsible navigation:
-    - **Workspace** group: Dashboard, App Store
-    - **Admin** group: Services
-    - Group collapse state persisted to localStorage
+  - `<Sidebar>` with grouped navigation (always-visible groups, no collapse):
+    - **Workspace** group: Dashboard, App Store, Terminal, Space
+    - **Admin** group: System (children: Services, Logs, Audit, IaC Browser), Resources, Credentials, Users, Settings
   - `<ContentArea>` with page header and scrollable main content
   - `<Bottom>` with status info, notifications, quick actions
   - Responsive behavior (mobile drawer, desktop sidebar, bottom condensed)

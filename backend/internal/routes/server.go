@@ -12,7 +12,7 @@ import (
 	"github.com/pocketbase/pocketbase/tools/hook"
 	"github.com/pocketbase/pocketbase/tools/router"
 
-	"github.com/websoft9/appos/backend/internal/crypto"
+	sec "github.com/websoft9/appos/backend/internal/secrets"
 	servers "github.com/websoft9/appos/backend/internal/servers"
 )
 
@@ -58,6 +58,11 @@ func registerServerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 
 // resolveServerConfig looks up the server record + decrypted credential and
 // returns a ConnectorConfig.
+//
+// Credentials are decrypted via secrets.Resolve which supports both the new
+// Epic-19 payload_encrypted format (AES-256-GCM, base64 JSON blob) and the
+// legacy value field (AES-256-GCM, hex) for backward compatibility until the
+// Story 19.4 migration runs. Plaintext is never persisted.
 func resolveServerConfig(e *core.RequestEvent, serverID string) (servers.ConnectorConfig, error) {
 	var cfg servers.ConnectorConfig
 
@@ -77,17 +82,27 @@ func resolveServerConfig(e *core.RequestEvent, serverID string) (servers.Connect
 
 	credID := server.GetString("credential")
 	if credID != "" {
-		secretRec, err := e.App.FindRecordById("secrets", credID)
-		if err != nil {
-			return cfg, fmt.Errorf("credential record not found: %w", err)
+		// Resolve credential: supports new payload_encrypted and legacy value formats.
+		// userID is empty string for system-initiated resolves; auth is enforced at
+		// the route level (RequireSuperuserAuth).
+		userID := ""
+		if e.Auth != nil {
+			userID = e.Auth.Id
 		}
-		encrypted := secretRec.GetString("value")
-		if encrypted != "" {
-			decrypted, err := crypto.Decrypt(encrypted)
-			if err != nil {
-				return cfg, fmt.Errorf("credential decrypt failed: %w", err)
-			}
-			cfg.Secret = decrypted
+		payload, resolveErr := sec.Resolve(e.App, credID, userID)
+		if resolveErr != nil {
+			return cfg, fmt.Errorf("credential resolve failed: %w", resolveErr)
+		}
+		// Extract the secret string from the payload map.
+		// Key priority follows auth_type convention across templates.
+		switch cfg.AuthType {
+		case "password":
+			cfg.Secret = sec.FirstStringFromPayload(payload, "password", "value")
+		default: // private_key, key, ssh_key
+			cfg.Secret = sec.FirstStringFromPayload(payload, "private_key", "key", "value")
+		}
+		if cfg.Secret == "" {
+			return cfg, fmt.Errorf("credential resolve: no usable value in payload for auth_type %q", cfg.AuthType)
 		}
 	}
 

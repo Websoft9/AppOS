@@ -74,6 +74,8 @@ export interface RelCreateField {
   dynamicType?: { field: string; values: string[]; as: 'textarea' | 'file-textarea' }
   /** Only show when another field has one of these values */
   showWhen?: { field: string; values: string[] }
+  /** Transform flat form data before POSTing (e.g. nest payload for new secrets API) */
+  prepareData?: (data: Record<string, unknown>) => Record<string, unknown>
 }
 
 export interface Column {
@@ -103,6 +105,8 @@ export interface FieldDef {
   relationApiPath?: string
   /** Relation: which field to use as label (default: "name") */
   relationLabelKey?: string
+  /** Relation: custom label formatter — receives the raw record, returns display string */
+  relationFormatLabel?: (raw: Record<string, unknown>) => string
   /** Relation: filter options via query params (e.g. { type: "password" }) */
   relationFilter?: Record<string, string>
   /** Relation: show an inline "+" button to create a new record */
@@ -110,6 +114,8 @@ export interface FieldDef {
     label: string
     apiPath: string
     fields: RelCreateField[]
+    /** Transform flat form data before POSTing to the create endpoint */
+    prepareData?: (data: Record<string, unknown>) => Record<string, unknown>
   }
   /** Relation: allow selecting multiple options (renders as checkboxes) */
   multiSelect?: boolean
@@ -121,6 +127,14 @@ export interface FieldDef {
   dynamicType?: { field: string; values: string[]; as: 'textarea' | 'file-textarea' }
   /** Enable file upload button (textarea / file-textarea) */
   fileAccept?: string
+  /** Custom handler for the "+" button on a relation field (replaces built-in mini-dialog) */
+  relationCreateButton?: {
+    label: string
+    onClick: (callbacks: {
+      /** Call after creating a record to add it to the dropdown and auto-select it */
+      addOption: (id: string, label: string) => void
+    }) => void
+  }
   /** Side effect: when this field changes, update other fields too */
   onValueChange?: (value: unknown, update: (key: string, value: unknown) => void) => void
 }
@@ -247,18 +261,27 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
     config.fields
       .filter(f => f.type === 'relation' && f.relationApiPath)
       .forEach(f => {
-        pb.send<Record<string, unknown>[]>(f.relationApiPath!, {})
-          .then(data => {
-            let records = Array.isArray(data) ? data : []
+        pb.send<Record<string, unknown>[] | Record<string, unknown>>(f.relationApiPath!, {})
+          .then(raw => {
+            // Handle both flat arrays and PocketBase paginated responses { items: [...] }
+            let records: Record<string, unknown>[] = []
+            if (Array.isArray(raw)) {
+              records = raw
+            } else if (raw && typeof raw === 'object' && Array.isArray((raw as Record<string, unknown>).items)) {
+              records = (raw as Record<string, unknown>).items as Record<string, unknown>[]
+            }
+            let data = records
             // Client-side filter
             if (f.relationFilter) {
               for (const [fk, fv] of Object.entries(f.relationFilter)) {
-                records = records.filter(item => String(item[fk] ?? '') === fv)
+                data = data.filter(item => String(item[fk] ?? '') === fv)
               }
             }
-            const opts: RelOpt[] = records.map(item => ({
+            const opts: RelOpt[] = data.map(item => ({
               id: String(item.id),
-              label: String(item[f.relationLabelKey ?? 'name'] ?? item.id),
+              label: f.relationFormatLabel
+                ? f.relationFormatLabel(item)
+                : String(item[f.relationLabelKey ?? 'name'] ?? item.id),
               raw: item,
             }))
             setRelOpts(prev => ({ ...prev, [f.key]: opts }))
@@ -359,15 +382,20 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
     setCreateRelSaving(true)
     setCreateRelError('')
     try {
+      const body = createRelField.relationCreate.prepareData
+        ? createRelField.relationCreate.prepareData(createRelData)
+        : createRelData
       const created = await pb.send<Record<string, unknown>>(
         createRelField.relationCreate.apiPath,
         {
           method: 'POST',
-          body: createRelData,
+          body,
         }
       )
       const labelKey = createRelField.relationLabelKey ?? 'name'
-      const newLabel = String(created[labelKey] ?? created.id)
+      const newLabel = createRelField.relationFormatLabel
+        ? createRelField.relationFormatLabel(created)
+        : String(created[labelKey] ?? created.id)
       setRelOpts(prev => ({
         ...prev,
         [createRelField!.key]: [
@@ -831,7 +859,32 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                             </option>
                           ))}
                         </select>
-                        {field.relationCreate && (
+                        {field.relationCreateButton && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            title={field.relationCreateButton.label}
+                            onClick={() => {
+                              const fieldKey = field.key
+                              field.relationCreateButton!.onClick({
+                                addOption: (id: string, label: string) => {
+                                  setRelOpts(prev => ({
+                                    ...prev,
+                                    [fieldKey]: [
+                                      ...(prev[fieldKey] ?? []),
+                                      { id, label },
+                                    ],
+                                  }))
+                                  updateField(fieldKey, id)
+                                },
+                              })
+                            }}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {field.relationCreate && !field.relationCreateButton && (
                           <Button
                             type="button"
                             variant="outline"

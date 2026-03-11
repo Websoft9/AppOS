@@ -11,6 +11,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/internal/secrets"
 	"github.com/websoft9/appos/backend/internal/settings"
 )
 
@@ -197,6 +198,8 @@ func RegisterSettings(se *core.ServeEvent) {
 
 // maskValue masks sensitive string fields in a group value map.
 // It also walks an "items" array (if present) and masks sensitive fields in each item.
+// Exception: secretRef pointer values (prefixed "secretRef:") are returned as-is so
+// the UI can distinguish a bound secret reference from a masked plaintext value.
 func maskValue(v map[string]any) map[string]any {
 	out := make(map[string]any, len(v))
 	for k, val := range v {
@@ -204,7 +207,12 @@ func maskValue(v map[string]any) map[string]any {
 			out[k] = maskItems(val)
 		} else if sensitiveFields[k] {
 			if s, ok := val.(string); ok && s != "" {
-				out[k] = "***"
+				if secrets.IsSecretRef(s) {
+					// Preserve secretRef pointer — not sensitive; needed by UI.
+					out[k] = s
+				} else {
+					out[k] = "***"
+				}
 			} else {
 				out[k] = val
 			}
@@ -286,6 +294,30 @@ func preserveItemsSensitive(rawIncoming, rawExisting any) any {
 		out[i] = preserveSensitive(inItem, exItem)
 	}
 	return out
+}
+
+// validateLLMProvidersSecretRefs checks any provider item whose apiKey is a
+// secretRef pointer. Returns an error if the referenced secret is missing,
+// revoked, or the caller lacks access.
+func validateLLMProvidersSecretRefs(e *core.RequestEvent, v map[string]any) error {
+	userID := ""
+	if e.Auth != nil {
+		userID = e.Auth.Id
+	}
+	items, _ := v["items"].([]any)
+	for i, item := range items {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		apiKey, _ := m["apiKey"].(string)
+		if id, ok := secrets.ExtractSecretID(apiKey); ok {
+			if err := secrets.ValidateRef(e.App, id, userID); err != nil {
+				return fmt.Errorf("provider[%d].apiKey secretRef invalid: %v", i, err)
+			}
+		}
+	}
+	return nil
 }
 
 // ─── Handlers ─────────────────────────────────────────────────────────────
@@ -418,6 +450,15 @@ func handleExtSettingsPatch(e *core.RequestEvent) error {
 				return e.JSON(http.StatusUnprocessableEntity, map[string]any{
 					"errors": validationErrors,
 				})
+			}
+		}
+
+		// secretRef bind-time validation for llm/providers items.
+		// When an apiKey field value starts with "secretRef:<id>", verify the caller
+		// has read access to the referenced secret before persisting the reference.
+		if module == "llm" && key == "providers" {
+			if err := validateLLMProvidersSecretRefs(e, merged); err != nil {
+				return e.BadRequestError(err.Error(), nil)
 			}
 		}
 

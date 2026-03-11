@@ -7,8 +7,6 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
-
-	"github.com/websoft9/appos/backend/internal/crypto"
 )
 
 // registerResourceRoutes registers all Resource Store CRUD routes.
@@ -16,7 +14,6 @@ import (
 // Route groups:
 //
 //	/api/ext/resources/groups/*
-//	/api/ext/resources/secrets/*
 //	/api/ext/resources/env-groups/*
 //	/api/ext/resources/databases/*
 //	/api/ext/resources/cloud-accounts/*
@@ -27,7 +24,6 @@ func registerResourceRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	r := g.Group("/resources")
 
 	registerResourceGroupsCRUD(r)
-	registerSecretsCRUD(r)
 	registerEnvGroupsCRUD(r)
 	registerDatabasesCRUD(r)
 	registerCloudAccountsCRUD(r)
@@ -304,123 +300,6 @@ func bindAndSave(e *core.RequestEvent, record *core.Record, fields []string) err
 		return e.BadRequestError("Validation failed", err)
 	}
 	return e.JSON(http.StatusOK, recordToMap(record))
-}
-
-// ═══════════════════════════════════════════════════════════
-// Secrets (value encrypted at rest)
-// ═══════════════════════════════════════════════════════════
-
-var secretFields = []string{"name", "type", "description", "groups"}
-
-func registerSecretsCRUD(r *router.RouterGroup[*core.RequestEvent]) {
-	s := r.Group("/secrets")
-	s.Bind(apis.RequireSuperuserAuth())
-
-	// List — value field always omitted (hidden)
-	s.GET("", func(e *core.RequestEvent) error {
-		return listRecords(e, "secrets")
-	})
-
-	// Get — value decrypted and returned (superuser only)
-	s.GET("/{id}", func(e *core.RequestEvent) error {
-		id := e.Request.PathValue("id")
-		record, err := e.App.FindRecordById("secrets", id)
-		if err != nil {
-			return e.NotFoundError("Record not found", err)
-		}
-		m := recordToMap(record)
-
-		// Decrypt the value for superuser view
-		encryptedValue := record.GetString("value")
-		if encryptedValue != "" {
-			plaintext, err := crypto.Decrypt(encryptedValue)
-			if err != nil {
-				return resourceError(e, http.StatusInternalServerError, "failed to decrypt secret value", err)
-			}
-			m["value"] = plaintext
-		} else {
-			m["value"] = ""
-		}
-		return e.JSON(http.StatusOK, m)
-	})
-
-	// Create — encrypt value before saving
-	s.POST("", func(e *core.RequestEvent) error {
-		col, err := e.App.FindCollectionByNameOrId("secrets")
-		if err != nil {
-			return resourceError(e, http.StatusInternalServerError, "collection not found", err)
-		}
-
-		var body map[string]any
-		if err := e.BindBody(&body); err != nil {
-			return e.BadRequestError("Invalid request body", err)
-		}
-
-		record := core.NewRecord(col)
-		for _, f := range secretFields {
-			if v, ok := body[f]; ok {
-				record.Set(f, v)
-			}
-		}
-
-		// Encrypt the value
-		if rawValue, ok := body["value"].(string); ok && rawValue != "" {
-			encrypted, err := crypto.Encrypt(rawValue)
-			if err != nil {
-				return resourceError(e, http.StatusInternalServerError, "failed to encrypt secret value", err)
-			}
-			record.Set("value", encrypted)
-		}
-
-		if err := e.App.Save(record); err != nil {
-			return e.BadRequestError("Validation failed", err)
-		}
-
-		m := recordToMap(record)
-		m["value"] = "***" // never return actual value on create
-		return e.JSON(http.StatusOK, m)
-	})
-
-	// Update — re-encrypt value if provided
-	s.PUT("/{id}", func(e *core.RequestEvent) error {
-		id := e.Request.PathValue("id")
-		record, err := e.App.FindRecordById("secrets", id)
-		if err != nil {
-			return e.NotFoundError("Record not found", err)
-		}
-
-		var body map[string]any
-		if err := e.BindBody(&body); err != nil {
-			return e.BadRequestError("Invalid request body", err)
-		}
-
-		for _, f := range secretFields {
-			if v, ok := body[f]; ok {
-				record.Set(f, v)
-			}
-		}
-
-		// Re-encrypt value only if a new value is provided
-		if rawValue, ok := body["value"].(string); ok && rawValue != "" {
-			encrypted, err := crypto.Encrypt(rawValue)
-			if err != nil {
-				return resourceError(e, http.StatusInternalServerError, "failed to encrypt secret value", err)
-			}
-			record.Set("value", encrypted)
-		}
-
-		if err := e.App.Save(record); err != nil {
-			return e.BadRequestError("Validation failed", err)
-		}
-
-		m := recordToMap(record)
-		m["value"] = "***" // never return actual value on update
-		return e.JSON(http.StatusOK, m)
-	})
-
-	s.DELETE("/{id}", func(e *core.RequestEvent) error {
-		return deleteRecord(e, "secrets")
-	})
 }
 
 // ═══════════════════════════════════════════════════════════

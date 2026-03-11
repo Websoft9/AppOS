@@ -1,6 +1,17 @@
 # Epic 19: Secrets Management
 
-**Module**: Security Foundation | **Status**: backlog | **Priority**: P0 | **Depends on**: Epic 12, Epic 13
+**Module**: Security Foundation | **Status**: done | **Priority**: P0 | **Depends on**: Epic 12, Epic 13
+
+## Navigation
+
+```
+Admin
+└── Credentials
+    ├── Secrets              ← this epic
+    └── Environment Variables
+```
+
+`Credentials` is the top-level menu entry. Clicking it lands on the Secrets sub-page by default (or shows both sub-menu items). Environment Variables is a sibling sub-menu, managed by a separate epic.
 
 ## Objective
 
@@ -25,8 +36,7 @@ Provide a centralized, minimal, and secure secrets module for AppOS so all sensi
 - UI list page shows metadata only (name, scope, template_id, access_mode, last_used_at, consumer summary).
 - Secret lifecycle events emit audit records via existing Epic 12 pipeline.
 - Create/edit forms rendered dynamically from file-based template definitions.
-- Consumer summary fields (`used_by_count`, `last_used_by`) updated synchronously on each use event.
-- Existing `resources > secrets` data migrated to new module without regression (Story 19.5).
+- `last_used_at` and `last_used_by` updated synchronously on each resolve event.
 
 ## Out of Scope
 
@@ -60,7 +70,6 @@ Missing `APPOS_SECRET_KEY` at startup → fatal error, process exits.
 | `status` | enum | `active` \| `revoked` |
 | `version` | int | increments on each rotate |
 | `last_used_at` | datetime | updated on each resolve |
-| `used_by_count` | int | total resolve count, incremented synchronously |
 | `last_used_by` | string | `module:id` of most recent consumer |
 | `created_by` | string | user id |
 | `created` / `updated` | datetime | PB auto |
@@ -82,28 +91,39 @@ Missing `APPOS_SECRET_KEY` at startup → fatal error, process exits.
 | `global` | Any authenticated module or superuser |
 | `user_private` | Only `created_by` user + superuser |
 
+## Permission Rules
+
+| Operation | Who |
+|-----------|-----|
+| Read (list/detail) | Any authenticated user |
+| Create | Any authenticated user |
+| Update metadata | `created_by` + superuser |
+| Update payload (`PUT /payload`) | `created_by` + superuser |
+| Revoke (`PATCH status=revoked`) | Superuser only |
+| Delete | Superuser only |
+| Reveal | `created_by` + superuser (subject to `access_mode`) |
+| Resolve (internal) | Internal header only — no user context |
+
+Read is intentionally open to all authenticated users: the list view only exposes non-sensitive metadata (`name`, `template_id`, `scope`, `access_mode`, `status`). No raw secret value is ever returned from list/detail.
+
 ## Template Source (File-Based)
 
 - Location: `backend/internal/secrets/templates.json`
 - Loaded at startup; `template_id` validated on create/update.
-- Frontend fetches via `GET /api/ext/secrets/templates`.
+- Frontend fetches via `GET /api/secrets/templates`.
 - No template table introduced.
+
+5 built-in templates: `single_value`, `basic_auth`, `api_key`, `database`, `ssh_key`.
+
+Field types: `text`, `password`, `textarea`. Fields may include `upload: true` for file-based input (e.g. SSH private key).
 
 ```json
 [
-  {
-    "id": "single_value",
-    "label": "Single Value",
-    "fields": [{ "key": "value", "label": "Secret Value", "type": "password", "required": true }]
-  },
-  {
-    "id": "basic_auth",
-    "label": "Basic Auth",
-    "fields": [
-      { "key": "username", "label": "Username", "type": "text", "required": true },
-      { "key": "password", "label": "Password", "type": "password", "required": true }
-    ]
-  }
+  { "id": "single_value", "fields": [{ "key": "value", "type": "password" }] },
+  { "id": "basic_auth", "fields": [{ "key": "username", "type": "text" }, { "key": "password", "type": "password" }] },
+  { "id": "api_key", "fields": [{ "key": "api_key", "type": "password" }] },
+  { "id": "database", "fields": [{ "key": "host" }, { "key": "port" }, { "key": "username" }, { "key": "password", "type": "password" }, { "key": "database" }] },
+  { "id": "ssh_key", "fields": [{ "key": "username" }, { "key": "private_key", "type": "textarea", "upload": true }, { "key": "passphrase", "type": "password" }] }
 ]
 ```
 
@@ -116,100 +136,69 @@ Base: `/api/collections/secrets/records`
 | Method | Path | Notes |
 |--------|------|-------|
 | GET | `/api/collections/secrets/records` | List — `payload_encrypted` excluded via PB field visibility rule |
-| POST | `/api/collections/secrets/records` | Create — before-create hook encrypts payload, strips plaintext |
-| PATCH | `/api/collections/secrets/records/:id` | Update metadata only; payload changes go through rotate endpoint |
+| POST | `/api/collections/secrets/records` | Create — before-create hook processes payload |
+| PATCH | `/api/collections/secrets/records/:id` | Update metadata only; payload changes go through payload endpoint |
 | DELETE | `/api/collections/secrets/records/:id` | Superuser only |
 
 PB collection hooks:
-- **Before Create**: encrypt `payload` → `payload_encrypted`, remove plaintext from record.
-- **Before Update**: reject direct writes to `payload_encrypted`; use rotate endpoint instead.
+- **Before Create**: backend extracts `payload` to generate masked `payload_meta`, encrypts `payload` to `payload_encrypted`, and removes plaintext `payload` from record.
+- **Before Update**: reject direct writes to `payload_encrypted`; use payload custom route instead.
 - **After Create / Delete**: emit audit event.
 
 ### Custom Routes
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/ext/secrets/templates` | any | List available credential templates |
-| POST | `/api/ext/secrets/:id/rotate` | superuser | Re-encrypt with new payload; increment `version` |
-| POST | `/api/ext/secrets/:id/revoke` | superuser | Set `status=revoked`; emit audit |
-| POST | `/api/ext/secrets/resolve` | internal only | Resolve `secretRef` → return plaintext (backend-to-backend, not exposed to UI) |
-| GET | `/api/ext/secrets/:id/reveal` | superuser | Return plaintext if `access_mode` allows; auto-reset `reveal_once` |
+| GET | `/api/secrets/templates` | any | List available credential templates |
+| PUT | `/api/secrets/:id/payload` | superuser / owner | Update secret values, re-encrypt, rebuild `payload_meta`, increment `version`, emit audit |
+| POST | `/api/secrets/resolve` | internal only | Resolve `secretRef` → return plaintext |
+| GET | `/api/secrets/:id/reveal` | superuser / owner | Return plaintext if `access_mode` allows; auto-reset `reveal_once` to `use_only` |
 
-`resolve` guards: requires internal header `X-Appos-Internal: 1`; returns 403 if `status=revoked` or scope/ownership check fails.
+**Revoke** is handled via standard PB PATCH (`status=revoked`) with a before-update hook: enforces superuser access rule, emits `secret.revoke` audit event on status transition. No custom route needed.
+
+`resolve` guards: requires internal header `X-Appos-Internal: 1`. Consuming modules must validate user access rules (scope) during the initial binding of `secretRef`, as `resolve` assumes the runtime has authorization. Returns 403 if `status=revoked`.
 
 ## Stories
 
-### Story 19.1 Secrets Data Model
+### Story 19.1 Backend Core — **done**
 
-Create `secrets` PB collection with all fields, before-create/update hooks for encryption, and `APPOS_SECRET_KEY` startup guard.
-
-**AC:**
-- Collection created with all fields per data model above.
-- Missing `APPOS_SECRET_KEY` → fatal log + process exit.
-- `payload_encrypted` excluded from all list/view API responses.
-- `scope: user_private` enforced by PB collection access rule.
-
-### Story 19.2 Secrets API
-
-Implement 5 custom routes (templates, rotate, revoke, resolve, reveal). Standard CRUD via PB collection API.
+Create `secrets` PB collection, before-create/update hooks for encryption, 4 custom routes, and Epic 12 audit integration.
 
 **AC:**
-- All custom endpoints respond correctly per `access_mode` and `scope` rules.
-- `resolve` endpoint not reachable without internal header.
-- `reveal_once` auto-resets `access_mode` to `use_only` after first call.
+- Collection created with all fields; `payload_encrypted` excluded from all list/detail responses.
+- Missing `APPOS_SECRET_KEY` at startup → fatal log + process exit.
+- Before-create hook: generate `payload_meta` from plaintext, encrypt to `payload_encrypted`, remove virtual `payload` field.
+- Permission rules: read/create = any auth user; update metadata = created_by or superuser; revoke/delete = superuser only.
+- `resolve` returns 403 without `X-Appos-Internal: 1` header or if `status=revoked`.
+- `reveal` respects `access_mode`; `reveal_once` auto-resets to `use_only` atomically.
+- PATCH `status=revoked`: superuser only; before-update hook emits `secret.revoke` audit event.
+- Audit events emitted for: `secret.create`, `secret.update`, `secret.payload_update`, `secret.revoke`, `secret.use`, `secret.reveal`.
 
-### Story 19.3 SecretRef Consumption
+### Story 19.2 Secrets UI — **done**
 
-Enable modules (settings/AI/deploy) to reference secrets via `secretRef: <id>` and resolve at runtime.
-
-**AC:**
-- `secretRef` in module configs resolved at runtime before use.
-- Plaintext never persisted in consuming module's storage.
-- Revoked or missing secret returns clear error to caller.
-
-### Story 19.4 Audit Integration
-
-Emit audit events for secret lifecycle via existing Epic 12 pipeline.
+Implement Secrets page under Admin → Credentials → Secrets. Client-side search, column sorting, exclude-based filtering, and pagination.
 
 **AC:**
-- Events: `secret.create`, `secret.update`, `secret.rotate`, `secret.revoke`, `secret.use`, `secret.reveal`.
-- Each event includes: `secret_id`, `name`, `actor`, `timestamp`, `result`.
-- `used_by_count` and `last_used_by` updated synchronously on `secret.use`.
+- `Credentials` appears in Admin menu group; expands two sub-items: `Secrets` and `Environment Variables`.
+- Secrets list page shows: name, template_id, scope, access_mode, status, last_used_at, last_used_by.
+- Create/edit form fields rendered dynamically from `GET /api/secrets/templates`.
+- Reveal button shown only when `access_mode ≠ use_only`; confirm dialog required.
+- Active secrets show Revoke action (not Delete); revoked secrets can be deleted.
 
-### Story 19.5 Migration from Resources Secrets
+### Story 19.3 SecretRef Consumption — **done**
 
-Migrate existing `resources > secrets` records and module references to the new `secrets` module.
-
-**AC:**
-- All existing secrets migrated with field mapping documented.
-- All consuming module references updated from old ID to new `secretRef`.
-- Count check: old record count == new record count.
-- No functionality regression after migration.
-- Rollback reversible within 1 sprint.
-
-**Migration Steps:**
-1. **Inventory** — list all `resources > secrets` records and all modules referencing them.
-2. **Migrate data** — insert into `secrets` table with `template_id` mapping; re-encrypt with `APPOS_SECRET_KEY`.
-3. **Update references** — replace old IDs with `secretRef: <new_id>` in all consuming records.
-4. **Verify & rollback** — count check, smoke test resolve endpoint, document rollback procedure.
-
-### Story 19.6 Secrets UI
-
-Implement secrets list page and create/edit form in dashboard.
+Enable modules (settings/AI/deploy) to bind and resolve secrets via `secretRef: <id>` at runtime.
 
 **AC:**
-- List page shows: name, template_id, scope, access_mode, status, last_used_at, consumer summary.
-- Create/edit form fields rendered dynamically from template API response.
-- Reveal button visible only when `access_mode ≠ use_only`; confirm dialog required.
-- Delete disabled for active secrets (show revoke instead); revoked secrets can be deleted.
+- Shared crypto helper extracted so resolver and HTTP route share identical decrypt logic.
+- Binding a `secretRef` validates user has read access to the target secret at bind time.
+- Runtime `resolver.Resolve()` calls internal decrypt directly (no HTTP self-call); updates `last_used_at`/`last_used_by` and emits audit.
+- Revoked or missing secret returns clear structured error to caller.
 
 ## Story Status
 
 | Story | Status |
 |-------|--------|
-| 19.1 Secrets Data Model | backlog |
-| 19.2 Secrets API | backlog |
-| 19.3 SecretRef Consumption | backlog |
-| 19.4 Audit Integration | backlog |
-| 19.5 Migration from Resources Secrets | backlog |
-| 19.6 Secrets UI | backlog |
+| 19.1 Backend Core | done |
+| 19.2 Secrets UI | done |
+| 19.3 SecretRef Consumption | done |

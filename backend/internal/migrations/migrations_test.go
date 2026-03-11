@@ -57,11 +57,21 @@ func TestSecretsCollectionFields(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Secrets: name (text, required), type (select), value (text, hidden), description (text)
+	// Secrets: name (text, required), type (select, relaxed), value (text, hidden), description (text)
 	assertFieldExists(t, col, "name", core.FieldTypeText, true)
-	assertFieldExists(t, col, "type", core.FieldTypeSelect, true)
+	assertFieldExists(t, col, "type", core.FieldTypeSelect, false)
 	assertFieldExists(t, col, "value", core.FieldTypeText, false)
 	assertFieldExists(t, col, "description", core.FieldTypeText, false)
+	assertFieldExists(t, col, "template_id", core.FieldTypeText, false)
+	assertFieldExists(t, col, "scope", core.FieldTypeSelect, false)
+	assertFieldExists(t, col, "access_mode", core.FieldTypeSelect, false)
+	assertFieldExists(t, col, "payload_encrypted", core.FieldTypeText, false)
+	assertFieldExists(t, col, "payload_meta", core.FieldTypeJSON, false)
+	assertFieldExists(t, col, "status", core.FieldTypeSelect, false)
+	assertFieldExists(t, col, "version", core.FieldTypeNumber, false)
+	assertFieldExists(t, col, "last_used_at", core.FieldTypeDate, false)
+	assertFieldExists(t, col, "last_used_by", core.FieldTypeText, false)
+	assertFieldExists(t, col, "created_by", core.FieldTypeText, false)
 
 	// value field must be hidden
 	valueField := col.Fields.GetByName("value")
@@ -71,13 +81,20 @@ func TestSecretsCollectionFields(t *testing.T) {
 	if !valueField.GetHidden() {
 		t.Error("secrets.value field should be hidden")
 	}
-
-	// Superuser-only rules (nil = superuser only in PB)
-	if col.ListRule != nil {
-		t.Error("secrets.ListRule should be nil (superuser only)")
+	payloadField := col.Fields.GetByName("payload_encrypted")
+	if payloadField == nil {
+		t.Fatal("payload_encrypted field not found")
 	}
-	if col.ViewRule != nil {
-		t.Error("secrets.ViewRule should be nil (superuser only)")
+	if !payloadField.GetHidden() {
+		t.Error("secrets.payload_encrypted field should be hidden")
+	}
+
+	// Authenticated read/create
+	if col.ListRule == nil {
+		t.Error("secrets.ListRule should allow authenticated users")
+	}
+	if col.ViewRule == nil {
+		t.Error("secrets.ViewRule should allow authenticated users")
 	}
 }
 
@@ -218,6 +235,23 @@ func assertFieldExists(t *testing.T, col *core.Collection, name, fieldType strin
 	}
 	if f.Type() != fieldType {
 		t.Errorf("collection %q.%s: expected type %q, got %q", col.Name, name, fieldType, f.Type())
+	}
+	// Check required via type assertion on known field types
+	var actualRequired bool
+	switch tf := f.(type) {
+	case *core.TextField:
+		actualRequired = tf.Required
+	case *core.SelectField:
+		actualRequired = tf.Required
+	case *core.NumberField:
+		actualRequired = tf.Required
+	case *core.RelationField:
+		actualRequired = tf.Required
+	default:
+		return // skip required check for types without Required field
+	}
+	if actualRequired != required {
+		t.Errorf("collection %q.%s: expected required=%v, got %v", col.Name, name, required, actualRequired)
 	}
 }
 
