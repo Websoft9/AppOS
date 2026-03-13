@@ -1,11 +1,11 @@
 package routes
 
 import (
-	"log"
+	"errors"
 	"net"
 	"net/http"
+	"os"
 	"strings"
-	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -39,6 +39,11 @@ func registerSecretsGroup(secretsGroup *router.RouterGroup[*core.RequestEvent]) 
 		if !isSecretOwnerOrSuperuser(e.Auth, rec) {
 			return apis.NewForbiddenError("forbidden", nil)
 		}
+		if rec.GetString("status") == "revoked" {
+			return apis.NewForbiddenError("revoked secret payload cannot be updated", nil)
+		}
+
+		baseVersion := rec.GetInt("version")
 
 		var body struct {
 			Payload map[string]any `json:"payload"`
@@ -55,16 +60,40 @@ func registerSecretsGroup(secretsGroup *router.RouterGroup[*core.RequestEvent]) 
 			return e.BadRequestError("invalid template_id", nil)
 		}
 
+		if err := secrets.ValidatePayload(body.Payload, tpl); err != nil {
+			return e.BadRequestError(err.Error(), nil)
+		}
+
 		enc, err := secrets.EncryptPayload(body.Payload)
 		if err != nil {
 			return e.InternalServerError("encrypt failed", err)
 		}
-		rec.Set("payload_encrypted", enc)
-		rec.Set("payload_meta", secrets.BuildPayloadMeta(body.Payload, tpl))
-		rec.Set("version", rec.GetInt("version")+1)
 
-		if err := e.App.Save(rec); err != nil {
-			return e.BadRequestError("failed to save", err)
+		newVersion := 0
+		txErr := e.App.RunInTransaction(func(txApp core.App) error {
+			txRec, findErr := txApp.FindRecordById("secrets", id)
+			if findErr != nil {
+				return apis.NewNotFoundError("secret not found", findErr)
+			}
+			if txRec.GetInt("version") != baseVersion {
+				return apis.NewBadRequestError("version conflict, retry with latest data", nil)
+			}
+			if txRec.GetString("status") == "revoked" {
+				return apis.NewForbiddenError("revoked secret payload cannot be updated", nil)
+			}
+
+			txRec.Set("payload_encrypted", enc)
+			txRec.Set("payload_meta", secrets.BuildPayloadMeta(body.Payload, tpl))
+			txRec.Set("version", txRec.GetInt("version")+1)
+
+			if saveErr := txApp.Save(txRec); saveErr != nil {
+				return apis.NewBadRequestError("failed to save", saveErr)
+			}
+			newVersion = txRec.GetInt("version")
+			return nil
+		})
+		if txErr != nil {
+			return txErr
 		}
 
 		audit.Write(e.App, audit.Entry{
@@ -79,11 +108,24 @@ func registerSecretsGroup(secretsGroup *router.RouterGroup[*core.RequestEvent]) 
 			UserAgent:    e.Request.Header.Get("User-Agent"),
 		})
 
-		return e.JSON(http.StatusOK, map[string]any{"ok": true, "version": rec.GetInt("version")})
+		return e.JSON(http.StatusOK, map[string]any{"ok": true, "version": newVersion})
 	}).Bind(apis.RequireAuth())
 
 	secretsGroup.POST("/resolve", func(e *core.RequestEvent) error {
-		if e.Request.Header.Get("X-Appos-Internal") != "1" || !isPrivateIP(e.RealIP()) {
+		internalToken := strings.TrimSpace(os.Getenv("APPOS_INTERNAL_TOKEN"))
+		if internalToken == "" {
+			return apis.NewForbiddenError("internal token is not configured", nil)
+		}
+
+		// Use the TCP-level RemoteAddr to avoid X-Forwarded-For / X-Real-IP spoofing.
+		remoteHost, _, splitErr := net.SplitHostPort(e.Request.RemoteAddr)
+		if splitErr != nil {
+			remoteHost = e.Request.RemoteAddr
+		}
+		if e.Request.Header.Get("X-Appos-Internal") != "1" || !isPrivateIP(remoteHost) {
+			return apis.NewForbiddenError("internal access only", nil)
+		}
+		if e.Request.Header.Get("X-Appos-Internal-Token") != internalToken {
 			return apis.NewForbiddenError("internal access only", nil)
 		}
 
@@ -98,35 +140,22 @@ func registerSecretsGroup(secretsGroup *router.RouterGroup[*core.RequestEvent]) 
 			return e.BadRequestError("secret_id is required", nil)
 		}
 
-		rec, err := e.App.FindRecordById("secrets", body.SecretID)
+		payload, err := secrets.Resolve(e.App, body.SecretID, strings.TrimSpace(body.UsedBy))
 		if err != nil {
-			return e.NotFoundError("secret not found", err)
+			var resolveErr *secrets.ResolveError
+			if errors.As(err, &resolveErr) {
+				reason := strings.ToLower(resolveErr.Reason)
+				switch {
+				case strings.Contains(reason, "not found"):
+					return e.NotFoundError("secret not found", err)
+				case strings.Contains(reason, "revoked"):
+					return apis.NewForbiddenError("secret is revoked", nil)
+				case strings.Contains(reason, "no payload"):
+					return e.BadRequestError("secret has no payload", nil)
+				}
+			}
+			return e.InternalServerError("resolve failed", err)
 		}
-		if rec.GetString("status") == "revoked" {
-			return apis.NewForbiddenError("secret is revoked", nil)
-		}
-
-		payload, err := secrets.DecryptPayload(rec.GetString("payload_encrypted"))
-		if err != nil {
-			return e.InternalServerError("decrypt failed", err)
-		}
-
-		rec.Set("last_used_at", time.Now().UTC().Format(time.RFC3339))
-		rec.Set("last_used_by", strings.TrimSpace(body.UsedBy))
-		if err := e.App.Save(rec); err != nil {
-			log.Printf("[WARN] secrets/resolve: failed to update last_used fields for %s: %v", rec.Id, err)
-		}
-
-		audit.Write(e.App, audit.Entry{
-			UserID:       "system",
-			Action:       "secret.use",
-			ResourceType: "secret",
-			ResourceID:   rec.Id,
-			ResourceName: rec.GetString("name"),
-			Status:       audit.StatusSuccess,
-			IP:           e.RealIP(),
-			UserAgent:    e.Request.Header.Get("User-Agent"),
-		})
 
 		return e.JSON(http.StatusOK, map[string]any{"payload": payload})
 	})

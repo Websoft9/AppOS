@@ -18,6 +18,7 @@ import (
 
 func newSecretsTestEnv(t *testing.T) *testEnv {
 	t.Helper()
+	t.Setenv("APPOS_INTERNAL_TOKEN", "test-internal-token")
 	key := base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef"))
 	t.Setenv(secrets.EnvSecretKey, key)
 	if err := secrets.LoadKeyFromEnv(); err != nil {
@@ -54,6 +55,7 @@ func doSecretsRoute(t *testing.T, te *testEnv, method, url, body string, auth bo
 	}
 	if internal {
 		req.Header.Set("X-Appos-Internal", "1")
+		req.Header.Set("X-Appos-Internal-Token", "test-internal-token")
 		req.RemoteAddr = "127.0.0.1:12345"
 	}
 	rec := httptest.NewRecorder()
@@ -110,5 +112,37 @@ func TestSecretsResolveRequiresInternalHeader(t *testing.T) {
 	res = doSecretsRoute(t, te, http.MethodPost, "/api/secrets/resolve", body, false, true)
 	if res.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", res.Code, res.Body.String())
+	}
+}
+
+func TestSecretsPayloadUpdateRevokedForbidden(t *testing.T) {
+	te := newSecretsTestEnv(t)
+	defer te.cleanup()
+
+	col, err := te.app.FindCollectionByNameOrId("secrets")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := core.NewRecord(col)
+	rec.Set("name", "route-secret-revoked")
+	rec.Set("template_id", "single_value")
+	rec.Set("scope", "global")
+	rec.Set("access_mode", "use_only")
+	rec.Set("status", "revoked")
+	rec.Set("created_by", "u1")
+	enc, err := secrets.EncryptPayload(map[string]any{"value": "old"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec.Set("payload_encrypted", enc)
+	rec.Set("version", 1)
+	if err := te.app.Save(rec); err != nil {
+		t.Fatal(err)
+	}
+
+	body := `{"payload":{"value":"new"}}`
+	res := doSecretsRoute(t, te, http.MethodPut, "/api/secrets/"+rec.Id+"/payload", body, true, false)
+	if res.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", res.Code, res.Body.String())
 	}
 }

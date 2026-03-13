@@ -68,4 +68,5 @@ func Register(se *core.ServeEvent) {
 	registerServerRoutes(servers)
 	registerTunnelRoutes(se, g)
 	registerSecretsRoutes(se)
+	registerCertificatesRoutes(se)
 }

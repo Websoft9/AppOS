@@ -86,8 +86,7 @@ func Resolve(app core.App, secretID, userID string) (map[string]any, error) {
 		}
 	} else if legacyVal := rec.GetString("value"); legacyVal != "" {
 		// Legacy pre-Epic-19 format: hex AES-256-GCM via internal/crypto package.
-		// After Story 19.4 migration all records will have payload_encrypted; this
-		// branch exists solely for backward compatibility during the transition window.
+		// TODO(story-19.4): remove this branch once all records are migrated to payload_encrypted.
 		plain, decErr := crypto.Decrypt(legacyVal)
 		if decErr != nil {
 			return nil, &ResolveError{SecretID: secretID, Reason: "legacy decrypt failed", Cause: decErr}
@@ -97,35 +96,23 @@ func Resolve(app core.App, secretID, userID string) (map[string]any, error) {
 		return nil, &ResolveError{SecretID: secretID, Reason: "secret has no payload"}
 	}
 
-	// Record usage metadata and emit audit event in a goroutine so that a slow DB
-	// write never blocks the caller's hot path. Failures are log-only.
-	go recordUsage(app, secretID, rec.GetString("name"), userID)
-
-	return payload, nil
-}
-
-// recordUsage writes last_used_at / last_used_by to the secrets record and emits
-// a "secret.use" audit event. Called from a goroutine; must not panic.
-func recordUsage(app core.App, secretID, secretName, userID string) {
-	rec, err := app.FindRecordById("secrets", secretID)
-	if err != nil {
-		log.Printf("secrets.recordUsage: re-fetch failed for %s: %v", secretID, err)
-		return
-	}
+	// Record usage synchronously with log-on-error (matches HTTP resolve route behavior).
+	// Failure to update metadata never blocks the caller from receiving the payload.
 	rec.Set("last_used_at", time.Now().UTC().Format(time.RFC3339))
 	rec.Set("last_used_by", userID)
 	if err := app.Save(rec); err != nil {
-		log.Printf("secrets.recordUsage: save failed for %s: %v", secretID, err)
+		log.Printf("secrets.Resolve: failed to update last_used fields for %s: %v", secretID, err)
 	}
-
 	audit.Write(app, audit.Entry{
 		UserID:       userID,
 		Action:       "secret.use",
 		ResourceType: "secret",
 		ResourceID:   secretID,
-		ResourceName: secretName,
+		ResourceName: rec.GetString("name"),
 		Status:       audit.StatusSuccess,
 	})
+
+	return payload, nil
 }
 
 // ─── ValidateRef ─────────────────────────────────────────────────────────────

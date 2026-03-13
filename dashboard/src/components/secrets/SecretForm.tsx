@@ -94,7 +94,7 @@ export function SecretForm({
       <div className="space-y-2">
         <Label>Type</Label>
         <select
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
           value={templateId}
           disabled={disableTemplateChange}
           onChange={e => onTemplateChange(e.target.value)}

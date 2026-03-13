@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, Filter, Search } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Filter, MoreVertical, RefreshCw, Search } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -30,6 +30,8 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -130,12 +132,14 @@ function SortableHeader({
   current,
   dir,
   onSort,
+  withDisclosureHint,
 }: {
   label: string
   field: SortField
   current: SortField | null
   dir: SortDir
   onSort: (f: SortField) => void
+  withDisclosureHint?: boolean
 }) {
   const active = current === field
   return (
@@ -144,11 +148,12 @@ function SortableHeader({
       className="flex items-center gap-1 hover:text-foreground"
       onClick={() => onSort(field)}
     >
+      {withDisclosureHint ? <ChevronRight className="h-3.5 w-3.5 opacity-60" /> : null}
       {label}
       {active ? (
         dir === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
       ) : (
-        <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />
+        <ArrowUp className="h-3.5 w-3.5 opacity-40" />
       )}
     </button>
   )
@@ -234,6 +239,7 @@ function SecretsPage() {
   const [excludeAccessMode, setExcludeAccessMode] = useState<Set<string>>(new Set())
   const [excludeStatus, setExcludeStatus] = useState<Set<string>>(new Set())
   const [page, setPage] = useState(1)
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
   // Create form
   const [createOpen, setCreateOpen] = useState(false)
@@ -374,17 +380,19 @@ function SecretsPage() {
     } catch (err) {
       setAllItems([])
       setError(err instanceof Error ? err.message : 'Failed to load secrets')
-    }
-
-    try {
-      await fetchTemplates()
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load secret types'
-      setError(prev => (prev ? `${prev} | ${message}` : message))
     } finally {
       setLoading(false)
     }
   }
+
+  // Load templates once on mount — they are static server config and never need
+  // to reload when the user clicks Refresh (which only refreshes records).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    void fetchTemplates().catch(err =>
+      setError(err instanceof Error ? err.message : 'Failed to load secret types')
+    )
+  }, [])
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { void loadData() }, [])
@@ -407,6 +415,15 @@ function SecretsPage() {
       setSortField(field)
       setSortDir('asc')
     }
+  }
+
+  function toggleExpanded(id: string) {
+    setExpandedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
 
   // ─── Create form ─────────────────────────────────────
@@ -548,6 +565,7 @@ function SecretsPage() {
     if (!confirmAction) return
     const target = confirmAction
     setConfirmAction(null)
+    setError('')
     try {
       if (target.type === 'revoke') {
         await pb.collection('secrets').update(target.id, { status: 'revoked' })
@@ -588,7 +606,12 @@ function SecretsPage() {
           <h1 className="text-2xl font-bold tracking-tight">Secrets</h1>
           <p className="text-muted-foreground mt-1">The single source of truth for all your platform credentials.</p>
         </div>
-        <Button onClick={() => void openCreate()}>Create Secret</Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" onClick={() => void loadData()} disabled={loading} title="Refresh">
+            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+          </Button>
+          <Button onClick={() => void openCreate()}>Create Secret</Button>
+        </div>
       </div>
 
       {error && <div className="text-sm text-destructive">{error}</div>}
@@ -624,21 +647,37 @@ function SecretsPage() {
       {loading ? null : pagedItems.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
           <p className="text-muted-foreground">No secrets found.</p>
-          <button
-            type="button"
-            className="mt-2 text-sm text-primary hover:underline"
-            onClick={() => void openCreate()}
-          >
-            Create your first one
-          </button>
+          {allItems.length > 0 ? (
+            <button
+              type="button"
+              className="mt-2 text-sm text-primary hover:underline"
+              onClick={() => {
+                setSearch('')
+                setExcludeType(new Set())
+                setExcludeScope(new Set())
+                setExcludeAccessMode(new Set())
+                setExcludeStatus(new Set())
+                if (idFilter) void navigate({ to: '.', search: {} })
+              }}
+            >
+              Clear all filters
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="mt-2 text-sm text-primary hover:underline"
+              onClick={() => void openCreate()}
+            >
+              Create your first one
+            </button>
+          )}
         </div>
       ) : (
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[120px]">ID</TableHead>
             <TableHead>
-              <SortableHeader label="Name" field="name" current={sortField} dir={sortDir} onSort={handleSort} />
+              <SortableHeader label="Name" field="name" current={sortField} dir={sortDir} onSort={handleSort} withDisclosureHint />
             </TableHead>
             <TableHead>
               <FilterHeader label="Type" options={filterOptions.type} excluded={excludeType} onChange={setExcludeType} />
@@ -661,16 +700,23 @@ function SecretsPage() {
             <TableHead>
               <SortableHeader label="Last Used By" field="last_used_by" current={sortField} dir={sortDir} onSort={handleSort} />
             </TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            <TableHead className="w-[48px]" />
           </TableRow>
         </TableHeader>
         <TableBody>
           {pagedItems.map(item => (
-              <TableRow key={item.id}>
-                <TableCell className="font-mono text-xs text-muted-foreground" title={item.id}>
-                  {item.id.slice(0, 8)}
+            <Fragment key={item.id}>
+              <TableRow>
+                <TableCell>
+                  <button
+                    type="button"
+                    className="flex items-center gap-1.5 text-left font-medium hover:text-foreground"
+                    onClick={() => toggleExpanded(item.id)}
+                  >
+                    <ChevronRight className={cn('h-4 w-4 text-muted-foreground transition-transform', expandedIds.has(item.id) && 'rotate-90')} />
+                    <span>{item.name}</span>
+                  </button>
                 </TableCell>
-                <TableCell className="font-medium">{item.name}</TableCell>
                 <TableCell>{templateLabelMap.get(item.template_id) ?? item.template_id}</TableCell>
                 <TableCell>{item.scope || 'global'}</TableCell>
                 <TableCell>
@@ -684,37 +730,99 @@ function SecretsPage() {
                 <TableCell>{formatDate(item.created)}</TableCell>
                 <TableCell>{formatDate(item.last_used_at)}</TableCell>
                 <TableCell>{item.last_used_by || '—'}</TableCell>
-                <TableCell>
-                  <div className="flex items-center justify-end gap-2">
-                    <Button variant="outline" size="sm" onClick={() => void openEdit(item)}>
-                      Edit
-                    </Button>
-                    {item.access_mode !== 'use_only' && (
-                      <Button variant="outline" size="sm" disabled={revealingId === item.id} onClick={() => void handleReveal(item)}>
-                        {revealingId === item.id ? 'Revealing...' : 'Reveal'}
+                <TableCell className="text-right">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreVertical className="h-4 w-4" />
+                        <span className="sr-only">Actions</span>
                       </Button>
-                    )}
-                    {item.status === 'revoked' ? (
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => setConfirmAction({ type: 'delete', id: item.id, name: item.name })}
-                      >
-                        Delete
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => setConfirmAction({ type: 'revoke', id: item.id, name: item.name })}
-                      >
-                        Revoke
-                      </Button>
-                    )}
-                  </div>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => void openEdit(item)}>
+                        Edit
+                      </DropdownMenuItem>
+                      {item.access_mode !== 'use_only' && (
+                        <DropdownMenuItem
+                          disabled={revealingId === item.id}
+                          onClick={() => void handleReveal(item)}
+                        >
+                          {revealingId === item.id ? 'Revealing...' : 'Reveal'}
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuSeparator />
+                      {item.status === 'revoked' ? (
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => setConfirmAction({ type: 'delete', id: item.id, name: item.name })}
+                        >
+                          Delete
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => setConfirmAction({ type: 'revoke', id: item.id, name: item.name })}
+                        >
+                          Revoke
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TableCell>
               </TableRow>
-            ))}
+
+              {expandedIds.has(item.id) && (
+                <TableRow>
+                  <TableCell colSpan={9} className="bg-muted/30 py-3">
+                    <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                      <div>
+                        <span className="text-muted-foreground">ID:</span>{' '}
+                        <span className="font-mono text-xs">{item.id}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Name:</span>{' '}
+                        <span>{item.name}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Type:</span>{' '}
+                        <span>{templateLabelMap.get(item.template_id) ?? item.template_id}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Scope:</span>{' '}
+                        <span>{item.scope || 'global'}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Access Mode:</span>{' '}
+                        <span>{item.access_mode || 'use_only'}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Status:</span>{' '}
+                        <span>{item.status || 'active'}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Created:</span>{' '}
+                        <span>{formatDate(item.created)}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Last Used At:</span>{' '}
+                        <span>{formatDate(item.last_used_at)}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Last Used By:</span>{' '}
+                        <span>{item.last_used_by || '—'}</span>
+                      </div>
+                      {item.description && (
+                        <div className="sm:col-span-2 lg:col-span-3">
+                          <span className="text-muted-foreground">Description:</span>{' '}
+                          <span>{item.description}</span>
+                        </div>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+            </Fragment>
+          ))}
         </TableBody>
       </Table>
       )}

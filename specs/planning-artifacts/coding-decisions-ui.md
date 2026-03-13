@@ -83,6 +83,23 @@ When a list page has no records, **do not render the table header**. Show a dedi
 
 ---
 
+### List Page Minimal Pattern{#list-page-minimal-pattern}
+
+For standard list/index pages, use this minimal interaction pattern by default:
+
+1. Include a search input.
+2. Header actions are right-aligned as two buttons: `Refresh` (left) + `Create` (right).
+3. Sortable table headers use a **single-arrow** indicator only (no dual-arrow icon).
+4. If there is no separate detail page, each `Name` cell must support inline row expansion:
+  - Show a rotatable `>` icon before name text.
+  - Click toggles expanded details under the same row.
+  - Expanded content should include full `ID` and key metadata.
+5. Row actions are shown in a three-dot (`⋮`) dropdown menu, not as always-visible inline buttons.
+
+Keep the page visually minimal: no extra chrome, no redundant columns, no duplicate actions.
+
+---
+
 ## Tech Stack{#tech-stack}
 
 | Package | Version | Role |

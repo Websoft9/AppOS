@@ -18,12 +18,18 @@ interface RevealOverlayProps {
 
 export function RevealOverlay({ open, payload, fieldLabels, onClose }: RevealOverlayProps) {
   const [copied, setCopied] = useState(false)
+  const [copyError, setCopyError] = useState(false)
   const content = payload ? JSON.stringify(payload, null, 2) : ''
 
   async function copyText() {
-    await navigator.clipboard.writeText(content)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1200)
+    setCopyError(false)
+    try {
+      await navigator.clipboard.writeText(content)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1200)
+    } catch {
+      setCopyError(true)
+    }
   }
 
   return (
@@ -51,7 +57,9 @@ export function RevealOverlay({ open, payload, fieldLabels, onClose }: RevealOve
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>
-          <Button onClick={() => void copyText()}>{copied ? 'Copied' : 'Copy'}</Button>
+        <Button onClick={() => void copyText()}>
+            {copyError ? 'Copy failed' : copied ? 'Copied' : 'Copy'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

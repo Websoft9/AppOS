@@ -1,0 +1,26 @@
+[
+  {
+    "id": "self_signed_basic",
+    "label": "Self-Signed Certificate",
+    "kind": "self_signed",
+    "description": "Generate a self-signed certificate on this server",
+    "fields": [
+      { "key": "name", "label": "Name", "type": "text", "required": true },
+      { "key": "domain", "label": "Domain / CN", "type": "text", "required": true },
+      { "key": "description", "label": "Description", "type": "textarea" }
+    ]
+  },
+  {
+    "id": "ca_import_basic",
+    "label": "CA-Issued Certificate (Import)",
+    "kind": "ca_issued",
+    "description": "Import a certificate issued by a certificate authority",
+    "fields": [
+      { "key": "name", "label": "Name", "type": "text", "required": true },
+      { "key": "domain", "label": "Domain / CN", "type": "text", "required": true },
+      { "key": "cert_pem", "label": "Certificate Chain (PEM)", "type": "textarea", "required": true, "upload": true },
+      { "key": "key", "label": "Private Key Secret", "type": "relation", "required": false },
+      { "key": "description", "label": "Description", "type": "textarea" }
+    ]
+  }
+]

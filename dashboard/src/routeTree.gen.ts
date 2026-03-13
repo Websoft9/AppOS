@@ -26,6 +26,7 @@ import { Route as AppAuthProfileRouteImport } from './routes/_app/_auth/profile'
 import { Route as AppAuthGroupsRouteImport } from './routes/_app/_auth/groups'
 import { Route as AppAuthDockerRouteImport } from './routes/_app/_auth/docker'
 import { Route as AppAuthDashboardRouteImport } from './routes/_app/_auth/dashboard'
+import { Route as AppAuthCertificatesRouteImport } from './routes/_app/_auth/certificates'
 import { Route as AppAuthAuditRouteImport } from './routes/_app/_auth/audit'
 import { Route as AppAuthSuperuserRouteImport } from './routes/_app/_auth/_superuser'
 import { Route as AppAuthTopicsIndexRouteImport } from './routes/_app/_auth/topics.index'
@@ -133,6 +134,11 @@ const AppAuthDockerRoute = AppAuthDockerRouteImport.update({
 const AppAuthDashboardRoute = AppAuthDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AppAuthRoute,
+} as any)
+const AppAuthCertificatesRoute = AppAuthCertificatesRouteImport.update({
+  id: '/certificates',
+  path: '/certificates',
   getParentRoute: () => AppAuthRoute,
 } as any)
 const AppAuthAuditRoute = AppAuthAuditRouteImport.update({
@@ -280,6 +286,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof AppResetPasswordRoute
   '/setup': typeof AppSetupRoute
   '/audit': typeof AppAuthAuditRoute
+  '/certificates': typeof AppAuthCertificatesRoute
   '/dashboard': typeof AppAuthDashboardRoute
   '/docker': typeof AppAuthDockerRoute
   '/groups': typeof AppAuthGroupsRouteWithChildren
@@ -321,6 +328,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof AppResetPasswordRoute
   '/setup': typeof AppSetupRoute
   '/audit': typeof AppAuthAuditRoute
+  '/certificates': typeof AppAuthCertificatesRoute
   '/dashboard': typeof AppAuthDashboardRoute
   '/docker': typeof AppAuthDockerRoute
   '/profile': typeof AppAuthProfileRoute
@@ -363,6 +371,7 @@ export interface FileRoutesById {
   '/_app/setup': typeof AppSetupRoute
   '/_app/_auth/_superuser': typeof AppAuthSuperuserRouteWithChildren
   '/_app/_auth/audit': typeof AppAuthAuditRoute
+  '/_app/_auth/certificates': typeof AppAuthCertificatesRoute
   '/_app/_auth/dashboard': typeof AppAuthDashboardRoute
   '/_app/_auth/docker': typeof AppAuthDockerRoute
   '/_app/_auth/groups': typeof AppAuthGroupsRouteWithChildren
@@ -406,6 +415,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/setup'
     | '/audit'
+    | '/certificates'
     | '/dashboard'
     | '/docker'
     | '/groups'
@@ -447,6 +457,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/setup'
     | '/audit'
+    | '/certificates'
     | '/dashboard'
     | '/docker'
     | '/profile'
@@ -488,6 +499,7 @@ export interface FileRouteTypes {
     | '/_app/setup'
     | '/_app/_auth/_superuser'
     | '/_app/_auth/audit'
+    | '/_app/_auth/certificates'
     | '/_app/_auth/dashboard'
     | '/_app/_auth/docker'
     | '/_app/_auth/groups'
@@ -647,6 +659,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AppAuthDashboardRouteImport
+      parentRoute: typeof AppAuthRoute
+    }
+    '/_app/_auth/certificates': {
+      id: '/_app/_auth/certificates'
+      path: '/certificates'
+      fullPath: '/certificates'
+      preLoaderRoute: typeof AppAuthCertificatesRouteImport
       parentRoute: typeof AppAuthRoute
     }
     '/_app/_auth/audit': {
@@ -896,6 +915,7 @@ const AppAuthResourcesGroupsRouteWithChildren =
 interface AppAuthRouteChildren {
   AppAuthSuperuserRoute: typeof AppAuthSuperuserRouteWithChildren
   AppAuthAuditRoute: typeof AppAuthAuditRoute
+  AppAuthCertificatesRoute: typeof AppAuthCertificatesRoute
   AppAuthDashboardRoute: typeof AppAuthDashboardRoute
   AppAuthDockerRoute: typeof AppAuthDockerRoute
   AppAuthGroupsRoute: typeof AppAuthGroupsRouteWithChildren
@@ -920,6 +940,7 @@ interface AppAuthRouteChildren {
 const AppAuthRouteChildren: AppAuthRouteChildren = {
   AppAuthSuperuserRoute: AppAuthSuperuserRouteWithChildren,
   AppAuthAuditRoute: AppAuthAuditRoute,
+  AppAuthCertificatesRoute: AppAuthCertificatesRoute,
   AppAuthDashboardRoute: AppAuthDashboardRoute,
   AppAuthDockerRoute: AppAuthDockerRoute,
   AppAuthGroupsRoute: AppAuthGroupsRouteWithChildren,

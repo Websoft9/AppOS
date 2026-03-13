@@ -374,4 +374,23 @@ groups:
       nativeRefs:
         - https://pocketbase.io/docs/api-records/#crud-actions
 
+  - group: Certificates
+    description: Certificate lifecycle management — template listing, self-signed generation/renewal, and PB native collection CRUD with PEM validation hooks. Private keys are stored via the Secrets module.
+    apiType: Mixed
+    extSurface:
+      - GET /api/certificates/templates
+      - POST /api/certificates/{id}/generate-self-signed
+      - POST /api/certificates/{id}/renew-self-signed
+    nativeSurface:
+      - GET /api/collections/certificates/records
+      - POST /api/collections/certificates/records
+      - GET /api/collections/certificates/records/{id}
+      - PATCH /api/collections/certificates/records/{id}
+      - DELETE /api/collections/certificates/records/{id}
+    sources:
+      extRouteFiles:
+        - certificates.go
+      nativeRefs:
+        - https://pocketbase.io/docs/api-records/#crud-actions
+
 

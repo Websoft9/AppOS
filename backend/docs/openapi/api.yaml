@@ -55,6 +55,8 @@ tags:
       name: Topics
     - description: Secrets lifecycle management — encrypted credential CRUD, template listing, payload rotation, internal resolve, and reveal APIs. Uses PB native collection for storage with application-layer AES-256-GCM encryption.
       name: Secrets
+    - description: Certificate lifecycle management — template listing, self-signed generation/renewal, and PB native collection CRUD with PEM validation hooks. Private keys are stored via the Secrets module.
+      name: Certificates
     - description: Concrete users collection APIs derived from Native Record CRUD actions
       name: Users
 components:
@@ -301,6 +303,27 @@ paths:
             summary: Restore backup by name
             tags:
                 - Backups
+    /api/certificates/templates:
+        get:
+            operationId: get_api_certificates_templates
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get certificates templates
+            tags:
+                - Certificates
     /api/collections/audit_logs/records:
         get:
             description: 'Returns paginated audit_logs records. Access: own records for authenticated users; all records for superusers (enforced by collection ListRule). Supports filter, sort, fields, expand, and skipTotal query parameters.'

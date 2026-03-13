@@ -132,6 +132,11 @@ const credentialsNavItem: NavItem = {
       href: '/secrets',
     },
     {
+      id: 'credentials-certificates',
+      label: 'Certificates',
+      href: '/certificates',
+    },
+    {
       id: 'credentials-env-vars',
       label: 'Environment',
       href: '/admin/credentials/env-vars',

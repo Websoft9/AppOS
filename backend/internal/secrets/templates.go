@@ -120,3 +120,34 @@ func maskValue(v any) string {
 	}
 	return s[:2] + "***"
 }
+
+// ValidatePayload checks that:
+//  1. The payload contains no keys outside the template field definitions.
+//  2. Every required field is present and non-empty.
+//
+// This must be called before encrypting to prevent structurally invalid
+// payloads from being stored.
+func ValidatePayload(payload map[string]any, tpl Template) error {
+	allowed := make(map[string]bool, len(tpl.Fields))
+	for _, f := range tpl.Fields {
+		allowed[f.Key] = true
+	}
+	for k := range payload {
+		if !allowed[k] {
+			return fmt.Errorf("unexpected field: %s", k)
+		}
+	}
+	for _, f := range tpl.Fields {
+		if !f.Required {
+			continue
+		}
+		val, ok := payload[f.Key]
+		if !ok {
+			return fmt.Errorf("missing required field: %s", f.Key)
+		}
+		if s, ok := val.(string); !ok || strings.TrimSpace(s) == "" {
+			return fmt.Errorf("required field is empty: %s", f.Key)
+		}
+	}
+	return nil
+}

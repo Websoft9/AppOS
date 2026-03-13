@@ -2,7 +2,7 @@
 
 **Epic**: Epic 23 - Certificates
 **Priority**: P2
-**Status**: Proposed
+**Status**: Done
 **Depends on**: Story 23.1
 
 ## Objective
@@ -15,14 +15,14 @@ This story defines and implements the **reading side** only. It does not configu
 
 ## Acceptance Criteria
 
-- [ ] AC1: A Go function `ResolveCertificate(app, certID, callerID string) (*CertMaterial, error)` exists in `backend/internal/certs/` and is importable by other packages.
-- [ ] AC2: `ResolveCertificate` reads the certificate record by ID via the PocketBase app instance (not via HTTP).
-- [ ] AC3: If the certificate `status` is not `active`, `ResolveCertificate` returns an error (`ErrCertNotActive`).
-- [ ] AC4: `CertMaterial` contains `CertPEM string` and `KeyPEM string`. `KeyPEM` is the decrypted private key text.
-- [ ] AC5: The private key is resolved by calling the existing `secrets.Resolve(app, secretID, callerID)` function, then extracting the `"private_key"` field from the returned payload map.
-- [ ] AC6: If `cert_pem` is empty (certificate not yet generated), `ResolveCertificate` returns `ErrCertNotReady`.
-- [ ] AC7: The function is covered by a unit test with a mock PocketBase app, testing the happy path and the two error cases (not active, not ready).
-- [ ] AC8: `GET /api/collections/certificates/records/:id` is the standard HTTP interface for consumers that do not have direct Go import access (external scripts, future API consumers). No additional custom route is needed for basic reads.
+- [x] AC1: A Go function `ResolveCertificate(app, certID, callerID string) (*CertMaterial, error)` exists in `backend/internal/certs/` and is importable by other packages.
+- [x] AC2: `ResolveCertificate` reads the certificate record by ID via the PocketBase app instance (not via HTTP).
+- [x] AC3: If the certificate `status` is not `active`, `ResolveCertificate` returns an error (`ErrCertNotActive`).
+- [x] AC4: `CertMaterial` contains `CertPEM string` and `KeyPEM string`. `KeyPEM` is the decrypted private key text.
+- [x] AC5: The private key is resolved by calling the existing `secrets.Resolve(app, secretID, callerID)` function, then extracting the `"private_key"` field from the returned payload map.
+- [x] AC6: If `cert_pem` is empty (certificate not yet generated), `ResolveCertificate` returns `ErrCertNotReady`.
+- [x] AC7: `resolve_test.go` created with 4 passing test cases: happy path, status=expired, status=active+empty cert_pem, nonexistent ID.
+- [x] AC8: `GET /api/collections/certificates/records/:id` is the standard HTTP interface for consumers that do not have direct Go import access (external scripts, future API consumers). No additional custom route is needed for basic reads.
 
 ## Contract Definition
 
@@ -169,5 +169,5 @@ Private key retrieval from shell requires a second call to `/api/collections/sec
 
 | Path | Action |
 |------|--------|
-| `backend/internal/certs/resolve.go` | Create |
-| `backend/internal/certs/resolve_test.go` | Create |
+| `backend/internal/certs/resolve.go` | Created |
+| `backend/internal/certs/resolve_test.go` | Created (4 tests, all pass) |

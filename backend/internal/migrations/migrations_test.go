@@ -215,11 +215,23 @@ func TestCertificatesCollectionFields(t *testing.T) {
 
 	assertFieldExists(t, col, "name", core.FieldTypeText, true)
 	assertFieldExists(t, col, "domain", core.FieldTypeText, false)
+	assertFieldExists(t, col, "template_id", core.FieldTypeText, false)
+	assertFieldExists(t, col, "kind", core.FieldTypeSelect, false)
 	assertFieldExists(t, col, "cert_pem", core.FieldTypeText, false)
 	assertFieldExists(t, col, "key", core.FieldTypeRelation, false)
+	assertFieldExists(t, col, "issuer", core.FieldTypeText, false)
+	assertFieldExists(t, col, "subject", core.FieldTypeText, false)
 	assertFieldExists(t, col, "expires_at", core.FieldTypeDate, false)
+	assertFieldExists(t, col, "issued_at", core.FieldTypeDate, false)
+	assertFieldExists(t, col, "serial_number", core.FieldTypeText, false)
+	assertFieldExists(t, col, "signature_algorithm", core.FieldTypeText, false)
+	assertFieldExists(t, col, "key_bits", core.FieldTypeNumber, false)
+	assertFieldExists(t, col, "cert_version", core.FieldTypeNumber, false)
+	assertFieldExists(t, col, "status", core.FieldTypeSelect, false)
 	assertFieldExists(t, col, "auto_renew", core.FieldTypeBool, false)
 	assertFieldExists(t, col, "description", core.FieldTypeText, false)
+	assertFieldExists(t, col, "created", core.FieldTypeAutodate, false)
+	assertFieldExists(t, col, "updated", core.FieldTypeAutodate, false)
 
 	assertRelationTarget(t, app, col, "key", "secrets")
 }

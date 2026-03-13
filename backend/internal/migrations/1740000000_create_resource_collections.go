@@ -226,6 +226,15 @@ func init() {
 			Name: "domain",
 		})
 		certificates.Fields.Add(&core.TextField{
+			Name:   "template_id",
+			Max:    120,
+		})
+		certificates.Fields.Add(&core.SelectField{
+			Name:      "kind",
+			MaxSelect: 1,
+			Values:    []string{"self_signed", "ca_issued"},
+		})
+		certificates.Fields.Add(&core.TextField{
 			Name: "cert_pem",
 		})
 		certificates.Fields.Add(&core.RelationField{
@@ -233,14 +242,51 @@ func init() {
 			CollectionId: secrets.Id,
 			MaxSelect:    1,
 		})
+		certificates.Fields.Add(&core.TextField{
+			Name: "issuer",
+		})
+		certificates.Fields.Add(&core.TextField{
+			Name: "subject",
+		})
 		certificates.Fields.Add(&core.DateField{
 			Name: "expires_at",
+		})
+		certificates.Fields.Add(&core.DateField{
+			Name: "issued_at",
+		})
+		certificates.Fields.Add(&core.TextField{
+			Name: "serial_number",
+		})
+		certificates.Fields.Add(&core.TextField{
+			Name: "signature_algorithm",
+		})
+		certificates.Fields.Add(&core.NumberField{
+			Name:    "key_bits",
+			OnlyInt: true,
+		})
+		certificates.Fields.Add(&core.NumberField{
+			Name:    "cert_version",
+			OnlyInt: true,
+		})
+		certificates.Fields.Add(&core.SelectField{
+			Name:      "status",
+			MaxSelect: 1,
+			Values:    []string{"active", "expired", "revoked"},
 		})
 		certificates.Fields.Add(&core.BoolField{
 			Name: "auto_renew",
 		})
 		certificates.Fields.Add(&core.TextField{
 			Name: "description",
+		})
+		certificates.Fields.Add(&core.AutodateField{
+			Name:     "created",
+			OnCreate: true,
+		})
+		certificates.Fields.Add(&core.AutodateField{
+			Name:     "updated",
+			OnCreate: true,
+			OnUpdate: true,
 		})
 		certificates.AddIndex("idx_certificates_name", true, "name", "")
 		certificates.AddIndex("idx_certificates_domain", false, "domain", "")

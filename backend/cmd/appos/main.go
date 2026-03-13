@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/websoft9/appos/backend/internal/certs"
 	"github.com/websoft9/appos/backend/internal/hooks"
 	"github.com/websoft9/appos/backend/internal/routes"
 	"github.com/websoft9/appos/backend/internal/secrets"
@@ -23,6 +24,9 @@ func main() {
 	}
 	if err := secrets.LoadTemplatesFromDefaultPath(); err != nil {
 		log.Fatal(fmt.Errorf("secrets templates init failed: %w", err))
+	}
+	if err := certs.LoadTemplatesFromDefaultPath(); err != nil {
+		log.Fatal(fmt.Errorf("certificate templates init failed: %w", err))
 	}
 
 	app := pocketbase.New()

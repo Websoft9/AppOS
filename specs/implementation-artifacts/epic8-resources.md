@@ -2,7 +2,9 @@
 
 ## Overview
 
-**Platform-level shared resource management** — servers, secrets, environment variable groups, databases, cloud accounts, certificates, integrations, and scripts that can be referenced by multiple applications. Resources are platform-defined (not user-extensible), each with its own PocketBase Collection and migration. Apps reference resources; they don't own them.
+**Platform-level shared resource management** — servers, secrets, env groups, databases, cloud accounts, certificates, integrations, and scripts that can be referenced by multiple applications. Resources are platform-defined (not user-extensible), each with its own PocketBase Collection and migration. Apps reference resources; they don't own them.
+
+> Env Groups detail spec: see [Epic 24](epic24-environments.md)
 
 **Status**: Done | **Priority**: P1 | **Depends on**: Epic 1, Epic 3
 
@@ -31,14 +33,7 @@ Three distinct layers handle sensitive and non-sensitive config:
 **Secrets — Resource Store only (no app scope)**
 Regardless of whether a secret is used by one app or many, it must always be created in the Resource Store. This enforces consistent encryption handling. The extra step is intentional friction.
 
-**Env Vars — two separate layers**
-
-| Layer | Location | Use case |
-|-------|----------|----------|
-| App inline env vars | `apps.env_vars` (JSON key-value) | App-specific, non-sensitive config |
-| Resource Store Env Groups | `env_groups` collection | Shared, reusable across apps |
-
-If an inline env var needs to be sensitive, it must instead be stored as an App Credential (see below).
+**Env Vars** — see [Epic 24](epic24-environments.md) for the two-layer design (app-inline vs Resource Store Env Groups).
 
 **App Credentials — App-scoped encrypted key-value**
 Deployment passwords (e.g. app admin password, internal DB password) are App-specific runtime credentials. They are not shared, not reusable, and must not be placed in the Resource Store.
@@ -55,7 +50,7 @@ This means the `apps` collection carries:
 - `env_vars` JSON — inline non-sensitive key-value (no encryption)
 - `credentials` JSON — inline sensitive key-value (encrypted, App-scoped)
 - `secrets[]` Relation — references to Resource Store secrets
-- `env_groups[]` Relation — references to Resource Store env groups
+- `env_groups[]` Relation — references to Resource Store env groups (see [Epic 24](epic24-environments.md))
 
 ## Architecture
 
@@ -64,8 +59,7 @@ Resource Store (independent collections)
   ├── resource_groups → User-defined cross-type grouping labels
   ├── servers       → SSH targets for app deployment
   ├── secrets       → Encrypted credentials, tokens, keys
-  ├── env_groups    → Reusable environment variable sets
-  │     └── env_group_vars (child records)
+  ├── env_groups    → see Epic 24
   ├── databases     → External DB connections (password → secrets)
   ├── cloud_accounts → Cloud provider credentials (secret → secrets)
   ├── certificates   → TLS certs, private key → secrets
@@ -122,25 +116,7 @@ Encrypted sensitive values.
 | description | Text | |
 | groups | Relation[] | → resource_groups; auto-filled with `default` on create if empty |
 
-### `env_groups`
-Named sets of environment variables, composable across apps.
-
-| Field | Type | Notes |
-|-------|------|-------|
-| name | Text | required |
-| description | Text | |
-| groups | Relation[] | → resource_groups; auto-filled with `default` on create if empty |
-
-### `env_group_vars`
-Child records of env_groups.
-
-| Field | Type | Notes |
-|-------|------|-------|
-| group | Relation | → env_groups, required |
-| key | Text | required |
-| value | Text | must be empty when is_secret=true |
-| is_secret | Bool | mutually exclusive with value |
-| secret | Relation | → secrets; required when is_secret=true, otherwise empty |
+> **Env Groups** (`env_groups` / `env_group_vars`) — see [Epic 24](epic24-environments.md) for collection schema.
 
 ### `databases`
 External database connections. Password always references secrets.
@@ -242,11 +218,7 @@ All under `/api/ext/resources/`. All require authentication.
 | GET | `/secrets/:id` | Get secret (value visible to superuser only) |
 | PUT | `/secrets/:id` | Update secret |
 | DELETE | `/secrets/:id` | Delete secret |
-| GET | `/env-groups` | List env groups with vars |
-| POST | `/env-groups` | Create env group |
-| GET | `/env-groups/:id` | Get env group with vars |
-| PUT | `/env-groups/:id` | Update env group and vars |
-| DELETE | `/env-groups/:id` | Delete env group and all vars |
+| *(env-groups)* | — | See [Epic 24](epic24-environments.md) |
 | GET | `/databases` | List databases (password masked) |
 | POST | `/databases` | Create database connection |
 | GET | `/databases/:id` | Get database connection |
@@ -328,7 +300,7 @@ Hub 页右上角有两个并排操作入口：
                     ┌─────────────────┐
                     │  Server         │  → /resources/servers?create=1
                     │  Secret         │  → /resources/secrets?create=1
-                    │  Env Group      │  → /resources/env-groups?create=1
+                    │  Env Group      │  → /resources/env-groups?create=1  *(see Epic 24)*
                     │  Database       │  → /resources/databases?create=1
                     │  Cloud Account  │  → /resources/cloud-accounts?create=1
                     │  Certificate    │  → /resources/certificates?create=1
@@ -387,8 +359,7 @@ All sensitive values are stored in the `secrets` collection (see [Epic 19](epic1
 ### SSH Key
 The `secrets` module uses file-based templates (`templates.json`). The `ssh_key` template supports `textarea` + `upload: true` for PEM key content.
 
-### Env Groups — custom component
-Env Groups require a nested dynamic vars editor (each row: key + value or secret selector) which cannot be expressed in flat `FieldDef[]`. The route uses a standalone `EnvGroupsPage` component instead of `ResourcePage`.
+> **Env Groups** custom component — see [Epic 24](epic24-environments.md) for implementation notes.
 
 ### Databases — port auto-fill & supported types
 `type` select 支持 10 种数据库，`onValueChange` 自动填充默认端口：

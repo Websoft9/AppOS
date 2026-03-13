@@ -1,6 +1,6 @@
 # Epic 23: Certificates
 
-**Module**: Credentials / Certificates | **Status**: Proposed | **Priority**: P1 | **Depends on**: Epic 12, Epic 19
+**Module**: Credentials / Certificates | **Status**: Done | **Priority**: P1 | **Depends on**: Epic 12, Epic 19
 
 ## Objective
 
@@ -56,18 +56,24 @@ The collection already exists from Epic 8 with a minimal schema. Epic 23 adds th
 | Field | PB Type | Constraints | Notes |
 |-------|---------|-------------|-------|
 | `name` | text | required, max 200, unique index | Display name |
-| `template_id` | text | required | Certificate template id |
-| `kind` | select | required, `self_signed` \| `ca_issued` | Certificate family |
-| `domain` | text | required | Primary domain / CN |
+| `template_id` | text | optional | Certificate template id |
+| `kind` | select | `self_signed` \| `ca_issued` | Certificate family |
+| `domain` | text | optional | Primary domain / CN |
 | `cert_pem` | text | optional | Full PEM chain; set by import or generate |
 | `key` | relation → secrets | optional, maxSelect 1 | Private key secret reference |
-| `issuer` | text | optional, written by backend hook | Extracted common name from cert |
-| `subject` | text | optional, written by backend hook | Extracted subject from cert |
-| `expires_at` | datetime | optional, written by backend hook | Extracted from cert_pem |
-| `status` | select | default `active`, `active` \| `expired` \| `revoked` | Lifecycle state |
+| `issuer` | text | backend-written | Extracted issuer CN from cert |
+| `subject` | text | backend-written | Extracted subject CN from cert |
+| `expires_at` | date | backend-written | Extracted `NotAfter` from cert |
+| `issued_at` | date | backend-written | Extracted `NotBefore` from cert |
+| `serial_number` | text | backend-written | Hex serial number |
+| `signature_algorithm` | text | backend-written | e.g. SHA256-RSA |
+| `key_bits` | number (int) | backend-written | RSA/ECDSA key size |
+| `cert_version` | number (int) | backend-written | X.509 version |
+| `status` | select | `active` \| `expired` \| `revoked` | Lifecycle state |
 | `auto_renew` | bool | default false | Reserved for future use |
 | `description` | text | optional | |
-| `groups` | json | optional | Array of resource_group IDs |
+| `created` | autodate | onCreate | |
+| `updated` | autodate | onCreate, onUpdate | |
 
 Notes:
 

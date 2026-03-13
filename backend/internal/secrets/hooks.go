@@ -23,6 +23,10 @@ func RegisterHooks(app *pocketbase.PocketBase) {
 			return apis.NewBadRequestError("invalid payload", err)
 		}
 
+		if err := ValidatePayload(payload, tpl); err != nil {
+			return apis.NewBadRequestError(err.Error(), nil)
+		}
+
 		enc, err := EncryptPayload(payload)
 		if err != nil {
 			return apis.NewBadRequestError("failed to encrypt payload", err)
