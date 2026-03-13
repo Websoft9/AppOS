@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, Filter, Search } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { cn } from '@/lib/utils'
@@ -213,6 +213,8 @@ function FilterHeader({
 // ─── Main page ───────────────────────────────────────────
 
 function SecretsPage() {
+  const { id: idFilter, returnGroup, returnType } = Route.useSearch()
+  const navigate = useNavigate()
   const [allItems, setAllItems] = useState<SecretRecord[]>([])
   const [templates, setTemplates] = useState<SecretTemplate[]>([])
   const [loading, setLoading] = useState(true)
@@ -289,10 +291,16 @@ function SecretsPage() {
   const filteredItems = useMemo(() => {
     let result = allItems
 
+    // ID filter from URL param
+    if (idFilter) {
+      result = result.filter(item => item.id === idFilter)
+    }
+
     // Search
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       result = result.filter(item =>
+        item.id.toLowerCase().includes(q) ||
         item.name.toLowerCase().includes(q) ||
         (item.description?.toLowerCase().includes(q)) ||
         (item.last_used_by?.toLowerCase().includes(q))
@@ -316,7 +324,7 @@ function SecretsPage() {
     }
 
     return result
-  }, [allItems, search, excludeType, excludeScope, excludeAccessMode, excludeStatus, sortField, sortDir])
+  }, [allItems, idFilter, search, excludeType, excludeScope, excludeAccessMode, excludeStatus, sortField, sortDir])
 
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE))
 
@@ -381,6 +389,12 @@ function SecretsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { void loadData() }, [])
 
+  // Auto-open create dialog when arriving from Group Add Items flow
+  useEffect(() => {
+    if (returnGroup && !loading) openCreate()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [returnGroup, loading])
+
   // Reset to page 1 when filters/search/sort change
   useEffect(() => {
     setPage(1)
@@ -423,17 +437,25 @@ function SecretsPage() {
     setCreateSaving(true)
     setCreateError('')
     try {
-      await pb.collection('secrets').create({
+      const created = await pb.collection('secrets').create({
         name: createName,
         description: createDescription,
         template_id: createTemplateId,
         scope: createScope,
         access_mode: createAccessMode,
         payload: createPayload,
-      })
+      }) as { id: string }
       setCreateOpen(false)
       resetCreateForm()
-      await loadData()
+      if (returnGroup) {
+        navigate({
+          to: '/groups/$id',
+          params: { id: returnGroup },
+          search: { addOpen: returnType ?? 'secret', newItem: created.id },
+        })
+      } else {
+        await loadData()
+      }
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : 'Create failed')
     } finally {
@@ -559,12 +581,12 @@ function SecretsPage() {
   // ─── Render ──────────────────────────────────────────
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-4 p-4 cursor-default">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Secrets</h1>
-          <p className="text-sm text-muted-foreground">Credentials metadata only, no raw values.</p>
+          <h1 className="text-2xl font-bold tracking-tight">Secrets</h1>
+          <p className="text-muted-foreground mt-1">The single source of truth for all your platform credentials.</p>
         </div>
         <Button onClick={() => void openCreate()}>Create Secret</Button>
       </div>
@@ -572,20 +594,49 @@ function SecretsPage() {
       {error && <div className="text-sm text-destructive">{error}</div>}
 
       {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search by name, description, or used by..."
-          className="pl-9"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative max-w-sm">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search secrets..."
+            className="pl-9"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        {idFilter && (
+          <div className="flex items-center gap-1.5 rounded-md border bg-muted/50 px-2.5 py-1 text-sm">
+            <span className="text-muted-foreground">ID:</span>
+            <span className="font-mono text-xs">{idFilter}</span>
+            <button
+              type="button"
+              className="ml-1 text-muted-foreground hover:text-foreground"
+              onClick={() => void navigate({ to: '.', search: {} })}
+              aria-label="Clear ID filter"
+            >
+              ×
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Table */}
+      {loading ? null : pagedItems.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
+          <p className="text-muted-foreground">No secrets found.</p>
+          <button
+            type="button"
+            className="mt-2 text-sm text-primary hover:underline"
+            onClick={() => void openCreate()}
+          >
+            Create your first one
+          </button>
+        </div>
+      ) : (
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-[120px]">ID</TableHead>
             <TableHead>
               <SortableHeader label="Name" field="name" current={sortField} dir={sortDir} onSort={handleSort} />
             </TableHead>
@@ -614,19 +665,11 @@ function SecretsPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {loading ? (
-            <TableRow>
-              <TableCell colSpan={9}>Loading...</TableCell>
-            </TableRow>
-          ) : pagedItems.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={9} className="text-center text-muted-foreground">
-                No secrets found
-              </TableCell>
-            </TableRow>
-          ) : (
-            pagedItems.map(item => (
+          {pagedItems.map(item => (
               <TableRow key={item.id}>
+                <TableCell className="font-mono text-xs text-muted-foreground" title={item.id}>
+                  {item.id.slice(0, 8)}
+                </TableCell>
                 <TableCell className="font-medium">{item.name}</TableCell>
                 <TableCell>{templateLabelMap.get(item.template_id) ?? item.template_id}</TableCell>
                 <TableCell>{item.scope || 'global'}</TableCell>
@@ -671,10 +714,10 @@ function SecretsPage() {
                   </div>
                 </TableCell>
               </TableRow>
-            ))
-          )}
+            ))}
         </TableBody>
       </Table>
+      )}
 
       {/* Pagination */}
       {totalPages > 1 && (
@@ -867,4 +910,9 @@ function SecretsPage() {
 
 export const Route = createFileRoute('/_app/_auth/secrets')({
   component: SecretsPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    id: typeof search.id === 'string' ? search.id : undefined,
+    returnGroup: typeof search.returnGroup === 'string' ? search.returnGroup : undefined,
+    returnType: typeof search.returnType === 'string' ? search.returnType : undefined,
+  }),
 })

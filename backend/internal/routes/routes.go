@@ -41,6 +41,9 @@ func Register(se *core.ServeEvent) {
 	// Public space share routes (unauthenticated — share token validation and download)
 	registerSpacePublicRoutes(se)
 
+	// Public topic share routes (unauthenticated — view shared topic and post comments)
+	registerTopicPublicRoutes(se)
+
 	// Ext Settings API (superuser-only — registered directly on se.Router)
 	RegisterSettings(se)
 
@@ -61,6 +64,7 @@ func Register(se *core.ServeEvent) {
 	registerSpaceRoutes(g)
 	registerUserRoutes(g)
 	registerIaCRoutes(g)
+	registerTopicRoutes(g)
 	registerServerRoutes(servers)
 	registerTunnelRoutes(se, g)
 	registerSecretsRoutes(se)

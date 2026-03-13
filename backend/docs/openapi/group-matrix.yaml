@@ -163,6 +163,27 @@ groups:
         - resources.go
       nativeRefs: []
 
+  - group: Groups
+    description: Group registry and group-item membership CRUD via PocketBase native records API.
+    note: Native endpoints are tracked here; runtime OpenAPI merge still depends on native-api.yaml maintenance.
+    apiType: Native
+    extSurface: []
+    nativeSurface:
+      - GET /api/collections/groups/records
+      - POST /api/collections/groups/records
+      - GET /api/collections/groups/records/{id}
+      - PATCH /api/collections/groups/records/{id}
+      - DELETE /api/collections/groups/records/{id}
+      - GET /api/collections/group_items/records
+      - POST /api/collections/group_items/records
+      - GET /api/collections/group_items/records/{id}
+      - PATCH /api/collections/group_items/records/{id}
+      - DELETE /api/collections/group_items/records/{id}
+    sources:
+      extRouteFiles: []
+      nativeRefs:
+        - https://pocketbase.io/docs/api-records/#crud-actions
+
   - group: Route Registry
     description: Route assembly entrypoint only; no direct API endpoint is exposed by this file.
     apiType: Ext
@@ -310,6 +331,28 @@ groups:
       extRouteFiles:
         - tunnel.go
       nativeRefs: []
+
+  - group: Topics
+    description: Topic discussion sharing — time-limited public share links for topics with anonymous comment support.
+    apiType: Mixed
+    extSurface:
+      - /api/ext/topics/*
+    nativeSurface:
+      - GET /api/collections/topics/records
+      - POST /api/collections/topics/records
+      - GET /api/collections/topics/records/{id}
+      - PATCH /api/collections/topics/records/{id}
+      - DELETE /api/collections/topics/records/{id}
+      - GET /api/collections/topic_comments/records
+      - POST /api/collections/topic_comments/records
+      - GET /api/collections/topic_comments/records/{id}
+      - PATCH /api/collections/topic_comments/records/{id}
+      - DELETE /api/collections/topic_comments/records/{id}
+    sources:
+      extRouteFiles:
+        - topics.go
+      nativeRefs:
+        - https://pocketbase.io/docs/api-records/#crud-actions
 
   - group: Secrets
     description: Secrets lifecycle management — encrypted credential CRUD, template listing, payload rotation, internal resolve, and reveal APIs. Uses PB native collection for storage with application-layer AES-256-GCM encryption.

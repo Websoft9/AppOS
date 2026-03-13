@@ -11,8 +11,8 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/websoft9/appos/backend/internal/audit"
-	"github.com/websoft9/appos/backend/internal/crypto"
 	"github.com/websoft9/appos/backend/internal/docker"
+	sec "github.com/websoft9/appos/backend/internal/secrets"
 )
 
 // localDockerClient is the Docker client for the local host, shared across all local requests.
@@ -112,8 +112,10 @@ func getDockerClient(e *core.RequestEvent) (*docker.Client, error) {
 	host := serverRec.GetString("host")
 	port := serverRec.GetInt("port")
 	user := serverRec.GetString("user")
-	authType := serverRec.GetString("auth_type")
 	credentialID := serverRec.GetString("credential")
+
+	// auth_type inferred from secret template_id (servers.auth_type removed in Story 20.1)
+	authType := credAuthType(e.App, credentialID)
 
 	resolvedHost, resolvedPort, resolveErr := resolveDockerSSHAddress(serverRec)
 	if resolveErr != nil {
@@ -126,19 +128,17 @@ func getDockerClient(e *core.RequestEvent) (*docker.Client, error) {
 		port = 22
 	}
 
-	// Fetch and decrypt the secret credential
+	// Resolve credential via sec.Resolve (supports both payload_encrypted and legacy value).
 	var secretValue string
 	if credentialID != "" {
-		secretRec, err := e.App.FindRecordById("secrets", credentialID)
-		if err != nil {
-			return nil, fmt.Errorf("credential not found: %w", err)
+		payload, resolveErr := sec.Resolve(e.App, credentialID, "")
+		if resolveErr != nil {
+			return nil, fmt.Errorf("credential resolve: %w", resolveErr)
 		}
-		encrypted := secretRec.GetString("value")
-		if encrypted != "" {
-			secretValue, err = crypto.Decrypt(encrypted)
-			if err != nil {
-				return nil, fmt.Errorf("decrypt credential: %w", err)
-			}
+		if authType == "password" {
+			secretValue = sec.FirstStringFromPayload(payload, "password", "value")
+		} else {
+			secretValue = sec.FirstStringFromPayload(payload, "private_key", "key", "value")
 		}
 	}
 
@@ -146,7 +146,7 @@ func getDockerClient(e *core.RequestEvent) (*docker.Client, error) {
 	// For password-based auth, the same credential is used as the sudo password.
 	sudoEnabled := user != "root"
 	sudoPassword := ""
-	if sudoEnabled && (authType == "password" || authType == "username_password") {
+	if sudoEnabled && authType == "password" {
 		sudoPassword = secretValue
 	}
 
@@ -260,20 +260,21 @@ func handleDockerServers(e *core.RequestEvent) error {
 				port = 22
 			}
 			user := s.GetString("user")
-			authType := s.GetString("auth_type")
+			credID := s.GetString("credential")
+			authType := credAuthType(e.App, credID)
 			var secretValue string
-			if credID := s.GetString("credential"); credID != "" {
-				if secRec, err2 := e.App.FindRecordById("secrets", credID); err2 == nil {
-					if enc := secRec.GetString("value"); enc != "" {
-						if dec, err3 := crypto.Decrypt(enc); err3 == nil {
-							secretValue = dec
-						}
+			if credID != "" {
+				if payload, err2 := sec.Resolve(e.App, credID, ""); err2 == nil {
+					if authType == "password" {
+						secretValue = sec.FirstStringFromPayload(payload, "password", "value")
+					} else {
+						secretValue = sec.FirstStringFromPayload(payload, "private_key", "key", "value")
 					}
 				}
 			}
 			srvSudoEnabled := user != "root"
 			srvSudoPassword := ""
-			if srvSudoEnabled && (authType == "password" || authType == "username_password") {
+			if srvSudoEnabled && authType == "password" {
 				srvSudoPassword = secretValue
 			}
 			if resolveErr == nil {

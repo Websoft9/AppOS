@@ -8,6 +8,25 @@ For global engineering conventions, see [coding-decisions.md](coding-decisions.m
 
 Design System Foundation (shadcn/ui, Tailwind, Dark/Light theme)
 
+### Primary Navigation Baseline{#primary-navigation}
+
+Top-level navigation should keep collaboration features grouped together instead of scattering them across resource modules.
+
+```text
+Collaboration
+  Groups
+  Topics
+
+Applications
+Resources
+Credentials
+```
+
+Rules:
+- `Groups` is for organizing platform objects.
+- `Topics` is for user-authored collaboration threads and discussion.
+- Do not place `Groups` back under `Resources`.
+
 ### Dialog Size Tiers{#dialog-sizes}
 
 Standardized dialog widths based on content type. Override via `className` on `<DialogContent>`.
@@ -25,6 +44,42 @@ Standardized dialog widths based on content type. Override via `className` on `<
 - Always pair large dialogs with `max-h-[85vh] flex flex-col` for scroll containment
 - Mobile fallback is handled by shadcn's `max-w-[calc(100%-2rem)]`
 - Prefer the smallest tier that avoids horizontal scrolling or cramped content
+
+---
+
+### Page Header{#page-header}
+
+All list/index pages must use a consistent header pattern (matching `/terminal`):
+
+```tsx
+<h1 className="text-2xl font-bold tracking-tight">{Page Title}</h1>
+<p className="text-muted-foreground mt-1">{Short description}</p>
+```
+
+Rules:
+- Title: `text-2xl font-bold tracking-tight` — never `text-xl font-semibold` or other variants
+- Subtitle/description: `text-muted-foreground mt-1` — no `text-sm` prefix needed (inherits from parent)
+
+### Empty State{#empty-state}
+
+When a list page has no records, **do not render the table header**. Show a dedicated empty state instead:
+
+```tsx
+{!loading && items.length === 0 ? (
+  <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
+    <p className="text-muted-foreground">No {items} found.</p>
+    <button
+      type="button"
+      className="mt-2 text-sm text-primary hover:underline"
+      onClick={openCreate}
+    >
+      Create your first one
+    </button>
+  </div>
+) : (
+  <Table>...</Table>
+)}
+```
 
 ---
 
@@ -96,13 +151,14 @@ beforeLoad: async ({ location }) => {
 |------|-------|
 | `pb.ts` | Singleton `pb` client (base URL `/`, proxied by Nginx) |
 | `store-api.ts` | App Store catalog/products (local-first + CDN background sync) |
-| `iac-api.ts` | IaC file read/write (`/api/ext/iac`) |
+| `iac-api.ts` | IaC file read/write (`/api/iac`) |
 | `store-user-api.ts` | User favorites / notes |
 | `store-custom-api.ts` | Custom app management |
 
 **Rules:**
 - Use `pb.collection('name').getList(…)` for PocketBase collections
-- Use `pb.send('/api/ext/…', {})` for custom Go endpoints
+- Use `pb.send('/api/<domain>/…', {})` for custom Go endpoints; domain examples: `iac`, `servers`, `proxy`, `deploy`
+- Do **not** use `/api/ext/` prefix — this pattern is deprecated and inconsistent with the route prefix convention in `architecture.md`
 - Wrap with `useQuery` / `useMutation`; keep `queryKey` arrays consistent
 
 ---

@@ -1,7 +1,7 @@
-# Story 20.1: SSH + SFTP Backend
+# Story 20.2: SSH + SFTP
 
 **Epic**: Epic 20 – Servers
-**Status**: Complete | **Priority**: P1 | **Depends on**: Epic 1, 3, 8, 15
+**Status**: Complete | **Priority**: P1 | **Depends on**: Story 20.1, Epic 1, 3, 8, 15
 
 ---
 
@@ -191,3 +191,22 @@ backend/internal/routes/routes.go                       # registerServerRoutes a
 - CORS `CheckOrigin` 添加注释说明
 - SSH Host Key 验证：新增 `sshHostKeyCallback()` + `sync.Once` 进程级缓存；优先读 `~/.ssh/known_hosts` 或 `/etc/ssh/ssh_known_hosts`；无 known_hosts 时默认 `InsecureIgnoreHostKey`（与 WS 终端一致）；设 `APPOS_REQUIRE_SSH_HOST_KEY=1` 启用严格模式
 - `isExpectedPowerDisconnect()`: 仅匹配 "connection reset"、"broken pipe"、"closed network connection"（移除过宽的 "eof" 和 "connection refused"）
+
+---
+
+## Frontend
+
+Route: `/connect/server/:serverId` — Server Connect workspace (Epic 15 layout).
+
+- **Shell tab**: `<TerminalPanel serverId={id} />` (Epic 15) — SSH PTY over WebSocket
+- **Files tab**: `<FileManagerPanel serverId={id} />` — SFTP-backed file manager; single-pane table, breadcrumb nav, context menu (download / rename / delete / chmod), drag-and-drop upload (max 50 MB), hidden files toggle
+- **ServerSelector**: `/connect` entry page — dropdown to pick a server before opening workspace
+
+```
+dashboard/src/
+  routes/_app/_auth/_superuser/
+    connect.server.$serverId.tsx    # /connect/server/:serverId
+  components/connect/
+    ServerSelector.tsx
+    FileManagerPanel.tsx
+```

@@ -13,6 +13,7 @@ import {
   Cog,
   TerminalSquare,
   KeyRound,
+  Group,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -59,6 +60,16 @@ const workspaceGroup: NavGroup = {
       label: 'Terminal',
       icon: <TerminalSquare className="h-5 w-5" />,
       href: '/terminal',
+    },
+    {
+      id: 'collaboration',
+      label: 'Collaboration',
+      icon: <Group className="h-5 w-5" />,
+      href: '/groups',
+      children: [
+        { id: 'groups', label: 'Groups', href: '/groups' },
+        { id: 'topics', label: 'Topics', href: '/topics' },
+      ],
     },
     { id: 'space', label: 'Space', icon: <FolderOpen className="h-5 w-5" />, href: '/space' },
   ],
@@ -161,15 +172,14 @@ function NavLink({
   depth?: number
 }) {
   const router = useRouterState()
-  const [childrenOpen, setChildrenOpen] = useState(true)
   const hasChildren = !!(item.children && item.children.length > 0)
-  const isActive =
-    router.location.pathname === item.href ||
-    (item.href !== '/dashboard' && router.location.pathname.startsWith(item.href))
-  // For parent items with children, highlight text only (no bg) when a child is active
   const isChildActive = hasChildren && item.children!.some(
     child => router.location.pathname === child.href || router.location.pathname.startsWith(child.href)
   )
+  const [childrenOpen, setChildrenOpen] = useState(isChildActive)
+  const isActive =
+    router.location.pathname === item.href ||
+    (item.href !== '/dashboard' && router.location.pathname.startsWith(item.href))
 
   if (hasChildren && !collapsed) {
     return (

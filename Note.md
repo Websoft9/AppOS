@@ -1,3 +1,6 @@
+## Bug
+- add server 失败：Failed to create record.
+
 ## 资源
 
 - 增加 strorage
@@ -65,3 +68,21 @@ Settings（配置层）
 
 ## LLM
 - 本地小模型内嵌？
+
+## 监控
+
+- metric
+- 在线用户
+- 隧道连接
+- 网关转发...
+
+## UI 通用
+
+- 大文本光标问题
+
+## 每日
+
+
+- default group 
+- 协作菜单的图标，不够简洁，请采用更合适的
+

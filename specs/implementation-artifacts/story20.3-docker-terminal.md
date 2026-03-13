@@ -1,7 +1,7 @@
-# Story 20.2: Docker Terminal
+# Story 20.3: Docker Terminal
 
 **Epic**: Epic 20 – Servers
-**Status**: Complete | **Priority**: P1 | **Depends on**: Story 20.1, Epic 15
+**Status**: Complete | **Priority**: P1 | **Depends on**: Story 20.2, Epic 15
 
 ## Scope Positioning
 

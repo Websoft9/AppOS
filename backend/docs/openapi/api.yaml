@@ -51,6 +51,8 @@ tags:
       name: System Cron
     - description: Tunnel lifecycle and connectivity management APIs.
       name: Tunnel
+    - description: Topic discussion sharing — time-limited public share links for topics with anonymous comment support.
+      name: Topics
     - description: Secrets lifecycle management — encrypted credential CRUD, template listing, payload rotation, internal resolve, and reveal APIs. Uses PB native collection for storage with application-layer AES-256-GCM encryption.
       name: Secrets
     - description: Concrete users collection APIs derived from Native Record CRUD actions
@@ -3479,198 +3481,6 @@ paths:
             summary: Update resources env groups by id
             tags:
                 - Resource
-    /api/ext/resources/groups:
-        get:
-            operationId: get_api_ext_resources_groups
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Get resources groups
-            tags:
-                - Resource
-        post:
-            operationId: post_api_ext_resources_groups
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: false
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Create or execute resources groups
-            tags:
-                - Resource
-    /api/ext/resources/groups/{id}:
-        delete:
-            operationId: delete_api_ext_resources_groups_id
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Delete resources groups by id
-            tags:
-                - Resource
-        get:
-            operationId: get_api_ext_resources_groups_id
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Get resources groups by id
-            tags:
-                - Resource
-        put:
-            operationId: put_api_ext_resources_groups_id
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                    type: string
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: false
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Update resources groups by id
-            tags:
-                - Resource
-    /api/ext/resources/groups/{id}/resources:
-        get:
-            operationId: get_api_ext_resources_groups_id_resources
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Get resources groups by id resources
-            tags:
-                - Resource
-    /api/ext/resources/groups/{id}/resources/batch:
-        post:
-            operationId: post_api_ext_resources_groups_id_resources_batch
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                    type: string
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: false
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Create or execute resources groups by id resources batch
-            tags:
-                - Resource
     /api/ext/resources/integrations:
         get:
             operationId: get_api_ext_resources_integrations
@@ -4554,6 +4364,125 @@ paths:
             summary: Local WebSocket terminal
             tags:
                 - System
+    /api/ext/topics/share/{id}:
+        delete:
+            operationId: delete_api_ext_topics_share_id
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Delete topics share by id
+            tags:
+                - Topics
+        post:
+            operationId: post_api_ext_topics_share_id
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Create or execute topics share by id
+            tags:
+                - Topics
+    /api/ext/topics/share/{token}:
+        get:
+            operationId: get_api_ext_topics_share_token
+            parameters:
+                - in: path
+                  name: token
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get topics share by token
+            tags:
+                - Topics
+    /api/ext/topics/share/{token}/comments:
+        post:
+            operationId: post_api_ext_topics_share_token_comments
+            parameters:
+                - in: path
+                  name: token
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Create or execute topics share by token comments
+            tags:
+                - Topics
     /api/ext/tunnel/servers/{id}/setup:
         get:
             operationId: get_api_ext_tunnel_servers_id_setup

@@ -56,6 +56,22 @@ func registerServerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	registerServerOpsRoutes(g)
 }
 
+// credAuthType infers the SSH auth type from a secret's template_id.
+// single_value → "password"; ssh_key → "private_key".
+func credAuthType(app core.App, credID string) string {
+	if credID == "" {
+		return ""
+	}
+	rec, err := app.FindRecordById("secrets", credID)
+	if err != nil {
+		return ""
+	}
+	if rec.GetString("template_id") == "ssh_key" {
+		return "private_key"
+	}
+	return "password"
+}
+
 // resolveServerConfig looks up the server record + decrypted credential and
 // returns a ConnectorConfig.
 //
@@ -77,14 +93,13 @@ func resolveServerConfig(e *core.RequestEvent, serverID string) (servers.Connect
 		cfg.Port = 22
 	}
 	cfg.User = server.GetString("user")
-	cfg.AuthType = server.GetString("auth_type")
 	cfg.Shell = server.GetString("shell")
 
 	credID := server.GetString("credential")
 	if credID != "" {
+		// auth_type is inferred from the secret's template_id (field removed in Story 20.1).
+		cfg.AuthType = credAuthType(e.App, credID)
 		// Resolve credential: supports new payload_encrypted and legacy value formats.
-		// userID is empty string for system-initiated resolves; auth is enforced at
-		// the route level (RequireSuperuserAuth).
 		userID := ""
 		if e.Auth != nil {
 			userID = e.Auth.Id
@@ -93,12 +108,10 @@ func resolveServerConfig(e *core.RequestEvent, serverID string) (servers.Connect
 		if resolveErr != nil {
 			return cfg, fmt.Errorf("credential resolve failed: %w", resolveErr)
 		}
-		// Extract the secret string from the payload map.
-		// Key priority follows auth_type convention across templates.
 		switch cfg.AuthType {
 		case "password":
 			cfg.Secret = sec.FirstStringFromPayload(payload, "password", "value")
-		default: // private_key, key, ssh_key
+		default: // private_key
 			cfg.Secret = sec.FirstStringFromPayload(payload, "private_key", "key", "value")
 		}
 		if cfg.Secret == "" {

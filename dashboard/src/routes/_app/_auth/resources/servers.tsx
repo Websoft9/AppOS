@@ -48,7 +48,7 @@ const fields: FieldDef[] = [
   { key: 'name', label: 'Name', type: 'text', required: true, placeholder: 'my-server' },
   { key: 'host', label: 'Host', type: 'text', placeholder: '192.168.1.1' },
   { key: 'port', label: 'Port', type: 'number', defaultValue: 22 },
-  { key: 'user', label: 'User', type: 'text', placeholder: 'root' },
+  { key: 'user', label: 'User', type: 'text', required: true, placeholder: 'root' },
   {
     key: 'credential',
     label: 'Credential (Secret)',
@@ -58,20 +58,11 @@ const fields: FieldDef[] = [
     relationFormatLabel: formatSecretLabel,
   },
   { key: 'description', label: 'Description', type: 'textarea' },
-  {
-    key: 'groups',
-    label: 'Groups',
-    type: 'relation',
-    multiSelect: true,
-    relationAutoSelectDefault: true,
-    relationApiPath: '/api/ext/resources/groups',
-    relationLabelKey: 'name',
-    defaultValue: [],
-  },
 ]
 
 function ServersPage() {
-  const autoCreate = new URLSearchParams(window.location.search).get('create') === '1'
+  const { create, returnGroup, returnType } = Route.useSearch()
+  const autoCreate = create === '1' || !!returnGroup
   const navigate = useNavigate()
   const [wizardServerId, setWizardServerId] = useState<string | null>(null)
   const [checkingIds, setCheckingIds] = useState<Set<string>>(new Set())
@@ -415,12 +406,17 @@ function ServersPage() {
           fields: serverFields,
           parentNav: { label: 'Resources', href: '/resources' },
           autoCreate,
-          enableGroupAssign: true,
           showRefreshButton: true,
           onRefresh: refreshAllStatuses,
           extraActions: renderExtraActions,
           onCreateSuccess: record => {
-            if (record.connect_type === 'tunnel') {
+            if (returnGroup) {
+              navigate({
+                to: '/groups/$id',
+                params: { id: returnGroup },
+                search: { addOpen: returnType ?? 'server', newItem: String(record.id) },
+              })
+            } else if (record.connect_type === 'tunnel') {
               setWizardServerId(String(record.id))
             }
           },
@@ -558,4 +554,9 @@ function ServersPage() {
 
 export const Route = createFileRoute('/_app/_auth/resources/servers')({
   component: ServersPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    create: typeof search.create === 'string' ? search.create : undefined,
+    returnGroup: typeof search.returnGroup === 'string' ? search.returnGroup : undefined,
+    returnType: typeof search.returnType === 'string' ? search.returnType : undefined,
+  }),
 })

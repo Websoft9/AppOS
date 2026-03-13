@@ -169,6 +169,10 @@ redo:
 	@$(MAKE) build
 	@$(MAKE) image build-local
 	@$(MAKE) start dev
+	@sleep 3
+	@docker exec $(CONTAINER) supervisorctl -c /etc/supervisor/supervisord.conf restart appos 2>/dev/null || true
+	@sleep 2
+	@echo "✓ Services restarted (migrations applied)"
 
 run:
 	@echo "Hot reload: copying pre-built artifacts..."

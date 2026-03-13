@@ -97,6 +97,20 @@ PocketBase is used as an **application framework** — not a standalone BaaS ser
 - **System monitoring**: CPU, memory, disk metrics
 - **Asynq integration**: async task queue for long-running operations
 
+## Product Module Baseline
+
+Dashboard information architecture should keep collaboration capabilities grouped under a dedicated top-level module:
+
+```text
+Collaboration
+  Groups
+  Notes
+```
+
+- `Groups` organizes platform objects such as apps, servers, and reusable resources.
+- `Notes` stores user-authored collaboration records and comments.
+- This separation keeps object organization and discussion history independent while still allowing loose linkage between the two modules.
+
 ## API Architecture
 
 ### Route prefix convention

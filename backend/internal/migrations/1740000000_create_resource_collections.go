@@ -118,54 +118,7 @@ func init() {
 			return err
 		}
 
-		// ─── 4. servers ──────────────────────────────────────
-		servers := core.NewBaseCollection("servers")
-		servers.ListRule = types.Pointer("@request.auth.id != ''")
-		servers.ViewRule = types.Pointer("@request.auth.id != ''")
-		servers.CreateRule = nil
-		servers.UpdateRule = nil
-		servers.DeleteRule = nil
-
-		servers.Fields.Add(&core.TextField{
-			Name:     "name",
-			Required: true,
-			Max:      200,
-		})
-		servers.Fields.Add(&core.TextField{
-			Name:     "host",
-			Required: true,
-		})
-		servers.Fields.Add(&core.NumberField{
-			Name:    "port",
-			OnlyInt: true,
-			Min:     types.Pointer(1.0),
-			Max:     types.Pointer(65535.0),
-		})
-		servers.Fields.Add(&core.TextField{
-			Name:     "user",
-			Required: true,
-		})
-		servers.Fields.Add(&core.SelectField{
-			Name:      "auth_type",
-			Required:  true,
-			MaxSelect: 1,
-			Values:    []string{"password", "key"},
-		})
-		servers.Fields.Add(&core.RelationField{
-			Name:         "credential",
-			CollectionId: secrets.Id,
-			MaxSelect:    1,
-		})
-		servers.Fields.Add(&core.TextField{
-			Name: "description",
-		})
-		servers.AddIndex("idx_servers_name", true, "name", "")
-
-		if err := app.Save(servers); err != nil {
-			return err
-		}
-
-		// ─── 5. databases ────────────────────────────────────
+		// ─── 4. databases ────────────────────────────────────
 		databases := core.NewBaseCollection("databases")
 		databases.ListRule = types.Pointer("@request.auth.id != ''")
 		databases.ViewRule = types.Pointer("@request.auth.id != ''")
@@ -299,7 +252,6 @@ func init() {
 			"certificates",
 			"cloud_accounts",
 			"databases",
-			"servers",
 			"env_group_vars",
 			"env_groups",
 			"secrets",

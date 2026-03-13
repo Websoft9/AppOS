@@ -1,7 +1,7 @@
-# Story 20.4: Server Ops
+# Story 20.5: Server Ops
 
 **Epic**: Epic 20 – Servers
-**Status**: review | **Priority**: P1 | **Depends on**: Story 20.1, Epic 15
+**Status**: review | **Priority**: P1 | **Depends on**: Story 20.2, Epic 15
 
 ## Scope Positioning
 
@@ -131,7 +131,7 @@ All routes are under `/api/servers/{serverId}/ops`.
 
 ### Completion Notes
 
-- Implemented Story 20.4 backend APIs in the Server runtime route domain with strict action/service validation.
+- Implemented Story 20.5 backend APIs in the Server runtime route domain with strict action/service validation.
 - Added unified port inspection endpoint `GET /api/servers/{serverId}/ops/ports/{port}` with `view=occupancy|reservation|all` and optional `protocol=tcp|udp`.
 - Added all-ports endpoint `GET /api/servers/{serverId}/ops/ports` for full occupied/reserved listing.
 - Added occupied-port release endpoint `POST /api/servers/{serverId}/ops/ports/{port}/release` with graceful/force mode.
@@ -148,7 +148,7 @@ All routes are under `/api/servers/{serverId}/ops`.
 
 ### Change Log
 
-- 2026-02-28: Implemented Story 20.4 Server Ops backend + minimal UI flows; aligned server connect UX and terminal layout preset UX.
+- 2026-02-28: Implemented Story 20.5 Server Ops backend + minimal UI flows; aligned server connect UX and terminal layout preset UX.
 - 2026-03-02: Added unified server port inspection endpoint and reservation-source extension (`container_declared`) with Docker-unavailable robustness.
 - 2026-03-02: Added all-ports list API and Connect Terminal `Ports` dialog entry.
 - 2026-03-02: Added port release API + Port Inspector release button and PID-oriented occupancy details.

@@ -143,7 +143,7 @@ export function ResourceHub() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Resources</h1>
           <p className="text-muted-foreground mt-1">
-            Manage reusable infrastructure credentials and configuration
+            Infrastructure your apps depend on to deploy and run
           </p>
         </div>
 

@@ -41,6 +41,8 @@ tags:
     description: "Host metrics, file browser and system shell utility endpoints."
   - name: Tunnel
     description: "Tunnel lifecycle and connectivity management APIs."
+  - name: Topics
+    description: "Topic discussion sharing — time-limited public share links for topics with anonymous comment support."
   - name: Secrets
     description: "Secrets lifecycle management — encrypted credential CRUD, template listing, payload rotation, internal resolve, and reveal APIs. Uses PB native collection for storage with application-layer AES-256-GCM encryption."
 
@@ -2798,191 +2800,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-  /api/ext/resources/groups:
-    get:
-      tags: [Resource]
-      summary: Get resources groups
-      operationId: get_api_ext_resources_groups
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-    post:
-      tags: [Resource]
-      summary: Create or execute resources groups
-      operationId: post_api_ext_resources_groups
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenericRequest'
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-  /api/ext/resources/groups/{id}:
-    delete:
-      tags: [Resource]
-      summary: Delete resources groups by id
-      operationId: delete_api_ext_resources_groups_id
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-    get:
-      tags: [Resource]
-      summary: Get resources groups by id
-      operationId: get_api_ext_resources_groups_id
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-    put:
-      tags: [Resource]
-      summary: Update resources groups by id
-      operationId: put_api_ext_resources_groups_id
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenericRequest'
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-  /api/ext/resources/groups/{id}/resources:
-    get:
-      tags: [Resource]
-      summary: Get resources groups by id resources
-      operationId: get_api_ext_resources_groups_id_resources
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-  /api/ext/resources/groups/{id}/resources/batch:
-    post:
-      tags: [Resource]
-      summary: Create or execute resources groups by id resources batch
-      operationId: post_api_ext_resources_groups_id_resources_batch
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenericRequest'
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
   /api/ext/resources/integrations:
     get:
       tags: [Resource]
@@ -3826,6 +3643,121 @@ paths:
       operationId: get_api_ext_system_terminal
       security:
         - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/ext/topics/share/{id}:
+    delete:
+      tags: [Topics]
+      summary: Delete topics share by id
+      operationId: delete_api_ext_topics_share_id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    post:
+      tags: [Topics]
+      summary: Create or execute topics share by id
+      operationId: post_api_ext_topics_share_id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/ext/topics/share/{token}:
+    get:
+      tags: [Topics]
+      summary: Get topics share by token
+      operationId: get_api_ext_topics_share_token
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/ext/topics/share/{token}/comments:
+    post:
+      tags: [Topics]
+      summary: Create or execute topics share by token comments
+      operationId: post_api_ext_topics_share_token_comments
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: OK

@@ -13,7 +13,6 @@ import (
 //
 // Route groups:
 //
-//	/api/ext/resources/groups/*
 //	/api/ext/resources/env-groups/*
 //	/api/ext/resources/databases/*
 //	/api/ext/resources/cloud-accounts/*
@@ -23,189 +22,12 @@ import (
 func registerResourceRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	r := g.Group("/resources")
 
-	registerResourceGroupsCRUD(r)
 	registerEnvGroupsCRUD(r)
 	registerDatabasesCRUD(r)
 	registerCloudAccountsCRUD(r)
 	registerCertificatesCRUD(r)
 	registerIntegrationsCRUD(r)
 	registerScriptsCRUD(r)
-}
-
-// allResourceTypes maps URL-segment → collection name for cross-type operations.
-var allResourceTypes = map[string]string{
-	"secrets":        "secrets",
-	"env-groups":     "env_groups",
-	"databases":      "databases",
-	"cloud-accounts": "cloud_accounts",
-	"certificates":   "certificates",
-	"integrations":   "integrations",
-	"scripts":        "scripts",
-}
-
-// resourceTypeLabel is the ordered list for stable cross-type listing.
-var resourceTypeOrder = []string{
-	"servers", "secrets", "env-groups", "databases",
-	"cloud-accounts", "certificates", "integrations", "scripts",
-}
-
-// ═══════════════════════════════════════════════════════════
-// Resource Groups
-// ═══════════════════════════════════════════════════════════
-
-var groupFields = []string{"name", "description"}
-
-func registerResourceGroupsCRUD(r *router.RouterGroup[*core.RequestEvent]) {
-	g := r.Group("/groups")
-	g.Bind(apis.RequireSuperuserAuth())
-
-	// List — with per-group resource count
-	g.GET("", func(e *core.RequestEvent) error {
-		groups, err := e.App.FindAllRecords("resource_groups")
-		if err != nil {
-			return resourceError(e, http.StatusInternalServerError, "failed to list groups", err)
-		}
-
-		result := make([]map[string]any, 0, len(groups))
-		for _, grp := range groups {
-			m := recordToMap(grp)
-			count := 0
-			for _, colName := range allResourceTypes {
-				n, _ := e.App.CountRecords(colName,
-					dbx.NewExp("groups LIKE {:pattern}", dbx.Params{"pattern": "%\"" + grp.Id + "\"%"}))
-				count += int(n)
-			}
-			m["resource_count"] = count
-			result = append(result, m)
-		}
-		return e.JSON(http.StatusOK, result)
-	})
-
-	// Create
-	g.POST("", func(e *core.RequestEvent) error {
-		col, err := e.App.FindCollectionByNameOrId("resource_groups")
-		if err != nil {
-			return resourceError(e, http.StatusInternalServerError, "collection not found", err)
-		}
-		record := core.NewRecord(col)
-		return bindAndSave(e, record, groupFields)
-	})
-
-	// Get detail
-	g.GET("/{id}", func(e *core.RequestEvent) error {
-		return getRecord(e, "resource_groups")
-	})
-
-	// Update
-	g.PUT("/{id}", func(e *core.RequestEvent) error {
-		id := e.Request.PathValue("id")
-		record, err := e.App.FindRecordById("resource_groups", id)
-		if err != nil {
-			return e.NotFoundError("Record not found", err)
-		}
-		return bindAndSave(e, record, groupFields)
-	})
-
-	// Delete — blocked for default group
-	g.DELETE("/{id}", func(e *core.RequestEvent) error {
-		id := e.Request.PathValue("id")
-		record, err := e.App.FindRecordById("resource_groups", id)
-		if err != nil {
-			return e.NotFoundError("Record not found", err)
-		}
-		if record.GetBool("is_default") {
-			return resourceError(e, http.StatusBadRequest, "cannot delete the default group", nil)
-		}
-		if err := e.App.Delete(record); err != nil {
-			return resourceError(e, http.StatusInternalServerError, "failed to delete group", err)
-		}
-		return e.NoContent(http.StatusNoContent)
-	})
-
-	// Cross-type resource list for a group
-	g.GET("/{id}/resources", func(e *core.RequestEvent) error {
-		groupId := e.Request.PathValue("id")
-		if _, err := e.App.FindRecordById("resource_groups", groupId); err != nil {
-			return e.NotFoundError("Group not found", err)
-		}
-
-		result := make([]map[string]any, 0)
-		for _, typeKey := range resourceTypeOrder {
-			colName := allResourceTypes[typeKey]
-			records, err := e.App.FindAllRecords(colName,
-				dbx.NewExp("groups LIKE {:pattern}", dbx.Params{"pattern": "%\"" + groupId + "\"%"}))
-			if err != nil {
-				continue
-			}
-			for _, rec := range records {
-				m := recordToMap(rec)
-				m["type"] = typeKey
-				result = append(result, m)
-			}
-		}
-		return e.JSON(http.StatusOK, result)
-	})
-
-	// Batch add/remove resources to/from a group
-	g.POST("/{id}/resources/batch", func(e *core.RequestEvent) error {
-		groupId := e.Request.PathValue("id")
-		if _, err := e.App.FindRecordById("resource_groups", groupId); err != nil {
-			return e.NotFoundError("Group not found", err)
-		}
-
-		var body struct {
-			Action string `json:"action"` // "add" | "remove"
-			Items  []struct {
-				Type string `json:"type"` // "servers", "secrets", etc.
-				ID   string `json:"id"`
-			} `json:"items"`
-		}
-		if err := e.BindBody(&body); err != nil {
-			return e.BadRequestError("Invalid request body", err)
-		}
-		if body.Action != "add" && body.Action != "remove" {
-			return e.BadRequestError("action must be 'add' or 'remove'", nil)
-		}
-
-		for _, item := range body.Items {
-			colName, ok := allResourceTypes[item.Type]
-			if !ok {
-				continue // skip unknown types
-			}
-			rec, err := e.App.FindRecordById(colName, item.ID)
-			if err != nil {
-				continue // skip missing records
-			}
-
-			// Get current groups as []string
-			current := rec.GetStringSlice("groups")
-			updated := toggleGroupMembership(current, groupId, body.Action == "add")
-			rec.Set("groups", updated)
-			_ = e.App.Save(rec)
-		}
-
-		return e.JSON(http.StatusOK, map[string]any{"ok": true})
-	})
-}
-
-// toggleGroupMembership adds or removes groupId from the list.
-func toggleGroupMembership(current []string, groupId string, add bool) []string {
-	if add {
-		for _, id := range current {
-			if id == groupId {
-				return current // already present
-			}
-		}
-		return append(current, groupId)
-	}
-	// remove
-	result := make([]string, 0, len(current))
-	for _, id := range current {
-		if id != groupId {
-			result = append(result, id)
-		}
-	}
-	return result
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -306,7 +128,7 @@ func bindAndSave(e *core.RequestEvent, record *core.Record, fields []string) err
 // Env Groups (with nested vars)
 // ═══════════════════════════════════════════════════════════
 
-var envGroupFields = []string{"name", "description", "groups"}
+var envGroupFields = []string{"name", "description"}
 
 func registerEnvGroupsCRUD(r *router.RouterGroup[*core.RequestEvent]) {
 	eg := r.Group("/env-groups")
@@ -355,9 +177,8 @@ func registerEnvGroupsCRUD(r *router.RouterGroup[*core.RequestEvent]) {
 		}
 
 		var body struct {
-			Name        string   `json:"name"`
-			Description string   `json:"description"`
-			Groups      []string `json:"groups"`
+			Name        string `json:"name"`
+			Description string `json:"description"`
 			Vars        []struct {
 				Key      string `json:"key"`
 				Value    string `json:"value"`
@@ -372,9 +193,6 @@ func registerEnvGroupsCRUD(r *router.RouterGroup[*core.RequestEvent]) {
 		record := core.NewRecord(col)
 		record.Set("name", body.Name)
 		record.Set("description", body.Description)
-		if len(body.Groups) > 0 {
-			record.Set("groups", body.Groups)
-		}
 
 		if err := e.App.Save(record); err != nil {
 			return e.BadRequestError("Validation failed", err)
@@ -398,9 +216,8 @@ func registerEnvGroupsCRUD(r *router.RouterGroup[*core.RequestEvent]) {
 		}
 
 		var body struct {
-			Name        string   `json:"name"`
-			Description string   `json:"description"`
-			Groups      []string `json:"groups"`
+			Name        string `json:"name"`
+			Description string `json:"description"`
 			Vars        []struct {
 				Key      string `json:"key"`
 				Value    string `json:"value"`
@@ -414,9 +231,6 @@ func registerEnvGroupsCRUD(r *router.RouterGroup[*core.RequestEvent]) {
 
 		record.Set("name", body.Name)
 		record.Set("description", body.Description)
-		if len(body.Groups) > 0 {
-			record.Set("groups", body.Groups)
-		}
 
 		if err := e.App.Save(record); err != nil {
 			return e.BadRequestError("Validation failed", err)
@@ -495,7 +309,7 @@ func saveEnvGroupVars(e *core.RequestEvent, groupId string, vars []struct {
 // Databases
 // ═══════════════════════════════════════════════════════════
 
-var databaseFields = []string{"name", "type", "host", "port", "db_name", "user", "password", "description", "groups"}
+var databaseFields = []string{"name", "type", "host", "port", "db_name", "user", "password", "description"}
 
 func registerDatabasesCRUD(r *router.RouterGroup[*core.RequestEvent]) {
 	d := r.Group("/databases")
@@ -532,7 +346,7 @@ func registerDatabasesCRUD(r *router.RouterGroup[*core.RequestEvent]) {
 // Cloud Accounts
 // ═══════════════════════════════════════════════════════════
 
-var cloudAccountFields = []string{"name", "provider", "access_key_id", "secret", "region", "extra", "description", "groups"}
+var cloudAccountFields = []string{"name", "provider", "access_key_id", "secret", "region", "extra", "description"}
 
 func registerCloudAccountsCRUD(r *router.RouterGroup[*core.RequestEvent]) {
 	ca := r.Group("/cloud-accounts")
@@ -569,7 +383,7 @@ func registerCloudAccountsCRUD(r *router.RouterGroup[*core.RequestEvent]) {
 // Certificates
 // ═══════════════════════════════════════════════════════════
 
-var certificateFields = []string{"name", "domain", "cert_pem", "key", "auto_renew", "expires_at", "description", "groups"}
+var certificateFields = []string{"name", "domain", "cert_pem", "key", "auto_renew", "expires_at", "description"}
 
 func registerCertificatesCRUD(r *router.RouterGroup[*core.RequestEvent]) {
 	c := r.Group("/certificates")
@@ -606,7 +420,7 @@ func registerCertificatesCRUD(r *router.RouterGroup[*core.RequestEvent]) {
 // Integrations
 // ═══════════════════════════════════════════════════════════
 
-var integrationFields = []string{"name", "type", "url", "auth_type", "credential", "extra", "description", "groups"}
+var integrationFields = []string{"name", "type", "url", "auth_type", "credential", "extra", "description"}
 
 func registerIntegrationsCRUD(r *router.RouterGroup[*core.RequestEvent]) {
 	ig := r.Group("/integrations")
@@ -643,7 +457,7 @@ func registerIntegrationsCRUD(r *router.RouterGroup[*core.RequestEvent]) {
 // Scripts
 // ═══════════════════════════════════════════════════════════
 
-var scriptFields = []string{"name", "language", "code", "description", "groups"}
+var scriptFields = []string{"name", "language", "code", "description"}
 
 func registerScriptsCRUD(r *router.RouterGroup[*core.RequestEvent]) {
 	sc := r.Group("/scripts")

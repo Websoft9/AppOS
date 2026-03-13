@@ -71,6 +71,11 @@ Small-to-medium teams and novice/intermediate developers without DevOps capabili
    - Simpler than enterprise platforms: Focus on single servers, minimal learning curve
    - More flexible than PaaS: Open-source control, no vendor lock-in
 
+4. **Lightweight Collaboration Layer**
+   - `Groups`: Organize apps and reusable resources into stable customer-, department-, or environment-oriented views
+   - `Notes`: Capture user-authored history, updates, and comments without introducing a full ticketing system
+   - Product navigation keeps both under a dedicated `Collaboration` module
+
 ### Key Differentiators
 
 **Unique Competitive Advantages:**

@@ -337,19 +337,40 @@ dashboard/src/
 
 ## Stories
 
+### Story 20.1 — Server Registry
+
+**Status**: ✅ Complete
+
+Establish the `servers` collection and its full CRUD surface. This is a pure data story — no SSH, no terminal, no ops. The collection definition originated in Epic 8; this story formally owns it within the Servers module.
+
+**Backend:**
+- Go migration: `servers` collection with all fields (`name`, `host`, `port`, `user`, `connect_type`, `credential`, `shell`, `tunnel_server`)
+- API: PocketBase native Records API (`/api/collections/servers/records/*`) — no custom routes needed
+- Auth rule: `RequireSuperuserAuth` on all operations
+
+**Frontend:**
+- Route: `/resources/servers` (list) + `/resources/servers/new` + `/resources/servers/:id`
+- List page: name, host, port, connect_type, credential columns; row actions Edit / Delete
+- Form: all fields with credential picker (filtered to `template_id ∈ {single_value, ssh_key}`, `status = active`)
+- Tunnel server field shown only when `connect_type = tunnel` (conditional field visibility)
+
+---
+
 | Story | Title | Key Deliverables |
 |-------|-------|-----------------|
-| 20.1 | SSH + SFTP backend | `connector.go`, `ssh.go`, `sftp.go`, all routes, audit log |
-| 20.2 | Docker Terminal | `docker_exec.go`, container shell route, shell strategy |
-| 20.3 | SFTP Enhancements | file properties, symlink, copy/move progress, upload limits |
-| 20.4 | Server Ops | connectivity check (with error category), power, ports, systemd API + frontend |
+| 20.1 | Server Registry | `servers` collection migration, PB native CRUD, frontend list/form pages |
+| 20.2 | SSH + SFTP | `connector.go`, `ssh.go`, `sftp.go`, all routes, audit log; Connect workspace UI, FileManagerPanel |
+| 20.3 | Docker Terminal | `docker_exec.go`, container shell route, shell strategy |
+| 20.4 | SFTP Enhancements | file properties, symlink, copy/move progress, upload limits |
+| 20.5 | Server Ops | connectivity check (with error category), power, ports, systemd API + frontend |
 
 | Story | Status |
 |-------|--------|
 | 20.1 | ✅ Complete |
 | 20.2 | ✅ Complete |
 | 20.3 | ✅ Complete |
-| 20.4 | 🟡 In Review |
+| 20.4 | ✅ Complete |
+| 20.5 | 🟡 In Review |
 
 ---
 

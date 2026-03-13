@@ -1,10 +1,10 @@
-# Story 20.3: SFTP Enhancements
+# Story 20.4: SFTP Enhancements
 
-**Epic**: Epic 20 – Servers | **Status**: Review | **Depends on**: 20.1, Epic 15
+**Epic**: Epic 20 – Servers | **Status**: Review | **Depends on**: 20.2, Epic 15
 
 ## Scope Positioning
 
-This story is limited to SFTP/file manager enhancements only. Docker terminal behavior, shell strategy, and Docker connection fixes are tracked in Story 20.2.
+This story is limited to SFTP/file manager enhancements only. Docker terminal behavior, shell strategy, and Docker connection fixes are tracked in Story 20.3.
 
 ## Acceptance Criteria
 
@@ -64,7 +64,7 @@ This story is limited to SFTP/file manager enhancements only. Docker terminal be
 - Added reverse matrix test (mode -> checkbox state sync) and forward matrix test (checkbox -> mode + recursive save).
 - Replaced fixed 50/50 Connect split with draggable divider and persisted ratio.
 - Validation: `go test ./internal/servers ./internal/routes`, `npm test`, `npm run typecheck`, and `make build` all passed.
-- Docker-related completion items were reclassified to Story 20.2 to keep ownership boundaries clear.
+- Docker-related completion items were reclassified to Story 20.3 to keep ownership boundaries clear.
 
 ### Change Log
 
@@ -75,7 +75,7 @@ This story is limited to SFTP/file manager enhancements only. Docker terminal be
 - 2026-02-28: Fixed build break (`TS6133`).
 - 2026-02-28: Refined FileManager operation dialogs to standard modal style and synchronized AC tests.
 - 2026-02-28: Added owner/group name-based properties, permission matrix UI, and recursive permission apply flow.
-- 2026-02-28: Reclassified Docker-related scope to Story 20.2 (documentation boundary refactor only).
+- 2026-02-28: Reclassified Docker-related scope to Story 20.3 (documentation boundary refactor only).
 
 **Code Review Fixes (2026-session):**
 - `connect-api.ts`: Server 接口新增 `connect_type` 字段（`'direct' | 'tunnel' | string`），移除 ConnectServerPage 中的 `as any` 强转
