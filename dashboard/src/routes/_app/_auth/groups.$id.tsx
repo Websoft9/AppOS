@@ -84,7 +84,6 @@ function GroupDetailPage() {
     loadCandidates(addOpenParam)
     // Clear params so this doesn't re-trigger
     void navigate({ to: '/groups/$id', params: { id }, search: { addOpen: undefined, newItem: undefined }, replace: true })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, addOpenParam])
 
   // ─── Data fetch ─────────────────────────────────────────
@@ -342,9 +341,11 @@ function GroupDetailPage() {
     setAddOpen(false)
     // Navigate to the create destination with returnGroup + returnType so the
     // target page can redirect back here after creation.
-    // Dynamic target route — cast to bypass strict search type inference
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    void (navigate as any)({ to: def.createRoute, search: { returnGroup: id, returnType: type } })
+    const navigateDynamic = navigate as unknown as (opts: {
+      to: string
+      search: Record<string, string>
+    }) => Promise<void> | void
+    void navigateDynamic({ to: def.createRoute, search: { returnGroup: id, returnType: type } })
   }
 
   // ─── Render ─────────────────────────────────────────────
@@ -597,7 +598,6 @@ function GroupDetailPage() {
                           placeholder={`Search ${OBJECT_TYPE_MAP[addType]?.label ?? addType}s...`}
                           value={addSearch}
                           onChange={e => setAddSearch(e.target.value)}
-                          // eslint-disable-next-line jsx-a11y/no-autofocus
                           autoFocus
                         />
                       </div>

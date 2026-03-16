@@ -29,7 +29,7 @@ export const OBJECT_TYPES: ObjectTypeDef[] = [
   { type: 'server', label: 'Server', collection: 'servers', nameField: 'name', summaryField: 'ip', detailRoute: '/servers/$id', createRoute: '/resources/servers' },
   { type: 'topic', label: 'Topic', collection: 'topics', nameField: 'title', detailRoute: '/topics/$id', createRoute: '/topics' },
   { type: 'secret', label: 'Secret', collection: 'secrets', nameField: 'name', summaryField: 'type', detailRoute: '/secrets', listSearchKey: 'id', createRoute: '/secrets' },
-  { type: 'env_group', label: 'Env Group', collection: 'env_groups', nameField: 'name', summaryField: undefined, detailRoute: '/env-groups/$id' },
+  { type: 'env_set', label: 'Shared Env', collection: 'env_sets', nameField: 'name', summaryField: undefined, detailRoute: '/resources/shared-envs' },
   { type: 'database', label: 'Database', collection: 'databases', nameField: 'name', summaryField: 'engine', detailRoute: '/databases/$id' },
   { type: 'cloud_account', label: 'Cloud Account', collection: 'cloud_accounts', nameField: 'name', summaryField: 'provider', detailRoute: '/cloud-accounts/$id' },
   { type: 'certificate', label: 'Certificate', collection: 'certificates', nameField: 'domain', summaryField: 'expires', detailRoute: '/certificates/$id' },

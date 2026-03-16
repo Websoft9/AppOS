@@ -129,7 +129,6 @@ function TopicsListPage() {
   // Auto-open create dialog when arriving from Group Add Items flow
   useEffect(() => {
     if (returnGroup && !loading) openCreate()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [returnGroup, loading])
 
   // Build enriched rows
@@ -505,7 +504,14 @@ function TopicsListPage() {
                           className="h-8 w-8"
                           title={row.closed ? 'Reopen' : 'Close'}
                           disabled={togglingId === row.id}
-                          onClick={e => { e.stopPropagation(); row.closed ? handleToggleClosed(row) : setCloseTarget(row) }}
+                          onClick={e => {
+                            e.stopPropagation()
+                            if (row.closed) {
+                              void handleToggleClosed(row)
+                            } else {
+                              setCloseTarget(row)
+                            }
+                          }}
                         >
                           {togglingId === row.id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />

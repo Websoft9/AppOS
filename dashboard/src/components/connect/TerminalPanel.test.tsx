@@ -51,7 +51,8 @@ const mocks = vi.hoisted(() => {
     send = vi.fn()
     close = vi.fn()
 
-    constructor(_url: string) {
+    constructor(url: string) {
+      void url
       MockWebSocket.instances.push(this)
       setTimeout(() => {
         this.onopen?.(new Event('open'))

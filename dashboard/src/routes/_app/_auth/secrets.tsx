@@ -387,20 +387,17 @@ function SecretsPage() {
 
   // Load templates once on mount — they are static server config and never need
   // to reload when the user clicks Refresh (which only refreshes records).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     void fetchTemplates().catch(err =>
       setError(err instanceof Error ? err.message : 'Failed to load secret types')
     )
   }, [])
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { void loadData() }, [])
 
   // Auto-open create dialog when arriving from Group Add Items flow
   useEffect(() => {
     if (returnGroup && !loading) openCreate()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [returnGroup, loading])
 
   // Reset to page 1 when filters/search/sort change

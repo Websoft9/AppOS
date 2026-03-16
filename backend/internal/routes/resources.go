@@ -3,7 +3,6 @@ package routes
 import (
 	"net/http"
 
-	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
@@ -13,19 +12,15 @@ import (
 //
 // Route groups:
 //
-//	/api/ext/resources/env-groups/*
 //	/api/ext/resources/databases/*
 //	/api/ext/resources/cloud-accounts/*
-//	/api/ext/resources/certificates/*
 //	/api/ext/resources/integrations/*
 //	/api/ext/resources/scripts/*
 func registerResourceRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	r := g.Group("/resources")
 
-	registerEnvGroupsCRUD(r)
 	registerDatabasesCRUD(r)
 	registerCloudAccountsCRUD(r)
-	registerCertificatesCRUD(r)
 	registerIntegrationsCRUD(r)
 	registerScriptsCRUD(r)
 }
@@ -125,187 +120,6 @@ func bindAndSave(e *core.RequestEvent, record *core.Record, fields []string) err
 }
 
 // ═══════════════════════════════════════════════════════════
-// Env Groups (with nested vars)
-// ═══════════════════════════════════════════════════════════
-
-var envGroupFields = []string{"name", "description"}
-
-func registerEnvGroupsCRUD(r *router.RouterGroup[*core.RequestEvent]) {
-	eg := r.Group("/env-groups")
-	eg.Bind(apis.RequireSuperuserAuth())
-
-	// List — include vars count
-	eg.GET("", func(e *core.RequestEvent) error {
-		records, err := e.App.FindAllRecords("env_groups")
-		if err != nil {
-			return resourceError(e, http.StatusInternalServerError, "failed to list env groups", err)
-		}
-
-		result := make([]map[string]any, 0, len(records))
-		for _, r := range records {
-			m := recordToMap(r)
-			varsCount, _ := e.App.CountRecords("env_group_vars", dbx.HashExp{"group": r.Id})
-			m["vars_count"] = varsCount
-			result = append(result, m)
-		}
-		return e.JSON(http.StatusOK, result)
-	})
-
-	// Get — include all vars
-	eg.GET("/{id}", func(e *core.RequestEvent) error {
-		id := e.Request.PathValue("id")
-		record, err := e.App.FindRecordById("env_groups", id)
-		if err != nil {
-			return e.NotFoundError("Record not found", err)
-		}
-
-		m := recordToMap(record)
-		vars, _ := e.App.FindAllRecords("env_group_vars", dbx.HashExp{"group": record.Id})
-		varsList := make([]map[string]any, 0, len(vars))
-		for _, v := range vars {
-			varsList = append(varsList, recordToMap(v))
-		}
-		m["vars"] = varsList
-		return e.JSON(http.StatusOK, m)
-	})
-
-	// Create with optional vars
-	eg.POST("", func(e *core.RequestEvent) error {
-		col, err := e.App.FindCollectionByNameOrId("env_groups")
-		if err != nil {
-			return resourceError(e, http.StatusInternalServerError, "collection not found", err)
-		}
-
-		var body struct {
-			Name        string `json:"name"`
-			Description string `json:"description"`
-			Vars        []struct {
-				Key      string `json:"key"`
-				Value    string `json:"value"`
-				IsSecret bool   `json:"is_secret"`
-				Secret   string `json:"secret"`
-			} `json:"vars"`
-		}
-		if err := e.BindBody(&body); err != nil {
-			return e.BadRequestError("Invalid request body", err)
-		}
-
-		record := core.NewRecord(col)
-		record.Set("name", body.Name)
-		record.Set("description", body.Description)
-
-		if err := e.App.Save(record); err != nil {
-			return e.BadRequestError("Validation failed", err)
-		}
-
-		// Create vars
-		if err := saveEnvGroupVars(e, record.Id, body.Vars); err != nil {
-			return e.BadRequestError("Failed to save vars", err)
-		}
-
-		m := recordToMap(record)
-		return e.JSON(http.StatusOK, m)
-	})
-
-	// Update — replace all vars
-	eg.PUT("/{id}", func(e *core.RequestEvent) error {
-		id := e.Request.PathValue("id")
-		record, err := e.App.FindRecordById("env_groups", id)
-		if err != nil {
-			return e.NotFoundError("Record not found", err)
-		}
-
-		var body struct {
-			Name        string `json:"name"`
-			Description string `json:"description"`
-			Vars        []struct {
-				Key      string `json:"key"`
-				Value    string `json:"value"`
-				IsSecret bool   `json:"is_secret"`
-				Secret   string `json:"secret"`
-			} `json:"vars"`
-		}
-		if err := e.BindBody(&body); err != nil {
-			return e.BadRequestError("Invalid request body", err)
-		}
-
-		record.Set("name", body.Name)
-		record.Set("description", body.Description)
-
-		if err := e.App.Save(record); err != nil {
-			return e.BadRequestError("Validation failed", err)
-		}
-
-		// Delete existing vars and re-create
-		existingVars, _ := e.App.FindAllRecords("env_group_vars", dbx.HashExp{"group": record.Id})
-		for _, v := range existingVars {
-			_ = e.App.Delete(v)
-		}
-
-		if err := saveEnvGroupVars(e, record.Id, body.Vars); err != nil {
-			return e.BadRequestError("Failed to save vars", err)
-		}
-
-		m := recordToMap(record)
-		return e.JSON(http.StatusOK, m)
-	})
-
-	// Delete — cascade delete all vars
-	eg.DELETE("/{id}", func(e *core.RequestEvent) error {
-		id := e.Request.PathValue("id")
-		record, err := e.App.FindRecordById("env_groups", id)
-		if err != nil {
-			return e.NotFoundError("Record not found", err)
-		}
-
-		// Delete vars first
-		vars, _ := e.App.FindAllRecords("env_group_vars", dbx.HashExp{"group": record.Id})
-		for _, v := range vars {
-			_ = e.App.Delete(v)
-		}
-
-		if err := e.App.Delete(record); err != nil {
-			return resourceError(e, http.StatusInternalServerError, "failed to delete env group", err)
-		}
-		return e.NoContent(http.StatusNoContent)
-	})
-}
-
-type envGroupVarInput struct {
-	Key      string `json:"key"`
-	Value    string `json:"value"`
-	IsSecret bool   `json:"is_secret"`
-	Secret   string `json:"secret"`
-}
-
-func saveEnvGroupVars(e *core.RequestEvent, groupId string, vars []struct {
-	Key      string `json:"key"`
-	Value    string `json:"value"`
-	IsSecret bool   `json:"is_secret"`
-	Secret   string `json:"secret"`
-}) error {
-	if len(vars) == 0 {
-		return nil
-	}
-	col, err := e.App.FindCollectionByNameOrId("env_group_vars")
-	if err != nil {
-		return err
-	}
-	for _, v := range vars {
-		rec := core.NewRecord(col)
-		rec.Set("group", groupId)
-		rec.Set("key", v.Key)
-		rec.Set("value", v.Value)
-		rec.Set("is_secret", v.IsSecret)
-		rec.Set("secret", v.Secret)
-		if err := e.App.Save(rec); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// ═══════════════════════════════════════════════════════════
 // Databases
 // ═══════════════════════════════════════════════════════════
 
@@ -376,43 +190,6 @@ func registerCloudAccountsCRUD(r *router.RouterGroup[*core.RequestEvent]) {
 	})
 	ca.DELETE("/{id}", func(e *core.RequestEvent) error {
 		return deleteRecord(e, "cloud_accounts")
-	})
-}
-
-// ═══════════════════════════════════════════════════════════
-// Certificates
-// ═══════════════════════════════════════════════════════════
-
-var certificateFields = []string{"name", "domain", "cert_pem", "key", "auto_renew", "expires_at", "description"}
-
-func registerCertificatesCRUD(r *router.RouterGroup[*core.RequestEvent]) {
-	c := r.Group("/certificates")
-	c.Bind(apis.RequireSuperuserAuth())
-
-	c.GET("", func(e *core.RequestEvent) error {
-		return listRecords(e, "certificates")
-	})
-	c.GET("/{id}", func(e *core.RequestEvent) error {
-		return getRecord(e, "certificates")
-	})
-	c.POST("", func(e *core.RequestEvent) error {
-		col, err := e.App.FindCollectionByNameOrId("certificates")
-		if err != nil {
-			return resourceError(e, http.StatusInternalServerError, "collection not found", err)
-		}
-		record := core.NewRecord(col)
-		return bindAndSave(e, record, certificateFields)
-	})
-	c.PUT("/{id}", func(e *core.RequestEvent) error {
-		id := e.Request.PathValue("id")
-		record, err := e.App.FindRecordById("certificates", id)
-		if err != nil {
-			return e.NotFoundError("Record not found", err)
-		}
-		return bindAndSave(e, record, certificateFields)
-	})
-	c.DELETE("/{id}", func(e *core.RequestEvent) error {
-		return deleteRecord(e, "certificates")
 	})
 }
 

@@ -207,6 +207,7 @@ interface OverviewPanelProps {
   loading: boolean
   sessionServerIds: Set<string>
   sessionUpdatedAt: number | null
+  nowTs: number
   onConnect: (server: ServerType) => void
   onTabChange: (tab: TabId) => void
 }
@@ -216,6 +217,7 @@ function OverviewPanel({
   loading,
   sessionServerIds,
   sessionUpdatedAt,
+  nowTs,
   onConnect,
   onTabChange,
 }: OverviewPanelProps) {
@@ -223,7 +225,7 @@ function OverviewPanel({
 
   const sessionMinAgo =
     sessionUpdatedAt != null
-      ? Math.max(1, Math.floor((Date.now() - sessionUpdatedAt) / 60000))
+      ? Math.max(1, Math.floor((nowTs - sessionUpdatedAt) / 60000))
       : null
 
   return (
@@ -337,6 +339,7 @@ interface ServersPanelProps {
   onRetry: () => void
   sessionServerIds: Set<string>
   sessionUpdatedAt: number | null
+  nowTs: number
   onConnect: (server: ServerType) => void
 }
 
@@ -347,6 +350,7 @@ function ServersPanel({
   onRetry,
   sessionServerIds,
   sessionUpdatedAt,
+  nowTs,
   onConnect,
 }: ServersPanelProps) {
   const connectedServers = servers.filter(s => sessionServerIds.has(s.id))
@@ -354,7 +358,7 @@ function ServersPanel({
 
   const sessionMinAgo =
     sessionUpdatedAt != null
-      ? Math.max(1, Math.floor((Date.now() - sessionUpdatedAt) / 60000))
+      ? Math.max(1, Math.floor((nowTs - sessionUpdatedAt) / 60000))
       : null
 
   if (loading) {
@@ -469,6 +473,7 @@ export function TerminalIndexPage() {
   const [error, setError] = useState<string | null>(null)
   const [sessionServerIds, setSessionServerIds] = useState<Set<string>>(new Set())
   const [sessionUpdatedAt, setSessionUpdatedAt] = useState<number | null>(null)
+  const [nowTs, setNowTs] = useState(() => Date.now())
   const [navOpen, setNavOpen] = useState(false)
 
   // Auto-collapse nav when on overview
@@ -510,6 +515,13 @@ export function TerminalIndexPage() {
     }
     setSessionServerIds(new Set(session.tabs.map(t => t.serverId)))
     setSessionUpdatedAt(session.updatedAt)
+  }, [])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNowTs(Date.now())
+    }, 60_000)
+    return () => window.clearInterval(timer)
   }, [])
 
   const handleConnect = useCallback(
@@ -643,6 +655,7 @@ export function TerminalIndexPage() {
               loading={loading}
               sessionServerIds={sessionServerIds}
               sessionUpdatedAt={sessionUpdatedAt}
+              nowTs={nowTs}
               onConnect={handleConnect}
               onTabChange={setActiveTab}
             />
@@ -655,6 +668,7 @@ export function TerminalIndexPage() {
               onRetry={fetchServers}
               sessionServerIds={sessionServerIds}
               sessionUpdatedAt={sessionUpdatedAt}
+              nowTs={nowTs}
               onConnect={handleConnect}
             />
           )}

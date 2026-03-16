@@ -115,6 +115,83 @@ func TestSecretsResolveRequiresInternalHeader(t *testing.T) {
 	}
 }
 
+func TestSecretsResolveRejectsMissingOrInvalidInternalToken(t *testing.T) {
+	te := newSecretsTestEnv(t)
+	defer te.cleanup()
+
+	col, err := te.app.FindCollectionByNameOrId("secrets")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := core.NewRecord(col)
+	rec.Set("name", "route-secret-token-check")
+	rec.Set("template_id", "single_value")
+	rec.Set("scope", "global")
+	rec.Set("access_mode", "use_only")
+	rec.Set("status", "active")
+	rec.Set("created_by", "u1")
+	enc, err := secrets.EncryptPayload(map[string]any{"value": "hello"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec.Set("payload_encrypted", enc)
+	if err := te.app.Save(rec); err != nil {
+		t.Fatal(err)
+	}
+
+	body := `{"secret_id":"` + rec.Id + `","used_by":"test:token"}`
+
+	res := doSecretsRoute(t, te, http.MethodPost, "/api/secrets/resolve", body, false, true)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", res.Code, res.Body.String())
+	}
+
+	r, err := apis.NewRouter(te.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := r.Group("/api/secrets")
+	registerSecretsGroup(g)
+	mux, err := r.BuildMux()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reqNoToken := httptest.NewRequest(http.MethodPost, "/api/secrets/resolve", strings.NewReader(body))
+	reqNoToken.Header.Set("Content-Type", "application/json")
+	reqNoToken.Header.Set("X-Appos-Internal", "1")
+	reqNoToken.RemoteAddr = "127.0.0.1:12345"
+	recNoToken := httptest.NewRecorder()
+	mux.ServeHTTP(recNoToken, reqNoToken)
+	if recNoToken.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 for missing token, got %d: %s", recNoToken.Code, recNoToken.Body.String())
+	}
+
+	reqBadToken := httptest.NewRequest(http.MethodPost, "/api/secrets/resolve", strings.NewReader(body))
+	reqBadToken.Header.Set("Content-Type", "application/json")
+	reqBadToken.Header.Set("X-Appos-Internal", "1")
+	reqBadToken.Header.Set("X-Appos-Internal-Token", "wrong-token")
+	reqBadToken.RemoteAddr = "127.0.0.1:12345"
+	recBadToken := httptest.NewRecorder()
+	mux.ServeHTTP(recBadToken, reqBadToken)
+	if recBadToken.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 for invalid token, got %d: %s", recBadToken.Code, recBadToken.Body.String())
+	}
+}
+
+func TestSecretsResolveRejectsWhenInternalTokenNotConfigured(t *testing.T) {
+	te := newSecretsTestEnv(t)
+	defer te.cleanup()
+
+	t.Setenv("APPOS_INTERNAL_TOKEN", "")
+
+	body := `{"secret_id":"any","used_by":"test:no-token-env"}`
+	res := doSecretsRoute(t, te, http.MethodPost, "/api/secrets/resolve", body, false, true)
+	if res.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 when APPOS_INTERNAL_TOKEN is empty, got %d: %s", res.Code, res.Body.String())
+	}
+}
+
 func TestSecretsPayloadUpdateRevokedForbidden(t *testing.T) {
 	te := newSecretsTestEnv(t)
 	defer te.cleanup()

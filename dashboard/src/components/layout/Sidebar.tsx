@@ -137,9 +137,9 @@ const credentialsNavItem: NavItem = {
       href: '/certificates',
     },
     {
-      id: 'credentials-env-vars',
-      label: 'Environment',
-      href: '/admin/credentials/env-vars',
+      id: 'credentials-shared-envs',
+      label: 'Shared Envs',
+      href: '/shared-envs',
     },
   ],
 }

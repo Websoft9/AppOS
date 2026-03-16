@@ -255,59 +255,43 @@ func TestCloudAccountsCreateAndList(t *testing.T) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// Certificates
+// Env Sets (native PocketBase API — no custom ext routes)
 // ═══════════════════════════════════════════════════════════
 
-func TestCertificatesCreateAndDelete(t *testing.T) {
+// TestEnvSetsNativeAPI verifies that env_sets and env_set_vars are accessible
+// via PocketBase native Records API (no custom ext routes needed).
+func TestEnvSetsNativeAPI(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	rec := te.do(t, http.MethodPost, "/api/ext/resources/certificates",
-		`{"name":"wildcard-cert","domain":"*.example.com","auto_renew":true}`, true)
+	// Create env_set via native API
+	rec := te.do(t, http.MethodPost, "/api/collections/env_sets/records",
+		`{"name":"staging-env","description":"Staging vars"}`, true)
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("create: expected 200, got %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("create env_set: expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 
 	created := parseJSON(t, rec)
-	id := created["id"].(string)
+	setId := created["id"].(string)
 
-	rec = te.do(t, http.MethodDelete, "/api/ext/resources/certificates/"+id, "", true)
-	if rec.Code != http.StatusNoContent {
-		t.Fatalf("delete: expected 204, got %d: %s", rec.Code, rec.Body.String())
-	}
-}
-
-// ═══════════════════════════════════════════════════════════
-// Env Groups
-// ═══════════════════════════════════════════════════════════
-
-func TestEnvGroupsCreateWithVars(t *testing.T) {
-	te := newTestEnv(t)
-	defer te.cleanup()
-
-	rec := te.do(t, http.MethodPost, "/api/ext/resources/env-groups",
-		`{"name":"staging-env","description":"Staging vars","vars":[{"key":"DB_HOST","value":"localhost","is_secret":false},{"key":"DB_PASS","value":"secret","is_secret":true}]}`, true)
+	// Create env_set_var via native API
+	rec = te.do(t, http.MethodPost, "/api/collections/env_set_vars/records",
+		`{"set":"`+setId+`","key":"DB_HOST","value":"localhost","is_secret":false}`, true)
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("create: expected 200, got %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("create env_set_var: expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 
-	created := parseJSON(t, rec)
-	id := created["id"].(string)
-
-	// Get should include vars
-	rec = te.do(t, http.MethodGet, "/api/ext/resources/env-groups/"+id, "", true)
+	// List env_set_vars filtered by set
+	rec = te.do(t, http.MethodGet, "/api/collections/env_set_vars/records?filter=set%3D'"+setId+"'", "", true)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("get: expected 200, got %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("list env_set_vars: expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 
 	got := parseJSON(t, rec)
-	vars, ok := got["vars"].([]any)
-	if !ok {
-		t.Fatal("expected 'vars' to be an array")
-	}
-	if len(vars) != 2 {
-		t.Fatalf("expected 2 vars, got %d", len(vars))
+	totalItems, ok := got["totalItems"].(float64)
+	if !ok || totalItems != 1 {
+		t.Fatalf("expected 1 env_set_var, got %v", got["totalItems"])
 	}
 }

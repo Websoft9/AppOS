@@ -41,7 +41,7 @@ interface ResourceItem {
 const TYPE_LABELS: Record<string, string> = {
   servers: 'Server',
   secrets: 'Secret',
-  'env-groups': 'Env Group',
+  'shared-envs': 'Shared Env',
   databases: 'Database',
   'cloud-accounts': 'Cloud Account',
   certificates: 'Certificate',

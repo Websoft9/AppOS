@@ -42,6 +42,7 @@ func Register(app *pocketbase.PocketBase) {
 	registerSuperuserHooks(app)
 	registerUserAuditHooks(app)
 	registerLoginAuditHooks(app)
+	registerEnvSetHooks(app)
 	secrets.RegisterHooks(app)
 	certs.RegisterHooks(app)
 }
@@ -298,6 +299,26 @@ func registerLoginAuditHooks(app *pocketbase.PocketBase) {
 			return nil
 		})
 	}
+}
+
+// registerEnvSetHooks registers safety guards for the env_sets collection.
+func registerEnvSetHooks(app *pocketbase.PocketBase) {
+	// Guard: prevent deleting an env_set that still has child variables.
+	app.OnRecordDeleteRequest("env_sets").BindFunc(func(e *core.RecordRequestEvent) error {
+		count, err := app.CountRecords("env_set_vars",
+			dbx.HashExp{"set": e.Record.Id},
+		)
+		if err != nil {
+			return fmt.Errorf("env_set guard: failed to count variables: %w", err)
+		}
+		if count > 0 {
+			return apis.NewBadRequestError(
+				fmt.Sprintf("cannot delete env set: remove its %d variable(s) first", count),
+				nil,
+			)
+		}
+		return e.Next()
+	})
 }
 
 // registerSuperuserHooks registers safety guards for the _superusers system collection.

@@ -8,10 +8,15 @@ import {
   RefreshCw,
   Loader2,
   FileText,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  LayoutList,
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -114,6 +119,13 @@ function SortHeader({
 
 // ─── Component ───────────────────────────────────────────
 
+interface SummaryStats {
+  total: number
+  success: number
+  failed: number
+  pending: number
+}
+
 function AuditPage() {
   const isSuperuser = pb.authStore.record?.collectionName === '_superusers'
 
@@ -122,6 +134,7 @@ function AuditPage() {
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [summary, setSummary] = useState<SummaryStats | null>(null)
 
   const [filterAction, setFilterAction] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
@@ -150,6 +163,7 @@ function AuditPage() {
         const result = await pb.collection('audit_logs').getList<AuditLog>(p, perPage, {
           sort,
           filter: buildFilter(action, status),
+          requestKey: 'audit-logs-list',
         })
         setLogs(result.items)
         setTotalPages(result.totalPages)
@@ -164,17 +178,40 @@ function AuditPage() {
     []
   )
 
+  const fetchSummary = useCallback(async () => {
+    try {
+      const [total, success, failed, pending] = await Promise.all([
+        pb.collection('audit_logs').getList(1, 1, { requestKey: 'audit-summary-total' }),
+        pb.collection('audit_logs').getList(1, 1, { filter: 'status = "success"', requestKey: 'audit-summary-success' }),
+        pb.collection('audit_logs').getList(1, 1, { filter: 'status = "failed"', requestKey: 'audit-summary-failed' }),
+        pb.collection('audit_logs').getList(1, 1, { filter: 'status = "pending"', requestKey: 'audit-summary-pending' }),
+      ])
+      setSummary({
+        total: total.totalItems,
+        success: success.totalItems,
+        failed: failed.totalItems,
+        pending: pending.totalItems,
+      })
+    } catch {
+      // summary is non-critical, ignore errors
+    }
+  }, [])
+
   useEffect(() => {
     fetchLogs(page, filterAction, filterStatus, sortParam, pageSize)
   }, [page, filterAction, filterStatus, sortParam, pageSize, fetchLogs])
+
+  useEffect(() => {
+    fetchSummary()
+  }, [fetchSummary])
 
   const selectClass =
     'h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring'
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold">Audit &amp; Logs</h2>
+      <div className="flex items-center justify-between mb-1">
+        <h2 className="text-2xl font-bold">Audit</h2>
         <div className="flex items-center gap-1">
           {isSuperuser && (
             <Button variant="ghost" size="sm" asChild>
@@ -186,12 +223,60 @@ function AuditPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => fetchLogs(page, filterAction, filterStatus, sortParam, pageSize)}
+            onClick={() => {
+              fetchLogs(page, filterAction, filterStatus, sortParam, pageSize)
+              fetchSummary()
+            }}
           >
             <RefreshCw className="h-4 w-4 mr-1" /> Refresh
           </Button>
         </div>
       </div>
+      <p className="text-sm text-muted-foreground mb-4">
+        Records sensitive and critical user operations for accountability.
+      </p>
+
+      {/* Summary */}
+      {summary && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <Card>
+            <CardContent className="flex items-center gap-3 py-4 px-4">
+              <LayoutList className="h-5 w-5 text-muted-foreground shrink-0" />
+              <div>
+                <p className="text-xs text-muted-foreground">Total</p>
+                <p className="text-xl font-semibold">{summary.total}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="flex items-center gap-3 py-4 px-4">
+              <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
+              <div>
+                <p className="text-xs text-muted-foreground">Success</p>
+                <p className="text-xl font-semibold">{summary.success}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="flex items-center gap-3 py-4 px-4">
+              <XCircle className="h-5 w-5 text-destructive shrink-0" />
+              <div>
+                <p className="text-xs text-muted-foreground">Failed</p>
+                <p className="text-xl font-semibold">{summary.failed}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="flex items-center gap-3 py-4 px-4">
+              <Clock className="h-5 w-5 text-yellow-500 shrink-0" />
+              <div>
+                <p className="text-xs text-muted-foreground">Pending</p>
+                <p className="text-xl font-semibold">{summary.pending}</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Filter bar */}
       <div className="flex flex-wrap gap-3 mb-4">

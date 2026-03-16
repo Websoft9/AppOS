@@ -2,11 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate, Link } from '@tanstack/react-router'
 import {
   Server,
-  KeyRound,
-  Braces,
   Database,
   Cloud,
-  FileCheck,
   Plug,
   FileCode,
   Plus,
@@ -45,22 +42,7 @@ const RESOURCES: ResourceDef[] = [
     href: '/resources/servers',
     apiPath: '/api/collections/servers/records',
   },
-  {
-    key: 'secrets',
-    title: 'Secrets',
-    description: 'Credentials, tokens & keys',
-    icon: <KeyRound className="h-5 w-5" />,
-    href: '/secrets',
-    apiPath: '/api/collections/secrets/records',
-  },
-  {
-    key: 'env-groups',
-    title: 'Env Groups',
-    description: 'Reusable variable sets',
-    icon: <Braces className="h-5 w-5" />,
-    href: '/resources/env-groups',
-    apiPath: '/api/ext/resources/env-groups',
-  },
+
   {
     key: 'databases',
     title: 'Databases',
@@ -77,14 +59,7 @@ const RESOURCES: ResourceDef[] = [
     href: '/resources/cloud-accounts',
     apiPath: '/api/ext/resources/cloud-accounts',
   },
-  {
-    key: 'certificates',
-    title: 'Certificates',
-    description: 'TLS certs & keys',
-    icon: <FileCheck className="h-5 w-5" />,
-    href: '/resources/certificates',
-    apiPath: '/api/ext/resources/certificates',
-  },
+
   {
     key: 'integrations',
     title: 'Integrations',
@@ -110,18 +85,26 @@ export function ResourceHub() {
   const [counts, setCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
 
+  // Collections that use PocketBase native Records API (support getList pagination)
+  const nativeCollections: Record<string, string> = {
+    servers: 'servers',
+  }
+
   useEffect(() => {
-    const promises = RESOURCES.map(r =>
-      (r.key === 'servers' || r.key === 'secrets'
-        ? pb
-            .collection(r.key)
-            .getList(1, 1)
-            .then(data => ({ key: r.key, count: data.totalItems ?? 0 }))
-        : pb
-            .send<unknown[]>(r.apiPath, {})
-            .then(data => ({ key: r.key, count: Array.isArray(data) ? data.length : 0 }))
-      ).catch(() => ({ key: r.key, count: 0 }))
-    )
+    const promises = RESOURCES.map(r => {
+      const colName = nativeCollections[r.key]
+      if (colName) {
+        return pb
+          .collection(colName)
+          .getList(1, 1)
+          .then(data => ({ key: r.key, count: data.totalItems ?? 0 }))
+          .catch(() => ({ key: r.key, count: 0 }))
+      }
+      return pb
+        .send<unknown[]>(r.apiPath, {})
+        .then(data => ({ key: r.key, count: Array.isArray(data) ? data.length : 0 }))
+        .catch(() => ({ key: r.key, count: 0 }))
+    })
     Promise.allSettled(promises).then(results => {
       const c: Record<string, number> = {}
       for (const r of results) {

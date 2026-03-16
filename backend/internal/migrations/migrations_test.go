@@ -10,7 +10,7 @@ import (
 	_ "github.com/websoft9/appos/backend/internal/migrations"
 )
 
-// TestResourceCollectionsCreated verifies that all 7 resource collections
+// TestResourceCollectionsCreated verifies that all resource collections
 // are created after running migrations.
 func TestResourceCollectionsCreated(t *testing.T) {
 	app, err := tests.NewTestApp()
@@ -21,8 +21,8 @@ func TestResourceCollectionsCreated(t *testing.T) {
 
 	expected := []string{
 		"secrets",
-		"env_groups",
-		"env_group_vars",
+		"env_sets",
+		"env_set_vars",
 		"servers",
 		"databases",
 		"cloud_accounts",
@@ -128,27 +128,37 @@ func TestServersCollectionFields(t *testing.T) {
 	}
 }
 
-// TestEnvGroupVarsCollectionFields verifies env_group_vars schema and relations.
-func TestEnvGroupVarsCollectionFields(t *testing.T) {
+// TestEnvSetVarsCollectionFields verifies env_set_vars schema and relations.
+func TestEnvSetVarsCollectionFields(t *testing.T) {
 	app, err := tests.NewTestApp()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer app.Cleanup()
 
-	col, err := app.FindCollectionByNameOrId("env_group_vars")
+	col, err := app.FindCollectionByNameOrId("env_set_vars")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	assertFieldExists(t, col, "group", core.FieldTypeRelation, true)
+	assertFieldExists(t, col, "set", core.FieldTypeRelation, true)
 	assertFieldExists(t, col, "key", core.FieldTypeText, true)
 	assertFieldExists(t, col, "value", core.FieldTypeText, false)
 	assertFieldExists(t, col, "is_secret", core.FieldTypeBool, false)
 	assertFieldExists(t, col, "secret", core.FieldTypeRelation, false)
 
-	assertRelationTarget(t, app, col, "group", "env_groups")
+	assertRelationTarget(t, app, col, "set", "env_sets")
 	assertRelationTarget(t, app, col, "secret", "secrets")
+
+	// Cascade delete: deleting env_set should delete child vars
+	setField := col.Fields.GetByName("set")
+	rf, ok := setField.(*core.RelationField)
+	if !ok {
+		t.Fatal("env_set_vars.set is not a RelationField")
+	}
+	if !rf.CascadeDelete {
+		t.Error("env_set_vars.set should have CascadeDelete enabled")
+	}
 }
 
 // TestDatabasesCollectionFields verifies databases schema and relations.
@@ -331,7 +341,7 @@ func TestAppsCollectionResourceFields(t *testing.T) {
 	// Relation fields
 	assertRelationTarget(t, app, col, "server", "servers")
 	assertRelationTarget(t, app, col, "secrets", "secrets")
-	assertRelationTarget(t, app, col, "env_groups", "env_groups")
+	assertRelationTarget(t, app, col, "env_sets", "env_sets")
 	assertRelationTarget(t, app, col, "databases", "databases")
 	assertRelationTarget(t, app, col, "cloud_accounts", "cloud_accounts")
 	assertRelationTarget(t, app, col, "certificates", "certificates")
@@ -493,7 +503,7 @@ func TestResourceCollectionsHaveNoGroupsField(t *testing.T) {
 	defer app.Cleanup()
 
 	collections := []string{
-		"servers", "secrets", "env_groups",
+		"servers", "secrets", "env_sets",
 		"databases", "cloud_accounts", "certificates",
 		"integrations", "scripts",
 	}
@@ -523,5 +533,146 @@ func TestGroupsAndGroupItemsExistAfterMigration(t *testing.T) {
 	}
 	if _, err := app.FindCollectionByNameOrId("group_items"); err != nil {
 		t.Error("group_items collection not found after migration:", err)
+	}
+}
+
+// ═══════════════════════════════════════════════════════════
+// Epic 24: Shared Envs
+// ═══════════════════════════════════════════════════════════
+
+// TestLegacyEnvGroupsRemoved verifies that old env_groups / env_group_vars
+// collections no longer exist after the migration.
+func TestLegacyEnvGroupsRemoved(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Cleanup()
+
+	if _, err := app.FindCollectionByNameOrId("env_groups"); err == nil {
+		t.Error("env_groups collection should not exist after Epic 24 migration")
+	}
+	if _, err := app.FindCollectionByNameOrId("env_group_vars"); err == nil {
+		t.Error("env_group_vars collection should not exist after Epic 24 migration")
+	}
+}
+
+// TestEnvSetsCollectionFields verifies the env_sets collection schema.
+func TestEnvSetsCollectionFields(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Cleanup()
+
+	col, err := app.FindCollectionByNameOrId("env_sets")
+	if err != nil {
+		t.Fatal("env_sets collection not found:", err)
+	}
+	if col.Type != core.CollectionTypeBase {
+		t.Errorf("expected base collection, got %q", col.Type)
+	}
+
+	assertFieldExists(t, col, "name", core.FieldTypeText, true)
+	assertFieldExists(t, col, "description", core.FieldTypeText, false)
+
+	// Authenticated read; superuser-only CUD
+	if col.ListRule == nil {
+		t.Error("env_sets.ListRule should allow authenticated users")
+	}
+	if col.ViewRule == nil {
+		t.Error("env_sets.ViewRule should allow authenticated users")
+	}
+	if col.CreateRule != nil {
+		t.Error("env_sets.CreateRule should be nil (superuser only)")
+	}
+	if col.UpdateRule != nil {
+		t.Error("env_sets.UpdateRule should be nil (superuser only)")
+	}
+	if col.DeleteRule != nil {
+		t.Error("env_sets.DeleteRule should be nil (superuser only)")
+	}
+}
+
+// TestAppsEnvSetsField verifies that apps collection has env_sets relation field.
+func TestAppsEnvSetsField(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Cleanup()
+
+	col, err := app.FindCollectionByNameOrId("apps")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Old field must be gone
+	if col.Fields.GetByName("env_groups") != nil {
+		t.Error("apps should not have legacy 'env_groups' field")
+	}
+
+	// New field must exist and point to env_sets
+	assertRelationTarget(t, app, col, "env_sets", "env_sets")
+}
+
+// TestEnvSetVarsCascadeDelete verifies that deleting an env_set cascades
+// to child env_set_vars records.
+func TestEnvSetVarsCascadeDelete(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Cleanup()
+
+	// Create an env_set
+	setCol, _ := app.FindCollectionByNameOrId("env_sets")
+	rec := core.NewRecord(setCol)
+	rec.Set("name", "test-cascade-set")
+	if err := app.Save(rec); err != nil {
+		t.Fatal("failed to create env_set:", err)
+	}
+
+	// Create a child var
+	varCol, _ := app.FindCollectionByNameOrId("env_set_vars")
+	varRec := core.NewRecord(varCol)
+	varRec.Set("set", rec.Id)
+	varRec.Set("key", "TEST_KEY")
+	varRec.Set("value", "test_value")
+	if err := app.Save(varRec); err != nil {
+		t.Fatal("failed to create env_set_var:", err)
+	}
+	varId := varRec.Id
+
+	// Delete parent — child should be cascade-deleted
+	if err := app.Delete(rec); err != nil {
+		t.Fatal("failed to delete env_set:", err)
+	}
+
+	if _, err := app.FindRecordById("env_set_vars", varId); err == nil {
+		t.Error("env_set_var should be cascade-deleted when parent env_set is deleted")
+	}
+}
+
+// TestEnvSetVarsSecretExpandHidesPayload verifies that expanding the secret
+// relation on env_set_vars does NOT expose payload_encrypted.
+func TestEnvSetVarsSecretExpandHidesPayload(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Cleanup()
+
+	// Verify secrets.payload_encrypted is hidden
+	secretsCol, err := app.FindCollectionByNameOrId("secrets")
+	if err != nil {
+		t.Fatal(err)
+	}
+	payloadField := secretsCol.Fields.GetByName("payload_encrypted")
+	if payloadField == nil {
+		t.Fatal("secrets.payload_encrypted field not found")
+	}
+	if !payloadField.GetHidden() {
+		t.Error("secrets.payload_encrypted must be hidden to prevent exposure via expand")
 	}
 }
