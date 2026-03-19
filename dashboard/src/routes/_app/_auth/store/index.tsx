@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { getLocale } from '@/lib/i18n'
@@ -43,6 +43,7 @@ export const Route = createFileRoute('/_app/_auth/store/')({
 // ─── Component ────────────────────────────────────────────────────────────────
 
 function StorePage() {
+  const navigate = useNavigate()
   const { t } = useTranslation('store')
   const queryClient = useQueryClient()
   const locale = getLocale()
@@ -460,6 +461,26 @@ function StorePage() {
         onSaveNote={selectedAppIsCustom ? undefined : handleSaveNote}
         isSavingNote={selectedAppIsCustom ? undefined : saveNote.isPending}
         showDeploy
+        onDeploy={
+          selectedApp
+            ? () => {
+                setModalOpen(false)
+                void navigate({
+                  to: '/deploy',
+                  search: {
+                    prefillMode: 'target',
+                    prefillSource: selectedAppIsCustom ? 'template' : 'library',
+                    prefillAppId: undefined,
+                    prefillAppKey: selectedApp.key,
+                    prefillAppName: selectedApp.trademark,
+                    prefillServerId: undefined,
+                    deploymentId: undefined,
+                    autoOpen: '1',
+                  },
+                })
+              }
+            : undefined
+        }
         fallbackScreenshots={enScreenshots}
         onEdit={
           selectedAppIsCustom &&

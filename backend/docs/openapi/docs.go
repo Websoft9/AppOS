@@ -5,7 +5,7 @@ package openapidocs
 
 import _ "embed"
 
-// APISpec is the raw merged OpenAPI 3.0 YAML (Ext + Native).
+// APISpec is the raw merged OpenAPI 3.0 YAML for generated custom routes and native APIs.
 //
 //go:embed api.yaml
 var APISpec []byte

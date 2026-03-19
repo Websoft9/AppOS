@@ -16,10 +16,10 @@ var (
 	reGroupAssign       = regexp.MustCompile(`(\w+)\s*:?=\s*(\w+)\.Group\("([^"]*)"\)`)
 	reRouterGroupAssign = regexp.MustCompile(`(\w+)\s*:?=\s*(\w+)\.Router\.Group\("([^"]*)"\)`)
 	reRouteMethod       = regexp.MustCompile(`(\w+)\.(GET|POST|PUT|DELETE|PATCH|HEAD)\("([^"]*)"`)
-	reSpecPathKey       = regexp.MustCompile(`^  (/(?:api/ext|api/servers)[^\s:]*):\s*$`)
+	reSpecPathKey       = regexp.MustCompile(`^  (/(?:api/ext|api/servers|api/deployments|api/apps|api/components)[^\s:]*):\s*$`)
 )
 
-func TestAllExtRoutesCoveredByOpenAPISpec(t *testing.T) {
+func TestAllCustomRoutesCoveredByOpenAPISpec(t *testing.T) {
 	_, thisFile, _, _ := runtime.Caller(0)
 	routesDir := filepath.Dir(thisFile)
 
@@ -57,7 +57,7 @@ func TestAllExtRoutesCoveredByOpenAPISpec(t *testing.T) {
 	t.Logf("Coverage check: %d code routes detected, %d paths in spec", len(codeRoutes), len(specPaths))
 	if len(missing) > 0 {
 		sort.Strings(missing)
-		t.Errorf("%d route(s) registered in code but missing from ext-api.yaml.\nAdd the following paths to backend/docs/openapi/ext-api.yaml:\n\n%s", len(missing), strings.Join(missing, "\n"))
+		t.Errorf("%d custom route(s) registered in code but missing from the generated custom-route spec.\nAdd the following paths to backend/docs/openapi/ext-api.yaml:\n\n%s", len(missing), strings.Join(missing, "\n"))
 	}
 }
 
@@ -91,6 +91,12 @@ func extractRoutesFromFile(path string) ([]string, error) {
 	if strings.HasPrefix(filepath.Base(path), "server") {
 		defaultG = "/api/servers"
 	}
+	if filepath.Base(path) == "components.go" {
+		defaultG = "/api/components"
+	}
+	if filepath.Base(path) == "deploy.go" || filepath.Base(path) == "apps.go" {
+		defaultG = "/api"
+	}
 
 	vars := map[string]string{
 		"g":  defaultG,
@@ -119,7 +125,7 @@ func extractRoutesFromFile(path string) ([]string, error) {
 
 		if m := reRouteMethod.FindStringSubmatch(line); m != nil {
 			varName, method, suffix := m[1], m[2], m[3]
-			if base, ok := vars[varName]; ok && (strings.HasPrefix(base, "/api/ext") || strings.HasPrefix(base, "/api/servers")) {
+			if base, ok := vars[varName]; ok && (strings.HasPrefix(base, "/api/ext") || strings.HasPrefix(base, "/api/servers") || strings.HasPrefix(base, "/api/deployments") || strings.HasPrefix(base, "/api/apps") || strings.HasPrefix(base, "/api/components")) {
 				routes = append(routes, method+" "+base+suffix)
 			}
 		}

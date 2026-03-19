@@ -38,6 +38,7 @@ const (
 // Register binds all custom event hooks to the PocketBase app.
 func Register(app *pocketbase.PocketBase) {
 	registerAppHooks(app)
+	registerCronHooks(app)
 	registerSpaceHooks(app)
 	registerSuperuserHooks(app)
 	registerUserAuditHooks(app)

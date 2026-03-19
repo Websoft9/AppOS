@@ -37,6 +37,7 @@ interface AppDetailModalProps {
   onSaveNote?: (appKey: string, note: string | null) => void
   isSavingNote?: boolean
   showDeploy?: boolean
+  onDeploy?: () => void
   fallbackScreenshots?: Screenshot[]
   /** Custom app actions — show edit/delete in the action bar when provided */
   onEdit?: () => void
@@ -57,6 +58,7 @@ export function AppDetailModal({
   onSaveNote,
   isSavingNote,
   showDeploy = true,
+  onDeploy,
   fallbackScreenshots = [],
   onEdit,
   onDelete,
@@ -144,7 +146,7 @@ export function AppDetailModal({
         {(showDeploy || onToggleFavorite || onEdit || onDelete) && (
           <div className="flex items-center gap-3 mt-1">
             {showDeploy && (
-              <Button className="flex-1" size="lg">
+              <Button className="flex-1" size="lg" onClick={onDeploy}>
                 {t('detail.deploy')}
               </Button>
             )}

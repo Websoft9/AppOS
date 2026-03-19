@@ -109,7 +109,7 @@ Implement frontend infrastructure only (framework, not features):
 - Downstream: 
   - **Epic 3 (Auth)** - builds on Epic 7 framework, adds auth UI and state
   - **Epic 5 (Store Module)** - uses Epic 7 layout, routing, and components
-  - **Epic 6 (Services Module)** - uses Epic 7 layout, routing, and components
+  - **Epic 6 (Components)** - uses Epic 7 layout, routing, and components
 
 ## Technical Notes
 
@@ -198,8 +198,8 @@ dashboard/
 - Create AuthContext in `contexts/AuthContext.tsx`
 - Add route guards using TanStack Router
 
-**For Epic 5 (Store) & Epic 6 (Services):**
-- Add routes under `routes/_app/_auth/store/` and `routes/_app/_auth/services/`
+**For Epic 5 (Store) & Epic 6 (Components):**
+- Add routes under `routes/_app/_auth/store/` and `routes/_app/_auth/components/`
 - Use layout components (`<AppShell>`, `<Header>`, `<Sidebar>`)
 - Use shadcn/ui components and design tokens
 - Use i18n for translations

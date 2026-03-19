@@ -9,7 +9,7 @@
 # ===========================
 # Stage 1: Download Store Library (cached by Docker layer cache)
 # ===========================
-FROM alpine:3.19 AS library-downloader
+FROM alpine:3 AS library-downloader
 ARG WEBSOFT9_ARTIFACT="https://artifact.websoft9.com/release/websoft9"
 ARG ALL_PROXY
 ENV ALL_PROXY=${ALL_PROXY}
@@ -20,22 +20,26 @@ RUN apk add --no-cache curl unzip && \
     rm /tmp/library.zip
 
 # ===========================
-# Stage 2: Terraform Binary
+# Stage 2: Node.js 24 Runtime Provider
+# ===========================
+FROM node:24-alpine AS node-provider
+
+# ===========================
+# Stage 3: Terraform Binary
 # ===========================
 FROM hashicorp/terraform:1.14 AS terraform-bin
 
 # ===========================
-# Stage 3: Runtime
+# Stage 4: Runtime
 # ===========================
-FROM alpine:3.19
+FROM alpine:3
 
 LABEL maintainer="Websoft9<help@websoft9.com>" \
       org.opencontainers.image.title="AppOS (dev)" \
       org.opencontainers.image.description="Development build: Dashboard + PocketBase Framework (AppOS)"
 
-# Install runtime dependencies (static binary needs no glibc)
+# Install runtime dependencies (supervisor, docker-cli use latest from Alpine)
 RUN apk add --no-cache \
-    nginx \
     supervisor \
     redis \
     curl \
@@ -43,11 +47,24 @@ RUN apk add --no-cache \
     ca-certificates \
     tzdata \
     bash \
-    nodejs \
-    npm \
     docker-cli \
     docker-cli-compose \
     && rm -rf /var/cache/apk/*
+
+# Install nginx 1.28 from nginx.org official Alpine repository
+RUN curl -fsSL https://nginx.org/keys/nginx_signing.rsa.pub \
+        > /etc/apk/keys/nginx_signing.rsa.pub \
+    && ALPINE_MINOR="$(cut -d. -f1,2 /etc/alpine-release)" \
+    && apk add --no-cache \
+        --repository="https://nginx.org/packages/alpine/v${ALPINE_MINOR}/main" \
+        nginx~=1.28 \
+    && rm -f /etc/apk/keys/nginx_signing.rsa.pub
+
+# Copy Node.js 24 from node-provider
+COPY --from=node-provider /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-provider /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
 RUN npm install -g @mariozechner/pi-coding-agent
 

@@ -247,6 +247,70 @@ paths:
         "204":
           description: No Content
 
+  /api/crons/{jobId}/logs:
+    get:
+      tags: [System Cron]
+      summary: Get cron job execution logs
+      description: >
+        Returns recent structured execution log lines for one cron job, filtered
+        from PocketBase _logs. Only AppOS-instrumented jobs are guaranteed to have
+        rich log data. Non-instrumented native jobs return an empty items array.
+      operationId: appos_crons_logs
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobId:
+                    type: string
+                  lastRun:
+                    type: string
+                    format: date-time
+                    nullable: true
+                  lastStatus:
+                    type: string
+                    enum: [success, error]
+                    nullable: true
+                  lastDurationMs:
+                    type: number
+                    nullable: true
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        created:
+                          type: string
+                          format: date-time
+                        level:
+                          type: integer
+                        message:
+                          type: string
+                        runId:
+                          type: string
+                        phase:
+                          type: string
+                          enum: [start, success, error]
+                        trigger:
+                          type: string
+                          enum: [scheduled, manual]
+                        durationMs:
+                          type: number
+                          nullable: true
+                        error:
+                          nullable: true
+
   /api/settings:
     get:
       tags: [Settings]

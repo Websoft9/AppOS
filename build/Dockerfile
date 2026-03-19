@@ -1,13 +1,18 @@
 # ===========================
 # Stage 1: Build Dashboard
 # ===========================
-FROM node:20-alpine AS dashboard-builder
+FROM node:24-alpine AS dashboard-builder
 
 WORKDIR /build
 COPY dashboard/package.json dashboard/package-lock.json* ./
 RUN npm ci --silent
 COPY dashboard/ .
 RUN npm run build
+
+# ===========================
+# Node.js 24 Runtime Provider
+# ===========================
+FROM node:24-alpine AS node-provider
 
 # ===========================
 # Terraform Binary
@@ -28,7 +33,7 @@ RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
 # ===========================
 # Stage 3: Runtime
 # ===========================
-FROM alpine:3.19
+FROM alpine:3
 
 LABEL maintainer="Websoft9<help@websoft9.com>" \
       org.opencontainers.image.title="AppOS" \
@@ -37,9 +42,8 @@ LABEL maintainer="Websoft9<help@websoft9.com>" \
       org.opencontainers.image.url="https://www.websoft9.com" \
       org.opencontainers.image.source="https://github.com/websoft9/websoft9"
 
-# Install runtime dependencies
+# Install runtime dependencies (supervisor, docker-cli use latest from Alpine)
 RUN apk add --no-cache \
-    nginx \
     supervisor \
     redis \
     curl \
@@ -47,11 +51,24 @@ RUN apk add --no-cache \
     ca-certificates \
     tzdata \
     bash \
-    nodejs \
-    npm \
     docker-cli \
     docker-cli-compose \
     && rm -rf /var/cache/apk/*
+
+# Install nginx 1.28 from nginx.org official Alpine repository
+RUN curl -fsSL https://nginx.org/keys/nginx_signing.rsa.pub \
+        > /etc/apk/keys/nginx_signing.rsa.pub \
+    && ALPINE_MINOR="$(cut -d. -f1,2 /etc/alpine-release)" \
+    && apk add --no-cache \
+        --repository="https://nginx.org/packages/alpine/v${ALPINE_MINOR}/main" \
+        nginx~=1.28 \
+    && rm -f /etc/apk/keys/nginx_signing.rsa.pub
+
+# Copy Node.js 24 from node-provider
+COPY --from=node-provider /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-provider /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
 RUN npm install -g @mariozechner/pi-coding-agent
 

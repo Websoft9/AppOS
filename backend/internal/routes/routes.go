@@ -4,10 +4,12 @@
 //   - /api/ext/docker     — Docker operations (compose, images, containers, networks, volumes)
 //   - /api/ext/proxy      — reverse proxy domain/SSL management
 //   - /api/ext/system     — system metrics, terminal, file browser
-//   - /api/ext/services   — supervisord service management (Epic 6)
 //   - /api/ext/backup     — backup/restore operations
 //   - /api/ext/resources  — Resource Store CRUD (Epic 8)
 //   - /api/ext/space      — User private space (Epic 9)
+//   - /api/components     — component inventory and runtime service diagnostics (Epic 6)
+//   - /api/apps           — installed app inventory and lifecycle operations
+//   - /api/deployments    — deployment pipelines and execution logs
 //   - /api/ext/iac        — IaC file management (Epic 14, superuser-only)
 //   - /api/servers        — Server operations: shell, files, containers, ops (Epic 20)
 package routes
@@ -51,6 +53,13 @@ func Register(se *core.ServeEvent) {
 	g := se.Router.Group("/api/ext")
 	g.Bind(apis.RequireAuth())
 
+	components := se.Router.Group("/api/components")
+	components.Bind(apis.RequireAuth())
+
+	deployments := se.Router.Group("/api")
+	deployments.Bind(wsTokenAuth())
+	deployments.Bind(apis.RequireAuth())
+
 	// Server operation routes use /api/servers prefix
 	servers := se.Router.Group("/api/servers")
 	servers.Bind(apis.RequireAuth())
@@ -58,15 +67,18 @@ func Register(se *core.ServeEvent) {
 	registerDockerRoutes(g)
 	registerProxyRoutes(g)
 	registerSystemRoutes(g)
-	registerServiceRoutes(g)
 	registerBackupRoutes(g)
 	registerResourceRoutes(g)
 	registerSpaceRoutes(g)
 	registerUserRoutes(g)
+	registerComponentsRoutes(components)
+	registerAppsRoutes(deployments)
+	registerDeployRoutes(deployments)
 	registerIaCRoutes(g)
 	registerTopicRoutes(g)
 	registerServerRoutes(servers)
 	registerTunnelRoutes(se, g)
 	registerSecretsRoutes(se)
 	registerCertificatesRoutes(se)
+	registerCronLogsRoute(se)
 }

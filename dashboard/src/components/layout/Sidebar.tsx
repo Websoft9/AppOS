@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import {
   LayoutDashboard,
-  Store,
+  Layers,
   Settings,
   PanelLeftClose,
   PanelLeft,
@@ -13,7 +13,7 @@ import {
   Cog,
   TerminalSquare,
   KeyRound,
-  Group,
+  MessageSquare,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -54,7 +54,17 @@ const workspaceGroup: NavGroup = {
       icon: <LayoutDashboard className="h-5 w-5" />,
       href: '/dashboard',
     },
-    { id: 'store', label: 'App Store', icon: <Store className="h-5 w-5" />, href: '/store' },
+    {
+      id: 'applications',
+      label: 'Applications',
+      icon: <Layers className="h-5 w-5" />,
+      href: '/store',
+      children: [
+        { id: 'store', label: 'App Store', href: '/store' },
+        { id: 'deploy', label: 'Deploy', href: '/deploy' },
+        { id: 'installed', label: 'Installed', href: '/apps' },
+      ],
+    },
     {
       id: 'terminal',
       label: 'Terminal',
@@ -64,7 +74,7 @@ const workspaceGroup: NavGroup = {
     {
       id: 'collaboration',
       label: 'Collaboration',
-      icon: <Group className="h-5 w-5" />,
+      icon: <MessageSquare className="h-5 w-5" />,
       href: '/groups',
       children: [
         { id: 'groups', label: 'Groups', href: '/groups' },
@@ -86,9 +96,9 @@ const systemNavItem: NavItem = {
   id: 'system',
   label: 'System',
   icon: <Settings className="h-5 w-5" />,
-  href: '/services',
+  href: '/status',
   children: [
-    { id: 'services', label: 'Services', href: '/services' },
+    { id: 'status', label: 'Status', href: '/status' },
     { id: 'logs', label: 'Logs', href: '/logs' },
     { id: 'audit', label: 'Audit', href: '/audit' },
     { id: 'iac', label: 'IaC Browser', href: '/iac' },
@@ -99,9 +109,9 @@ const systemNavItemBasic: NavItem = {
   id: 'system',
   label: 'System',
   icon: <Settings className="h-5 w-5" />,
-  href: '/services',
+  href: '/components',
   children: [
-    { id: 'services', label: 'Services', href: '/services' },
+    { id: 'components', label: 'Components', href: '/components' },
     { id: 'audit', label: 'Audit', href: '/audit' },
   ],
 }
@@ -278,7 +288,7 @@ function NavGroupSection({
 
   return (
     <div>
-      <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+      <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground">
         {group.label}
       </div>
       <nav className="flex flex-col gap-1 px-2 pb-1" aria-label={`${group.label} navigation`}>

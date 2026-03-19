@@ -61,9 +61,9 @@
 - **Location**: `dashboard/src/routes/_app/_auth/store/` (TanStack Router structure)
 - **Integration**: TanStack Query for catalog caching, react-i18next for translations
 
-### Epic 6: Services Module
+### Epic 6: Components
 - **Updated**: Technology stack references
-- **Location**: `dashboard/src/routes/_app/_auth/services/` (TanStack Router structure)
+- **Location**: `dashboard/src/routes/_app/_auth/components/` (TanStack Router structure)
 - **Integration**: TanStack Query + BaaS subscriptions for real-time updates
 
 ---
@@ -147,7 +147,7 @@ Even though we're not adapting the code, we learned valuable patterns:
 
 - ✅ `specs/implementation-artifacts/epic7-dashboard.md` (technology stack clarified)
 - ✅ `specs/implementation-artifacts/epic5-store.md` (tech stack references updated)
-- ✅ `specs/implementation-artifacts/epic6-services.md` (tech stack references updated)
+- ✅ `specs/implementation-artifacts/epic6-components.md` (components scope and tech stack references updated)
 - ✅ `specs/implementation-artifacts/sprint-status.yaml` (story keys renamed)
 - ✅ `specs/planning-artifacts/tech-stack-decisions.md` (created - ADR document)
 - ✅ `specs/planning-artifacts/dashboard-restart-summary.md` (this file)

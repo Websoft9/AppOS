@@ -1,10 +1,12 @@
 package migrations_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
+	"github.com/websoft9/appos/backend/internal/deploy"
 
 	// trigger init() registrations
 	_ "github.com/websoft9/appos/backend/internal/migrations"
@@ -27,6 +29,8 @@ func TestResourceCollectionsCreated(t *testing.T) {
 		"databases",
 		"cloud_accounts",
 		"certificates",
+		"deployments",
+		"app_instances",
 	}
 
 	for _, name := range expected {
@@ -41,6 +45,74 @@ func TestResourceCollectionsCreated(t *testing.T) {
 		if col.Type != core.CollectionTypeBase {
 			t.Errorf("collection %q: expected type %q, got %q", name, core.CollectionTypeBase, col.Type)
 		}
+	}
+}
+
+func TestAppInstancesCollectionFields(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Cleanup()
+
+	col, err := app.FindCollectionByNameOrId("app_instances")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertFieldExists(t, col, "deployment_id", core.FieldTypeText, false)
+	assertFieldExists(t, col, "server_id", core.FieldTypeText, false)
+	assertFieldExists(t, col, "name", core.FieldTypeText, true)
+	assertFieldExists(t, col, "project_dir", core.FieldTypeText, true)
+	assertFieldExists(t, col, "source", core.FieldTypeText, false)
+	assertFieldExists(t, col, "status", core.FieldTypeSelect, true)
+	assertFieldExists(t, col, "runtime_status", core.FieldTypeText, false)
+	assertFieldExists(t, col, "runtime_reason", core.FieldTypeText, false)
+	assertFieldExists(t, col, "last_deployment_status", core.FieldTypeText, false)
+	assertFieldExists(t, col, "last_action", core.FieldTypeText, false)
+	assertFieldExists(t, col, "last_action_at", core.FieldTypeDate, false)
+	assertFieldExists(t, col, "last_deployed_at", core.FieldTypeDate, false)
+	assertFieldExists(t, col, "config_rollback_snapshot", core.FieldTypeJSON, false)
+	assertFieldExists(t, col, "created", core.FieldTypeAutodate, false)
+	assertFieldExists(t, col, "updated", core.FieldTypeAutodate, false)
+
+	if col.ListRule == nil || col.ViewRule == nil {
+		t.Fatal("app_instances should be readable by authenticated users")
+	}
+}
+
+func TestDeploymentsCollectionFields(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Cleanup()
+
+	col, err := app.FindCollectionByNameOrId("deployments")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertFieldExists(t, col, "server_id", core.FieldTypeText, false)
+	assertFieldExists(t, col, "source", core.FieldTypeSelect, true)
+	assertFieldExists(t, col, "status", core.FieldTypeSelect, true)
+	assertFieldExists(t, col, "adapter", core.FieldTypeText, false)
+	assertFieldExists(t, col, "compose_project_name", core.FieldTypeText, false)
+	assertFieldExists(t, col, "project_dir", core.FieldTypeText, false)
+	assertFieldExists(t, col, "spec", core.FieldTypeJSON, false)
+	assertFieldExists(t, col, "rendered_compose", core.FieldTypeText, false)
+	assertFieldExists(t, col, "execution_log", core.FieldTypeText, false)
+	assertFieldExists(t, col, "execution_log_truncated", core.FieldTypeBool, false)
+	assertFieldExists(t, col, "error_summary", core.FieldTypeText, false)
+	assertFieldExists(t, col, "release_snapshot", core.FieldTypeJSON, false)
+	assertFieldExists(t, col, "started_at", core.FieldTypeDate, false)
+	assertFieldExists(t, col, "finished_at", core.FieldTypeDate, false)
+	assertFieldExists(t, col, "created", core.FieldTypeAutodate, false)
+	assertFieldExists(t, col, "updated", core.FieldTypeAutodate, false)
+	assertSelectFieldValues(t, col, "status", deploy.StatusValues())
+
+	if col.ListRule == nil || col.ViewRule == nil {
+		t.Fatal("deployments should be readable by authenticated users")
 	}
 }
 
@@ -296,6 +368,25 @@ func assertRelationTarget(t *testing.T, app core.App, col *core.Collection, fiel
 	}
 	if target.Name != targetCollection {
 		t.Errorf("collection %q.%s: expected relation to %q, got %q", col.Name, fieldName, targetCollection, target.Name)
+	}
+}
+
+func assertSelectFieldValues(t *testing.T, col *core.Collection, fieldName string, expected []string) {
+	t.Helper()
+	f := col.Fields.GetByName(fieldName)
+	if f == nil {
+		t.Errorf("collection %q: field %q not found", col.Name, fieldName)
+		return
+	}
+	sf, ok := f.(*core.SelectField)
+	if !ok {
+		t.Errorf("collection %q.%s: expected SelectField, got %T", col.Name, fieldName, f)
+		return
+	}
+	for _, value := range expected {
+		if !slices.Contains(sf.Values, value) {
+			t.Errorf("collection %q.%s: expected select value %q to exist", col.Name, fieldName, value)
+		}
 	}
 }
 

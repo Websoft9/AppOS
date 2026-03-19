@@ -177,12 +177,14 @@ func (h *pbSessionHooks) OnDisconnect(serverID string) {
 }
 ```
 
-#### Authenticated routes (`/api/ext/tunnel/`, `RequireSuperuserAuth()`)
+#### Authenticated routes (`/api/tunnel/`, `RequireSuperuserAuth()`)
+
+Implemented `/api/ext/tunnel/*` routes are legacy migration targets. Canonical tunnel APIs use `/api/tunnel/*` only.
 
 ```
-POST  /api/ext/tunnel/servers/:id/token    → generate or rotate Tunnel Token
-GET   /api/ext/tunnel/servers/:id/setup    → return autossh command + systemd unit text
-GET   /api/ext/tunnel/servers/:id/status   → return { status, last_seen, services }
+POST  /api/tunnel/servers/:id/token    → generate or rotate Tunnel Token
+GET   /api/tunnel/servers/:id/setup    → return autossh command + systemd unit text
+GET   /api/tunnel/servers/:id/status   → return { status, last_seen, services }
 ```
 
 #### Unauthenticated route (registered on `se.Router` directly, like `registerSetupRoutes`)
@@ -191,7 +193,7 @@ GET   /api/ext/tunnel/servers/:id/status   → return { status, last_seen, servi
 GET   /tunnel/setup/{token}    → setup shell script (text/x-sh), no auth required
 ```
 
-**POST `/api/ext/tunnel/servers/:id/token`** (idempotent)
+**POST `/api/tunnel/servers/:id/token`** (idempotent)
 
 1. Find server record; verify `connect_type = tunnel`
 2. If existing `credential` linked **and no `?rotate=true` param**: decrypt and return existing token — no side effects, no disconnect
@@ -201,7 +203,7 @@ GET   /tunnel/setup/{token}    → setup shell script (text/x-sh), no auth requi
 
 > Callers (e.g., the wizard) must use `?rotate=true` explicitly to trigger rotation. Repeated calls without the flag are safe to make on every wizard open.
 
-**GET `/api/ext/tunnel/servers/:id/setup`**
+**GET `/api/tunnel/servers/:id/setup`**
 
 Reads the server's token from `secrets`, decrypts, and returns:
 
@@ -224,7 +226,7 @@ Returns a `text/x-sh` script that:
 3. Writes the systemd unit file
 4. Runs `systemctl daemon-reload && systemctl enable --now appos-tunnel`
 
-**GET `/api/ext/tunnel/servers/:id/status`**
+**GET `/api/tunnel/servers/:id/status`**
 
 Returns live state from in-memory `Registry` (not DB) for zero latency:
 
@@ -293,7 +295,7 @@ When `connect_type = direct` (default): existing form unchanged.
 
 Two-phase dialog component.
 
-**Phase 1** — already complete (server record was just created with SSH credentials, token auto-generated in `POST /api/ext/tunnel/servers/:id/token` called immediately after record creation).
+**Phase 1** — already complete (server record was just created with SSH credentials, token auto-generated in `POST /api/tunnel/servers/:id/token` called immediately after record creation).
 
 **Phase 2** — displays commands and waits:
 
@@ -301,7 +303,7 @@ Two-phase dialog component.
 State: { token, autosshCmd, systemdSetupUrl, status }
 
 On mount:
-  1. GET /api/ext/tunnel/servers/:id/setup → populate commands
+  1. GET /api/tunnel/servers/:id/setup → populate commands
   2. pb.collection("servers").subscribe(id, (e) => {
        if (e.record.tunnel_status === "online") setStatus("connected")
      })
@@ -361,7 +363,7 @@ Add a "Rotate Token" button in the server edit view (tunnel servers only):
   "This will immediately disconnect the tunnel. You must update and restart
    the service on the local server with the new token."
   [Cancel]  [Rotate]
-→ POST /api/ext/tunnel/servers/:id/token
+→ POST /api/tunnel/servers/:id/token
 → shows new token (one-time) with copy button
 → shows updated autossh command
 ```
@@ -384,8 +386,8 @@ Add a "Rotate Token" button in the server edit view (tunnel servers only):
 
 - [x] Migration adds `connect_type`, `tunnel_status`, `tunnel_last_seen`, `tunnel_services` to `servers` — existing direct servers unaffected
 - [x] Migration seeds `tunnel.port_range_start` and `tunnel.port_range_end` in `app_settings`
-- [x] `POST /api/ext/tunnel/servers/:id/token` returns a plaintext base32 token; token stored AES-encrypted in `secrets`
-- [x] `GET /api/ext/tunnel/servers/:id/setup` returns valid `autossh_cmd` and `systemd_unit` strings using the appos host URL
+- [x] `POST /api/tunnel/servers/:id/token` returns a plaintext base32 token; token stored AES-encrypted in `secrets`
+- [x] `GET /api/tunnel/servers/:id/setup` returns valid `autossh_cmd` and `systemd_unit` strings using the appos host URL
 - [x] Setup shell script (`/tunnel/setup/{token}`) installs autossh if absent and creates + enables the systemd service
 - [x] After `autossh` connects, `tunnel_status` changes to `"online"` in PocketBase within 5 s
 - [x] `TunnelSetupWizard` detects `tunnel_status = online` via PB Realtime and shows "Connected" state

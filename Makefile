@@ -213,17 +213,17 @@ lint:
 	@echo "✓ Linting completed"
 
 openapi-gen:
-	@echo "Generating OpenAPI ext spec from route source..."
+	@echo "Generating OpenAPI custom-route spec from route source..."
 	@cd backend && go run ./cmd/openapi gen
 	@echo "→ spec: backend/docs/openapi/ext-api.yaml"
 
 openapi-merge:
-	@echo "Merging OpenAPI specs (ext + native)..."
+	@echo "Merging OpenAPI specs (custom routes + native)..."
 	@cd backend && go run ./cmd/openapi merge
 	@echo "→ spec: backend/docs/openapi/api.yaml"
 
 openapi-check:
-	@echo "Checking all /api/ext routes are covered by OpenAPI spec..."
+	@echo "Checking all generated custom routes are covered by OpenAPI spec..."
 	@cd backend && go test ./internal/routes/ -run TestAllExtRoutesCoveredByOpenAPISpec -v
 
 openapi-sync:

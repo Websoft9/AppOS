@@ -4,7 +4,7 @@ source: specs/implementation-artifacts/story1.7-swagger.md
 routerfilepath: backend/internal/routes
 
 # Documentation types (critical):
-# 1) Business Logic Routes -> matrix-driven generation from route code to ext-api.yaml
+# 1) Business Logic Routes -> matrix-driven generation from route code to the generated custom-route spec (ext-api.yaml)
 # 2) PB Native Web APIs -> manual maintenance in native-api.yaml
 # 3) Final Runtime Contract -> merged api.yaml (served at /openapi/spec)
 
@@ -73,6 +73,28 @@ groups:
     sources:
       extRouteFiles:
         - docker.go
+      nativeRefs: []
+
+  - group: Deploy
+    description: Deployment orchestration APIs for manual compose submission, status, detail, and logs.
+    apiType: Ext
+    extSurface:
+      - /api/deployments*
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - deploy.go
+      nativeRefs: []
+
+  - group: Apps
+    description: Installed app inventory and lifecycle APIs backed by compose projects.
+    apiType: Ext
+    extSurface:
+      - /api/apps*
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - apps.go
       nativeRefs: []
 
   - group: Health
@@ -259,11 +281,22 @@ groups:
     description: Service lifecycle operations exposed via supervisord integration.
     apiType: Ext
     extSurface:
-      - /api/ext/services/*
+      - /api/components/services*
     nativeSurface: []
     sources:
       extRouteFiles:
-        - services.go
+        - components.go
+      nativeRefs: []
+
+  - group: Components
+    description: Installed component inventory and diagnostics registry APIs.
+    apiType: Ext
+    extSurface:
+      - /api/components
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - components.go
       nativeRefs: []
 
   - group: Settings

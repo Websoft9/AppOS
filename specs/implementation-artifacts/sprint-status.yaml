@@ -184,3 +184,10 @@ development_status:
   18.6-audit-and-operation-records: backlog
   18.7-data-management-and-backup: backlog
   epic18-retrospective: optional
+
+  # Epic 25: System Cron
+  epic25: done
+  25.1-cron-backend: done
+  25.2-cron-frontend: done
+  25.3-cron-consume: done
+  epic25-retrospective: optional

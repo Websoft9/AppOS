@@ -375,6 +375,17 @@ func (c *SFTPClient) WriteFile(path string, content string) error {
 	return nil
 }
 
+// MkdirAll creates a directory tree on the remote server.
+func (c *SFTPClient) MkdirAll(target string) error {
+	if strings.TrimSpace(target) == "" {
+		return fmt.Errorf("sftp: target path is required")
+	}
+	if err := c.sftpClient.MkdirAll(target); err != nil {
+		return fmt.Errorf("sftp: mkdirall %q: %w", target, err)
+	}
+	return nil
+}
+
 // Stat returns full metadata for a file or directory.
 func (c *SFTPClient) Stat(filePath string) (FileAttrs, error) {
 	fi, err := c.sftpClient.Stat(filePath)

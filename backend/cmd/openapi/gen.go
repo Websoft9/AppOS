@@ -10,8 +10,8 @@
 //   - Scans only route files declared in matrix groups[*].sources.extRouteFiles
 //   - Includes only routes matched by matrix groups[*].extSurface patterns
 //   - Infers auth type (public / auth / superuser) from .Bind() calls in source
-//   - Generates a deterministic OpenAPI skeleton for matched /api/ext/* routes
-//   - Overwrites ext-api.yaml on each run (no manual edits in generated file)
+//   - Generates a deterministic OpenAPI skeleton for matched custom API routes
+//   - Overwrites ext-api.yaml on each run as the generated custom-route spec
 //
 // Run via Makefile:
 //
@@ -136,6 +136,12 @@ func scanFile(filePath string) ([]route, map[string]bool) {
 	defaultG := "/api/ext"
 	if strings.HasPrefix(filepath.Base(filePath), "server") {
 		defaultG = "/api/servers"
+	}
+	if filepath.Base(filePath) == "components.go" {
+		defaultG = "/api/components"
+	}
+	if filepath.Base(filePath) == "deploy.go" || filepath.Base(filePath) == "apps.go" {
+		defaultG = "/api"
 	}
 
 	vars := map[string]string{
@@ -1238,7 +1244,7 @@ func runGen() error {
 	out.WriteString("info:\n")
 	out.WriteString("  title: AppOS API\n")
 	out.WriteString("  description: >\n")
-	out.WriteString("    Machine-generated OpenAPI specification for AppOS APIs, with ext routes generated from route code using group-matrix as single source of truth.\n")
+	out.WriteString("    Machine-generated OpenAPI specification for AppOS custom API routes, using group-matrix as the single source of truth.\n")
 	out.WriteString("  version: \"0.1.0\"\n\n")
 	out.WriteString("tags:\n")
 	for _, tag := range tags {

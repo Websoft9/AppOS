@@ -19,7 +19,7 @@ The current implementation plan lacks a unified Dashboard framework, leading to 
 ### Evidence
 - Architecture document explicitly defines "Custom Dashboard (React)" as the core UI layer
 - PRD requirements (FR-1 through FR-8) all require unified dashboard interfaces
-- Epic 5 (Store Plugin) and Epic 6 (Services Plugin) were designed as separate Cockpit plugins, conflicting with the unified dashboard architecture
+- Epic 5 (Store Plugin) and Epic 6 (Components/Services plugin scope) were designed as separate Cockpit plugins, conflicting with the unified dashboard architecture
 - Current fragmented approach would result in inconsistent UX and duplicated infrastructure
 
 ---
@@ -41,8 +41,8 @@ The current implementation plan lacks a unified Dashboard framework, leading to 
   - New Dependency: Now requires Epic 7 completion
   - Status: Remains in-progress (existing work can be migrated)
 
-- **Epic 6**: "Services Plugin - Container Process Management" → "Dashboard - Services Module"  
-  - Scope Change: From standalone Cockpit plugin to Dashboard module
+- **Epic 6**: "Services Plugin - Container Process Management" → "Dashboard - Components"  
+  - Scope Change: From standalone Cockpit plugin to unified system components workspace with integrated services tab
   - Technology Change: PatternFly → shadcn/ui + Tailwind (Dashboard design system)
   - New Dependency: Now requires Epic 7 completion
   - Status: Remains backlog (no work started, clean transition)
@@ -50,7 +50,7 @@ The current implementation plan lacks a unified Dashboard framework, leading to 
 **Epic Sequencing:**
 ```
 Priority Order (revised):
-Epic 1-4 (Infrastructure) → Epic 7 (Dashboard) → Epic 5 (Store) → Epic 6 (Services) → Epic 10 (i18n)
+Epic 1-4 (Infrastructure) → Epic 7 (Dashboard) → Epic 5 (Store) → Epic 6 (Components) → Epic 10 (i18n)
 ```
 
 ### Artifact Conflicts
@@ -81,7 +81,7 @@ Epic 1-4 (Infrastructure) → Epic 7 (Dashboard) → Epic 5 (Store) → Epic 6 (
 
 **Epic 6 Stories (backlog):**
 - Clean slate - no work started
-- Stories 6.1, 6.2 will be implemented directly in Dashboard context
+- Stories 6.1 through 6.4 will be implemented directly in Dashboard context
 - No rework required
 
 **New Stories:**
@@ -167,19 +167,19 @@ Epic 1-4 (Infrastructure) → Epic 7 (Dashboard) → Epic 5 (Store) → Epic 6 (
 
 ### Change 3: Refactor Epic 6 Specification
 
-**File:** `specs/implementation-artifacts/epic6-services.md` (MODIFIED)
+**File:** `specs/implementation-artifacts/epic6-components.md` (MODIFIED)
 
 **Changes:**
-- Title: "Services Plugin - Container Process Management" → "Dashboard - Services Module"
-- Objective: From standalone plugin → Dashboard module for service management
-- Scope: Real-time status via BaaS subscriptions, integrated with Dashboard
+- Title: "Services Plugin - Container Process Management" → "Dashboard - Components"
+- Objective: From standalone service plugin → unified system components workspace
+- Scope: Components inventory + active services tab, integrated with Dashboard
 - Dependencies: Added Epic 7 as prerequisite, leverage cockpit.js from Epic 7
 - Technology: PatternFly → shadcn/ui + Tailwind CSS
-- Location: `/plugins/services` → `dashboard/src/modules/services/`
+- Location: `/plugins/services` → `dashboard/src/routes/_app/_auth/components/`
 
 **Migration Notes:**
 - No existing work - clean implementation in Dashboard context
-- Service routing becomes `/services/*` within Dashboard
+- Components routing becomes `/components` within Dashboard, with services embedded as a page tab
 - Leverages BaaS real-time subscriptions for status updates
 
 **Status:** ✅ Applied
@@ -192,7 +192,7 @@ Epic 1-4 (Infrastructure) → Epic 7 (Dashboard) → Epic 5 (Store) → Epic 6 (
 
 **Changes:**
 - Updated Epic 5 comment to reflect new title
-- Added Epic 6 section with stories 6.1, 6.2
+- Added Epic 6 section with stories 6.1 through 6.4
 - Added Epic 7 section with stories 7.1-7.10 (all backlog)
 - Added Epic 10 placeholder (i18n)
 
@@ -270,7 +270,7 @@ epic10-retrospective: optional
 
 **Epic 5/6 Migration Criteria:**
 - [ ] Store module integrated into Dashboard routing
-- [ ] Services module integrated into Dashboard routing
+- [ ] Components workspace integrated into Dashboard routing
 - [ ] UI components follow unified design system
 - [ ] BaaS API integration functional for both modules
 - [ ] No regression in functionality from original plugin designs
@@ -280,7 +280,7 @@ epic10-retrospective: optional
 **Estimated Effort:**
 - Epic 7: 3-4 weeks (10 stories, foundational work)
 - Epic 5 migration: +1 week (UI refactoring)
-- Epic 6: No change (not started)
+- Epic 6: Scope expanded, still clean to implement because work has not started
 
 **Net Timeline:** +3-4 weeks overall, but Epic 5/6 complexity reduced by ~1 week each due to shared infrastructure
 
@@ -331,7 +331,7 @@ epic10-retrospective: optional
 | 3 | Cockpit Customization | In Progress | P1 | Epic 1, 2 | Phase 4.3 |
 | 7 | **Dashboard Framework** | **Backlog** | **P0** | **Epic 1, 2** | **Phase 4.4** |
 | 5 | Dashboard - Store Module | In Progress | P1 | Epic 7 | Phase 4.5 |
-| 6 | Dashboard - Services Module | Backlog | P1 | Epic 7 | Phase 4.6 |
+| 6 | Dashboard - Components | Backlog | P1 | Epic 7 | Phase 4.6 |
 | 10 | Internationalization | Backlog | P2 | Epic 7 | Phase 4.7 |
 
 **Critical Path:** Epic 1 → Epic 2 → Epic 7 → Epic 5/6

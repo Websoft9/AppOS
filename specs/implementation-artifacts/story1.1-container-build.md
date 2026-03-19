@@ -63,7 +63,7 @@ As a developer, I need Dockerfiles and container configurations to package the A
 **Target**: < 100MB final image
 
 **Strategies**:
-1. Use `alpine:3.19` as runtime base (not debian)
+1. Use `alpine:3` as runtime base (not debian)
 2. Build with `-ldflags="-w -s"` to strip Go binary
 3. Use `npm run build` with production optimizations
 4. Multi-stage build: discard build tools
@@ -72,7 +72,7 @@ As a developer, I need Dockerfiles and container configurations to package the A
 
 ### Dockerfile.local
 
-- Base: `alpine:3.19`
+- Base: `alpine:3`
 - Copy pre-built: `dashboard/dist`, `backend/appos`
 - Install: nginx, supervisor, redis, ca-certificates, curl, bash, **docker-cli, docker-cli-compose**
 - Config: supervisord.conf, nginx.conf, entrypoint.sh
@@ -84,9 +84,9 @@ As a developer, I need Dockerfiles and container configurations to package the A
 
 ### Dockerfile (Multi-Stage)
 
-**Stage 1 - Dashboard**: `node:20-alpine` → build to `/build/dist`
+**Stage 1 - Dashboard**: `node:24-alpine` → build to `/build/dist`
 **Stage 2 - Backend**: `golang:1.26-alpine` → build `cmd/appos/main.go` to `/build/appos`
-**Stage 3 - Runtime**: `alpine:3.19` → copy artifacts + configs
+**Stage 3 - Runtime**: `alpine:3` → copy artifacts + configs
 
 Runtime includes optional Node.js + `pi` CLI to support in-process PB integration via RPC mode.
 

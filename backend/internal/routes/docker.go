@@ -99,12 +99,17 @@ func registerDockerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 // Falls back to localDockerClient when server_id is absent or "local".
 func getDockerClient(e *core.RequestEvent) (*docker.Client, error) {
 	serverID := e.Request.URL.Query().Get("server_id")
+	return getDockerClientByServerID(e.App, serverID)
+}
+
+
+func getDockerClientByServerID(app core.App, serverID string) (*docker.Client, error) {
 	if serverID == "" || serverID == "local" {
 		return localDockerClient, nil
 	}
 
 	// Fetch server record
-	serverRec, err := e.App.FindRecordById("servers", serverID)
+	serverRec, err := app.FindRecordById("servers", serverID)
 	if err != nil {
 		return nil, fmt.Errorf("server %s not found: %w", serverID, err)
 	}
@@ -115,7 +120,7 @@ func getDockerClient(e *core.RequestEvent) (*docker.Client, error) {
 	credentialID := serverRec.GetString("credential")
 
 	// auth_type inferred from secret template_id (servers.auth_type removed in Story 20.1)
-	authType := credAuthType(e.App, credentialID)
+	authType := credAuthType(app, credentialID)
 
 	resolvedHost, resolvedPort, resolveErr := resolveDockerSSHAddress(serverRec)
 	if resolveErr != nil {
@@ -131,7 +136,7 @@ func getDockerClient(e *core.RequestEvent) (*docker.Client, error) {
 	// Resolve credential via sec.Resolve (supports both payload_encrypted and legacy value).
 	var secretValue string
 	if credentialID != "" {
-		payload, resolveErr := sec.Resolve(e.App, credentialID, "")
+		payload, resolveErr := sec.Resolve(app, credentialID, "")
 		if resolveErr != nil {
 			return nil, fmt.Errorf("credential resolve: %w", resolveErr)
 		}

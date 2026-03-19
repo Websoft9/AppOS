@@ -1,0 +1,363 @@
+# AppOS components registry
+# Minimal constraints:
+# - every enabled component needs id, name, version_probe, availability_probe
+# - every enabled service needs name and log_access
+# - dangerous operations default to false and must be explicitly enabled
+
+version: 1
+
+components:
+  - id: appos
+    name: AppOS
+    enabled: true
+    criticality: core
+    version_probe:
+      type: static
+      value: unknown
+    availability_probe:
+      type: http
+      url: http://127.0.0.1/api/health
+      expect_status: 200
+    update_probe:
+      type: file_mtime
+      path: /usr/local/bin/appos
+    log_access:
+      type: supervisor
+      service: appos
+      default_stream: stdout
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Primary backend and API service.
+
+  - id: dashboard
+    name: Dashboard
+    enabled: true
+    criticality: core
+    version_probe:
+      type: static
+      value: unknown
+    availability_probe:
+      type: file_exists
+      path: /usr/share/nginx/html/dashboard/index.html
+    update_probe:
+      type: file_mtime
+      path: /usr/share/nginx/html/dashboard/index.html
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Static frontend bundle served by nginx.
+
+  - id: nginx
+    name: Nginx
+    enabled: true
+    criticality: core
+    version_probe:
+      type: command
+      command: ["sh", "-c", "nginx -v 2>&1 | sed 's|.*nginx/||'"]
+    availability_probe:
+      type: command
+      command: ["nginx", "-t"]
+    update_probe:
+      type: file_mtime
+      path: /usr/sbin/nginx
+    log_access:
+      type: supervisor
+      service: nginx
+      default_stream: stdout
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Reverse proxy and static file server.
+
+  - id: supervisor
+    name: Supervisor
+    enabled: true
+    criticality: core
+    version_probe:
+      type: command
+      command: ["supervisord", "-v"]
+    availability_probe:
+      type: file_exists
+      path: /etc/supervisor/supervisord.conf
+    update_probe:
+      type: file_mtime
+      path: /usr/bin/supervisord
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Process manager for internal services.
+
+  - id: redis
+    name: Redis
+    enabled: true
+    criticality: important
+    version_probe:
+      type: command
+      command: ['sh', '-c', "redis-server --version | sed -n 's/.*v=\\([^ ]*\\).*/\\1/p'"]
+    availability_probe:
+      type: command
+      command: ["redis-cli", "ping"]
+      expect_output: PONG
+    update_probe:
+      type: file_mtime
+      path: /usr/bin/redis-server
+    log_access:
+      type: supervisor
+      service: redis
+      default_stream: stdout
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Internal cache/runtime dependency.
+
+  - id: terraform
+    name: Terraform CLI
+    enabled: true
+    criticality: optional
+    version_probe:
+      type: command
+      command: ["terraform", "version"]
+    availability_probe:
+      type: command
+      command: ["terraform", "version"]
+    update_probe:
+      type: file_mtime
+      path: /usr/local/bin/terraform
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Infrastructure tool.
+
+  - id: docker-cli
+    name: Docker CLI
+    enabled: true
+    criticality: important
+    version_probe:
+      type: command
+      command: ["docker", "version", "--format", "{{.Client.Version}}"]
+    availability_probe:
+      type: command
+      command: ["docker", "version", "--format", "{{.Client.Version}}"]
+    update_probe:
+      type: file_mtime
+      path: /usr/bin/docker
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Local Docker client.
+
+  - id: nodejs
+    name: Node.js
+    enabled: true
+    criticality: optional
+    version_probe:
+      type: command
+      command: ["node", "-v"]
+    availability_probe:
+      type: command
+      command: ["node", "-v"]
+    update_probe:
+      type: file_mtime
+      path: /usr/bin/node
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Runtime for supporting tooling.
+
+  - id: npm
+    name: npm
+    enabled: true
+    criticality: optional
+    version_probe:
+      type: command
+      command: ["npm", "-v"]
+    availability_probe:
+      type: command
+      command: ["npm", "-v"]
+    update_probe:
+      type: file_mtime
+      path: /usr/bin/npm
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Package manager for Node tooling.
+
+  - id: pi-agent
+    name: Pi Agent
+    enabled: true
+    criticality: optional
+    version_probe:
+      type: command
+      command: ["sh", "-c", "npm list -g --depth=0 @mariozechner/pi-coding-agent 2>/dev/null | tail -n 1 | sed 's|.*@||'"]
+    availability_probe:
+      type: command
+      command: ["sh", "-c", "npm list -g --depth=0 @mariozechner/pi-coding-agent >/dev/null 2>&1"]
+    update_probe:
+      type: file_mtime
+      path: /usr/lib/node_modules/@mariozechner/pi-coding-agent
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: AI coding assistant runtime dependency.
+
+  - id: store-library
+    name: Store Library
+    enabled: true
+    criticality: important
+    version_probe:
+      type: static
+      value: unknown
+    availability_probe:
+      type: file_exists
+      path: /appos/library
+    update_probe:
+      type: file_mtime
+      path: /appos/library
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: App catalog bundle downloaded at build time.
+
+  - id: alpine
+    name: Alpine Linux
+    enabled: true
+    criticality: core
+    version_probe:
+      type: file
+      path: /etc/alpine-release
+    availability_probe:
+      type: file_exists
+      path: /etc/alpine-release
+    update_probe:
+      type: file_mtime
+      path: /etc/alpine-release
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Base runtime image.
+
+  - id: sqlite
+    name: SQLite
+    enabled: true
+    criticality: optional
+    version_probe:
+      type: command
+      command: ["sh", "-c", "sqlite3 --version | awk '{print $1}'"]
+    availability_probe:
+      type: command
+      command: ["sqlite3", "--version"]
+    update_probe:
+      type: file_mtime
+      path: /usr/bin/sqlite3
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Embedded SQL database engine.
+
+  - id: docker-compose
+    name: Docker Compose
+    enabled: true
+    criticality: important
+    version_probe:
+      type: command
+      command: ["docker", "compose", "version", "--short"]
+    availability_probe:
+      type: command
+      command: ["docker", "compose", "version"]
+    update_probe:
+      type: file_mtime
+      path: /usr/lib/docker/cli-plugins/docker-compose
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Docker Compose plugin for multi-container management.
+
+  - id: git
+    name: Git
+    enabled: true
+    criticality: optional
+    version_probe:
+      type: command
+      command: ["sh", "-c", "git --version | sed 's/git version //'"]
+    availability_probe:
+      type: command
+      command: ["git", "--version"]
+    update_probe:
+      type: file_mtime
+      path: /usr/bin/git
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Distributed version control system.
+
+  - id: golang
+    name: Go
+    enabled: true
+    criticality: optional
+    version_probe:
+      type: command
+      command: ["sh", "-c", "go version | sed 's/.*go\\([0-9.]*\\).*/\\1/'"]
+    availability_probe:
+      type: command
+      command: ["go", "version"]
+    update_probe:
+      type: file_mtime
+      path: /usr/local/go/bin/go
+    operations:
+      start: false
+      stop: false
+      restart: false
+    notes: Go programming language runtime.
+
+services:
+  - name: appos
+    component_id: appos
+    enabled: true
+    log_access:
+      type: supervisor
+      service: appos
+      default_stream: stdout
+    operations:
+      start: false
+      stop: false
+      restart: false
+
+  - name: redis
+    component_id: redis
+    enabled: true
+    log_access:
+      type: supervisor
+      service: redis
+      default_stream: stdout
+    operations:
+      start: false
+      stop: false
+      restart: false
+
+  - name: nginx
+    component_id: nginx
+    enabled: true
+    log_access:
+      type: supervisor
+      service: nginx
+      default_stream: stdout
+    operations:
+      start: false
+      stop: false
+      restart: false
