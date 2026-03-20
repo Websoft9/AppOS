@@ -14,7 +14,7 @@ so that I can quickly confirm which core parts are present and whether they are 
 2. Inventory includes the initial baseline derived from AppOS build/runtime composition, including at least: `appos`, dashboard static bundle, reverse proxy, process manager, cache/data service, container tooling, infrastructure tooling, Node runtime, package manager, Store Library artifact, and base OS.
 3. `available` indicates whether the component is usable and not in a broken state. It is sufficient for MVP to represent this as a boolean or equivalent healthy/broken status.
 4. Component inventory is backed by one human-maintained YAML metadata registry that defines the supported component list and how each component is inspected.
-5. Frontend `Installed Components` tab renders a simple list without category grouping, source filters, summary statistics, or search.
+5. Frontend `Installed Components` tab renders read-only text cards (name + version + time) in a high-density responsive grid (up to five columns on wide desktop), without category grouping, source filters, summary statistics, or search.
 6. Frontend shows explicit loading, empty, error, and partial-detection states. Partial-detection means some components render successfully while others are shown as unavailable or version-unknown.
 7. UI renders well for mobile and desktop admin workflows and uses Dashboard design system components.
 8. API and UI remain read-only in this story; no version editing, install, or uninstall operations are introduced.
@@ -34,7 +34,7 @@ so that I can quickly confirm which core parts are present and whether they are 
   - [ ] Add PB route for `GET /api/components` or equivalent final route contract
   - [ ] Map YAML registry entries to detection results and simple availability status
 - [ ] Implement frontend Installed Components tab (AC: 5,6,7,8)
-  - [ ] Add simple components list/table without search or category/filter controls
+  - [ ] Add simple read-only text cards/grid without search or category/filter controls
   - [ ] Add loading, empty, error, and partial-detection UI states
   - [ ] Add responsive layout treatment for narrow screens
 - [ ] Validation (AC: 1-8)

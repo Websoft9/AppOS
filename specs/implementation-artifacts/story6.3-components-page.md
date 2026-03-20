@@ -13,11 +13,12 @@ so that I can find both static system composition and runtime service state from
 1. Sidebar under `System` exposes a single `Components` entry for this domain.
 2. The page route is `/components`.
 3. Page contains exactly two primary tabs: `Installed Components` and `Active Services`.
-4. `Installed Components` tab uses a simple list layout and does not include category grouping, search, or summary statistics.
-5. Installed component rows focus on minimal fields: component name, version, and availability state.
-6. Terminology in breadcrumbs, page title, helper text, and tabs uses `Components` and `Services` consistently; no `SBOM` or security-scanner terminology appears on the primary surface.
-7. Existing `Services` functionality remains reachable from the new page and no separate sidebar entry is required after migration.
-8. Layout is responsive and preserves usability on both desktop and mobile.
+4. `Installed Components` tab uses a simple read-only text-card layout and does not include category grouping, search, or summary statistics.
+5. Installed component cards focus on minimal fields: component name, version, and detection/update time; desktop should support high-density responsive columns (up to five columns on wide screens).
+6. In `Status` route embedded tabs (`Components`, `Active Services`, `System Crons`), search controls are removed and table outer borders are removed.
+7. Terminology in breadcrumbs, page title, helper text, and tabs uses `Components` and `Services` consistently; no `SBOM` or security-scanner terminology appears on the primary surface.
+8. Existing `Services` functionality remains reachable from the new page and no separate sidebar entry is required after migration.
+9. Layout is responsive and preserves usability on both desktop and mobile.
 
 ## Tasks / Subtasks
 

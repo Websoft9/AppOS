@@ -21,7 +21,7 @@ Create a unified `System / Components` workspace for system administrators to in
 - Aggregate a normalized component list for AppOS runtime components
 - Display at minimum: `name`, `version`, `available`, `last_detected_at`
 - Keep the presentation minimal and admin-facing
-- Present installed components as a non-operational, text-first layout (name + version + time), arranged in two columns on desktop
+- Present installed components as a non-operational, text-first layout (name + version + time), with high-density responsive columns (up to five columns on wide desktop)
 - Provide empty, loading, and partial-detection states
 - Responsive layout for desktop and mobile admin usage
 
@@ -40,6 +40,7 @@ Create a unified `System / Components` workspace for system administrators to in
 	- `Installed Components`
 	- `Active Services`
 - Keep the installed components tab intentionally simple: no category grouping, no search, no summary statistics
+- Keep the status-route embedded tabs intentionally simple: remove search controls and remove table outer borders to lower operational pressure
 - Preserve direct access to service operations inside the `Active Services` tab without requiring a separate sidebar entry
 - Keep terminology admin-friendly and avoid exposing SBOM jargon in the primary UI
 
