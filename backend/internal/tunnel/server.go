@@ -35,30 +35,18 @@ type SessionHooks interface {
 	// conflicts contains any port reassignments made due to OS conflicts.
 	OnConnect(serverID string, services []Service, conflicts []ConflictResolution)
 	// OnDisconnect is called when the SSH connection is closed.
-	OnDisconnect(serverID string)
+	OnDisconnect(serverID string, reason DisconnectReason)
 }
 
-// defaultRateLimit is the maximum number of new TCP connections accepted per second.
-const defaultRateLimit rate.Limit = 10
-
-// defaultMaxPending is the maximum number of concurrent unauthenticated SSH
-// handshakes allowed in flight simultaneously.
-const defaultMaxPending = 50
+// ForwardResolver returns the desired forwards for a tunnel server.
+// The implementation lives in routes/tunnel.go and may read PocketBase state.
+type ForwardResolver interface {
+	Resolve(serverID string) []ForwardSpec
+}
 
 // handshakeTimeout is the deadline for the initial SSH handshake + token validation.
 // After the session is authenticated the deadline is cleared.
 const handshakeTimeout = 15 * time.Second
-
-// keepaliveInterval is how often the server sends an SSH keepalive request to
-// the remote end to detect broken connections.
-const keepaliveInterval = 30 * time.Second
-
-// keepaliveTimeout is how long the server waits for a response to a keepalive
-// request before closing the connection.
-const keepaliveTimeout = 15 * time.Second
-
-// hostKeyFile is the filename (within DataDir) that stores the persistent host key.
-const hostKeyFile = "tunnel_host_key"
 
 // Server is the reverse-SSH tunnel entry point.  It listens on :2222 and
 // accepts connections whose username is a valid tunnel token.
@@ -74,6 +62,8 @@ type Server struct {
 	Validator TokenValidator
 	// Pool manages persistent port allocations for tunnel servers.
 	Pool *PortPool
+	// ForwardResolver loads desired forwards for a tunnel server.
+	ForwardResolver ForwardResolver
 	// Sessions is the in-memory session registry.
 	Sessions *Registry
 	// Hooks receives connect/disconnect events.
@@ -86,6 +76,9 @@ type Server struct {
 	sshCfg  *ssh.ServerConfig
 	limiter *rate.Limiter
 	sem     chan struct{} // semaphore: slot acquired before handshake
+	// validatedUsers maps SSH username (token) → serverID for sessions that
+	// passed NoClientAuthCallback. Consumed once by handleConn.
+	validatedUsers sync.Map
 }
 
 // ListenAndServe starts the SSH server.  It blocks until ctx is cancelled.
@@ -156,13 +149,14 @@ func (s *Server) handleConn(conn net.Conn) {
 		return // handshake failed; conn already closed by ssh pkg
 	}
 
-	// Token validation — must happen before processing any channel or request.
-	serverID, ok := s.Validator.Validate(sshConn.User())
+	// Retrieve the pre-validated serverID set by NoClientAuthCallback.
+	val, ok := s.validatedUsers.LoadAndDelete(sshConn.User())
 	if !ok {
-		log.Printf("[tunnel] invalid token from %s (user=%q)", conn.RemoteAddr(), sshConn.User())
+		log.Printf("[tunnel] no validated server for %s (user=%q)", conn.RemoteAddr(), sshConn.User())
 		_ = sshConn.Close()
 		return
 	}
+	serverID := val.(string)
 
 	log.Printf("[tunnel] authenticated server %s from %s", serverID, conn.RemoteAddr())
 
@@ -171,7 +165,8 @@ func (s *Server) handleConn(conn net.Conn) {
 	_ = conn.SetDeadline(time.Time{})
 
 	// Port allocation.
-	services, conflicts := s.Pool.AcquireOrReuse(serverID)
+	desiredForwards := s.ForwardResolver.Resolve(serverID)
+	services, conflicts := s.Pool.AcquireOrReuse(serverID, desiredForwards)
 	if services == nil {
 		log.Printf("[tunnel] port range exhausted for server %s", serverID)
 		_ = sshConn.Close()
@@ -189,7 +184,7 @@ func (s *Server) handleConn(conn net.Conn) {
 
 	defer func() {
 		s.Sessions.UnregisterConn(serverID, sshConn)
-		s.Hooks.OnDisconnect(serverID)
+		s.Hooks.OnDisconnect(serverID, sess.DisconnectReason())
 		_ = sshConn.Close()
 	}()
 
@@ -204,7 +199,7 @@ func (s *Server) handleConn(conn net.Conn) {
 
 	// Keepalive goroutine: send a request every keepaliveInterval and close the
 	// connection if the remote end does not respond within keepaliveTimeout.
-	go s.keepalive(sshConn)
+	go s.keepalive(sess)
 
 	// Start per-service listeners so incoming connections on the tunnel ports
 	// can be forwarded back to the client.
@@ -231,8 +226,12 @@ func (s *Server) handleConn(conn net.Conn) {
 // keepalive periodically sends a "keepalive@openssh.com" global request and
 // closes the connection if the remote end does not respond within keepaliveTimeout.
 // It runs as a goroutine for the lifetime of each authenticated session.
-func (s *Server) keepalive(conn *ssh.ServerConn) {
-	ticker := time.NewTicker(keepaliveInterval)
+func (s *Server) keepalive(sess *Session) {
+	if sess == nil || sess.Conn == nil {
+		return
+	}
+	conn := sess.Conn
+	ticker := time.NewTicker(DefaultKeepaliveInterval)
 	defer ticker.Stop()
 
 	for range ticker.C {
@@ -249,12 +248,14 @@ func (s *Server) keepalive(conn *ssh.ServerConn) {
 		case err := <-ch:
 			if err != nil {
 				// Connection is truly broken.
+				sess.SetDisconnectReason(DisconnectReasonConnectionError)
 				_ = conn.Close()
 				return
 			}
 			// Reply received (ok or not) — peer is alive.
-		case <-time.After(keepaliveTimeout):
+		case <-time.After(DefaultKeepaliveTimeout):
 			log.Printf("[tunnel] keepalive timeout for server %s — closing", conn.User())
+			sess.SetDisconnectReason(DisconnectReasonKeepaliveTimeout)
 			_ = conn.Close()
 			return
 		}
@@ -402,19 +403,22 @@ func (s *Server) init() error {
 	if s.Pool == nil {
 		return fmt.Errorf("tunnel: Server.Pool must not be nil")
 	}
+	if s.ForwardResolver == nil {
+		return fmt.Errorf("tunnel: Server.ForwardResolver must not be nil")
+	}
 	if s.Sessions == nil {
 		return fmt.Errorf("tunnel: Server.Sessions must not be nil")
 	}
 
 	rl := s.RateLimit
 	if rl == 0 {
-		rl = defaultRateLimit
+		rl = DefaultRateLimit
 	}
 	s.limiter = rate.NewLimiter(rl, int(rl)+1)
 
 	mp := s.MaxPending
 	if mp == 0 {
-		mp = defaultMaxPending
+		mp = DefaultMaxPending
 	}
 	s.sem = make(chan struct{}, mp)
 
@@ -424,9 +428,19 @@ func (s *Server) init() error {
 	}
 
 	cfg := &ssh.ServerConfig{
-		// NoClientAuth: accept "none" auth — the OpenSSH client uses this as a
-		// first attempt and we immediately validate the username as a token.
+		// Validate the token (SSH username) during the auth handshake itself.
+		// NoClientAuth + NoClientAuthCallback lets the OpenSSH client send
+		// "none" auth while we still gate on a valid token.
 		NoClientAuth: true,
+		NoClientAuthCallback: func(meta ssh.ConnMetadata) (*ssh.Permissions, error) {
+			serverID, ok := s.Validator.Validate(meta.User())
+			if !ok {
+				log.Printf("[tunnel] auth rejected from %s (user=%q)", meta.RemoteAddr(), meta.User())
+				return nil, fmt.Errorf("invalid tunnel token")
+			}
+			s.validatedUsers.Store(meta.User(), serverID)
+			return nil, nil
+		},
 		// ServerVersion must be a valid SSH banner string.
 		ServerVersion: "SSH-2.0-appos-tunnel",
 	}
@@ -438,7 +452,7 @@ func (s *Server) init() error {
 // loadOrGenerateHostKey reads the Ed25519 host key from DataDir/tunnel_host_key.
 // If the file does not exist, a new key is generated and saved.
 func (s *Server) loadOrGenerateHostKey() (ssh.Signer, error) {
-	path := filepath.Join(s.DataDir, hostKeyFile)
+	path := filepath.Join(s.DataDir, HostKeyFile)
 
 	data, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {

@@ -20,6 +20,12 @@
 ### Memo
 - Quick acceptance passed: tunnel `online` + terminal/sftp `HTTP 200` verified after `make redo`.
 
+## Session Delta (2026-03-20)
+
+- Tunnel token now uses fixed secret template: `template_id = single_value`.
+- Tunnel token is marked as system-created (`created_source = system`).
+- Preferred token lookup is by secret naming convention (`tunnel-token-{serverID}`); legacy `servers.credential` relation remains fallback compatibility only.
+
 ---
 
 ## User Story
@@ -120,7 +126,13 @@ func (v *pbTokenValidator) Validate(rawToken string) (serverID string, ok bool) 
     dec, err := crypto.Decrypt(secret.GetString("value"))
     if err != nil || dec != rawToken { continue }
 
-    // find server linked via servers.credential relation
+    // preferred mapping: secret name tunnel-token-{serverID}
+    if strings.HasPrefix(secret.GetString("name"), "tunnel-token-") {
+      sid := strings.TrimPrefix(secret.GetString("name"), "tunnel-token-")
+      if sid != "" { return sid, true }
+    }
+
+    // legacy fallback: servers.credential relation
     server, err := v.app.FindFirstRecordByFilter("servers", "credential = {:cid}", dbx.Params{"cid": secret.Id})
     if err == nil { return server.Id, true }
   }
@@ -179,7 +191,7 @@ func (h *pbSessionHooks) OnDisconnect(serverID string) {
 
 #### Authenticated routes (`/api/tunnel/`, `RequireSuperuserAuth()`)
 
-Implemented `/api/ext/tunnel/*` routes are legacy migration targets. Canonical tunnel APIs use `/api/tunnel/*` only.
+Legacy ext-prefixed tunnel routes are migration targets. Canonical tunnel APIs use `/api/tunnel/*` only.
 
 ```
 POST  /api/tunnel/servers/:id/token    → generate or rotate Tunnel Token

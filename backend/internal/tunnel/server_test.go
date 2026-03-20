@@ -17,7 +17,7 @@ func TestServer_HostKeyPersisted(t *testing.T) {
 		t.Fatalf("first loadOrGenerateHostKey: %v", err)
 	}
 
-	keyPath := filepath.Join(dir, hostKeyFile)
+	keyPath := filepath.Join(dir, HostKeyFile)
 	if _, err := os.Stat(keyPath); err != nil {
 		t.Fatalf("host key file not created: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestServer_HostKeyGeneratedOnMissingFile(t *testing.T) {
 		t.Fatalf("loadOrGenerateHostKey: %v", err)
 	}
 
-	info, err := os.Stat(filepath.Join(dir, hostKeyFile))
+	info, err := os.Stat(filepath.Join(dir, HostKeyFile))
 	if err != nil {
 		t.Fatalf("host key file should exist: %v", err)
 	}
@@ -62,7 +62,11 @@ func (noopValidator) Validate(string) (string, bool) { return "", false }
 type noopHooks struct{}
 
 func (noopHooks) OnConnect(string, []Service, []ConflictResolution) {}
-func (noopHooks) OnDisconnect(string)                               {}
+func (noopHooks) OnDisconnect(string, DisconnectReason)             {}
+
+type noopForwardResolver struct{}
+
+func (noopForwardResolver) Resolve(string) []ForwardSpec { return DefaultForwardSpecs() }
 
 func TestServer_InitRejectsNilValidator(t *testing.T) {
 	s := &Server{
@@ -70,6 +74,7 @@ func TestServer_InitRejectsNilValidator(t *testing.T) {
 		Validator: nil,
 		Hooks:     noopHooks{},
 		Pool:      NewPortPool(59200, 59299),
+		ForwardResolver: noopForwardResolver{},
 		Sessions:  NewRegistry(),
 	}
 	if err := s.init(); err == nil {
@@ -83,6 +88,7 @@ func TestServer_InitRejectsNilHooks(t *testing.T) {
 		Validator: noopValidator{},
 		Hooks:     nil,
 		Pool:      NewPortPool(59200, 59299),
+		ForwardResolver: noopForwardResolver{},
 		Sessions:  NewRegistry(),
 	}
 	if err := s.init(); err == nil {
@@ -96,6 +102,7 @@ func TestServer_InitRejectsNilPool(t *testing.T) {
 		Validator: noopValidator{},
 		Hooks:     noopHooks{},
 		Pool:      nil,
+		ForwardResolver: noopForwardResolver{},
 		Sessions:  NewRegistry(),
 	}
 	if err := s.init(); err == nil {
@@ -109,6 +116,7 @@ func TestServer_InitRejectsNilSessions(t *testing.T) {
 		Validator: noopValidator{},
 		Hooks:     noopHooks{},
 		Pool:      NewPortPool(59200, 59299),
+		ForwardResolver: noopForwardResolver{},
 		Sessions:  nil,
 	}
 	if err := s.init(); err == nil {
@@ -122,6 +130,7 @@ func TestServer_InitSucceedsWithAllDeps(t *testing.T) {
 		Validator: noopValidator{},
 		Hooks:     noopHooks{},
 		Pool:      NewPortPool(59200, 59299),
+		ForwardResolver: noopForwardResolver{},
 		Sessions:  NewRegistry(),
 	}
 	if err := s.init(); err != nil {
@@ -132,17 +141,17 @@ func TestServer_InitSucceedsWithAllDeps(t *testing.T) {
 // ---- Constants sanity ----------------------------------------------------
 
 func TestConstants_KeepaliveTimings(t *testing.T) {
-	// keepaliveTimeout must be shorter than keepaliveInterval so that a
+	// DefaultKeepaliveTimeout must be shorter than DefaultKeepaliveInterval so that a
 	// failing remote is detected within one interval.
-	if keepaliveTimeout >= keepaliveInterval {
+	if DefaultKeepaliveTimeout >= DefaultKeepaliveInterval {
 		t.Errorf("keepaliveTimeout (%v) must be < keepaliveInterval (%v)",
-			keepaliveTimeout, keepaliveInterval)
+			DefaultKeepaliveTimeout, DefaultKeepaliveInterval)
 	}
-	// handshakeTimeout must be shorter than keepaliveInterval so it doesn't
+	// handshakeTimeout must be shorter than DefaultKeepaliveInterval so it doesn't
 	// interfere with established sessions.
-	if handshakeTimeout >= keepaliveInterval {
+	if handshakeTimeout >= DefaultKeepaliveInterval {
 		t.Errorf("handshakeTimeout (%v) should be < keepaliveInterval (%v)",
-			handshakeTimeout, keepaliveInterval)
+			handshakeTimeout, DefaultKeepaliveInterval)
 	}
 }
 

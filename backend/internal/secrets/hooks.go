@@ -36,6 +36,9 @@ func RegisterHooks(app *pocketbase.PocketBase) {
 		e.Record.Set("payload_meta", BuildPayloadMeta(payload, tpl))
 		e.Record.Set("version", 1)
 		e.Record.Set("status", "active")
+		if e.Record.GetString("created_source") == "" {
+			e.Record.Set("created_source", "user")
+		}
 		if e.Auth != nil {
 			e.Record.Set("created_by", e.Auth.Id)
 		}
@@ -62,6 +65,23 @@ func RegisterHooks(app *pocketbase.PocketBase) {
 		existing, err := app.FindRecordById("secrets", e.Record.Id)
 		if err != nil {
 			return err
+		}
+		if isSystemManagedSecret(existing) {
+			audit.Write(app, audit.Entry{
+				UserID:       actorID(e.Auth),
+				UserEmail:    actorEmail(e.Auth),
+				Action:       "secret.update_denied",
+				ResourceType: "secret",
+				ResourceID:   existing.Id,
+				ResourceName: existing.GetString("name"),
+				Status:       audit.StatusFailed,
+				IP:           e.RealIP(),
+				UserAgent:    e.Request.Header.Get("User-Agent"),
+				Detail: map[string]any{
+					"reason_code": "system_secret_read_only",
+				},
+			})
+			return apis.NewForbiddenError("system_secret_read_only", nil)
 		}
 
 		if existing.GetString("payload_encrypted") != e.Record.GetString("payload_encrypted") {
@@ -99,6 +119,23 @@ func RegisterHooks(app *pocketbase.PocketBase) {
 	})
 
 	app.OnRecordDeleteRequest("secrets").BindFunc(func(e *core.RecordRequestEvent) error {
+		if isSystemManagedSecret(e.Record) {
+			audit.Write(app, audit.Entry{
+				UserID:       actorID(e.Auth),
+				UserEmail:    actorEmail(e.Auth),
+				Action:       "secret.delete_denied",
+				ResourceType: "secret",
+				ResourceID:   e.Record.Id,
+				ResourceName: e.Record.GetString("name"),
+				Status:       audit.StatusFailed,
+				IP:           e.RealIP(),
+				UserAgent:    e.Request.Header.Get("User-Agent"),
+				Detail: map[string]any{
+					"reason_code": "system_secret_delete_forbidden",
+				},
+			})
+			return apis.NewForbiddenError("system_secret_delete_forbidden", nil)
+		}
 		name := e.Record.GetString("name")
 		id := e.Record.Id
 		err := e.Next()
@@ -165,4 +202,15 @@ func actorEmail(auth *core.Record) string {
 		return ""
 	}
 	return auth.GetString("email")
+}
+
+func isSystemManagedSecret(rec *core.Record) bool {
+	if rec == nil {
+		return false
+	}
+	if rec.GetString("created_source") == "system" {
+		return true
+	}
+	// Legacy guard: old tunnel tokens may not have created_source populated yet.
+	return rec.GetString("type") == "tunnel_token"
 }

@@ -223,3 +223,75 @@ func TestSecretsPayloadUpdateRevokedForbidden(t *testing.T) {
 		t.Fatalf("expected 403, got %d: %s", res.Code, res.Body.String())
 	}
 }
+
+func TestSecretsPayloadUpdateSystemManagedForbidden(t *testing.T) {
+	te := newSecretsTestEnv(t)
+	defer te.cleanup()
+
+	col, err := te.app.FindCollectionByNameOrId("secrets")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := core.NewRecord(col)
+	rec.Set("name", "route-secret-system")
+	rec.Set("template_id", "single_value")
+	rec.Set("scope", "global")
+	rec.Set("access_mode", "use_only")
+	rec.Set("status", "active")
+	rec.Set("created_source", "system")
+	rec.Set("created_by", "u1")
+	enc, err := secrets.EncryptPayload(map[string]any{"value": "old"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec.Set("payload_encrypted", enc)
+	rec.Set("version", 1)
+	if err := te.app.Save(rec); err != nil {
+		t.Fatal(err)
+	}
+
+	body := `{"payload":{"value":"new"}}`
+	res := doSecretsRoute(t, te, http.MethodPut, "/api/secrets/"+rec.Id+"/payload", body, true, false)
+	if res.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", res.Code, res.Body.String())
+	}
+	if !strings.Contains(strings.ToLower(res.Body.String()), "system_secret_payload_read_only") {
+		t.Fatalf("expected reason code in response, got %s", res.Body.String())
+	}
+}
+
+func TestSecretsPayloadUpdateLegacyTunnelTokenForbidden(t *testing.T) {
+	te := newSecretsTestEnv(t)
+	defer te.cleanup()
+
+	col, err := te.app.FindCollectionByNameOrId("secrets")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := core.NewRecord(col)
+	rec.Set("name", "route-secret-tunnel")
+	rec.Set("type", "tunnel_token")
+	rec.Set("template_id", "single_value")
+	rec.Set("scope", "global")
+	rec.Set("access_mode", "use_only")
+	rec.Set("status", "active")
+	rec.Set("created_by", "u1")
+	enc, err := secrets.EncryptPayload(map[string]any{"value": "old"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec.Set("payload_encrypted", enc)
+	rec.Set("version", 1)
+	if err := te.app.Save(rec); err != nil {
+		t.Fatal(err)
+	}
+
+	body := `{"payload":{"value":"new"}}`
+	res := doSecretsRoute(t, te, http.MethodPut, "/api/secrets/"+rec.Id+"/payload", body, true, false)
+	if res.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", res.Code, res.Body.String())
+	}
+	if !strings.Contains(strings.ToLower(res.Body.String()), "system_secret_payload_read_only") {
+		t.Fatalf("expected reason code in response, got %s", res.Body.String())
+	}
+}

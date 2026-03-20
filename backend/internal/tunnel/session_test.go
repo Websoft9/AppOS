@@ -77,6 +77,16 @@ func TestRegistry_Register_Replaces(t *testing.T) {
 	if len(r.All()) != 1 {
 		t.Errorf("All() should have 1 entry after replace, got %d", len(r.All()))
 	}
+	if sess1.DisconnectReason() != DisconnectReasonSessionReplaced {
+		t.Fatalf("expected replaced session reason %q, got %q", DisconnectReasonSessionReplaced, sess1.DisconnectReason())
+	}
+}
+
+func TestSession_DisconnectReasonDefaultsToClosed(t *testing.T) {
+	sess := newTestSession("srv1")
+	if sess.DisconnectReason() != DisconnectReasonConnectionClosed {
+		t.Fatalf("expected default disconnect reason %q, got %q", DisconnectReasonConnectionClosed, sess.DisconnectReason())
+	}
 }
 
 func TestRegistry_ConcurrentSafe(t *testing.T) {

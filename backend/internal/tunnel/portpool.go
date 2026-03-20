@@ -16,6 +16,13 @@ type Service struct {
 	TunnelPort int `json:"tunnel_port"`
 }
 
+// ForwardSpec describes a desired tunnel forward before appos assigns a tunnel port.
+type ForwardSpec struct {
+	Name string `json:"service_name"`
+	// LocalPort is the port on the local tunnel server to be exposed through appos.
+	LocalPort int `json:"local_port"`
+}
+
 // ConflictResolution records a forced port reassignment that occurred because
 // a previously stored port was already in use by another OS process at startup.
 // The caller (routes/tunnel.go) must update the DB record and write an audit entry.
@@ -37,17 +44,16 @@ type PortRecord struct {
 	Services []Service
 }
 
-// defaultServiceSpecs defines the two services that every tunnel client
-// is expected to forward (via `autossh -R 0:localhost:22 -R 0:localhost:80`).
-// These are the canonical local-port values used when allocating ports for a
-// first-time server; they are also used by server.go when mapping tcpip-forward
-// requests to named services.
-var defaultServiceSpecs = []struct {
-	name      string
-	localPort int
-}{
-	{"ssh", 22},
-	{"http", 80},
+var defaultForwardSpecs = []ForwardSpec{
+	{Name: "ssh", LocalPort: 22},
+	{Name: "http", LocalPort: 80},
+}
+
+// DefaultForwardSpecs returns the fallback desired forwards for tunnel servers.
+func DefaultForwardSpecs() []ForwardSpec {
+	out := make([]ForwardSpec, len(defaultForwardSpecs))
+	copy(out, defaultForwardSpecs)
+	return out
 }
 
 // PortPool manages persistent port assignments for tunnel servers.
@@ -108,18 +114,19 @@ func (p *PortPool) LoadExisting(records []PortRecord) {
 //     conflicts. Conflicted ports are replaced from the free range; a
 //     ConflictResolution is returned for each replacement so the caller can
 //     update the DB and write an audit entry.
-//   - New server: allocates one port per default service spec and stores them.
+//   - New server: allocates one port per desired forward and stores them.
 //
 // Returns (nil, nil) only when the port range is exhausted — the caller must
 // reject the connection.
-func (p *PortPool) AcquireOrReuse(serverID string) ([]Service, []ConflictResolution) {
+func (p *PortPool) AcquireOrReuse(serverID string, desired []ForwardSpec) ([]Service, []ConflictResolution) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	desired = normalizeForwardSpecs(desired)
 
 	if svcs, known := p.byServer[serverID]; known {
-		return p.reuseServices(serverID, svcs)
+		return p.reuseServices(serverID, svcs, desired)
 	}
-	return p.allocateNew(serverID)
+	return p.allocateNew(serverID, desired)
 }
 
 // Release frees all ports assigned to serverID so they can be given to new servers.
@@ -140,70 +147,98 @@ func (p *PortPool) Release(serverID string) {
 
 // --- internal helpers (caller must hold p.mu) ----------------------------
 
-// reuseServices verifies that each stored port is free at the OS level.
-// Occupied ports are swapped for freshly-allocated ones.
-func (p *PortPool) reuseServices(serverID string, prev []Service) ([]Service, []ConflictResolution) {
+// reuseServices reconciles previous effective services with the current desired
+// forwards, reusing prior tunnel ports when possible and allocating new ones only
+// for conflicts or newly-added forwards.
+func (p *PortPool) reuseServices(serverID string, prev []Service, desired []ForwardSpec) ([]Service, []ConflictResolution) {
 	var (
-		updated   = make([]Service, len(prev))
+		updated   = make([]Service, 0, len(desired))
 		conflicts []ConflictResolution
 	)
+	workingByPort := clonePortOwners(p.byPort)
+	prevByName := make(map[string]Service, len(prev))
+	desiredNames := make(map[string]struct{}, len(desired))
 
-	for i, svc := range prev {
-		if portFree(svc.TunnelPort) {
-			updated[i] = svc
-			continue
-		}
-
-		// Port occupied by another OS process — allocate a replacement.
-		newPort, ok := p.allocatePort()
-		if !ok {
-			// Exhausted: keep the old (unusable) port; let server.go decide.
-			updated[i] = svc
-			continue
-		}
-
-		conflicts = append(conflicts, ConflictResolution{
-			ServiceName: svc.Name,
-			OldPort:     svc.TunnelPort,
-			NewPort:     newPort,
-		})
-
-		delete(p.byPort, svc.TunnelPort)
-		p.byPort[newPort] = serverID
-
-		updated[i] = Service{
-			Name:       svc.Name,
-			LocalPort:  svc.LocalPort,
-			TunnelPort: newPort,
+	for _, svc := range prev {
+		prevByName[svc.Name] = svc
+	}
+	for _, spec := range desired {
+		desiredNames[spec.Name] = struct{}{}
+	}
+	for _, svc := range prev {
+		if _, keep := desiredNames[svc.Name]; !keep {
+			delete(workingByPort, svc.TunnelPort)
 		}
 	}
 
+	for _, spec := range desired {
+		if existing, ok := prevByName[spec.Name]; ok {
+			if portFree(existing.TunnelPort) {
+				updated = append(updated, Service{
+					Name:       spec.Name,
+					LocalPort:  spec.LocalPort,
+					TunnelPort: existing.TunnelPort,
+				})
+				continue
+			}
+
+			newPort, ok := p.allocatePortFromOwners(workingByPort)
+			if !ok {
+				return nil, nil
+			}
+
+			conflicts = append(conflicts, ConflictResolution{
+				ServiceName: spec.Name,
+				OldPort:     existing.TunnelPort,
+				NewPort:     newPort,
+			})
+
+			delete(workingByPort, existing.TunnelPort)
+			workingByPort[newPort] = serverID
+			updated = append(updated, Service{
+				Name:       spec.Name,
+				LocalPort:  spec.LocalPort,
+				TunnelPort: newPort,
+			})
+			continue
+		}
+
+		newPort, ok := p.allocatePortFromOwners(workingByPort)
+		if !ok {
+			return nil, nil
+		}
+		workingByPort[newPort] = serverID
+		updated = append(updated, Service{
+			Name:       spec.Name,
+			LocalPort:  spec.LocalPort,
+			TunnelPort: newPort,
+		})
+	}
+
+	p.byPort = workingByPort
 	p.byServer[serverID] = updated
 	return updated, conflicts
 }
 
-// allocateNew assigns ports for all default service specs to a first-time server.
-func (p *PortPool) allocateNew(serverID string) ([]Service, []ConflictResolution) {
-	svcs := make([]Service, 0, len(defaultServiceSpecs))
+// allocateNew assigns ports for all desired forward specs to a first-time server.
+func (p *PortPool) allocateNew(serverID string, desired []ForwardSpec) ([]Service, []ConflictResolution) {
+	workingByPort := clonePortOwners(p.byPort)
+	svcs := make([]Service, 0, len(desired))
 
-	for _, spec := range defaultServiceSpecs {
-		port, ok := p.allocatePort()
+	for _, spec := range desired {
+		port, ok := p.allocatePortFromOwners(workingByPort)
 		if !ok {
-			// Partially allocated — release what we grabbed and bail.
-			for _, s := range svcs {
-				delete(p.byPort, s.TunnelPort)
-			}
-			delete(p.byServer, serverID)
 			return nil, nil
 		}
-		p.byPort[port] = serverID
+		workingByPort[port] = serverID
 		svcs = append(svcs, Service{
-			Name:       spec.name,
-			LocalPort:  spec.localPort,
+			Name:       spec.Name,
+			LocalPort:  spec.LocalPort,
 			TunnelPort: port,
 		})
 	}
 
+	p.byPort = workingByPort
 	p.byServer[serverID] = svcs
 	return svcs, nil
 }
@@ -211,9 +246,9 @@ func (p *PortPool) allocateNew(serverID string) ([]Service, []ConflictResolution
 // allocatePort finds the next free port in [start, end] that is neither reserved
 // by another server nor occupied by an OS process.  Returns (0, false) if none
 // found.
-func (p *PortPool) allocatePort() (int, bool) {
+func (p *PortPool) allocatePortFromOwners(byPort map[int]string) (int, bool) {
 	for port := p.start; port <= p.end; port++ {
-		if _, used := p.byPort[port]; used {
+		if _, used := byPort[port]; used {
 			continue
 		}
 		if !portFree(port) {
@@ -221,12 +256,29 @@ func (p *PortPool) allocatePort() (int, bool) {
 			// Marking it here prevents repeated probing on every AcquireOrReuse call.
 			// The sentinel is intentionally never removed — port availability is
 			// determined at startup and does not change mid-run in normal operation.
-			p.byPort[port] = "__os__"
+			byPort[port] = "__os__"
 			continue
 		}
 		return port, true
 	}
 	return 0, false
+}
+
+func normalizeForwardSpecs(desired []ForwardSpec) []ForwardSpec {
+	if len(desired) == 0 {
+		return DefaultForwardSpecs()
+	}
+	out := make([]ForwardSpec, len(desired))
+	copy(out, desired)
+	return out
+}
+
+func clonePortOwners(in map[int]string) map[int]string {
+	out := make(map[int]string, len(in))
+	for port, owner := range in {
+		out[port] = owner
+	}
+	return out
 }
 
 // portFree probes whether port is available on 127.0.0.1.

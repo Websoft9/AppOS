@@ -212,32 +212,19 @@ func (w *Worker) handleDeployApp(_ context.Context, t *asynq.Task) error {
 		projectDir = filepath.Join("/appos/data/apps/deployments", record.Id)
 		record.Set("project_dir", projectDir)
 	}
-	if serverID == "local" {
-		if err := os.MkdirAll(projectDir, 0755); err != nil {
-			appendDeploymentLog(w.app, record, "failed to create local project directory")
-			return markDeploymentFailed(w.app, record, p, "failed to prepare project directory")
-		}
-		appendDeploymentLog(w.app, record, "local project directory prepared: "+projectDir)
-		if err := os.WriteFile(filepath.Join(projectDir, "docker-compose.yml"), []byte(spec.RenderedCompose), 0644); err != nil {
-			appendDeploymentLog(w.app, record, "failed to write local docker-compose.yml")
-			return markDeploymentFailed(w.app, record, p, "failed to write compose file")
-		}
-		appendDeploymentLog(w.app, record, "local docker-compose.yml written")
-	} else {
-		appendDeploymentLog(w.app, record, "preparing remote workspace for server: "+serverID)
-		if err := prepareRemoteDeploymentWorkspace(w.app, serverID, projectDir, spec.RenderedCompose); err != nil {
-			appendDeploymentLog(w.app, record, "failed to prepare remote workspace: "+err.Error())
-			return markDeploymentFailed(w.app, record, p, "failed to prepare remote deployment workspace")
-		}
-		appendDeploymentLog(w.app, record, "remote docker-compose.yml written")
+	executor := newDeploymentExecutor(w.app, serverID)
+	if err := executor.PrepareWorkspace(projectDir, spec.RenderedCompose); err != nil {
+		appendDeploymentLog(w.app, record, "failed to prepare deployment workspace: "+err.Error())
+		return markDeploymentFailed(w.app, record, p, "failed to prepare deployment workspace")
 	}
+	appendDeploymentLog(w.app, record, executor.Name()+" deployment workspace prepared: "+projectDir)
 
 	if err := deploy.ApplyEventToRecord(w.app, record, deploy.EventExecutionStarted, deploy.TransitionOptions{}); err != nil {
 		return err
 	}
 	appendDeploymentLog(w.app, record, "docker compose up started")
 
-	client, err := deploymentDockerClient(w.app, serverID)
+	client, err := executor.DockerClient()
 	if err != nil {
 		appendDeploymentLog(w.app, record, "failed to create docker client: "+err.Error())
 		return markDeploymentFailed(w.app, record, p, "failed to connect target docker host")

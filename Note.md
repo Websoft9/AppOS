@@ -1,5 +1,4 @@
 ## Bug
-- add server 失败：Failed to create record.
 
 ## 资源
 
@@ -8,20 +7,17 @@
 
 ### 服务器
 
-
-服务器特殊环境配置：Docker 仓库地址、Docker 加速地址、代理地址
-环境预装机制：在线一键脚本或由 AppOS 推送到服务器后执行
+- detail page
+- 服务器特殊环境配置：Docker 仓库地址、Docker 加速地址、代理地址
+- 环境预装机制：在线一键脚本或由 AppOS 推送到服务器后执行
+- Create Server 是，需要针对两种类型做一定的体验改善
 
 
 ## 隧道
 
-- 增加一个隧道管理页面
-- Create Server 是，需要针对两种类型做一定的体验改善
-- 为什么 /tunnel 被 Nginx 代理了？
+- 隧道链接到服务器的 detail page
 
 ## Workflow
-
-## SFTP/SSH
 
 ## 浏览器
 
@@ -86,3 +82,37 @@ Settings（配置层）
 - default group 
 - 协作菜单的图标，不够简洁，请采用更合适的
 
+## 缓存问题
+
+- 如何做？存储到哪里？
+
+
+1. 请将 worker 中的执行器拆分出来
+local executor
+ssh executor
+
+2. 
+
+给 App detail 再接一层 compose 校验与 diff 预览，避免直接保存时改坏配置。
+
+
+
+手工部署应该有一个完整的体验过程：
+
+1. 采集部署数据
+2. 检查和确认部署
+3. 确认通过后才可以加入 pipeline
+
+如果没有确认过的，是否可以保存下来？
+
+
+
+给 target-based deploy 再补一层 .env 和参数表单预填
+给私有 Git 再补 Secret 引用模式，避免每次手填 token
+
+
+story16.3-tunnel-operations-view  更名为 
+story16.4-tunnel-port-mapping-management 
+
+
+components 页不要以列表（表格）页面的形态出现，它以文本形态：名称+版本+时间，页面分为两列显示，这样它显得不具备操作性，降低用户心理负担

@@ -7,7 +7,7 @@ Create a unified `System / Components` workspace for system administrators to in
 ## Scope
 
 - Single entry under `System`: `Components`
-- One list page at `/components`
+- One information page at `/components`
 - Two tabs inside the page:
 	- `Installed Components`
 	- `Active Services`
@@ -21,6 +21,7 @@ Create a unified `System / Components` workspace for system administrators to in
 - Aggregate a normalized component list for AppOS runtime components
 - Display at minimum: `name`, `version`, `available`, `last_detected_at`
 - Keep the presentation minimal and admin-facing
+- Present installed components as a non-operational, text-first layout (name + version + time), arranged in two columns on desktop
 - Provide empty, loading, and partial-detection states
 - Responsive layout for desktop and mobile admin usage
 
@@ -60,10 +61,10 @@ Create a unified `System / Components` workspace for system administrators to in
 
 - [ ] Components page accessible at `/components` under the `System` menu
 - [ ] Page contains exactly two primary tabs: `Installed Components` and `Active Services`
-- [ ] Installed Components tab shows a simple component list with version and availability state
+- [ ] Installed Components tab shows a simple read-only component view with name, version, and detection/update time
 - [ ] Active Services tab shows supervisord-managed internal services with correct runtime state
 - [ ] Active Services tab provides logs and diagnostics without exposing dangerous controls by default
-- [ ] Installed Components tab remains minimal and does not require category grouping, search, or statistics
+- [ ] Installed Components tab remains minimal, non-operational in tone, and does not require category grouping, search, or statistics
 - [ ] UI uses shadcn/ui + Tailwind, consistent with Dashboard design system
 - [ ] Proper auth: all API calls go through PB unified auth
 - [ ] Error handling covers full failure and partial-detection scenarios

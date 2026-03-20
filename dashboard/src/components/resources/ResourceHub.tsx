@@ -30,7 +30,11 @@ interface ResourceDef {
   description: string
   icon: React.ReactNode
   href: string
-  apiPath: string
+  apiPath?: string
+  countQuery?: {
+    collection: string
+    filter?: string
+  }
 }
 
 const RESOURCES: ResourceDef[] = [
@@ -40,9 +44,8 @@ const RESOURCES: ResourceDef[] = [
     description: 'SSH deployment targets',
     icon: <Server className="h-5 w-5" />,
     href: '/resources/servers',
-    apiPath: '/api/collections/servers/records',
+    countQuery: { collection: 'servers' },
   },
-
   {
     key: 'databases',
     title: 'Databases',
@@ -85,23 +88,17 @@ export function ResourceHub() {
   const [counts, setCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
 
-  // Collections that use PocketBase native Records API (support getList pagination)
-  const nativeCollections: Record<string, string> = {
-    servers: 'servers',
-  }
-
   useEffect(() => {
     const promises = RESOURCES.map(r => {
-      const colName = nativeCollections[r.key]
-      if (colName) {
+      if (r.countQuery) {
         return pb
-          .collection(colName)
-          .getList(1, 1)
+          .collection(r.countQuery.collection)
+          .getList(1, 1, r.countQuery.filter ? { filter: r.countQuery.filter } : undefined)
           .then(data => ({ key: r.key, count: data.totalItems ?? 0 }))
           .catch(() => ({ key: r.key, count: 0 }))
       }
       return pb
-        .send<unknown[]>(r.apiPath, {})
+        .send<unknown[]>(r.apiPath ?? '', {})
         .then(data => ({ key: r.key, count: Array.isArray(data) ? data.length : 0 }))
         .catch(() => ({ key: r.key, count: 0 }))
     })

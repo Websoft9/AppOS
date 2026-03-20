@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { RefreshCw, Loader2, FileText, ArrowUpDown, ArrowUp, ArrowDown, Search } from 'lucide-react'
+import { RefreshCw, Loader2, FileText, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   Dialog,
   DialogContent,
@@ -78,10 +77,6 @@ function formatMemory(bytes: number): string {
   if (bytes <= 0) return '-'
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function availabilityVariant(available: boolean): 'default' | 'destructive' {
-  return available ? 'default' : 'destructive'
 }
 
 function serviceVariant(state: string): 'default' | 'secondary' | 'destructive' | 'outline' {
@@ -255,6 +250,10 @@ export function ComponentsPage() {
             </Alert>
           ) : null}
 
+          <p className="text-sm text-muted-foreground">
+            Read-only snapshot for quick awareness. No actions are required here.
+          </p>
+
           {componentsLoading ? (
             <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
               <p className="text-muted-foreground">Loading installed components...</p>
@@ -264,32 +263,27 @@ export function ComponentsPage() {
               <p className="text-muted-foreground">No installed components were detected.</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Version</TableHead>
-                  <TableHead>Available</TableHead>
-                  <TableHead className="hidden md:table-cell">Updated</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <div className="rounded-2xl border border-dashed bg-gradient-to-br from-muted/40 via-background to-muted/20 p-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                 {components.map(component => (
-                  <TableRow key={component.id}>
-                    <TableCell className="font-medium">{component.name}</TableCell>
-                    <TableCell>{component.version || 'unknown'}</TableCell>
-                    <TableCell>
-                      <Badge variant={availabilityVariant(component.available)}>
-                        {component.available ? 'Available' : 'Unavailable'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      {formatTime(component.updated_at)}
-                    </TableCell>
-                  </TableRow>
+                  <article
+                    key={component.id}
+                    className="rounded-xl border bg-background/80 p-4"
+                  >
+                    <p className="text-base font-medium leading-6">{component.name}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Version {component.version || 'unknown'}
+                    </p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Updated {formatTime(component.updated_at)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {component.available ? 'Detected and available' : 'Detected but currently unavailable'}
+                    </p>
+                  </article>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+            </div>
           )}
         </TabsContent>
 
@@ -447,27 +441,10 @@ export function InstalledComponentsContent() {
   const [components, setComponents] = useState<ComponentItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [search, setSearch] = useState('')
-  const [sortKey, setSortKey] = useState<'name' | 'version' | 'available' | 'updated_at'>('name')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
-  const handleSort = (key: typeof sortKey) => {
-    if (sortKey === key) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
-    else { setSortKey(key); setSortDir('asc') }
-  }
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    const base = q ? components.filter(c => c.name.toLowerCase().includes(q) || c.version.toLowerCase().includes(q)) : components
-    return [...base].sort((a, b) => {
-      let av: string, bv: string
-      if (sortKey === 'available') { av = String(a.available); bv = String(b.available) }
-      else if (sortKey === 'updated_at') { av = a.updated_at; bv = b.updated_at }
-      else if (sortKey === 'version') { av = a.version; bv = b.version }
-      else { av = a.name; bv = b.name }
-      return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
-    })
-  }, [components, search, sortKey, sortDir])
+  const sorted = useMemo(() => {
+    return [...components].sort((a, b) => a.name.localeCompare(b.name))
+  }, [components])
 
   const fetchComponents = useCallback(async (force = false) => {
     if (force) {
@@ -490,24 +467,10 @@ export function InstalledComponentsContent() {
   useEffect(() => { void fetchComponents() }, [fetchComponents])
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Filter components…" value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-8" />
-        </div>
-        <Button
-          variant="outline"
-          size="icon"
-          title="Force refresh"
-          disabled={loading}
-          onClick={() => void fetchComponents(true)}
-        >
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4" />
-          )}
+    <div className="space-y-3">
+      <div className="flex items-center justify-end">
+        <Button variant="outline" size="icon" title="Force refresh" disabled={loading} onClick={() => void fetchComponents(true)}>
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
         </Button>
       </div>
       {error ? <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert> : null}
@@ -515,36 +478,24 @@ export function InstalledComponentsContent() {
         <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
           <p className="text-muted-foreground">Loading installed components...</p>
         </div>
-      ) : filtered.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
-          <p className="text-muted-foreground">{search ? 'No components match your filter.' : 'No installed components were detected.'}</p>
+          <p className="text-muted-foreground">No installed components were detected.</p>
         </div>
       ) : (
-        <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead><SortBtn label="Name" field="name" sort={sortKey} dir={sortDir} onSort={handleSort} /></TableHead>
-              <TableHead><SortBtn label="Version" field="version" sort={sortKey} dir={sortDir} onSort={handleSort} /></TableHead>
-              <TableHead><SortBtn label="Available" field="available" sort={sortKey} dir={sortDir} onSort={handleSort} /></TableHead>
-              <TableHead className="hidden md:table-cell"><SortBtn label="Updated" field="updated_at" sort={sortKey} dir={sortDir} onSort={handleSort} /></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.map(component => (
-              <TableRow key={component.id}>
-                <TableCell className="font-medium">{component.name}</TableCell>
-                <TableCell>{component.version || 'unknown'}</TableCell>
-                <TableCell>
-                  <Badge variant={availabilityVariant(component.available)}>
-                    {component.available ? 'Available' : 'Unavailable'}
-                  </Badge>
-                </TableCell>
-                <TableCell className="hidden md:table-cell">{formatTime(component.updated_at)}</TableCell>
-              </TableRow>
+        <div className="rounded-2xl border border-dashed bg-gradient-to-br from-muted/40 via-background to-muted/20 p-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+            {sorted.map(component => (
+              <article key={component.id} className="rounded-xl border bg-background/80 p-4">
+                <p className="text-base font-medium leading-6">{component.name}</p>
+                <p className="mt-1 text-sm text-muted-foreground">Version {component.version || 'unknown'}</p>
+                <p className="mt-2 text-xs text-muted-foreground">Updated {formatTime(component.updated_at)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {component.available ? 'Detected and available' : 'Detected but currently unavailable'}
+                </p>
+              </article>
             ))}
-          </TableBody>
-        </Table>
+          </div>
         </div>
       )}
     </div>
@@ -564,7 +515,6 @@ export function ActiveServicesContent() {
     truncated: boolean
     lastDetectedAt: string
   } | null>(null)
-  const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<'name' | 'state' | 'cpu' | 'memory' | 'uptime'>('name')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
@@ -573,10 +523,8 @@ export function ActiveServicesContent() {
     else { setSortKey(key); setSortDir('asc') }
   }
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    const base = q ? services.filter(s => s.name.toLowerCase().includes(q) || s.state.toLowerCase().includes(q)) : services
-    return [...base].sort((a, b) => {
+  const sorted = useMemo(() => {
+    return [...services].sort((a, b) => {
       if (sortKey === 'cpu') return sortDir === 'asc' ? a.cpu - b.cpu : b.cpu - a.cpu
       if (sortKey === 'memory') return sortDir === 'asc' ? a.memory - b.memory : b.memory - a.memory
       if (sortKey === 'uptime') return sortDir === 'asc' ? a.uptime - b.uptime : b.uptime - a.uptime
@@ -584,7 +532,7 @@ export function ActiveServicesContent() {
       const bv = sortKey === 'state' ? b.state : b.name
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
     })
-  }, [services, search, sortKey, sortDir])
+  }, [services, sortKey, sortDir])
 
   const fetchServices = useCallback(async () => {
     try {
@@ -621,11 +569,7 @@ export function ActiveServicesContent() {
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Filter services…" value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-8" />
-        </div>
+      <div className="flex items-center justify-end gap-2">
         <Select value={String(servicesInterval)} onValueChange={v => setServicesInterval(Number(v))}>
           <SelectTrigger className="h-8 w-[90px] text-xs">
             <SelectValue placeholder="Auto-refresh" />
@@ -646,12 +590,11 @@ export function ActiveServicesContent() {
         <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
           <p className="text-muted-foreground">Loading active services...</p>
         </div>
-      ) : filtered.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
-          <p className="text-muted-foreground">{search ? 'No services match your filter.' : 'No active services are configured.'}</p>
+          <p className="text-muted-foreground">No active services are configured.</p>
         </div>
       ) : (
-        <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -666,7 +609,7 @@ export function ActiveServicesContent() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map(service => (
+            {sorted.map(service => (
               <TableRow key={service.name}>
                 <TableCell className="font-medium">{service.name}</TableCell>
                 <TableCell>
@@ -694,7 +637,6 @@ export function ActiveServicesContent() {
             ))}
           </TableBody>
         </Table>
-        </div>
       )}
 
       <Dialog open={!!logDialog} onOpenChange={open => !open && setLogDialog(null)}>

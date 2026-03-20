@@ -17,6 +17,12 @@ Admin
 
 Provide a centralized, minimal, and secure secrets module for AppOS so all sensitive values are stored and consumed through `secretRef` instead of plain settings.
 
+## Session Delta (2026-03-20)
+
+- Added `created_source` to distinguish system-created and user-created credentials.
+- `tunnel_token` is system-managed: fixed `template_id = single_value`, not user-editable/deletable via common secret paths.
+- Secrets list defaults to user-created records only; system credentials are hidden by default.
+
 ## Requirements
 
 1. Support CRUD for secrets metadata and encrypted payload in a single `secrets` table.
@@ -69,6 +75,7 @@ Missing `APPOS_SECRET_KEY` at startup → fatal error, process exits.
 | `payload_meta` | JSON | non-sensitive hints for list/filter only |
 | `status` | enum | `active` \| `revoked` |
 | `version` | int | increments on each rotate |
+| `created_source` | enum | `user` \| `system` |
 | `last_used_at` | datetime | updated on each resolve |
 | `last_used_by` | string | `module:id` of most recent consumer |
 | `created_by` | string | user id |
@@ -97,10 +104,10 @@ Missing `APPOS_SECRET_KEY` at startup → fatal error, process exits.
 |-----------|-----|
 | Read (list/detail) | Any authenticated user |
 | Create | Any authenticated user |
-| Update metadata | `created_by` + superuser |
-| Update payload (`PUT /payload`) | `created_by` + superuser |
+| Update metadata | `created_by` + superuser (system-managed denied) |
+| Update payload (`PUT /payload`) | `created_by` + superuser (system-managed denied) |
 | Revoke (`PATCH status=revoked`) | Superuser only |
-| Delete | Superuser only |
+| Delete | Superuser only (system-managed denied) |
 | Reveal | `created_by` + superuser (subject to `access_mode`) |
 | Resolve (internal) | Internal header only — no user context |
 
@@ -142,7 +149,8 @@ Base: `/api/collections/secrets/records`
 
 PB collection hooks:
 - **Before Create**: backend extracts `payload` to generate masked `payload_meta`, encrypts `payload` to `payload_encrypted`, and removes plaintext `payload` from record.
-- **Before Update**: reject direct writes to `payload_encrypted`; use payload custom route instead.
+- **Before Update**: reject direct writes to `payload_encrypted`; deny updates for system-managed secrets; use payload custom route instead.
+- **Before Delete**: deny deletes for system-managed secrets.
 - **After Create / Delete**: emit audit event.
 
 ### Custom Routes

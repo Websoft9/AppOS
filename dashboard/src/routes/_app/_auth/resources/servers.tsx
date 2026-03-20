@@ -61,7 +61,7 @@ const fields: FieldDef[] = [
 ]
 
 function ServersPage() {
-  const { create, returnGroup, returnType } = Route.useSearch()
+  const { create, returnGroup, returnType, edit } = Route.useSearch()
   const autoCreate = create === '1' || !!returnGroup
   const navigate = useNavigate()
   const [wizardServerId, setWizardServerId] = useState<string | null>(null)
@@ -409,6 +409,20 @@ function ServersPage() {
           showRefreshButton: true,
           onRefresh: refreshAllStatuses,
           extraActions: renderExtraActions,
+          initialEditId: edit,
+          onInitialEditHandled: () => {
+            if (!edit) return
+            void navigate({
+              to: '/resources/servers',
+              replace: true,
+              search: {
+                create,
+                returnGroup,
+                returnType,
+                edit: undefined,
+              },
+            })
+          },
           onCreateSuccess: record => {
             if (returnGroup) {
               navigate({
@@ -558,5 +572,6 @@ export const Route = createFileRoute('/_app/_auth/resources/servers')({
     create: typeof search.create === 'string' ? search.create : undefined,
     returnGroup: typeof search.returnGroup === 'string' ? search.returnGroup : undefined,
     returnType: typeof search.returnType === 'string' ? search.returnType : undefined,
+    edit: typeof search.edit === 'string' ? search.edit : undefined,
   }),
 })

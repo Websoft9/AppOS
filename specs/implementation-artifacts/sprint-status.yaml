@@ -166,6 +166,7 @@ development_status:
   epic13-retrospective: optional
 
   # Epic 17: Deploy
+  # 2026-03-20: Spec alignment completed (worker executor split + tunnel/system-secret guardrails)
   epic17: in-progress
   17.1-deploy-contract-and-scheduler-core: ready-for-dev
   17.2-first-deploy-closed-loop-mvp: backlog

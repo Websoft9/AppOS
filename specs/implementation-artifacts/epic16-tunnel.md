@@ -10,6 +10,8 @@ No agent required on the local server. Connection is established with a single `
 
 This epic also owns the lightweight tunnel operations view: a live control-plane view of which tunnel servers are currently connected, what ports/services are mapped, and which basic actions are available. Historical metrics, trends, and alerts remain outside this epic.
 
+This epic also owns tunnel-side port mapping management for `connect_type = tunnel` servers. The first version manages desired TCP forward rules in Tunnel and applies them on reconnect or regenerated setup, not as live in-session reconfiguration.
+
 ---
 
 ## Architecture
@@ -90,6 +92,14 @@ Port conflict fallback:
 ]
 ```
 
+### Desired vs effective mappings
+
+- `tunnel_services` remains effective/runtime state: what ports are currently allocated and active for this server.
+- Desired port mappings are Tunnel-owned configuration for tunnel servers only.
+- First version rule: desired mapping changes take effect on next reconnect or regenerated setup, not immediately in the active session.
+- Allocation policy is stable-reuse-first, not fully dynamic per session.
+- Ports are released when the server or the desired forward is removed, not merely because the current session is offline.
+
 ### `host` field for tunnel servers
 
 `connect_type = tunnel` servers store no meaningful `host`. The `resolveServerConfig` function is extended: when `connect_type = tunnel`, it reads `tunnel_services[name=ssh].tunnel_port` and overrides:
@@ -103,7 +113,9 @@ All existing connectors (SSH terminal, SFTP, Docker exec) work unchanged — the
 
 ### Token storage
 
-Reuses `secrets` collection (`type = tunnel_token`), AES-encrypted, linked via `servers.credential`. The Token is used as the **SSH username** in the autossh command — no password required, no interactive prompt. Token never expires automatically; manual rotation supported with an explicit warning in the Dashboard (rotation immediately disconnects the active tunnel).
+Reuses `secrets` collection (`type = tunnel_token`), AES-encrypted. Tunnel tokens are system-managed (`created_source = system`) with fixed template (`template_id = single_value`). Preferred server mapping is by token secret name (`tunnel-token-{serverID}`), with legacy `servers.credential` relation kept as fallback compatibility.
+
+The Token is used as the **SSH username** in the autossh command — no password required, no interactive prompt. Token never expires automatically; manual rotation supported with an explicit warning in the Dashboard (rotation immediately disconnects the active tunnel).
 
 Token format must be SSH-safe and URL-safe (recommended: base32/base58 without special symbols), so it can be used directly in `{TOKEN}@appos:2222` and setup URLs without escaping issues.
 
@@ -129,12 +141,15 @@ portpool reads these at startup. With SSH + HTTP (2 ports per server), this defa
 | Agent | None. Local server only needs standard OpenSSH client + autossh |
 | User onboarding | appos generates `autossh` command + systemd unit; user copies and runs. Setup script installs autossh if absent |
 | Port assignment | **Persistent**: allocated on first connect, stored in `tunnel_services`, reused on every reconnect. portpool pre-loads existing assignments from DB at startup |
+| Port allocation strategy | Stable reuse first. Reconnect tries to keep prior effective ports; reallocate only on conflict or explicit forward/server removal |
 | Port range | Configurable in system settings (`40000–49999` default). Assigned by appos; local server is unaware |
 | `host` field for tunnel servers | `resolveServerConfig` overrides `cfg.Host=127.0.0.1`, `cfg.Port=tunnel_services[ssh].tunnel_port` |
 | `tunnel_services` creation | Written by backend automatically on first tunnel establishment, never by the user |
+| Desired port mappings | Tunnel-owned configuration, separate from runtime/effective `tunnel_services` |
 | HTTP multi-app routing | Transport only in this Epic. Public reverse proxy wiring is deferred to App Deployment epic |
 | Public exposure | Tunnel ports bound to `127.0.0.1` only. Public `:80/:443` handled by existing Nginx |
 | Operations ownership | Tunnel owns current connection state, service mapping, and control actions |
+| Future multi-port forwarding ownership | Tunnel-owned capability. Server may expose entrypoints, but forward rules and effective mappings remain Tunnel domain concerns |
 | Monitor boundary | Monitor consumes tunnel events/fields for trends, health scoring, and alerts; it does not own tunnel control-plane actions |
 | Token rotation | Manual on-demand via `?rotate=true`; explicit UI warning deferred (API-accessible). Rotation immediately disconnects active tunnel |
 | Wizard status detection | PocketBase Realtime subscription on `servers` record — no polling needed |
@@ -149,7 +164,7 @@ portpool reads these at startup. With SSH + HTTP (2 ports per server), this defa
 
 Authenticated routes under `/api/tunnel/`, require `RequireSuperuserAuth()`.
 
-Existing implemented `/api/ext/tunnel/*` routes are migration targets and should be moved to `/api/tunnel/*`; do not keep the `ext` prefix for new or retained tunnel APIs.
+Legacy ext-prefixed tunnel routes are migration targets and should be moved to `/api/tunnel/*`; do not keep the old prefix for new or retained tunnel APIs.
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -159,6 +174,8 @@ Existing implemented `/api/ext/tunnel/*` routes are migration targets and should
 | GET | `/api/tunnel/overview` | Return tunnel summary cards + tunnel server list for the operations view |
 | GET | `/api/tunnel/servers/:id/session` | Return current/last session details for one tunnel server |
 | POST | `/api/tunnel/servers/:id/disconnect` | Actively close the current tunnel session |
+| GET | `/api/tunnel/servers/:id/forwards` | Return desired port mappings for one tunnel server |
+| PUT | `/api/tunnel/servers/:id/forwards` | Replace desired port mappings for one tunnel server |
 
 Unauthenticated route (registered on `se.Router`, not under `/api/ext`):
 
@@ -173,9 +190,12 @@ Tunnel entry point: `:2222` (TCP, SSH protocol).
 | Concern | Owned by |
 |--------|----------|
 | Token, setup, connect/disconnect, mapped ports, current online/offline, session details | Tunnel |
+| Desired forward rules, effective mappings, and future multi-port forwarding behavior | Tunnel |
 | CPU / memory / disk, long-term uptime, disconnect frequency, health scoring, alerts | Monitor |
 
 Rule: Tunnel is the source of truth for current connection state. Monitor is a consumer of tunnel events and state changes.
+
+Server remains the host resource of record, but future tunnel forwarding expansion is not a generic Server capability. Server UI may expose Tunnel settings; Tunnel owns the actual forward definitions and runtime/effective mappings.
 
 ---
 
@@ -231,6 +251,18 @@ Minimal scope:
 
 This view is for current-state operations only. It is not a metrics dashboard.
 
+### Tunnel port mappings
+
+Tunnel exposes a minimal port mapping management surface for tunnel servers.
+
+First version:
+
+- manage desired TCP forward rules in Tunnel
+- show effective/current `tunnel_services` in Tunnel operations/session views
+- allow Server UI to link to Tunnel settings, but not own the mapping model
+- require reconnect or regenerated setup for changes to take effect
+- keep effective ports stable when possible; do not adopt fully dynamic session-scoped port churn
+
 ---
 
 ## Security
@@ -247,6 +279,7 @@ This view is for current-state operations only. It is not a metrics dashboard.
 
 - Public reverse proxy wiring for HTTP apps → App Deployment epic
 - Arbitrary TCP port forwarding → schema already supports it; implementation deferred
+- Live in-session forward reconfiguration after mapping edits
 - UDP forwarding
 - Resource metrics, trends, uptime charts, alerts, health scores → Monitor epic
 - Multi-tunnel failover / load balancing

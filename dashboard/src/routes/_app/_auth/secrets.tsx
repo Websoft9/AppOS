@@ -52,7 +52,9 @@ interface SecretRecord {
   id: string
   name: string
   description?: string
+  type?: string
   template_id: string
+  created_source?: string
   scope: string
   access_mode: string
   status: string
@@ -295,7 +297,8 @@ function SecretsPage() {
   }, [allItems, templateLabelMap])
 
   const filteredItems = useMemo(() => {
-    let result = allItems
+    // Exclude system-managed secrets (e.g. tunnel tokens) from the user-facing list.
+    let result = allItems.filter(item => item.type !== 'tunnel_token')
 
     // ID filter from URL param
     if (idFilter) {
@@ -375,7 +378,10 @@ function SecretsPage() {
     setError('')
 
     try {
-      const result = await pb.collection('secrets').getFullList<SecretRecord>({ sort: '-created' })
+      const result = await pb.collection('secrets').getFullList<SecretRecord>({
+        sort: '-created',
+        filter: `(created_source = '' || created_source = 'user') && type != 'tunnel_token'`,
+      })
       setAllItems(result)
     } catch (err) {
       setAllItems([])

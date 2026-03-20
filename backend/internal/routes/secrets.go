@@ -42,6 +42,10 @@ func registerSecretsGroup(secretsGroup *router.RouterGroup[*core.RequestEvent]) 
 		if rec.GetString("status") == "revoked" {
 			return apis.NewForbiddenError("revoked secret payload cannot be updated", nil)
 		}
+		if isSystemManagedSecretRecord(rec) {
+			writeSystemSecretDeniedAudit(e, rec, "secret.payload_update_denied", "system_secret_payload_read_only")
+			return apis.NewForbiddenError("system_secret_payload_read_only", nil)
+		}
 
 		baseVersion := rec.GetInt("version")
 
@@ -80,6 +84,10 @@ func registerSecretsGroup(secretsGroup *router.RouterGroup[*core.RequestEvent]) 
 			}
 			if txRec.GetString("status") == "revoked" {
 				return apis.NewForbiddenError("revoked secret payload cannot be updated", nil)
+			}
+			if isSystemManagedSecretRecord(txRec) {
+				writeSystemSecretDeniedAudit(e, txRec, "secret.payload_update_denied", "system_secret_payload_read_only")
+				return apis.NewForbiddenError("system_secret_payload_read_only", nil)
 			}
 
 			txRec.Set("payload_encrypted", enc)
@@ -237,4 +245,40 @@ func isPrivateIP(ip string) bool {
 		return false
 	}
 	return parsed.IsLoopback() || parsed.IsPrivate()
+}
+
+func isSystemManagedSecretRecord(secret *core.Record) bool {
+	if secret == nil {
+		return false
+	}
+	if secret.GetString("created_source") == "system" {
+		return true
+	}
+	return secret.GetString("type") == "tunnel_token"
+}
+
+func writeSystemSecretDeniedAudit(e *core.RequestEvent, secret *core.Record, action string, reasonCode string) {
+	if e == nil || secret == nil {
+		return
+	}
+	userID := ""
+	userEmail := ""
+	if e.Auth != nil {
+		userID = e.Auth.Id
+		userEmail = e.Auth.GetString("email")
+	}
+	audit.Write(e.App, audit.Entry{
+		UserID:       userID,
+		UserEmail:    userEmail,
+		Action:       action,
+		ResourceType: "secret",
+		ResourceID:   secret.Id,
+		ResourceName: secret.GetString("name"),
+		Status:       audit.StatusFailed,
+		IP:           e.RealIP(),
+		UserAgent:    e.Request.Header.Get("User-Agent"),
+		Detail: map[string]any{
+			"reason_code": reasonCode,
+		},
+	})
 }

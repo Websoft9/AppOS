@@ -161,6 +161,8 @@ export interface ResourcePageConfig {
   createItem?: (payload: Record<string, unknown>) => Promise<Record<string, unknown>>
   updateItem?: (id: string, payload: Record<string, unknown>) => Promise<void>
   deleteItem?: (id: string) => Promise<void>
+  initialEditId?: string
+  onInitialEditHandled?: () => void
 }
 
 const INPUT_CLASS =
@@ -254,6 +256,16 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   useEffect(() => {
     if (config.autoCreate && !loading) openCreateDialog()
   }, [loading])
+
+  useEffect(() => {
+    if (!config.initialEditId || loading || dialogOpen) return
+
+    const target = items.find(item => String(item.id) === config.initialEditId)
+    if (target) {
+      openEditDialog(target)
+    }
+    config.onInitialEditHandled?.()
+  }, [config.initialEditId, loading, dialogOpen, items])
 
   // Load relation options whenever dialog opens
   useEffect(() => {

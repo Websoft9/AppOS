@@ -357,7 +357,7 @@ groups:
     description: Tunnel lifecycle and connectivity management APIs.
     apiType: Ext
     extSurface:
-      - /api/ext/tunnel/*
+      - /api/tunnel/*
       - /tunnel/setup/*
     nativeSurface: []
     sources:

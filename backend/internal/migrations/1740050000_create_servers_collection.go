@@ -81,6 +81,29 @@ func init() {
 			Name:     "tunnel_last_seen",
 			Required: false,
 		})
+		servers.Fields.Add(&core.DateField{
+			Name:     "tunnel_connected_at",
+			Required: false,
+		})
+		servers.Fields.Add(&core.TextField{
+			Name:     "tunnel_remote_addr",
+			Required: false,
+		})
+		servers.Fields.Add(&core.DateField{
+			Name:     "tunnel_disconnect_at",
+			Required: false,
+		})
+		servers.Fields.Add(&core.TextField{
+			Name:     "tunnel_disconnect_reason",
+			Required: false,
+		})
+		servers.Fields.Add(&core.DateField{
+			Name:     "tunnel_pause_until",
+			Required: false,
+		})
+		servers.Fields.Add(&core.JSONField{
+			Name: "tunnel_forwards",
+		})
 		servers.Fields.Add(&core.JSONField{
 			Name: "tunnel_services",
 		})

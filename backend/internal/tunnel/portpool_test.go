@@ -17,6 +17,10 @@ func newTestPool() *PortPool {
 	return NewPortPool(testStart, testEnd)
 }
 
+func testDesiredForwards() []ForwardSpec {
+	return DefaultForwardSpecs()
+}
+
 // ---- LoadExisting --------------------------------------------------------
 
 func TestPortPool_LoadExisting_ReservesKnownPorts(t *testing.T) {
@@ -29,7 +33,7 @@ func TestPortPool_LoadExisting_ReservesKnownPorts(t *testing.T) {
 	})
 
 	// srv1 should reuse the loaded ports.
-	svcs, conflicts := p.AcquireOrReuse("srv1")
+	svcs, conflicts := p.AcquireOrReuse("srv1", testDesiredForwards())
 	if len(conflicts) != 0 {
 		t.Fatalf("unexpected conflicts: %+v", conflicts)
 	}
@@ -54,7 +58,7 @@ func TestPortPool_LoadExisting_PreventReassignment(t *testing.T) {
 	})
 
 	// A new server must not receive the ports already claimed by srv1.
-	svcs, _ := p.AcquireOrReuse("srv2")
+	svcs, _ := p.AcquireOrReuse("srv2", testDesiredForwards())
 	for _, svc := range svcs {
 		if svc.TunnelPort == testStart || svc.TunnelPort == testStart+1 {
 			t.Errorf("new server received already-assigned port %d", svc.TunnelPort)
@@ -66,13 +70,13 @@ func TestPortPool_LoadExisting_PreventReassignment(t *testing.T) {
 
 func TestPortPool_AcquireOrReuse_NewServer(t *testing.T) {
 	p := newTestPool()
-	svcs, conflicts := p.AcquireOrReuse("new-server")
+	svcs, conflicts := p.AcquireOrReuse("new-server", testDesiredForwards())
 
 	if len(conflicts) != 0 {
 		t.Fatalf("new server: unexpected conflicts: %+v", conflicts)
 	}
-	if len(svcs) != len(defaultServiceSpecs) {
-		t.Fatalf("new server: expected %d services, got %d", len(defaultServiceSpecs), len(svcs))
+	if len(svcs) != len(DefaultForwardSpecs()) {
+		t.Fatalf("new server: expected %d services, got %d", len(DefaultForwardSpecs()), len(svcs))
 	}
 	// Verify port is within range.
 	for _, svc := range svcs {
@@ -85,8 +89,8 @@ func TestPortPool_AcquireOrReuse_NewServer(t *testing.T) {
 func TestPortPool_AcquireOrReuse_SamePortsOnReconnect(t *testing.T) {
 	p := newTestPool()
 
-	first, _ := p.AcquireOrReuse("srv1")
-	second, _ := p.AcquireOrReuse("srv1")
+	first, _ := p.AcquireOrReuse("srv1", testDesiredForwards())
+	second, _ := p.AcquireOrReuse("srv1", testDesiredForwards())
 
 	if len(first) != len(second) {
 		t.Fatalf("port count mismatch on reconnect: %d vs %d", len(first), len(second))
@@ -101,8 +105,8 @@ func TestPortPool_AcquireOrReuse_SamePortsOnReconnect(t *testing.T) {
 func TestPortPool_AcquireOrReuse_DifferentServersGetDifferentPorts(t *testing.T) {
 	p := newTestPool()
 
-	svc1, _ := p.AcquireOrReuse("srv1")
-	svc2, _ := p.AcquireOrReuse("srv2")
+	svc1, _ := p.AcquireOrReuse("srv1", testDesiredForwards())
+	svc2, _ := p.AcquireOrReuse("srv2", testDesiredForwards())
 
 	ports1 := portSet(svc1)
 	for _, svc := range svc2 {
@@ -114,7 +118,7 @@ func TestPortPool_AcquireOrReuse_DifferentServersGetDifferentPorts(t *testing.T)
 
 func TestPortPool_AcquireOrReuse_NoDuplicatePortsWithinServer(t *testing.T) {
 	p := newTestPool()
-	svcs, _ := p.AcquireOrReuse("srv1")
+	svcs, _ := p.AcquireOrReuse("srv1", testDesiredForwards())
 
 	seen := make(map[int]bool)
 	for _, svc := range svcs {
@@ -130,11 +134,11 @@ func TestPortPool_AcquireOrReuse_NoDuplicatePortsWithinServer(t *testing.T) {
 func TestPortPool_Release_FreedPortsReassignable(t *testing.T) {
 	p := newTestPool()
 
-	svcs1, _ := p.AcquireOrReuse("srv1")
+	svcs1, _ := p.AcquireOrReuse("srv1", testDesiredForwards())
 	p.Release("srv1")
 
 	// srv2 should be able to take the same ports that srv1 had.
-	svcs2, _ := p.AcquireOrReuse("srv2")
+	svcs2, _ := p.AcquireOrReuse("srv2", testDesiredForwards())
 	// At least one port from srv1 should appear in srv2 (range is small enough).
 	freed := portSet(svcs1)
 	var reused bool
@@ -174,7 +178,7 @@ func TestPortPool_Conflict_OSPortInUse(t *testing.T) {
 		}},
 	})
 
-	svcs, conflicts := p.AcquireOrReuse("srv1")
+	svcs, conflicts := p.AcquireOrReuse("srv1", testDesiredForwards())
 
 	if len(conflicts) == 0 {
 		t.Fatal("expected a ConflictResolution for the occupied port, got none")
@@ -196,6 +200,27 @@ func TestPortPool_Conflict_OSPortInUse(t *testing.T) {
 	for _, svc := range svcs {
 		if svc.TunnelPort == testStart+50 {
 			t.Errorf("occupied port %d still present in returned services", testStart+50)
+		}
+	}
+}
+
+func TestPortPool_AcquireOrReuse_ReconcilesDesiredForwards(t *testing.T) {
+	p := newTestPool()
+	first, _ := p.AcquireOrReuse("srv1", []ForwardSpec{{Name: "ssh", LocalPort: 22}, {Name: "http", LocalPort: 80}})
+	updated, _ := p.AcquireOrReuse("srv1", []ForwardSpec{{Name: "ssh", LocalPort: 22}, {Name: "app", LocalPort: 3000}})
+
+	if len(updated) != 2 {
+		t.Fatalf("expected 2 updated services, got %d", len(updated))
+	}
+	if updated[0].Name != "ssh" || updated[0].TunnelPort != first[0].TunnelPort {
+		t.Fatalf("expected ssh port reuse, got %+v", updated[0])
+	}
+	if updated[1].Name != "app" {
+		t.Fatalf("expected app forward, got %+v", updated[1])
+	}
+	for _, svc := range updated {
+		if svc.Name == "http" {
+			t.Fatalf("expected http forward to be removed, got %+v", svc)
 		}
 	}
 }

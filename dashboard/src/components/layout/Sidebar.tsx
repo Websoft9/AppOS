@@ -99,6 +99,7 @@ const systemNavItem: NavItem = {
   href: '/status',
   children: [
     { id: 'status', label: 'Status', href: '/status' },
+    { id: 'tunnels', label: 'Tunnels', href: '/tunnels' },
     { id: 'logs', label: 'Logs', href: '/logs' },
     { id: 'audit', label: 'Audit', href: '/audit' },
     { id: 'iac', label: 'IaC Browser', href: '/iac' },
@@ -112,6 +113,7 @@ const systemNavItemBasic: NavItem = {
   href: '/components',
   children: [
     { id: 'components', label: 'Components', href: '/components' },
+    { id: 'tunnels', label: 'Tunnels', href: '/tunnels' },
     { id: 'audit', label: 'Audit', href: '/audit' },
   ],
 }

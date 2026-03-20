@@ -46,13 +46,13 @@ export function TunnelSetupWizard({ serverId, onClose }: Props) {
         let setupRes: SetupInfo
         try {
           // GET /setup returns the existing token without rotation.
-          setupRes = (await pb.send(`/api/ext/tunnel/servers/${serverId}/setup`, {
+          setupRes = (await pb.send(`/api/tunnel/servers/${serverId}/setup`, {
             method: 'GET',
           })) as SetupInfo
         } catch {
           // Server has no token yet — create one (idempotent, no disconnect).
-          await pb.send(`/api/ext/tunnel/servers/${serverId}/token`, { method: 'POST' })
-          setupRes = (await pb.send(`/api/ext/tunnel/servers/${serverId}/setup`, {
+          await pb.send(`/api/tunnel/servers/${serverId}/token`, { method: 'POST' })
+          setupRes = (await pb.send(`/api/tunnel/servers/${serverId}/setup`, {
             method: 'GET',
           })) as SetupInfo
         }

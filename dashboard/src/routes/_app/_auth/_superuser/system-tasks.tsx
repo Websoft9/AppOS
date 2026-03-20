@@ -13,13 +13,11 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  Search,
   ChevronRight,
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Table,
@@ -388,7 +386,6 @@ export function SystemCronsContent() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [runningJobs, setRunningJobs] = useState<Set<string>>(new Set())
   const [logSummaries, setLogSummaries] = useState<Map<string, { lastStatus: 'success' | 'error' | null; lastRun: string | null }>>(new Map())
-  const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<CronSortKey>('id')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const runningJobsRef = useRef<Set<string>>(new Set())
@@ -402,15 +399,13 @@ export function SystemCronsContent() {
     else { setSortKey(key); setSortDir('asc') }
   }
 
-  const filteredJobs = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    const base = q ? jobs.filter(j => j.id.toLowerCase().includes(q) || j.expression.toLowerCase().includes(q)) : jobs
-    return [...base].sort((a, b) => {
+  const sortedJobs = useMemo(() => {
+    return [...jobs].sort((a, b) => {
       const av = sortKey === 'id' ? a.id : a.expression
       const bv = sortKey === 'id' ? b.id : b.expression
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
     })
-  }, [jobs, search, sortKey, sortDir])
+  }, [jobs, sortKey, sortDir])
 
   const fetchJobs = useCallback(async () => {
     setLoading(true)
@@ -463,16 +458,7 @@ export function SystemCronsContent() {
   return (
     <div>
       {/* Toolbar */}
-      <div className="flex items-center gap-2 mb-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Filter jobs…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-8 h-8"
-          />
-        </div>
+      <div className="flex items-center justify-end gap-2 mb-3">
         <Button variant="outline" size="sm" onClick={fetchJobs} disabled={loading}>
           {loading ? (
             <Loader2 className="h-4 w-4 animate-spin mr-1" />
@@ -527,7 +513,6 @@ export function SystemCronsContent() {
 
       {/* Table */}
       {jobs.length > 0 && (
-        <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -539,13 +524,7 @@ export function SystemCronsContent() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredJobs.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground text-sm">
-                  No jobs match your filter.
-                </TableCell>
-              </TableRow>
-            ) : filteredJobs.map(job => (
+            {sortedJobs.map(job => (
                 <TableRow key={job.id}>
                     <TableCell>
                       <span className="font-mono text-sm font-medium">{job.id}</span>
@@ -593,10 +572,9 @@ export function SystemCronsContent() {
                       </DropdownMenu>
                     </TableCell>
                 </TableRow>
-            ))}  {/* end filteredJobs.map or empty row */}
+            ))}
           </TableBody>
         </Table>
-        </div>
       )}
 
       {/* Log drawer */}

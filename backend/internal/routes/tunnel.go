@@ -3,17 +3,15 @@ package routes
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tools/router"
 
 	"github.com/websoft9/appos/backend/internal/audit"
 	"github.com/websoft9/appos/backend/internal/crypto"
@@ -21,11 +19,35 @@ import (
 	"github.com/websoft9/appos/backend/internal/tunnel"
 )
 
-// tunnelSessions is the in-memory session registry shared between the SSH server
-// and the API handlers (status queries, disconnect-on-rotation).
+// tunnelSessions holds the in-memory registry of active SSH tunnel connections.
+// It is initialized once in registerTunnelRoutes() and shared between the SSH
+// server (which registers/unregisters sessions) and the API handlers (which
+// query/disconnect sessions).  Thread-safe via internal RWMutex.
+//
+// Design note: While package-level state is generally avoided, tunnelSessions
+// is set exactly once during startup and is inherently shared singleton state
+// (one SSH server per process).  Tests reinitialize it as needed.
 var tunnelSessions *tunnel.Registry
 
+// tunnelTokenCache maps raw token → serverID for O(1) lookup (SEC-3).
+// Populated lazily on first Validate call and kept in sync by handleTunnelToken
+// on create/rotate.  Thread-safe via sync.Map.
+var tunnelTokenCache sync.Map
+
 const tunnelTokenSecretPrefix = "tunnel-token-"
+
+type tunnelForwardsRequest struct {
+	Forwards []tunnelForwardBody `json:"forwards"`
+}
+
+type tunnelPauseRequest struct {
+	Minutes float64 `json:"minutes"`
+}
+
+type tunnelForwardBody struct {
+	ServiceName string `json:"service_name"`
+	LocalPort   int    `json:"local_port"`
+}
 
 // tunnelSSHPort returns the publicly reachable SSH port for the tunnel.
 // Defaults to "2222" (bare-metal). Set TUNNEL_SSH_PORT env var to override
@@ -71,17 +93,56 @@ func findTunnelTokenSecret(app core.App, serverID string) (*core.Record, error) 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TokenValidator — PocketBase implementation
+// TokenValidator — PocketBase implementation (with O(1) cache — SEC-3)
 // ─────────────────────────────────────────────────────────────────────────────
 
-type pbTokenValidator struct{ app core.App }
+type pbTokenValidator struct {
+	app core.App
+}
 
-// Validate iterates all tunnel_token secrets, decrypts each, and matches the
-// raw token. On match it returns the linked server ID.
+type pbForwardResolver struct{ app core.App }
+
+// Validate checks whether rawToken is a valid tunnel token and returns the
+// associated server ID.
 //
-// Complexity is O(n) over tunnel tokens. Acceptable for MVP; can be optimised
-// with a HMAC-keyed index later if needed.
+// Hot path: O(1) cache lookup in tunnelTokenCache.
+// Cold path: Falls through to a full DB scan, decrypting each tunnel_token
+// secret.  The full scan also populates the cache for subsequent calls.
 func (v *pbTokenValidator) Validate(rawToken string) (serverID string, ok bool) {
+	// O(1) cache hit path (SEC-3).
+	if sid, cached := tunnelTokenCache.Load(rawToken); cached {
+		serverID := sid.(string)
+		server, err := v.app.FindRecordById("servers", serverID)
+		if err != nil {
+			tunnelTokenCache.Delete(rawToken) // server deleted
+			return "", false
+		}
+		if pauseUntil := tunnelPauseUntil(server); pauseUntil.After(time.Now().UTC()) {
+			audit.Write(v.app, audit.Entry{
+				UserID:       "system",
+				Action:       "tunnel.connect_rejected",
+				ResourceType: "server",
+				ResourceID:   serverID,
+				Status:       audit.StatusSuccess,
+				Detail: map[string]any{
+					"reason":       "paused",
+					"reason_label": "Rejected while paused",
+					"pause_until":  pauseUntil.Format(time.RFC3339),
+				},
+			})
+			return "", false
+		}
+		return serverID, true
+	}
+
+	// Cache miss — full scan and populate.
+	return v.validateAndPopulateCache(rawToken)
+}
+
+// validateAndPopulateCache performs the O(n) scan over all tunnel_token secrets,
+// populating the cache for every token it successfully decrypts.
+func (v *pbTokenValidator) validateAndPopulateCache(rawToken string) (string, bool) {
+	now := time.Now().UTC()
 	secrets, err := v.app.FindRecordsByFilter(
 		"secrets",
 		"type = 'tunnel_token' && value != ''",
@@ -91,33 +152,80 @@ func (v *pbTokenValidator) Validate(rawToken string) (serverID string, ok bool) 
 		return "", false
 	}
 
+	var matchedServerID string
+	matched := false
+
 	for _, secret := range secrets {
 		dec, err := crypto.Decrypt(secret.GetString("value"))
-		if err != nil || dec != rawToken {
+		if err != nil || dec == "" {
 			continue
 		}
 
-		// Preferred mapping: secret name "tunnel-token-{serverID}".
+		// Try to resolve the server ID from the secret name.
+		sid := ""
 		if name := secret.GetString("name"); strings.HasPrefix(name, tunnelTokenSecretPrefix) {
-			sid := strings.TrimPrefix(name, tunnelTokenSecretPrefix)
-			if sid != "" {
-				if _, err := v.app.FindRecordById("servers", sid); err == nil {
-					return sid, true
-				}
+			sid = strings.TrimPrefix(name, tunnelTokenSecretPrefix)
+		}
+		if sid == "" {
+			// Legacy fallback: token secret linked via servers.credential relation.
+			server, err := v.app.FindFirstRecordByFilter(
+				"servers",
+				"credential = {:cid} && connect_type = 'tunnel'",
+				dbx.Params{"cid": secret.Id},
+			)
+			if err != nil {
+				continue
 			}
+			sid = server.Id
 		}
 
-		// Legacy fallback: token secret linked via servers.credential relation.
-		server, err := v.app.FindFirstRecordByFilter(
-			"servers",
-			"credential = {:cid} && connect_type = 'tunnel'",
-			dbx.Params{"cid": secret.Id},
-		)
-		if err == nil {
-			return server.Id, true
+		// Populate cache for every valid token (not just the one we're looking up).
+		tunnelTokenCache.Store(dec, sid)
+
+		if dec == rawToken {
+			matchedServerID = sid
+			matched = true
 		}
 	}
-	return "", false
+
+	if !matched {
+		return "", false
+	}
+
+	// Check pause status for the matched server.
+	server, err := v.app.FindRecordById("servers", matchedServerID)
+	if err != nil {
+		tunnelTokenCache.Delete(rawToken)
+		return "", false
+	}
+	if pauseUntil := tunnelPauseUntil(server); pauseUntil.After(now) {
+		audit.Write(v.app, audit.Entry{
+			UserID:       "system",
+			Action:       "tunnel.connect_rejected",
+			ResourceType: "server",
+			ResourceID:   matchedServerID,
+			Status:       audit.StatusSuccess,
+			Detail: map[string]any{
+				"reason":       "paused",
+				"reason_label": "Rejected while paused",
+				"pause_until":  pauseUntil.Format(time.RFC3339),
+			},
+		})
+		return "", false
+	}
+	return matchedServerID, true
+}
+
+func (v *pbForwardResolver) Resolve(serverID string) []tunnel.ForwardSpec {
+	server, err := v.app.FindRecordById("servers", serverID)
+	if err != nil {
+		return tunnel.DefaultForwardSpecs()
+	}
+	forwards, err := loadTunnelForwardSpecs(server)
+	if err != nil {
+		return tunnel.DefaultForwardSpecs()
+	}
+	return forwards
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -138,8 +246,24 @@ func (h *pbSessionHooks) OnConnect(serverID string, services []tunnel.Service, c
 	}
 
 	svcJSON, _ := json.Marshal(services)
+	now := time.Now().UTC()
+	remoteAddr := ""
+	connectedAt := now
+	if h.sessions != nil {
+		if sess, ok := h.sessions.Get(serverID); ok {
+			connectedAt = sess.ConnectedAt.UTC()
+			if sess.Conn != nil && sess.Conn.RemoteAddr() != nil {
+				remoteAddr = sess.Conn.RemoteAddr().String()
+			}
+		}
+	}
 	server.Set("tunnel_status", "online")
-	server.Set("tunnel_last_seen", time.Now().UTC())
+	server.Set("tunnel_last_seen", now)
+	server.Set("tunnel_connected_at", connectedAt)
+	server.Set("tunnel_remote_addr", remoteAddr)
+	server.Set("tunnel_disconnect_at", nil)
+	server.Set("tunnel_disconnect_reason", "")
+	server.Set("tunnel_pause_until", nil)
 	server.Set("tunnel_services", string(svcJSON))
 	if err := h.app.Save(server); err != nil {
 		log.Printf("[tunnel] OnConnect: save server %s: %v", serverID, err)
@@ -165,11 +289,16 @@ func (h *pbSessionHooks) OnConnect(serverID string, services []tunnel.Service, c
 		ResourceType: "server",
 		ResourceID:   serverID,
 		Status:       audit.StatusSuccess,
-		Detail:       map[string]any{"services": services},
+		Detail: map[string]any{
+			"services":       services,
+			"services_count": len(services),
+			"remote_addr":    remoteAddr,
+			"connected_at":   connectedAt.Format(time.RFC3339),
+		},
 	})
 }
 
-func (h *pbSessionHooks) OnDisconnect(serverID string) {
+func (h *pbSessionHooks) OnDisconnect(serverID string, reason tunnel.DisconnectReason) {
 	// If a replacement session already registered (kick-old scenario),
 	// don't overwrite the status to offline.
 	if h.sessions != nil {
@@ -182,7 +311,10 @@ func (h *pbSessionHooks) OnDisconnect(serverID string) {
 	if err != nil {
 		return
 	}
+	disconnectAt := time.Now().UTC()
 	server.Set("tunnel_status", "offline")
+	server.Set("tunnel_disconnect_at", disconnectAt)
+	server.Set("tunnel_disconnect_reason", string(reason))
 	_ = h.app.Save(server)
 
 	audit.Write(h.app, audit.Entry{
@@ -190,6 +322,11 @@ func (h *pbSessionHooks) OnDisconnect(serverID string) {
 		ResourceType: "server",
 		ResourceID:   serverID,
 		Status:       audit.StatusSuccess,
+		Detail: map[string]any{
+			"reason":        string(reason),
+			"reason_label":  tunnelDisconnectReasonLabel(string(reason)),
+			"disconnect_at": disconnectAt.Format(time.RFC3339),
+		},
 	})
 }
 
@@ -199,11 +336,11 @@ func (h *pbSessionHooks) OnDisconnect(serverID string) {
 
 // registerTunnelRoutes wires the tunnel SSH server and exposes the tunnel API.
 // Called from routes.Register.
-func registerTunnelRoutes(se *core.ServeEvent, g *router.RouterGroup[*core.RequestEvent]) {
-	// 1. Read port range from settings (fallback: 40000–49999).
+func registerTunnelRoutes(se *core.ServeEvent) {
+	// 1. Read port range from settings.
 	portRange, _ := settings.GetGroup(se.App, "tunnel", "port_range", map[string]any{})
-	start := settings.Int(portRange, "start", 40000)
-	end := settings.Int(portRange, "end", 49999)
+	start := settings.Int(portRange, "start", tunnel.DefaultPortRangeStart)
+	end := settings.Int(portRange, "end", tunnel.DefaultPortRangeEnd)
 
 	// 2. Load existing tunnel_services → pre-reserve ports in pool.
 	pool := tunnel.NewPortPool(start, end)
@@ -232,15 +369,17 @@ func registerTunnelRoutes(se *core.ServeEvent, g *router.RouterGroup[*core.Reque
 
 	// 3. Build tunnel.Server with injected PocketBase dependencies.
 	validator := &pbTokenValidator{app: se.App}
+	forwardResolver := &pbForwardResolver{app: se.App}
 	hooks := &pbSessionHooks{app: se.App, pool: pool, sessions: tunnelSessions}
 
 	srv := &tunnel.Server{
-		DataDir:    se.App.DataDir(),
-		ListenAddr: ":2222",
-		Validator:  validator,
-		Pool:       pool,
-		Sessions:   tunnelSessions,
-		Hooks:      hooks,
+		DataDir:         se.App.DataDir(),
+		ListenAddr:      ":2222",
+		Validator:       validator,
+		Pool:            pool,
+		ForwardResolver: forwardResolver,
+		Sessions:        tunnelSessions,
+		Hooks:           hooks,
 	}
 
 	// 4. Start SSH server in background.
@@ -251,7 +390,7 @@ func registerTunnelRoutes(se *core.ServeEvent, g *router.RouterGroup[*core.Reque
 	}()
 
 	// 5. Authenticated API routes.
-	t := g.Group("/tunnel")
+	t := se.Router.Group("/api/tunnel")
 	t.Bind(apis.RequireSuperuserAuth())
 
 	t.POST("/servers/{id}/token", func(e *core.RequestEvent) error {
@@ -263,364 +402,33 @@ func registerTunnelRoutes(se *core.ServeEvent, g *router.RouterGroup[*core.Reque
 	t.GET("/servers/{id}/status", func(e *core.RequestEvent) error {
 		return handleTunnelStatus(e)
 	})
+	t.GET("/servers/{id}/forwards", func(e *core.RequestEvent) error {
+		return handleTunnelForwards(e)
+	})
+	t.PUT("/servers/{id}/forwards", func(e *core.RequestEvent) error {
+		return handleTunnelForwardsPut(e)
+	})
+	t.GET("/servers/{id}/logs", func(e *core.RequestEvent) error {
+		return handleTunnelLogs(e)
+	})
+	t.GET("/overview", func(e *core.RequestEvent) error {
+		return handleTunnelOverview(e)
+	})
+	t.GET("/servers/{id}/session", func(e *core.RequestEvent) error {
+		return handleTunnelSession(e)
+	})
+	t.POST("/servers/{id}/disconnect", func(e *core.RequestEvent) error {
+		return handleTunnelDisconnect(e)
+	})
+	t.POST("/servers/{id}/pause", func(e *core.RequestEvent) error {
+		return handleTunnelPause(e)
+	})
+	t.POST("/servers/{id}/resume", func(e *core.RequestEvent) error {
+		return handleTunnelResume(e)
+	})
 
-	// 6. Unauthenticated setup-script route.
+	// 6. Unauthenticated setup-script route (rate-limited via handler).
 	se.Router.GET("/tunnel/setup/{token}", func(e *core.RequestEvent) error {
 		return handleTunnelSetupScript(e)
 	})
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/ext/tunnel/servers/:id/token
-// ─────────────────────────────────────────────────────────────────────────────
-
-// handleTunnelToken returns the existing tunnel token for a server, creating one
-// if none exists yet.  It is intentionally idempotent: calling it repeatedly does
-// NOT rotate the token and does NOT disconnect an active tunnel session.
-//
-// To explicitly rotate the token (generate a new one and kick the active session)
-// the caller must include ?rotate=true in the query string.
-//
-// On first call (no credential): creates a new secrets record (type = tunnel_token)
-// and links it to the server via the credential field.
-//
-// @Summary Get or rotate tunnel token
-// @Description Returns the existing tunnel auth token for a server. Pass ?rotate=true to generate a new token and disconnect any active session. Superuser only.
-// @Tags Tunnel
-// @Security BearerAuth
-// @Param id path string true "server record ID"
-// @Param rotate query boolean false "set true to rotate the token"
-// @Success 200 {object} map[string]any "token"
-// @Failure 400 {object} map[string]any
-// @Failure 401 {object} map[string]any
-// @Failure 404 {object} map[string]any
-// @Failure 500 {object} map[string]any
-// @Router /api/ext/tunnel/servers/{id}/token [post]
-func handleTunnelToken(e *core.RequestEvent) error {
-	id := e.Request.PathValue("id")
-	wantRotate := e.Request.URL.Query().Get("rotate") == "true"
-
-	server, err := e.App.FindRecordById("servers", id)
-	if err != nil {
-		return e.NotFoundError("server not found", err)
-	}
-	if server.GetString("connect_type") != "tunnel" {
-		return e.BadRequestError("server is not a tunnel server", nil)
-	}
-
-	secret, err := findTunnelTokenSecret(e.App, id)
-	if err != nil {
-		return e.InternalServerError("failed to load token secret", err)
-	}
-
-	// Idempotent path: token already exists and caller did not request rotation.
-	if secret != nil && !wantRotate {
-		rawToken, err := crypto.Decrypt(secret.GetString("value"))
-		if err != nil {
-			return e.InternalServerError("token decryption failed", err)
-		}
-		return e.JSON(http.StatusOK, map[string]any{"token": rawToken})
-	}
-
-	// Generate a fresh token (first-time or explicit rotation).
-	rawToken := tunnel.Generate()
-	encToken, err := crypto.Encrypt(rawToken)
-	if err != nil {
-		return e.InternalServerError("token encryption failed", err)
-	}
-
-	rotating := secret != nil
-
-	if secret != nil {
-		secret.Set("name", tunnelTokenSecretName(id))
-		secret.Set("type", "tunnel_token")
-		secret.Set("value", encToken)
-		if err := e.App.Save(secret); err != nil {
-			return e.InternalServerError("failed to save rotated token", err)
-		}
-
-		if wantRotate && tunnelSessions != nil {
-			tunnelSessions.Disconnect(id)
-		}
-	} else {
-		// First time: create dedicated tunnel token secret (do not reuse SSH credential).
-		secretCol, err := e.App.FindCollectionByNameOrId("secrets")
-		if err != nil {
-			return e.InternalServerError("secrets collection not found", err)
-		}
-		secret := core.NewRecord(secretCol)
-		secret.Set("name", tunnelTokenSecretName(id))
-		secret.Set("type", "tunnel_token")
-		secret.Set("value", encToken)
-		if err := e.App.Save(secret); err != nil {
-			return e.InternalServerError("failed to save token", err)
-		}
-	}
-
-	userID, _, ip, _ := clientInfo(e)
-	action := "tunnel.token_generated"
-	if rotating {
-		action = "tunnel.token_rotated"
-	}
-	audit.Write(e.App, audit.Entry{
-		UserID:       userID,
-		Action:       action,
-		ResourceType: "server",
-		ResourceID:   id,
-		Status:       audit.StatusSuccess,
-		IP:           ip,
-	})
-
-	return e.JSON(http.StatusOK, map[string]any{"token": rawToken})
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// GET /api/ext/tunnel/servers/:id/setup
-// ─────────────────────────────────────────────────────────────────────────────
-
-// handleTunnelSetup returns the autossh command, systemd unit text, and setup
-// script URL needed to connect the local server.
-// handleTunnelSetup returns the tunnel setup information for a server,
-// including the autossh command, systemd unit file, and setup script URL.
-//
-// @Summary Get tunnel setup info
-// @Description Returns autossh command, systemd unit, and setup script URL for configuring the reverse tunnel on a remote server. Superuser only.
-// @Tags Tunnel
-// @Security BearerAuth
-// @Param id path string true "server record ID"
-// @Success 200 {object} map[string]any "token, autossh_cmd, systemd_unit, setup_script_url"
-// @Failure 400 {object} map[string]any
-// @Failure 401 {object} map[string]any
-// @Failure 404 {object} map[string]any
-// @Failure 500 {object} map[string]any
-// @Router /api/ext/tunnel/servers/{id}/setup [get]
-func handleTunnelSetup(e *core.RequestEvent) error {
-	id := e.Request.PathValue("id")
-
-	_, err := e.App.FindRecordById("servers", id)
-	if err != nil {
-		return e.NotFoundError("server not found", err)
-	}
-
-	secret, err := findTunnelTokenSecret(e.App, id)
-	if err != nil {
-		return e.InternalServerError("failed to load token secret", err)
-	}
-	if secret == nil {
-		return e.BadRequestError("no token generated yet — call POST /token first", nil)
-	}
-	rawToken, err := crypto.Decrypt(secret.GetString("value"))
-	if err != nil {
-		return e.InternalServerError("token decryption failed", err)
-	}
-
-	apposHost := resolveApposHost(e)
-	sshPort := tunnelSSHPort()
-
-	autosshCmd := fmt.Sprintf(
-		"autossh -M 0 -N \\\n  -R 0:localhost:22 \\\n  -R 0:localhost:80 \\\n  -p %s %s@%s \\\n  -o ServerAliveInterval=30 \\\n  -o ServerAliveCountMax=3 \\\n  -o StrictHostKeyChecking=no \\\n  -o UserKnownHostsFile=/dev/null \\\n  -o ExitOnForwardFailure=yes",
-		sshPort, rawToken, apposHost,
-	)
-
-	systemdUnit := fmt.Sprintf(`[Unit]
-Description=appos reverse SSH tunnel
-After=network-online.target
-Wants=network-online.target
-StartLimitIntervalSec=0
-
-[Service]
-Type=simple
-Environment=AUTOSSH_GATETIME=0
-ExecStart=/usr/bin/autossh -M 0 -N \
-  -R 0:localhost:22 \
-  -R 0:localhost:80 \
-  -p %s %s@%s \
-  -o ServerAliveInterval=30 \
-  -o ServerAliveCountMax=3 \
-  -o StrictHostKeyChecking=no \
-  -o UserKnownHostsFile=/dev/null \
-  -o ExitOnForwardFailure=yes
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target`, sshPort, rawToken, apposHost)
-
-	setupScriptURL := fmt.Sprintf("/tunnel/setup/%s", rawToken)
-
-	return e.JSON(http.StatusOK, map[string]any{
-		"token":            rawToken,
-		"autossh_cmd":      autosshCmd,
-		"systemd_unit":     systemdUnit,
-		"setup_script_url": setupScriptURL,
-	})
-}
-
-// resolveApposHost returns the public host name of the appos instance.
-// It is derived from the HTTP request (browsers always call the real host),
-// stripping the port for the SSH :2222 connection.
-func resolveApposHost(e *core.RequestEvent) string {
-	host := e.Request.Host
-	if host == "" {
-		host = e.Request.Header.Get("X-Forwarded-Host")
-	}
-	// Strip port if present (e.g. "appos.example.com:8090" → "appos.example.com").
-	if idx := strings.LastIndex(host, ":"); idx >= 0 {
-		// Only strip if the part after ":" looks like a port (all digits), not IPv6.
-		if !strings.Contains(host[:idx], "]") {
-			host = host[:idx]
-		}
-	}
-	if host == "" {
-		host = "appos-host"
-	}
-	return host
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// GET /api/ext/tunnel/servers/:id/status
-// ─────────────────────────────────────────────────────────────────────────────
-
-// handleTunnelStatus returns live tunnel state from the in-memory registry.
-// Falls back to the DB value when the server is offline.
-//
-// @Summary Get tunnel status
-// @Description Returns live tunnel connection status for a server (online/offline, services, last seen). Superuser only.
-// @Tags Tunnel
-// @Security BearerAuth
-// @Param id path string true "server record ID"
-// @Success 200 {object} map[string]any "status, services, connected_at/last_seen"
-// @Failure 401 {object} map[string]any
-// @Failure 404 {object} map[string]any
-// @Router /api/ext/tunnel/servers/{id}/status [get]
-func handleTunnelStatus(e *core.RequestEvent) error {
-	id := e.Request.PathValue("id")
-
-	if tunnelSessions != nil {
-		if sess, ok := tunnelSessions.Get(id); ok {
-			return e.JSON(http.StatusOK, map[string]any{
-				"status":       "online",
-				"connected_at": sess.ConnectedAt.Format(time.RFC3339),
-				"services":     sess.Services,
-			})
-		}
-	}
-
-	// Not in registry — read persisted state from DB.
-	server, err := e.App.FindRecordById("servers", id)
-	if err != nil {
-		return e.NotFoundError("server not found", err)
-	}
-
-	var services any
-	raw := server.GetString("tunnel_services")
-	if raw != "" && raw != "null" {
-		_ = json.Unmarshal([]byte(raw), &services)
-	}
-
-	return e.JSON(http.StatusOK, map[string]any{
-		"status":    server.GetString("tunnel_status"),
-		"last_seen": server.GetString("tunnel_last_seen"),
-		"services":  services,
-	})
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// GET /tunnel/setup/{token}  (unauthenticated)
-// ─────────────────────────────────────────────────────────────────────────────
-
-// handleTunnelSetupScript responds with a shell script that installs autossh
-// and creates + enables a systemd service for the appos tunnel.
-//
-// @Summary Download tunnel setup script
-// @Description Returns a self-contained shell script to install autossh and configure the reverse tunnel systemd service on a remote server. Public (token is the auth credential).
-// @Tags Tunnel
-// @Param token path string true "tunnel auth token"
-// @Success 200 {string} string "shell script"
-// @Failure 400 {object} map[string]any
-// @Failure 401 {object} map[string]any
-// @Router /tunnel/setup/{token} [get]
-func handleTunnelSetupScript(e *core.RequestEvent) error {
-	token := e.Request.PathValue("token")
-	if token == "" {
-		return e.BadRequestError("missing token", nil)
-	}
-	apposHost := resolveApposHost(e)
-	sshPort := tunnelSSHPort()
-
-	script := fmt.Sprintf(`#!/bin/bash
-# appos tunnel setup script
-# Auto-generated — do not edit
-
-set -e
-
-TOKEN="%s"
-APPOS_HOST="%s"
-SSH_PORT="%s"
-
-# ── Determine tunnel binary (autossh preferred, ssh as fallback) ─────────────
-USE_AUTOSSH=false
-if command -v autossh &>/dev/null; then
-  USE_AUTOSSH=true
-else
-  echo "autossh not found, attempting install..."
-  if command -v apt-get &>/dev/null; then
-    apt-get install -y autossh 2>/dev/null && USE_AUTOSSH=true
-  elif command -v yum &>/dev/null; then
-    yum install -y autossh 2>/dev/null && USE_AUTOSSH=true
-  elif command -v dnf &>/dev/null; then
-    dnf install -y autossh 2>/dev/null && USE_AUTOSSH=true
-  elif command -v zypper &>/dev/null; then
-    zypper install -y autossh 2>/dev/null && USE_AUTOSSH=true
-  fi
-  if [ "$USE_AUTOSSH" = false ]; then
-    echo "WARNING: autossh could not be installed. Falling back to plain ssh." >&2
-  fi
-fi
-
-# ── Build ExecStart depending on available binary ────────────────────────────
-if [ "$USE_AUTOSSH" = true ]; then
-	EXEC_START="/usr/bin/autossh -M 0 -N -R 0:localhost:22 -R 0:localhost:80 -p ${SSH_PORT} ${TOKEN}@${APPOS_HOST} -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ExitOnForwardFailure=yes"
-else
-	EXEC_START="/usr/bin/ssh -N -R 0:localhost:22 -R 0:localhost:80 -p ${SSH_PORT} ${TOKEN}@${APPOS_HOST} -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ExitOnForwardFailure=yes"
-fi
-
-# ── Write systemd unit ────────────────────────────────────────────────────────
-cat >/etc/systemd/system/appos-tunnel.service <<EOF
-[Unit]
-Description=appos reverse SSH tunnel
-After=network-online.target
-Wants=network-online.target
-StartLimitIntervalSec=0
-
-[Service]
-Type=simple
-Environment=AUTOSSH_GATETIME=0
-ExecStart=${EXEC_START}
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# ── Stop existing service if already running ─────────────────────────────────
-systemctl stop appos-tunnel 2>/dev/null || true
-
-# ── Enable and start ──────────────────────────────────────────────────────────
-systemctl daemon-reload
-systemctl enable --now appos-tunnel
-
-if [ "$USE_AUTOSSH" = true ]; then
-  echo "✓ appos-tunnel service enabled and started (autossh)."
-else
-  echo "✓ appos-tunnel service enabled and started (ssh fallback)."
-fi
-echo "  Run: systemctl status appos-tunnel"
-`, token, apposHost, sshPort)
-
-	e.Response.Header().Set("Content-Type", "text/x-sh; charset=utf-8")
-	e.Response.WriteHeader(http.StatusOK)
-	_, _ = e.Response.Write([]byte(script))
-	return nil
 }

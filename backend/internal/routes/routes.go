@@ -11,6 +11,7 @@
 //   - /api/apps           — installed app inventory and lifecycle operations
 //   - /api/deployments    — deployment pipelines and execution logs
 //   - /api/ext/iac        — IaC file management (Epic 14, superuser-only)
+//   - /api/tunnel         — tunnel setup and operations APIs (Epic 16)
 //   - /api/servers        — Server operations: shell, files, containers, ops (Epic 20)
 package routes
 
@@ -77,7 +78,7 @@ func Register(se *core.ServeEvent) {
 	registerIaCRoutes(g)
 	registerTopicRoutes(g)
 	registerServerRoutes(servers)
-	registerTunnelRoutes(se, g)
+	registerTunnelRoutes(se)
 	registerSecretsRoutes(se)
 	registerCertificatesRoutes(se)
 	registerCronLogsRoute(se)

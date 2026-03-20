@@ -37,6 +37,7 @@ import { Route as AppAuthStoreIndexRouteImport } from './routes/_app/_auth/store
 import { Route as AppAuthResourcesIndexRouteImport } from './routes/_app/_auth/resources/index'
 import { Route as AppAuthGroupsIndexRouteImport } from './routes/_app/_auth/groups.index'
 import { Route as AppAuthTopicsIdRouteImport } from './routes/_app/_auth/topics.$id'
+import { Route as AppAuthResourcesTunnelsRouteImport } from './routes/_app/_auth/resources/tunnels'
 import { Route as AppAuthResourcesServersRouteImport } from './routes/_app/_auth/resources/servers'
 import { Route as AppAuthResourcesScriptsRouteImport } from './routes/_app/_auth/resources/scripts'
 import { Route as AppAuthResourcesIntegrationsRouteImport } from './routes/_app/_auth/resources/integrations'
@@ -45,6 +46,7 @@ import { Route as AppAuthResourcesDatabasesRouteImport } from './routes/_app/_au
 import { Route as AppAuthResourcesCloudAccountsRouteImport } from './routes/_app/_auth/resources/cloud-accounts'
 import { Route as AppAuthGroupsIdRouteImport } from './routes/_app/_auth/groups.$id'
 import { Route as AppAuthAppsAppIdRouteImport } from './routes/_app/_auth/apps.$appId'
+import { Route as AppAuthSuperuserTunnelsRouteImport } from './routes/_app/_auth/_superuser/tunnels'
 import { Route as AppAuthSuperuserSystemTasksRouteImport } from './routes/_app/_auth/_superuser/system-tasks'
 import { Route as AppAuthSuperuserStatusRouteImport } from './routes/_app/_auth/_superuser/status'
 import { Route as AppAuthSuperuserSettingsRouteImport } from './routes/_app/_auth/_superuser/settings'
@@ -194,6 +196,11 @@ const AppAuthTopicsIdRoute = AppAuthTopicsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => AppAuthTopicsRoute,
 } as any)
+const AppAuthResourcesTunnelsRoute = AppAuthResourcesTunnelsRouteImport.update({
+  id: '/resources/tunnels',
+  path: '/resources/tunnels',
+  getParentRoute: () => AppAuthRoute,
+} as any)
 const AppAuthResourcesServersRoute = AppAuthResourcesServersRouteImport.update({
   id: '/resources/servers',
   path: '/resources/servers',
@@ -236,6 +243,11 @@ const AppAuthAppsAppIdRoute = AppAuthAppsAppIdRouteImport.update({
   id: '/$appId',
   path: '/$appId',
   getParentRoute: () => AppAuthAppsRoute,
+} as any)
+const AppAuthSuperuserTunnelsRoute = AppAuthSuperuserTunnelsRouteImport.update({
+  id: '/tunnels',
+  path: '/tunnels',
+  getParentRoute: () => AppAuthSuperuserRoute,
 } as any)
 const AppAuthSuperuserSystemTasksRoute =
   AppAuthSuperuserSystemTasksRouteImport.update({
@@ -327,6 +339,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AppAuthSuperuserSettingsRoute
   '/status': typeof AppAuthSuperuserStatusRoute
   '/system-tasks': typeof AppAuthSuperuserSystemTasksRoute
+  '/tunnels': typeof AppAuthSuperuserTunnelsRoute
   '/apps/$appId': typeof AppAuthAppsAppIdRoute
   '/groups/$id': typeof AppAuthGroupsIdRoute
   '/resources/cloud-accounts': typeof AppAuthResourcesCloudAccountsRoute
@@ -335,6 +348,7 @@ export interface FileRoutesByFullPath {
   '/resources/integrations': typeof AppAuthResourcesIntegrationsRoute
   '/resources/scripts': typeof AppAuthResourcesScriptsRoute
   '/resources/servers': typeof AppAuthResourcesServersRoute
+  '/resources/tunnels': typeof AppAuthResourcesTunnelsRoute
   '/topics/$id': typeof AppAuthTopicsIdRoute
   '/groups/': typeof AppAuthGroupsIndexRoute
   '/resources/': typeof AppAuthResourcesIndexRoute
@@ -371,6 +385,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AppAuthSuperuserSettingsRoute
   '/status': typeof AppAuthSuperuserStatusRoute
   '/system-tasks': typeof AppAuthSuperuserSystemTasksRoute
+  '/tunnels': typeof AppAuthSuperuserTunnelsRoute
   '/apps/$appId': typeof AppAuthAppsAppIdRoute
   '/groups/$id': typeof AppAuthGroupsIdRoute
   '/resources/cloud-accounts': typeof AppAuthResourcesCloudAccountsRoute
@@ -378,6 +393,7 @@ export interface FileRoutesByTo {
   '/resources/integrations': typeof AppAuthResourcesIntegrationsRoute
   '/resources/scripts': typeof AppAuthResourcesScriptsRoute
   '/resources/servers': typeof AppAuthResourcesServersRoute
+  '/resources/tunnels': typeof AppAuthResourcesTunnelsRoute
   '/topics/$id': typeof AppAuthTopicsIdRoute
   '/groups': typeof AppAuthGroupsIndexRoute
   '/resources': typeof AppAuthResourcesIndexRoute
@@ -420,6 +436,7 @@ export interface FileRoutesById {
   '/_app/_auth/_superuser/settings': typeof AppAuthSuperuserSettingsRoute
   '/_app/_auth/_superuser/status': typeof AppAuthSuperuserStatusRoute
   '/_app/_auth/_superuser/system-tasks': typeof AppAuthSuperuserSystemTasksRoute
+  '/_app/_auth/_superuser/tunnels': typeof AppAuthSuperuserTunnelsRoute
   '/_app/_auth/apps/$appId': typeof AppAuthAppsAppIdRoute
   '/_app/_auth/groups/$id': typeof AppAuthGroupsIdRoute
   '/_app/_auth/resources/cloud-accounts': typeof AppAuthResourcesCloudAccountsRoute
@@ -428,6 +445,7 @@ export interface FileRoutesById {
   '/_app/_auth/resources/integrations': typeof AppAuthResourcesIntegrationsRoute
   '/_app/_auth/resources/scripts': typeof AppAuthResourcesScriptsRoute
   '/_app/_auth/resources/servers': typeof AppAuthResourcesServersRoute
+  '/_app/_auth/resources/tunnels': typeof AppAuthResourcesTunnelsRoute
   '/_app/_auth/topics/$id': typeof AppAuthTopicsIdRoute
   '/_app/_auth/groups/': typeof AppAuthGroupsIndexRoute
   '/_app/_auth/resources/': typeof AppAuthResourcesIndexRoute
@@ -468,6 +486,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/status'
     | '/system-tasks'
+    | '/tunnels'
     | '/apps/$appId'
     | '/groups/$id'
     | '/resources/cloud-accounts'
@@ -476,6 +495,7 @@ export interface FileRouteTypes {
     | '/resources/integrations'
     | '/resources/scripts'
     | '/resources/servers'
+    | '/resources/tunnels'
     | '/topics/$id'
     | '/groups/'
     | '/resources/'
@@ -512,6 +532,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/status'
     | '/system-tasks'
+    | '/tunnels'
     | '/apps/$appId'
     | '/groups/$id'
     | '/resources/cloud-accounts'
@@ -519,6 +540,7 @@ export interface FileRouteTypes {
     | '/resources/integrations'
     | '/resources/scripts'
     | '/resources/servers'
+    | '/resources/tunnels'
     | '/topics/$id'
     | '/groups'
     | '/resources'
@@ -560,6 +582,7 @@ export interface FileRouteTypes {
     | '/_app/_auth/_superuser/settings'
     | '/_app/_auth/_superuser/status'
     | '/_app/_auth/_superuser/system-tasks'
+    | '/_app/_auth/_superuser/tunnels'
     | '/_app/_auth/apps/$appId'
     | '/_app/_auth/groups/$id'
     | '/_app/_auth/resources/cloud-accounts'
@@ -568,6 +591,7 @@ export interface FileRouteTypes {
     | '/_app/_auth/resources/integrations'
     | '/_app/_auth/resources/scripts'
     | '/_app/_auth/resources/servers'
+    | '/_app/_auth/resources/tunnels'
     | '/_app/_auth/topics/$id'
     | '/_app/_auth/groups/'
     | '/_app/_auth/resources/'
@@ -785,6 +809,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthTopicsIdRouteImport
       parentRoute: typeof AppAuthTopicsRoute
     }
+    '/_app/_auth/resources/tunnels': {
+      id: '/_app/_auth/resources/tunnels'
+      path: '/resources/tunnels'
+      fullPath: '/resources/tunnels'
+      preLoaderRoute: typeof AppAuthResourcesTunnelsRouteImport
+      parentRoute: typeof AppAuthRoute
+    }
     '/_app/_auth/resources/servers': {
       id: '/_app/_auth/resources/servers'
       path: '/resources/servers'
@@ -840,6 +871,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/apps/$appId'
       preLoaderRoute: typeof AppAuthAppsAppIdRouteImport
       parentRoute: typeof AppAuthAppsRoute
+    }
+    '/_app/_auth/_superuser/tunnels': {
+      id: '/_app/_auth/_superuser/tunnels'
+      path: '/tunnels'
+      fullPath: '/tunnels'
+      preLoaderRoute: typeof AppAuthSuperuserTunnelsRouteImport
+      parentRoute: typeof AppAuthSuperuserRoute
     }
     '/_app/_auth/_superuser/system-tasks': {
       id: '/_app/_auth/_superuser/system-tasks'
@@ -927,6 +965,7 @@ interface AppAuthSuperuserRouteChildren {
   AppAuthSuperuserSettingsRoute: typeof AppAuthSuperuserSettingsRoute
   AppAuthSuperuserStatusRoute: typeof AppAuthSuperuserStatusRoute
   AppAuthSuperuserSystemTasksRoute: typeof AppAuthSuperuserSystemTasksRoute
+  AppAuthSuperuserTunnelsRoute: typeof AppAuthSuperuserTunnelsRoute
   AppAuthSuperuserTerminalIndexRoute: typeof AppAuthSuperuserTerminalIndexRoute
   AppAuthSuperuserUsersIndexRoute: typeof AppAuthSuperuserUsersIndexRoute
   AppAuthSuperuserTerminalServerServerIdRoute: typeof AppAuthSuperuserTerminalServerServerIdRoute
@@ -938,6 +977,7 @@ const AppAuthSuperuserRouteChildren: AppAuthSuperuserRouteChildren = {
   AppAuthSuperuserSettingsRoute: AppAuthSuperuserSettingsRoute,
   AppAuthSuperuserStatusRoute: AppAuthSuperuserStatusRoute,
   AppAuthSuperuserSystemTasksRoute: AppAuthSuperuserSystemTasksRoute,
+  AppAuthSuperuserTunnelsRoute: AppAuthSuperuserTunnelsRoute,
   AppAuthSuperuserTerminalIndexRoute: AppAuthSuperuserTerminalIndexRoute,
   AppAuthSuperuserUsersIndexRoute: AppAuthSuperuserUsersIndexRoute,
   AppAuthSuperuserTerminalServerServerIdRoute:
@@ -1024,6 +1064,7 @@ interface AppAuthRouteChildren {
   AppAuthResourcesIntegrationsRoute: typeof AppAuthResourcesIntegrationsRoute
   AppAuthResourcesScriptsRoute: typeof AppAuthResourcesScriptsRoute
   AppAuthResourcesServersRoute: typeof AppAuthResourcesServersRoute
+  AppAuthResourcesTunnelsRoute: typeof AppAuthResourcesTunnelsRoute
   AppAuthResourcesIndexRoute: typeof AppAuthResourcesIndexRoute
   AppAuthStoreIndexRoute: typeof AppAuthStoreIndexRoute
   AppAuthAdminCredentialsEnvVarsRoute: typeof AppAuthAdminCredentialsEnvVarsRoute
@@ -1050,6 +1091,7 @@ const AppAuthRouteChildren: AppAuthRouteChildren = {
   AppAuthResourcesIntegrationsRoute: AppAuthResourcesIntegrationsRoute,
   AppAuthResourcesScriptsRoute: AppAuthResourcesScriptsRoute,
   AppAuthResourcesServersRoute: AppAuthResourcesServersRoute,
+  AppAuthResourcesTunnelsRoute: AppAuthResourcesTunnelsRoute,
   AppAuthResourcesIndexRoute: AppAuthResourcesIndexRoute,
   AppAuthStoreIndexRoute: AppAuthStoreIndexRoute,
   AppAuthAdminCredentialsEnvVarsRoute: AppAuthAdminCredentialsEnvVarsRoute,
