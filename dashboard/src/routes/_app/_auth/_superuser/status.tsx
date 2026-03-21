@@ -16,18 +16,18 @@ function StatusPage() {
         </p>
       </div>
       <Tabs defaultValue="components">
-        <TabsList className="mb-2">
+        <TabsList className="mb-1">
           <TabsTrigger value="components">Components</TabsTrigger>
           <TabsTrigger value="services">Active Services</TabsTrigger>
           <TabsTrigger value="crons">System Crons</TabsTrigger>
         </TabsList>
-        <TabsContent value="components">
+        <TabsContent value="components" className="mt-1">
           <InstalledComponentsContent />
         </TabsContent>
-        <TabsContent value="services">
+        <TabsContent value="services" className="mt-1">
           <ActiveServicesContent />
         </TabsContent>
-        <TabsContent value="crons">
+        <TabsContent value="crons" className="mt-1">
           <SystemCronsContent />
         </TabsContent>
       </Tabs>

@@ -51,6 +51,23 @@ Use `make redo` whenever schema migrations or binary changes require a clean env
 
 Decision: for each module, define constants, error codes, and variable configuration in a dedicated `config.go` file.
 
+## Settings Ownership Baseline{#settings-ownership}
+
+**Decision**: distinguish `business settings` from `settings platform`.
+
+- `business settings` belong to the business module that owns the runtime behavior.
+- the `settings platform` owns the shared storage, validation entry, and workspace settings API surface.
+
+**Decision**: exposing business settings under `/api/settings/{module}` is the correct baseline.
+
+- unified settings API path is a platform concern.
+- a module adopting that path does not change story ownership; it remains a business-module delivery unless reusable settings infrastructure is added.
+
+**Decision**: each business module should keep a dedicated `config.go`.
+
+- it aggregates module-level defaults, constants, shared structs, and settings-loading helpers.
+- routes/services may consume settings through this module config boundary instead of scattering config reads.
+
 ## Custom Route Ownership & Guard{#custom-route-guard}
 
 **Decision**: all custom `/api/<domain>/*` APIs must be defined in `backend/internal/routes/` only.

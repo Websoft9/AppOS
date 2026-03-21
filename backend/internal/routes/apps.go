@@ -851,7 +851,7 @@ func getAppConfigRollbackSnapshot(record *core.Record) (appConfigRollbackSnapsho
 	snapshot := appConfigRollbackSnapshot{}
 	switch typed := value.(type) {
 	case map[string]any:
-		snapshot.Content = strings.TrimSpace(fmt.Sprint(typed["content"]))
+		snapshot.Content = fmt.Sprint(typed["content"])
 		snapshot.SavedAt = strings.TrimSpace(fmt.Sprint(typed["saved_at"]))
 		snapshot.SourceAction = strings.TrimSpace(fmt.Sprint(typed["source_action"]))
 	default:
@@ -859,20 +859,18 @@ func getAppConfigRollbackSnapshot(record *core.Record) (appConfigRollbackSnapsho
 		if err != nil || json.Unmarshal(raw, &snapshot) != nil {
 			return appConfigRollbackSnapshot{}, false
 		}
-		snapshot.Content = strings.TrimSpace(snapshot.Content)
 		snapshot.SavedAt = strings.TrimSpace(snapshot.SavedAt)
 		snapshot.SourceAction = strings.TrimSpace(snapshot.SourceAction)
 	}
 
-	if snapshot.Content == "" {
+	if strings.TrimSpace(snapshot.Content) == "" {
 		return appConfigRollbackSnapshot{}, false
 	}
 	return snapshot, true
 }
 
 func setAppConfigRollbackSnapshot(record *core.Record, content string, sourceAction string) {
-	content = strings.TrimSpace(content)
-	if content == "" {
+	if strings.TrimSpace(content) == "" {
 		record.Set("config_rollback_snapshot", nil)
 		return
 	}

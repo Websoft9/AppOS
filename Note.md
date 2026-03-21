@@ -115,4 +115,6 @@ story16.3-tunnel-operations-view  更名为
 story16.4-tunnel-port-mapping-management 
 
 
-components 页不要以列表（表格）页面的形态出现，它以文本形态：名称+版本+时间，页面分为两列显示，这样它显得不具备操作性，降低用户心理负担
+1. Deploy 和 Deployment 页面在前端是一个代码文件中吗？是否考虑拆分？
+2. Install  from store 和 Custom Deployment 区块没有考虑 dark 模式
+3.  

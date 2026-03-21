@@ -1,8 +1,16 @@
 import { type FormEvent, Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import {
-  ArrowDown, ArrowUp, ChevronDown, ChevronRight,
-  MoreVertical, Pencil, Plus, RefreshCw, Search, Trash2,
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  ChevronRight,
+  MoreVertical,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Search,
+  Trash2,
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { cn } from '@/lib/utils'
@@ -92,18 +100,35 @@ function formatDate(iso?: string): string {
 }
 
 function SortableHeader({
-  label, field, current, dir, onSort, withDisclosureHint,
+  label,
+  field,
+  current,
+  dir,
+  onSort,
+  withDisclosureHint,
 }: {
-  label: string; field: SortField; current: SortField | null; dir: SortDir
-  onSort: (f: SortField) => void; withDisclosureHint?: boolean
+  label: string
+  field: SortField
+  current: SortField | null
+  dir: SortDir
+  onSort: (f: SortField) => void
+  withDisclosureHint?: boolean
 }) {
   const active = current === field
   return (
-    <button type="button" className="flex items-center gap-1 hover:text-foreground" onClick={() => onSort(field)}>
+    <button
+      type="button"
+      className="flex items-center gap-1 hover:text-foreground"
+      onClick={() => onSort(field)}
+    >
       {withDisclosureHint ? <ChevronRight className="h-3.5 w-3.5 opacity-60" /> : null}
       {label}
       {active ? (
-        dir === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+        dir === 'asc' ? (
+          <ArrowUp className="h-3.5 w-3.5" />
+        ) : (
+          <ArrowDown className="h-3.5 w-3.5" />
+        )
       ) : (
         <ArrowUp className="h-3.5 w-3.5 opacity-40" />
       )}
@@ -122,13 +147,28 @@ function DetailRow({ vars, colSpan }: { vars: EnvSetVar[]; colSpan: number }) {
         ) : (
           <div className="space-y-1.5">
             <div className="grid grid-cols-[180px_1fr_80px] gap-x-4 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              <span>Key</span><span>Value</span><span>Type</span>
+              <span>Key</span>
+              <span>Value</span>
+              <span>Type</span>
             </div>
             {vars.map(v => (
-              <div key={v.id} className="grid grid-cols-[180px_1fr_80px] gap-x-4 text-sm items-center">
+              <div
+                key={v.id}
+                className="grid grid-cols-[180px_1fr_80px] gap-x-4 text-sm items-center"
+              >
                 <span className="font-mono truncate">{v.key}</span>
                 <span className="truncate">{v.is_secret ? '•••••' : v.value || '—'}</span>
-                <span>{v.is_secret ? <Badge variant="secondary" className="text-xs">Secret</Badge> : <Badge variant="outline" className="text-xs">Plain</Badge>}</span>
+                <span>
+                  {v.is_secret ? (
+                    <Badge variant="secondary" className="text-xs">
+                      Secret
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-xs">
+                      Plain
+                    </Badge>
+                  )}
+                </span>
               </div>
             ))}
           </div>
@@ -179,10 +219,11 @@ function SharedEnvsPage() {
     let result = allItems
     if (search.trim()) {
       const q = search.trim().toLowerCase()
-      result = result.filter(item =>
-        item.name.toLowerCase().includes(q) ||
-        (item.description?.toLowerCase().includes(q)) ||
-        (varsBySet[item.id] ?? []).some(v => v.key.toLowerCase().includes(q))
+      result = result.filter(
+        item =>
+          item.name.toLowerCase().includes(q) ||
+          item.description?.toLowerCase().includes(q) ||
+          (varsBySet[item.id] ?? []).some(v => v.key.toLowerCase().includes(q))
       )
     }
     if (sortField) {
@@ -215,7 +256,9 @@ function SharedEnvsPage() {
     }
   }, [])
 
-  useEffect(() => { void fetchAll() }, [fetchAll])
+  useEffect(() => {
+    void fetchAll()
+  }, [fetchAll])
 
   useEffect(() => {
     if (!dialogOpen) return
@@ -227,7 +270,10 @@ function SharedEnvsPage() {
 
   function handleSort(field: SortField) {
     if (sortField === field) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
-    else { setSortField(field); setSortDir('asc') }
+    else {
+      setSortField(field)
+      setSortDir('asc')
+    }
   }
 
   // ─── Create / Edit ────────────────────────────────────
@@ -269,7 +315,10 @@ function SharedEnvsPage() {
   }
 
   function addVar() {
-    setFormVars(prev => [...prev, { key: '', value: '', is_secret: false, secret: '', secretValue: '', secretMode: 'create' }])
+    setFormVars(prev => [
+      ...prev,
+      { key: '', value: '', is_secret: false, secret: '', secretValue: '', secretMode: 'create' },
+    ])
   }
 
   function updateVar(index: number, patch: Partial<FormVar>) {
@@ -283,9 +332,7 @@ function SharedEnvsPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     // Validate: secret vars must have either a selected secret or a typed value
-    const invalid = formVars.find(
-      v => v.is_secret && !v.secret && !v.secretValue.trim()
-    )
+    const invalid = formVars.find(v => v.is_secret && !v.secret && !v.secretValue.trim())
     if (invalid) {
       setFormError(`Variable "${invalid.key || '(unnamed)'}": secret value is required.`)
       return
@@ -304,7 +351,6 @@ function SharedEnvsPage() {
             name: secretName,
             template_id: 'single_value',
             scope: 'global',
-            access_mode: 'use_only',
             payload: { value: v.secretValue },
           })
           resolved[i] = { ...v, secret: (created as { id: string }).id }
@@ -409,7 +455,12 @@ function SharedEnvsPage() {
       <div className="flex items-center gap-2">
         <div className="relative max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search sets or variables..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input
+            placeholder="Search sets or variables..."
+            className="pl-9"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
         </div>
       </div>
 
@@ -418,11 +469,19 @@ function SharedEnvsPage() {
         <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
           <p className="text-muted-foreground">No shared envs found.</p>
           {allItems.length > 0 ? (
-            <button type="button" className="mt-2 text-sm text-primary hover:underline" onClick={() => setSearch('')}>
+            <button
+              type="button"
+              className="mt-2 text-sm text-primary hover:underline"
+              onClick={() => setSearch('')}
+            >
               Clear filters
             </button>
           ) : (
-            <button type="button" className="mt-2 text-sm text-primary hover:underline" onClick={openCreate}>
+            <button
+              type="button"
+              className="mt-2 text-sm text-primary hover:underline"
+              onClick={openCreate}
+            >
               Create your first one
             </button>
           )}
@@ -432,12 +491,25 @@ function SharedEnvsPage() {
           <TableHeader>
             <TableRow>
               <TableHead>
-                <SortableHeader label="Name" field="name" current={sortField} dir={sortDir} onSort={handleSort} withDisclosureHint />
+                <SortableHeader
+                  label="Name"
+                  field="name"
+                  current={sortField}
+                  dir={sortDir}
+                  onSort={handleSort}
+                  withDisclosureHint
+                />
               </TableHead>
               <TableHead>Description</TableHead>
               <TableHead>Variables</TableHead>
               <TableHead>
-                <SortableHeader label="Created" field="created" current={sortField} dir={sortDir} onSort={handleSort} />
+                <SortableHeader
+                  label="Created"
+                  field="created"
+                  current={sortField}
+                  dir={sortDir}
+                  onSort={handleSort}
+                />
               </TableHead>
               <TableHead className="w-[48px]" />
             </TableRow>
@@ -454,16 +526,21 @@ function SharedEnvsPage() {
                       onClick={() => setExpandedId(isExpanded ? null : item.id)}
                     >
                       <span className="inline-flex items-center gap-1.5">
-                        {isExpanded
-                          ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                          : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                        }
+                        {isExpanded ? (
+                          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                        )}
                         {item.name}
                       </span>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{item.description || '—'}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {item.description || '—'}
+                    </TableCell>
                     <TableCell>
-                      <Badge variant="outline">{vars.length} var{vars.length !== 1 ? 's' : ''}</Badge>
+                      <Badge variant="outline">
+                        {vars.length} var{vars.length !== 1 ? 's' : ''}
+                      </Badge>
                     </TableCell>
                     <TableCell>{formatDate(item.created)}</TableCell>
                     <TableCell className="text-right">
@@ -517,13 +594,24 @@ function SharedEnvsPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label>Name <span className="text-destructive">*</span></Label>
-              <Input value={name} onChange={e => setName(e.target.value)} placeholder="staging-env" required />
+              <Label>
+                Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="staging-env"
+                required
+              />
             </div>
 
             <div className="space-y-2">
               <Label>Description</Label>
-              <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional description" />
+              <Input
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                placeholder="Optional description"
+              />
             </div>
 
             {/* Variables editor */}
@@ -567,7 +655,9 @@ function SharedEnvsPage() {
                             >
                               <option value="">Select secret…</option>
                               {secrets.map(s => (
-                                <option key={s.id} value={s.id}>{s.name}</option>
+                                <option key={s.id} value={s.id}>
+                                  {s.name}
+                                </option>
                               ))}
                             </select>
                             <button
@@ -589,7 +679,9 @@ function SharedEnvsPage() {
                             <button
                               type="button"
                               className="text-xs text-primary hover:underline whitespace-nowrap"
-                              onClick={() => updateVar(i, { secretMode: 'select', secretValue: '' })}
+                              onClick={() =>
+                                updateVar(i, { secretMode: 'select', secretValue: '' })
+                              }
                             >
                               or select
                             </button>
@@ -612,7 +704,9 @@ function SharedEnvsPage() {
                           onChange={e =>
                             updateVar(i, {
                               is_secret: e.target.checked,
-                              value: '', secret: '', secretValue: '',
+                              value: '',
+                              secret: '',
+                              secretValue: '',
                               secretMode: 'create',
                             })
                           }
@@ -621,7 +715,13 @@ function SharedEnvsPage() {
                       </label>
 
                       {/* Remove */}
-                      <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeVar(i)}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => removeVar(i)}
+                      >
                         <Trash2 className="h-3.5 w-3.5 text-destructive" />
                       </Button>
                     </div>
@@ -633,7 +733,9 @@ function SharedEnvsPage() {
             {formError && <p className="text-destructive text-sm">{formError}</p>}
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                Cancel
+              </Button>
               <Button type="submit" disabled={saving}>
                 {saving ? 'Saving…' : editingId ? 'Save' : 'Create'}
               </Button>
@@ -648,7 +750,8 @@ function SharedEnvsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Env Set</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &quot;{deleteTarget?.name}&quot;? This action cannot be undone.
+              Are you sure you want to delete &quot;{deleteTarget?.name}&quot;? This action cannot
+              be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

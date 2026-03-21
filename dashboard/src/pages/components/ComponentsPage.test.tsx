@@ -19,7 +19,7 @@ describe('ComponentsPage installed components presentation', () => {
     vi.clearAllMocks()
   })
 
-  it('renders installed components as read-only text cards in a two-column grid container', async () => {
+  it('renders installed components as read-only text cards in the current responsive grid container', async () => {
     sendMock.mockImplementation((path: string) => {
       if (path === '/api/components') {
         return Promise.resolve([
@@ -62,7 +62,8 @@ describe('ComponentsPage installed components presentation', () => {
     const cards = container.querySelectorAll('article')
     expect(cards.length).toBe(2)
 
-    const grid = container.querySelector('.lg\\:grid-cols-2')
+    const grid = container.querySelector('div.grid')
     expect(grid).toBeTruthy()
+    expect(grid).toHaveClass('grid-cols-1', 'sm:grid-cols-2', 'lg:grid-cols-4', 'xl:grid-cols-6')
   })
 })

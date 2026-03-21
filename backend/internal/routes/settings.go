@@ -11,6 +11,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/internal/tunnel"
 	"github.com/websoft9/appos/backend/internal/secrets"
 	"github.com/websoft9/appos/backend/internal/settings"
 )
@@ -28,6 +29,8 @@ var allowedModuleKeys = map[string][]string{
 	"docker":  {"mirror", "registries"},
 	"llm":     {"providers"},
 	"connect": {"sftp", "terminal"},
+	"tunnel":  {"port_range"},
+	"secrets": {"policy"},
 }
 
 // sensitiveFields is the set of field names that are masked on GET and
@@ -50,7 +53,10 @@ var (
 	defaultLLMProviders     = map[string]any{"items": []any{}}
 	defaultConnectSFTP      = map[string]any{"maxUploadFiles": 10}
 	defaultConnectTerminal  = map[string]any{"idleTimeoutSeconds": 1800, "maxConnections": 0}
+	defaultTunnelPortRange  = map[string]any{"start": tunnel.DefaultPortRangeStart, "end": tunnel.DefaultPortRangeEnd}
 )
+
+const defaultTunnelSSHPort = 2222
 
 func validateSpaceQuota(v map[string]any) error {
 	raw, ok := v["maxUploadFiles"]
@@ -161,6 +167,43 @@ func validateConnectTerminal(v map[string]any) map[string]string {
 	return errors
 }
 
+func validateTunnelPortRange(v map[string]any) map[string]string {
+	errors := map[string]string{}
+
+	start, err := parseIntWithDefault(v["start"], tunnel.DefaultPortRangeStart)
+	if err != nil {
+		errors["start"] = "must be an integer"
+	} else if start < 1 || start > 65535 {
+		errors["start"] = "must be between 1 and 65535"
+	} else {
+		v["start"] = start
+	}
+
+	end, err := parseIntWithDefault(v["end"], tunnel.DefaultPortRangeEnd)
+	if err != nil {
+		errors["end"] = "must be an integer"
+	} else if end < 1 || end > 65535 {
+		errors["end"] = "must be between 1 and 65535"
+	} else {
+		v["end"] = end
+	}
+
+	if len(errors) == 0 {
+		if start >= end {
+			errors["end"] = "must be greater than start"
+		}
+		if start <= defaultTunnelSSHPort && defaultTunnelSSHPort <= end {
+			errors["start"] = "range must not include tunnel SSH port 2222"
+			errors["end"] = "range must not include tunnel SSH port 2222"
+		}
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
 // fallbackForKey returns the code-level fallback for a given (module, key) pair.
 func fallbackForKey(module, key string) map[string]any {
 	switch module + "/" + key {
@@ -178,6 +221,10 @@ func fallbackForKey(module, key string) map[string]any {
 		return defaultConnectSFTP
 	case "connect/terminal":
 		return defaultConnectTerminal
+	case "tunnel/port_range":
+		return defaultTunnelPortRange
+	case "secrets/policy":
+		return secrets.DefaultPolicy().ToMap()
 	}
 	return map[string]any{}
 }
@@ -192,6 +239,119 @@ func RegisterSettings(se *core.ServeEvent) {
 	g.GET("", handleExtSettingsDiscover)
 	g.GET("/{module}", handleExtSettingsGet)
 	g.PATCH("/{module}", handleExtSettingsPatch)
+
+	secretsGroup := se.Router.Group("/api/settings/secrets")
+	secretsGroup.Bind(apis.RequireSuperuserAuth())
+	secretsGroup.GET("", handleSecretsSettingsGet)
+	secretsGroup.PATCH("", handleSecretsSettingsPatch)
+
+	tunnelGroup := se.Router.Group("/api/settings/tunnel")
+	tunnelGroup.Bind(apis.RequireSuperuserAuth())
+	tunnelGroup.GET("", handleTunnelSettingsGet)
+	tunnelGroup.PATCH("", handleTunnelSettingsPatch)
+}
+
+func handleExtSettingsGetModule(e *core.RequestEvent, module string) error {
+	allowedKeys, ok := allowedModuleKeys[module]
+	if !ok {
+		return e.BadRequestError("unknown settings module: "+module, nil)
+	}
+
+	result := make(map[string]any, len(allowedKeys))
+	for _, key := range allowedKeys {
+		fb := fallbackForKey(module, key)
+		v, _ := settings.GetGroup(e.App, module, key, fb)
+		if module == secrets.SettingsModule && key == secrets.PolicySettingsKey {
+			v = secrets.NormalizePolicy(v).ToMap()
+		}
+		result[key] = maskValue(v)
+	}
+
+	return e.JSON(http.StatusOK, result)
+}
+
+func handleExtSettingsPatchModule(e *core.RequestEvent, module string) error {
+	allowedKeys, ok := allowedModuleKeys[module]
+	if !ok {
+		return e.BadRequestError("unknown settings module: "+module, nil)
+	}
+
+	var body map[string]any
+	if err := e.BindBody(&body); err != nil {
+		return e.BadRequestError("invalid JSON body", err)
+	}
+
+	allowedSet := make(map[string]bool, len(allowedKeys))
+	for _, k := range allowedKeys {
+		allowedSet[k] = true
+	}
+	for k := range body {
+		if !allowedSet[k] {
+			return e.BadRequestError("unknown settings key: "+module+"/"+k, nil)
+		}
+	}
+
+	for key, rawIncoming := range body {
+		incomingMap, ok := rawIncoming.(map[string]any)
+		if !ok {
+			return e.JSON(http.StatusUnprocessableEntity, map[string]string{
+				"error": "value for key '" + key + "' must be an object",
+			})
+		}
+
+		fb := fallbackForKey(module, key)
+		existing, _ := settings.GetGroup(e.App, module, key, fb)
+		merged := preserveSensitive(incomingMap, existing)
+		if module == "space" && key == "quota" {
+			if err := validateSpaceQuota(merged); err != nil {
+				return e.BadRequestError(err.Error(), nil)
+			}
+		}
+		if module == "connect" && key == "terminal" {
+			if validationErrors := validateConnectTerminal(merged); validationErrors != nil {
+				return e.JSON(http.StatusUnprocessableEntity, map[string]any{
+					"errors": validationErrors,
+				})
+			}
+		}
+		if module == "tunnel" && key == "port_range" {
+			if validationErrors := validateTunnelPortRange(merged); validationErrors != nil {
+				return e.JSON(http.StatusUnprocessableEntity, map[string]any{
+					"errors": validationErrors,
+				})
+			}
+		}
+		if module == secrets.SettingsModule && key == secrets.PolicySettingsKey {
+			if validationErrors := secrets.ValidatePolicy(merged); validationErrors != nil {
+				return e.JSON(http.StatusUnprocessableEntity, map[string]any{
+					"errors": validationErrors,
+				})
+			}
+			merged = secrets.NormalizePolicy(merged).ToMap()
+		}
+
+		if module == "llm" && key == "providers" {
+			if err := validateLLMProvidersSecretRefs(e, merged); err != nil {
+				return e.BadRequestError(err.Error(), nil)
+			}
+		}
+
+		if err := settings.SetGroup(e.App, module, key, merged); err != nil {
+			return e.InternalServerError("failed to save "+module+"/"+key, err)
+		}
+	}
+
+	result := make(map[string]any, len(allowedKeys))
+	for _, key := range allowedKeys {
+		fb := fallbackForKey(module, key)
+		v, _ := settings.GetGroup(e.App, module, key, fb)
+		if module == secrets.SettingsModule && key == secrets.PolicySettingsKey {
+			v = secrets.NormalizePolicy(v).ToMap()
+		}
+		result[key] = maskValue(v)
+	}
+
+	return e.JSON(http.StatusOK, result)
 }
 
 // ─── Mask helpers ──────────────────────────────────────────────────────────
@@ -325,7 +485,7 @@ func validateLLMProvidersSecretRefs(e *core.RequestEvent, v map[string]any) erro
 // handleExtSettingsDiscover lists all available settings modules and their group keys.
 //
 // @Summary Discover settings modules
-// @Description Lists all available setting modules (e.g. space, proxy, docker, llm, connect). Each entry includes the module name, its group keys, and the full URL to call. Use the returned `module` value directly as the path parameter in GET/PATCH /api/settings/workspace/{module}. Superuser only.
+// @Description Lists all available setting modules (e.g. space, proxy, docker, llm, connect, tunnel, secrets). Each entry includes the module name, its group keys, and the full URL to call. Use the returned URL directly for direct settings surfaces such as tunnel and secrets. Superuser only.
 // @Tags Settings
 // @Security BearerAuth
 // @Success 200 {array} object
@@ -347,10 +507,17 @@ func handleExtSettingsDiscover(e *core.RequestEvent) error {
 
 	out := make([]moduleEntry, 0, len(names))
 	for _, m := range names {
+		url := "/api/settings/workspace/" + m
+		if m == secrets.SettingsModule {
+			url = "/api/settings/secrets"
+		}
+		if m == "tunnel" {
+			url = "/api/settings/tunnel"
+		}
 		out = append(out, moduleEntry{
 			Module: m,
 			Keys:   allowedModuleKeys[m],
-			URL:    "/api/settings/workspace/" + m,
+			URL:    url,
 		})
 	}
 	return e.JSON(http.StatusOK, out)
@@ -360,30 +527,17 @@ func handleExtSettingsDiscover(e *core.RequestEvent) error {
 // Sensitive string fields are masked to "***".
 //
 // @Summary Get settings module
-// @Description Returns all group keys and their values for the given module. Supported modules include `space` (file quota), `proxy` (HTTP proxy), `docker` (mirrors & registries), and others — call GET /api/settings/workspace first to discover all available modules. Sensitive fields (password, apiKey, secret) are masked to "***". Superuser only.
+// @Description Returns all group keys and their values for the given module. Supported modules include `space` (file quota), `proxy` (HTTP proxy), `docker` (mirrors & registries), `tunnel` (port range), `secrets` (global secrets policy), and others — call GET /api/settings/workspace first to discover all available modules. Sensitive fields (password, apiKey, secret) are masked to "***". Superuser only.
 // @Tags Settings
 // @Security BearerAuth
-// @Param module path string true "settings module" Enums(space, proxy, docker, llm, connect)
+// @Param module path string true "settings module" Enums(space, proxy, docker, llm, connect, tunnel, secrets)
 // @Success 200 {object} map[string]any
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Router /api/settings/workspace/{module} [get]
 func handleExtSettingsGet(e *core.RequestEvent) error {
 	module := e.Request.PathValue("module")
-
-	allowedKeys, ok := allowedModuleKeys[module]
-	if !ok {
-		return e.BadRequestError("unknown settings module: "+module, nil)
-	}
-
-	result := make(map[string]any, len(allowedKeys))
-	for _, key := range allowedKeys {
-		fb := fallbackForKey(module, key)
-		v, _ := settings.GetGroup(e.App, module, key, fb)
-		result[key] = maskValue(v)
-	}
-
-	return e.JSON(http.StatusOK, result)
+	return handleExtSettingsGetModule(e, module)
 }
 
 // handleExtSettingsPatch updates one or more settings groups for the given module.
@@ -393,7 +547,7 @@ func handleExtSettingsGet(e *core.RequestEvent) error {
 // @Description Partially updates settings groups for the given module. Use \"***\" to preserve existing sensitive values. Superuser only.
 // @Tags Settings
 // @Security BearerAuth
-// @Param module path string true "settings module" Enums(space, proxy, docker, llm, connect)
+// @Param module path string true "settings module" Enums(space, proxy, docker, llm, connect, tunnel, secrets)
 // @Param body body object true "map of group key to partial settings object"
 // @Success 200 {object} map[string]any "updated settings (masked)"
 // @Failure 400 {object} map[string]any
@@ -402,78 +556,63 @@ func handleExtSettingsGet(e *core.RequestEvent) error {
 // @Router /api/settings/workspace/{module} [patch]
 func handleExtSettingsPatch(e *core.RequestEvent) error {
 	module := e.Request.PathValue("module")
+	return handleExtSettingsPatchModule(e, module)
+}
 
-	allowedKeys, ok := allowedModuleKeys[module]
-	if !ok {
-		return e.BadRequestError("unknown settings module: "+module, nil)
-	}
+// handleSecretsSettingsGet returns the secrets policy via a direct path.
+//
+// @Summary Get secrets settings
+// @Description Returns the `policy` group for secrets settings. Superuser only.
+// @Tags Settings
+// @Security BearerAuth
+// @Success 200 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Router /api/settings/secrets [get]
+func handleSecretsSettingsGet(e *core.RequestEvent) error {
+	return handleExtSettingsGetModule(e, secrets.SettingsModule)
+}
 
-	// Parse request body as map[string]map[string]any
-	var body map[string]any
-	if err := e.BindBody(&body); err != nil {
-		return e.BadRequestError("invalid JSON body", err)
-	}
+// handleSecretsSettingsPatch updates the secrets policy via a direct path.
+//
+// @Summary Patch secrets settings
+// @Description Updates the `policy` group for secrets settings. Superuser only.
+// @Tags Settings
+// @Security BearerAuth
+// @Param body body object true "map of group key to partial settings object"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 422 {object} map[string]any
+// @Router /api/settings/secrets [patch]
+func handleSecretsSettingsPatch(e *core.RequestEvent) error {
+	return handleExtSettingsPatchModule(e, secrets.SettingsModule)
+}
 
-	// Validate all incoming keys before modifying anything.
-	allowedSet := make(map[string]bool, len(allowedKeys))
-	for _, k := range allowedKeys {
-		allowedSet[k] = true
-	}
-	for k := range body {
-		if !allowedSet[k] {
-			return e.BadRequestError("unknown settings key: "+module+"/"+k, nil)
-		}
-	}
+// handleTunnelSettingsGet returns the tunnel settings via a direct path.
+//
+// @Summary Get tunnel settings
+// @Description Returns the `port_range` group for tunnel settings. Superuser only.
+// @Tags Settings
+// @Security BearerAuth
+// @Success 200 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Router /api/settings/tunnel [get]
+func handleTunnelSettingsGet(e *core.RequestEvent) error {
+	return handleExtSettingsGetModule(e, "tunnel")
+}
 
-	// Process each group key in the request.
-	for key, rawIncoming := range body {
-		incomingMap, ok := rawIncoming.(map[string]any)
-		if !ok {
-			return e.JSON(http.StatusUnprocessableEntity, map[string]string{
-				"error": "value for key '" + key + "' must be an object",
-			})
-		}
-
-		// Load existing row so we can preserve "***" sentinels.
-		fb := fallbackForKey(module, key)
-		existing, _ := settings.GetGroup(e.App, module, key, fb)
-
-		// Replace "***" with stored values.
-		merged := preserveSensitive(incomingMap, existing)
-		if module == "space" && key == "quota" {
-			if err := validateSpaceQuota(merged); err != nil {
-				return e.BadRequestError(err.Error(), nil)
-			}
-		}
-		if module == "connect" && key == "terminal" {
-			if validationErrors := validateConnectTerminal(merged); validationErrors != nil {
-				return e.JSON(http.StatusUnprocessableEntity, map[string]any{
-					"errors": validationErrors,
-				})
-			}
-		}
-
-		// secretRef bind-time validation for llm/providers items.
-		// When an apiKey field value starts with "secretRef:<id>", verify the caller
-		// has read access to the referenced secret before persisting the reference.
-		if module == "llm" && key == "providers" {
-			if err := validateLLMProvidersSecretRefs(e, merged); err != nil {
-				return e.BadRequestError(err.Error(), nil)
-			}
-		}
-
-		if err := settings.SetGroup(e.App, module, key, merged); err != nil {
-			return e.InternalServerError("failed to save "+module+"/"+key, err)
-		}
-	}
-
-	// Return the updated view (masked) of all groups.
-	result := make(map[string]any, len(allowedKeys))
-	for _, key := range allowedKeys {
-		fb := fallbackForKey(module, key)
-		v, _ := settings.GetGroup(e.App, module, key, fb)
-		result[key] = maskValue(v)
-	}
-
-	return e.JSON(http.StatusOK, result)
+// handleTunnelSettingsPatch updates tunnel settings via a direct path.
+//
+// @Summary Patch tunnel settings
+// @Description Updates the `port_range` group for tunnel settings. Superuser only.
+// @Tags Settings
+// @Security BearerAuth
+// @Param body body object true "map of group key to partial settings object"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 422 {object} map[string]any
+// @Router /api/settings/tunnel [patch]
+func handleTunnelSettingsPatch(e *core.RequestEvent) error {
+	return handleExtSettingsPatchModule(e, "tunnel")
 }

@@ -4,6 +4,14 @@ import { ClientResponseError } from 'pocketbase'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { parseExtListInput } from '@/lib/ext-normalize'
+import {
+  extSettingsModulePath,
+  TUNNEL_SETTINGS_API_PATH,
+  SECRETS_SETTINGS_API_PATH,
+  SETTINGS_API_PATH,
+  SETTINGS_TEST_EMAIL_API_PATH,
+  SETTINGS_TEST_S3_API_PATH,
+} from '@/lib/settings-api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,6 +24,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  DEFAULT_SECRET_POLICY,
+  normalizeSecretPolicy,
+  SECRET_ACCESS_MODE_OPTIONS,
+  type SecretPolicy,
+} from '@/lib/secrets-policy'
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -93,6 +107,11 @@ interface ConnectTerminalGroup {
   maxConnections: number
 }
 
+interface TunnelPortRange {
+  start: number
+  end: number
+}
+
 function extractFieldError(value: unknown): string | null {
   if (typeof value === 'string' && value.trim()) {
     return value.trim()
@@ -129,6 +148,31 @@ function parseConnectTerminalApiErrors(
   const maxError = extractFieldError(bag.maxConnections)
   if (maxError) {
     parsed.maxConnections = maxError
+  }
+
+  return parsed
+}
+
+function parseTunnelPortRangeApiErrors(
+  payload: unknown
+): Partial<Record<keyof TunnelPortRange, string>> {
+  const parsed: Partial<Record<keyof TunnelPortRange, string>> = {}
+  if (!payload || typeof payload !== 'object') {
+    return parsed
+  }
+
+  const root = payload as Record<string, unknown>
+  const bag =
+    root.errors && typeof root.errors === 'object' ? (root.errors as Record<string, unknown>) : root
+
+  const startError = extractFieldError(bag.start)
+  if (startError) {
+    parsed.start = startError
+  }
+
+  const endError = extractFieldError(bag.end)
+  if (endError) {
+    parsed.end = endError
   }
 
   return parsed
@@ -202,12 +246,14 @@ const NAV_ITEMS = [
   { id: 'smtp', group: 'System', label: 'SMTP' },
   { id: 's3', group: 'System', label: 'S3 Storage' },
   { id: 'logs', group: 'System', label: 'Logs' },
-  { id: 'space', group: 'App', label: 'Space Quota' },
-  { id: 'connect-terminal', group: 'App', label: 'Connect Terminal' },
-  { id: 'proxy', group: 'App', label: 'Proxy' },
-  { id: 'docker-mirrors', group: 'App', label: 'Docker Mirrors' },
-  { id: 'docker-registries', group: 'App', label: 'Docker Registries' },
-  { id: 'llm', group: 'App', label: 'LLM Providers' },
+  { id: 'secrets', group: 'System', label: 'Secrets' },
+  { id: 'space', group: 'Workspace', label: 'Space Quota' },
+  { id: 'connect-terminal', group: 'Workspace', label: 'Connect Terminal' },
+  { id: 'tunnel', group: 'Workspace', label: 'Tunnel' },
+  { id: 'proxy', group: 'Workspace', label: 'Proxy' },
+  { id: 'docker-mirrors', group: 'Workspace', label: 'Docker Mirrors' },
+  { id: 'docker-registries', group: 'Workspace', label: 'Docker Registries' },
+  { id: 'llm', group: 'Workspace', label: 'LLM Providers' },
 ] as const
 
 type SectionId = (typeof NAV_ITEMS)[number]['id']
@@ -238,9 +284,14 @@ const DEFAULT_CONNECT_TERMINAL: ConnectTerminalGroup = {
   maxConnections: 0,
 }
 
+const DEFAULT_TUNNEL_PORT_RANGE: TunnelPortRange = {
+  start: 40000,
+  end: 49999,
+}
+
 // ─── Component ────────────────────────────────────────────────────────────
 
-function SettingsPage() {
+export function SettingsPage() {
   const { toasts, show: showToast } = useToast()
   const [activeSection, setActiveSection] = useState<SectionId>('basic')
 
@@ -302,6 +353,20 @@ function SettingsPage() {
     Partial<Record<keyof ConnectTerminalGroup, string>>
   >({})
 
+  const [tunnelPortRangeForm, setTunnelPortRangeForm] =
+    useState<TunnelPortRange>(DEFAULT_TUNNEL_PORT_RANGE)
+  const [tunnelPortRangeSaving, setTunnelPortRangeSaving] = useState(false)
+  const [tunnelPortRangeErrors, setTunnelPortRangeErrors] = useState<
+    Partial<Record<keyof TunnelPortRange, string>>
+  >({})
+
+  // Secrets policy
+  const [secretPolicy, setSecretPolicy] = useState<SecretPolicy>(DEFAULT_SECRET_POLICY)
+  const [secretPolicySaving, setSecretPolicySaving] = useState(false)
+  const [secretPolicyErrors, setSecretPolicyErrors] = useState<
+    Partial<Record<keyof SecretPolicy, string>>
+  >({})
+
   // Proxy
   const [proxyNetwork, setProxyNetwork] = useState<ProxyNetwork>(EMPTY_PROXY)
   const [proxyForm, setProxyForm] = useState<ProxyNetwork>(EMPTY_PROXY)
@@ -335,7 +400,7 @@ function SettingsPage() {
   const loadPBSettings = useCallback(async () => {
     setPbLoading(true)
     try {
-      const data = (await pb.send('/api/settings', { method: 'GET' })) as PBSettings
+      const data = (await pb.send(SETTINGS_API_PATH, { method: 'GET' })) as PBSettings
       setPbSettings(data)
       setAppName(data.meta?.appName ?? '')
       setAppURL(data.meta?.appURL ?? '')
@@ -371,13 +436,16 @@ function SettingsPage() {
   // ── Load Ext settings ──
   const loadExtSettings = useCallback(async () => {
     try {
-      const [filesRes, connectRes, proxyRes, dockerRes, llmRes] = await Promise.allSettled([
-        pb.send('/api/settings/workspace/space', { method: 'GET' }),
-        pb.send('/api/settings/workspace/connect', { method: 'GET' }),
-        pb.send('/api/settings/workspace/proxy', { method: 'GET' }),
-        pb.send('/api/settings/workspace/docker', { method: 'GET' }),
-        pb.send('/api/settings/workspace/llm', { method: 'GET' }),
-      ])
+      const [filesRes, connectRes, tunnelRes, secretsRes, proxyRes, dockerRes, llmRes] =
+        await Promise.allSettled([
+          pb.send(extSettingsModulePath('space'), { method: 'GET' }),
+          pb.send(extSettingsModulePath('connect'), { method: 'GET' }),
+          pb.send(TUNNEL_SETTINGS_API_PATH, { method: 'GET' }),
+          pb.send(SECRETS_SETTINGS_API_PATH, { method: 'GET' }),
+          pb.send(extSettingsModulePath('proxy'), { method: 'GET' }),
+          pb.send(extSettingsModulePath('docker'), { method: 'GET' }),
+          pb.send(extSettingsModulePath('llm'), { method: 'GET' }),
+        ])
       if (filesRes.status === 'fulfilled') {
         const q = (filesRes.value as { quota: Partial<SpaceQuota> }).quota ?? {}
         const merged = {
@@ -408,6 +476,23 @@ function SettingsPage() {
               ? Math.floor(maxConnections)
               : DEFAULT_CONNECT_TERMINAL.maxConnections,
         })
+      }
+      if (tunnelRes.status === 'fulfilled') {
+        const portRange = (tunnelRes.value as { port_range?: Partial<TunnelPortRange> }).port_range
+        const start = Number(portRange?.start)
+        const end = Number(portRange?.end)
+        setTunnelPortRangeForm({
+          start:
+            Number.isFinite(start) && start >= 1
+              ? Math.floor(start)
+              : DEFAULT_TUNNEL_PORT_RANGE.start,
+          end:
+            Number.isFinite(end) && end >= 1 ? Math.floor(end) : DEFAULT_TUNNEL_PORT_RANGE.end,
+        })
+      }
+      if (secretsRes.status === 'fulfilled') {
+        const policy = (secretsRes.value as { policy?: unknown }).policy
+        setSecretPolicy(normalizeSecretPolicy(policy))
       }
       if (proxyRes.status === 'fulfilled') {
         const n = (proxyRes.value as { network: ProxyNetwork }).network ?? EMPTY_PROXY
@@ -464,7 +549,6 @@ function SettingsPage() {
         name: llmSecretCreateName,
         template_id: 'api_key',
         scope: 'global',
-        access_mode: 'use_only',
         payload: { api_key: llmSecretCreateKey },
       })
       // Refresh picker then select the new secret
@@ -489,8 +573,8 @@ function SettingsPage() {
       // Use cached settings if available; re-fetch only when not yet loaded to
       // avoid overwriting meta fields (senderName, etc.) not exposed in this form.
       const current =
-        pbSettings ?? ((await pb.send('/api/settings', { method: 'GET' })) as PBSettings)
-      await pb.send('/api/settings', {
+        pbSettings ?? ((await pb.send(SETTINGS_API_PATH, { method: 'GET' })) as PBSettings)
+      await pb.send(SETTINGS_API_PATH, {
         method: 'PATCH',
         body: { meta: { ...current.meta, appName, appURL } },
       })
@@ -508,7 +592,7 @@ function SettingsPage() {
   const saveSmtp = async () => {
     setSmtpSaving(true)
     try {
-      await pb.send('/api/settings', {
+      await pb.send(SETTINGS_API_PATH, {
         method: 'PATCH',
         body: {
           smtp: {
@@ -538,7 +622,7 @@ function SettingsPage() {
     }
     setTestEmailSending(true)
     try {
-      await pb.send('/api/settings/test/email', {
+      await pb.send(SETTINGS_TEST_EMAIL_API_PATH, {
         method: 'POST',
         body: {
           template: { subject: 'Test email from AppOS', actionUrl: '', actionName: '' },
@@ -556,7 +640,7 @@ function SettingsPage() {
   const saveS3 = async () => {
     setS3Saving(true)
     try {
-      await pb.send('/api/settings', {
+      await pb.send(SETTINGS_API_PATH, {
         method: 'PATCH',
         body: {
           s3: {
@@ -581,7 +665,7 @@ function SettingsPage() {
   const testS3 = async () => {
     setS3Testing(true)
     try {
-      await pb.send('/api/settings/test/s3', { method: 'POST' })
+      await pb.send(SETTINGS_TEST_S3_API_PATH, { method: 'POST' })
       showToast('S3 connection successful')
     } catch (err) {
       showToast('S3 test failed: ' + (err instanceof Error ? err.message : String(err)), false)
@@ -593,7 +677,7 @@ function SettingsPage() {
   const saveLogs = async () => {
     setLogsSaving(true)
     try {
-      await pb.send('/api/settings', {
+      await pb.send(SETTINGS_API_PATH, {
         method: 'PATCH',
         body: {
           logs: {
@@ -646,7 +730,7 @@ function SettingsPage() {
         .filter(Boolean),
     }
     try {
-      const res = (await pb.send('/api/settings/workspace/space', {
+      const res = (await pb.send(extSettingsModulePath('space'), {
         method: 'PATCH',
         body: { quota: payload },
       })) as { quota?: Partial<SpaceQuota> }
@@ -675,7 +759,10 @@ function SettingsPage() {
   const saveProxy = async () => {
     setProxySaving(true)
     try {
-      await pb.send('/api/settings/workspace/proxy', { method: 'PATCH', body: { network: proxyForm } })
+      await pb.send(extSettingsModulePath('proxy'), {
+        method: 'PATCH',
+        body: { network: proxyForm },
+      })
       setProxyNetwork(proxyForm)
       showToast('Proxy settings saved')
     } catch (err) {
@@ -708,7 +795,7 @@ function SettingsPage() {
     setConnectTerminalSaving(true)
     setConnectTerminalErrors({})
     try {
-      await pb.send('/api/settings/workspace/connect', {
+      await pb.send(extSettingsModulePath('connect'), {
         method: 'PATCH',
         body: {
           terminal: {
@@ -733,10 +820,99 @@ function SettingsPage() {
     }
   }
 
+  const validateTunnelPortRange = (): boolean => {
+    const errors: Partial<Record<keyof TunnelPortRange, string>> = {}
+
+    if (!Number.isInteger(tunnelPortRangeForm.start) || tunnelPortRangeForm.start < 1 || tunnelPortRangeForm.start > 65535) {
+      errors.start = 'Must be an integer between 1 and 65535'
+    }
+    if (!Number.isInteger(tunnelPortRangeForm.end) || tunnelPortRangeForm.end < 1 || tunnelPortRangeForm.end > 65535) {
+      errors.end = 'Must be an integer between 1 and 65535'
+    }
+    if (Object.keys(errors).length === 0 && tunnelPortRangeForm.start >= tunnelPortRangeForm.end) {
+      errors.end = 'Must be greater than start'
+    }
+    if (
+      Object.keys(errors).length === 0 &&
+      tunnelPortRangeForm.start <= 2222 &&
+      2222 <= tunnelPortRangeForm.end
+    ) {
+      errors.start = 'Range must not include tunnel SSH port 2222'
+      errors.end = 'Range must not include tunnel SSH port 2222'
+    }
+
+    setTunnelPortRangeErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const saveTunnelPortRange = async () => {
+    if (!validateTunnelPortRange()) return
+    setTunnelPortRangeSaving(true)
+    setTunnelPortRangeErrors({})
+    try {
+      const res = (await pb.send(TUNNEL_SETTINGS_API_PATH, {
+        method: 'PATCH',
+        body: {
+          port_range: {
+            start: tunnelPortRangeForm.start,
+            end: tunnelPortRangeForm.end,
+          },
+        },
+      })) as { port_range?: Partial<TunnelPortRange> }
+      const portRange = res.port_range ?? tunnelPortRangeForm
+      setTunnelPortRangeForm({
+        start: Number(portRange.start ?? tunnelPortRangeForm.start),
+        end: Number(portRange.end ?? tunnelPortRangeForm.end),
+      })
+      showToast('Tunnel settings saved')
+    } catch (err) {
+      if (err instanceof ClientResponseError && (err.status === 400 || err.status === 422)) {
+        const inlineErrors = parseTunnelPortRangeApiErrors(err.response)
+        if (Object.keys(inlineErrors).length > 0) {
+          setTunnelPortRangeErrors(inlineErrors)
+          showToast('Please fix validation errors and try again.', false)
+          return
+        }
+      }
+      showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
+    } finally {
+      setTunnelPortRangeSaving(false)
+    }
+  }
+
+  const saveSecretPolicy = async () => {
+    setSecretPolicySaving(true)
+    setSecretPolicyErrors({})
+    try {
+      const res = (await pb.send(SECRETS_SETTINGS_API_PATH, {
+        method: 'PATCH',
+        body: { policy: secretPolicy },
+      })) as { policy?: unknown }
+      setSecretPolicy(normalizeSecretPolicy(res.policy))
+      showToast('Secrets policy saved')
+    } catch (err) {
+      if (err instanceof ClientResponseError && err.status === 422) {
+        const root = err.response as Record<string, unknown>
+        const bag =
+          root.errors && typeof root.errors === 'object'
+            ? (root.errors as Record<string, unknown>)
+            : root
+        setSecretPolicyErrors({
+          revealDisabled: extractFieldError(bag.revealDisabled) ?? undefined,
+          defaultAccessMode: extractFieldError(bag.defaultAccessMode) ?? undefined,
+          clipboardClearSeconds: extractFieldError(bag.clipboardClearSeconds) ?? undefined,
+        })
+      }
+      showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
+    } finally {
+      setSecretPolicySaving(false)
+    }
+  }
+
   const saveDockerMirrors = async () => {
     setMirrorsSaving(true)
     try {
-      await pb.send('/api/settings/workspace/docker', {
+      await pb.send(extSettingsModulePath('docker'), {
         method: 'PATCH',
         body: {
           mirror: {
@@ -756,7 +932,7 @@ function SettingsPage() {
   const saveDockerRegistries = async () => {
     setRegsSaving(true)
     try {
-      await pb.send('/api/settings/workspace/docker', {
+      await pb.send(extSettingsModulePath('docker'), {
         method: 'PATCH',
         body: { registries: { items: dockerRegistries } },
       })
@@ -771,7 +947,7 @@ function SettingsPage() {
   const saveLlm = async () => {
     setLlmSaving(true)
     try {
-      await pb.send('/api/settings/workspace/llm', {
+      await pb.send(extSettingsModulePath('llm'), {
         method: 'PATCH',
         body: { providers: { items: llmItems } },
       })
@@ -1304,6 +1480,129 @@ function SettingsPage() {
     </Card>
   )
 
+  const renderTunnel = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Tunnel</CardTitle>
+        <CardDescription>Port pool range for reverse tunnel allocation</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <Label htmlFor="tunnelPortRangeStart">Start Port</Label>
+            <Input
+              id="tunnelPortRangeStart"
+              type="number"
+              min={1}
+              max={65535}
+              step={1}
+              value={tunnelPortRangeForm.start}
+              onChange={event =>
+                setTunnelPortRangeForm(form => ({
+                  ...form,
+                  start: Number(event.target.value),
+                }))
+              }
+            />
+            {tunnelPortRangeErrors.start && (
+              <p className="text-xs text-destructive">{tunnelPortRangeErrors.start}</p>
+            )}
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="tunnelPortRangeEnd">End Port</Label>
+            <Input
+              id="tunnelPortRangeEnd"
+              type="number"
+              min={1}
+              max={65535}
+              step={1}
+              value={tunnelPortRangeForm.end}
+              onChange={event =>
+                setTunnelPortRangeForm(form => ({
+                  ...form,
+                  end: Number(event.target.value),
+                }))
+              }
+            />
+            {tunnelPortRangeErrors.end && (
+              <p className="text-xs text-destructive">{tunnelPortRangeErrors.end}</p>
+            )}
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Changes affect future startup and allocation behavior only. Active tunnel sessions are not
+          reconfigured in place.
+        </p>
+        <SaveBtn onClick={saveTunnelPortRange} saving={tunnelPortRangeSaving} />
+      </CardContent>
+    </Card>
+  )
+
+  const renderSecrets = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Secrets</CardTitle>
+        <CardDescription>Global reveal restrictions and default secret behavior</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center gap-3">
+          <Toggle
+            id="secretsRevealDisabled"
+            checked={secretPolicy.revealDisabled}
+            onChange={revealDisabled => setSecretPolicy(policy => ({ ...policy, revealDisabled }))}
+          />
+          <Label htmlFor="secretsRevealDisabled">Disable all reveal actions</Label>
+        </div>
+        {secretPolicyErrors.revealDisabled && (
+          <p className="text-xs text-destructive">{secretPolicyErrors.revealDisabled}</p>
+        )}
+
+        <div className="space-y-1">
+          <Label htmlFor="secretsDefaultAccessMode">Default Access Mode</Label>
+          <select
+            id="secretsDefaultAccessMode"
+            className={selectClass}
+            value={secretPolicy.defaultAccessMode}
+            onChange={e =>
+              setSecretPolicy(policy => ({ ...policy, defaultAccessMode: e.target.value }))
+            }
+          >
+            {SECRET_ACCESS_MODE_OPTIONS.map(option => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {secretPolicyErrors.defaultAccessMode && (
+            <p className="text-xs text-destructive">{secretPolicyErrors.defaultAccessMode}</p>
+          )}
+        </div>
+
+        <div className="space-y-1">
+          <Label htmlFor="clipboardClearSeconds">Clipboard Clear Delay (seconds)</Label>
+          <Input
+            id="clipboardClearSeconds"
+            type="number"
+            min={0}
+            value={secretPolicy.clipboardClearSeconds}
+            onChange={e =>
+              setSecretPolicy(policy => ({
+                ...policy,
+                clipboardClearSeconds: Number(e.target.value),
+              }))
+            }
+          />
+          <p className="text-xs text-muted-foreground">0 disables automatic clipboard clearing.</p>
+          {secretPolicyErrors.clipboardClearSeconds && (
+            <p className="text-xs text-destructive">{secretPolicyErrors.clipboardClearSeconds}</p>
+          )}
+        </div>
+
+        <SaveBtn onClick={saveSecretPolicy} saving={secretPolicySaving} />
+      </CardContent>
+    </Card>
+  )
+
   const renderDockerMirrors = () => (
     <Card>
       <CardHeader>
@@ -1470,174 +1769,186 @@ function SettingsPage() {
       LLM_VENDORS.find(v => v.label === label)?.endpoint ?? ''
 
     return (
-    <>
-      <Card>
-        <CardHeader>
-          <CardTitle>LLM Providers</CardTitle>
-          <CardDescription>AI model provider endpoints and credentials</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                setLlmItems(p => [
-                  ...p,
-                  { name: 'OpenAI', endpoint: 'https://api.openai.com/v1', apiKey: '' },
-                ])
-              }
-            >
-              <Plus className="h-3.5 w-3.5 mr-1" /> Add Provider
-            </Button>
-          </div>
-          {llmItems.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              No providers configured. Click Add Provider to get started.
-            </p>
-          )}
-          {llmItems.map((prov, i) => {
-            // Determine which vendor is selected (match on name field)
-            const vendorLabel = LLM_VENDORS.find(v => v.label === prov.name)?.label ?? 'Custom'
-            return (
-              <div key={i} className="rounded-md border p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1 w-48">
-                    <Label className="text-xs">Provider</Label>
-                    <select
-                      className={selectClass}
-                      value={vendorLabel}
-                      onChange={e => {
-                        const ep = vendorEndpoint(e.target.value)
-                        setLlmItems(p =>
-                          p.map((item, idx) =>
-                            idx === i ? { ...item, name: e.target.value, endpoint: ep } : item
+      <>
+        <Card>
+          <CardHeader>
+            <CardTitle>LLM Providers</CardTitle>
+            <CardDescription>AI model provider endpoints and credentials</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setLlmItems(p => [
+                    ...p,
+                    { name: 'OpenAI', endpoint: 'https://api.openai.com/v1', apiKey: '' },
+                  ])
+                }
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" /> Add Provider
+              </Button>
+            </div>
+            {llmItems.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                No providers configured. Click Add Provider to get started.
+              </p>
+            )}
+            {llmItems.map((prov, i) => {
+              // Determine which vendor is selected (match on name field)
+              const vendorLabel = LLM_VENDORS.find(v => v.label === prov.name)?.label ?? 'Custom'
+              return (
+                <div key={i} className="rounded-md border p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1 w-48">
+                      <Label className="text-xs">Provider</Label>
+                      <select
+                        className={selectClass}
+                        value={vendorLabel}
+                        onChange={e => {
+                          const ep = vendorEndpoint(e.target.value)
+                          setLlmItems(p =>
+                            p.map((item, idx) =>
+                              idx === i ? { ...item, name: e.target.value, endpoint: ep } : item
+                            )
                           )
-                        )
-                      }}
-                    >
-                      {LLM_VENDORS.map(v => (
-                        <option key={v.label} value={v.label}>
-                          {v.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setLlmItems(p => p.filter((_, idx) => idx !== i))}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Endpoint URL</Label>
-                  <Input
-                    value={prov.endpoint}
-                    onChange={e =>
-                      setLlmItems(p =>
-                        p.map((item, idx) =>
-                          idx === i ? { ...item, endpoint: e.target.value } : item
-                        )
-                      )
-                    }
-                    placeholder="https://api.example.com/v1"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">API Key</Label>
-                  <div className="flex gap-2 items-center">
-                    <select
-                      className={selectClass + ' flex-1'}
-                      value={
-                        prov.apiKey.startsWith('secretRef:')
-                          ? prov.apiKey.slice('secretRef:'.length)
-                          : ''
-                      }
-                      onChange={e => {
-                        const val = e.target.value
-                        setLlmItems(p =>
-                          p.map((item, idx) =>
-                            idx === i ? { ...item, apiKey: val ? `secretRef:${val}` : '' } : item
-                          )
-                        )
-                      }}
-                    >
-                      <option value="">Select a secret…</option>
-                      {secretPickerItems.map(s => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))}
-                    </select>
+                        }}
+                      >
+                        {LLM_VENDORS.map(v => (
+                          <option key={v.label} value={v.label}>
+                            {v.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="ghost"
                       size="icon"
-                      title="Create new API key secret"
-                      onClick={() => {
-                        setLlmSecretCreateIdx(i)
-                        setLlmSecretCreateName(`${prov.name} API Key`)
-                        setLlmSecretCreateKey('')
-                        setLlmSecretCreateError('')
-                        setLlmSecretCreateOpen(true)
-                      }}
+                      onClick={() => setLlmItems(p => p.filter((_, idx) => idx !== i))}
                     >
-                      <Plus className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Endpoint URL</Label>
+                    <Input
+                      value={prov.endpoint}
+                      onChange={e =>
+                        setLlmItems(p =>
+                          p.map((item, idx) =>
+                            idx === i ? { ...item, endpoint: e.target.value } : item
+                          )
+                        )
+                      }
+                      placeholder="https://api.example.com/v1"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">API Key</Label>
+                    <div className="flex gap-2 items-center">
+                      <select
+                        className={selectClass + ' flex-1'}
+                        value={
+                          prov.apiKey.startsWith('secretRef:')
+                            ? prov.apiKey.slice('secretRef:'.length)
+                            : ''
+                        }
+                        onChange={e => {
+                          const val = e.target.value
+                          setLlmItems(p =>
+                            p.map((item, idx) =>
+                              idx === i ? { ...item, apiKey: val ? `secretRef:${val}` : '' } : item
+                            )
+                          )
+                        }}
+                      >
+                        <option value="">Select a secret…</option>
+                        {secretPickerItems.map(s => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}
+                          </option>
+                        ))}
+                      </select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        title="Create new API key secret"
+                        onClick={() => {
+                          setLlmSecretCreateIdx(i)
+                          setLlmSecretCreateName(`${prov.name} API Key`)
+                          setLlmSecretCreateKey('')
+                          setLlmSecretCreateError('')
+                          setLlmSecretCreateOpen(true)
+                        }}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )
-          })}
-          <SaveBtn onClick={saveLlm} saving={llmSaving} />
-        </CardContent>
-      </Card>
+              )
+            })}
+            <SaveBtn onClick={saveLlm} saving={llmSaving} />
+          </CardContent>
+        </Card>
 
-      {/* Inline create-secret dialog for LLM API key */}
-      <Dialog open={llmSecretCreateOpen} onOpenChange={setLlmSecretCreateOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Create API Key Secret</DialogTitle>
-            <DialogDescription>Create a new secret and select it automatically.</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleLlmSecretCreate} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">Name<span className="text-destructive ml-1">*</span></Label>
-              <Input
-                value={llmSecretCreateName}
-                onChange={e => setLlmSecretCreateName(e.target.value)}
-                placeholder="OpenAI API Key"
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">API Key<span className="text-destructive ml-1">*</span></Label>
-              <Input
-                type="password"
-                value={llmSecretCreateKey}
-                onChange={e => setLlmSecretCreateKey(e.target.value)}
-                placeholder="sk-..."
-                required
-              />
-            </div>
-            {llmSecretCreateError && <p className="text-destructive text-sm">{llmSecretCreateError}</p>}
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setLlmSecretCreateOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={llmSecretCreateSaving}>
-                {llmSecretCreateSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Create
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </>
+        {/* Inline create-secret dialog for LLM API key */}
+        <Dialog open={llmSecretCreateOpen} onOpenChange={setLlmSecretCreateOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Create API Key Secret</DialogTitle>
+              <DialogDescription>
+                Create a new secret and select it automatically.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleLlmSecretCreate} className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">
+                  Name<span className="text-destructive ml-1">*</span>
+                </Label>
+                <Input
+                  value={llmSecretCreateName}
+                  onChange={e => setLlmSecretCreateName(e.target.value)}
+                  placeholder="OpenAI API Key"
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">
+                  API Key<span className="text-destructive ml-1">*</span>
+                </Label>
+                <Input
+                  type="password"
+                  value={llmSecretCreateKey}
+                  onChange={e => setLlmSecretCreateKey(e.target.value)}
+                  placeholder="sk-..."
+                  required
+                />
+              </div>
+              {llmSecretCreateError && (
+                <p className="text-destructive text-sm">{llmSecretCreateError}</p>
+              )}
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setLlmSecretCreateOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={llmSecretCreateSaving}>
+                  {llmSecretCreateSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Create
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </>
     )
   }
 
@@ -1655,6 +1966,10 @@ function SettingsPage() {
         return renderSpace()
       case 'connect-terminal':
         return renderConnectTerminal()
+      case 'tunnel':
+        return renderTunnel()
+      case 'secrets':
+        return renderSecrets()
       case 'proxy':
         return renderProxy()
       case 'docker-mirrors':

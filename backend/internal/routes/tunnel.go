@@ -15,7 +15,6 @@ import (
 
 	"github.com/websoft9/appos/backend/internal/audit"
 	"github.com/websoft9/appos/backend/internal/crypto"
-	"github.com/websoft9/appos/backend/internal/settings"
 	"github.com/websoft9/appos/backend/internal/tunnel"
 )
 
@@ -337,13 +336,11 @@ func (h *pbSessionHooks) OnDisconnect(serverID string, reason tunnel.DisconnectR
 // registerTunnelRoutes wires the tunnel SSH server and exposes the tunnel API.
 // Called from routes.Register.
 func registerTunnelRoutes(se *core.ServeEvent) {
-	// 1. Read port range from settings.
-	portRange, _ := settings.GetGroup(se.App, "tunnel", "port_range", map[string]any{})
-	start := settings.Int(portRange, "start", tunnel.DefaultPortRangeStart)
-	end := settings.Int(portRange, "end", tunnel.DefaultPortRangeEnd)
+	// 1. Read port range from the tunnel module config boundary.
+	portRange := tunnel.LoadPortRange(se.App)
 
 	// 2. Load existing tunnel_services → pre-reserve ports in pool.
-	pool := tunnel.NewPortPool(start, end)
+	pool := tunnel.NewPortPool(portRange.Start, portRange.End)
 	tunnelSessions = tunnel.NewRegistry()
 
 	existingServers, _ := se.App.FindRecordsByFilter(

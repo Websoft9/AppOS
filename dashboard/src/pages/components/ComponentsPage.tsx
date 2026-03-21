@@ -264,7 +264,7 @@ export function ComponentsPage() {
             </div>
           ) : (
             <div className="rounded-2xl border border-dashed bg-gradient-to-br from-muted/40 via-background to-muted/20 p-3">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
                 {components.map(component => (
                   <article
                     key={component.id}
@@ -276,9 +276,6 @@ export function ComponentsPage() {
                     </p>
                     <p className="mt-2 text-xs text-muted-foreground">
                       Updated {formatTime(component.updated_at)}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {component.available ? 'Detected and available' : 'Detected but currently unavailable'}
                     </p>
                   </article>
                 ))}
@@ -484,15 +481,12 @@ export function InstalledComponentsContent() {
         </div>
       ) : (
         <div className="rounded-2xl border border-dashed bg-gradient-to-br from-muted/40 via-background to-muted/20 p-3">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
             {sorted.map(component => (
               <article key={component.id} className="rounded-xl border bg-background/80 p-4">
                 <p className="text-base font-medium leading-6">{component.name}</p>
                 <p className="mt-1 text-sm text-muted-foreground">Version {component.version || 'unknown'}</p>
                 <p className="mt-2 text-xs text-muted-foreground">Updated {formatTime(component.updated_at)}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {component.available ? 'Detected and available' : 'Detected but currently unavailable'}
-                </p>
               </article>
             ))}
           </div>

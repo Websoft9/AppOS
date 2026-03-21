@@ -1,10 +1,43 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from '@tanstack/react-router'
-import { ArrowDown, ArrowRight, ArrowUp, Filter, GitBranch, Loader2, Plus, RefreshCw, Search, Store } from 'lucide-react'
+import { Link, useNavigate } from '@tanstack/react-router'
+import {
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
+  CircleHelp,
+  Ellipsis,
+  FileCode2,
+  Filter,
+  GitBranch,
+  Loader2,
+  List,
+  MoreVertical,
+  Plus,
+  RefreshCw,
+  Search,
+  Store,
+  TerminalSquare,
+  Wrench,
+  X,
+} from 'lucide-react'
 import { pb } from '@/lib/pb'
+import { getLocale } from '@/lib/i18n'
 import { iacLoadLibraryAppFiles, iacRead } from '@/lib/iac-api'
+import { fetchStoreJson, getIconUrl } from '@/lib/store-api'
+import { type PrimaryCategory, type Product, type ProductWithCategories } from '@/lib/store-types'
+import { useUserApps } from '@/lib/store-user-api'
 import { type AppConfigResponse } from '@/pages/apps/types'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,8 +52,10 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { AppDetailModal } from '@/components/store/AppDetailModal'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -31,8 +66,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 type ServerEntry = {
@@ -61,6 +96,8 @@ type DeploymentLifecycleStep = {
 type DeploymentRecord = {
   id: string
   server_id: string
+  server_label?: string
+  server_host?: string
   source: string
   status: string
   adapter: string
@@ -70,6 +107,8 @@ type DeploymentRecord = {
   error_summary: string
   created: string
   updated: string
+  user_id?: string
+  user_email?: string
   started_at?: string
   finished_at?: string
   lifecycle?: DeploymentLifecycleStep[]
@@ -85,6 +124,7 @@ type DeployPageProps = {
   prefillServerId?: string
   deploymentId?: string
   autoOpen?: string
+  view?: 'home' | 'list'
 }
 
 type DeploymentLogsResponse = {
@@ -104,10 +144,19 @@ type DeploymentStreamMessage = {
   message?: string
 }
 
+type Notice = {
+  variant: 'default' | 'destructive'
+  message: string
+}
+
 type SortField = 'compose_project_name' | 'created' | 'updated'
 type SortDir = 'asc' | 'desc'
+type ManualEntryMode = 'compose' | 'docker-command' | 'install-script' | 'store-prefill' | 'installed-prefill'
+type StoreShortcut = Pick<Product, 'key' | 'trademark' | 'logo'>
 
-const PAGE_SIZE = 12
+const PAGE_SIZE_OPTIONS = [15, 30, 60, 90] as const
+const STORE_SHORTCUT_COUNT = 15
+const STORE_GRID_SLOTS = 16
 const SAMPLE_COMPOSE = `services:
   web:
     image: nginx:alpine
@@ -169,6 +218,82 @@ function stepConnectorTone(status: string): string {
   }
 }
 
+function TitleHelp({ text }: { text: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label={text}
+        >
+          <CircleHelp className="h-3.5 w-3.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" sideOffset={6} className="max-w-[240px] leading-5">
+        {text}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+function AppLauncherIcon({ app, onOpen }: { app: StoreShortcut; onOpen: (app: StoreShortcut) => void }) {
+  const primarySrc = app.logo?.imageurl?.trim() || getIconUrl(app.key)
+  const fallbackSrc = getIconUrl(app.key)
+  const [src, setSrc] = useState(primarySrc)
+  const [usedFallback, setUsedFallback] = useState(primarySrc === fallbackSrc)
+
+  useEffect(() => {
+    setSrc(primarySrc)
+    setUsedFallback(primarySrc === fallbackSrc)
+  }, [fallbackSrc, primarySrc])
+
+  const initials = (app.trademark || app.key).trim().slice(0, 2).toUpperCase()
+
+  return (
+    <button
+      type="button"
+      title={app.trademark}
+      className="group flex min-w-0 flex-col items-center gap-2 rounded-xl px-1 py-2 text-center transition-colors hover:bg-sky-100/60"
+      onClick={() => onOpen(app)}
+    >
+      <div className="flex h-12 w-12 items-center justify-center overflow-hidden">
+        {src ? (
+          <img
+            src={src}
+            alt={app.trademark}
+            className="h-10 w-10 object-contain"
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            onError={() => {
+              if (!usedFallback && fallbackSrc && src !== fallbackSrc) {
+                setSrc(fallbackSrc)
+                setUsedFallback(true)
+                return
+              }
+              setSrc('')
+            }}
+          />
+        ) : (
+          <span className="text-sm font-semibold tracking-wide text-slate-600">{initials}</span>
+        )}
+      </div>
+      <span className="line-clamp-2 min-h-[2rem] text-[11px] font-medium leading-4 text-slate-700">{app.trademark}</span>
+    </button>
+  )
+}
+
+function MoreAppsTile() {
+  return (
+    <Link to="/store" className="group flex min-w-0 flex-col items-center gap-2 rounded-xl px-1 py-2 text-center transition-colors hover:bg-sky-100/60">
+      <span className="flex h-12 w-12 items-center justify-center text-slate-500 transition-colors group-hover:text-sky-700">
+        <Ellipsis className="h-8 w-8" />
+      </span>
+      <span className="line-clamp-2 min-h-[2rem] text-[11px] font-medium leading-4 text-slate-700">More Apps</span>
+    </Link>
+  )
+}
+
 function buildWebSocketUrl(path: string): string {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   return `${proto}//${window.location.host}${path}`
@@ -221,15 +346,24 @@ export function DeployPage({
   prefillServerId,
   deploymentId,
   autoOpen,
+  view = 'home',
 }: DeployPageProps) {
-  const [surfaceTab, setSurfaceTab] = useState('entry')
+  const navigate = useNavigate()
+  const locale = getLocale()
+  const { data: userApps = [] } = useUserApps()
   const [servers, setServers] = useState<ServerEntry[]>([{ id: 'local', label: 'local', host: 'local', status: 'online' }])
+  const [storeShortcuts, setStoreShortcuts] = useState<StoreShortcut[]>([])
+  const [storeProducts, setStoreProducts] = useState<ProductWithCategories[]>([])
+  const [storePrimaryCategories, setStorePrimaryCategories] = useState<PrimaryCategory[]>([])
+  const [selectedStoreProduct, setSelectedStoreProduct] = useState<ProductWithCategories | null>(null)
+  const [storeDetailOpen, setStoreDetailOpen] = useState(false)
   const [deployments, setDeployments] = useState<DeploymentRecord[]>([])
   const [selectedId, setSelectedId] = useState('')
   const [selectedDeployment, setSelectedDeployment] = useState<DeploymentRecord | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [gitCreateOpen, setGitCreateOpen] = useState(false)
+  const [manualEntryMode, setManualEntryMode] = useState<ManualEntryMode>('compose')
   const [serverId, setServerId] = useState('local')
   const [projectName, setProjectName] = useState('demo-nginx')
   const [compose, setCompose] = useState(SAMPLE_COMPOSE)
@@ -244,7 +378,6 @@ export function DeployPage({
   const [logTruncated, setLogTruncated] = useState(false)
   const [streamStatus, setStreamStatus] = useState<'idle' | 'connecting' | 'live' | 'closed'>('idle')
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [gitSubmitting, setGitSubmitting] = useState(false)
@@ -255,17 +388,27 @@ export function DeployPage({
   const [excludeSource, setExcludeSource] = useState<Set<string>>(new Set())
   const [excludeServer, setExcludeServer] = useState<Set<string>>(new Set())
   const [page, setPage] = useState(1)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
+  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(15)
+  const [notice, setNotice] = useState<Notice | null>(null)
   const [prefillLoading, setPrefillLoading] = useState(false)
   const [prefillReady, setPrefillReady] = useState('')
+  const [pendingDelete, setPendingDelete] = useState<DeploymentRecord | null>(null)
   const logViewportRef = useRef<HTMLDivElement | null>(null)
   const stickToBottomRef = useRef(true)
+  const serverMap = useMemo(() => new Map(servers.map(item => [item.id, item])), [servers])
 
   useEffect(() => {
     void fetchServers()
     void fetchDeployments()
   }, [])
+
+  useEffect(() => {
+    void fetchStoreShortcuts()
+  }, [locale, userApps])
+
+  function showNotice(variant: Notice['variant'], message: string) {
+    setNotice({ variant, message })
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -296,7 +439,7 @@ export function DeployPage({
 
         if (cancelled) return
         if (!loadedCompose || !loadedCompose.trim()) {
-          setError(prefillMode === 'installed'
+          showNotice('destructive', prefillMode === 'installed'
             ? 'No docker-compose config was found for the selected installed application'
             : 'No docker-compose template was found for the selected application')
           return
@@ -305,11 +448,11 @@ export function DeployPage({
         setProjectName(prefillAppName || prefillAppKey || '')
         setCompose(loadedCompose)
         setPrefillReady(prefillAppName || prefillAppKey || '')
-        setSurfaceTab('entry')
+        setManualEntryMode(prefillMode === 'installed' ? 'installed-prefill' : 'store-prefill')
         if (autoOpen === '1') setCreateOpen(true)
       } catch {
         if (!cancelled) {
-          setError(prefillMode === 'installed'
+          showNotice('destructive', prefillMode === 'installed'
             ? 'Failed to load deployment config for the selected installed application'
             : 'Failed to load deployment template for the selected application')
         }
@@ -335,10 +478,53 @@ export function DeployPage({
     failed: deployments.filter(item => item.status === 'failed').length,
   }), [deployments])
 
+  const latestDeployments = useMemo(
+    () => [...deployments].sort((left, right) => String(right.updated || '').localeCompare(String(left.updated || ''))).slice(0, 5),
+    [deployments]
+  )
+
+  const manualDialogCopy = useMemo(() => {
+    switch (manualEntryMode) {
+      case 'docker-command':
+        return {
+          title: 'Convert Docker Command to Deployment',
+          description: 'Use the shared compose deployment path. Translate the docker run command into docker-compose content before submission.',
+          helper: 'Docker command deployment is surfaced as a guided manual compose flow in this MVP.',
+        }
+      case 'install-script':
+        return {
+          title: 'Review Source Packages as Deployment Input',
+          description: 'Use user-provided compressed source packages as the deployment input for the shared flow.',
+          helper: 'Supported source package formats include zip and tar.gz. Review the package and prepare deployable content before submission.',
+        }
+      case 'store-prefill':
+        return {
+          title: 'Create Deployment Task',
+          description: 'App Store inputs have been prefilled. Review the target server, deployment name, and compose content before starting.',
+          helper: 'This deployment uses the same shared manual compose pipeline as custom deployments.',
+        }
+      case 'installed-prefill':
+        return {
+          title: 'Create Deployment Task',
+          description: 'The current installed compose config has been prefilled. Review and submit the redeploy or upgrade task.',
+          helper: 'This entry reuses the same deployment path so history, logs, and detail views stay consistent.',
+        }
+      default:
+        return {
+          title: 'Create Deployment Task',
+          description: 'Minimal input set: target server, deployment name, and docker-compose content.',
+          helper: 'Compose deployment is the recommended custom path for external files and one-off stacks.',
+        }
+    }
+  }, [manualEntryMode])
+
   const filterOptions = useMemo(() => ({
     status: Array.from(new Set(deployments.map(item => item.status))).sort().map(value => ({ value, label: value })),
     source: Array.from(new Set(deployments.map(item => item.source))).sort().map(value => ({ value, label: value })),
-    server: Array.from(new Set(deployments.map(item => item.server_id || 'local'))).sort().map(value => ({ value, label: value })),
+    server: Array.from(new Set(deployments.map(item => item.server_id || 'local'))).sort().map(value => {
+      const matched = deployments.find(item => (item.server_id || 'local') === value)
+      return { value, label: matched ? getServerLabel(matched) : value }
+    }),
   }), [deployments])
 
   const filteredItems = useMemo(() => {
@@ -348,7 +534,9 @@ export function DeployPage({
       if (excludeSource.has(item.source)) return false
       if (excludeServer.has(item.server_id || 'local')) return false
       if (!query) return true
-      return [item.id, item.compose_project_name, item.source, item.server_id].filter(Boolean).some(value => String(value).toLowerCase().includes(query))
+      return [item.id, item.compose_project_name, item.source, item.server_id, item.server_label, item.server_host, item.user_id, item.user_email]
+        .filter(Boolean)
+        .some(value => String(value).toLowerCase().includes(query))
     })
   }, [deployments, excludeServer, excludeSource, excludeStatus, search])
 
@@ -358,8 +546,8 @@ export function DeployPage({
     return [...filteredItems].sort((left, right) => String(left[sortField] || '').localeCompare(String(right[sortField] || '')) * factor)
   }, [filteredItems, sortDir, sortField])
 
-  const totalPages = Math.max(1, Math.ceil(sortedItems.length / PAGE_SIZE))
-  const pagedItems = useMemo(() => sortedItems.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [page, sortedItems])
+  const totalPages = Math.max(1, Math.ceil(sortedItems.length / pageSize))
+  const pagedItems = useMemo(() => sortedItems.slice((page - 1) * pageSize, page * pageSize), [page, pageSize, sortedItems])
 
   useEffect(() => {
     setPage(1)
@@ -431,17 +619,55 @@ export function DeployPage({
     }
   }
 
-  async function fetchDeployments(showRefresh = false) {
-    if (showRefresh) setRefreshing(true)
+  async function fetchStoreShortcuts() {
+    try {
+      const [products, categories] = await Promise.all([
+        fetchStoreJson<Product[]>(locale, 'product'),
+        fetchStoreJson<PrimaryCategory[]>(locale, 'catalog'),
+      ])
+      const uniqueProducts = Array.from(new Map(products.map(item => [item.key, item])).values())
+      const favoriteOrder = new Map(
+        userApps
+          .filter(item => item.is_favorite)
+          .sort((left, right) => String(right.updated || '').localeCompare(String(left.updated || '')))
+          .map((item, index) => [item.app_key, index])
+      )
+      const favorites = uniqueProducts
+        .filter(item => favoriteOrder.has(item.key))
+        .sort((left, right) => (favoriteOrder.get(left.key) ?? 0) - (favoriteOrder.get(right.key) ?? 0))
+      const nonFavorites = uniqueProducts
+        .filter(item => !favoriteOrder.has(item.key))
+        .sort(() => Math.random() - 0.5)
+      const ordered = [...favorites, ...nonFavorites]
+      const detailedProducts = ordered.map(item => ({
+        ...item,
+        primaryCategoryKey: null,
+        secondaryCategoryKeys: item.catalogCollection.items.map(entry => entry.key),
+      }))
+      setStoreProducts(detailedProducts)
+      setStorePrimaryCategories(categories)
+      setStoreShortcuts(
+        detailedProducts.slice(0, STORE_SHORTCUT_COUNT).map(item => ({
+          key: item.key,
+          trademark: item.trademark,
+          logo: item.logo,
+        }))
+      )
+    } catch {
+      setStoreShortcuts([])
+      setStoreProducts([])
+      setStorePrimaryCategories([])
+    }
+  }
+
+  async function fetchDeployments() {
     try {
       const response = await pb.send<DeploymentRecord[]>('/api/deployments', { method: 'GET' })
       setDeployments(Array.isArray(response) ? response : [])
-      setError('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load deployments')
+      showNotice('destructive', err instanceof Error ? err.message : 'Failed to load deployments')
     } finally {
       setLoading(false)
-      if (showRefresh) setRefreshing(false)
     }
   }
 
@@ -451,7 +677,7 @@ export function DeployPage({
       const response = await pb.send<DeploymentRecord>(`/api/deployments/${id}`, { method: 'GET' })
       setSelectedDeployment(response)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load deployment detail')
+      showNotice('destructive', err instanceof Error ? err.message : 'Failed to load deployment detail')
     } finally {
       setDetailLoading(false)
     }
@@ -478,7 +704,6 @@ export function DeployPage({
   }
 
   async function openDetail(id: string) {
-    setSurfaceTab('pipelines')
     setSelectedId(id)
     setDetailOpen(true)
     setLogText('')
@@ -487,22 +712,111 @@ export function DeployPage({
     await fetchDeploymentDetail(id)
   }
 
+  function openStoreShortcut(app: StoreShortcut) {
+    setSelectedStoreProduct(storeProducts.find(item => item.key === app.key) ?? null)
+    setStoreDetailOpen(true)
+  }
+
+  function deployFromStoreProduct(product: StoreShortcut | ProductWithCategories) {
+    setStoreDetailOpen(false)
+    void navigate({
+      to: '/deploy',
+      search: {
+        prefillMode: 'target',
+        prefillSource: 'library',
+        prefillAppId: undefined,
+        prefillAppKey: product.key,
+        prefillAppName: product.trademark,
+        prefillServerId: undefined,
+        deploymentId: undefined,
+        autoOpen: '1',
+      },
+    })
+  }
+
+  function openManualDialog(mode: ManualEntryMode) {
+    setManualEntryMode(mode)
+    if ((mode === 'docker-command' || mode === 'install-script') && compose === SAMPLE_COMPOSE) {
+      setCompose('')
+    }
+    if (mode === 'compose' && !compose.trim()) {
+      setCompose(SAMPLE_COMPOSE)
+    }
+    setCreateOpen(true)
+  }
+
+  function getServerLabel(item: DeploymentRecord): string {
+    if (item.server_label) return item.server_label
+    if (item.server_id && serverMap.has(item.server_id)) return serverMap.get(item.server_id)?.label || item.server_id
+    return item.server_id || 'local'
+  }
+
+  function getServerHost(item: DeploymentRecord): string {
+    if (item.server_host) return item.server_host
+    if (item.server_id && serverMap.has(item.server_id)) return serverMap.get(item.server_id)?.host || '-'
+    return item.server_id === 'local' || !item.server_id ? 'local' : '-'
+  }
+
+  function getUserLabel(item: DeploymentRecord): string {
+    return item.user_email || item.user_id || '-'
+  }
+
+  const customEntries: Array<{
+    key: ManualEntryMode | 'git-compose'
+    title: string
+    description: string
+    icon: React.ReactNode
+    action: () => void
+    variant?: 'default' | 'outline'
+  }> = [
+    {
+      key: 'compose',
+      title: 'Compose File',
+      description: 'Paste or review docker-compose YAML. This is the recommended path for standard app stacks.',
+      icon: <FileCode2 className="h-4 w-4" />,
+      action: () => openManualDialog('compose'),
+      variant: 'default',
+    },
+    {
+      key: 'git-compose',
+      title: 'Git Repository',
+      description: 'Pull a compose file from a repository branch or tag, then create the deployment task.',
+      icon: <GitBranch className="h-4 w-4" />,
+      action: () => setGitCreateOpen(true),
+      variant: 'outline',
+    },
+    {
+      key: 'docker-command',
+      title: 'Docker Command',
+      description: 'Convert a docker run command into compose-compatible content before submitting the deployment.',
+      icon: <TerminalSquare className="h-4 w-4" />,
+      action: () => openManualDialog('docker-command'),
+      variant: 'outline',
+    },
+    {
+      key: 'install-script',
+      title: 'Source Packages',
+      description: 'Use user-provided compressed source packages such as zip or tar.gz as the deployment input source.',
+      icon: <Wrench className="h-4 w-4" />,
+      action: () => openManualDialog('install-script'),
+      variant: 'outline',
+    },
+  ]
+
   async function submitDeployment() {
     setSubmitting(true)
-    setError('')
-    setSuccess('')
+    setNotice(null)
     try {
       const created = await pb.send<DeploymentRecord>('/api/deployments/manual-compose', {
         method: 'POST',
         body: { server_id: serverId, project_name: projectName, compose },
       })
-      setSuccess(`Deployment pipeline ${created.compose_project_name || created.id} created`)
-      setSurfaceTab('pipelines')
+      showNotice('default', `Deployment ${created.compose_project_name || created.id} created`)
       setCreateOpen(false)
       await fetchDeployments()
       await openDetail(created.id)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create deployment')
+      showNotice('destructive', err instanceof Error ? err.message : 'Failed to create deployment')
     } finally {
       setSubmitting(false)
     }
@@ -510,8 +824,7 @@ export function DeployPage({
 
   async function submitGitDeployment() {
     setGitSubmitting(true)
-    setError('')
-    setSuccess('')
+    setNotice(null)
     try {
       const created = await pb.send<DeploymentRecord>('/api/deployments/git-compose', {
         method: 'POST',
@@ -525,41 +838,174 @@ export function DeployPage({
           auth_header_value: gitAuthHeaderValue,
         },
       })
-      setSuccess(`Git deployment pipeline ${created.compose_project_name || created.id} created`)
-      setSurfaceTab('pipelines')
+      showNotice('default', `Deployment ${created.compose_project_name || created.id} created from Git repository`)
       setGitCreateOpen(false)
       await fetchDeployments()
       await openDetail(created.id)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create git deployment')
+      showNotice('destructive', err instanceof Error ? err.message : 'Failed to create git deployment')
     } finally {
       setGitSubmitting(false)
     }
   }
 
+  async function deleteDeployment(id: string) {
+    const target = deployments.find(item => item.id === id)
+    const label = target?.compose_project_name || id
+    setNotice(null)
+    try {
+      await pb.send(`/api/deployments/${id}`, { method: 'DELETE' })
+      if (selectedId === id) {
+        setSelectedId('')
+        setSelectedDeployment(null)
+        setDetailOpen(false)
+      }
+      await fetchDeployments()
+      showNotice('default', `Deployment ${label} deleted`)
+      setPendingDelete(null)
+    } catch (err) {
+      showNotice('destructive', err instanceof Error ? err.message : 'Failed to delete deployment')
+    }
+  }
+
+  function renderActionMenu(item: DeploymentRecord) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" aria-label={`More actions for ${item.compose_project_name || item.id}`}>
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => void openDetail(item.id)}>View</DropdownMenuItem>
+          <DropdownMenuItem
+            variant="destructive"
+            disabled={isActiveStatus(item.status)}
+            onClick={() => setPendingDelete(item)}
+          >
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+  }
+
+  const deploymentTableSection = (
+    <div className="space-y-6">
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search deployment..." className="w-[220px] pl-9" />
+      </div>
+
+      <div className="overflow-hidden rounded-xl border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead><SortableHeader label="Deployment" field="compose_project_name" current={sortField} dir={sortDir} onSort={handleSort} /></TableHead>
+              <TableHead>User</TableHead>
+              <TableHead><FilterHeader label="Source" options={filterOptions.source} excluded={excludeSource} onChange={setExcludeSource} /></TableHead>
+              <TableHead><FilterHeader label="Status" options={filterOptions.status} excluded={excludeStatus} onChange={setExcludeStatus} /></TableHead>
+              <TableHead><FilterHeader label="Server" options={filterOptions.server} excluded={excludeServer} onChange={setExcludeServer} /></TableHead>
+              <TableHead>Host</TableHead>
+              <TableHead><SortableHeader label="Updated" field="updated" current={sortField} dir={sortDir} onSort={handleSort} /></TableHead>
+              <TableHead className="w-[84px] text-right">Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">Loading deployments...</TableCell></TableRow>
+            ) : pagedItems.length === 0 ? (
+              <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">No deployment records found.</TableCell></TableRow>
+            ) : pagedItems.map(item => (
+              <TableRow key={item.id}>
+                <TableCell><div><div className="font-medium">{item.compose_project_name}</div><div className="font-mono text-xs text-muted-foreground">{item.id}</div></div></TableCell>
+                <TableCell>{getUserLabel(item)}</TableCell>
+                <TableCell>{item.source}</TableCell>
+                <TableCell><Badge variant={statusVariant(item.status)}>{item.status}</Badge></TableCell>
+                <TableCell>
+                  <div className="font-medium">{getServerLabel(item)}</div>
+                  <div className="text-xs text-muted-foreground">{item.server_id || 'local'}</div>
+                </TableCell>
+                <TableCell>{getServerHost(item)}</TableCell>
+                <TableCell>{formatTime(item.updated)}</TableCell>
+                <TableCell className="text-right">{renderActionMenu(item)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-muted-foreground">{sortedItems.length} total · Page {page} of {totalPages}</span>
+        <div className="flex items-center gap-2">
+          <select
+            className="border-input bg-background h-8 rounded-md border px-2 text-sm"
+            value={pageSize}
+            onChange={event => {
+              setPageSize(Number(event.target.value) as (typeof PAGE_SIZE_OPTIONS)[number])
+              setPage(1)
+            }}
+          >
+            {PAGE_SIZE_OPTIONS.map(option => (
+              <option key={option} value={option}>{option} / page</option>
+            ))}
+          </select>
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(current => current - 1)}>Previous</Button>
+          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(current => current + 1)}>Next</Button>
+        </div>
+      </div>
+
+      <div className="text-sm text-muted-foreground">Total: <span className="font-semibold text-foreground">{summary.total}</span>, Active (<span className="font-semibold text-sky-600">{summary.active}</span>), Completed (<span className="font-semibold text-emerald-600">{summary.completed}</span>), Failed (<span className="font-semibold text-rose-600">{summary.failed}</span>)</div>
+    </div>
+  )
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Deploy Center</h1>
-          <p className="text-sm text-muted-foreground">Use the entry tab to start a deployment path, and the pipeline tab to monitor every deployment run.</p>
+          <h1 className="text-2xl font-bold">{view === 'list' ? 'Deployment List' : 'Deploy Application'}</h1>
+          <p className="text-sm text-muted-foreground">{view === 'list' ? 'Browse deployment history and open task details.' : 'Choose an application source and start deployment.'}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => void fetchDeployments(true)} disabled={refreshing}><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button>
-          <Button onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" />Deploy</Button>
+          {view === 'home' ? (
+            <>
+              <Button size="icon" title="Deploy" aria-label="Deploy" onClick={() => openManualDialog('compose')}>
+                <Plus className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="icon" title="View deployment" aria-label="View deployment" asChild>
+                <a href="/deployments">
+                  <List className="h-4 w-4" />
+                </a>
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button size="icon" title="Deploy" aria-label="Deploy" asChild>
+                <a href="/deploy">
+                  <Plus className="h-4 w-4" />
+                </a>
+              </Button>
+              <Button variant="outline" size="icon" title="Refresh" aria-label="Refresh" onClick={() => void fetchDeployments()}>
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
-      {error ? <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert> : null}
-      {success ? <Alert><AlertDescription>{success}</AlertDescription></Alert> : null}
+      {notice ? (
+        <Alert variant={notice.variant} className="flex items-center justify-between gap-3 py-3">
+          <AlertDescription className="truncate">{notice.message}</AlertDescription>
+          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" aria-label="Close notification" onClick={() => setNotice(null)}>
+            <X className="h-4 w-4" />
+          </Button>
+        </Alert>
+      ) : null}
 
-      <Tabs value={surfaceTab} onValueChange={setSurfaceTab} className="space-y-6">
-        <TabsList className="grid w-full max-w-[360px] grid-cols-2">
-          <TabsTrigger value="entry">Deploy Entry</TabsTrigger>
-          <TabsTrigger value="pipelines">Pipeline</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="entry" className="mt-0 space-y-6">
+      {view === 'list' ? (
+        deploymentTableSection
+      ) : (
+        <div className="space-y-6">
           {prefillLoading ? (
             <Alert>
               <AlertDescription>
@@ -573,161 +1019,142 @@ export function DeployPage({
             <Alert>
               <AlertDescription>
                 {prefillMode === 'installed'
-                  ? `${prefillSource === 'upgrade' ? 'Upgrade' : 'Redeploy'} handoff is ready for ${prefillReady}. The manual pipeline dialog has been prefilled with the current installed compose config.`
-                  : `Target-based deploy is ready for ${prefillReady}. The manual pipeline dialog has been prefilled with its compose template.`}
+                  ? `${prefillSource === 'upgrade' ? 'Upgrade' : 'Redeploy'} handoff is ready for ${prefillReady}. The shared deployment form has been prefilled with the current installed compose config.`
+                  : `App Store handoff is ready for ${prefillReady}. The shared deployment form has been prefilled with its compose template.`}
               </AlertDescription>
             </Alert>
           ) : null}
-          <div className="grid gap-4 xl:grid-cols-3">
-            <Card className="border-sky-200 bg-linear-to-br from-sky-50 to-white">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Card className="border-sky-200 bg-linear-to-br from-sky-50 via-white to-cyan-50/70">
+              <CardHeader className="space-y-3">
+                <div className="flex items-center gap-2 text-lg font-semibold text-slate-950">
                   <Store className="h-4 w-4 text-sky-600" />
-                  Target-Based Auto Deploy
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4 text-sm text-muted-foreground">
-                <p>Pick a target app from App Store and jump here with its compose template preloaded for deployment.</p>
-                <div className="rounded-lg border border-sky-100 bg-white/80 px-3 py-2 text-xs text-slate-600">
-                  Best for template-based installs and standard app rollouts.
+                  <span>Install from Store</span>
+                  <TitleHelp text="Use a Store application shortcut for a fast deploy handoff, or open App Store to browse more applications." />
                 </div>
-                {prefillReady ? (
-                  <Button className="w-full justify-between" onClick={() => setCreateOpen(true)}>
-                    Open Prefilled Pipeline
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                ) : (
-                  <Button asChild className="w-full justify-between">
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-4 gap-x-2 gap-y-3 sm:grid-cols-8">
+                  {storeShortcuts.length === 0
+                    ? Array.from({ length: STORE_GRID_SLOTS }).map((_, index) => (
+                        <div key={`store-placeholder-${index}`} className="h-[76px] rounded-xl bg-white/30" />
+                      ))
+                    : storeShortcuts.map(app => (
+                        <AppLauncherIcon key={app.key} app={app} onOpen={openStoreShortcut} />
+                      ))}
+                  {storeShortcuts.length > 0 ? <MoreAppsTile /> : null}
+                </div>
+                <div className="flex flex-col gap-3 rounded-2xl border border-sky-100 bg-white/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="text-sm font-medium text-slate-900">Need more templates?</div>
+                    <div className="text-xs text-muted-foreground">Browse 300+ installable app templates, then hand off directly into deployment.</div>
+                  </div>
+                  <Button asChild className="justify-between sm:min-w-[180px]">
                     <Link to="/store">
                       Open App Store
                       <ArrowRight className="h-4 w-4" />
                     </Link>
                   </Button>
-                )}
+                </div>
               </CardContent>
             </Card>
 
-            <Card className="border-amber-200 bg-linear-to-br from-amber-50 to-white">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <GitBranch className="h-4 w-4 text-amber-600" />
-                  Git-Based Deploy
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4 text-sm text-muted-foreground">
-                <p>Connect a repository and generate a deployable pipeline from versioned application sources.</p>
-                <div className="rounded-lg border border-amber-100 bg-white/80 px-3 py-2 text-xs text-slate-600">
-                  Pull a compose file from a git repository using repository URL, ref, and compose path.
+            <Card className="border-slate-200 bg-white">
+              <CardHeader className="space-y-3">
+                <div className="flex items-center gap-2 text-lg font-semibold text-slate-950">
+                  <Wrench className="h-4 w-4 text-slate-700" />
+                  <span>Custom Deployment</span>
+                  <TitleHelp text="Use Compose, a Git repository, a Docker command, or user-provided source packages such as zip and tar.gz as deployment inputs." />
                 </div>
-                <Button variant="outline" className="w-full justify-between" onClick={() => setGitCreateOpen(true)}>
-                  Create Git Pipeline
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card className="border-emerald-200 bg-linear-to-br from-emerald-50 to-white">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Plus className="h-4 w-4 text-emerald-600" />
-                  Manual Deploy
-                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4 text-sm text-muted-foreground">
-                <p>Paste docker compose content, choose a target server, and create a pipeline directly.</p>
-                <div className="rounded-lg border border-emerald-100 bg-white/80 px-3 py-2 text-xs text-slate-600">
-                  Best for custom stacks, external compose files, and one-off deployment trials.
+              <CardContent>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {customEntries.map(item => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      className={cn(
+                        'flex h-full flex-col rounded-2xl border px-4 py-4 text-left transition-colors',
+                        item.variant === 'default'
+                          ? 'border-slate-900 bg-slate-950 text-white hover:bg-slate-900'
+                          : 'border-slate-200 bg-slate-50/70 hover:border-slate-300 hover:bg-slate-100/80'
+                      )}
+                      onClick={item.action}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className={cn('inline-flex h-9 w-9 items-center justify-center rounded-xl', item.variant === 'default' ? 'bg-white/10 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-200')}>
+                          {item.icon}
+                        </span>
+                        <ArrowRight className={cn('h-4 w-4', item.variant === 'default' ? 'text-white/80' : 'text-slate-400')} />
+                      </div>
+                      <div className={cn('mt-4 text-sm font-semibold', item.variant === 'default' ? 'text-white' : 'text-slate-950')}>
+                        {item.title}
+                      </div>
+                      <div className={cn('mt-1 text-xs leading-5', item.variant === 'default' ? 'text-white/75' : 'text-muted-foreground')}>
+                        {item.description}
+                      </div>
+                    </button>
+                  ))}
                 </div>
-                <Button className="w-full justify-between" onClick={() => setCreateOpen(true)}>
-                  Create Manual Pipeline
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
               </CardContent>
             </Card>
           </div>
 
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Pipeline Health Snapshot</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="grid flex-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-xl border px-4 py-3">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Total</div>
-                  <div className="mt-1 text-2xl font-semibold">{summary.total}</div>
-                </div>
-                <div className="rounded-xl border px-4 py-3">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Active</div>
-                  <div className="mt-1 text-2xl font-semibold text-sky-600">{summary.active}</div>
-                </div>
-                <div className="rounded-xl border px-4 py-3">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Completed</div>
-                  <div className="mt-1 text-2xl font-semibold text-emerald-600">{summary.completed}</div>
-                </div>
-                <div className="rounded-xl border px-4 py-3">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Failed</div>
-                  <div className="mt-1 text-2xl font-semibold text-rose-600">{summary.failed}</div>
-                </div>
-              </div>
-              <Button variant="outline" onClick={() => setSurfaceTab('pipelines')}>
-                Open Pipeline View
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <CardTitle className="text-base">Latest Deployments</CardTitle>
+              <Button variant="outline" size="sm" asChild>
+                <a href="/deployments">View deployment list</a>
               </Button>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground">Loading deployments...</div>
+              ) : latestDeployments.length === 0 ? (
+                <div className="rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground">No deployment records yet.</div>
+              ) : (
+                <div className="overflow-hidden rounded-xl border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Deployment</TableHead>
+                        <TableHead>User</TableHead>
+                        <TableHead>Source</TableHead>
+                        <TableHead>Server</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Updated</TableHead>
+                        <TableHead className="w-[84px] text-right">Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {latestDeployments.map(item => (
+                        <TableRow key={item.id}>
+                          <TableCell>
+                            <div className="min-w-0">
+                              <div className="truncate font-medium text-foreground">{item.compose_project_name || item.id}</div>
+                              <div className="mt-1 font-mono text-xs text-muted-foreground">{item.id}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell>{getUserLabel(item)}</TableCell>
+                          <TableCell>{item.source}</TableCell>
+                          <TableCell>
+                            <div className="font-medium">{getServerLabel(item)}</div>
+                            <div className="text-xs text-muted-foreground">{getServerHost(item)}</div>
+                          </TableCell>
+                          <TableCell><Badge variant={statusVariant(item.status)}>{item.status}</Badge></TableCell>
+                          <TableCell>{formatTime(item.updated)}</TableCell>
+                          <TableCell className="text-right">{renderActionMenu(item)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="pipelines" className="mt-0 space-y-6">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search by id, name, source, or server" className="pl-9" />
-          </div>
-
-          <div className="overflow-hidden rounded-xl border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead><SortableHeader label="Pipeline" field="compose_project_name" current={sortField} dir={sortDir} onSort={handleSort} /></TableHead>
-                  <TableHead><FilterHeader label="Source" options={filterOptions.source} excluded={excludeSource} onChange={setExcludeSource} /></TableHead>
-                  <TableHead><FilterHeader label="Status" options={filterOptions.status} excluded={excludeStatus} onChange={setExcludeStatus} /></TableHead>
-                  <TableHead><FilterHeader label="Server" options={filterOptions.server} excluded={excludeServer} onChange={setExcludeServer} /></TableHead>
-                  <TableHead><SortableHeader label="Created" field="created" current={sortField} dir={sortDir} onSort={handleSort} /></TableHead>
-                  <TableHead><SortableHeader label="Updated" field="updated" current={sortField} dir={sortDir} onSort={handleSort} /></TableHead>
-                  <TableHead className="w-[100px]" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">Loading pipelines...</TableCell></TableRow>
-                ) : pagedItems.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">No deployment pipelines found.</TableCell></TableRow>
-                ) : pagedItems.map(item => (
-                  <TableRow key={item.id}>
-                    <TableCell><div><div className="font-medium">{item.compose_project_name}</div><div className="font-mono text-xs text-muted-foreground">{item.id}</div></div></TableCell>
-                    <TableCell>{item.source}</TableCell>
-                    <TableCell><Badge variant={statusVariant(item.status)}>{item.status}</Badge></TableCell>
-                    <TableCell>{item.server_id || 'local'}</TableCell>
-                    <TableCell>{formatTime(item.created)}</TableCell>
-                    <TableCell>{formatTime(item.updated)}</TableCell>
-                    <TableCell className="text-right"><Button variant="ghost" onClick={() => void openDetail(item.id)}>Open</Button></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-
-          {totalPages > 1 ? (
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">{sortedItems.length} total · Page {page} of {totalPages}</span>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(current => current - 1)}>Previous</Button>
-                <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(current => current + 1)}>Next</Button>
-              </div>
-            </div>
-          ) : null}
-
-          <div className="text-sm text-muted-foreground">Total: <span className="font-semibold text-foreground">{summary.total}</span>, Active (<span className="font-semibold text-sky-600">{summary.active}</span>), Completed (<span className="font-semibold text-emerald-600">{summary.completed}</span>), Failed (<span className="font-semibold text-rose-600">{summary.failed}</span>)</div>
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-6xl">
@@ -742,11 +1169,13 @@ export function DeployPage({
               <Card>
                 <CardHeader><CardTitle className="text-sm">Metadata</CardTitle></CardHeader>
                 <CardContent className="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-3">
-                  <div><span className="text-muted-foreground">Pipeline:</span> {selectedDeployment.compose_project_name}</div>
+                  <div><span className="text-muted-foreground">Deployment:</span> {selectedDeployment.compose_project_name}</div>
                   <div><span className="text-muted-foreground">Status:</span> <Badge variant={statusVariant(selectedDeployment.status)}>{selectedDeployment.status}</Badge></div>
                   <div><span className="text-muted-foreground">Stream:</span> {streamStatus}</div>
                   <div><span className="text-muted-foreground">Deployment ID:</span> <span className="font-mono text-xs">{selectedDeployment.id}</span></div>
-                  <div><span className="text-muted-foreground">Server:</span> {selectedDeployment.server_id || 'local'}</div>
+                  <div><span className="text-muted-foreground">User:</span> {getUserLabel(selectedDeployment)}</div>
+                  <div><span className="text-muted-foreground">Server:</span> {getServerLabel(selectedDeployment)}</div>
+                  <div><span className="text-muted-foreground">Server Host:</span> {getServerHost(selectedDeployment)}</div>
                   <div><span className="text-muted-foreground">Project Dir:</span> <span className="break-all">{selectedDeployment.project_dir || '-'}</span></div>
                   <div><span className="text-muted-foreground">Created:</span> {formatTime(selectedDeployment.created)}</div>
                   <div><span className="text-muted-foreground">Started:</span> {formatTime(selectedDeployment.started_at)}</div>
@@ -823,25 +1252,26 @@ export function DeployPage({
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Create Deployment Pipeline</DialogTitle>
-            <DialogDescription>Minimal input set: target server, pipeline name, and docker-compose content.</DialogDescription>
+            <DialogTitle>{manualDialogCopy.title}</DialogTitle>
+            <DialogDescription>{manualDialogCopy.description}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
+            <div className="rounded-lg border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">{manualDialogCopy.helper}</div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2"><Label htmlFor="deploy-project-name">Name</Label><Input id="deploy-project-name" value={projectName} onChange={event => setProjectName(event.target.value)} placeholder="demo-nginx" /></div>
               <div className="space-y-2"><Label htmlFor="deploy-server-id">Target Server</Label><select id="deploy-server-id" className="border-input bg-background h-10 rounded-md border px-3 text-sm" value={serverId} onChange={event => setServerId(event.target.value)}>{servers.map(item => <option key={item.id} value={item.id}>{item.label} ({item.host})</option>)}</select></div>
             </div>
             <div className="space-y-2"><Label htmlFor="deploy-compose">docker-compose.yml</Label><Textarea id="deploy-compose" className="min-h-[300px] font-mono text-xs" value={compose} onChange={event => setCompose(event.target.value)} /></div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setCreateOpen(false)} disabled={submitting}>Cancel</Button><Button onClick={() => void submitDeployment()} disabled={submitting || !projectName.trim() || !compose.trim()}>{submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}Create Pipeline</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setCreateOpen(false)} disabled={submitting}>Cancel</Button><Button onClick={() => void submitDeployment()} disabled={submitting || !projectName.trim() || !compose.trim()}>{submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}Create Deployment</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={gitCreateOpen} onOpenChange={setGitCreateOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Create Git Deployment Pipeline</DialogTitle>
-            <DialogDescription>Provide the repository, ref, and compose file path. The backend resolves the raw compose file and creates a deployment pipeline.</DialogDescription>
+            <DialogTitle>Create Deployment from Git Repository</DialogTitle>
+            <DialogDescription>Provide the Git repository, ref, and compose file path. The backend resolves the raw compose file and creates a deployment task through the shared flow.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="grid gap-4 md:grid-cols-2">
@@ -862,9 +1292,46 @@ export function DeployPage({
               </div>
             </div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setGitCreateOpen(false)} disabled={gitSubmitting}>Cancel</Button><Button onClick={() => void submitGitDeployment()} disabled={gitSubmitting || !gitRepositoryUrl.trim() || !gitComposePath.trim()}>{gitSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitBranch className="mr-2 h-4 w-4" />}Create Git Pipeline</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setGitCreateOpen(false)} disabled={gitSubmitting}>Cancel</Button><Button onClick={() => void submitGitDeployment()} disabled={gitSubmitting || !gitRepositoryUrl.trim() || !gitComposePath.trim()}>{gitSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitBranch className="mr-2 h-4 w-4" />}Create Deployment</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={pendingDelete !== null} onOpenChange={open => { if (!open) setPendingDelete(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Deployment</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDelete
+                ? `Delete ${pendingDelete.compose_project_name || pendingDelete.id}? This removes the deployment record from history.`
+                : 'Delete this deployment record?'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (pendingDelete) void deleteDeployment(pendingDelete.id)
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AppDetailModal
+        product={selectedStoreProduct}
+        primaryCategories={storePrimaryCategories}
+        locale={locale}
+        open={storeDetailOpen}
+        onClose={() => setStoreDetailOpen(false)}
+        userApps={userApps}
+        showDeploy
+        onDeploy={() => {
+          if (selectedStoreProduct) deployFromStoreProduct(selectedStoreProduct)
+        }}
+      />
     </div>
   )
 }

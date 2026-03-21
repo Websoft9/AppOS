@@ -1,8 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import {
-  ArrowDown, ArrowUp, ChevronDown, ChevronRight,
-  Download, Filter, MoreVertical, Pencil, RefreshCw, Search, Trash2,
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  ChevronRight,
+  Download,
+  Filter,
+  MoreVertical,
+  Pencil,
+  RefreshCw,
+  Search,
+  Trash2,
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { Button } from '@/components/ui/button'
@@ -130,34 +139,59 @@ function downloadFile(filename: string, content: string) {
 
 function humanizeKind(kind: string): string {
   switch (kind) {
-    case 'self_signed': return 'Self-Signed'
-    case 'ca_issued': return 'CA-Issued'
-    default: return kind
+    case 'self_signed':
+      return 'Self-Signed'
+    case 'ca_issued':
+      return 'CA-Issued'
+    default:
+      return kind
   }
 }
 
 function StatusBadge({ status, expiresAt }: { status: string; expiresAt?: string }) {
   if (status === 'expired') return <Badge variant="destructive">expired</Badge>
   if (status === 'revoked') return <Badge variant="secondary">revoked</Badge>
-  if (isExpiringSoon(expiresAt)) return <Badge variant="outline" className="border-yellow-500 text-yellow-600">⚠ expiring</Badge>
+  if (isExpiringSoon(expiresAt))
+    return (
+      <Badge variant="outline" className="border-yellow-500 text-yellow-600">
+        ⚠ expiring
+      </Badge>
+    )
   return <Badge variant="outline">active</Badge>
 }
 
 // ─── Reusable components ─────────────────────────────────
 
 function SortableHeader({
-  label, field, current, dir, onSort,
+  label,
+  field,
+  current,
+  dir,
+  onSort,
 }: {
-  label: string; field: SortField; current: SortField | null; dir: SortDir; onSort: (f: SortField) => void
+  label: string
+  field: SortField
+  current: SortField | null
+  dir: SortDir
+  onSort: (f: SortField) => void
 }) {
   const active = current === field
   return (
-    <button type="button" className="flex items-center gap-1 hover:text-foreground" onClick={() => onSort(field)}>
+    <button
+      type="button"
+      className="flex items-center gap-1 hover:text-foreground"
+      onClick={() => onSort(field)}
+    >
       {label}
-      {active
-        ? (dir === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />)
-        : <ArrowDown className="h-3.5 w-3.5 opacity-30" />
-      }
+      {active ? (
+        dir === 'asc' ? (
+          <ArrowUp className="h-3.5 w-3.5" />
+        ) : (
+          <ArrowDown className="h-3.5 w-3.5" />
+        )
+      ) : (
+        <ArrowDown className="h-3.5 w-3.5 opacity-30" />
+      )}
     </button>
   )
 }
@@ -225,7 +259,9 @@ function CertDetailRow({ item, colSpan }: { item: CertRecord; colSpan: number })
           </div>
           <div>
             <span className="text-muted-foreground text-xs font-medium">Status</span>
-            <div className="mt-0.5"><StatusBadge status={item.status} expiresAt={item.expires_at} /></div>
+            <div className="mt-0.5">
+              <StatusBadge status={item.status} expiresAt={item.expires_at} />
+            </div>
           </div>
           {item.description && (
             <div className="col-span-2">
@@ -317,10 +353,12 @@ function CertificatesPage() {
 
   async function fetchSecrets() {
     try {
-      const list = await pb.collection('secrets').getFullList<{ id: string; name: string; template_id: string; status: string }>({
-        filter: 'status = "active"',
-        fields: 'id,name,template_id,status',
-      })
+      const list = await pb
+        .collection('secrets')
+        .getFullList<{ id: string; name: string; template_id: string; status: string }>({
+          filter: 'status = "active"',
+          fields: 'id,name,template_id,status',
+        })
       const tlsKeys = list.filter(s => s.template_id === 'tls_private_key')
       setSecrets(tlsKeys.length > 0 ? tlsKeys : list)
     } catch {
@@ -328,7 +366,10 @@ function CertificatesPage() {
     }
   }
 
-  useEffect(() => { fetchAll(); fetchSecrets() }, [])
+  useEffect(() => {
+    fetchAll()
+    fetchSecrets()
+  }, [])
 
   function openQuickSecretCreate(target: 'create' | 'edit') {
     setQuickSecretTarget(target)
@@ -349,7 +390,6 @@ function CertificatesPage() {
         name: quickSecretName,
         template_id: 'tls_private_key',
         scope: 'global',
-        access_mode: 'use_only',
         payload: {
           private_key: quickSecretPrivateKey,
         },
@@ -363,7 +403,9 @@ function CertificatesPage() {
       }
       setQuickSecretOpen(false)
     } catch (err: unknown) {
-      setQuickSecretError(err instanceof Error ? err.message : 'Failed to create private key secret')
+      setQuickSecretError(
+        err instanceof Error ? err.message : 'Failed to create private key secret'
+      )
     } finally {
       setQuickSecretSaving(false)
     }
@@ -371,7 +413,7 @@ function CertificatesPage() {
 
   const selectedCreateTemplate = useMemo(
     () => templates.find(t => t.id === createTemplateId),
-    [templates, createTemplateId],
+    [templates, createTemplateId]
   )
 
   const filteredItems = useMemo(() => {
@@ -384,8 +426,8 @@ function CertificatesPage() {
     }
     if (search.trim()) {
       const q = search.toLowerCase()
-      result = result.filter(item =>
-        item.name.toLowerCase().includes(q) || item.domain.toLowerCase().includes(q)
+      result = result.filter(
+        item => item.name.toLowerCase().includes(q) || item.domain.toLowerCase().includes(q)
       )
     }
     if (sortField) {
@@ -401,7 +443,10 @@ function CertificatesPage() {
 
   function handleSort(field: SortField) {
     if (sortField === field) setSortDir(prev => (prev === 'asc' ? 'desc' : 'asc'))
-    else { setSortField(field); setSortDir('asc') }
+    else {
+      setSortField(field)
+      setSortDir('asc')
+    }
   }
 
   // ─── Create ────────────────────────────────────────────
@@ -443,7 +488,9 @@ function CertificatesPage() {
             body: { validity_days: createValidityDays || DEFAULT_VALIDITY_DAYS },
           })
         } catch (genErr: unknown) {
-          setCreateError(`Certificate created but generation failed: ${genErr instanceof Error ? genErr.message : 'unknown error'}. You can retry via Renew action.`)
+          setCreateError(
+            `Certificate created but generation failed: ${genErr instanceof Error ? genErr.message : 'unknown error'}. You can retry via Renew action.`
+          )
           await fetchAll()
           return
         }
@@ -539,11 +586,17 @@ function CertificatesPage() {
 
   // ─── File upload handler ───────────────────────────────
 
-  function handleFileUpload(fieldKey: string, file: File, setter: (key: string, val: string) => void) {
+  function handleFileUpload(
+    fieldKey: string,
+    file: File,
+    setter: (key: string, val: string) => void
+  ) {
     setUploadError('')
     const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
     if (BINARY_CERT_EXTENSIONS.has(ext)) {
-      setUploadError('Binary certificate formats are not supported. Export the certificate as PEM first.')
+      setUploadError(
+        'Binary certificate formats are not supported. Export the certificate as PEM first.'
+      )
       return
     }
     if (!CERT_EXTENSIONS.has(ext)) {
@@ -593,7 +646,12 @@ function CertificatesPage() {
       <div className="flex items-center gap-2">
         <div className="relative max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search certificates..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input
+            placeholder="Search certificates..."
+            className="pl-9"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -618,7 +676,9 @@ function CertificatesPage() {
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="gap-1.5">
               <Filter className="h-3.5 w-3.5" />
-              {statusFilter === 'all' ? 'Status' : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}
+              {statusFilter === 'all'
+                ? 'Status'
+                : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
@@ -642,7 +702,11 @@ function CertificatesPage() {
       {loading ? null : filteredItems.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
           <p className="text-muted-foreground">No certificates found.</p>
-          <button type="button" className="mt-2 text-sm text-primary hover:underline" onClick={openCreate}>
+          <button
+            type="button"
+            className="mt-2 text-sm text-primary hover:underline"
+            onClick={openCreate}
+          >
             Create your first one
           </button>
         </div>
@@ -650,11 +714,43 @@ function CertificatesPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead><SortableHeader label="Name" field="name" current={sortField} dir={sortDir} onSort={handleSort} /></TableHead>
-              <TableHead><SortableHeader label="Domain" field="domain" current={sortField} dir={sortDir} onSort={handleSort} /></TableHead>
+              <TableHead>
+                <SortableHeader
+                  label="Name"
+                  field="name"
+                  current={sortField}
+                  dir={sortDir}
+                  onSort={handleSort}
+                />
+              </TableHead>
+              <TableHead>
+                <SortableHeader
+                  label="Domain"
+                  field="domain"
+                  current={sortField}
+                  dir={sortDir}
+                  onSort={handleSort}
+                />
+              </TableHead>
               <TableHead>Kind</TableHead>
-              <TableHead><SortableHeader label="Issued" field="issued_at" current={sortField} dir={sortDir} onSort={handleSort} /></TableHead>
-              <TableHead><SortableHeader label="Expires" field="expires_at" current={sortField} dir={sortDir} onSort={handleSort} /></TableHead>
+              <TableHead>
+                <SortableHeader
+                  label="Issued"
+                  field="issued_at"
+                  current={sortField}
+                  dir={sortDir}
+                  onSort={handleSort}
+                />
+              </TableHead>
+              <TableHead>
+                <SortableHeader
+                  label="Expires"
+                  field="expires_at"
+                  current={sortField}
+                  dir={sortDir}
+                  onSort={handleSort}
+                />
+              </TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right w-[50px]"></TableHead>
             </TableRow>
@@ -670,10 +766,11 @@ function CertificatesPage() {
                       onClick={() => setExpandedId(isExpanded ? null : item.id)}
                     >
                       <span className="inline-flex items-center gap-1.5">
-                        {isExpanded
-                          ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                          : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                        }
+                        {isExpanded ? (
+                          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                        )}
                         {item.name}
                       </span>
                     </TableCell>
@@ -681,7 +778,9 @@ function CertificatesPage() {
                     <TableCell>{humanizeKind(item.kind)}</TableCell>
                     <TableCell>{formatDate(item.issued_at)}</TableCell>
                     <TableCell>{formatDate(item.expires_at)}</TableCell>
-                    <TableCell><StatusBadge status={item.status} expiresAt={item.expires_at} /></TableCell>
+                    <TableCell>
+                      <StatusBadge status={item.status} expiresAt={item.expires_at} />
+                    </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -695,7 +794,9 @@ function CertificatesPage() {
                             Edit
                           </DropdownMenuItem>
                           {item.cert_pem && (
-                            <DropdownMenuItem onClick={() => downloadFile(`${item.name}.crt`, item.cert_pem!)}>
+                            <DropdownMenuItem
+                              onClick={() => downloadFile(`${item.name}.crt`, item.cert_pem!)}
+                            >
                               <Download className="h-4 w-4" />
                               Download
                             </DropdownMenuItem>
@@ -743,88 +844,111 @@ function CertificatesPage() {
               <select
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={createTemplateId}
-                onChange={e => { setCreateTemplateId(e.target.value); setCreateFields({}); setCreateValidityDays(DEFAULT_VALIDITY_DAYS) }}
+                onChange={e => {
+                  setCreateTemplateId(e.target.value)
+                  setCreateFields({})
+                  setCreateValidityDays(DEFAULT_VALIDITY_DAYS)
+                }}
               >
                 <option value="">Select template</option>
                 {templates.map(t => (
-                  <option key={t.id} value={t.id}>{t.label}</option>
+                  <option key={t.id} value={t.id}>
+                    {t.label}
+                  </option>
                 ))}
               </select>
               {selectedCreateTemplate?.description && (
-                <p className="text-xs text-muted-foreground">{selectedCreateTemplate.description}</p>
+                <p className="text-xs text-muted-foreground">
+                  {selectedCreateTemplate.description}
+                </p>
               )}
             </div>
 
-            {selectedCreateTemplate && selectedCreateTemplate.fields.map(field => (
-              <div key={field.key} className="space-y-2">
-                <Label>{field.label}{field.required ? ' *' : ''}</Label>
-                {field.type === 'textarea' ? (
-                  <>
-                    <Textarea
+            {selectedCreateTemplate &&
+              selectedCreateTemplate.fields.map(field => (
+                <div key={field.key} className="space-y-2">
+                  <Label>
+                    {field.label}
+                    {field.required ? ' *' : ''}
+                  </Label>
+                  {field.type === 'textarea' ? (
+                    <>
+                      <Textarea
+                        required={field.required}
+                        value={createFields[field.key] ?? ''}
+                        onChange={e => {
+                          const val = e.target.value
+                          setCreateFields(prev => ({ ...prev, [field.key]: val }))
+                        }}
+                        rows={6}
+                        className="font-mono text-xs w-full min-w-0 break-all"
+                        placeholder={field.upload ? 'Paste PEM content or upload a file...' : ''}
+                      />
+                      {field.upload && (
+                        <div className="space-y-1">
+                          <input
+                            type="file"
+                            className="hidden"
+                            id={`create-upload-${field.key}`}
+                            accept=".pem,.crt,.cer,.txt"
+                            onChange={e => {
+                              const file = e.target.files?.[0]
+                              if (file)
+                                handleFileUpload(field.key, file, (k, v) =>
+                                  setCreateFields(prev => ({ ...prev, [k]: v }))
+                                )
+                              e.target.value = ''
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              document.getElementById(`create-upload-${field.key}`)?.click()
+                            }
+                          >
+                            Upload File
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  ) : field.type === 'relation' ? (
+                    <select
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={createFields[field.key] ?? ''}
+                      onChange={e => {
+                        const val = e.target.value
+                        if (val === CREATE_SECRET_OPTION_VALUE) {
+                          openQuickSecretCreate('create')
+                          return
+                        }
+                        setCreateFields(prev => ({ ...prev, [field.key]: val }))
+                      }}
+                    >
+                      <option value="">None</option>
+                      {secrets.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                      <option value={CREATE_SECRET_OPTION_VALUE}>
+                        + Create Private Key Secret
+                      </option>
+                    </select>
+                  ) : (
+                    <Input
+                      type="text"
                       required={field.required}
                       value={createFields[field.key] ?? ''}
                       onChange={e => {
                         const val = e.target.value
                         setCreateFields(prev => ({ ...prev, [field.key]: val }))
                       }}
-                      rows={6}
-                      className="font-mono text-xs w-full min-w-0 break-all"
-                      placeholder={field.upload ? 'Paste PEM content or upload a file...' : ''}
                     />
-                    {field.upload && (
-                      <div className="space-y-1">
-                        <input
-                          type="file"
-                          className="hidden"
-                          id={`create-upload-${field.key}`}
-                          accept=".pem,.crt,.cer,.txt"
-                          onChange={e => {
-                            const file = e.target.files?.[0]
-                            if (file) handleFileUpload(field.key, file, (k, v) => setCreateFields(prev => ({ ...prev, [k]: v })))
-                            e.target.value = ''
-                          }}
-                        />
-                        <Button
-                          type="button" variant="outline" size="sm"
-                          onClick={() => document.getElementById(`create-upload-${field.key}`)?.click()}
-                        >
-                          Upload File
-                        </Button>
-                      </div>
-                    )}
-                  </>
-                ) : field.type === 'relation' ? (
-                  <select
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    value={createFields[field.key] ?? ''}
-                    onChange={e => {
-                      const val = e.target.value
-                      if (val === CREATE_SECRET_OPTION_VALUE) {
-                        openQuickSecretCreate('create')
-                        return
-                      }
-                      setCreateFields(prev => ({ ...prev, [field.key]: val }))
-                    }}
-                  >
-                    <option value="">None</option>
-                    {secrets.map(s => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                    <option value={CREATE_SECRET_OPTION_VALUE}>+ Create Private Key Secret</option>
-                  </select>
-                ) : (
-                  <Input
-                    type="text"
-                    required={field.required}
-                    value={createFields[field.key] ?? ''}
-                    onChange={e => {
-                      const val = e.target.value
-                      setCreateFields(prev => ({ ...prev, [field.key]: val }))
-                    }}
-                  />
-                )}
-              </div>
-            ))}
+                  )}
+                </div>
+              ))}
 
             {selectedCreateTemplate?.kind === 'self_signed' && (
               <>
@@ -835,9 +959,13 @@ function CertificatesPage() {
                     min={1}
                     max={3650}
                     value={createValidityDays}
-                    onChange={e => setCreateValidityDays(parseInt(e.target.value) || DEFAULT_VALIDITY_DAYS)}
+                    onChange={e =>
+                      setCreateValidityDays(parseInt(e.target.value) || DEFAULT_VALIDITY_DAYS)
+                    }
                   />
-                  <p className="text-xs text-muted-foreground">How long the certificate stays valid (1–3650 days).</p>
+                  <p className="text-xs text-muted-foreground">
+                    How long the certificate stays valid (1–3650 days).
+                  </p>
                 </div>
                 <p className="text-xs text-muted-foreground bg-muted p-2 rounded">
                   ℹ A certificate and private key will be generated on the server after saving.
@@ -850,7 +978,9 @@ function CertificatesPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>
+              Cancel
+            </Button>
             <Button onClick={handleCreate} disabled={createSaving || !createTemplateId}>
               {createSaving ? 'Saving…' : 'Save'}
             </Button>
@@ -909,7 +1039,9 @@ function CertificatesPage() {
                 )}
                 <div className="space-y-0.5">
                   <span className="text-muted-foreground text-xs font-medium">Status</span>
-                  <div><StatusBadge status={editRecord.status} expiresAt={editRecord.expires_at} /></div>
+                  <div>
+                    <StatusBadge status={editRecord.status} expiresAt={editRecord.expires_at} />
+                  </div>
                 </div>
               </div>
 
@@ -926,15 +1058,25 @@ function CertificatesPage() {
                     />
                     <div className="space-y-1">
                       <input
-                        type="file" className="hidden" id="edit-upload-cert"
+                        type="file"
+                        className="hidden"
+                        id="edit-upload-cert"
                         accept=".pem,.crt,.cer,.txt"
                         onChange={e => {
                           const file = e.target.files?.[0]
-                          if (file) handleFileUpload('cert_pem', file, (k, v) => setEditFields(prev => ({ ...prev, [k]: v })))
+                          if (file)
+                            handleFileUpload('cert_pem', file, (k, v) =>
+                              setEditFields(prev => ({ ...prev, [k]: v }))
+                            )
                           e.target.value = ''
                         }}
                       />
-                      <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById('edit-upload-cert')?.click()}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => document.getElementById('edit-upload-cert')?.click()}
+                      >
                         Upload File
                       </Button>
                     </div>
@@ -955,9 +1097,13 @@ function CertificatesPage() {
                     >
                       <option value="">None</option>
                       {secrets.map(s => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
                       ))}
-                      <option value={CREATE_SECRET_OPTION_VALUE}>+ Create Private Key Secret</option>
+                      <option value={CREATE_SECRET_OPTION_VALUE}>
+                        + Create Private Key Secret
+                      </option>
                     </select>
                   </div>
                 </>
@@ -994,7 +1140,9 @@ function CertificatesPage() {
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>
+              Cancel
+            </Button>
             <Button onClick={handleEditSave} disabled={editSaving}>
               {editSaving ? 'Saving…' : 'Save'}
             </Button>
@@ -1035,10 +1183,16 @@ function CertificatesPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setQuickSecretOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setQuickSecretOpen(false)}>
+              Cancel
+            </Button>
             <Button
               onClick={handleQuickSecretCreate}
-              disabled={quickSecretSaving || quickSecretName.trim() === '' || quickSecretPrivateKey.trim() === ''}
+              disabled={
+                quickSecretSaving ||
+                quickSecretName.trim() === '' ||
+                quickSecretPrivateKey.trim() === ''
+              }
             >
               {quickSecretSaving ? 'Creating…' : 'Create'}
             </Button>
@@ -1047,7 +1201,12 @@ function CertificatesPage() {
       </Dialog>
 
       {/* ── Renew Dialog ── */}
-      <Dialog open={!!renewTarget} onOpenChange={open => { if (!open) setRenewTarget(null) }}>
+      <Dialog
+        open={!!renewTarget}
+        onOpenChange={open => {
+          if (!open) setRenewTarget(null)
+        }}
+      >
         <DialogContent className="max-w-sm" onOpenAutoFocus={e => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Renew Certificate</DialogTitle>
@@ -1065,11 +1224,15 @@ function CertificatesPage() {
                 value={renewDays}
                 onChange={e => setRenewDays(parseInt(e.target.value) || DEFAULT_VALIDITY_DAYS)}
               />
-              <p className="text-xs text-muted-foreground">How long the renewed certificate stays valid (1–3650 days).</p>
+              <p className="text-xs text-muted-foreground">
+                How long the renewed certificate stays valid (1–3650 days).
+              </p>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRenewTarget(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setRenewTarget(null)}>
+              Cancel
+            </Button>
             <Button onClick={handleRenew} disabled={renewing}>
               {renewing ? 'Renewing…' : 'Renew'}
             </Button>
@@ -1078,17 +1241,26 @@ function CertificatesPage() {
       </Dialog>
 
       {/* ── Delete Confirmation ── */}
-      <AlertDialog open={!!deleteAction} onOpenChange={open => { if (!open) setDeleteAction(null) }}>
+      <AlertDialog
+        open={!!deleteAction}
+        onOpenChange={open => {
+          if (!open) setDeleteAction(null)
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Certificate</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete <strong>{deleteAction?.name}</strong>? This action cannot be undone.
+              Are you sure you want to delete <strong>{deleteAction?.name}</strong>? This action
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

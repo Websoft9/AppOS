@@ -1,7 +1,7 @@
 # Story 16.3: Tunnel Operations View
 
 **Epic**: Epic 16 – SSH Tunnel: Local Server Management
-**Status**: backlog | **Priority**: P1 | **Depends on**: Story 16.2
+**Status**: done | **Priority**: P1 | **Depends on**: Story 16.2
 
 ---
 
@@ -23,22 +23,22 @@ As a superuser, I can open a dedicated tunnel operations view to see which tunne
 
 ## Tasks / Subtasks
 
-- [ ] Add minimal tunnel operations backend surface (AC: 3,4,5,7)
-  - [ ] Add `GET /api/tunnel/overview`
-  - [ ] Add `GET /api/tunnel/servers/:id/session`
-  - [ ] Add `POST /api/tunnel/servers/:id/disconnect`
-  - [ ] Persist current/last session operator fields on connect/disconnect
-- [ ] Migrate tunnel API prefix to canonical domain routes (AC: 5)
-  - [ ] Move backend route registration from the legacy ext-prefixed tunnel surface to `/api/tunnel/*`
-  - [ ] Update frontend callers to `/api/tunnel/*`
-  - [ ] Remove or deprecate legacy ext-prefixed tunnel usage in the implementation
-- [ ] Add the tunnel operations page in Dashboard (AC: 1,2,3,4)
-  - [ ] Add summary cards for current state
-  - [ ] Add a table focused on tunnel servers only
-  - [ ] Add operator actions with confirmation where destructive
-- [ ] Preserve module boundaries in UI and API wording (AC: 1,6)
-  - [ ] Do not add CPU / memory / disk charts to this view
-  - [ ] Do not place tunnel control actions in Monitor-owned surfaces
+- [x] Add minimal tunnel operations backend surface (AC: 3,4,5,7)
+  - [x] Add `GET /api/tunnel/overview`
+  - [x] Add `GET /api/tunnel/servers/:id/session`
+  - [x] Add `POST /api/tunnel/servers/:id/disconnect`
+  - [x] Persist current/last session operator fields on connect/disconnect
+- [x] Migrate tunnel API prefix to canonical domain routes (AC: 5)
+  - [x] Move backend route registration from the legacy ext-prefixed tunnel surface to `/api/tunnel/*`
+  - [x] Update frontend callers to `/api/tunnel/*`
+  - [x] Remove or deprecate legacy ext-prefixed tunnel usage in the implementation
+- [x] Add the tunnel operations page in Dashboard (AC: 1,2,3,4)
+  - [x] Add summary cards for current state
+  - [x] Add a table focused on tunnel servers only
+  - [x] Add operator actions with confirmation where destructive
+- [x] Preserve module boundaries in UI and API wording (AC: 1,6)
+  - [x] Do not add CPU / memory / disk charts to this view
+  - [x] Do not place tunnel control actions in Monitor-owned surfaces
 
 ## Dev Notes
 
@@ -62,8 +62,23 @@ GPT-5.4
 
 ### Debug Log References
 
+- `cd /data/dev/appos/backend && go test ./internal/routes -run 'TestTunnel(OverviewReturnsEmptyCollections|SessionReturnsDisconnectReasonLabel|SessionReturnsReconnectSummary)$' -count=1`
+- `cd /data/dev/appos/dashboard && npm test -- --run src/pages/system/TunnelsPage.test.tsx`
 
 ### Completion Notes List
 
+- Added canonical tunnel operations APIs under `/api/tunnel/*`, including overview, session, disconnect, pause, resume, setup, token, logs, and forwards surfaces.
+- Persisted operator-facing session fields such as `tunnel_connected_at`, `tunnel_remote_addr`, `tunnel_disconnect_at`, and `tunnel_disconnect_reason` from tunnel session lifecycle hooks.
+- Implemented the dedicated `Tunnels` page with current-state summary, tunnel-only table, inline details, connection logs, setup access, status checks, restart connection, pause/resume, and token rotation actions.
+- Kept the view focused on tunnel operations rather than Monitor-style metrics; no CPU, memory, disk, or generic health dashboard behavior was added.
+- Covered overview/session behavior and frontend operator flows with passing route and page tests.
 
 ### File List
+
+- `backend/internal/routes/tunnel.go`
+- `backend/internal/routes/tunnel_handlers.go`
+- `backend/internal/routes/tunnel_helpers.go`
+- `backend/internal/routes/tunnel_test.go`
+- `dashboard/src/pages/system/TunnelsPage.tsx`
+- `dashboard/src/pages/system/TunnelsPage.test.tsx`
+- `dashboard/src/routes/_app/_auth/_superuser/tunnels.tsx`

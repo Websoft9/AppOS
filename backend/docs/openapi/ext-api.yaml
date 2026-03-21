@@ -913,6 +913,50 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
   /api/deployments/{id}:
+    delete:
+      tags: [Deploy]
+      summary: Delete deployment
+      description: "Deletes one deployment record. Active deployments cannot be deleted. Superuser only."
+      operationId: delete_api_deployments_id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
     get:
       tags: [Deploy]
       summary: Get deployment detail
@@ -5601,11 +5645,129 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/settings/secrets:
+    get:
+      tags: [Settings]
+      summary: Get secrets settings
+      description: "Returns the `policy` group for secrets settings. Superuser only."
+      operationId: get_api_settings_secrets
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    patch:
+      tags: [Settings]
+      summary: Patch secrets settings
+      description: "Updates the `policy` group for secrets settings. Superuser only."
+      operationId: patch_api_settings_secrets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "422":
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/settings/tunnel:
+    get:
+      tags: [Settings]
+      summary: Get tunnel settings
+      description: "Returns the `port_range` group for tunnel settings. Superuser only."
+      operationId: get_api_settings_tunnel
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    patch:
+      tags: [Settings]
+      summary: Patch tunnel settings
+      description: "Updates the `port_range` group for tunnel settings. Superuser only."
+      operationId: patch_api_settings_tunnel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "422":
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/settings/workspace:
     get:
       tags: [Settings]
       summary: Discover settings modules
-      description: "Lists all available setting modules (e.g. space, proxy, docker, llm, connect). Each entry includes the module name, its group keys, and the full URL to call. Use the returned `module` value directly as the path parameter in GET/PATCH /api/settings/workspace/{module}. Superuser only."
+      description: "Lists all available setting modules (e.g. space, proxy, docker, llm, connect, tunnel, secrets). Each entry includes the module name, its group keys, and the full URL to call. Use the returned URL directly for direct settings surfaces such as tunnel and secrets. Superuser only."
       operationId: get_api_settings_workspace
       security:
         - bearerAuth: []  # superuser required
@@ -5626,7 +5788,7 @@ paths:
     get:
       tags: [Settings]
       summary: Get settings module
-      description: "Returns all group keys and their values for the given module. Supported modules include `space` (file quota), `proxy` (HTTP proxy), `docker` (mirrors & registries), and others — call GET /api/settings/workspace first to discover all available modules. Sensitive fields (password, apiKey, secret) are masked to \"***\". Superuser only."
+      description: "Returns all group keys and their values for the given module. Supported modules include `space` (file quota), `proxy` (HTTP proxy), `docker` (mirrors & registries), `tunnel` (port range), `secrets` (global secrets policy), and others — call GET /api/settings/workspace first to discover all available modules. Sensitive fields (password, apiKey, secret) are masked to \"***\". Superuser only."
       operationId: get_api_settings_workspace_module
       parameters:
         - name: module

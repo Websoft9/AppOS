@@ -461,20 +461,19 @@ function GroupDetailPage() {
                     <TableCell>
                       {def ? (
                         def.listSearchKey ? (
-                          <Link
-                            to={def.detailRoute}
-                            search={{ [def.listSearchKey]: row.object_id }}
+                          <a
+                            href={`${def.detailRoute}?${new URLSearchParams({ [def.listSearchKey]: row.object_id }).toString()}`}
                             className="font-medium hover:underline"
                           >
                             {row.resolvedName}
-                          </Link>
+                          </a>
                         ) : (
-                          <Link
-                            to={buildDetailLink(def.detailRoute, row.object_id)}
+                          <a
+                            href={buildDetailLink(def.detailRoute, row.object_id)}
                             className="font-medium hover:underline"
                           >
                             {row.resolvedName}
-                          </Link>
+                          </a>
                         )
                       ) : (
                         <span className="font-medium">{row.resolvedName}</span>

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Link, useRouterState } from '@tanstack/react-router'
+import { useRouterState } from '@tanstack/react-router'
 import {
   LayoutDashboard,
   Layers,
@@ -230,8 +230,8 @@ function NavLink({
   }
 
   const link = (
-    <Link
-      to={item.href}
+    <a
+      href={item.href}
       onClick={onNavigate}
       className={cn(
         'flex items-center justify-start gap-3 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors',
@@ -249,7 +249,7 @@ function NavLink({
           {item.badge}
         </span>
       )}
-    </Link>
+    </a>
   )
 
   if (collapsed) {

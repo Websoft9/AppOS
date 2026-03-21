@@ -3,6 +3,7 @@ package secrets
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
@@ -12,6 +13,8 @@ import (
 
 func RegisterHooks(app *pocketbase.PocketBase) {
 	app.OnRecordCreateRequest("secrets").BindFunc(func(e *core.RecordRequestEvent) error {
+		applyDefaultAccessMode(app, e.Record)
+
 		templateID := e.Record.GetString("template_id")
 		tpl, ok := FindTemplate(templateID)
 		if !ok {
@@ -154,6 +157,15 @@ func RegisterHooks(app *pocketbase.PocketBase) {
 		}
 		return err
 	})
+}
+
+func applyDefaultAccessMode(app core.App, record *core.Record) {
+	if app == nil || record == nil || strings.TrimSpace(record.GetString("access_mode")) != "" {
+		return
+	}
+
+	policy := GetPolicy(app)
+	record.Set("access_mode", policy.DefaultAccessMode)
 }
 
 func payloadFromAny(v any) (map[string]any, error) {

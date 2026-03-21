@@ -18,7 +18,11 @@ function LoginPage() {
   // If already authenticated, redirect away
   useEffect(() => {
     if (isAuthenticated) {
-      navigate({ to: redirect || '/dashboard' })
+      if (redirect) {
+        window.location.assign(redirect)
+        return
+      }
+      void navigate({ to: '/dashboard' })
     }
   }, [isAuthenticated, navigate, redirect])
 
@@ -40,7 +44,11 @@ function LoginPage() {
 
     try {
       await login(email, password)
-      await navigate({ to: redirect || '/dashboard' })
+      if (redirect) {
+        window.location.assign(redirect)
+        return
+      }
+      await navigate({ to: '/dashboard' })
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Login failed'
       setError(message)

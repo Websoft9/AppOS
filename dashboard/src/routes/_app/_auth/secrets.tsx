@@ -1,6 +1,15 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Filter, MoreVertical, RefreshCw, Search } from 'lucide-react'
+import { createFileRoute } from '@tanstack/react-router'
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  ChevronRight,
+  Filter,
+  MoreVertical,
+  RefreshCw,
+  Search,
+} from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -47,6 +56,15 @@ import {
 import { SecretForm, type SecretTemplate } from '@/components/secrets/SecretForm'
 import { RevealOverlay } from '@/components/secrets/RevealOverlay'
 import { getLocale } from '@/lib/i18n'
+import { SECRETS_SETTINGS_API_PATH } from '@/lib/settings-api'
+import {
+  canRevealSecret,
+  DEFAULT_SECRET_ACCESS_MODE,
+  DEFAULT_SECRET_POLICY,
+  normalizeSecretPolicy,
+  SECRET_ACCESS_MODE_OPTIONS,
+  type SecretPolicy,
+} from '@/lib/secrets-policy'
 
 interface SecretRecord {
   id: string
@@ -78,11 +96,7 @@ const SCOPE_OPTIONS = [
   { value: 'user_private', label: 'User Private' },
 ]
 
-const ACCESS_MODE_OPTIONS = [
-  { value: 'use_only', label: 'Use Only' },
-  { value: 'reveal_once', label: 'Reveal Once' },
-  { value: 'reveal_allowed', label: 'Reveal Allowed' },
-]
+const ACCESS_MODE_OPTIONS = [...SECRET_ACCESS_MODE_OPTIONS]
 
 const PAGE_SIZE = 20
 
@@ -92,7 +106,13 @@ function formatDate(iso?: string): string {
   const d = new Date(iso)
   if (isNaN(d.getTime())) return iso
   const bcp47 = getLocale() === 'zh' ? 'zh-CN' : 'en-US'
-  return d.toLocaleString(bcp47, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleString(bcp47, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 // ─── Reusable components ─────────────────────────────────
@@ -153,7 +173,11 @@ function SortableHeader({
       {withDisclosureHint ? <ChevronRight className="h-3.5 w-3.5 opacity-60" /> : null}
       {label}
       {active ? (
-        dir === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+        dir === 'asc' ? (
+          <ArrowUp className="h-3.5 w-3.5" />
+        ) : (
+          <ArrowDown className="h-3.5 w-3.5" />
+        )
       ) : (
         <ArrowUp className="h-3.5 w-3.5 opacity-40" />
       )}
@@ -190,7 +214,10 @@ function FilterHeader({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[140px] p-2 space-y-1">
         {options.map(opt => (
-          <label key={opt.value} className="flex items-center gap-2 px-1 py-0.5 text-sm cursor-pointer">
+          <label
+            key={opt.value}
+            className="flex items-center gap-2 px-1 py-0.5 text-sm cursor-pointer"
+          >
             <Checkbox
               checked={!excluded.has(opt.value)}
               onCheckedChange={checked => {
@@ -219,9 +246,9 @@ function FilterHeader({
 
 // ─── Main page ───────────────────────────────────────────
 
-function SecretsPage() {
+export function SecretsPage() {
   const { id: idFilter, returnGroup, returnType } = Route.useSearch()
-  const navigate = useNavigate()
+  const navigate = Route.useNavigate()
   const [allItems, setAllItems] = useState<SecretRecord[]>([])
   const [templates, setTemplates] = useState<SecretTemplate[]>([])
   const [loading, setLoading] = useState(true)
@@ -230,7 +257,10 @@ function SecretsPage() {
   const [revealOpen, setRevealOpen] = useState(false)
   const [revealPayload, setRevealPayload] = useState<Record<string, unknown> | null>(null)
   const [revealingId, setRevealingId] = useState<string | null>(null)
-  const [revealFieldLabels, setRevealFieldLabels] = useState<Record<string, string> | undefined>(undefined)
+  const [revealFieldLabels, setRevealFieldLabels] = useState<Record<string, string> | undefined>(
+    undefined
+  )
+  const [secretPolicy, setSecretPolicy] = useState<SecretPolicy>(DEFAULT_SECRET_POLICY)
 
   // Search, sort, filter, pagination
   const [search, setSearch] = useState('')
@@ -248,7 +278,7 @@ function SecretsPage() {
   const [createName, setCreateName] = useState('')
   const [createDescription, setCreateDescription] = useState('')
   const [createScope, setCreateScope] = useState('global')
-  const [createAccessMode, setCreateAccessMode] = useState('use_only')
+  const [createAccessMode, setCreateAccessMode] = useState(DEFAULT_SECRET_ACCESS_MODE)
   const [createTemplateId, setCreateTemplateId] = useState('')
   const [createPayload, setCreatePayload] = useState<Record<string, string>>({})
   const [createSaving, setCreateSaving] = useState(false)
@@ -261,7 +291,7 @@ function SecretsPage() {
   const [editName, setEditName] = useState('')
   const [editDescription, setEditDescription] = useState('')
   const [editScope, setEditScope] = useState('global')
-  const [editAccessMode, setEditAccessMode] = useState('use_only')
+  const [editAccessMode, setEditAccessMode] = useState(DEFAULT_SECRET_ACCESS_MODE)
   const [editTemplateId, setEditTemplateId] = useState('')
   const [editPayload, setEditPayload] = useState<Record<string, string>>({})
   const [editSavingMeta, setEditSavingMeta] = useState(false)
@@ -283,7 +313,11 @@ function SecretsPage() {
     const accessModes = new Set<string>()
     const statuses = new Set<string>()
     for (const item of allItems) {
-      if (item.template_id) types.set(item.template_id, templateLabelMap.get(item.template_id) ?? humanize(item.template_id))
+      if (item.template_id)
+        types.set(
+          item.template_id,
+          templateLabelMap.get(item.template_id) ?? humanize(item.template_id)
+        )
       if (item.scope) scopes.add(item.scope)
       if (item.access_mode) accessModes.add(item.access_mode)
       if (item.status) statuses.add(item.status)
@@ -308,18 +342,20 @@ function SecretsPage() {
     // Search
     if (search.trim()) {
       const q = search.trim().toLowerCase()
-      result = result.filter(item =>
-        item.id.toLowerCase().includes(q) ||
-        item.name.toLowerCase().includes(q) ||
-        (item.description?.toLowerCase().includes(q)) ||
-        (item.last_used_by?.toLowerCase().includes(q))
+      result = result.filter(
+        item =>
+          item.id.toLowerCase().includes(q) ||
+          item.name.toLowerCase().includes(q) ||
+          item.description?.toLowerCase().includes(q) ||
+          item.last_used_by?.toLowerCase().includes(q)
       )
     }
 
     // Exclude filters
     if (excludeType.size > 0) result = result.filter(i => !excludeType.has(i.template_id))
     if (excludeScope.size > 0) result = result.filter(i => !excludeScope.has(i.scope))
-    if (excludeAccessMode.size > 0) result = result.filter(i => !excludeAccessMode.has(i.access_mode))
+    if (excludeAccessMode.size > 0)
+      result = result.filter(i => !excludeAccessMode.has(i.access_mode))
     if (excludeStatus.size > 0) result = result.filter(i => !excludeStatus.has(i.status))
 
     // Sort
@@ -333,7 +369,17 @@ function SecretsPage() {
     }
 
     return result
-  }, [allItems, idFilter, search, excludeType, excludeScope, excludeAccessMode, excludeStatus, sortField, sortDir])
+  }, [
+    allItems,
+    idFilter,
+    search,
+    excludeType,
+    excludeScope,
+    excludeAccessMode,
+    excludeStatus,
+    sortField,
+    sortDir,
+  ])
 
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE))
 
@@ -350,13 +396,19 @@ function SecretsPage() {
           item &&
           typeof item === 'object' &&
           typeof (item as { id?: unknown }).id === 'string' &&
-          typeof (item as { label?: unknown }).label === 'string',
+          typeof (item as { label?: unknown }).label === 'string'
       )
       .map(item => {
         const record = item as {
           id: string
           label: string
-          fields?: Array<{ key: string; label: string; type: string; required?: boolean; upload?: boolean }>
+          fields?: Array<{
+            key: string
+            label: string
+            type: string
+            required?: boolean
+            upload?: boolean
+          }>
         }
         return {
           id: record.id,
@@ -399,7 +451,20 @@ function SecretsPage() {
     )
   }, [])
 
-  useEffect(() => { void loadData() }, [])
+  useEffect(() => {
+    void loadData()
+  }, [])
+
+  useEffect(() => {
+    void pb
+      .send<{ policy?: unknown }>(SECRETS_SETTINGS_API_PATH, { method: 'GET' })
+      .then(result => {
+        setSecretPolicy(normalizeSecretPolicy(result.policy))
+      })
+      .catch(() => {
+        setSecretPolicy(DEFAULT_SECRET_POLICY)
+      })
+  }, [])
 
   // Auto-open create dialog when arriving from Group Add Items flow
   useEffect(() => {
@@ -435,7 +500,7 @@ function SecretsPage() {
     setCreateName('')
     setCreateDescription('')
     setCreateScope('global')
-    setCreateAccessMode('use_only')
+    setCreateAccessMode(secretPolicy.defaultAccessMode)
     setCreateTemplateId('')
     setCreatePayload({})
     setCreateError('')
@@ -457,14 +522,14 @@ function SecretsPage() {
     setCreateSaving(true)
     setCreateError('')
     try {
-      const created = await pb.collection('secrets').create({
+      const created = (await pb.collection('secrets').create({
         name: createName,
         description: createDescription,
         template_id: createTemplateId,
         scope: createScope,
         access_mode: createAccessMode,
         payload: createPayload,
-      }) as { id: string }
+      })) as { id: string }
       setCreateOpen(false)
       resetCreateForm()
       if (returnGroup) {
@@ -490,7 +555,7 @@ function SecretsPage() {
     setEditName('')
     setEditDescription('')
     setEditScope('global')
-    setEditAccessMode('use_only')
+    setEditAccessMode(DEFAULT_SECRET_ACCESS_MODE)
     setEditTemplateId('')
     setEditPayload({})
     setEditError('')
@@ -502,7 +567,7 @@ function SecretsPage() {
     setEditName(item.name)
     setEditDescription(item.description || '')
     setEditScope(item.scope || 'global')
-    setEditAccessMode(item.access_mode || 'use_only')
+    setEditAccessMode(item.access_mode || DEFAULT_SECRET_ACCESS_MODE)
     setEditTemplateId(item.template_id)
     setEditPayload({})
     setEditError('')
@@ -584,11 +649,16 @@ function SecretsPage() {
   async function handleReveal(item: SecretRecord) {
     setRevealingId(item.id)
     try {
-      const data = await pb.send<{ payload: Record<string, unknown> }>(`/api/secrets/${item.id}/reveal`, {
-        method: 'GET',
-      })
+      const data = await pb.send<{ payload: Record<string, unknown> }>(
+        `/api/secrets/${item.id}/reveal`,
+        {
+          method: 'GET',
+        }
+      )
       const tpl = templates.find(t => t.id === item.template_id)
-      setRevealFieldLabels(tpl ? Object.fromEntries(tpl.fields.map(f => [f.key, f.label])) : undefined)
+      setRevealFieldLabels(
+        tpl ? Object.fromEntries(tpl.fields.map(f => [f.key, f.label])) : undefined
+      )
       setRevealPayload(data.payload)
       setRevealOpen(true)
       await loadData()
@@ -607,10 +677,18 @@ function SecretsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Secrets</h1>
-          <p className="text-muted-foreground mt-1">The single source of truth for all your platform credentials.</p>
+          <p className="text-muted-foreground mt-1">
+            The single source of truth for all your platform credentials.
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={() => void loadData()} disabled={loading} title="Refresh">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => void loadData()}
+            disabled={loading}
+            title="Refresh"
+          >
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           </Button>
           <Button onClick={() => void openCreate()}>Create Secret</Button>
@@ -637,7 +715,12 @@ function SecretsPage() {
             <button
               type="button"
               className="ml-1 text-muted-foreground hover:text-foreground"
-              onClick={() => void navigate({ to: '.', search: {} })}
+              onClick={() =>
+                void navigate({
+                  to: '.',
+                  search: prev => ({ ...prev, id: undefined }),
+                })
+              }
               aria-label="Clear ID filter"
             >
               ×
@@ -660,7 +743,12 @@ function SecretsPage() {
                 setExcludeScope(new Set())
                 setExcludeAccessMode(new Set())
                 setExcludeStatus(new Set())
-                if (idFilter) void navigate({ to: '.', search: {} })
+                if (idFilter) {
+                  void navigate({
+                    to: '.',
+                    search: prev => ({ ...prev, id: undefined }),
+                  })
+                }
               }}
             >
               Clear all filters
@@ -676,158 +764,214 @@ function SecretsPage() {
           )}
         </div>
       ) : (
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>
-              <SortableHeader label="Name" field="name" current={sortField} dir={sortDir} onSort={handleSort} withDisclosureHint />
-            </TableHead>
-            <TableHead>
-              <FilterHeader label="Type" options={filterOptions.type} excluded={excludeType} onChange={setExcludeType} />
-            </TableHead>
-            <TableHead>
-              <FilterHeader label="Scope" options={filterOptions.scope} excluded={excludeScope} onChange={setExcludeScope} />
-            </TableHead>
-            <TableHead>
-              <FilterHeader label="Access Mode" options={filterOptions.accessMode} excluded={excludeAccessMode} onChange={setExcludeAccessMode} />
-            </TableHead>
-            <TableHead>
-              <FilterHeader label="Status" options={filterOptions.status} excluded={excludeStatus} onChange={setExcludeStatus} />
-            </TableHead>
-            <TableHead>
-              <SortableHeader label="Created" field="created" current={sortField} dir={sortDir} onSort={handleSort} />
-            </TableHead>
-            <TableHead>
-              <SortableHeader label="Last Used At" field="last_used_at" current={sortField} dir={sortDir} onSort={handleSort} />
-            </TableHead>
-            <TableHead>
-              <SortableHeader label="Last Used By" field="last_used_by" current={sortField} dir={sortDir} onSort={handleSort} />
-            </TableHead>
-            <TableHead className="w-[48px]" />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {pagedItems.map(item => (
-            <Fragment key={item.id}>
-              <TableRow>
-                <TableCell>
-                  <button
-                    type="button"
-                    className="flex items-center gap-1.5 text-left font-medium hover:text-foreground"
-                    onClick={() => toggleExpanded(item.id)}
-                  >
-                    <ChevronRight className={cn('h-4 w-4 text-muted-foreground transition-transform', expandedIds.has(item.id) && 'rotate-90')} />
-                    <span>{item.name}</span>
-                  </button>
-                </TableCell>
-                <TableCell>{templateLabelMap.get(item.template_id) ?? item.template_id}</TableCell>
-                <TableCell>{item.scope || 'global'}</TableCell>
-                <TableCell>
-                  <Badge variant="outline">{item.access_mode || 'use_only'}</Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={item.status === 'revoked' ? 'secondary' : 'default'}>
-                    {item.status || 'active'}
-                  </Badge>
-                </TableCell>
-                <TableCell>{formatDate(item.created)}</TableCell>
-                <TableCell>{formatDate(item.last_used_at)}</TableCell>
-                <TableCell>{item.last_used_by || '—'}</TableCell>
-                <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreVertical className="h-4 w-4" />
-                        <span className="sr-only">Actions</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => void openEdit(item)}>
-                        Edit
-                      </DropdownMenuItem>
-                      {item.access_mode !== 'use_only' && (
-                        <DropdownMenuItem
-                          disabled={revealingId === item.id}
-                          onClick={() => void handleReveal(item)}
-                        >
-                          {revealingId === item.id ? 'Revealing...' : 'Reveal'}
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuSeparator />
-                      {item.status === 'revoked' ? (
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onClick={() => setConfirmAction({ type: 'delete', id: item.id, name: item.name })}
-                        >
-                          Delete
-                        </DropdownMenuItem>
-                      ) : (
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onClick={() => setConfirmAction({ type: 'revoke', id: item.id, name: item.name })}
-                        >
-                          Revoke
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
-
-              {expandedIds.has(item.id) && (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>
+                <SortableHeader
+                  label="Name"
+                  field="name"
+                  current={sortField}
+                  dir={sortDir}
+                  onSort={handleSort}
+                  withDisclosureHint
+                />
+              </TableHead>
+              <TableHead>
+                <FilterHeader
+                  label="Type"
+                  options={filterOptions.type}
+                  excluded={excludeType}
+                  onChange={setExcludeType}
+                />
+              </TableHead>
+              <TableHead>
+                <FilterHeader
+                  label="Scope"
+                  options={filterOptions.scope}
+                  excluded={excludeScope}
+                  onChange={setExcludeScope}
+                />
+              </TableHead>
+              <TableHead>
+                <FilterHeader
+                  label="Access Mode"
+                  options={filterOptions.accessMode}
+                  excluded={excludeAccessMode}
+                  onChange={setExcludeAccessMode}
+                />
+              </TableHead>
+              <TableHead>
+                <FilterHeader
+                  label="Status"
+                  options={filterOptions.status}
+                  excluded={excludeStatus}
+                  onChange={setExcludeStatus}
+                />
+              </TableHead>
+              <TableHead>
+                <SortableHeader
+                  label="Created"
+                  field="created"
+                  current={sortField}
+                  dir={sortDir}
+                  onSort={handleSort}
+                />
+              </TableHead>
+              <TableHead>
+                <SortableHeader
+                  label="Last Used At"
+                  field="last_used_at"
+                  current={sortField}
+                  dir={sortDir}
+                  onSort={handleSort}
+                />
+              </TableHead>
+              <TableHead>
+                <SortableHeader
+                  label="Last Used By"
+                  field="last_used_by"
+                  current={sortField}
+                  dir={sortDir}
+                  onSort={handleSort}
+                />
+              </TableHead>
+              <TableHead className="w-[48px]" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {pagedItems.map(item => (
+              <Fragment key={item.id}>
                 <TableRow>
-                  <TableCell colSpan={9} className="bg-muted/30 py-3">
-                    <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
-                      <div>
-                        <span className="text-muted-foreground">ID:</span>{' '}
-                        <span className="font-mono text-xs">{item.id}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Name:</span>{' '}
-                        <span>{item.name}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Type:</span>{' '}
-                        <span>{templateLabelMap.get(item.template_id) ?? item.template_id}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Scope:</span>{' '}
-                        <span>{item.scope || 'global'}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Access Mode:</span>{' '}
-                        <span>{item.access_mode || 'use_only'}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Status:</span>{' '}
-                        <span>{item.status || 'active'}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Created:</span>{' '}
-                        <span>{formatDate(item.created)}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Last Used At:</span>{' '}
-                        <span>{formatDate(item.last_used_at)}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Last Used By:</span>{' '}
-                        <span>{item.last_used_by || '—'}</span>
-                      </div>
-                      {item.description && (
-                        <div className="sm:col-span-2 lg:col-span-3">
-                          <span className="text-muted-foreground">Description:</span>{' '}
-                          <span>{item.description}</span>
-                        </div>
-                      )}
-                    </div>
+                  <TableCell>
+                    <button
+                      type="button"
+                      className="flex items-center gap-1.5 text-left font-medium hover:text-foreground"
+                      onClick={() => toggleExpanded(item.id)}
+                    >
+                      <ChevronRight
+                        className={cn(
+                          'h-4 w-4 text-muted-foreground transition-transform',
+                          expandedIds.has(item.id) && 'rotate-90'
+                        )}
+                      />
+                      <span>{item.name}</span>
+                    </button>
+                  </TableCell>
+                  <TableCell>
+                    {templateLabelMap.get(item.template_id) ?? item.template_id}
+                  </TableCell>
+                  <TableCell>{item.scope || 'global'}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{item.access_mode || DEFAULT_SECRET_ACCESS_MODE}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={item.status === 'revoked' ? 'secondary' : 'default'}>
+                      {item.status || 'active'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{formatDate(item.created)}</TableCell>
+                  <TableCell>{formatDate(item.last_used_at)}</TableCell>
+                  <TableCell>{item.last_used_by || '—'}</TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreVertical className="h-4 w-4" />
+                          <span className="sr-only">Actions</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => void openEdit(item)}>
+                          Edit
+                        </DropdownMenuItem>
+                        {canRevealSecret(item.access_mode, secretPolicy) && (
+                          <DropdownMenuItem
+                            disabled={revealingId === item.id}
+                            onClick={() => void handleReveal(item)}
+                          >
+                            {revealingId === item.id ? 'Revealing...' : 'Reveal'}
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
+                        {item.status === 'revoked' ? (
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() =>
+                              setConfirmAction({ type: 'delete', id: item.id, name: item.name })
+                            }
+                          >
+                            Delete
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() =>
+                              setConfirmAction({ type: 'revoke', id: item.id, name: item.name })
+                            }
+                          >
+                            Revoke
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
-              )}
-            </Fragment>
-          ))}
-        </TableBody>
-      </Table>
+
+                {expandedIds.has(item.id) && (
+                  <TableRow>
+                    <TableCell colSpan={9} className="bg-muted/30 py-3">
+                      <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                        <div>
+                          <span className="text-muted-foreground">ID:</span>{' '}
+                          <span className="font-mono text-xs">{item.id}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Name:</span>{' '}
+                          <span>{item.name}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Type:</span>{' '}
+                          <span>{templateLabelMap.get(item.template_id) ?? item.template_id}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Scope:</span>{' '}
+                          <span>{item.scope || 'global'}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Access Mode:</span>{' '}
+                          <span>{item.access_mode || DEFAULT_SECRET_ACCESS_MODE}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Status:</span>{' '}
+                          <span>{item.status || 'active'}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Created:</span>{' '}
+                          <span>{formatDate(item.created)}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Last Used At:</span>{' '}
+                          <span>{formatDate(item.last_used_at)}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Last Used By:</span>{' '}
+                          <span>{item.last_used_by || '—'}</span>
+                        </div>
+                        {item.description && (
+                          <div className="sm:col-span-2 lg:col-span-3">
+                            <span className="text-muted-foreground">Description:</span>{' '}
+                            <span>{item.description}</span>
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </Fragment>
+            ))}
+          </TableBody>
+        </Table>
       )}
 
       {/* Pagination */}
@@ -837,10 +981,20 @@ function SecretsPage() {
             {filteredItems.length} total · Page {page} of {totalPages}
           </span>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage(p => p - 1)}
+            >
               Previous
             </Button>
-            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => setPage(p => p + 1)}
+            >
               Next
             </Button>
           </div>
@@ -878,8 +1032,18 @@ function SecretsPage() {
                 placeholder="Optional description"
               />
             </div>
-            <OptionGroup label="Scope" value={editScope} options={SCOPE_OPTIONS} onChange={setEditScope} />
-            <OptionGroup label="Access Mode" value={editAccessMode} options={ACCESS_MODE_OPTIONS} onChange={setEditAccessMode} />
+            <OptionGroup
+              label="Scope"
+              value={editScope}
+              options={SCOPE_OPTIONS}
+              onChange={setEditScope}
+            />
+            <OptionGroup
+              label="Access Mode"
+              value={editAccessMode}
+              options={ACCESS_MODE_OPTIONS}
+              onChange={setEditAccessMode}
+            />
             <Button type="submit" disabled={editSavingMeta || !editId}>
               {editSavingMeta ? 'Saving...' : 'Save Metadata'}
             </Button>
@@ -891,7 +1055,9 @@ function SecretsPage() {
           <form className="space-y-4" onSubmit={e => void handleEditPayloadSubmit(e)}>
             <div>
               <h4 className="text-sm font-medium">Update Secret Values</h4>
-              <p className="text-xs text-muted-foreground">Fill in fields to replace current encrypted values.</p>
+              <p className="text-xs text-muted-foreground">
+                Fill in fields to replace current encrypted values.
+              </p>
             </div>
             <SecretForm
               templates={templates}
@@ -899,9 +1065,7 @@ function SecretsPage() {
               payload={editPayload}
               disableTemplateChange
               onTemplateChange={() => {}}
-              onPayloadChange={(key, value) =>
-                setEditPayload(prev => ({ ...prev, [key]: value }))
-              }
+              onPayloadChange={(key, value) => setEditPayload(prev => ({ ...prev, [key]: value }))}
             />
             <Button type="submit" disabled={editSavingPayload || !editId || !editPayloadHasValues}>
               {editSavingPayload ? 'Updating...' : 'Update Values'}
@@ -921,7 +1085,9 @@ function SecretsPage() {
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Create Secret</DialogTitle>
-            <DialogDescription>Create a credential secret with encrypted payload.</DialogDescription>
+            <DialogDescription>
+              Create a credential secret with encrypted payload.
+            </DialogDescription>
           </DialogHeader>
 
           <form className="space-y-4" onSubmit={e => void handleCreateSubmit(e)}>
@@ -950,7 +1116,9 @@ function SecretsPage() {
                 type="button"
                 className="flex w-full items-center justify-start gap-2 py-1 text-left text-sm text-muted-foreground hover:text-foreground"
               >
-                <ChevronDown className={cn('h-4 w-4 transition-transform', createAdvancedOpen && 'rotate-180')} />
+                <ChevronDown
+                  className={cn('h-4 w-4 transition-transform', createAdvancedOpen && 'rotate-180')}
+                />
                 <span>Advanced</span>
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-4 pt-2">
@@ -962,7 +1130,12 @@ function SecretsPage() {
                     placeholder="Optional description"
                   />
                 </div>
-                <OptionGroup label="Scope" value={createScope} options={SCOPE_OPTIONS} onChange={setCreateScope} />
+                <OptionGroup
+                  label="Scope"
+                  value={createScope}
+                  options={SCOPE_OPTIONS}
+                  onChange={setCreateScope}
+                />
                 <OptionGroup
                   label="Access Mode"
                   value={createAccessMode}
@@ -1009,6 +1182,7 @@ function SecretsPage() {
         open={revealOpen}
         payload={revealPayload}
         fieldLabels={revealFieldLabels}
+        clearAfterSeconds={secretPolicy.clipboardClearSeconds}
         onClose={() => {
           setRevealOpen(false)
           setRevealPayload(null)

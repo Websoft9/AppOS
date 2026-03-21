@@ -32,6 +32,9 @@ help:
 	@echo ""
 	@printf "\033[36mTesting & Quality:\033[0m\n"
 	@echo "  make test                 Run all tests (Go + JS)"
+	@echo "  make test backend         Run all backend Go tests from backend/"
+	@echo "  make test dashboard       Run dashboard tests from dashboard/"
+	@echo "  make test backend-targeted Run backend routes/secrets/migrations test set"
 	@echo "  make lint                 Run linters (golangci-lint + gosec, eslint)"
 	@echo "  make fmt                  Format code (gofmt, prettier)"
 	@echo "  make check                Format + lint in one step (local dev)"
@@ -186,6 +189,19 @@ run:
 # Testing & Quality
 # ============================================================
 test:
+ifeq ($(ARG2),backend)
+	@echo "Running backend tests..."
+	@cd backend && go test ./... -v
+	@echo "✓ Backend tests completed"
+else ifeq ($(ARG2),dashboard)
+	@echo "Running dashboard tests..."
+	@cd dashboard && npm test
+	@echo "✓ Dashboard tests completed"
+else ifeq ($(ARG2),backend-targeted)
+	@echo "Running targeted backend tests..."
+	@cd backend && go test ./internal/routes ./internal/secrets ./internal/migrations -v
+	@echo "✓ Targeted backend tests completed"
+else
 	@echo "Running tests..."
 	@if [ -f "backend/go.mod" ]; then \
 		echo "→ Go tests..."; \
@@ -196,6 +212,7 @@ test:
 		cd dashboard && npm test 2>/dev/null; \
 	fi
 	@echo "✓ Tests completed"
+endif
 
 lint:
 	@echo "Running linters..."

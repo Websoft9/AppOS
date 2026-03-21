@@ -152,6 +152,9 @@ development_status:
   epic16: done
   16.1-tunnel-infrastructure: done
   16.2-server-onboarding: done
+  16.3-tunnel-operations-view: done
+  16.4-tunnel-port-forward: done
+  16.5-tunnel-settings: done
   epic16-retrospective: optional
 
   # Epic 13: Settings Management

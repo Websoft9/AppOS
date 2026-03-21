@@ -28,6 +28,7 @@ func registerDeployRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	d.Bind(apis.RequireSuperuserAuth())
 	d.GET("", handleDeploymentList)
 	d.GET("/{id}", handleDeploymentDetail)
+	d.DELETE("/{id}", handleDeploymentDelete)
 	d.GET("/{id}/logs", handleDeploymentLogs)
 	d.GET("/{id}/stream", handleDeploymentLogStream)
 	d.POST("/git-compose", handleDeploymentGitCompose)
@@ -55,9 +56,11 @@ func handleDeploymentList(e *core.RequestEvent) error {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "failed to list deployments"})
 	}
 
+	ctx := buildDeploymentResponseContext(e.App, records)
+
 	result := make([]map[string]any, 0, len(records))
 	for _, record := range records {
-		result = append(result, deploymentRecordResponse(record))
+		result = append(result, deploymentRecordResponse(record, ctx))
 	}
 
 	return e.JSON(http.StatusOK, result)
@@ -86,7 +89,68 @@ func handleDeploymentDetail(e *core.RequestEvent) error {
 		return e.JSON(http.StatusNotFound, map[string]any{"code": 404, "message": "deployment not found"})
 	}
 
-	return e.JSON(http.StatusOK, deploymentRecordResponse(record))
+	return e.JSON(http.StatusOK, deploymentRecordResponse(record, buildDeploymentResponseContext(e.App, []*core.Record{record})))
+}
+
+// handleDeploymentDelete removes one deployment record when it is no longer active.
+//
+// @Summary Delete deployment
+// @Description Deletes one deployment record. Active deployments cannot be deleted. Superuser only.
+// @Tags Deploy
+// @Security BearerAuth
+// @Param id path string true "deployment ID"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 409 {object} map[string]any
+// @Router /api/deployments/{id} [delete]
+func handleDeploymentDelete(e *core.RequestEvent) error {
+	id := e.Request.PathValue("id")
+	if id == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "id is required"})
+	}
+
+	record, err := e.App.FindRecordById("deployments", id)
+	if err != nil {
+		return e.JSON(http.StatusNotFound, map[string]any{"code": 404, "message": "deployment not found"})
+	}
+
+	status := record.GetString("status")
+	if isDeploymentActiveStatus(status) {
+		return e.JSON(http.StatusConflict, map[string]any{"code": 409, "message": "active deployments cannot be deleted"})
+	}
+
+	if err := e.App.Delete(record); err != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "failed to delete deployment"})
+	}
+
+	userID, userEmail, ip, ua := clientInfo(e)
+	audit.Write(e.App, audit.Entry{
+		UserID:       userID,
+		UserEmail:    userEmail,
+		Action:       "deploy.delete",
+		ResourceType: "deployment",
+		ResourceID:   id,
+		ResourceName: record.GetString("compose_project_name"),
+		Status:       audit.StatusSuccess,
+		IP:           ip,
+		UserAgent:    ua,
+		Detail: map[string]any{
+			"status": status,
+		},
+	})
+
+	return e.JSON(http.StatusOK, map[string]any{"id": id, "deleted": true})
+}
+
+func isDeploymentActiveStatus(status string) bool {
+	switch status {
+	case deploy.StatusQueued, deploy.StatusValidating, deploy.StatusPreparing, deploy.StatusRunning, deploy.StatusVerifying, deploy.StatusRollingBack:
+		return true
+	default:
+		return false
+	}
 }
 
 // handleDeploymentLogs returns persisted execution logs for one deployment.
@@ -442,12 +506,107 @@ func createDeploymentFromCompose(
 		}
 	}
 
-	result := deploymentRecordResponse(record)
+	result := deploymentRecordResponse(record, buildDeploymentResponseContext(e.App, []*core.Record{record}))
 	result["enqueued"] = enqueued
 	return result, nil
 }
 
-func deploymentRecordResponse(record *core.Record) map[string]any {
+type deploymentServerMeta struct {
+	Label string
+	Host  string
+}
+
+type deploymentActorMeta struct {
+	UserID    string
+	UserEmail string
+}
+
+type deploymentResponseContext struct {
+	servers map[string]deploymentServerMeta
+	actors  map[string]deploymentActorMeta
+}
+
+func buildDeploymentResponseContext(app core.App, records []*core.Record) *deploymentResponseContext {
+	ctx := &deploymentResponseContext{
+		servers: map[string]deploymentServerMeta{
+			"local": {Label: "local", Host: "local"},
+		},
+		actors: map[string]deploymentActorMeta{},
+	}
+
+	serverIDs := map[string]struct{}{}
+	deploymentIDs := make([]string, 0, len(records))
+	for _, record := range records {
+		if record == nil {
+			continue
+		}
+		deploymentIDs = append(deploymentIDs, record.Id)
+		if serverID := strings.TrimSpace(record.GetString("server_id")); serverID != "" {
+			serverIDs[serverID] = struct{}{}
+		}
+	}
+
+	if len(serverIDs) > 0 {
+		if serverRecords, err := app.FindAllRecords("servers"); err == nil {
+			for _, server := range serverRecords {
+				if _, ok := serverIDs[server.Id]; !ok {
+					continue
+				}
+				ctx.servers[server.Id] = deploymentServerMeta{
+					Label: server.GetString("name"),
+					Host:  server.GetString("host"),
+				}
+			}
+		}
+	}
+
+	if len(deploymentIDs) == 0 {
+		return ctx
+	}
+
+	auditCol, err := app.FindCollectionByNameOrId("audit_logs")
+	if err != nil {
+		return ctx
+	}
+
+	filters := make([]string, 0, len(deploymentIDs))
+	for _, id := range deploymentIDs {
+		filters = append(filters, fmt.Sprintf("resource_id='%s'", escapePBFilterValue(id)))
+	}
+
+	auditRecords, err := app.FindRecordsByFilter(
+		auditCol,
+		fmt.Sprintf("resource_type='deployment' && action='deploy.create' && (%s)", strings.Join(filters, " || ")),
+		"-created",
+		len(deploymentIDs)*2,
+		0,
+	)
+	if err != nil {
+		return ctx
+	}
+
+	for _, auditRecord := range auditRecords {
+		deploymentID := auditRecord.GetString("resource_id")
+		if deploymentID == "" {
+			continue
+		}
+		if _, exists := ctx.actors[deploymentID]; exists {
+			continue
+		}
+		ctx.actors[deploymentID] = deploymentActorMeta{
+			UserID:    auditRecord.GetString("user_id"),
+			UserEmail: auditRecord.GetString("user_email"),
+		}
+	}
+
+	return ctx
+}
+
+func escapePBFilterValue(value string) string {
+	return strings.ReplaceAll(value, "'", "\\'")
+}
+
+func deploymentRecordResponse(record *core.Record, ctx *deploymentResponseContext) map[string]any {
 	result := map[string]any{
 		"id":                   record.Id,
 		"server_id":            record.GetString("server_id"),
@@ -461,6 +620,17 @@ func deploymentRecordResponse(record *core.Record) map[string]any {
 		"has_execution_log":    record.GetString("execution_log") != "",
 		"created":              record.GetDateTime("created").String(),
 		"updated":              record.GetDateTime("updated").String(),
+	}
+
+	if ctx != nil {
+		if server, ok := ctx.servers[record.GetString("server_id")]; ok {
+			result["server_label"] = server.Label
+			result["server_host"] = server.Host
+		}
+		if actor, ok := ctx.actors[record.Id]; ok {
+			result["user_id"] = actor.UserID
+			result["user_email"] = actor.UserEmail
+		}
 	}
 
 	if value := record.GetDateTime("started_at"); !value.IsZero() {

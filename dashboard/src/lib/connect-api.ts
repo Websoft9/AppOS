@@ -3,6 +3,7 @@
 // Requires superuser auth; callers should handle 401/403 gracefully.
 
 import { pb } from '@/lib/pb'
+import { extSettingsModulePath } from '@/lib/settings-api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -561,7 +562,7 @@ const DEFAULT_CONNECT_TERMINAL_SETTINGS: ConnectTerminalSettings = {
 
 export async function getConnectTerminalSettings(): Promise<ConnectTerminalSettings> {
   try {
-    const response = (await pb.send('/api/settings/workspace/connect', {
+    const response = (await pb.send(extSettingsModulePath('connect'), {
       method: 'GET',
     })) as { terminal?: Partial<ConnectTerminalSettings> }
     const terminal = response?.terminal ?? {}

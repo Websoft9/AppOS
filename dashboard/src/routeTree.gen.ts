@@ -25,6 +25,7 @@ import { Route as AppAuthSecretsRouteImport } from './routes/_app/_auth/secrets'
 import { Route as AppAuthProfileRouteImport } from './routes/_app/_auth/profile'
 import { Route as AppAuthGroupsRouteImport } from './routes/_app/_auth/groups'
 import { Route as AppAuthDockerRouteImport } from './routes/_app/_auth/docker'
+import { Route as AppAuthDeploymentsRouteImport } from './routes/_app/_auth/deployments'
 import { Route as AppAuthDeployRouteImport } from './routes/_app/_auth/deploy'
 import { Route as AppAuthDashboardRouteImport } from './routes/_app/_auth/dashboard'
 import { Route as AppAuthComponentsRouteImport } from './routes/_app/_auth/components'
@@ -135,6 +136,11 @@ const AppAuthGroupsRoute = AppAuthGroupsRouteImport.update({
 const AppAuthDockerRoute = AppAuthDockerRouteImport.update({
   id: '/docker',
   path: '/docker',
+  getParentRoute: () => AppAuthRoute,
+} as any)
+const AppAuthDeploymentsRoute = AppAuthDeploymentsRouteImport.update({
+  id: '/deployments',
+  path: '/deployments',
   getParentRoute: () => AppAuthRoute,
 } as any)
 const AppAuthDeployRoute = AppAuthDeployRouteImport.update({
@@ -326,6 +332,7 @@ export interface FileRoutesByFullPath {
   '/components': typeof AppAuthComponentsRoute
   '/dashboard': typeof AppAuthDashboardRoute
   '/deploy': typeof AppAuthDeployRoute
+  '/deployments': typeof AppAuthDeploymentsRoute
   '/docker': typeof AppAuthDockerRoute
   '/groups': typeof AppAuthGroupsRouteWithChildren
   '/profile': typeof AppAuthProfileRoute
@@ -374,6 +381,7 @@ export interface FileRoutesByTo {
   '/components': typeof AppAuthComponentsRoute
   '/dashboard': typeof AppAuthDashboardRoute
   '/deploy': typeof AppAuthDeployRoute
+  '/deployments': typeof AppAuthDeploymentsRoute
   '/docker': typeof AppAuthDockerRoute
   '/profile': typeof AppAuthProfileRoute
   '/secrets': typeof AppAuthSecretsRoute
@@ -423,6 +431,7 @@ export interface FileRoutesById {
   '/_app/_auth/components': typeof AppAuthComponentsRoute
   '/_app/_auth/dashboard': typeof AppAuthDashboardRoute
   '/_app/_auth/deploy': typeof AppAuthDeployRoute
+  '/_app/_auth/deployments': typeof AppAuthDeploymentsRoute
   '/_app/_auth/docker': typeof AppAuthDockerRoute
   '/_app/_auth/groups': typeof AppAuthGroupsRouteWithChildren
   '/_app/_auth/profile': typeof AppAuthProfileRoute
@@ -473,6 +482,7 @@ export interface FileRouteTypes {
     | '/components'
     | '/dashboard'
     | '/deploy'
+    | '/deployments'
     | '/docker'
     | '/groups'
     | '/profile'
@@ -521,6 +531,7 @@ export interface FileRouteTypes {
     | '/components'
     | '/dashboard'
     | '/deploy'
+    | '/deployments'
     | '/docker'
     | '/profile'
     | '/secrets'
@@ -569,6 +580,7 @@ export interface FileRouteTypes {
     | '/_app/_auth/components'
     | '/_app/_auth/dashboard'
     | '/_app/_auth/deploy'
+    | '/_app/_auth/deployments'
     | '/_app/_auth/docker'
     | '/_app/_auth/groups'
     | '/_app/_auth/profile'
@@ -723,6 +735,13 @@ declare module '@tanstack/react-router' {
       path: '/docker'
       fullPath: '/docker'
       preLoaderRoute: typeof AppAuthDockerRouteImport
+      parentRoute: typeof AppAuthRoute
+    }
+    '/_app/_auth/deployments': {
+      id: '/_app/_auth/deployments'
+      path: '/deployments'
+      fullPath: '/deployments'
+      preLoaderRoute: typeof AppAuthDeploymentsRouteImport
       parentRoute: typeof AppAuthRoute
     }
     '/_app/_auth/deploy': {
@@ -1051,6 +1070,7 @@ interface AppAuthRouteChildren {
   AppAuthComponentsRoute: typeof AppAuthComponentsRoute
   AppAuthDashboardRoute: typeof AppAuthDashboardRoute
   AppAuthDeployRoute: typeof AppAuthDeployRoute
+  AppAuthDeploymentsRoute: typeof AppAuthDeploymentsRoute
   AppAuthDockerRoute: typeof AppAuthDockerRoute
   AppAuthGroupsRoute: typeof AppAuthGroupsRouteWithChildren
   AppAuthProfileRoute: typeof AppAuthProfileRoute
@@ -1078,6 +1098,7 @@ const AppAuthRouteChildren: AppAuthRouteChildren = {
   AppAuthComponentsRoute: AppAuthComponentsRoute,
   AppAuthDashboardRoute: AppAuthDashboardRoute,
   AppAuthDeployRoute: AppAuthDeployRoute,
+  AppAuthDeploymentsRoute: AppAuthDeploymentsRoute,
   AppAuthDockerRoute: AppAuthDockerRoute,
   AppAuthGroupsRoute: AppAuthGroupsRouteWithChildren,
   AppAuthProfileRoute: AppAuthProfileRoute,

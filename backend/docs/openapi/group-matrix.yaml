@@ -304,6 +304,8 @@ groups:
     apiType: Mixed
     extSurface:
       - /api/settings/workspace/*
+      - /api/settings/tunnel
+      - /api/settings/secrets
     nativeSurface:
       - GET /api/settings
       - PATCH /api/settings

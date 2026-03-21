@@ -7,6 +7,8 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/internal/deploy"
+	"github.com/websoft9/appos/backend/internal/secrets"
+	"github.com/websoft9/appos/backend/internal/settings"
 
 	// trigger init() registrations
 	_ "github.com/websoft9/appos/backend/internal/migrations"
@@ -766,5 +768,29 @@ func TestEnvSetVarsSecretExpandHidesPayload(t *testing.T) {
 	}
 	if !payloadField.GetHidden() {
 		t.Error("secrets.payload_encrypted must be hidden to prevent exposure via expand")
+	}
+}
+
+func TestSecretsPolicySeedExists(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Cleanup()
+
+	value, err := settings.GetGroup(app, "secrets", "policy", nil)
+	if err != nil {
+		t.Fatalf("expected seeded secrets/policy row: %v", err)
+	}
+	policy := secrets.NormalizePolicy(value)
+
+	if policy.DefaultAccessMode != secrets.AccessModeUseOnly {
+		t.Fatalf("expected defaultAccessMode use_only, got %#v", policy.DefaultAccessMode)
+	}
+	if policy.RevealDisabled != false {
+		t.Fatalf("expected revealDisabled false, got %#v", policy.RevealDisabled)
+	}
+	if policy.ClipboardClearSeconds != 0 {
+		t.Fatalf("expected clipboardClearSeconds 0, got %#v", policy.ClipboardClearSeconds)
 	}
 }

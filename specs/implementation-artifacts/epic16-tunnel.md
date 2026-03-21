@@ -294,9 +294,13 @@ First version:
 | 16.1 | Tunnel Infrastructure | `internal/tunnel/` package: SSH server (`:2222`), port pool, Token auth, session lifecycle, multi-port forward (SSH + HTTP) |
 | 16.2 | Server Onboarding | `servers` schema migration, Token API, setup command generation, onboarding wizard UI, realtime `online`/`offline` status |
 | 16.3 | Tunnel Operations View | tunnel overview API, current-session fields, dedicated `Tunnels` view, basic operator actions, explicit Tunnel vs Monitor boundary |
+| 16.4 | Tunnel Port Forward | desired forward rules API, desired vs effective mapping separation, reconnect-required semantics, minimal mapping editor |
+| 16.5 | Tunnel Settings | shared Settings integration for tunnel port range, backend validation, operator guardrails for restart-only effect |
 
 | Story | Status |
 |-------|--------|
 | 16.1 | done |
 | 16.2 | done |
-| 16.3 | backlog |
+| 16.3 | done |
+| 16.4 | done |
+| 16.5 | done |

@@ -459,13 +459,12 @@ export function SystemCronsContent() {
     <div>
       {/* Toolbar */}
       <div className="flex items-center justify-end gap-2 mb-3">
-        <Button variant="outline" size="sm" onClick={fetchJobs} disabled={loading}>
+        <Button variant="outline" size="icon" title="Refresh" onClick={fetchJobs} disabled={loading}>
           {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin mr-1" />
+            <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <RefreshCw className="h-4 w-4 mr-1" />
+            <RefreshCw className="h-4 w-4" />
           )}
-          Refresh
         </Button>
       </div>
 

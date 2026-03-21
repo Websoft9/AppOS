@@ -177,6 +177,11 @@ func registerSecretsGroup(secretsGroup *router.RouterGroup[*core.RequestEvent]) 
 		var recordID, recordName string
 
 		txErr := e.App.RunInTransaction(func(txApp core.App) error {
+			policy := secrets.GetPolicy(txApp)
+			if policy.RevealDisabled {
+				return apis.NewForbiddenError("Secret reveal is disabled by administrator", nil)
+			}
+
 			rec, err := txApp.FindRecordById("secrets", id)
 			if err != nil {
 				return apis.NewNotFoundError("secret not found", err)
