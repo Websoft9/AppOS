@@ -16,8 +16,6 @@ function DeployRoutePage() {
         prefillAppKey={search.prefillAppKey}
         prefillAppName={search.prefillAppName}
         prefillServerId={search.prefillServerId}
-        deploymentId={search.deploymentId}
-        autoOpen={search.autoOpen}
       />
     </Suspense>
   )
@@ -32,7 +30,5 @@ export const Route = createFileRoute('/_app/_auth/deploy')({
     prefillAppKey: typeof search.prefillAppKey === 'string' ? search.prefillAppKey : undefined,
     prefillAppName: typeof search.prefillAppName === 'string' ? search.prefillAppName : undefined,
     prefillServerId: typeof search.prefillServerId === 'string' ? search.prefillServerId : undefined,
-    deploymentId: typeof search.deploymentId === 'string' ? search.deploymentId : undefined,
-    autoOpen: typeof search.autoOpen === 'string' ? search.autoOpen : undefined,
   }),
 })

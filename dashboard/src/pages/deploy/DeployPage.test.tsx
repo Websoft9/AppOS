@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { DeployPage } from './DeployPage'
 
@@ -48,10 +48,14 @@ vi.mock('@/lib/iac-api', () => ({
 }))
 
 describe('DeployPage homepage', () => {
+  afterEach(() => {
+    cleanup()
+  })
+
   beforeEach(() => {
     sendMock.mockReset()
     navigateMock.mockReset()
-    sendMock.mockImplementation((path: string) => {
+    sendMock.mockImplementation((path: string, options?: { method?: string }) => {
       if (path === '/api/ext/docker/servers') {
         return Promise.resolve([{ id: 'local', label: 'local', host: '127.0.0.1', status: 'online' }])
       }
@@ -71,9 +75,32 @@ describe('DeployPage homepage', () => {
             error_summary: '',
             created: '2026-03-21T08:00:00Z',
             updated: '2026-03-21T08:10:00Z',
+            started_at: '2026-03-21T08:01:00Z',
+            finished_at: '2026-03-21T08:10:00Z',
             user_email: 'admin@example.com',
           },
+          {
+            id: 'dep_2',
+            server_id: 'local',
+            server_label: 'Local Server',
+            server_host: '127.0.0.1',
+            source: 'gitops',
+            status: 'failed',
+            adapter: 'git',
+            compose_project_name: 'mysql-prod',
+            project_dir: '/srv/mysql',
+            rendered_compose: '',
+            error_summary: '',
+            created: '2026-03-21T07:00:00Z',
+            updated: '2026-03-21T07:15:00Z',
+            started_at: '2026-03-21T07:02:00Z',
+            finished_at: '2026-03-21T07:15:00Z',
+            user_email: 'ops@example.com',
+          },
         ])
+      }
+      if ((path === '/api/deployments/dep_1' || path === '/api/deployments/dep_2') && options?.method === 'DELETE') {
+        return Promise.resolve({})
       }
       return Promise.resolve({})
     })
@@ -99,10 +126,113 @@ describe('DeployPage homepage', () => {
     expect(screen.getByText('Docker Command')).toBeInTheDocument()
     expect(screen.getByText('Source Packages')).toBeInTheDocument()
     expect(screen.getByText('admin@example.com')).toBeInTheDocument()
-    expect(screen.getByText('Local Server')).toBeInTheDocument()
+    expect(screen.getAllByText('Local Server').length).toBeGreaterThan(0)
 
     fireEvent.click(screen.getByText('Git Repository').closest('button') as HTMLButtonElement)
 
     expect(screen.getByText('Create Deployment from Git Repository')).toBeInTheDocument()
+  })
+
+  it('opens deployment detail when clicking the latest deployment name', async () => {
+    render(
+      <TooltipProvider>
+        <DeployPage />
+      </TooltipProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'wordpress-prod' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'wordpress-prod' }))
+
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/deployments/$deploymentId',
+      params: { deploymentId: 'dep_1' },
+      search: { returnTo: 'list' },
+    })
+  })
+
+  it('opens deployment detail when clicking the deployment name in list view', async () => {
+    render(
+      <TooltipProvider>
+        <DeployPage view="list" />
+      </TooltipProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'wordpress-prod' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'wordpress-prod' }))
+
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/deployments/$deploymentId',
+      params: { deploymentId: 'dep_1' },
+      search: { returnTo: 'list' },
+    })
+  })
+
+  it('opens deployment detail from the action menu view entry', async () => {
+    render(
+      <TooltipProvider>
+        <DeployPage view="list" />
+      </TooltipProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('More actions for wordpress-prod')).toBeInTheDocument()
+    })
+
+    const actionTrigger = screen.getByLabelText('More actions for wordpress-prod')
+
+    fireEvent.pointerDown(actionTrigger)
+    fireEvent.mouseDown(actionTrigger)
+
+    await waitFor(() => {
+      expect(screen.getByRole('menuitem', { name: 'View' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'View' }))
+
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/deployments/$deploymentId',
+      params: { deploymentId: 'dep_1' },
+      search: { returnTo: 'list' },
+    })
+  })
+
+  it('supports bulk delete from the deployment list', async () => {
+    render(
+      <TooltipProvider>
+        <DeployPage view="list" />
+      </TooltipProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Select wordpress-prod')).toBeInTheDocument()
+      expect(screen.getByLabelText('Select mysql-prod')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByLabelText('Select wordpress-prod'))
+    fireEvent.click(screen.getByLabelText('Select mysql-prod'))
+
+    expect(screen.getByText('Delete Selected (2)')).toBeInTheDocument()
+    expect(screen.getByText('Started')).toBeInTheDocument()
+    expect(screen.getByText('Finished')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Delete Selected (2)'))
+
+    await waitFor(() => {
+      expect(screen.getByText('Delete Deployments')).toBeInTheDocument()
+      expect(screen.getByText('Delete 2')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByText('Delete 2'))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/deployments/dep_1', { method: 'DELETE' })
+      expect(sendMock).toHaveBeenCalledWith('/api/deployments/dep_2', { method: 'DELETE' })
+    })
   })
 })

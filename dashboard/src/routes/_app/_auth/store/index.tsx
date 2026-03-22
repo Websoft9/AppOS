@@ -474,8 +474,6 @@ function StorePage() {
                     prefillAppKey: selectedApp.key,
                     prefillAppName: selectedApp.trademark,
                     prefillServerId: undefined,
-                    deploymentId: undefined,
-                    autoOpen: '1',
                   },
                 })
               }

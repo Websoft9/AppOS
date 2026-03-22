@@ -249,17 +249,9 @@ export function AppDetailPage({ appId }: { appId: string }) {
       setSuccess(`${app.name} ${action} deployment created`)
       await fetchDetail()
       void navigate({
-        to: '/deploy',
-        search: {
-          prefillMode: undefined,
-          prefillSource: undefined,
-          prefillAppId: undefined,
-          prefillAppKey: undefined,
-          prefillAppName: undefined,
-          prefillServerId: undefined,
-          deploymentId: response.id,
-          autoOpen: undefined,
-        },
+        to: '/deployments/$deploymentId' as never,
+        params: { deploymentId: response.id } as never,
+        search: { returnTo: 'list' } as never,
       })
     } catch (err) {
       setError(getApiErrorMessage(err, `Failed to ${action} app`))
@@ -271,17 +263,9 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const openDeploymentStatus = useCallback(() => {
     if (!app?.deployment_id) return
     void navigate({
-      to: '/deploy',
-      search: {
-        prefillMode: undefined,
-        prefillSource: undefined,
-        prefillAppId: undefined,
-        prefillAppKey: undefined,
-        prefillAppName: undefined,
-        prefillServerId: undefined,
-        deploymentId: app.deployment_id,
-        autoOpen: undefined,
-      },
+      to: '/deployments/$deploymentId' as never,
+      params: { deploymentId: app.deployment_id } as never,
+      search: { returnTo: 'list' } as never,
     })
   }, [app, navigate])
 

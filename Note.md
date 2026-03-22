@@ -87,11 +87,7 @@ Settings（配置层）
 - 如何做？存储到哪里？
 
 
-1. 请将 worker 中的执行器拆分出来
-local executor
-ssh executor
 
-2. 
 
 给 App detail 再接一层 compose 校验与 diff 预览，避免直接保存时改坏配置。
 
@@ -111,10 +107,14 @@ ssh executor
 给私有 Git 再补 Secret 引用模式，避免每次手填 token
 
 
-story16.3-tunnel-operations-view  更名为 
-story16.4-tunnel-port-mapping-management 
-
-
-1. Deploy 和 Deployment 页面在前端是一个代码文件中吗？是否考虑拆分？
 2. Install  from store 和 Custom Deployment 区块没有考虑 dark 模式
 3.  
+
+
+点击 Install from Store 区域的图标，弹出的应用详情，是 App Store 中的应用详情，还是 deploy 前端模块，又做了一个详情页面？
+
+
+Deployment 详情页优化
+
+1. 标题要明确这个是 deployment 详情页，也要明确是哪个应用的详情
+2. 整体的信息密度要大一点，

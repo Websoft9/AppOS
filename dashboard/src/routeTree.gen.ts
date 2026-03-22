@@ -46,6 +46,7 @@ import { Route as AppAuthResourcesGroupsRouteImport } from './routes/_app/_auth/
 import { Route as AppAuthResourcesDatabasesRouteImport } from './routes/_app/_auth/resources/databases'
 import { Route as AppAuthResourcesCloudAccountsRouteImport } from './routes/_app/_auth/resources/cloud-accounts'
 import { Route as AppAuthGroupsIdRouteImport } from './routes/_app/_auth/groups.$id'
+import { Route as AppAuthDeploymentsDeploymentIdRouteImport } from './routes/_app/_auth/deployments.$deploymentId'
 import { Route as AppAuthAppsAppIdRouteImport } from './routes/_app/_auth/apps.$appId'
 import { Route as AppAuthSuperuserTunnelsRouteImport } from './routes/_app/_auth/_superuser/tunnels'
 import { Route as AppAuthSuperuserSystemTasksRouteImport } from './routes/_app/_auth/_superuser/system-tasks'
@@ -245,6 +246,12 @@ const AppAuthGroupsIdRoute = AppAuthGroupsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => AppAuthGroupsRoute,
 } as any)
+const AppAuthDeploymentsDeploymentIdRoute =
+  AppAuthDeploymentsDeploymentIdRouteImport.update({
+    id: '/$deploymentId',
+    path: '/$deploymentId',
+    getParentRoute: () => AppAuthDeploymentsRoute,
+  } as any)
 const AppAuthAppsAppIdRoute = AppAuthAppsAppIdRouteImport.update({
   id: '/$appId',
   path: '/$appId',
@@ -332,7 +339,7 @@ export interface FileRoutesByFullPath {
   '/components': typeof AppAuthComponentsRoute
   '/dashboard': typeof AppAuthDashboardRoute
   '/deploy': typeof AppAuthDeployRoute
-  '/deployments': typeof AppAuthDeploymentsRoute
+  '/deployments': typeof AppAuthDeploymentsRouteWithChildren
   '/docker': typeof AppAuthDockerRoute
   '/groups': typeof AppAuthGroupsRouteWithChildren
   '/profile': typeof AppAuthProfileRoute
@@ -348,6 +355,7 @@ export interface FileRoutesByFullPath {
   '/system-tasks': typeof AppAuthSuperuserSystemTasksRoute
   '/tunnels': typeof AppAuthSuperuserTunnelsRoute
   '/apps/$appId': typeof AppAuthAppsAppIdRoute
+  '/deployments/$deploymentId': typeof AppAuthDeploymentsDeploymentIdRoute
   '/groups/$id': typeof AppAuthGroupsIdRoute
   '/resources/cloud-accounts': typeof AppAuthResourcesCloudAccountsRoute
   '/resources/databases': typeof AppAuthResourcesDatabasesRoute
@@ -381,7 +389,7 @@ export interface FileRoutesByTo {
   '/components': typeof AppAuthComponentsRoute
   '/dashboard': typeof AppAuthDashboardRoute
   '/deploy': typeof AppAuthDeployRoute
-  '/deployments': typeof AppAuthDeploymentsRoute
+  '/deployments': typeof AppAuthDeploymentsRouteWithChildren
   '/docker': typeof AppAuthDockerRoute
   '/profile': typeof AppAuthProfileRoute
   '/secrets': typeof AppAuthSecretsRoute
@@ -395,6 +403,7 @@ export interface FileRoutesByTo {
   '/system-tasks': typeof AppAuthSuperuserSystemTasksRoute
   '/tunnels': typeof AppAuthSuperuserTunnelsRoute
   '/apps/$appId': typeof AppAuthAppsAppIdRoute
+  '/deployments/$deploymentId': typeof AppAuthDeploymentsDeploymentIdRoute
   '/groups/$id': typeof AppAuthGroupsIdRoute
   '/resources/cloud-accounts': typeof AppAuthResourcesCloudAccountsRoute
   '/resources/databases': typeof AppAuthResourcesDatabasesRoute
@@ -431,7 +440,7 @@ export interface FileRoutesById {
   '/_app/_auth/components': typeof AppAuthComponentsRoute
   '/_app/_auth/dashboard': typeof AppAuthDashboardRoute
   '/_app/_auth/deploy': typeof AppAuthDeployRoute
-  '/_app/_auth/deployments': typeof AppAuthDeploymentsRoute
+  '/_app/_auth/deployments': typeof AppAuthDeploymentsRouteWithChildren
   '/_app/_auth/docker': typeof AppAuthDockerRoute
   '/_app/_auth/groups': typeof AppAuthGroupsRouteWithChildren
   '/_app/_auth/profile': typeof AppAuthProfileRoute
@@ -447,6 +456,7 @@ export interface FileRoutesById {
   '/_app/_auth/_superuser/system-tasks': typeof AppAuthSuperuserSystemTasksRoute
   '/_app/_auth/_superuser/tunnels': typeof AppAuthSuperuserTunnelsRoute
   '/_app/_auth/apps/$appId': typeof AppAuthAppsAppIdRoute
+  '/_app/_auth/deployments/$deploymentId': typeof AppAuthDeploymentsDeploymentIdRoute
   '/_app/_auth/groups/$id': typeof AppAuthGroupsIdRoute
   '/_app/_auth/resources/cloud-accounts': typeof AppAuthResourcesCloudAccountsRoute
   '/_app/_auth/resources/databases': typeof AppAuthResourcesDatabasesRoute
@@ -498,6 +508,7 @@ export interface FileRouteTypes {
     | '/system-tasks'
     | '/tunnels'
     | '/apps/$appId'
+    | '/deployments/$deploymentId'
     | '/groups/$id'
     | '/resources/cloud-accounts'
     | '/resources/databases'
@@ -545,6 +556,7 @@ export interface FileRouteTypes {
     | '/system-tasks'
     | '/tunnels'
     | '/apps/$appId'
+    | '/deployments/$deploymentId'
     | '/groups/$id'
     | '/resources/cloud-accounts'
     | '/resources/databases'
@@ -596,6 +608,7 @@ export interface FileRouteTypes {
     | '/_app/_auth/_superuser/system-tasks'
     | '/_app/_auth/_superuser/tunnels'
     | '/_app/_auth/apps/$appId'
+    | '/_app/_auth/deployments/$deploymentId'
     | '/_app/_auth/groups/$id'
     | '/_app/_auth/resources/cloud-accounts'
     | '/_app/_auth/resources/databases'
@@ -884,6 +897,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthGroupsIdRouteImport
       parentRoute: typeof AppAuthGroupsRoute
     }
+    '/_app/_auth/deployments/$deploymentId': {
+      id: '/_app/_auth/deployments/$deploymentId'
+      path: '/$deploymentId'
+      fullPath: '/deployments/$deploymentId'
+      preLoaderRoute: typeof AppAuthDeploymentsDeploymentIdRouteImport
+      parentRoute: typeof AppAuthDeploymentsRoute
+    }
     '/_app/_auth/apps/$appId': {
       id: '/_app/_auth/apps/$appId'
       path: '/$appId'
@@ -1018,6 +1038,17 @@ const AppAuthAppsRouteWithChildren = AppAuthAppsRoute._addFileChildren(
   AppAuthAppsRouteChildren,
 )
 
+interface AppAuthDeploymentsRouteChildren {
+  AppAuthDeploymentsDeploymentIdRoute: typeof AppAuthDeploymentsDeploymentIdRoute
+}
+
+const AppAuthDeploymentsRouteChildren: AppAuthDeploymentsRouteChildren = {
+  AppAuthDeploymentsDeploymentIdRoute: AppAuthDeploymentsDeploymentIdRoute,
+}
+
+const AppAuthDeploymentsRouteWithChildren =
+  AppAuthDeploymentsRoute._addFileChildren(AppAuthDeploymentsRouteChildren)
+
 interface AppAuthGroupsRouteChildren {
   AppAuthGroupsIdRoute: typeof AppAuthGroupsIdRoute
   AppAuthGroupsIndexRoute: typeof AppAuthGroupsIndexRoute
@@ -1070,7 +1101,7 @@ interface AppAuthRouteChildren {
   AppAuthComponentsRoute: typeof AppAuthComponentsRoute
   AppAuthDashboardRoute: typeof AppAuthDashboardRoute
   AppAuthDeployRoute: typeof AppAuthDeployRoute
-  AppAuthDeploymentsRoute: typeof AppAuthDeploymentsRoute
+  AppAuthDeploymentsRoute: typeof AppAuthDeploymentsRouteWithChildren
   AppAuthDockerRoute: typeof AppAuthDockerRoute
   AppAuthGroupsRoute: typeof AppAuthGroupsRouteWithChildren
   AppAuthProfileRoute: typeof AppAuthProfileRoute
@@ -1098,7 +1129,7 @@ const AppAuthRouteChildren: AppAuthRouteChildren = {
   AppAuthComponentsRoute: AppAuthComponentsRoute,
   AppAuthDashboardRoute: AppAuthDashboardRoute,
   AppAuthDeployRoute: AppAuthDeployRoute,
-  AppAuthDeploymentsRoute: AppAuthDeploymentsRoute,
+  AppAuthDeploymentsRoute: AppAuthDeploymentsRouteWithChildren,
   AppAuthDockerRoute: AppAuthDockerRoute,
   AppAuthGroupsRoute: AppAuthGroupsRouteWithChildren,
   AppAuthProfileRoute: AppAuthProfileRoute,
