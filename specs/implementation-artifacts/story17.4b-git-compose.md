@@ -38,8 +38,8 @@ so that repository-backed applications can enter the same deploy lifecycle witho
 
 ### References
 
-- [Source: specs/implementation-artifacts/epic17-deploy.md#Deployment Input Adapters (Minimal)]
-- [Source: specs/implementation-artifacts/epic17-deploy.md#Story 17.4 Trigger Adapters (MVP Scope)]
+- [Source: specs/implementation-artifacts/epic17-app-execution.md#Lifecycle Input Adapters (Minimal)]
+- [Source: specs/implementation-artifacts/epic17-app-execution.md#Story 17.4 Input Adapters (MVP Scope)]
 
 ## Dev Agent Record
 

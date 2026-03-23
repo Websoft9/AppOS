@@ -288,7 +288,6 @@ export function DeployPage({
           onClearAllFilters={clearAllFilters}
           getUserLabel={getUserLabel}
           getServerLabel={getServerLabel}
-          getServerHost={getServerHost}
           formatTime={formatTime}
           statusVariant={statusVariant}
           selectedIds={selectedIds}

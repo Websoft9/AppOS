@@ -798,8 +798,7 @@ paths:
   /api/deployments:
     get:
       tags: [Deploy]
-      summary: List deployments
-      description: "Returns deployment records for status/history surfaces. Superuser only."
+      summary: Get deployments
       operationId: get_api_deployments
       security:
         - bearerAuth: []  # superuser required
@@ -816,20 +815,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
   /api/deployments/git-compose:
     post:
       tags: [Deploy]
-      summary: Create git compose deployment
-      description: "Fetches docker-compose YAML from a git-hosted raw URL or repository path, creates a deployment record, and enqueues async execution when the worker is available. Superuser only."
+      summary: Create or execute deployments git compose
       operationId: post_api_deployments_git-compose
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
@@ -843,26 +835,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
-        "202":
-          description: Accepted
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
         "401":
           description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        "500":
-          description: Internal Server Error
           content:
             application/json:
               schema:
@@ -870,11 +844,10 @@ paths:
   /api/deployments/manual-compose:
     post:
       tags: [Deploy]
-      summary: Create manual compose deployment
-      description: "Validates raw docker-compose YAML, creates a deployment record, and enqueues async execution when the worker is available. Superuser only."
+      summary: Create or execute deployments manual compose
       operationId: post_api_deployments_manual-compose
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
@@ -888,26 +861,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
-        "202":
-          description: Accepted
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
         "401":
           description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        "500":
-          description: Internal Server Error
           content:
             application/json:
               schema:
@@ -915,8 +870,7 @@ paths:
   /api/deployments/{id}:
     delete:
       tags: [Deploy]
-      summary: Delete deployment
-      description: "Deletes one deployment record. Active deployments cannot be deleted. Superuser only."
+      summary: Delete deployments by id
       operationId: delete_api_deployments_id
       parameters:
         - name: id
@@ -939,28 +893,9 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        "404":
-          description: Not Found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        "409":
-          description: Conflict
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
     get:
       tags: [Deploy]
-      summary: Get deployment detail
-      description: "Returns one deployment record with spec and lifecycle fields. Superuser only."
+      summary: Get deployments by id
       operationId: get_api_deployments_id
       parameters:
         - name: id
@@ -983,23 +918,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        "404":
-          description: Not Found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
   /api/deployments/{id}/logs:
     get:
       tags: [Deploy]
-      summary: Get deployment logs
-      description: "Returns persisted execution logs for one deployment. Superuser only."
+      summary: Get deployments by id logs
       operationId: get_api_deployments_id_logs
       parameters:
         - name: id
@@ -1022,33 +944,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        "404":
-          description: Not Found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
   /api/deployments/{id}/stream:
     get:
       tags: [Deploy]
-      summary: Stream deployment logs
-      description: "Upgrades to a WebSocket and streams incremental execution log updates for one deployment. Auth via ?token= or Authorization header. Superuser only."
+      summary: Get deployments by id stream
       operationId: get_api_deployments_id_stream
       parameters:
         - name: id
           in: path
           required: true
-          schema:
-            type: string
-        - name: token
-          in: query
-          required: false
           schema:
             type: string
       security:
@@ -1062,18 +966,6 @@ paths:
                 $ref: '#/components/schemas/SuccessEnvelope'
         "401":
           description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        "404":
-          description: Not Found
           content:
             application/json:
               schema:

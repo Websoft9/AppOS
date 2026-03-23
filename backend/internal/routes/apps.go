@@ -404,6 +404,8 @@ func handleAppInstanceDeploy(e *core.RequestEvent) error {
 			"project_dir":      record.GetString("project_dir"),
 		},
 		deploymentCreateOptions{
+			ExistingAppID:      record.Id,
+			OperationType:      action,
 			ProjectDir:         record.GetString("project_dir"),
 			ComposeProjectName: record.GetString("name"),
 		},

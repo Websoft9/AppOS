@@ -1490,7 +1490,6 @@ paths:
                 - System Cron
     /api/deployments:
         get:
-            description: Returns deployment records for status/history surfaces. Superuser only.
             operationId: get_api_deployments
             responses:
                 "200":
@@ -1505,20 +1504,13 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Internal Server Error
             security:
                 - bearerAuth: []
-            summary: List deployments
+            summary: Get deployments
             tags:
                 - Deploy
     /api/deployments/{id}:
         delete:
-            description: Deletes one deployment record. Active deployments cannot be deleted. Superuser only.
             operationId: delete_api_deployments_id
             parameters:
                 - in: path
@@ -1533,37 +1525,18 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
                 "401":
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
-                "404":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Not Found
-                "409":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Conflict
             security:
                 - bearerAuth: []
-            summary: Delete deployment
+            summary: Delete deployments by id
             tags:
                 - Deploy
         get:
-            description: Returns one deployment record with spec and lifecycle fields. Superuser only.
             operationId: get_api_deployments_id
             parameters:
                 - in: path
@@ -1578,32 +1551,19 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
                 "401":
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
-                "404":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Not Found
             security:
                 - bearerAuth: []
-            summary: Get deployment detail
+            summary: Get deployments by id
             tags:
                 - Deploy
     /api/deployments/{id}/logs:
         get:
-            description: Returns persisted execution logs for one deployment. Superuser only.
             operationId: get_api_deployments_id_logs
             parameters:
                 - in: path
@@ -1618,32 +1578,19 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
                 "401":
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
-                "404":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Not Found
             security:
                 - bearerAuth: []
-            summary: Get deployment logs
+            summary: Get deployments by id logs
             tags:
                 - Deploy
     /api/deployments/{id}/stream:
         get:
-            description: Upgrades to a WebSocket and streams incremental execution log updates for one deployment. Auth via ?token= or Authorization header. Superuser only.
             operationId: get_api_deployments_id_stream
             parameters:
                 - in: path
@@ -1651,11 +1598,6 @@ paths:
                   required: true
                   schema:
                     type: string
-                - in: query
-                  name: token
-                  required: false
-                  schema:
-                    type: string
             responses:
                 "200":
                     content:
@@ -1663,39 +1605,26 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
                 "401":
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
-                "404":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Not Found
             security:
                 - bearerAuth: []
-            summary: Stream deployment logs
+            summary: Get deployments by id stream
             tags:
                 - Deploy
     /api/deployments/git-compose:
         post:
-            description: Fetches docker-compose YAML from a git-hosted raw URL or repository path, creates a deployment record, and enqueues async execution when the worker is available. Superuser only.
             operationId: post_api_deployments_git-compose
             requestBody:
                 content:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
-                required: true
+                required: false
             responses:
                 "200":
                     content:
@@ -1703,45 +1632,26 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-                "202":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: Accepted
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
                 "401":
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Internal Server Error
             security:
                 - bearerAuth: []
-            summary: Create git compose deployment
+            summary: Create or execute deployments git compose
             tags:
                 - Deploy
     /api/deployments/manual-compose:
         post:
-            description: Validates raw docker-compose YAML, creates a deployment record, and enqueues async execution when the worker is available. Superuser only.
             operationId: post_api_deployments_manual-compose
             requestBody:
                 content:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
-                required: true
+                required: false
             responses:
                 "200":
                     content:
@@ -1749,33 +1659,15 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-                "202":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: Accepted
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
                 "401":
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Internal Server Error
             security:
                 - bearerAuth: []
-            summary: Create manual compose deployment
+            summary: Create or execute deployments manual compose
             tags:
                 - Deploy
     /api/ext/auth/check-email:

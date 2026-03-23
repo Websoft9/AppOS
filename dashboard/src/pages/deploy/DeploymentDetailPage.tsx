@@ -29,25 +29,24 @@ export function DeploymentDetailPage({ deploymentId }: { deploymentId: string })
     logTruncated,
     streamStatus,
     error,
+    autoScrollEnabled,
+    setAutoScrollEnabled,
     logViewportRef,
     handleLogScroll,
     refresh,
   } = useDeploymentDetailController(deploymentId)
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div className="space-y-2">
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+        <div className="space-y-1">
           <Button variant="ghost" className="w-fit px-0 text-muted-foreground" asChild>
             <a href={backHref}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Deployments
             </a>
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold">{deployment?.compose_project_name || 'Deployment Detail'}</h1>
-            <p className="text-sm text-muted-foreground">The page keeps browser navigation natural, so users can return to the list with either the back button or the explicit list link.</p>
-          </div>
+          <h1 className="text-2xl font-bold">Deployment Detail: {deployment?.compose_project_name || deploymentId}</h1>
         </div>
         <Button variant="outline" size="icon" title="Refresh" aria-label="Refresh" onClick={() => void refresh()}>
           <RefreshCw className="h-4 w-4" />
@@ -69,6 +68,8 @@ export function DeploymentDetailPage({ deploymentId }: { deploymentId: string })
         logTruncated={logTruncated}
         logViewportRef={logViewportRef}
         onLogScroll={handleLogScroll}
+        autoScrollEnabled={autoScrollEnabled}
+        onAutoScrollChange={setAutoScrollEnabled}
         getUserLabel={getUserLabel}
         getServerLabel={getServerLabel}
         getServerHost={getServerHost}

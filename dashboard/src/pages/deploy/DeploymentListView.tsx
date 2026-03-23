@@ -74,7 +74,6 @@ type DeploymentListViewProps<TDeployment extends DeploymentListItem> = {
   onClearAllFilters: () => void
   getUserLabel: (item: TDeployment) => string
   getServerLabel: (item: TDeployment) => string
-  getServerHost: (item: TDeployment) => string
   formatTime: (value?: string) => string
   statusVariant: (status: string) => 'default' | 'secondary' | 'destructive' | 'outline'
   selectedIds: Set<string>
@@ -155,7 +154,6 @@ export function DeploymentListView<TDeployment extends DeploymentListItem>({
   onClearAllFilters,
   getUserLabel,
   getServerLabel,
-  getServerHost,
   formatTime,
   statusVariant,
   selectedIds,
@@ -177,15 +175,17 @@ export function DeploymentListView<TDeployment extends DeploymentListItem>({
           <Input value={search} onChange={event => onSearchChange(event.target.value)} placeholder="Search deployment..." className="w-full min-w-[220px] pl-9 lg:w-[280px]" />
         </div>
         <div className="flex items-center gap-2 self-start lg:self-auto">
-          <Button
-            variant="destructive"
-            size="sm"
-            disabled={selectedCount === 0 || selectedActiveCount > 0}
-            onClick={onDeleteSelected}
-          >
-            <Trash2 className="h-4 w-4" />
-            Delete Selected{selectedCount > 0 ? ` (${selectedCount})` : ''}
-          </Button>
+          {selectedCount > 0 ? (
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={selectedActiveCount > 0}
+              onClick={onDeleteSelected}
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete Selected ({selectedCount})
+            </Button>
+          ) : null}
           {selectedActiveCount > 0 ? <span className="text-xs text-muted-foreground">Running deployments cannot be deleted.</span> : null}
         </div>
       </div>
@@ -213,7 +213,7 @@ export function DeploymentListView<TDeployment extends DeploymentListItem>({
         <div className="text-sm text-muted-foreground">{selectedCount} deployment{selectedCount === 1 ? '' : 's'} selected.</div>
       ) : null}
 
-      <div className="overflow-hidden rounded-xl border">
+      <div className="overflow-hidden rounded-xl">
         <Table>
           <TableHeader>
             <TableRow>
@@ -225,21 +225,20 @@ export function DeploymentListView<TDeployment extends DeploymentListItem>({
                 />
               </TableHead>
               <TableHead><SortableHeader label="Deployment" field="compose_project_name" current={sortField} dir={sortDir} onSort={onSort} /></TableHead>
-              <TableHead>User</TableHead>
               <TableHead><FilterHeader label="Source" options={filterOptions.source} excluded={excludeSource} onChange={onSourceFilterChange} /></TableHead>
               <TableHead><FilterHeader label="Status" options={filterOptions.status} excluded={excludeStatus} onChange={onStatusFilterChange} /></TableHead>
               <TableHead><FilterHeader label="Server" options={filterOptions.server} excluded={excludeServer} onChange={onServerFilterChange} /></TableHead>
-              <TableHead>Host</TableHead>
               <TableHead><SortableHeader label="Started" field="started_at" current={sortField} dir={sortDir} onSort={onSort} /></TableHead>
               <TableHead><SortableHeader label="Finished" field="finished_at" current={sortField} dir={sortDir} onSort={onSort} /></TableHead>
+              <TableHead>User</TableHead>
               <TableHead className="w-[84px] text-right">Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={10} className="py-8 text-center text-muted-foreground">Loading deployments...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="py-8 text-center text-muted-foreground">Loading deployments...</TableCell></TableRow>
             ) : pagedItems.length === 0 ? (
-              <TableRow><TableCell colSpan={10} className="py-8 text-center text-muted-foreground">No deployment records found.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="py-8 text-center text-muted-foreground">No deployment records found.</TableCell></TableRow>
             ) : pagedItems.map(item => (
               <TableRow key={item.id} data-state={selectedIds.has(item.id) ? 'selected' : undefined}>
                 <TableCell>
@@ -261,16 +260,15 @@ export function DeploymentListView<TDeployment extends DeploymentListItem>({
                     <div className="font-mono text-xs text-muted-foreground">{item.id}</div>
                   </div>
                 </TableCell>
-                <TableCell>{getUserLabel(item)}</TableCell>
                 <TableCell>{item.source}</TableCell>
                 <TableCell><Badge variant={statusVariant(item.status)}>{item.status}</Badge></TableCell>
                 <TableCell>
                   <div className="font-medium">{getServerLabel(item)}</div>
                   <div className="text-xs text-muted-foreground">{item.server_id || 'local'}</div>
                 </TableCell>
-                <TableCell>{getServerHost(item)}</TableCell>
                 <TableCell>{formatTime(item.started_at)}</TableCell>
                 <TableCell>{formatTime(item.finished_at)}</TableCell>
+                <TableCell>{getUserLabel(item)}</TableCell>
                 <TableCell className="text-right">{renderActionMenu(item)}</TableCell>
               </TableRow>
             ))}

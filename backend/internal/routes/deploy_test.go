@@ -62,6 +62,9 @@ func TestDeploymentManualComposeCreateListDetail(t *testing.T) {
 	if created["source"] != "manualops" {
 		t.Fatalf("expected manualops source, got %v", created["source"])
 	}
+	if created["spec"].(map[string]any)["operation_type"] != "install" {
+		t.Fatalf("expected install operation type, got %v", created["spec"].(map[string]any)["operation_type"])
+	}
 
 	rec = te.doDeploy(t, http.MethodGet, "/api/deployments/"+id, "", true)
 	if rec.Code != http.StatusOK {
@@ -139,6 +142,9 @@ func TestDeploymentGitComposeCreate(t *testing.T) {
 	}
 	if spec, ok := created["spec"].(map[string]any); !ok || spec["source"] != "gitops" {
 		t.Fatalf("expected gitops spec, got %v", created["spec"])
+	}
+	if spec, ok := created["spec"].(map[string]any); !ok || spec["operation_type"] != "install" {
+		t.Fatalf("expected install operation type, got %v", created["spec"])
 	}
 }
 

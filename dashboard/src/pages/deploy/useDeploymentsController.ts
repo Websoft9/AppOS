@@ -623,15 +623,15 @@ export function useDeploymentsController({
 
   const activeFilterChips = useMemo<ActiveFilterChip[]>(() => {
     const chips: ActiveFilterChip[] = []
-    if (search.trim()) chips.push({ key: 'search', label: `Search: ${search.trim()}` })
+    if (search.trim()) chips.push({ key: 'search', label: `Keyword: ${search.trim()}` })
 
     const statusMap = new Map(filterOptions.status.map(option => [option.value, option.label]))
     const sourceMap = new Map(filterOptions.source.map(option => [option.value, option.label]))
     const serverLabelMap = new Map(filterOptions.server.map(option => [option.value, option.label]))
 
-    Array.from(excludeStatus).sort().forEach(value => chips.push({ key: `status:${value}`, label: `Hide status: ${statusMap.get(value) || value}` }))
-    Array.from(excludeSource).sort().forEach(value => chips.push({ key: `source:${value}`, label: `Hide source: ${sourceMap.get(value) || value}` }))
-    Array.from(excludeServer).sort().forEach(value => chips.push({ key: `server:${value}`, label: `Hide server: ${serverLabelMap.get(value) || value}` }))
+    Array.from(excludeStatus).sort().forEach(value => chips.push({ key: `status:${value}`, label: `Excluded status: ${statusMap.get(value) || value}` }))
+    Array.from(excludeSource).sort().forEach(value => chips.push({ key: `source:${value}`, label: `Excluded source: ${sourceMap.get(value) || value}` }))
+    Array.from(excludeServer).sort().forEach(value => chips.push({ key: `server:${value}`, label: `Excluded server: ${serverLabelMap.get(value) || value}` }))
 
     return chips
   }, [excludeServer, excludeSource, excludeStatus, filterOptions.server, filterOptions.source, filterOptions.status, search])

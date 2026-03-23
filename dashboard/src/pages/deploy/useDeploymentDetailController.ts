@@ -11,6 +11,7 @@ export function useDeploymentDetailController(deploymentId: string) {
   const [logTruncated, setLogTruncated] = useState(false)
   const [streamStatus, setStreamStatus] = useState<'idle' | 'connecting' | 'live' | 'closed'>('idle')
   const [error, setError] = useState('')
+  const [autoScrollEnabled, setAutoScrollEnabled] = useState(true)
   const logViewportRef = useRef<HTMLDivElement | null>(null)
   const stickToBottomRef = useRef(true)
 
@@ -58,9 +59,15 @@ export function useDeploymentDetailController(deploymentId: string) {
   }, [deployment, deploymentId])
 
   useEffect(() => {
-    if (!logViewportRef.current || !stickToBottomRef.current) return
+    if (!logViewportRef.current || !autoScrollEnabled || !stickToBottomRef.current) return
     logViewportRef.current.scrollTop = logViewportRef.current.scrollHeight
-  }, [logText])
+  }, [autoScrollEnabled, logText])
+
+  useEffect(() => {
+    if (!logViewportRef.current || !autoScrollEnabled) return
+    stickToBottomRef.current = true
+    logViewportRef.current.scrollTop = logViewportRef.current.scrollHeight
+  }, [autoScrollEnabled])
 
   async function fetchDeploymentDetail(showSpinner = true) {
     if (showSpinner) setLoading(true)
@@ -88,6 +95,7 @@ export function useDeploymentDetailController(deploymentId: string) {
 
   function handleLogScroll(event: UIEvent<HTMLDivElement>) {
     const target = event.currentTarget
+    if (!autoScrollEnabled) return
     stickToBottomRef.current = target.scrollHeight - target.scrollTop - target.clientHeight < 32
   }
 
@@ -99,6 +107,8 @@ export function useDeploymentDetailController(deploymentId: string) {
     logTruncated,
     streamStatus,
     error,
+    autoScrollEnabled,
+    setAutoScrollEnabled,
     logViewportRef,
     handleLogScroll,
     refresh: () => fetchDeploymentDetail(),

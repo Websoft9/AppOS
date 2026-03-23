@@ -38,8 +38,8 @@ so that template-backed installs feel like one flow instead of two disconnected 
 
 ### References
 
-- [Source: specs/implementation-artifacts/epic17-deploy.md#App Template Contract (Minimal)]
-- [Source: specs/implementation-artifacts/epic17-deploy.md#Story 17.4 Trigger Adapters (MVP Scope)]
+- [Source: specs/implementation-artifacts/epic17-app-execution.md#App Template Contract (Minimal)]
+- [Source: specs/implementation-artifacts/epic17-app-execution.md#Story 17.4 Input Adapters (MVP Scope)]
 
 ## Dev Agent Record
 

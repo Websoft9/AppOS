@@ -1,4 +1,5 @@
-import type { RefObject } from 'react'
+import { useMemo, useState, type RefObject } from 'react'
+import { AlertTriangle, Copy } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -50,6 +51,8 @@ type DeploymentDetailDialogProps = {
   logTruncated: boolean
   logViewportRef: RefObject<HTMLDivElement | null>
   onLogScroll: (event: React.UIEvent<HTMLDivElement>) => void
+  autoScrollEnabled?: boolean
+  onAutoScrollChange?: (enabled: boolean) => void
   getUserLabel: (item: DeploymentRecord) => string
   getServerLabel: (item: DeploymentRecord) => string
   getServerHost: (item: DeploymentRecord) => string
@@ -58,6 +61,57 @@ type DeploymentDetailDialogProps = {
 }
 
 type DeploymentDetailContentProps = Omit<DeploymentDetailDialogProps, 'open' | 'onOpenChange'>
+
+function OverviewMetric({
+  label,
+  value,
+  valueClassName,
+}: {
+  label: string
+  value: React.ReactNode
+  valueClassName?: string
+}) {
+  return (
+    <div className="rounded-lg border bg-muted/20 px-3 py-3 text-xs">
+      <div className="text-muted-foreground">{label}</div>
+      <div className={cn('mt-2 text-sm font-medium text-foreground', valueClassName)}>{value}</div>
+    </div>
+  )
+}
+
+function OverviewPanel({
+  title,
+  children,
+  className,
+}: {
+  title: string
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div className={cn('rounded-lg border bg-muted/20 px-3 py-3', className)}>
+      <div className="text-xs font-medium text-foreground">{title}</div>
+      <div className="mt-3">{children}</div>
+    </div>
+  )
+}
+
+function OverviewField({
+  label,
+  value,
+  className,
+}: {
+  label: string
+  value: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div className={cn('space-y-1', className)}>
+      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-sm text-foreground">{value}</div>
+    </div>
+  )
+}
 
 export function DeploymentDetailContent({
   deployment,
@@ -68,46 +122,95 @@ export function DeploymentDetailContent({
   logTruncated,
   logViewportRef,
   onLogScroll,
+  autoScrollEnabled = true,
+  onAutoScrollChange,
   getUserLabel,
   getServerLabel,
   getServerHost,
   formatTime,
   statusVariant,
 }: DeploymentDetailContentProps) {
+  const [errorsOnly, setErrorsOnly] = useState(false)
+  const [copyState, setCopyState] = useState<'idle' | 'done' | 'failed'>('idle')
+
+  const serverTarget = deployment
+    ? getServerHost(deployment) && getServerHost(deployment) !== '-'
+      ? `${getServerLabel(deployment)} · ${getServerHost(deployment)}`
+      : getServerLabel(deployment)
+    : '-'
+
+  const visibleLogText = useMemo(() => {
+    if (!errorsOnly) return logText
+    const lines = logText.split('\n').filter(line => /error|failed|panic|fatal|exception|denied/i.test(line))
+    return lines.join('\n')
+  }, [errorsOnly, logText])
+
+  async function copyLogs() {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(visibleLogText || '')
+        setCopyState('done')
+      } else {
+        setCopyState('failed')
+      }
+    } catch {
+      setCopyState('failed')
+    } finally {
+      window.setTimeout(() => setCopyState('idle'), 1600)
+    }
+  }
+
   return (
     <>
       {loading ? (
         <div className="py-6 text-sm text-muted-foreground">Loading deployment detail...</div>
       ) : deployment ? (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <Card>
-            <CardHeader><CardTitle className="text-sm">Metadata</CardTitle></CardHeader>
-            <CardContent className="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-3">
-              <div><span className="text-muted-foreground">Deployment:</span> {deployment.compose_project_name}</div>
-              <div><span className="text-muted-foreground">Status:</span> <Badge variant={statusVariant(deployment.status)}>{deployment.status}</Badge></div>
-              <div><span className="text-muted-foreground">Stream:</span> {streamStatus}</div>
-              <div><span className="text-muted-foreground">Deployment ID:</span> <span className="font-mono text-xs">{deployment.id}</span></div>
-              <div><span className="text-muted-foreground">User:</span> {getUserLabel(deployment)}</div>
-              <div><span className="text-muted-foreground">Server:</span> {getServerLabel(deployment)}</div>
-              <div><span className="text-muted-foreground">Server Host:</span> {getServerHost(deployment)}</div>
-              <div><span className="text-muted-foreground">Project Dir:</span> <span className="break-all">{deployment.project_dir || '-'}</span></div>
-              <div><span className="text-muted-foreground">Created:</span> {formatTime(deployment.created)}</div>
-              <div><span className="text-muted-foreground">Started:</span> {formatTime(deployment.started_at)}</div>
-              <div><span className="text-muted-foreground">Finished:</span> {formatTime(deployment.finished_at)}</div>
+            <CardHeader className="pb-3"><CardTitle className="text-sm">Overview</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+                <OverviewMetric
+                  label="Status"
+                  value={<Badge variant={statusVariant(deployment.status)}>{deployment.status}</Badge>}
+                  valueClassName="text-xs"
+                />
+                <OverviewMetric label="Stream" value={streamStatus} />
+                <OverviewMetric label="Started" value={formatTime(deployment.started_at)} />
+                <OverviewMetric label="Finished" value={formatTime(deployment.finished_at)} />
+              </div>
+              <div className="grid gap-2 xl:grid-cols-2">
+                <OverviewPanel title="Identity">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <OverviewField label="Application" value={<span className="font-medium">{deployment.compose_project_name || '-'}</span>} />
+                    <OverviewField label="User" value={getUserLabel(deployment)} />
+                    <OverviewField label="Created" value={formatTime(deployment.created)} />
+                    <OverviewField label="Deployment ID" value={<span className="font-mono text-xs break-all">{deployment.id}</span>} />
+                    <OverviewField label="Project Directory" value={<span className="break-all">{deployment.project_dir || '-'}</span>} className="sm:col-span-2" />
+                  </div>
+                </OverviewPanel>
+                <OverviewPanel title="Execution Context">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <OverviewField label="Server Target" value={<span className="font-medium">{serverTarget}</span>} className="sm:col-span-2" />
+                    <OverviewField label="Connection" value={getServerHost(deployment) === 'local' ? 'Local runtime' : 'Remote host'} />
+                    <OverviewField label="Log Stream" value={streamStatus} />
+                  </div>
+                </OverviewPanel>
+              </div>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle className="text-sm">Lifecycle Timeline</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
+            <CardHeader className="pb-3"><CardTitle className="text-sm">Lifecycle Timeline</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
               {(deployment.lifecycle || []).length === 0 ? (
-                <div className="text-sm text-muted-foreground">No lifecycle timeline available yet.</div>
+                <div className="text-xs text-muted-foreground">No lifecycle timeline available yet.</div>
               ) : (
                 <>
                   <div className="overflow-x-auto pb-1">
                     <div className="flex min-w-max items-center gap-2">
                       {(deployment.lifecycle || []).map((step, index, list) => (
                         <div key={step.key} className="flex items-center gap-2">
-                          <div className={cn('inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm whitespace-nowrap', stepTone(step.status))}>
+                          <div className={cn('inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs whitespace-nowrap', stepTone(step.status))}>
                             <span className={cn('h-2.5 w-2.5 rounded-full', step.status === 'completed' ? 'bg-emerald-500' : step.status === 'terminal' ? 'bg-rose-500' : step.status === 'active' ? 'bg-sky-500' : 'bg-slate-300 dark:bg-slate-600')} />
                             <span className="font-medium">{step.label}</span>
                           </div>
@@ -116,9 +219,9 @@ export function DeploymentDetailContent({
                       ))}
                     </div>
                   </div>
-                  <div className="grid gap-2 lg:grid-cols-2">
+                  <div className="grid gap-2 lg:grid-cols-2 xl:grid-cols-3">
                     {(deployment.lifecycle || []).filter(step => step.status !== 'pending').map(step => (
-                      <div key={`${step.key}-meta`} className="rounded-lg border bg-muted/20 px-3 py-2 text-xs text-muted-foreground dark:border-slate-800 dark:bg-slate-900/50">
+                      <div key={`${step.key}-meta`} className={cn('rounded-lg border bg-muted/20 px-3 py-2 text-xs text-muted-foreground dark:border-slate-800 dark:bg-slate-900/50', step.status === 'terminal' && 'border-rose-300 bg-rose-50/70 dark:border-rose-800 dark:bg-rose-950/30')}>
                         <div className={cn('font-medium', step.status === 'completed' ? 'text-emerald-700 dark:text-emerald-300' : step.status === 'terminal' ? 'text-rose-700 dark:text-rose-300' : step.status === 'active' ? 'text-sky-700 dark:text-sky-300' : 'text-slate-500 dark:text-slate-400')}>
                           {step.label} · {step.status}
                         </div>
@@ -131,12 +234,12 @@ export function DeploymentDetailContent({
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle className="text-sm">Execution Stage Details</CardTitle></CardHeader>
-            <CardContent className="grid gap-2 lg:grid-cols-2">
+            <CardHeader className="pb-3"><CardTitle className="text-sm">Execution Stages</CardTitle></CardHeader>
+            <CardContent className="grid gap-2 lg:grid-cols-2 xl:grid-cols-3">
               {(deployment.steps || []).length === 0 ? (
-                <div className="text-sm text-muted-foreground">No execution stage details available yet.</div>
+                <div className="text-xs text-muted-foreground">No execution stage details available yet.</div>
               ) : (deployment.steps || []).map(step => (
-                <div key={`${step.key}-detail`} className="rounded-lg border bg-muted/20 px-3 py-2 text-xs text-muted-foreground dark:border-slate-800 dark:bg-slate-900/50">
+                <div key={`${step.key}-detail`} className={cn('rounded-lg border bg-muted/20 px-3 py-2 text-xs text-muted-foreground dark:border-slate-800 dark:bg-slate-900/50', step.status === 'failed' && 'border-rose-300 bg-rose-50/70 dark:border-rose-800 dark:bg-rose-950/30')}>
                   <div className={cn('font-medium', step.status === 'success' ? 'text-emerald-700 dark:text-emerald-300' : step.status === 'failed' ? 'text-rose-700 dark:text-rose-300' : step.status === 'running' ? 'text-sky-700 dark:text-sky-300' : 'text-slate-500 dark:text-slate-400')}>
                     {step.label} · {step.status}
                   </div>
@@ -147,10 +250,29 @@ export function DeploymentDetailContent({
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0"><CardTitle className="text-sm">Execution Log</CardTitle><div className="text-xs text-muted-foreground">{logTruncated ? 'truncated · ' : ''}{logUpdatedAt ? `updated ${formatTime(logUpdatedAt)}` : 'waiting for logs'}</div></CardHeader>
+            <CardHeader className="space-y-3 pb-3">
+              <div className="flex flex-row items-center justify-between space-y-0">
+                <CardTitle className="text-sm">Execution Log</CardTitle>
+                <div className="text-xs text-muted-foreground">{logTruncated ? 'truncated · ' : ''}{logUpdatedAt ? `updated ${formatTime(logUpdatedAt)}` : 'waiting for logs'}</div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <Button variant="outline" size="sm" onClick={() => void copyLogs()}>
+                  <Copy className="h-3.5 w-3.5" />
+                  {copyState === 'done' ? 'Copied' : copyState === 'failed' ? 'Copy failed' : 'Copy logs'}
+                </Button>
+                <Button variant={autoScrollEnabled ? 'default' : 'outline'} size="sm" onClick={() => onAutoScrollChange?.(!autoScrollEnabled)}>
+                  Auto-scroll {autoScrollEnabled ? 'On' : 'Off'}
+                </Button>
+                <Button variant={errorsOnly ? 'destructive' : 'outline'} size="sm" onClick={() => setErrorsOnly(current => !current)}>
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  Errors only {errorsOnly ? 'On' : 'Off'}
+                </Button>
+                {errorsOnly ? <span className="text-muted-foreground">Showing lines containing error/fail/fatal keywords.</span> : null}
+              </div>
+            </CardHeader>
             <CardContent>
-              <div ref={logViewportRef} className="h-[520px] overflow-auto rounded-xl bg-black px-4 py-3 font-mono text-[11px] leading-5 text-slate-100" onScroll={onLogScroll}>
-                <pre className={cn('whitespace-pre-wrap break-words', !logText && 'text-slate-500')}>{logText || 'No execution log yet.'}</pre>
+              <div ref={logViewportRef} className="h-[480px] overflow-auto rounded-xl bg-black px-3 py-2 font-mono text-[11px] leading-5 text-slate-100" onScroll={onLogScroll}>
+                <pre className={cn('whitespace-pre-wrap break-words', !visibleLogText && 'text-slate-500')}>{visibleLogText || (errorsOnly ? 'No error lines matched the current filter.' : 'No execution log yet.')}</pre>
               </div>
             </CardContent>
           </Card>

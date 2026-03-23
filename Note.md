@@ -111,10 +111,6 @@ Settings（配置层）
 3.  
 
 
-点击 Install from Store 区域的图标，弹出的应用详情，是 App Store 中的应用详情，还是 deploy 前端模块，又做了一个详情页面？
 
 
-Deployment 详情页优化
 
-1. 标题要明确这个是 deployment 详情页，也要明确是哪个应用的详情
-2. 整体的信息密度要大一点，
