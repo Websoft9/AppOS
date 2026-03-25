@@ -529,10 +529,10 @@ Collection CRUD may cover basic reads, but lifecycle behavior still requires cus
 
 Minimum custom route groups:
 
-1. `/api/app-instances/*`
-2. `/api/app-operations/*`
-3. `/api/app-exposures/*`
-4. `/api/app-releases/*` for non-trivial release actions if needed
+1. `/api/apps/*`
+2. `/api/operations/*`
+3. `/api/exposures/*`
+4. `/api/releases/*` for non-trivial release actions if needed
 
 Minimum behavior-specific routes:
 
@@ -565,4 +565,4 @@ This draft should drive the next concrete work items:
 1. rewrite Story 17.2 against `app_instances` + `app_operations`
 2. define migration files under `backend/internal/migrations/`
 3. define operation and timeline APIs against `app_operations`, `pipeline_runs`, and `pipeline_node_runs`
-4. define Installed App projections against `app_instances`, `app_releases`, and `app_exposures`
+4. define app projection APIs against `app_instances`, `app_releases`, and `app_exposures`

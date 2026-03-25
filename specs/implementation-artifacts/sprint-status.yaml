@@ -168,22 +168,22 @@ development_status:
   13.7-connect-terminal-settings-ui: review
   epic13-retrospective: optional
 
-  # Epic 17: Deploy
-  # 2026-03-20: Spec alignment completed (worker executor split + tunnel/system-secret guardrails)
+  # Epic 17: Lifecycle Execution Core
+  # 2026-03-25: docs refreshed to match lifecycle execution core scope and implemented baseline
   epic17: in-progress
-  17.1-deploy-contract-and-scheduler-core: ready-for-dev
-  17.2-first-deploy-closed-loop-mvp: backlog
-  17.3-redeploy-upgrade-with-failure-recovery: backlog
-  17.4-trigger-adapters-mvp-scope: backlog
-  17.5-deployment-history-and-audit-surface: backlog
+  17.1-lifecycle-contract-and-scheduler-core: review
+  17.2-first-install-closed-loop-mvp: review
+  17.3-change-and-recovery-operations: backlog
+  17.4-trigger-adapters-mvp-scope: review
+  17.5-operation-history-and-timeline-surface: review
   epic17-retrospective: optional
 
   # Epic 18: Operations
-  epic18: backlog
-  18.1-installed-app-inventory: backlog
-  18.2-lifecycle-operations: backlog
-  18.3-configuration-management: backlog
-  18.4-deployment-handoff-and-status: backlog
+  epic18: in-progress
+  18.1-installed-app-inventory: in-progress
+  18.2-lifecycle-operations: in-progress
+  18.3-configuration-management: in-progress
+  18.4-operation-handoff-and-status: in-progress
   18.5-proxy-and-domain-binding: backlog
   18.6-audit-and-operation-records: backlog
   18.7-data-management-and-backup: backlog

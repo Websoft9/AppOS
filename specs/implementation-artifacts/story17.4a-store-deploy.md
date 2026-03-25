@@ -1,39 +1,40 @@
-# Story 17.4a: Store Direct Deploy
+# Story 17.4a: Store Compose Prefill
 
-Status: in-progress
+Status: review
 
 ## Story
 
 As an operator using App Store,
-I want Store applications to open Deploy Center with the right deployment inputs already prepared,
-so that template-backed installs feel like one flow instead of two disconnected screens.
+I want Store applications to open the shared install flow with the right compose input already prepared,
+so that Store-backed installs enter Epic 17 without creating a second execution path.
 
 ## Acceptance Criteria
 
-1. Store application detail surfaces must provide a real deploy action that enters Deploy Center rather than acting as a placeholder link.
-2. Deploy Center must accept Store-driven prefill state, including app identity and source type.
+1. Store application detail surfaces must provide a real action into the shared install flow rather than a placeholder link.
+2. The install flow must accept Store-driven prefill state, including app identity and source type.
 3. Library-backed applications must preload their base `docker-compose.yml` from the library path.
 4. Template-backed custom applications must preload their base `docker-compose.yml` from the template path.
-5. The resulting deploy flow must still submit through the shared manual compose pipeline rather than creating a Store-only execution path.
+5. The resulting install flow must still submit through the shared manual compose pipeline rather than creating a Store-only execution path.
 6. Prefill failures must produce clear operator-visible feedback.
 
-## Tasks / Subtasks
+## Delivered Now
 
-- [ ] Add Store-to-Deploy entry handoff (AC: 1,2)
-  - [ ] Wire deploy action from Store detail surfaces
-  - [ ] Define route search or equivalent typed prefill contract
-- [ ] Implement template prefill (AC: 3,4)
-  - [ ] Load library-backed compose templates
-  - [ ] Load custom template-backed compose files
-- [ ] Keep execution path shared (AC: 5)
-  - [ ] Prefill manual deploy dialog rather than creating a second submit path
-- [ ] Handle failure states (AC: 6)
-  - [ ] Surface missing-template and load-failure feedback in Deploy Center
+- [x] Store detail surfaces can navigate directly into the shared install flow.
+- [x] Route search state carries Store prefill identity and source information.
+- [x] Library-backed applications preload compose from the library path.
+- [x] Template-backed custom applications preload compose from the template path.
+- [x] Submission still goes through the same manual-compose operation creation path as other installs.
+- [x] Missing-template and prefill-load failures surface operator-visible feedback.
+
+## Still Deferred
+
+- [ ] Richer Store metadata overlays beyond base compose prefill.
+- [ ] Store-driven parameter collection that normalizes into the same operation contract without reintroducing Store-specific execution logic.
 
 ## Dev Notes
 
-- This story owns Store entry UX and template prefill only.
-- It must not redefine deploy execution semantics or lifecycle rules.
+- This story owns Store entry UX and compose prefill only.
+- It must not redefine execution semantics or lifecycle rules.
 - Base compose is required; future `.env` and metadata overlays can extend this story later without changing its core handoff contract.
 
 ### References
@@ -51,6 +52,10 @@ GPT-5.4
 
 
 ### Completion Notes List
+
+- Store detail entry now hands off to the shared lifecycle install flow.
+- Both library and template compose sources are prefilled on the client before creating the operation.
+- This story is intentionally thin: it feeds Epic 17, it does not own execution.
 
 
 ### File List

@@ -1,0 +1,82 @@
+family: ExposurePipeline
+description: Publication flows that manage proxy bindings and public endpoint verification.
+intent: Change public exposure state without collapsing publication concerns into runtime lifecycle state.
+touches_domains:
+  - AppInstance
+  - OperationJob
+  - Exposure
+  - PipelineRun
+  - PipelineNodeRun
+default_compensation_policy: strict
+applies_to:
+  - publish
+  - unpublish
+
+definitions:
+  - key: exposure.publish
+    version: v1
+    family: ExposurePipeline
+    operation_types:
+      - publish
+    initial_phase: validating
+    nodes:
+      - key: validate_exposure_request
+        node_type: validation
+        display_name: Validate Exposure Request
+        phase: validating
+        retryable: false
+        writes_projection:
+          - OperationJob
+      - key: register_proxy_route
+        node_type: exposure
+        display_name: Register Proxy Route
+        phase: executing
+        retryable: true
+        writes_projection:
+          - Exposure
+        depends_on:
+          - validate_exposure_request
+      - key: verify_public_endpoint
+        node_type: exposure_check
+        display_name: Verify Public Endpoint
+        phase: verifying
+        retryable: true
+        writes_projection:
+          - Exposure
+          - AppInstance
+        depends_on:
+          - register_proxy_route
+
+  - key: exposure.unpublish
+    version: v1
+    family: ExposurePipeline
+    operation_types:
+      - unpublish
+    initial_phase: validating
+    nodes:
+      - key: validate_exposure_request
+        node_type: validation
+        display_name: Validate Exposure Request
+        phase: validating
+        retryable: false
+        writes_projection:
+          - OperationJob
+      - key: remove_proxy_route
+        node_type: exposure
+        display_name: Remove Proxy Route
+        phase: executing
+        retryable: true
+        writes_projection:
+          - Exposure
+        depends_on:
+          - validate_exposure_request
+      - key: verify_unpublished_state
+        node_type: exposure_check
+        display_name: Verify Unpublished State
+        phase: verifying
+        retryable: true
+        writes_projection:
+          - Exposure
+          - AppInstance
+        depends_on:
+          - remove_proxy_route

@@ -11,7 +11,7 @@ import {
   X,
 } from 'lucide-react'
 import { getLocale } from '@/lib/i18n'
-import { DeleteDeploymentDialog } from '@/pages/deploy/DeleteDeploymentDialog'
+import { DeleteOperationDialog } from '@/pages/deploy/operations/DeleteOperationDialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,13 +21,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { AppDetailModal } from '@/components/store/AppDetailModal'
-import { DeployHomeView } from '@/pages/deploy/DeployHomeView'
-import { DeploymentListView } from '@/pages/deploy/DeploymentListView'
-import { buildDeploymentListHref, formatTime, isActiveStatus, statusVariant } from '@/pages/deploy/deploy-utils'
-import { GitDeploymentDialog } from '@/pages/deploy/GitDeploymentDialog'
-import { ManualDeploymentDialog } from '@/pages/deploy/ManualDeploymentDialog'
-import type { DeploymentListSearch, DeploymentRecord, ManualEntryMode } from '@/pages/deploy/deploy-types'
-import { useDeploymentsController } from '@/pages/deploy/useDeploymentsController'
+import { OperationHomeView } from '@/pages/deploy/operations/OperationHomeView'
+import { OperationListView } from '@/pages/deploy/operations/OperationListView'
+import { buildOperationListHref, formatTime, isActiveStatus, statusVariant } from '@/pages/deploy/operations/operation-utils'
+import { GitDeploymentDialog } from '@/pages/deploy/entry/GitDeploymentDialog'
+import { ManualDeploymentDialog } from '@/pages/deploy/entry/ManualDeploymentDialog'
+import type { OperationListSearch, OperationRecord, ManualEntryMode } from '@/pages/deploy/operations/operation-types'
+import { useOperationsController } from '@/pages/deploy/operations/useOperationsController'
 
 type DeployPageProps = {
   prefillMode?: string
@@ -36,7 +36,7 @@ type DeployPageProps = {
   prefillAppKey?: string
   prefillAppName?: string
   prefillServerId?: string
-  listSearch?: DeploymentListSearch
+  listSearch?: OperationListSearch
   view?: 'home' | 'list'
 }
 
@@ -62,7 +62,7 @@ export function DeployPage({
     setStoreDetailOpen,
     userApps,
     summary,
-    latestDeployments,
+    latestOperations,
     manualDialogCopy,
     filterOptions,
     pagedItems,
@@ -117,7 +117,7 @@ export function DeployPage({
     pendingDelete,
     setPendingDelete,
     handleSort,
-    toggleDeploymentSelection,
+    toggleOperationSelection,
     togglePageSelection,
     allPageSelected,
     somePageSelected,
@@ -127,16 +127,16 @@ export function DeployPage({
     openStoreShortcut,
     deployFromStoreProduct,
     openManualDialog,
-    openDeploymentDetail,
-    openLatestDeploymentDetail,
+    openOperationDetail,
+    openLatestOperationDetail,
     getUserLabel,
     getServerLabel,
     getServerHost,
-    submitDeployment,
-    submitGitDeployment,
-    deleteDeployments,
-    fetchDeployments,
-  } = useDeploymentsController({
+    submitManualOperation,
+    submitGitOperation,
+    deleteOperations,
+    fetchOperations,
+  } = useOperationsController({
     prefillMode,
     prefillSource,
     prefillAppId,
@@ -189,9 +189,9 @@ export function DeployPage({
     },
   ], [openManualDialog, setGitCreateOpen])
 
-  const deploymentListHref = buildDeploymentListHref()
+  const operationListHref = buildOperationListHref()
 
-  function renderActionMenu(item: DeploymentRecord) {
+  function renderActionMenu(item: OperationRecord) {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -200,7 +200,7 @@ export function DeployPage({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => openDeploymentDetail(item.id)}>View</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => openOperationDetail(item.id)}>View</DropdownMenuItem>
           <DropdownMenuItem
             variant="destructive"
             disabled={isActiveStatus(item.status)}
@@ -217,8 +217,8 @@ export function DeployPage({
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{view === 'list' ? 'Deployment List' : 'Deploy Application'}</h1>
-          <p className="text-sm text-muted-foreground">{view === 'list' ? 'Browse deployment history and open task details.' : 'Choose an application source and start deployment.'}</p>
+          <h1 className="text-2xl font-bold">{view === 'list' ? 'Action History' : 'Deploy Application'}</h1>
+          <p className="text-sm text-muted-foreground">{view === 'list' ? 'Browse lifecycle actions and open execution details.' : 'Choose an application source and start deployment.'}</p>
         </div>
         <div className="flex items-center gap-2">
           {view === 'home' ? (
@@ -226,8 +226,8 @@ export function DeployPage({
               <Button size="icon" title="Deploy" aria-label="Deploy" onClick={() => openManualDialog('compose')}>
                 <Plus className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="icon" title="View deployment" aria-label="View deployment" asChild>
-                <a href={deploymentListHref}>
+              <Button variant="outline" size="icon" title="View actions" aria-label="View actions" asChild>
+                <a href={operationListHref}>
                   <List className="h-4 w-4" />
                 </a>
               </Button>
@@ -239,7 +239,7 @@ export function DeployPage({
                   <Plus className="h-4 w-4" />
                 </a>
               </Button>
-              <Button variant="outline" size="icon" title="Refresh" aria-label="Refresh" onClick={() => void fetchDeployments()}>
+              <Button variant="outline" size="icon" title="Refresh" aria-label="Refresh" onClick={() => void fetchOperations()}>
                 <RefreshCw className="h-4 w-4" />
               </Button>
             </>
@@ -257,7 +257,7 @@ export function DeployPage({
       ) : null}
 
       {view === 'list' ? (
-        <DeploymentListView
+        <OperationListView
           search={search}
           onSearchChange={setSearch}
           loading={loading}
@@ -293,16 +293,16 @@ export function DeployPage({
           selectedIds={selectedIds}
           selectedCount={selectedCount}
           selectedActiveCount={selectedActiveCount}
-          onToggleDeploymentSelection={toggleDeploymentSelection}
+          onToggleOperationSelection={toggleOperationSelection}
           onTogglePageSelection={togglePageSelection}
           allPageSelected={allPageSelected}
           somePageSelected={somePageSelected}
           onDeleteSelected={() => openDeleteDialogForIds(Array.from(selectedIds))}
-          onOpenDeployment={openDeploymentDetail}
+          onOpenOperation={openOperationDetail}
           renderActionMenu={renderActionMenu}
         />
       ) : (
-        <DeployHomeView
+        <OperationHomeView
           prefillLoading={prefillLoading}
           prefillMode={prefillMode}
           prefillAppName={prefillAppName}
@@ -312,7 +312,7 @@ export function DeployPage({
           prefillReady={prefillReady}
           storeShortcuts={storeShortcuts}
           customEntries={customEntries}
-          latestDeployments={latestDeployments}
+          latestOperations={latestOperations}
           loading={loading}
           onOpenStoreShortcut={openStoreShortcut}
           getUserLabel={getUserLabel}
@@ -320,7 +320,7 @@ export function DeployPage({
           getServerHost={getServerHost}
           formatTime={formatTime}
           statusVariant={statusVariant}
-          onOpenDeployment={openLatestDeploymentDetail}
+          onOpenOperation={openLatestOperationDetail}
           renderActionMenu={renderActionMenu}
         />
       )}
@@ -337,7 +337,7 @@ export function DeployPage({
         compose={compose}
         onComposeChange={setCompose}
         submitting={submitting}
-        onSubmit={() => void submitDeployment()}
+        onSubmit={() => void submitManualOperation()}
       />
 
       <GitDeploymentDialog
@@ -359,16 +359,16 @@ export function DeployPage({
         authHeaderValue={gitAuthHeaderValue}
         onAuthHeaderValueChange={setGitAuthHeaderValue}
         submitting={gitSubmitting}
-        onSubmit={() => void submitGitDeployment()}
+        onSubmit={() => void submitGitOperation()}
       />
 
-      <DeleteDeploymentDialog
-        deployments={pendingDelete}
+      <DeleteOperationDialog
+        operations={pendingDelete}
         onOpenChange={open => {
           if (!open) setPendingDelete([])
         }}
-        onConfirm={deployments => {
-          void deleteDeployments(deployments.map(item => item.id))
+        onConfirm={operations => {
+          void deleteOperations(operations.map(item => item.id))
         }}
       />
 

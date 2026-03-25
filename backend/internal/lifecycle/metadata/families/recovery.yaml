@@ -1,0 +1,93 @@
+family: RecoveryPipeline
+description: Recovery flows that restore prior safe baselines or recover degraded applications.
+intent: Return an application to a known-good state after failed change or degraded runtime conditions.
+touches_domains:
+  - AppInstance
+  - OperationJob
+  - ReleaseSnapshot
+  - PipelineRun
+  - PipelineNodeRun
+default_compensation_policy: manual_gate
+applies_to:
+  - recover
+  - rollback
+  - restore
+
+definitions:
+  - key: recovery.recover
+    version: v1
+    family: RecoveryPipeline
+    operation_types:
+      - recover
+    initial_phase: validating
+    nodes:
+      - key: validate_recovery_request
+        node_type: validation
+        display_name: Validate Recovery Request
+        phase: validating
+        retryable: false
+        writes_projection:
+          - OperationJob
+      - key: resolve_recovery_target
+        node_type: recovery
+        display_name: Resolve Recovery Target
+        phase: preparing
+        retryable: false
+        writes_projection:
+          - ReleaseSnapshot
+        depends_on:
+          - validate_recovery_request
+      - key: restore_previous_release
+        node_type: recovery
+        display_name: Restore Previous Release
+        phase: executing
+        retryable: false
+        writes_projection:
+          - ReleaseSnapshot
+          - AppInstance
+        depends_on:
+          - resolve_recovery_target
+      - key: verify_runtime_health
+        node_type: health_check
+        display_name: Verify Runtime Health
+        phase: verifying
+        retryable: true
+        writes_projection:
+          - AppInstance
+        depends_on:
+          - restore_previous_release
+
+  - key: recovery.rollback
+    version: v1
+    family: RecoveryPipeline
+    operation_types:
+      - rollback
+      - restore
+    initial_phase: validating
+    nodes:
+      - key: validate_rollback_request
+        node_type: validation
+        display_name: Validate Rollback Request
+        phase: validating
+        retryable: false
+        writes_projection:
+          - OperationJob
+      - key: restore_previous_release
+        node_type: recovery
+        display_name: Restore Previous Release
+        phase: executing
+        retryable: false
+        writes_projection:
+          - ReleaseSnapshot
+          - AppInstance
+        depends_on:
+          - validate_rollback_request
+      - key: verify_runtime_health
+        node_type: health_check
+        display_name: Verify Runtime Health
+        phase: verifying
+        retryable: true
+        writes_projection:
+          - AppInstance
+        depends_on:
+          - restore_previous_release

@@ -6,6 +6,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
+	"github.com/websoft9/appos/backend/internal/lifecycle/model"
 	"github.com/websoft9/appos/backend/internal/secrets"
 	"github.com/websoft9/appos/backend/internal/settings"
 
@@ -85,10 +86,10 @@ func TestAppInstancesCollectionFields(t *testing.T) {
 	assertRelationTarget(t, app, col, "current_release", "app_releases")
 	assertRelationTarget(t, app, col, "last_operation", "app_operations")
 	assertRelationTarget(t, app, col, "primary_exposure", "app_exposures")
-	assertSelectFieldValues(t, col, "lifecycle_state", []string{"registered", "installing", "running_healthy", "running_degraded", "maintenance", "updating", "recovering", "stopped", "attention_required", "retired"})
-	assertSelectFieldValues(t, col, "desired_state", []string{"running", "stopped", "retired"})
-	assertSelectFieldValues(t, col, "health_summary", []string{"healthy", "degraded", "unknown", "stopped"})
-	assertSelectFieldValues(t, col, "publication_summary", []string{"unpublished", "published", "degraded", "unknown"})
+	assertSelectFieldValues(t, col, "lifecycle_state", model.AppLifecycleStates)
+	assertSelectFieldValues(t, col, "desired_state", model.DesiredAppStates)
+	assertSelectFieldValues(t, col, "health_summary", model.HealthSummaries)
+	assertSelectFieldValues(t, col, "publication_summary", model.PublicationSummaries)
 
 	if col.ListRule == nil || col.ViewRule == nil {
 		t.Fatal("app_instances should be readable by authenticated users")
@@ -122,6 +123,8 @@ func TestAppOperationsCollectionFields(t *testing.T) {
 	assertFieldExists(t, col, "project_dir", core.FieldTypeText, false)
 	assertFieldExists(t, col, "rendered_compose", core.FieldTypeText, false)
 	assertFieldExists(t, col, "resolved_env_json", core.FieldTypeJSON, false)
+	assertFieldExists(t, col, "execution_log", core.FieldTypeText, false)
+	assertFieldExists(t, col, "execution_log_truncated", core.FieldTypeBool, false)
 	assertFieldExists(t, col, "baseline_release", core.FieldTypeRelation, false)
 	assertFieldExists(t, col, "candidate_release", core.FieldTypeRelation, false)
 	assertFieldExists(t, col, "result_release", core.FieldTypeRelation, false)
@@ -140,9 +143,9 @@ func TestAppOperationsCollectionFields(t *testing.T) {
 	assertRelationTarget(t, app, col, "candidate_release", "app_releases")
 	assertRelationTarget(t, app, col, "result_release", "app_releases")
 	assertRelationTarget(t, app, col, "pipeline_run", "pipeline_runs")
-	assertSelectFieldValues(t, col, "operation_type", []string{"install", "start", "stop", "upgrade", "redeploy", "reconfigure", "publish", "unpublish", "backup", "recover", "rollback", "maintain", "uninstall"})
+	assertSelectFieldValues(t, col, "operation_type", model.OperationTypes)
 	assertSelectFieldValues(t, col, "trigger_source", []string{"manualops", "fileops", "gitops", "store", "system"})
-	assertSelectFieldValues(t, col, "phase", []string{"queued", "validating", "preparing", "executing", "verifying", "compensating"})
+	assertSelectFieldValues(t, col, "phase", model.OperationPhases)
 	assertSelectFieldValues(t, col, "terminal_status", []string{"success", "failed", "cancelled", "compensated", "manual_intervention_required"})
 	assertSelectFieldValues(t, col, "failure_reason", []string{"timeout", "validation_error", "resource_conflict", "dependency_unavailable", "execution_error", "verification_failed", "compensation_failed", "unknown"})
 	assertSelectFieldValues(t, col, "app_outcome", []string{"new_release_active", "previous_release_active", "no_healthy_release", "state_unknown"})
@@ -232,6 +235,7 @@ func TestPipelineRunsCollectionFields(t *testing.T) {
 
 	assertFieldExists(t, col, "operation", core.FieldTypeRelation, true)
 	assertFieldExists(t, col, "pipeline_family", core.FieldTypeSelect, true)
+	assertFieldExists(t, col, "pipeline_definition_key", core.FieldTypeText, true)
 	assertFieldExists(t, col, "pipeline_version", core.FieldTypeText, false)
 	assertFieldExists(t, col, "current_phase", core.FieldTypeSelect, true)
 	assertFieldExists(t, col, "status", core.FieldTypeSelect, true)
@@ -241,8 +245,8 @@ func TestPipelineRunsCollectionFields(t *testing.T) {
 	assertFieldExists(t, col, "started_at", core.FieldTypeDate, false)
 	assertFieldExists(t, col, "ended_at", core.FieldTypeDate, false)
 	assertRelationTarget(t, app, col, "operation", "app_operations")
-	assertSelectFieldValues(t, col, "pipeline_family", []string{"ProvisionPipeline", "ChangePipeline", "ExposurePipeline", "RecoveryPipeline", "MaintenancePipeline", "RetirePipeline"})
-	assertSelectFieldValues(t, col, "current_phase", []string{"validating", "preparing", "executing", "verifying", "compensating"})
+	assertSelectFieldValues(t, col, "pipeline_family", model.PipelineFamilies)
+	assertSelectFieldValues(t, col, "current_phase", model.PipelinePhases)
 	assertSelectFieldValues(t, col, "status", []string{"active", "completed", "failed", "cancelled"})
 }
 
@@ -272,7 +276,7 @@ func TestPipelineNodeRunsCollectionFields(t *testing.T) {
 	assertFieldExists(t, col, "started_at", core.FieldTypeDate, false)
 	assertFieldExists(t, col, "ended_at", core.FieldTypeDate, false)
 	assertRelationTarget(t, app, col, "pipeline_run", "pipeline_runs")
-	assertSelectFieldValues(t, col, "phase", []string{"validating", "preparing", "executing", "verifying", "compensating"})
+	assertSelectFieldValues(t, col, "phase", model.PipelinePhases)
 	assertSelectFieldValues(t, col, "status", []string{"pending", "running", "succeeded", "failed", "skipped", "cancelled", "compensated"})
 }
 

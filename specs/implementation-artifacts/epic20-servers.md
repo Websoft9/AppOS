@@ -14,7 +14,7 @@ Covers all server-domain business: the `servers` resource registry, SSH-based te
 |----------|-------------|
 | Server Registry (CRUD + secrets) | Terminal framework / tab rail (→ Epic 15) |
 | SSH PTY backend + shell route | Tunnel establishment (→ Epic 16) |
-| SFTP file management | App deployment (→ Epic 17) |
+| SFTP file management | App lifecycle execution and managed app operations (→ Epic 17 / Epic 18) |
 | Docker Exec on server containers | Terminal idle/max-connections settings (→ Epic 13) |
 | Server Ops: connectivity, power, ports, systemd | Database / cloud resource types (future epics) |
 | Server-specific frontend (Files, Docker panels) | |

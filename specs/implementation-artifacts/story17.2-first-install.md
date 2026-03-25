@@ -1,6 +1,6 @@
 # Story 17.2: First Install Closed Loop
 
-Status: in-progress
+Status: review
 
 ## Story
 
@@ -19,26 +19,20 @@ so that the lifecycle execution core is proven as a real closed loop before more
 7. The same install pipeline must support local execution as the MVP baseline and allow remote-target reuse through the same worker path without introducing a second orchestration path.
 8. Operation detail, timeline, and execution logs must be queryable while the operation is active and after completion.
 
-## Tasks / Subtasks
+## Delivered Now
 
-- [ ] Implement first install execution flow (AC: 1,2,3,4,5)
-  - [ ] Create `app_instances` records from normalized ManualOps compose input
-  - [ ] Create `app_operations` records with `operation_type=install`
-  - [ ] Create `pipeline_runs` and `pipeline_node_runs` records for the first install timeline
-  - [ ] Validate compose before execution
-  - [ ] Prepare local or remote project workspace
-  - [ ] Run compose apply and verification stages
-  - [ ] Create and activate the first `app_releases` baseline on success
-- [ ] Implement first install failure semantics (AC: 3,6)
-  - [ ] Distinguish first install cleanup from rollback flow
-  - [ ] Persist timeout, failure reason, and app outcome summaries
-  - [ ] Ensure failed first install leaves no fake active release baseline
-- [ ] Keep one shared execution path (AC: 7)
-  - [ ] Reuse the same worker contract across local and remote targets
-  - [ ] Avoid target-specific lifecycle forks
-- [ ] Expose runtime visibility (AC: 8)
-  - [ ] Keep operation detail, timeline, and log surfaces aligned with active execution
-  - [ ] Ensure timeline data is sourced from `pipeline_runs` and `pipeline_node_runs`
+- [x] Manual Compose install creates `app_instances`, `app_operations`, `pipeline_runs`, and `pipeline_node_runs` on one shared execution contract.
+- [x] The worker path advances the canonical execution phases and persists separate terminal result fields.
+- [x] First install validates compose, prepares the workspace, runs compose apply, verifies runtime health, and updates the app projection.
+- [x] Successful first install creates and activates the first `app_releases` baseline.
+- [x] Failed first install records failure without inventing rollback semantics.
+- [x] Operation detail, timeline, logs, cancellation, and stream updates are queryable during and after execution.
+
+## Still Deferred
+
+- [ ] Broader remote-target execution coverage beyond reusing the same executor contract.
+- [ ] Richer verification and compensation behavior for non-install operation families.
+- [ ] Expansion from install into upgrade, rollback, recover, and publication-sensitive operations.
 
 ## Dev Notes
 
@@ -68,6 +62,10 @@ GPT-5.4
 
 
 ### Completion Notes List
+
+- The current backend already proves the first install closed loop on the shared worker path.
+- Release activation, app projection updates, and execution-log persistence happen inside the lifecycle execution flow.
+- This story should now be treated as a reviewed MVP slice, not as future design work.
 
 
 ### File List

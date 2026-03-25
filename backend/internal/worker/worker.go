@@ -20,6 +20,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/internal/audit"
 	"github.com/websoft9/appos/backend/internal/deploy"
+	lifecycleruntime "github.com/websoft9/appos/backend/internal/lifecycle/runtime"
 )
 
 const (
@@ -83,9 +84,11 @@ type BackupRestorePayload struct {
 
 // Worker manages the Asynq server and a shared client for enqueuing tasks.
 type Worker struct {
-	server *asynq.Server
-	client *asynq.Client
-	app    core.App // PocketBase app for audit writes
+	server          *asynq.Server
+	client          *asynq.Client
+	app             core.App // PocketBase app for audit writes
+	schedulerCancel context.CancelFunc
+	backgroundWG    sync.WaitGroup
 }
 
 var deployServerLocks = struct {
@@ -130,14 +133,19 @@ func (w *Worker) Start() {
 	if err := w.recoverOrphanedDeployments(); err != nil {
 		log.Printf("recover orphaned deployments: %v", err)
 	}
+	if err := w.recoverOrphanedOperations(); err != nil {
+		log.Printf("recover orphaned operations: %v", err)
+	}
 
 	mux := asynq.NewServeMux()
 	mux.HandleFunc(TaskDeployApp, w.handleDeployApp)
+	mux.HandleFunc(TaskRunOperation, w.handleRunOperation)
 	mux.HandleFunc(TaskRestartApp, w.handleRestartApp)
 	mux.HandleFunc(TaskStopApp, w.handleStopApp)
 	mux.HandleFunc(TaskDeleteApp, w.handleDeleteApp)
 	mux.HandleFunc(TaskBackupCreate, w.handleBackupCreate)
 	mux.HandleFunc(TaskBackupRestore, w.handleBackupRestore)
+	w.startLifecycleScheduler()
 
 	go func() {
 		if err := w.server.Run(mux); err != nil {
@@ -153,7 +161,11 @@ func (w *Worker) Client() *asynq.Client {
 
 // Shutdown gracefully stops the worker and closes the client connection.
 func (w *Worker) Shutdown() {
+	if w.schedulerCancel != nil {
+		w.schedulerCancel()
+	}
 	w.server.Shutdown()
+	w.backgroundWG.Wait()
 	_ = w.client.Close()
 }
 
@@ -212,7 +224,7 @@ func (w *Worker) handleDeployApp(_ context.Context, t *asynq.Task) error {
 		projectDir = filepath.Join("/appos/data/apps/deployments", record.Id)
 		record.Set("project_dir", projectDir)
 	}
-	executor := newDeploymentExecutor(w.app, serverID)
+	executor := lifecycleruntime.NewDeploymentExecutor(w.app, serverID)
 	if err := executor.PrepareWorkspace(projectDir, spec.RenderedCompose); err != nil {
 		appendDeploymentLog(w.app, record, "failed to prepare deployment workspace: "+err.Error())
 		return markDeploymentFailed(w.app, record, p, "failed to prepare deployment workspace")
@@ -254,7 +266,7 @@ func (w *Worker) handleDeployApp(_ context.Context, t *asynq.Task) error {
 	appendDeploymentLog(w.app, record, "health check started")
 	healthCtx, healthCancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer healthCancel()
-	if err := runDeploymentHealthCheck(healthCtx, client, projectDir); err != nil {
+	if err := lifecycleruntime.RunDeploymentHealthCheck(healthCtx, client, projectDir); err != nil {
 		appendDeploymentLog(w.app, record, "health check failed: "+err.Error())
 		if isDeploymentTimeoutError(err) {
 			return markDeploymentTimedOut(w.app, record, p, "deployment verification timed out")
@@ -419,6 +431,10 @@ func activeDeploymentFilter() string {
 }
 
 func (w *Worker) claimQueuedDeployment(deploymentID string) (*core.Record, error) {
+	if _, err := w.app.FindCollectionByNameOrId("deployments"); err != nil {
+		return nil, nil
+	}
+
 	var claimed *core.Record
 	err := w.app.RunInTransaction(func(txApp core.App) error {
 		record, err := txApp.FindRecordById("deployments", deploymentID)
@@ -505,35 +521,6 @@ func appendDeploymentLog(app core.App, record *core.Record, line string) {
 	if err := app.Save(record); err != nil {
 		log.Printf("appendDeploymentLog: save deployment %s: %v", record.Id, err)
 	}
-}
-
-func runDeploymentHealthCheck(ctx context.Context, client interface {
-	Exec(context.Context, ...string) (string, error)
-}, projectDir string) error {
-	composeFile := filepath.Join(projectDir, "docker-compose.yml")
-	var lastErr error
-	for attempt := 0; attempt < 5; attempt += 1 {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		attemptCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
-		output, err := client.Exec(attemptCtx, "compose", "-f", composeFile, "ps", "--status", "running", "-q")
-		cancel()
-		if err == nil && strings.TrimSpace(output) != "" {
-			return nil
-		}
-		if err != nil {
-			lastErr = err
-		} else {
-			lastErr = fmt.Errorf("no running services reported")
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(3 * time.Second):
-		}
-	}
-	return lastErr
 }
 
 func (w *Worker) handleRestartApp(_ context.Context, t *asynq.Task) error {

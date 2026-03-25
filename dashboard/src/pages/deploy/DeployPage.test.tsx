@@ -59,7 +59,7 @@ describe('DeployPage homepage', () => {
       if (path === '/api/ext/docker/servers') {
         return Promise.resolve([{ id: 'local', label: 'local', host: '127.0.0.1', status: 'online' }])
       }
-      if (path === '/api/deployments') {
+      if (path === '/api/operations') {
         return Promise.resolve([
           {
             id: 'dep_1',
@@ -99,14 +99,14 @@ describe('DeployPage homepage', () => {
           },
         ])
       }
-      if ((path === '/api/deployments/dep_1' || path === '/api/deployments/dep_2') && options?.method === 'DELETE') {
+      if ((path === '/api/operations/dep_1' || path === '/api/operations/dep_2') && options?.method === 'DELETE') {
         return Promise.resolve({})
       }
       return Promise.resolve({})
     })
   })
 
-  it('renders the new deployment homepage and opens the repository dialog', async () => {
+  it('renders the deploy homepage and opens the repository dialog', async () => {
     render(
       <TooltipProvider>
         <DeployPage />
@@ -117,7 +117,7 @@ describe('DeployPage homepage', () => {
       expect(screen.getByText('Deploy Application')).toBeInTheDocument()
       expect(screen.getByText('Install from Store')).toBeInTheDocument()
       expect(screen.getByText('Custom Deployment')).toBeInTheDocument()
-      expect(screen.getByText('Latest Deployments')).toBeInTheDocument()
+      expect(screen.getByText('Latest Actions')).toBeInTheDocument()
       expect(screen.getByText('Need more templates?')).toBeInTheDocument()
     })
 
@@ -133,7 +133,7 @@ describe('DeployPage homepage', () => {
     expect(screen.getByText('Create Deployment from Git Repository')).toBeInTheDocument()
   })
 
-  it('opens deployment detail when clicking the latest deployment name', async () => {
+  it('opens operation detail when clicking the latest operation name', async () => {
     render(
       <TooltipProvider>
         <DeployPage />
@@ -147,13 +147,13 @@ describe('DeployPage homepage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'wordpress-prod' }))
 
     expect(navigateMock).toHaveBeenCalledWith({
-      to: '/deployments/$deploymentId',
-      params: { deploymentId: 'dep_1' },
+      to: '/operations/$operationId',
+      params: { operationId: 'dep_1' },
       search: { returnTo: 'list' },
     })
   })
 
-  it('opens deployment detail when clicking the deployment name in list view', async () => {
+  it('opens operation detail when clicking the operation name in list view', async () => {
     render(
       <TooltipProvider>
         <DeployPage view="list" />
@@ -167,13 +167,13 @@ describe('DeployPage homepage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'wordpress-prod' }))
 
     expect(navigateMock).toHaveBeenCalledWith({
-      to: '/deployments/$deploymentId',
-      params: { deploymentId: 'dep_1' },
+      to: '/operations/$operationId',
+      params: { operationId: 'dep_1' },
       search: { returnTo: 'list' },
     })
   })
 
-  it('opens deployment detail from the action menu view entry', async () => {
+  it('opens operation detail from the action menu view entry', async () => {
     render(
       <TooltipProvider>
         <DeployPage view="list" />
@@ -196,13 +196,13 @@ describe('DeployPage homepage', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'View' }))
 
     expect(navigateMock).toHaveBeenCalledWith({
-      to: '/deployments/$deploymentId',
-      params: { deploymentId: 'dep_1' },
+      to: '/operations/$operationId',
+      params: { operationId: 'dep_1' },
       search: { returnTo: 'list' },
     })
   })
 
-  it('supports bulk delete from the deployment list', async () => {
+  it('supports bulk delete from the operations list', async () => {
     render(
       <TooltipProvider>
         <DeployPage view="list" />
@@ -224,15 +224,15 @@ describe('DeployPage homepage', () => {
     fireEvent.click(screen.getByText('Delete Selected (2)'))
 
     await waitFor(() => {
-      expect(screen.getByText('Delete Deployments')).toBeInTheDocument()
+      expect(screen.getByText('Delete Actions')).toBeInTheDocument()
       expect(screen.getByText('Delete 2')).toBeInTheDocument()
     })
 
     fireEvent.click(screen.getByText('Delete 2'))
 
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith('/api/deployments/dep_1', { method: 'DELETE' })
-      expect(sendMock).toHaveBeenCalledWith('/api/deployments/dep_2', { method: 'DELETE' })
+      expect(sendMock).toHaveBeenCalledWith('/api/operations/dep_1', { method: 'DELETE' })
+      expect(sendMock).toHaveBeenCalledWith('/api/operations/dep_2', { method: 'DELETE' })
     })
   })
 })

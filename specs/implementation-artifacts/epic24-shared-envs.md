@@ -40,7 +40,7 @@ Notes:
 
 ## Resolution Rules
 
-Env values are resolved per target into one `effective env` map before injection. For app deployment and compose rendering, the minimal precedence is:
+Env values are resolved per target into one `effective env` map before injection. For lifecycle execution and compose rendering, the minimal precedence is:
 
 1. Platform var layer
 2. Attached env sets (in attachment order; when the same key appears in multiple sets, the later-attached set wins)
@@ -50,7 +50,7 @@ Env values are resolved per target into one `effective env` map before injection
 Additional rules:
 - Resolution does not mutate upstream layers; only the resolved result is injected.
 - Compose `.env` is generated from the resolved result when needed; it should not be treated as the canonical storage model.
-- Resolution and injection policy (what gets injected into which target) is owned by the deploy resolver (Epic 17). Shared Envs only provides the reusable source layer.
+- Resolution and injection policy (what gets injected into which target) is owned by the Epic 17 lifecycle resolver/normalizer. Shared Envs only provides the reusable source layer.
 
 ## Consumption Model
 
@@ -176,7 +176,7 @@ No custom ext routes needed. PocketBase native Records API covers all CRUD for `
 ## Dependencies
 
 - Prerequisites: Epic 1 (infra), Epic 3 (auth), Epic 19 (Secrets, for secret-backed vars)
-- Consumers: Epic 17 (deploy resolver reads `apps.env_sets` at resolve time), workflow execution (future epic)
+- Consumers: Epic 17 (lifecycle resolver/normalizer reads `apps.env_sets` at resolve time), workflow execution (future epic)
 
 ## Out of Scope
 

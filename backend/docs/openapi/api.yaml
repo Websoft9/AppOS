@@ -17,8 +17,14 @@ tags:
       name: Backups
     - description: Docker operations including compose, image, container, network and volume management.
       name: Docker
-    - description: Deployment orchestration APIs for manual compose submission, status, detail, and logs.
-      name: Deploy
+    - description: Lifecycle operation APIs for install inputs, operation history, detail, and logs.
+      name: Operations
+    - description: Pipeline run inventory and detail APIs for lifecycle-native execution tracking.
+      name: Pipelines
+    - description: Release inventory and app-scoped release inspection APIs.
+      name: Releases
+    - description: Exposure inventory and app-scoped publication inspection APIs.
+      name: Exposures
     - description: Installed app inventory and lifecycle APIs backed by compose projects.
       name: Apps
     - description: Native service health endpoint
@@ -557,22 +563,15 @@ paths:
             summary: Validate app compose config
             tags:
                 - Apps
-    /api/apps/{id}/deploy:
-        post:
-            description: Creates a one-click redeploy or upgrade deployment using the currently installed compose config and existing project directory. Superuser only.
-            operationId: post_api_apps_id_deploy
+    /api/apps/{id}/exposures:
+        get:
+            operationId: get_api_apps_id_exposures
             parameters:
                 - in: path
                   name: id
                   required: true
                   schema:
                     type: string
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: true
             responses:
                 "200":
                     content:
@@ -580,41 +579,49 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-                "202":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: Accepted
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
                 "401":
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
-                "404":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Not Found
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Internal Server Error
             security:
                 - bearerAuth: []
-            summary: Create deployment from installed app
+            summary: Get apps by id exposures
             tags:
-                - Apps
+                - Exposures
+    /api/apps/{id}/exposures/{exposureId}:
+        get:
+            operationId: get_api_apps_id_exposures_exposureid
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+                - in: path
+                  name: exposureId
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get apps by id exposures by exposureId
+            tags:
+                - Exposures
     /api/apps/{id}/logs:
         get:
             description: Returns docker compose logs for one installed app. Superuser only.
@@ -666,6 +673,118 @@ paths:
             summary: Get app logs
             tags:
                 - Apps
+    /api/apps/{id}/redeploy:
+        post:
+            description: Creates a redeploy operation using the currently installed compose config and existing project directory. Superuser only.
+            operationId: post_api_apps_id_redeploy
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "202":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: Accepted
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Not Found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Redeploy app
+            tags:
+                - Apps
+    /api/apps/{id}/releases:
+        get:
+            operationId: get_api_apps_id_releases
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get apps by id releases
+            tags:
+                - Releases
+    /api/apps/{id}/releases/current:
+        get:
+            operationId: get_api_apps_id_releases_current
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get apps by id releases current
+            tags:
+                - Releases
     /api/apps/{id}/restart:
         post:
             description: Restarts an installed app via docker compose restart. Superuser only.
@@ -820,6 +939,64 @@ paths:
             security:
                 - bearerAuth: []
             summary: Stop app
+            tags:
+                - Apps
+    /api/apps/{id}/upgrade:
+        post:
+            description: Creates an upgrade operation using the currently installed compose config and existing project directory. Superuser only.
+            operationId: post_api_apps_id_upgrade
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "202":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: Accepted
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Not Found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Upgrade app
             tags:
                 - Apps
     /api/backups:
@@ -1488,9 +1665,9 @@ paths:
             summary: Get cron job execution logs
             tags:
                 - System Cron
-    /api/deployments:
+    /api/exposures:
         get:
-            operationId: get_api_deployments
+            operationId: get_api_exposures
             responses:
                 "200":
                     content:
@@ -1506,12 +1683,12 @@ paths:
                     description: Unauthorized
             security:
                 - bearerAuth: []
-            summary: Get deployments
+            summary: Get exposures
             tags:
-                - Deploy
-    /api/deployments/{id}:
-        delete:
-            operationId: delete_api_deployments_id
+                - Exposures
+    /api/exposures/{id}:
+        get:
+            operationId: get_api_exposures_id
             parameters:
                 - in: path
                   name: id
@@ -1533,143 +1710,9 @@ paths:
                     description: Unauthorized
             security:
                 - bearerAuth: []
-            summary: Delete deployments by id
+            summary: Get exposures by id
             tags:
-                - Deploy
-        get:
-            operationId: get_api_deployments_id
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Get deployments by id
-            tags:
-                - Deploy
-    /api/deployments/{id}/logs:
-        get:
-            operationId: get_api_deployments_id_logs
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Get deployments by id logs
-            tags:
-                - Deploy
-    /api/deployments/{id}/stream:
-        get:
-            operationId: get_api_deployments_id_stream
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Get deployments by id stream
-            tags:
-                - Deploy
-    /api/deployments/git-compose:
-        post:
-            operationId: post_api_deployments_git-compose
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: false
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Create or execute deployments git compose
-            tags:
-                - Deploy
-    /api/deployments/manual-compose:
-        post:
-            operationId: post_api_deployments_manual-compose
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: false
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Create or execute deployments manual compose
-            tags:
-                - Deploy
+                - Exposures
     /api/ext/auth/check-email:
         post:
             operationId: post_api_ext_auth_check-email
@@ -5085,6 +5128,236 @@ paths:
             summary: Get Native health status
             tags:
                 - Health
+    /api/operations:
+        get:
+            operationId: get_api_operations
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get operations
+            tags:
+                - Operations
+    /api/operations/{id}:
+        delete:
+            operationId: delete_api_operations_id
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Delete operations by id
+            tags:
+                - Operations
+        get:
+            operationId: get_api_operations_id
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get operations by id
+            tags:
+                - Operations
+    /api/operations/{id}/logs:
+        get:
+            operationId: get_api_operations_id_logs
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get operations by id logs
+            tags:
+                - Operations
+    /api/operations/{id}/stream:
+        get:
+            operationId: get_api_operations_id_stream
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get operations by id stream
+            tags:
+                - Operations
+    /api/operations/install/git-compose:
+        post:
+            operationId: post_api_operations_install_git-compose
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Create or execute operations install git compose
+            tags:
+                - Operations
+    /api/operations/install/manual-compose:
+        post:
+            operationId: post_api_operations_install_manual-compose
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Create or execute operations install manual compose
+            tags:
+                - Operations
+    /api/pipelines:
+        get:
+            operationId: get_api_pipelines
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get pipelines
+            tags:
+                - Pipelines
+    /api/pipelines/{id}:
+        get:
+            operationId: get_api_pipelines_id
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get pipelines by id
+            tags:
+                - Pipelines
     /api/realtime:
         get:
             operationId: pb_realtime_get
@@ -5104,6 +5377,54 @@ paths:
             summary: Submit realtime subscriptions
             tags:
                 - Realtime
+    /api/releases:
+        get:
+            operationId: get_api_releases
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get releases
+            tags:
+                - Releases
+    /api/releases/{id}:
+        get:
+            operationId: get_api_releases_id
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get releases by id
+            tags:
+                - Releases
     /api/servers/{serverId}/files/chmod:
         post:
             description: Sets file permissions (octal mode) on a remote path. Superuser only.

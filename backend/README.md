@@ -53,7 +53,7 @@ make openapi-sync
 
 Available commands:
 
-- `make openapi-gen` — regenerate `ext-api.yaml` from custom route source (generated custom-route spec for `/api/ext/*`, `/api/servers/*`, `/api/apps*`, `/api/deployments*`, `/api/components*`)
+- `make openapi-gen` — regenerate `ext-api.yaml` from custom route source (generated custom-route spec for `/api/ext/*`, `/api/servers/*`, `/api/apps*`, `/api/operations*`, `/api/pipelines*`, `/api/components*`)
 - `make openapi-merge` — merge `ext-api.yaml` + `native-api.yaml` into `api.yaml`
 - `make openapi-check` — fail when custom route/spec drift or duplicate YAML keys exist
 - `make openapi-sync` — run generate + merge + check in order

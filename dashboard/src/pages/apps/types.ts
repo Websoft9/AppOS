@@ -1,6 +1,50 @@
+export type AppPipeline = {
+  id: string
+  operation_id: string
+  family: string
+  family_internal?: string
+  definition_key?: string
+  version?: string
+  status: string
+  current_phase?: string
+  selector?: {
+    operation_type?: string
+    source?: string
+    adapter?: string
+  }
+}
+
+export type AppRelease = {
+  id: string
+  app_id: string
+  created_by_operation?: string
+  release_role?: string
+  version_label?: string
+  source_type?: string
+  source_ref?: string
+  is_active: boolean
+  is_last_known_good: boolean
+  activated_at?: string
+  updated: string
+}
+
+export type AppExposure = {
+  id: string
+  app_id: string
+  release_id?: string
+  exposure_type?: string
+  is_primary: boolean
+  domain?: string
+  path?: string
+  target_port?: number
+  publication_state?: string
+  health_state?: string
+  last_verified_at?: string
+  updated: string
+}
+
 export type AppInstance = {
   id: string
-  deployment_id?: string
   iac_path?: string
   server_id: string
   name: string
@@ -8,11 +52,13 @@ export type AppInstance = {
   source: string
   status: string
   runtime_status: string
+  lifecycle_state?: string
+  health_summary?: string
+  publication_summary?: string
+  last_operation?: string
+  current_pipeline?: AppPipeline | null
   runtime_reason?: string
-  last_deployment_status?: string
-  last_action?: string
-  last_action_at?: string
-  last_deployed_at?: string
+  installed_at?: string
   created: string
   updated: string
 }
@@ -86,7 +132,7 @@ export function appInitials(name: string): string {
 
 export function formatUptime(app: AppInstance): string {
   if (app.runtime_status !== 'running') return '-'
-  const anchor = app.last_action_at || app.last_deployed_at || app.created
+  const anchor = app.installed_at || app.created
   const startedAt = new Date(anchor)
   if (Number.isNaN(startedAt.getTime())) return '-'
   const diffMs = Math.max(0, Date.now() - startedAt.getTime())

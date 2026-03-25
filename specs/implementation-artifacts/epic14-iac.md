@@ -132,11 +132,11 @@ MVP: superuser only. Phase 2: app creator inherits full CRUD over `apps/{appId}/
 
 ## Out of Scope (MVP)
 
-- File version history / rollback (handled by deploy Epic via PB `config_versions` collection)
+- File version history / rollback (handled by the lifecycle execution epic via PB `config_versions` collection)
 - Multi-user per-directory permission grants
 - Binary preview, real-time file watching, symlink support, full-text search
 - S3 / remote storage backend
-- Deploy trigger — apply/deploy after save belongs to the deploy Epic
+- Apply trigger after save belongs to the lifecycle execution epic
 - `/appos/library/` access
 
 ---

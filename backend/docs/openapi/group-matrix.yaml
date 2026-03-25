@@ -75,22 +75,82 @@ groups:
         - docker.go
       nativeRefs: []
 
-  - group: Deploy
-    description: Deployment orchestration APIs for manual compose submission, status, detail, and logs.
+  - group: Operations
+    description: Lifecycle operation APIs for install inputs, operation history, detail, and logs.
     apiType: Ext
     extSurface:
-      - /api/deployments*
+      - GET /api/operations
+      - GET /api/operations/{id}
+      - DELETE /api/operations/{id}
+      - GET /api/operations/{id}/logs
+      - GET /api/operations/{id}/stream
+      - POST /api/operations/install/git-compose
+      - POST /api/operations/install/manual-compose
     nativeSurface: []
     sources:
       extRouteFiles:
         - deploy.go
       nativeRefs: []
 
+  - group: Pipelines
+    description: Pipeline run inventory and detail APIs for lifecycle-native execution tracking.
+    apiType: Ext
+    extSurface:
+      - GET /api/pipelines
+      - GET /api/pipelines/{id}
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - deploy.go
+      nativeRefs: []
+
+  - group: Releases
+    description: Release inventory and app-scoped release inspection APIs.
+    apiType: Ext
+    extSurface:
+      - GET /api/releases
+      - GET /api/releases/{id}
+      - GET /api/apps/{id}/releases
+      - GET /api/apps/{id}/releases/current
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - lifecycle_resources.go
+        - apps.go
+      nativeRefs: []
+
+  - group: Exposures
+    description: Exposure inventory and app-scoped publication inspection APIs.
+    apiType: Ext
+    extSurface:
+      - GET /api/exposures
+      - GET /api/exposures/{id}
+      - GET /api/apps/{id}/exposures
+      - GET /api/apps/{id}/exposures/{exposureId}
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - lifecycle_resources.go
+        - apps.go
+      nativeRefs: []
+
   - group: Apps
     description: Installed app inventory and lifecycle APIs backed by compose projects.
     apiType: Ext
     extSurface:
-      - /api/apps*
+      - GET /api/apps
+      - GET /api/apps/{id}
+      - GET /api/apps/{id}/logs
+      - GET /api/apps/{id}/config
+      - PUT /api/apps/{id}/config
+      - POST /api/apps/{id}/config/validate
+      - POST /api/apps/{id}/config/rollback
+      - POST /api/apps/{id}/upgrade
+      - POST /api/apps/{id}/redeploy
+      - POST /api/apps/{id}/start
+      - POST /api/apps/{id}/stop
+      - POST /api/apps/{id}/restart
+      - DELETE /api/apps/{id}
     nativeSurface: []
     sources:
       extRouteFiles:

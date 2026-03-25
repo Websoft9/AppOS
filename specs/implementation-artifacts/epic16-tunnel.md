@@ -34,7 +34,7 @@ Internal port mapping (never exposed publicly):
   127.0.0.1:42002  ←→  local server :80   → available for future proxy wiring
 ```
 
-**HTTP forwarding scope**: The tunnel infrastructure forwards `:80` as a second `-R` in the same SSH session — no extra implementation. How the public reverse proxy routes traffic to `127.0.0.1:42002` is a deployment concern deferred to the App Deployment epic.
+**HTTP forwarding scope**: The tunnel infrastructure forwards `:80` as a second `-R` in the same SSH session — no extra implementation. How the public reverse proxy routes traffic to `127.0.0.1:42002` is deferred to the lifecycle execution and management epics.
 
 ### Port lifecycle
 
@@ -146,7 +146,7 @@ portpool reads these at startup. With SSH + HTTP (2 ports per server), this defa
 | `host` field for tunnel servers | `resolveServerConfig` overrides `cfg.Host=127.0.0.1`, `cfg.Port=tunnel_services[ssh].tunnel_port` |
 | `tunnel_services` creation | Written by backend automatically on first tunnel establishment, never by the user |
 | Desired port mappings | Tunnel-owned configuration, separate from runtime/effective `tunnel_services` |
-| HTTP multi-app routing | Transport only in this Epic. Public reverse proxy wiring is deferred to App Deployment epic |
+| HTTP multi-app routing | Transport only in this Epic. Public reverse proxy wiring is deferred to Epic 17 / Epic 18 |
 | Public exposure | Tunnel ports bound to `127.0.0.1` only. Public `:80/:443` handled by existing Nginx |
 | Operations ownership | Tunnel owns current connection state, service mapping, and control actions |
 | Future multi-port forwarding ownership | Tunnel-owned capability. Server may expose entrypoints, but forward rules and effective mappings remain Tunnel domain concerns |
@@ -277,7 +277,7 @@ First version:
 
 ## Out of Scope
 
-- Public reverse proxy wiring for HTTP apps → App Deployment epic
+- Public reverse proxy wiring for HTTP apps → Epic 17 / Epic 18
 - Arbitrary TCP port forwarding → schema already supports it; implementation deferred
 - Live in-session forward reconfiguration after mapping edits
 - UDP forwarding

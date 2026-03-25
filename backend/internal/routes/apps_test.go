@@ -1,16 +1,17 @@
 package routes
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/internal/lifecycle/model"
 )
 
 func (te *testEnv) doApps(t *testing.T, method, url, body string, authenticated bool) *httptest.ResponseRecorder {
@@ -53,17 +54,96 @@ func seedAppInstance(t *testing.T, te *testEnv, name string) *core.Record {
 		t.Fatal(err)
 	}
 	record := core.NewRecord(col)
+	record.Set("key", name+"-key")
 	record.Set("server_id", "local")
 	record.Set("name", name)
-	record.Set("project_dir", projectDir)
-	record.Set("source", "manualops")
-	record.Set("status", "installed")
-	record.Set("runtime_status", "running")
-	record.Set("last_deployment_status", "success")
+	record.Set("lifecycle_state", string(model.AppStateRunningHealthy))
+	record.Set("desired_state", string(model.DesiredStateRunning))
+	record.Set("health_summary", string(model.HealthHealthy))
+	record.Set("publication_summary", string(model.PublicationUnpublished))
+	record.Set("state_reason", "seeded for apps route test")
+	record.Set("installed_at", time.Now())
+	if err := te.app.Save(record); err != nil {
+		t.Fatal(err)
+	}
+
+	operationsCol, err := te.app.FindCollectionByNameOrId("app_operations")
+	if err != nil {
+		t.Fatal(err)
+	}
+	operation := core.NewRecord(operationsCol)
+	operation.Set("app", record.Id)
+	operation.Set("server_id", "local")
+	operation.Set("operation_type", string(model.OperationTypeInstall))
+	operation.Set("trigger_source", string(model.TriggerSourceManualOps))
+	operation.Set("phase", string(model.OperationPhaseQueued))
+	operation.Set("compose_project_name", name)
+	operation.Set("project_dir", projectDir)
+	operation.Set("rendered_compose", compose)
+	operation.Set("queued_at", time.Now())
+	operation.Set("spec_json", map[string]any{
+		"project_dir": projectDir,
+		"source":      string(model.TriggerSourceManualOps),
+	})
+	if err := te.app.Save(operation); err != nil {
+		t.Fatal(err)
+	}
+
+	pipelineRunsCol, err := te.app.FindCollectionByNameOrId("pipeline_runs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pipelineRun := core.NewRecord(pipelineRunsCol)
+	pipelineRun.Set("operation", operation.Id)
+	pipelineRun.Set("pipeline_family", model.ProvisionPipeline)
+	pipelineRun.Set("pipeline_definition_key", "provision.install.manual_compose")
+	pipelineRun.Set("pipeline_version", "v1")
+	pipelineRun.Set("current_phase", string(model.PipelinePhaseValidating))
+	pipelineRun.Set("status", "active")
+	pipelineRun.Set("node_count", 1)
+	pipelineRun.Set("completed_node_count", 0)
+	if err := te.app.Save(pipelineRun); err != nil {
+		t.Fatal(err)
+	}
+
+	pipelineNodeRunsCol, err := te.app.FindCollectionByNameOrId("pipeline_node_runs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodeRun := core.NewRecord(pipelineNodeRunsCol)
+	nodeRun.Set("pipeline_run", pipelineRun.Id)
+	nodeRun.Set("node_key", "validate_request")
+	nodeRun.Set("node_type", "validation")
+	nodeRun.Set("display_name", "Validate Request")
+	nodeRun.Set("phase", string(model.PipelinePhaseValidating))
+	nodeRun.Set("status", "pending")
+	nodeRun.Set("retry_count", 0)
+	nodeRun.Set("depends_on_json", []string{})
+	if err := te.app.Save(nodeRun); err != nil {
+		t.Fatal(err)
+	}
+
+	operation.Set("pipeline_run", pipelineRun.Id)
+	if err := te.app.Save(operation); err != nil {
+		t.Fatal(err)
+	}
+
+	record.Set("last_operation", operation.Id)
 	if err := te.app.Save(record); err != nil {
 		t.Fatal(err)
 	}
 	return record
+}
+
+func seedAppOperation(t *testing.T, te *testEnv, appRecord *core.Record) *core.Record {
+	t.Helper()
+
+	operation, err := te.app.FindRecordById("app_operations", appRecord.GetString("last_operation"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return operation
 }
 
 func TestAppInstancesListAndDetail(t *testing.T) {
@@ -83,17 +163,39 @@ func TestAppInstancesListAndDetail(t *testing.T) {
 	if items[0]["name"] != "demo-app" {
 		t.Fatalf("expected demo-app, got %v", items[0]["name"])
 	}
+	currentPipeline, ok := items[0]["current_pipeline"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected current_pipeline map in list, got %T", items[0]["current_pipeline"])
+	}
+	if currentPipeline["definition_key"] != "provision.install.manual_compose" {
+		t.Fatalf("expected current pipeline definition key, got %v", currentPipeline["definition_key"])
+	}
 
 	rec = te.doApps(t, http.MethodGet, "/api/apps/"+record.Id, "", true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("detail: expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 	item := parseJSON(t, rec)
-	if item["project_dir"] != record.GetString("project_dir") {
+	operation := seedAppOperation(t, te, record)
+	if item["project_dir"] != operation.GetString("project_dir") {
 		t.Fatalf("expected project dir, got %v", item["project_dir"])
 	}
 	if item["status"] != "installed" {
 		t.Fatalf("expected installed, got %v", item["status"])
+	}
+	currentPipeline, ok = item["current_pipeline"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected current_pipeline map in detail, got %T", item["current_pipeline"])
+	}
+	if currentPipeline["family"] != "provision" {
+		t.Fatalf("expected provision current pipeline family, got %v", currentPipeline["family"])
+	}
+	selector, ok := currentPipeline["selector"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected current pipeline selector map, got %T", currentPipeline["selector"])
+	}
+	if selector["operation_type"] != string(model.OperationTypeInstall) || selector["source"] != string(model.TriggerSourceManualOps) {
+		t.Fatalf("unexpected current pipeline selector: %v", selector)
 	}
 }
 
@@ -142,7 +244,8 @@ func TestAppInstanceConfigRollback(t *testing.T) {
 	if rolledBack["content"] != original {
 		t.Fatalf("expected original compose after rollback, got %v", rolledBack["content"])
 	}
-	content, err := os.ReadFile(filepath.Join(record.GetString("project_dir"), "docker-compose.yml"))
+	operation := seedAppOperation(t, te, record)
+	content, err := os.ReadFile(filepath.Join(operation.GetString("project_dir"), "docker-compose.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,45 +256,46 @@ func TestAppInstanceConfigRollback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw, err := json.Marshal(stored.Get("config_rollback_snapshot"))
-	if err != nil {
-		t.Fatal(err)
+	snapshot, ok := getAppConfigRollbackSnapshot(stored)
+	if !ok {
+		t.Fatal("expected rollback snapshot to be available")
 	}
-	if !strings.Contains(string(raw), "caddy:alpine") {
-		t.Fatalf("expected rollback snapshot to hold replaced config, got %s", string(raw))
+	if !strings.Contains(snapshot.Content, "caddy:alpine") {
+		t.Fatalf("expected rollback snapshot to hold replaced config, got %s", snapshot.Content)
 	}
 }
 
-func TestAppInstanceDeployCreatesQueuedDeploymentForExistingProject(t *testing.T) {
+func TestAppInstanceUpgradeCreatesQueuedOperationForExistingProject(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
 	record := seedAppInstance(t, te, "demo-app")
-	rec := te.doApps(t, http.MethodPost, "/api/apps/"+record.Id+"/deploy", `{"action":"upgrade"}`, true)
+	rec := te.doApps(t, http.MethodPost, "/api/apps/"+record.Id+"/upgrade", "", true)
 	if rec.Code != http.StatusAccepted {
-		t.Fatalf("deploy: expected 202, got %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("upgrade: expected 202, got %d: %s", rec.Code, rec.Body.String())
 	}
 	created := parseJSON(t, rec)
-	if created["status"] != "queued" {
-		t.Fatalf("expected queued deployment, got %v", created["status"])
+	operation := seedAppOperation(t, te, record)
+	if created["status"] != string(model.OperationPhaseQueued) {
+		t.Fatalf("expected queued operation, got %v", created["status"])
 	}
-	if created["project_dir"] != record.GetString("project_dir") {
+	if created["project_dir"] != operation.GetString("project_dir") {
 		t.Fatalf("expected existing project dir, got %v", created["project_dir"])
 	}
 	if created["compose_project_name"] != record.GetString("name") {
 		t.Fatalf("expected existing compose project name, got %v", created["compose_project_name"])
 	}
-	if created["source"] != record.GetString("source") {
-		t.Fatalf("expected source %s, got %v", record.GetString("source"), created["source"])
+	if created["source"] != operation.GetString("trigger_source") {
+		t.Fatalf("expected source %s, got %v", operation.GetString("trigger_source"), created["source"])
 	}
 	if created["enqueued"] != false {
 		t.Fatalf("expected enqueued false without worker client, got %v", created["enqueued"])
 	}
-	deployment, err := te.app.FindRecordById("deployments", created["id"].(string))
+	createdOperation, err := te.app.FindRecordById("app_operations", created["id"].(string))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if deployment.GetString("project_dir") != record.GetString("project_dir") {
-		t.Fatalf("expected stored project dir %s, got %s", record.GetString("project_dir"), deployment.GetString("project_dir"))
+	if createdOperation.GetString("project_dir") != operation.GetString("project_dir") {
+		t.Fatalf("expected stored project dir %s, got %s", operation.GetString("project_dir"), createdOperation.GetString("project_dir"))
 	}
 }

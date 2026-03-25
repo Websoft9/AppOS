@@ -1,0 +1,83 @@
+family: RetirePipeline
+description: Retirement flows that stop runtimes and finalize application removal.
+intent: Intentionally stop or remove an application and finalize its managed lifecycle footprint.
+touches_domains:
+  - AppInstance
+  - OperationJob
+  - ReleaseSnapshot
+  - Exposure
+  - PipelineRun
+  - PipelineNodeRun
+default_compensation_policy: strict
+applies_to:
+  - stop
+  - uninstall
+
+definitions:
+  - key: retire.stop
+    version: v1
+    family: RetirePipeline
+    operation_types:
+      - stop
+    initial_phase: validating
+    nodes:
+      - key: validate_retirement_request
+        node_type: validation
+        display_name: Validate Retirement Request
+        phase: validating
+        retryable: false
+        writes_projection:
+          - OperationJob
+      - key: stop_runtime
+        node_type: runtime_stop
+        display_name: Stop Runtime
+        phase: executing
+        retryable: true
+        writes_projection:
+          - AppInstance
+        depends_on:
+          - validate_retirement_request
+      - key: verify_stopped_state
+        node_type: runtime_check
+        display_name: Verify Stopped State
+        phase: verifying
+        retryable: true
+        writes_projection:
+          - AppInstance
+        depends_on:
+          - stop_runtime
+
+  - key: retire.uninstall
+    version: v1
+    family: RetirePipeline
+    operation_types:
+      - uninstall
+    initial_phase: validating
+    nodes:
+      - key: validate_retirement_request
+        node_type: validation
+        display_name: Validate Retirement Request
+        phase: validating
+        retryable: false
+        writes_projection:
+          - OperationJob
+      - key: stop_runtime
+        node_type: runtime_stop
+        display_name: Stop Runtime
+        phase: executing
+        retryable: true
+        writes_projection:
+          - AppInstance
+        depends_on:
+          - validate_retirement_request
+      - key: finalize_retirement
+        node_type: retirement
+        display_name: Finalize Retirement
+        phase: compensating
+        retryable: false
+        writes_projection:
+          - AppInstance
+          - Exposure
+          - ReleaseSnapshot
+        depends_on:
+          - stop_runtime

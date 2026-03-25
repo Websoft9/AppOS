@@ -50,14 +50,15 @@ The canonical product-facing logic must live in the custom lifecycle routes, not
 
 The canonical lifecycle route groups are:
 
-1. `/api/app-instances/*`
-2. `/api/app-operations/*`
-3. `/api/app-exposures/*`
-4. `/api/app-releases/*`
+1. `/api/apps/*`
+2. `/api/operations/*`
+3. `/api/exposures/*`
+4. `/api/releases/*`
+5. `/api/pipelines/*`
 
-These four route groups define the main business API of the lifecycle backend.
+These route groups define the main lifecycle API of the backend. `apps` is the long-lived management projection, `operations` is the execution-facing business action layer, `releases` and `exposures` are lifecycle business objects, and `pipelines` is the execution inspection surface.
 
-### 3. `app-instances` API
+### 3. `apps` API
 
 Purpose: provide Installed App inventory, app detail projection, lifecycle state visibility, and action entry points.
 
@@ -65,23 +66,23 @@ Purpose: provide Installed App inventory, app detail projection, lifecycle state
 
 | Method | Path | Purpose | Notes |
 | --- | --- | --- | --- |
-| `GET` | `/api/app-instances` | list all app instances | canonical Installed view |
-| `GET` | `/api/app-instances/{id}` | get one app instance detail | includes release and exposure summary |
-| `GET` | `/api/app-instances/{id}/summary` | lightweight status summary | optional optimization for cards and polling |
-| `GET` | `/api/app-instances/{id}/health` | get normalized runtime and health view | projected, not raw worker state |
-| `GET` | `/api/app-instances/{id}/operations` | list operations belonging to one app | may proxy to `app_operations` query |
-| `GET` | `/api/app-instances/{id}/timeline` | app-level lifecycle timeline | app-scoped, can aggregate multiple operations |
-| `GET` | `/api/app-instances/{id}/audit` | app-scoped audit records | critical lifecycle actions only |
+| `GET` | `/api/apps` | list all apps | canonical Installed view |
+| `GET` | `/api/apps/{id}` | get one app detail | includes release, exposure, and current pipeline summary |
+| `GET` | `/api/apps/{id}/summary` | lightweight status summary | optional optimization for cards and polling |
+| `GET` | `/api/apps/{id}/health` | get normalized runtime and health view | projected, not raw worker state |
+| `GET` | `/api/apps/{id}/operations` | list operations belonging to one app | may proxy to `app_operations` query |
+| `GET` | `/api/apps/{id}/timeline` | app-level lifecycle timeline | app-scoped, can aggregate multiple operations |
+| `GET` | `/api/apps/{id}/audit` | app-scoped audit records | critical lifecycle actions only |
 
 #### 3.2 Configuration routes
 
 | Method | Path | Purpose | Notes |
 | --- | --- | --- | --- |
-| `GET` | `/api/app-instances/{id}/config` | read effective config / compose baseline | UI editing and inspection |
-| `POST` | `/api/app-instances/{id}/config/validate` | validate candidate config | does not apply changes |
-| `PUT` | `/api/app-instances/{id}/config` | save draft config | optional if drafts are supported |
-| `POST` | `/api/app-instances/{id}/config/apply` | apply config by creating a `reconfigure` operation | canonical behavior route |
-| `POST` | `/api/app-instances/{id}/config/rollback` | rollback config baseline | typically creates a `rollback` or `reconfigure` operation |
+| `GET` | `/api/apps/{id}/config` | read effective config / compose baseline | UI editing and inspection |
+| `POST` | `/api/apps/{id}/config/validate` | validate candidate config | does not apply changes |
+| `PUT` | `/api/apps/{id}/config` | save draft config | optional if drafts are supported |
+| `POST` | `/api/apps/{id}/config/apply` | apply config by creating a `reconfigure` operation | canonical behavior route |
+| `POST` | `/api/apps/{id}/config/rollback` | rollback config baseline | typically creates a `rollback` or `reconfigure` operation |
 
 #### 3.3 Lifecycle action routes
 
@@ -89,22 +90,22 @@ These routes are management-surface entry points. They should create or trigger 
 
 | Method | Path | Creates operation type |
 | --- | --- | --- |
-| `POST` | `/api/app-instances/{id}/start` | `start` |
-| `POST` | `/api/app-instances/{id}/stop` | `stop` |
-| `POST` | `/api/app-instances/{id}/restart` | `redeploy` or `maintain` depending on policy |
-| `POST` | `/api/app-instances/{id}/upgrade` | `upgrade` |
-| `POST` | `/api/app-instances/{id}/redeploy` | `redeploy` |
-| `POST` | `/api/app-instances/{id}/reconfigure` | `reconfigure` |
-| `POST` | `/api/app-instances/{id}/maintain` | `maintain` |
-| `POST` | `/api/app-instances/{id}/recover` | `recover` |
-| `POST` | `/api/app-instances/{id}/rollback` | `rollback` |
-| `POST` | `/api/app-instances/{id}/publish` | `publish` |
-| `POST` | `/api/app-instances/{id}/unpublish` | `unpublish` |
-| `POST` | `/api/app-instances/{id}/backup` | `backup` |
-| `POST` | `/api/app-instances/{id}/restore` | `recover` or future `restore` |
-| `DELETE` | `/api/app-instances/{id}` | `uninstall` |
+| `POST` | `/api/apps/{id}/start` | `start` |
+| `POST` | `/api/apps/{id}/stop` | `stop` |
+| `POST` | `/api/apps/{id}/restart` | `redeploy` or `maintain` depending on policy |
+| `POST` | `/api/apps/{id}/upgrade` | `upgrade` |
+| `POST` | `/api/apps/{id}/redeploy` | `redeploy` |
+| `POST` | `/api/apps/{id}/reconfigure` | `reconfigure` |
+| `POST` | `/api/apps/{id}/maintain` | `maintain` |
+| `POST` | `/api/apps/{id}/recover` | `recover` |
+| `POST` | `/api/apps/{id}/rollback` | `rollback` |
+| `POST` | `/api/apps/{id}/publish` | `publish` |
+| `POST` | `/api/apps/{id}/unpublish` | `unpublish` |
+| `POST` | `/api/apps/{id}/backup` | `backup` |
+| `POST` | `/api/apps/{id}/restore` | `recover` or future `restore` |
+| `DELETE` | `/api/apps/{id}` | `uninstall` |
 
-### 4. `app-operations` API
+### 4. `operations` API
 
 Purpose: expose the execution-facing business action layer.
 
@@ -114,18 +115,18 @@ This is the central async execution API. All major lifecycle actions ultimately 
 
 | Method | Path | Purpose | Notes |
 | --- | --- | --- | --- |
-| `POST` | `/api/app-operations` | create a normalized lifecycle operation | generic entry for advanced or internal callers |
-| `GET` | `/api/app-operations` | list operation history | filter by app, server, type, phase, status |
-| `GET` | `/api/app-operations/{id}` | get operation detail | includes summary of pipeline execution |
-| `GET` | `/api/app-operations/{id}/status` | lightweight status polling | for dashboards and progress polling |
-| `GET` | `/api/app-operations/{id}/timeline` | get operation timeline | canonical timeline API |
-| `GET` | `/api/app-operations/{id}/logs` | get operation logs | aggregated or proxied log view |
-| `GET` | `/api/app-operations/{id}/stream` | realtime status/log stream | websocket or SSE depending on implementation |
-| `POST` | `/api/app-operations/{id}/cancel` | request cancellation | async, best effort |
-| `POST` | `/api/app-operations/{id}/retry` | recreate or resume operation | policy-controlled |
-| `POST` | `/api/app-operations/{id}/retry-from-node` | retry from a specific node | optional advanced behavior |
-| `POST` | `/api/app-operations/{id}/ack-manual-intervention` | resume after manual step | for `manual_intervention_required` outcomes |
-| `DELETE` | `/api/app-operations/{id}` | delete terminal operation record | admin / low-priority cleanup path |
+| `POST` | `/api/operations` | create a normalized lifecycle operation | generic entry for advanced or internal callers |
+| `GET` | `/api/operations` | list operation history | filter by app, server, type, phase, status |
+| `GET` | `/api/operations/{id}` | get operation detail | includes summary of pipeline execution |
+| `GET` | `/api/operations/{id}/status` | lightweight status polling | for dashboards and progress polling |
+| `GET` | `/api/operations/{id}/timeline` | get operation timeline | canonical timeline API |
+| `GET` | `/api/operations/{id}/logs` | get operation logs | aggregated or proxied log view |
+| `GET` | `/api/operations/{id}/stream` | realtime status/log stream | websocket or SSE depending on implementation |
+| `POST` | `/api/operations/{id}/cancel` | request cancellation | async, best effort |
+| `POST` | `/api/operations/{id}/retry` | recreate or resume operation | policy-controlled |
+| `POST` | `/api/operations/{id}/retry-from-node` | retry from a specific node | optional advanced behavior |
+| `POST` | `/api/operations/{id}/ack-manual-intervention` | resume after manual step | for `manual_intervention_required` outcomes |
+| `DELETE` | `/api/operations/{id}` | delete terminal operation record | admin / low-priority cleanup path |
 
 #### 4.2 Operation adapter routes
 
@@ -133,15 +134,24 @@ Purpose: convert different install/change inputs into one normalized operation c
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `POST` | `/api/app-operations/install/manual-compose` | install from manual compose input |
-| `POST` | `/api/app-operations/install/git-compose` | install from git compose source |
-| `POST` | `/api/app-operations/install/store-app` | install from App Store / template source |
-| `POST` | `/api/app-operations/install/docker-run` | normalize docker run input into compose-compatible spec |
-| `POST` | `/api/app-operations/install/source-package` | normalize source package/build input into operation spec |
+| `POST` | `/api/operations/install/manual-compose` | install from manual compose input |
+| `POST` | `/api/operations/install/git-compose` | install from git compose source |
+| `POST` | `/api/operations/install/store-app` | install from App Store / template source |
+| `POST` | `/api/operations/install/docker-run` | normalize docker run input into compose-compatible spec |
+| `POST` | `/api/operations/install/source-package` | normalize source package/build input into operation spec |
 
 These adapter routes are convenience and normalization APIs. They must still create `app_operations` and enter the shared execution core.
 
-### 5. `app-exposures` API
+### 4.3 `pipelines` API
+
+Purpose: inspect execution infrastructure state for debugging, progress detail, and node-level visibility.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/pipelines` | list pipeline runs |
+| `GET` | `/api/pipelines/{id}` | get pipeline run detail including nodes |
+
+### 5. `exposures` API
 
 Purpose: manage publication, domain binding, path binding, certificates, and publication health independently from runtime install state.
 
@@ -149,22 +159,22 @@ Purpose: manage publication, domain binding, path binding, certificates, and pub
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/app-exposures` | list all exposures |
-| `POST` | `/api/app-exposures` | create a new exposure definition |
-| `GET` | `/api/app-exposures/{id}` | get exposure detail |
-| `PATCH` | `/api/app-exposures/{id}` | update exposure configuration |
-| `DELETE` | `/api/app-exposures/{id}` | delete exposure |
-| `GET` | `/api/app-exposures/{id}/health` | get external publication health |
-| `GET` | `/api/app-exposures/{id}/history` | get exposure-related history |
+| `GET` | `/api/exposures` | list all exposures |
+| `POST` | `/api/exposures` | create a new exposure definition |
+| `GET` | `/api/exposures/{id}` | get exposure detail |
+| `PATCH` | `/api/exposures/{id}` | update exposure configuration |
+| `DELETE` | `/api/exposures/{id}` | delete exposure |
+| `GET` | `/api/exposures/{id}/health` | get external publication health |
+| `GET` | `/api/exposures/{id}/history` | get exposure-related history |
 
 #### 5.2 Exposure behavior routes
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `POST` | `/api/app-exposures/{id}/verify` | re-run publication verification |
-| `POST` | `/api/app-exposures/{id}/set-primary` | switch primary entry point |
-| `POST` | `/api/app-exposures/{id}/publish` | create `publish` operation |
-| `POST` | `/api/app-exposures/{id}/unpublish` | create `unpublish` operation |
+| `POST` | `/api/exposures/{id}/verify` | re-run publication verification |
+| `POST` | `/api/exposures/{id}/set-primary` | switch primary entry point |
+| `POST` | `/api/exposures/{id}/publish` | create `publish` operation |
+| `POST` | `/api/exposures/{id}/unpublish` | create `unpublish` operation |
 
 #### 5.3 App-scoped exposure routes
 
@@ -172,27 +182,27 @@ These are convenience routes commonly used by app detail pages.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/app-instances/{id}/exposures` | list exposures for one app |
-| `POST` | `/api/app-instances/{id}/exposures` | create exposure for one app |
-| `GET` | `/api/app-instances/{id}/exposures/{exposureId}` | get one app exposure |
-| `PATCH` | `/api/app-instances/{id}/exposures/{exposureId}` | update one app exposure |
-| `DELETE` | `/api/app-instances/{id}/exposures/{exposureId}` | delete one app exposure |
+| `GET` | `/api/apps/{id}/exposures` | list exposures for one app |
+| `POST` | `/api/apps/{id}/exposures` | create exposure for one app |
+| `GET` | `/api/apps/{id}/exposures/{exposureId}` | get one app exposure |
+| `PATCH` | `/api/apps/{id}/exposures/{exposureId}` | update one app exposure |
+| `DELETE` | `/api/apps/{id}/exposures/{exposureId}` | delete one app exposure |
 
-### 6. `app-releases` API
+### 6. `releases` API
 
 Purpose: expose release baselines, activation targets, and rollback references.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/app-releases` | list releases globally |
-| `GET` | `/api/app-releases/{id}` | get release detail |
-| `GET` | `/api/app-instances/{id}/releases` | list releases for one app |
-| `GET` | `/api/app-instances/{id}/releases/current` | get current active release |
-| `GET` | `/api/app-instances/{id}/releases/last-known-good` | get rollback baseline |
-| `POST` | `/api/app-instances/{id}/releases/{releaseId}/activate` | activate one release |
-| `POST` | `/api/app-instances/{id}/releases/{releaseId}/promote` | promote candidate to active |
-| `POST` | `/api/app-instances/{id}/releases/{releaseId}/mark-last-known-good` | mark release as rollback-safe |
-| `GET` | `/api/app-releases/{id}/diff/{otherReleaseId}` | compare two releases |
+| `GET` | `/api/releases` | list releases globally |
+| `GET` | `/api/releases/{id}` | get release detail |
+| `GET` | `/api/apps/{id}/releases` | list releases for one app |
+| `GET` | `/api/apps/{id}/releases/current` | get current active release |
+| `GET` | `/api/apps/{id}/releases/last-known-good` | get rollback baseline |
+| `POST` | `/api/apps/{id}/releases/{releaseId}/activate` | activate one release |
+| `POST` | `/api/apps/{id}/releases/{releaseId}/promote` | promote candidate to active |
+| `POST` | `/api/apps/{id}/releases/{releaseId}/mark-last-known-good` | mark release as rollback-safe |
+| `GET` | `/api/releases/{id}/diff/{otherReleaseId}` | compare two releases |
 
 ### 7. Timeline and audit APIs
 
@@ -200,12 +210,12 @@ Timeline and audit are not separate domain objects, but they are separate produc
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/app-operations/{id}/timeline` | canonical execution timeline |
-| `GET` | `/api/app-operations/{id}/timeline/nodes` | node-level execution detail |
-| `GET` | `/api/app-operations/{id}/timeline/summary` | lightweight timeline summary |
-| `GET` | `/api/app-operations/{id}/audit` | audit linked to one operation |
-| `GET` | `/api/app-instances/{id}/history` | app-scoped history view |
-| `GET` | `/api/app-instances/{id}/audit` | app-scoped audit view |
+| `GET` | `/api/operations/{id}/timeline` | canonical execution timeline |
+| `GET` | `/api/operations/{id}/timeline/nodes` | node-level execution detail |
+| `GET` | `/api/operations/{id}/timeline/summary` | lightweight timeline summary |
+| `GET` | `/api/operations/{id}/audit` | audit linked to one operation |
+| `GET` | `/api/apps/{id}/history` | app-scoped history view |
+| `GET` | `/api/apps/{id}/audit` | app-scoped audit view |
 
 ### 8. Execution primitive routes
 
@@ -291,18 +301,18 @@ These are not the canonical product APIs, but they are useful for understanding 
 
 The full API surface is larger than the first MVP delivery. The minimum canonical subset for MVP should be:
 
-1. `POST /api/app-operations/install/manual-compose`
-2. `POST /api/app-operations/install/git-compose`
-3. `GET /api/app-operations`
-4. `GET /api/app-operations/{id}`
-5. `GET /api/app-operations/{id}/timeline`
-6. `GET /api/app-operations/{id}/logs`
-7. `GET /api/app-instances`
-8. `GET /api/app-instances/{id}`
-9. `POST /api/app-instances/{id}/upgrade`
-10. `POST /api/app-instances/{id}/redeploy`
-11. `POST /api/app-instances/{id}/rollback`
-12. `DELETE /api/app-instances/{id}`
+1. `POST /api/operations/install/manual-compose`
+2. `POST /api/operations/install/git-compose`
+3. `GET /api/operations`
+4. `GET /api/operations/{id}`
+5. `GET /api/operations/{id}/timeline`
+6. `GET /api/operations/{id}/logs`
+7. `GET /api/apps`
+8. `GET /api/apps/{id}`
+9. `POST /api/apps/{id}/upgrade`
+10. `POST /api/apps/{id}/redeploy`
+11. `POST /api/apps/{id}/rollback`
+12. `DELETE /api/apps/{id}`
 
 This subset is sufficient to understand and validate the core backend lifecycle flow:
 
@@ -312,14 +322,15 @@ This subset is sufficient to understand and validate the core backend lifecycle 
 4. observe app projection
 5. perform change and retirement actions
 
-### 12. Explicit non-canonical routes
+### 12. Explicit non-business routes
 
-Pre-refactor route groups such as the following are not part of the canonical lifecycle API surface:
+The following route groups remain important to lifecycle, but they are not the primary business-action surface:
 
-1. `/api/apps/*`
-2. `/api/deployments/*`
-
-If such routes remain temporarily in code during refactor, they should be treated only as transitional or implementation aliases. They must not be treated as the final API model for lifecycle management.
+1. `/api/pipelines/*` for execution inspection
+2. `/api/ext/docker/*` for runtime primitives
+3. `/api/ext/proxy/*` for publication primitives
+4. `/api/ext/iac/*` for baseline/config file primitives
+5. `/api/servers/*` for remote execution and system primitives
 
 ## Consequences
 
@@ -339,5 +350,5 @@ If such routes remain temporarily in code during refactor, they should be treate
 ### Follow-up
 
 1. generate OpenAPI docs for the canonical route groups
-2. align the current `/api/apps` and `/api/deployments` code with the canonical route names
+2. implement the remaining `/api/releases` and `/api/exposures` route groups
 3. define auth and role policy per route group before public release

@@ -314,8 +314,8 @@ This preserves current investment while correcting its semantic scope.
 
 This document should guide updates to:
 
-1. Epic 17 Deploy
-2. Epic 18 Operations
+1. Epic 17 Lifecycle Execution Core
+2. Epic 18 Lifecycle Management Surface
 3. proxy and certificate related epics where `Exposure` is involved
-4. deployment history and timeline UI terminology
+4. operation history and timeline UI terminology
 5. backend persistence schemas and APIs for lifecycle-aware execution

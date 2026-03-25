@@ -1,0 +1,78 @@
+family: MaintenancePipeline
+description: Maintenance and backup flows that prepare safe operational windows and snapshots.
+intent: Perform operator-driven upkeep and safety operations without redefining core runtime ownership.
+touches_domains:
+  - AppInstance
+  - OperationJob
+  - ReleaseSnapshot
+  - PipelineRun
+  - PipelineNodeRun
+default_compensation_policy: best_effort
+applies_to:
+  - maintain
+  - backup
+
+definitions:
+  - key: maintenance.maintain
+    version: v1
+    family: MaintenancePipeline
+    operation_types:
+      - maintain
+    initial_phase: validating
+    nodes:
+      - key: validate_maintenance_request
+        node_type: validation
+        display_name: Validate Maintenance Request
+        phase: validating
+        retryable: false
+        writes_projection:
+          - OperationJob
+      - key: prepare_maintenance_window
+        node_type: maintenance
+        display_name: Prepare Maintenance Window
+        phase: preparing
+        retryable: false
+        depends_on:
+          - validate_maintenance_request
+      - key: write_audit_event
+        node_type: audit
+        display_name: Write Audit Event
+        phase: verifying
+        retryable: true
+        writes_projection:
+          - OperationJob
+        depends_on:
+          - prepare_maintenance_window
+
+  - key: maintenance.backup
+    version: v1
+    family: MaintenancePipeline
+    operation_types:
+      - backup
+    initial_phase: validating
+    nodes:
+      - key: validate_backup_request
+        node_type: validation
+        display_name: Validate Backup Request
+        phase: validating
+        retryable: false
+        writes_projection:
+          - OperationJob
+      - key: create_backup_snapshot
+        node_type: backup
+        display_name: Create Backup Snapshot
+        phase: executing
+        retryable: false
+        writes_projection:
+          - ReleaseSnapshot
+        depends_on:
+          - validate_backup_request
+      - key: verify_backup_artifact
+        node_type: backup_check
+        display_name: Verify Backup Artifact
+        phase: verifying
+        retryable: true
+        writes_projection:
+          - ReleaseSnapshot
+        depends_on:
+          - create_backup_snapshot

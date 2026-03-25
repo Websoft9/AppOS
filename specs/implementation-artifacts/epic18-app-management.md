@@ -1,12 +1,29 @@
 # Epic 18: Lifecycle Management Surface
 
-**Module**: Application Lifecycle | **Status**: backlog | **Priority**: P1 | **Depends on**: Epic 4, Epic 5, Epic 8, Epic 12, Epic 14, Epic 16, Epic 17
+**Module**: Application Lifecycle | **Status**: in-progress | **Priority**: P1 | **Depends on**: Epic 4, Epic 5, Epic 8, Epic 12, Epic 14, Epic 16, Epic 17
 
 **Domain Reference**: `specs/adr/app-lifecycle-domain-model.md`
 
 ## Objective
 
 Provide the unified lifecycle management workspace for already managed applications. Epic 18 owns `AppInstance` projection, installed app inventory and detail views, lifecycle action entry points, publication and configuration management surfaces, and operator-facing status interpretation built on top of Epic 17 execution contracts.
+
+Epic 18 is the management surface above Epic 17. It should consume the lifecycle execution core, not recreate execution semantics inside Installed views.
+
+## Current Baseline (2026-03-25)
+
+### Implemented
+
+- Installed app list and detail APIs already expose `AppInstance`-oriented projections.
+- Installed app list and detail UI already render lifecycle state, runtime status, current pipeline, and last operation links.
+- Redeploy and upgrade entry points already create Epic 17 operations and hand off to the Operations surface.
+- App config read, validate, write, and rollback surfaces already exist as management features.
+
+### Still Not Converged
+
+- Start, stop, restart, and uninstall still have local action paths instead of fully routing through Epic 17 operations.
+- Config apply and rollback are not yet modeled as shared lifecycle operations.
+- Publication, recovery, backup, and broader operator guidance are not yet finished as shared management flows.
 
 ## Requirements
 
@@ -55,7 +72,7 @@ Define installed app list and summary cards centered on `AppInstance` projection
 
 ### Story 18.2 Lifecycle Operations
 
-Implement lifecycle action entry points for start, stop, maintain, recover, publish, unpublish, and uninstall by creating or resuming shared Epic 17 operations with appropriate guards.
+Implement lifecycle action entry points for start, stop, maintain, recover, publish, unpublish, and uninstall by creating or resuming shared Epic 17 operations with appropriate guards. Existing local action paths should be treated as interim behavior to be retired.
 
 ### Story 18.3 Configuration Management
 
@@ -81,10 +98,10 @@ Implement data management, backup, and restore user flows that delegate executio
 
 | Story | Status |
 |-------|--------|
-| 18.1 Installed App Inventory | backlog |
-| 18.2 Lifecycle Operations | backlog |
-| 18.3 Configuration Management | backlog |
-| 18.4 Operation Handoff and Status | backlog |
+| 18.1 Installed App Inventory | in-progress |
+| 18.2 Lifecycle Operations | in-progress |
+| 18.3 Configuration Management | in-progress |
+| 18.4 Operation Handoff and Status | in-progress |
 | 18.5 Proxy and Domain Binding | backlog |
 | 18.6 Audit and Operation Records | backlog |
 | 18.7 Data Management and Backup | backlog |

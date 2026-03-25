@@ -57,7 +57,7 @@ This means the `apps` collection carries:
 ```
 Resource Store (independent collections)
   ├── resource_groups → User-defined cross-type grouping labels
-  ├── servers       → SSH targets for app deployment
+  ├── servers       → SSH targets for lifecycle execution and managed app operations
   ├── secrets       → Encrypted credentials, tokens, keys
   ├── env_groups    → see Epic 24
   ├── databases     → External DB connections (password → secrets)
@@ -382,7 +382,7 @@ The `secrets` module uses file-based templates (`templates.json`). The `ssh_key`
 ## Dependencies
 
 - Prerequisites: Epic 1 (infra), Epic 3 (auth)
-- Consumers (other Epics that read these resources): Epic 4 (remote executor), Epic 6 (app deployment)
+- Consumers (other Epics that read these resources): Epic 4 (remote executor), Epic 17 (lifecycle execution), Epic 18 (lifecycle management)
 
 ## Out of Scope
 

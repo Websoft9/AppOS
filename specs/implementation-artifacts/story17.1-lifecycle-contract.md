@@ -1,51 +1,42 @@
 # Story 17.1: Lifecycle Contract and Scheduler Core
 
-Status: in-progress
+Status: review
 
 ## Story
 
 As a platform operator,
 I want a strict lifecycle execution contract and scheduler core,
-so that lifecycle operations remain deterministic, auditable, and safe as trigger adapters and management surfaces expand.
+so that every lifecycle action enters one deterministic, auditable execution model before adapters and management surfaces expand.
 
 ## Acceptance Criteria
 
-1. Define the canonical lifecycle execution contract for the shared pipeline, using separate fields for `phase`, `terminal_status`, `failure_reason`, and `app_outcome`.
-2. Separate responsibilities clearly: `AppInstance` owns product-facing lifecycle state, `OperationJob` owns execution state, `PipelineRun` owns DAG execution detail, and worker/executor layers own compose validation, file preparation, compose apply, health checks, and log production.
-3. Define clean-slate PocketBase collections for lifecycle execution. Minimum MVP set is `app_instances`, `app_operations`, `app_releases`, and `app_exposures`, with `pipeline_runs` and `pipeline_node_runs` added when node-level execution history is part of MVP observability.
-4. Define the normalized operation contract persisted in `app_operations`. Minimum contract fields must cover `server_id`, `operation_type`, `trigger_source`, `adapter`, `compose_project_name`, `project_dir`, `rendered_compose`, optional resolved env data, and optional release snapshot linkage.
-5. Enforce the scheduling invariant: for each `server_id`, at most one conflicting lifecycle operation may run at a time. Cross-server parallelism remains allowed.
-6. Define orphan-task recovery on process restart for jobs left in non-terminal execution states.
-7. Define terminal behavior for first install failure, timeout, cancellation, compensation failure, and ambiguous failure cases that require manual intervention.
-8. Enforce the pre-queue normalization rule: worker payloads may include only normalized operation data or operation identifiers, never raw Store, Git, or file-upload input payloads.
-9. Reuse the existing embedded async worker architecture only where it still serves the new lifecycle model. Backward compatibility with legacy deploy-era schema is not required.
+1. Freeze the canonical execution fields: `phase`, `terminal_status`, `failure_reason`, and `app_outcome`.
+2. Keep ownership boundaries explicit between `AppInstance`, `OperationJob`, `PipelineRun`, `PipelineNodeRun`, `ReleaseSnapshot`, and `Exposure`.
+3. Use clean-slate lifecycle collections instead of extending deploy-era schema.
+4. Persist normalized operation data in `app_operations` and keep raw adapter payloads out of worker tasks.
+5. Enforce one conflicting active operation per `server_id` while still allowing cross-server parallelism.
+6. Define cancellation and orphaned-operation recovery semantics for non-terminal jobs.
 
-## Tasks / Subtasks
+## Delivered Now
 
-- [ ] Define lifecycle and contract boundaries (AC: 1,2,3,4)
-  - [ ] Freeze canonical phase, terminal status, failure reason, and app outcome names
-  - [ ] Define legal transition matrix and terminal-state semantics
-  - [ ] Define normalized operation contract and release snapshot fields
-  - [ ] Define new lifecycle collection set and ownership boundaries
-- [ ] Define scheduler guarantees (AC: 5,6,7)
-  - [ ] Document per-`server_id` serial execution invariant
-  - [ ] Document restart recovery behavior for orphaned jobs
-  - [ ] Document first-install cleanup versus rollback behavior
-- [ ] Define queue boundary policy (AC: 8,9)
-  - [ ] Keep raw adapter input outside worker payloads
-  - [ ] Reuse worker infrastructure without inheriting old deploy schema
-- [ ] Add contract-level validation coverage (AC: 1-9)
-  - [ ] FSM transition tests
-  - [ ] Serial scheduling tests
-  - [ ] Restart recovery tests
+- [x] Lifecycle vocabulary and shared model types are defined for pipeline families, execution phases, operation types, sources, adapters, and projection targets.
+- [x] Clean-slate lifecycle collections exist for `app_instances`, `app_operations`, `app_releases`, `app_exposures`, `pipeline_runs`, and `pipeline_node_runs`.
+- [x] Pipeline definitions are selected through metadata by `operation_type + source + adapter`.
+- [x] Operation creation persists normalized compose-based execution data in `app_operations` and seeds `pipeline_runs` plus `pipeline_node_runs`.
+- [x] Worker claim logic enforces per-`server_id` serial execution for conflicting active operations.
+- [x] Cancellation requests and orphaned-operation recovery are implemented in the worker path.
+
+## Still Deferred
+
+- [ ] Rich compensation policy beyond the first install slice.
+- [ ] Broader transition-matrix coverage for future operation families.
+- [ ] Advanced manual-gate semantics for later high-risk operations.
 
 ## Dev Notes
 
-- Reuse the existing embedded async worker infrastructure where still valid; this story does not introduce a new orchestration framework.
-- Reuse Docker execution primitives rather than duplicating compose executor internals.
-- This story defines the shared lifecycle execution contract, new collection ownership, and scheduler boundaries; it does not own Store, Git, or Installed-app entry UX.
-- This story is explicitly a clean-slate MVP contract story. Legacy deploy-era schema compatibility is out of scope.
-- The minimum lifecycle persistence set is `app_instances`, `app_operations`, `app_releases`, `app_exposures`, `pipeline_runs`, and `pipeline_node_runs`.
+- This story is the contract anchor for Epic 17. It is not a UI story.
+- The shared queue boundary is already normalized around operation records, not Store or Git payloads.
+- Legacy deploy-era compatibility remains out of scope.
 
 ### References
 
@@ -55,6 +46,8 @@ so that lifecycle operations remain deterministic, auditable, and safe as trigge
 - [Source: specs/adr/app-lifecycle-domain-model.md#Decisions]
 - [Source: specs/adr/app-lifecycle-field-definitions.md#Decisions]
 - [Source: specs/adr/app-lifecycle-pocketbase-collections.md#Decisions]
+- [Source: specs/adr/app-lifecycle-pipeline-execution-engine.md]
+- [Source: specs/adr/lifecycle-install-input-resolution.md]
 
 ## Dev Agent Record
 
@@ -66,6 +59,10 @@ GPT-5.4
 
 
 ### Completion Notes List
+
+- Clean-slate lifecycle schema and indexes are in place.
+- Metadata-driven pipeline selection and pipeline seeding are implemented.
+- Scheduler claim, cancel request, and orphan recovery logic are already wired into the worker.
 
 
 ### File List

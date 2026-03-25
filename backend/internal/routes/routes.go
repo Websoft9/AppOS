@@ -9,7 +9,10 @@
 //   - /api/ext/space      — User private space (Epic 9)
 //   - /api/components     — component inventory and runtime service diagnostics (Epic 6)
 //   - /api/apps           — installed app inventory and lifecycle operations
-//   - /api/deployments    — deployment pipelines and execution logs
+//   - /api/operations     — lifecycle operations and execution logs
+//   - /api/releases       — release inventory and app-scoped release views
+//   - /api/exposures      — publication inventory and app-scoped exposure views
+//   - /api/pipelines      — pipeline run inventory and detail views
 //   - /api/ext/iac        — IaC file management (Epic 14, superuser-only)
 //   - /api/tunnel         — tunnel setup and operations APIs (Epic 16)
 //   - /api/servers        — Server operations: shell, files, containers, ops (Epic 20)
@@ -74,7 +77,9 @@ func Register(se *core.ServeEvent) {
 	registerUserRoutes(g)
 	registerComponentsRoutes(components)
 	registerAppsRoutes(deployments)
-	registerDeployRoutes(deployments)
+	registerOperationRoutes(deployments)
+	registerReleaseRoutes(deployments)
+	registerExposureRoutes(deployments)
 	registerIaCRoutes(g)
 	registerTopicRoutes(g)
 	registerServerRoutes(servers)

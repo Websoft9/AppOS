@@ -4,6 +4,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	m "github.com/pocketbase/pocketbase/migrations"
 	"github.com/pocketbase/pocketbase/tools/types"
+	"github.com/websoft9/appos/backend/internal/lifecycle/model"
 )
 
 func init() {
@@ -49,34 +50,23 @@ func init() {
 			Name:      "lifecycle_state",
 			Required:  true,
 			MaxSelect: 1,
-			Values: []string{
-				"registered",
-				"installing",
-				"running_healthy",
-				"running_degraded",
-				"maintenance",
-				"updating",
-				"recovering",
-				"stopped",
-				"attention_required",
-				"retired",
-			},
+			Values:    append([]string(nil), model.AppLifecycleStates...),
 		})
 		appInstances.Fields.Add(&core.SelectField{
 			Name:      "desired_state",
 			MaxSelect: 1,
-			Values:    []string{"running", "stopped", "retired"},
+			Values:    append([]string(nil), model.DesiredAppStates...),
 		})
 		appInstances.Fields.Add(&core.SelectField{
 			Name:      "health_summary",
 			Required:  true,
 			MaxSelect: 1,
-			Values:    []string{"healthy", "degraded", "unknown", "stopped"},
+			Values:    append([]string(nil), model.HealthSummaries...),
 		})
 		appInstances.Fields.Add(&core.SelectField{
 			Name:      "publication_summary",
 			MaxSelect: 1,
-			Values:    []string{"unpublished", "published", "degraded", "unknown"},
+			Values:    append([]string(nil), model.PublicationSummaries...),
 		})
 		appInstances.Fields.Add(&core.DateField{Name: "installed_at"})
 		appInstances.Fields.Add(&core.DateField{Name: "last_healthy_at"})
@@ -109,21 +99,7 @@ func init() {
 			Name:      "operation_type",
 			Required:  true,
 			MaxSelect: 1,
-			Values: []string{
-				"install",
-				"start",
-				"stop",
-				"upgrade",
-				"redeploy",
-				"reconfigure",
-				"publish",
-				"unpublish",
-				"backup",
-				"recover",
-				"rollback",
-				"maintain",
-				"uninstall",
-			},
+			Values:    append([]string(nil), model.OperationTypes...),
 		})
 		appOperations.Fields.Add(&core.SelectField{
 			Name:      "trigger_source",
@@ -141,7 +117,7 @@ func init() {
 			Name:      "phase",
 			Required:  true,
 			MaxSelect: 1,
-			Values:    []string{"queued", "validating", "preparing", "executing", "verifying", "compensating"},
+			Values:    append([]string(nil), model.OperationPhases...),
 		})
 		appOperations.Fields.Add(&core.SelectField{
 			Name:      "terminal_status",
@@ -324,21 +300,15 @@ func init() {
 			Name:      "pipeline_family",
 			Required:  true,
 			MaxSelect: 1,
-			Values: []string{
-				"ProvisionPipeline",
-				"ChangePipeline",
-				"ExposurePipeline",
-				"RecoveryPipeline",
-				"MaintenancePipeline",
-				"RetirePipeline",
-			},
+			Values:    append([]string(nil), model.PipelineFamilies...),
 		})
+		pipelineRuns.Fields.Add(&core.TextField{Name: "pipeline_definition_key", Required: true})
 		pipelineRuns.Fields.Add(&core.TextField{Name: "pipeline_version"})
 		pipelineRuns.Fields.Add(&core.SelectField{
 			Name:      "current_phase",
 			Required:  true,
 			MaxSelect: 1,
-			Values:    []string{"validating", "preparing", "executing", "verifying", "compensating"},
+			Values:    append([]string(nil), model.PipelinePhases...),
 		})
 		pipelineRuns.Fields.Add(&core.SelectField{
 			Name:      "status",
@@ -380,7 +350,7 @@ func init() {
 			Name:      "phase",
 			Required:  true,
 			MaxSelect: 1,
-			Values:    []string{"validating", "preparing", "executing", "verifying", "compensating"},
+			Values:    append([]string(nil), model.PipelinePhases...),
 		})
 		pipelineNodeRuns.Fields.Add(&core.JSONField{Name: "depends_on_json"})
 		pipelineNodeRuns.Fields.Add(&core.SelectField{

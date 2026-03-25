@@ -9,6 +9,8 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/internal/deploy"
+	"github.com/websoft9/appos/backend/internal/lifecycle/model"
+	"github.com/websoft9/appos/backend/internal/lifecycle/projection"
 )
 
 func syncAppInstanceFromDeployment(app core.App, deploymentRecord *core.Record) error {
@@ -21,28 +23,34 @@ func syncAppInstanceFromDeployment(app core.App, deploymentRecord *core.Record) 
 		return err
 	}
 
-	projectDir := deploymentRecord.GetString("project_dir")
 	serverID := normalizeAppInstanceServerID(deploymentRecord.GetString("server_id"))
-	filter := fmt.Sprintf(`server_id = "%s" && project_dir = "%s"`, serverID, projectDir)
+	appName := deploymentRecord.GetString("compose_project_name")
+	filter := fmt.Sprintf(`server_id = "%s" && name = "%s"`, serverID, appName)
 	record, err := app.FindFirstRecordByFilter("app_instances", filter)
 	if err != nil || record == nil {
 		record = core.NewRecord(col)
+		record.Set("key", fmt.Sprintf("legacy-%s-%d", slugifyDeploymentName(appName), time.Now().UnixNano()))
+		record.Set("name", appName)
+		record.Set("server_id", serverID)
 	}
 
-	record.Set("deployment_id", deploymentRecord.Id)
-	record.Set("server_id", serverID)
-	record.Set("name", deploymentRecord.GetString("compose_project_name"))
-	record.Set("project_dir", projectDir)
-	record.Set("source", deploymentRecord.GetString("source"))
-	record.Set("status", "installed")
-	record.Set("runtime_status", "running")
-	record.Set("runtime_reason", "")
-	record.Set("last_deployment_status", deploymentRecord.GetString("status"))
-	record.Set("last_action", "deploy")
-	record.Set("last_action_at", time.Now())
-	record.Set("last_deployed_at", time.Now())
+	appProjection := projection.ReadAppInstanceProjection(record)
+	appProjection.LifecycleState = model.AppStateRunningHealthy
+	appProjection.HealthSummary = model.HealthHealthy
+	if appProjection.PublicationSummary == "" {
+		appProjection.PublicationSummary = model.PublicationUnpublished
+	}
+	if appProjection.DesiredState == "" {
+		appProjection.DesiredState = model.DesiredStateRunning
+	}
+	appProjection.StateReason = "legacy deployment synchronized"
+	if appProjection.InstalledAt == nil {
+		now := time.Now().UTC()
+		appProjection.InstalledAt = &now
+	}
+	projection.ApplyAppInstanceProjection(record, appProjection)
 
-	if err := saveDeploymentComposeToIAC(record.Id, deploymentRecord.GetString("compose_project_name"), deploymentRecord.GetString("rendered_compose")); err != nil {
+	if err := saveDeploymentComposeToIAC(record.Id, appName, deploymentRecord.GetString("rendered_compose")); err != nil {
 		return err
 	}
 

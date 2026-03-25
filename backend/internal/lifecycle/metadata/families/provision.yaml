@@ -1,0 +1,149 @@
+family: ProvisionPipeline
+description: Provision and runtime bootstrap flows for initial install and runtime start.
+intent: Establish or resume an application runtime so the app reaches a healthy running baseline.
+touches_domains:
+  - AppInstance
+  - OperationJob
+  - PipelineRun
+  - PipelineNodeRun
+default_compensation_policy: best_effort
+applies_to:
+  - install
+  - start
+
+definitions:
+  - key: provision.install.manual_compose
+    version: v1
+    family: ProvisionPipeline
+    operation_types:
+      - install
+    sources:
+      - manualops
+    adapters:
+      - manual-compose
+    initial_phase: validating
+    nodes:
+      - key: validate_spec
+        node_type: validation
+        display_name: Validate Spec
+        phase: validating
+        retryable: false
+        writes_projection:
+          - OperationJob
+      - key: prepare_workspace
+        node_type: workspace
+        display_name: Prepare Workspace
+        phase: preparing
+        retryable: true
+        depends_on:
+          - validate_spec
+      - key: render_runtime_config
+        node_type: runtime_config
+        display_name: Render Runtime Config
+        phase: preparing
+        retryable: true
+        depends_on:
+          - prepare_workspace
+      - key: start_runtime
+        node_type: runtime_start
+        display_name: Start Runtime
+        phase: executing
+        retryable: true
+        depends_on:
+          - render_runtime_config
+      - key: verify_runtime_health
+        node_type: health_check
+        display_name: Verify Runtime Health
+        phase: verifying
+        retryable: true
+        writes_projection:
+          - AppInstance
+        depends_on:
+          - start_runtime
+
+  - key: provision.install.git_compose
+    version: v1
+    family: ProvisionPipeline
+    operation_types:
+      - install
+    sources:
+      - gitops
+    adapters:
+      - git-compose
+    initial_phase: validating
+    nodes:
+      - key: validate_spec
+        node_type: validation
+        display_name: Validate Spec
+        phase: validating
+        retryable: false
+        writes_projection:
+          - OperationJob
+      - key: prepare_workspace
+        node_type: workspace
+        display_name: Prepare Workspace
+        phase: preparing
+        retryable: true
+        depends_on:
+          - validate_spec
+      - key: render_runtime_config
+        node_type: runtime_config
+        display_name: Render Runtime Config
+        phase: preparing
+        retryable: true
+        depends_on:
+          - prepare_workspace
+      - key: start_runtime
+        node_type: runtime_start
+        display_name: Start Runtime
+        phase: executing
+        retryable: true
+        depends_on:
+          - render_runtime_config
+      - key: verify_runtime_health
+        node_type: health_check
+        display_name: Verify Runtime Health
+        phase: verifying
+        retryable: true
+        writes_projection:
+          - AppInstance
+        depends_on:
+          - start_runtime
+
+  - key: provision.start
+    version: v1
+    family: ProvisionPipeline
+    operation_types:
+      - start
+    initial_phase: validating
+    nodes:
+      - key: validate_runtime_target
+        node_type: validation
+        display_name: Validate Runtime Target
+        phase: validating
+        retryable: false
+        writes_projection:
+          - OperationJob
+      - key: prepare_workspace
+        node_type: workspace
+        display_name: Prepare Workspace
+        phase: preparing
+        retryable: true
+        depends_on:
+          - validate_runtime_target
+      - key: start_runtime
+        node_type: runtime_start
+        display_name: Start Runtime
+        phase: executing
+        retryable: true
+        depends_on:
+          - prepare_workspace
+      - key: verify_runtime_health
+        node_type: health_check
+        display_name: Verify Runtime Health
+        phase: verifying
+        retryable: true
+        writes_projection:
+          - AppInstance
+        depends_on:
+          - start_runtime

@@ -16,6 +16,7 @@ import (
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/websoft9/appos/backend/internal/audit"
 	"github.com/websoft9/appos/backend/internal/deploy"
+	"github.com/websoft9/appos/backend/internal/lifecycle/model"
 	servers "github.com/websoft9/appos/backend/internal/servers"
 )
 
@@ -27,16 +28,27 @@ type composeProjectStatus struct {
 	ConfigFiles string `json:"ConfigFiles"`
 }
 
+type appRuntimeContext struct {
+	ProjectDir         string
+	Source             string
+	ComposeProjectName string
+}
+
 func registerAppsRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	a := g.Group("/apps")
 	a.Bind(apis.RequireSuperuserAuth())
 	a.GET("", handleAppInstanceList)
 	a.GET("/{id}", handleAppInstanceDetail)
+	a.GET("/{id}/releases", handleAppReleaseList)
+	a.GET("/{id}/releases/current", handleAppCurrentReleaseDetail)
+	a.GET("/{id}/exposures", handleAppExposureList)
+	a.GET("/{id}/exposures/{exposureId}", handleAppExposureDetail)
 	a.GET("/{id}/logs", handleAppInstanceLogs)
 	a.GET("/{id}/config", handleAppInstanceConfigGet)
 	a.POST("/{id}/config/validate", handleAppInstanceConfigValidate)
 	a.POST("/{id}/config/rollback", handleAppInstanceConfigRollback)
-	a.POST("/{id}/deploy", handleAppInstanceDeploy)
+	a.POST("/{id}/upgrade", handleAppInstanceUpgrade)
+	a.POST("/{id}/redeploy", handleAppInstanceRedeploy)
 	a.POST("/{id}/start", handleAppInstanceStart)
 	a.POST("/{id}/stop", handleAppInstanceStop)
 	a.POST("/{id}/restart", handleAppInstanceRestart)
@@ -58,7 +70,7 @@ func handleAppInstanceList(e *core.RequestEvent) error {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "app_instances collection not found"})
 	}
 
-	records, err := e.App.FindRecordsByFilter(col, `status != "uninstalled"`, "-updated", 200, 0)
+	records, err := e.App.FindRecordsByFilter(col, `lifecycle_state != "retired"`, "-updated", 200, 0)
 	if err != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "failed to list apps"})
 	}
@@ -81,7 +93,7 @@ func handleAppInstanceList(e *core.RequestEvent) error {
 	result := make([]map[string]any, 0, len(records))
 	for _, record := range records {
 		serverID := normalizeAppServerID(record.GetString("server_id"))
-		result = append(result, appInstanceResponse(record, runtimeByServer[serverID], runtimeErrByServer[serverID]))
+		result = append(result, appInstanceResponse(e.App, record, runtimeByServer[serverID], runtimeErrByServer[serverID]))
 	}
 
 	sort.SliceStable(result, func(i, j int) bool {
@@ -114,7 +126,7 @@ func handleAppInstanceDetail(e *core.RequestEvent) error {
 		runtimeReason = runtimeErr.Error()
 	}
 
-	return e.JSON(http.StatusOK, appInstanceResponse(record, runtimeIndex, runtimeReason))
+	return e.JSON(http.StatusOK, appInstanceResponse(e.App, record, runtimeIndex, runtimeReason))
 }
 
 // @Summary Get app logs
@@ -134,6 +146,10 @@ func handleAppInstanceLogs(e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
+	runtimeContext, err := resolveAppRuntimeContext(e.App, record)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+	}
 
 	client, err := getDockerClientByServerID(e.App, normalizeAppServerID(record.GetString("server_id")))
 	if err != nil {
@@ -144,7 +160,7 @@ func handleAppInstanceLogs(e *core.RequestEvent) error {
 	if raw := e.Request.URL.Query().Get("tail"); raw != "" {
 		fmt.Sscanf(raw, "%d", &tail)
 	}
-	output, err := client.ComposeLogs(e.Request.Context(), record.GetString("project_dir"), tail)
+	output, err := client.ComposeLogs(e.Request.Context(), runtimeContext.ProjectDir, tail)
 	if err != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "compose logs failed"})
 	}
@@ -153,8 +169,8 @@ func handleAppInstanceLogs(e *core.RequestEvent) error {
 		"id":             record.Id,
 		"name":           record.GetString("name"),
 		"server_id":      normalizeAppServerID(record.GetString("server_id")),
-		"project_dir":    record.GetString("project_dir"),
-		"runtime_status": record.GetString("runtime_status"),
+		"project_dir":    runtimeContext.ProjectDir,
+		"runtime_status": appRuntimeStatus(record),
 		"output":         output,
 	})
 }
@@ -175,9 +191,13 @@ func handleAppInstanceConfigGet(e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
+	runtimeContext, err := resolveAppRuntimeContext(e.App, record)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+	}
 
 	serverID := normalizeAppServerID(record.GetString("server_id"))
-	content, err := readAppComposeConfig(e, serverID, record.GetString("project_dir"))
+	content, err := readAppComposeConfig(e, serverID, runtimeContext.ProjectDir)
 	if err != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": err.Error()})
 	}
@@ -186,7 +206,7 @@ func handleAppInstanceConfigGet(e *core.RequestEvent) error {
 		"id":                 record.Id,
 		"iac_path":           appInstanceIACPath(record.Id, record.GetString("name")),
 		"server_id":          serverID,
-		"project_dir":        record.GetString("project_dir"),
+		"project_dir":        runtimeContext.ProjectDir,
 		"content":            content,
 		"rollback_available": false,
 	})
@@ -209,6 +229,10 @@ func handleAppInstanceConfigValidate(e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
+	runtimeContext, err := resolveAppRuntimeContext(e.App, record)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+	}
 
 	body, err := readBody(e)
 	if err != nil {
@@ -220,7 +244,7 @@ func handleAppInstanceConfigValidate(e *core.RequestEvent) error {
 	}
 
 	serverID := normalizeAppServerID(record.GetString("server_id"))
-	if err := validateAppComposeConfig(e, serverID, record.GetString("project_dir"), content); err != nil {
+	if err := validateAppComposeConfig(e, serverID, runtimeContext.ProjectDir, content); err != nil {
 		return e.JSON(http.StatusOK, withMapFields(map[string]any{
 			"id":       record.Id,
 			"valid":    false,
@@ -253,6 +277,10 @@ func handleAppInstanceConfigWrite(e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
+	runtimeContext, err := resolveAppRuntimeContext(e.App, record)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+	}
 
 	body, err := readBody(e)
 	if err != nil {
@@ -264,16 +292,16 @@ func handleAppInstanceConfigWrite(e *core.RequestEvent) error {
 	}
 
 	serverID := normalizeAppServerID(record.GetString("server_id"))
-	if err := validateAppComposeConfig(e, serverID, record.GetString("project_dir"), content); err != nil {
+	if err := validateAppComposeConfig(e, serverID, runtimeContext.ProjectDir, content); err != nil {
 		writeAppAudit(e, record, "app.config.validate", audit.StatusFailed, map[string]any{"errorMessage": err.Error()})
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
-	currentContent, err := readAppComposeConfig(e, serverID, record.GetString("project_dir"))
+	currentContent, err := readAppComposeConfig(e, serverID, runtimeContext.ProjectDir)
 	if err != nil {
 		writeAppAudit(e, record, "app.config.write", audit.StatusFailed, map[string]any{"errorMessage": err.Error()})
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": err.Error()})
 	}
-	if err := writeAppComposeConfig(e, serverID, record.GetString("project_dir"), content); err != nil {
+	if err := writeAppComposeConfig(e, serverID, runtimeContext.ProjectDir, content); err != nil {
 		writeAppAudit(e, record, "app.config.write", audit.StatusFailed, map[string]any{"errorMessage": err.Error()})
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": err.Error()})
 	}
@@ -284,7 +312,10 @@ func handleAppInstanceConfigWrite(e *core.RequestEvent) error {
 
 	record.Set("updated", time.Now())
 	if currentContent != content {
-		setAppConfigRollbackSnapshot(record, currentContent, "config.write")
+		if err := setAppConfigRollbackSnapshot(record, currentContent, "config.write"); err != nil {
+			writeAppAudit(e, record, "app.config.write", audit.StatusFailed, map[string]any{"errorMessage": err.Error()})
+			return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": err.Error()})
+		}
 	}
 	if saveErr := e.App.Save(record); saveErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "failed to update app instance"})
@@ -295,7 +326,7 @@ func handleAppInstanceConfigWrite(e *core.RequestEvent) error {
 		"id":          record.Id,
 		"iac_path":    appInstanceIACPath(record.Id, record.GetString("name")),
 		"server_id":   serverID,
-		"project_dir": record.GetString("project_dir"),
+		"project_dir": runtimeContext.ProjectDir,
 		"message":     "saved",
 	}, appConfigRollbackResponseFields(record)))
 }
@@ -316,6 +347,10 @@ func handleAppInstanceConfigRollback(e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
+	runtimeContext, err := resolveAppRuntimeContext(e.App, record)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+	}
 
 	snapshot, ok := getAppConfigRollbackSnapshot(record)
 	if !ok {
@@ -323,12 +358,12 @@ func handleAppInstanceConfigRollback(e *core.RequestEvent) error {
 	}
 
 	serverID := normalizeAppServerID(record.GetString("server_id"))
-	currentContent, err := readAppComposeConfig(e, serverID, record.GetString("project_dir"))
+	currentContent, err := readAppComposeConfig(e, serverID, runtimeContext.ProjectDir)
 	if err != nil {
 		writeAppAudit(e, record, "app.config.rollback", audit.StatusFailed, map[string]any{"errorMessage": err.Error()})
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": err.Error()})
 	}
-	if err := writeAppComposeConfig(e, serverID, record.GetString("project_dir"), snapshot.Content); err != nil {
+	if err := writeAppComposeConfig(e, serverID, runtimeContext.ProjectDir, snapshot.Content); err != nil {
 		writeAppAudit(e, record, "app.config.rollback", audit.StatusFailed, map[string]any{"errorMessage": err.Error()})
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": err.Error()})
 	}
@@ -338,7 +373,10 @@ func handleAppInstanceConfigRollback(e *core.RequestEvent) error {
 	}
 
 	record.Set("updated", time.Now())
-	setAppConfigRollbackSnapshot(record, currentContent, "config.rollback")
+	if err := setAppConfigRollbackSnapshot(record, currentContent, "config.rollback"); err != nil {
+		writeAppAudit(e, record, "app.config.rollback", audit.StatusFailed, map[string]any{"errorMessage": err.Error()})
+		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": err.Error()})
+	}
 	if saveErr := e.App.Save(record); saveErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "failed to update app instance"})
 	}
@@ -348,65 +386,75 @@ func handleAppInstanceConfigRollback(e *core.RequestEvent) error {
 		"id":          record.Id,
 		"iac_path":    appInstanceIACPath(record.Id, record.GetString("name")),
 		"server_id":   serverID,
-		"project_dir": record.GetString("project_dir"),
+		"project_dir": runtimeContext.ProjectDir,
 		"content":     snapshot.Content,
 		"message":     "rollback restored",
 	}, appConfigRollbackResponseFields(record)))
 }
 
-// @Summary Create deployment from installed app
-// @Description Creates a one-click redeploy or upgrade deployment using the currently installed compose config and existing project directory. Superuser only.
+// @Summary Upgrade app
+// @Description Creates an upgrade operation using the currently installed compose config and existing project directory. Superuser only.
 // @Tags Apps
 // @Security BearerAuth
 // @Param id path string true "app instance ID"
-// @Param body body object true "action"
 // @Success 202 {object} map[string]any
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 404 {object} map[string]any
 // @Failure 500 {object} map[string]any
-// @Router /api/apps/{id}/deploy [post]
-func handleAppInstanceDeploy(e *core.RequestEvent) error {
+// @Router /api/apps/{id}/upgrade [post]
+func handleAppInstanceUpgrade(e *core.RequestEvent) error {
+	return handleAppInstanceLifecycleOperation(e, string(model.OperationTypeUpgrade))
+}
+
+// @Summary Redeploy app
+// @Description Creates a redeploy operation using the currently installed compose config and existing project directory. Superuser only.
+// @Tags Apps
+// @Security BearerAuth
+// @Param id path string true "app instance ID"
+// @Success 202 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/apps/{id}/redeploy [post]
+func handleAppInstanceRedeploy(e *core.RequestEvent) error {
+	return handleAppInstanceLifecycleOperation(e, string(model.OperationTypeRedeploy))
+}
+
+func handleAppInstanceLifecycleOperation(e *core.RequestEvent, action string) error {
 	record, err := findAppInstance(e, e.Request.PathValue("id"))
 	if err != nil {
 		return err
 	}
-
-	body, err := readBody(e)
+	runtimeContext, err := resolveAppRuntimeContext(e.App, record)
 	if err != nil {
-		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "invalid request body"})
-	}
-	action := strings.TrimSpace(strings.ToLower(bodyString(body, "action")))
-	if action == "" {
-		action = "redeploy"
-	}
-	if action != "redeploy" && action != "upgrade" {
-		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "action must be redeploy or upgrade"})
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
 
 	serverID := normalizeAppServerID(record.GetString("server_id"))
-	content, err := readAppComposeConfig(e, serverID, record.GetString("project_dir"))
+	content, err := readAppComposeConfig(e, serverID, runtimeContext.ProjectDir)
 	if err != nil {
-		writeAppAudit(e, record, "app.deploy.create", audit.StatusFailed, map[string]any{"errorMessage": err.Error(), "requestedAction": action})
+		writeAppAudit(e, record, "app."+action+".create", audit.StatusFailed, map[string]any{"errorMessage": err.Error(), "requestedAction": action})
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": err.Error()})
 	}
 
-	result, err := createDeploymentFromCompose(
+	result, err := createOperationFromCompose(
 		e,
 		serverID,
 		record.GetString("name"),
 		content,
-		normalizeInstalledDeploySource(record.GetString("source")),
+		normalizeInstalledDeploySource(runtimeContext.Source),
 		deploy.AdapterManualCompose,
 		map[string]any{
 			"installed_app_id": record.Id,
 			"requested_action": action,
-			"project_dir":      record.GetString("project_dir"),
+			"project_dir":      runtimeContext.ProjectDir,
 		},
-		deploymentCreateOptions{
+		operationCreateOptions{
 			ExistingAppID:      record.Id,
 			OperationType:      action,
-			ProjectDir:         record.GetString("project_dir"),
+			ProjectDir:         runtimeContext.ProjectDir,
 			ComposeProjectName: record.GetString("name"),
 		},
 	)
@@ -415,11 +463,11 @@ func handleAppInstanceDeploy(e *core.RequestEvent) error {
 		if strings.Contains(err.Error(), "compose") {
 			status = http.StatusBadRequest
 		}
-		writeAppAudit(e, record, "app.deploy.create", audit.StatusFailed, map[string]any{"errorMessage": err.Error(), "requestedAction": action})
+		writeAppAudit(e, record, "app."+action+".create", audit.StatusFailed, map[string]any{"errorMessage": err.Error(), "requestedAction": action})
 		return e.JSON(status, map[string]any{"code": status, "message": err.Error()})
 	}
 
-	writeAppAudit(e, record, "app.deploy.create", audit.StatusPending, map[string]any{"requestedAction": action, "deploymentId": result["id"]})
+	writeAppAudit(e, record, "app."+action+".create", audit.StatusPending, map[string]any{"requestedAction": action, "operationId": result["id"]})
 	return e.JSON(http.StatusAccepted, result)
 }
 
@@ -435,7 +483,7 @@ func handleAppInstanceDeploy(e *core.RequestEvent) error {
 // @Failure 500 {object} map[string]any
 // @Router /api/apps/{id}/start [post]
 func handleAppInstanceStart(e *core.RequestEvent) error {
-	return handleAppInstanceAction(e, "start")
+	return handleAppInstanceAction(e, string(model.OperationTypeStart))
 }
 
 // @Summary Stop app
@@ -450,7 +498,7 @@ func handleAppInstanceStart(e *core.RequestEvent) error {
 // @Failure 500 {object} map[string]any
 // @Router /api/apps/{id}/stop [post]
 func handleAppInstanceStop(e *core.RequestEvent) error {
-	return handleAppInstanceAction(e, "stop")
+	return handleAppInstanceAction(e, string(model.OperationTypeStop))
 }
 
 // @Summary Restart app
@@ -485,6 +533,10 @@ func handleAppInstanceUninstall(e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
+	runtimeContext, err := resolveAppRuntimeContext(e.App, record)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+	}
 
 	client, err := getDockerClientByServerID(e.App, normalizeAppServerID(record.GetString("server_id")))
 	if err != nil {
@@ -492,14 +544,13 @@ func handleAppInstanceUninstall(e *core.RequestEvent) error {
 	}
 
 	removeVolumes := e.Request.URL.Query().Get("removeVolumes") == "1" || strings.EqualFold(e.Request.URL.Query().Get("removeVolumes"), "true")
-	output, err := client.ComposeDown(e.Request.Context(), record.GetString("project_dir"), removeVolumes)
+	output, err := client.ComposeDown(e.Request.Context(), runtimeContext.ProjectDir, removeVolumes)
 	if err != nil {
 		writeAppAudit(e, record, "app.uninstall", audit.StatusFailed, map[string]any{"errorMessage": err.Error()})
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "compose down failed"})
 	}
 
-	markAppAction(record, "uninstall", "removed", "")
-	record.Set("status", "uninstalled")
+	markAppAction(record, string(model.OperationTypeUninstall), "removed", "")
 	if saveErr := e.App.Save(record); saveErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "failed to update app instance"})
 	}
@@ -513,6 +564,10 @@ func handleAppInstanceAction(e *core.RequestEvent, action string) error {
 	if err != nil {
 		return err
 	}
+	runtimeContext, err := resolveAppRuntimeContext(e.App, record)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+	}
 
 	client, err := getDockerClientByServerID(e.App, normalizeAppServerID(record.GetString("server_id")))
 	if err != nil {
@@ -521,12 +576,12 @@ func handleAppInstanceAction(e *core.RequestEvent, action string) error {
 
 	var output string
 	switch action {
-	case "start":
-		output, err = client.ComposeStart(e.Request.Context(), record.GetString("project_dir"))
-	case "stop":
-		output, err = client.ComposeStop(e.Request.Context(), record.GetString("project_dir"))
+	case string(model.OperationTypeStart):
+		output, err = client.ComposeStart(e.Request.Context(), runtimeContext.ProjectDir)
+	case string(model.OperationTypeStop):
+		output, err = client.ComposeStop(e.Request.Context(), runtimeContext.ProjectDir)
 	case "restart":
-		output, err = client.ComposeRestart(e.Request.Context(), record.GetString("project_dir"))
+		output, err = client.ComposeRestart(e.Request.Context(), runtimeContext.ProjectDir)
 	default:
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "unsupported action"})
 	}
@@ -536,9 +591,9 @@ func handleAppInstanceAction(e *core.RequestEvent, action string) error {
 	}
 
 	runtimeStatus := map[string]string{
-		"start":   "running",
-		"stop":    "stopped",
-		"restart": "running",
+		string(model.OperationTypeStart): "running",
+		string(model.OperationTypeStop):  "stopped",
+		"restart":                        "running",
 	}[action]
 	markAppAction(record, action, runtimeStatus, "")
 	if saveErr := e.App.Save(record); saveErr != nil {
@@ -560,9 +615,11 @@ func findAppInstance(e *core.RequestEvent, id string) (*core.Record, error) {
 	return record, nil
 }
 
-func appInstanceResponse(record *core.Record, runtimeIndex map[string]string, runtimeReason string) map[string]any {
+func appInstanceResponse(app core.App, record *core.Record, runtimeIndex map[string]string, runtimeReason string) map[string]any {
 	name := record.GetString("name")
-	runtimeStatus := strings.TrimSpace(record.GetString("runtime_status"))
+	runtimeContext, _ := resolveAppRuntimeContext(app, record)
+	currentPipeline, _ := appCurrentPipelineResponse(app, record)
+	runtimeStatus := appRuntimeStatus(record)
 	if runtimeIndex != nil {
 		if live, ok := runtimeIndex[name]; ok && strings.TrimSpace(live) != "" {
 			runtimeStatus = normalizeComposeRuntimeStatus(live)
@@ -574,30 +631,53 @@ func appInstanceResponse(record *core.Record, runtimeIndex map[string]string, ru
 	}
 
 	result := map[string]any{
-		"id":                     record.Id,
-		"deployment_id":          record.GetString("deployment_id"),
-		"iac_path":               appInstanceIACPath(record.Id, name),
-		"server_id":              normalizeAppServerID(record.GetString("server_id")),
-		"name":                   name,
-		"project_dir":            record.GetString("project_dir"),
-		"source":                 record.GetString("source"),
-		"status":                 record.GetString("status"),
-		"runtime_status":         runtimeStatus,
-		"last_deployment_status": record.GetString("last_deployment_status"),
-		"last_action":            record.GetString("last_action"),
-		"created":                record.GetDateTime("created").String(),
-		"updated":                record.GetDateTime("updated").String(),
+		"id":                  record.Id,
+		"iac_path":            appInstanceIACPath(record.Id, name),
+		"server_id":           normalizeAppServerID(record.GetString("server_id")),
+		"name":                name,
+		"project_dir":         runtimeContext.ProjectDir,
+		"source":              runtimeContext.Source,
+		"status":              appInstallStatus(record),
+		"runtime_status":      runtimeStatus,
+		"lifecycle_state":     record.GetString("lifecycle_state"),
+		"health_summary":      record.GetString("health_summary"),
+		"publication_summary": record.GetString("publication_summary"),
+		"state_reason":        record.GetString("state_reason"),
+		"last_operation":      record.GetString("last_operation"),
+		"current_pipeline":    currentPipeline,
+		"created":             record.GetDateTime("created").String(),
+		"updated":             record.GetDateTime("updated").String(),
 	}
-	if strings.TrimSpace(runtimeReason) != "" {
+	if strings.TrimSpace(runtimeReason) != "" && runtimeStatus == "unknown" {
 		result["runtime_reason"] = runtimeReason
 	}
-	if value := record.GetDateTime("last_action_at"); !value.IsZero() {
-		result["last_action_at"] = value.String()
-	}
-	if value := record.GetDateTime("last_deployed_at"); !value.IsZero() {
-		result["last_deployed_at"] = value.String()
+	if value := record.GetDateTime("installed_at"); !value.IsZero() {
+		result["installed_at"] = value.String()
 	}
 	return result
+}
+
+func appCurrentPipelineResponse(app core.App, record *core.Record) (map[string]any, error) {
+	if record == nil {
+		return nil, nil
+	}
+	operationID := strings.TrimSpace(record.GetString("last_operation"))
+	if operationID == "" {
+		return nil, nil
+	}
+	operationRecord, err := app.FindRecordById("app_operations", operationID)
+	if err != nil {
+		return nil, err
+	}
+	pipelineRunID := strings.TrimSpace(operationRecord.GetString("pipeline_run"))
+	if pipelineRunID == "" {
+		return nil, nil
+	}
+	stepRuns, err := findPipelineNodeRuns(app, pipelineRunID)
+	if err != nil {
+		return nil, err
+	}
+	return buildPipelineResponse(app, pipelineRunID, operationRecord, stepRuns)
 }
 
 func normalizeComposeRuntimeStatus(raw string) string {
@@ -652,12 +732,72 @@ func composeStatusIndex(app core.App, serverID string) (map[string]string, error
 }
 
 func markAppAction(record *core.Record, action string, runtimeStatus string, runtimeReason string) {
-	record.Set("last_action", action)
-	record.Set("last_action_at", time.Now())
-	record.Set("runtime_status", runtimeStatus)
-	record.Set("runtime_reason", runtimeReason)
-	if action != "uninstall" {
-		record.Set("status", "installed")
+	record.Set("state_reason", strings.TrimSpace(runtimeReason))
+	switch action {
+	case string(model.OperationTypeStart), "restart":
+		record.Set("lifecycle_state", string(model.AppStateRunningHealthy))
+		record.Set("health_summary", string(model.HealthHealthy))
+	case string(model.OperationTypeStop):
+		record.Set("lifecycle_state", string(model.AppStateStopped))
+		record.Set("health_summary", string(model.HealthStopped))
+	case string(model.OperationTypeUninstall):
+		record.Set("lifecycle_state", string(model.AppStateRetired))
+		record.Set("health_summary", string(model.HealthStopped))
+		record.Set("retired_at", time.Now())
+	}
+}
+
+func resolveAppRuntimeContext(app core.App, record *core.Record) (appRuntimeContext, error) {
+	context := appRuntimeContext{ComposeProjectName: record.GetString("name")}
+	if record == nil {
+		return context, fmt.Errorf("app instance is nil")
+	}
+	operationID := strings.TrimSpace(record.GetString("last_operation"))
+	if operationID == "" {
+		return context, fmt.Errorf("app runtime context is missing last_operation")
+	}
+	operationRecord, err := app.FindRecordById("app_operations", operationID)
+	if err != nil {
+		return context, fmt.Errorf("app runtime context operation not found")
+	}
+	context.ProjectDir = strings.TrimSpace(operationRecord.GetString("project_dir"))
+	context.Source = strings.TrimSpace(operationRecord.GetString("trigger_source"))
+	if composeProjectName := strings.TrimSpace(operationRecord.GetString("compose_project_name")); composeProjectName != "" {
+		context.ComposeProjectName = composeProjectName
+	}
+	if context.ProjectDir == "" {
+		if spec, ok := operationRecord.Get("spec_json").(map[string]any); ok {
+			context.ProjectDir = strings.TrimSpace(fmt.Sprint(spec["project_dir"]))
+			if context.Source == "" {
+				context.Source = strings.TrimSpace(fmt.Sprint(spec["source"]))
+			}
+		}
+	}
+	if context.ProjectDir == "" {
+		return context, fmt.Errorf("app runtime context is missing project_dir")
+	}
+	return context, nil
+}
+
+func appInstallStatus(record *core.Record) string {
+	switch strings.TrimSpace(record.GetString("lifecycle_state")) {
+	case string(model.AppStateRetired):
+		return "uninstalled"
+	default:
+		return "installed"
+	}
+}
+
+func appRuntimeStatus(record *core.Record) string {
+	switch strings.TrimSpace(record.GetString("lifecycle_state")) {
+	case string(model.AppStateRunningHealthy), string(model.AppStateRunningDegraded):
+		return "running"
+	case string(model.AppStateStopped), string(model.AppStateRetired):
+		return "stopped"
+	case string(model.AppStateAttentionRequired):
+		return "error"
+	default:
+		return "unknown"
 	}
 }
 
@@ -675,44 +815,6 @@ func writeAppAudit(e *core.RequestEvent, record *core.Record, action string, sta
 		UserAgent:    ua,
 		Detail:       detail,
 	})
-}
-
-func syncAppInstanceFromDeployment(app core.App, deploymentRecord *core.Record) error {
-	if deploymentRecord == nil || deploymentRecord.GetString("status") != deploy.StatusSuccess {
-		return nil
-	}
-
-	col, err := app.FindCollectionByNameOrId("app_instances")
-	if err != nil {
-		return err
-	}
-
-	projectDir := deploymentRecord.GetString("project_dir")
-	serverID := normalizeAppServerID(deploymentRecord.GetString("server_id"))
-	filter := fmt.Sprintf(`server_id = "%s" && project_dir = "%s"`, serverID, projectDir)
-	record, err := app.FindFirstRecordByFilter("app_instances", filter)
-	if err != nil || record == nil {
-		record = core.NewRecord(col)
-	}
-
-	record.Set("deployment_id", deploymentRecord.Id)
-	record.Set("server_id", serverID)
-	record.Set("name", deploymentRecord.GetString("compose_project_name"))
-	record.Set("project_dir", projectDir)
-	record.Set("source", deploymentRecord.GetString("source"))
-	record.Set("status", "installed")
-	record.Set("runtime_status", "running")
-	record.Set("runtime_reason", "")
-	record.Set("last_deployment_status", deploymentRecord.GetString("status"))
-	record.Set("last_action", "deploy")
-	record.Set("last_action_at", time.Now())
-	record.Set("last_deployed_at", time.Now())
-
-	if err := saveAppComposeToIAC(record.Id, deploymentRecord.GetString("compose_project_name"), deploymentRecord.GetString("rendered_compose")); err != nil {
-		return err
-	}
-
-	return app.Save(record)
 }
 
 func validateAppComposeConfig(e *core.RequestEvent, serverID string, projectDir string, content string) error {
@@ -810,6 +912,11 @@ func saveAppComposeToIAC(id string, name string, content string) error {
 	return nil
 }
 
+func appConfigRollbackPath(id string, name string) string {
+	base := filepath.Dir(appInstanceIACPath(id, name))
+	return filepath.ToSlash(filepath.Join(base, "rollback.json"))
+}
+
 func slugifyAppName(name string) string {
 	name = strings.ToLower(strings.TrimSpace(name))
 	if name == "" {
@@ -845,25 +952,18 @@ type appConfigRollbackSnapshot struct {
 }
 
 func getAppConfigRollbackSnapshot(record *core.Record) (appConfigRollbackSnapshot, bool) {
-	value := record.Get("config_rollback_snapshot")
-	if value == nil {
+	abs := filepath.Join(filesBasePath, filepath.FromSlash(appConfigRollbackPath(record.Id, record.GetString("name"))))
+	raw, err := os.ReadFile(abs)
+	if err != nil {
 		return appConfigRollbackSnapshot{}, false
 	}
 
 	snapshot := appConfigRollbackSnapshot{}
-	switch typed := value.(type) {
-	case map[string]any:
-		snapshot.Content = fmt.Sprint(typed["content"])
-		snapshot.SavedAt = strings.TrimSpace(fmt.Sprint(typed["saved_at"]))
-		snapshot.SourceAction = strings.TrimSpace(fmt.Sprint(typed["source_action"]))
-	default:
-		raw, err := json.Marshal(typed)
-		if err != nil || json.Unmarshal(raw, &snapshot) != nil {
-			return appConfigRollbackSnapshot{}, false
-		}
-		snapshot.SavedAt = strings.TrimSpace(snapshot.SavedAt)
-		snapshot.SourceAction = strings.TrimSpace(snapshot.SourceAction)
+	if json.Unmarshal(raw, &snapshot) != nil {
+		return appConfigRollbackSnapshot{}, false
 	}
+	snapshot.SavedAt = strings.TrimSpace(snapshot.SavedAt)
+	snapshot.SourceAction = strings.TrimSpace(snapshot.SourceAction)
 
 	if strings.TrimSpace(snapshot.Content) == "" {
 		return appConfigRollbackSnapshot{}, false
@@ -871,16 +971,30 @@ func getAppConfigRollbackSnapshot(record *core.Record) (appConfigRollbackSnapsho
 	return snapshot, true
 }
 
-func setAppConfigRollbackSnapshot(record *core.Record, content string, sourceAction string) {
+func setAppConfigRollbackSnapshot(record *core.Record, content string, sourceAction string) error {
+	abs := filepath.Join(filesBasePath, filepath.FromSlash(appConfigRollbackPath(record.Id, record.GetString("name"))))
 	if strings.TrimSpace(content) == "" {
-		record.Set("config_rollback_snapshot", nil)
-		return
+		if err := os.Remove(abs); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("remove rollback snapshot: %w", err)
+		}
+		return nil
 	}
-	record.Set("config_rollback_snapshot", map[string]any{
-		"content":       content,
-		"saved_at":      time.Now().UTC().Format(time.RFC3339),
-		"source_action": strings.TrimSpace(sourceAction),
-	})
+	snapshot := appConfigRollbackSnapshot{
+		Content:      content,
+		SavedAt:      time.Now().UTC().Format(time.RFC3339),
+		SourceAction: strings.TrimSpace(sourceAction),
+	}
+	data, err := json.Marshal(snapshot)
+	if err != nil {
+		return fmt.Errorf("marshal rollback snapshot: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+		return fmt.Errorf("prepare rollback snapshot directory: %w", err)
+	}
+	if err := os.WriteFile(abs, data, 0o644); err != nil {
+		return fmt.Errorf("write rollback snapshot: %w", err)
+	}
+	return nil
 }
 
 func appConfigRollbackResponseFields(record *core.Record) map[string]any {

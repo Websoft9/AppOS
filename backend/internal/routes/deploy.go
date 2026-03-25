@@ -15,23 +15,74 @@ import (
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/websoft9/appos/backend/internal/audit"
 	"github.com/websoft9/appos/backend/internal/deploy"
+	"github.com/websoft9/appos/backend/internal/lifecycle/model"
+	lifecyclesvc "github.com/websoft9/appos/backend/internal/lifecycle/service"
+	"github.com/websoft9/appos/backend/internal/worker"
 )
 
 const maxGitComposeBytes = 1 << 20
 
-func registerDeployRoutes(g *router.RouterGroup[*core.RequestEvent]) {
-	d := g.Group("/deployments")
-	d.Bind(apis.RequireSuperuserAuth())
-	d.GET("", handleDeploymentList)
-	d.GET("/{id}", handleDeploymentDetail)
-	d.DELETE("/{id}", handleDeploymentDelete)
-	d.GET("/{id}/logs", handleDeploymentLogs)
-	d.GET("/{id}/stream", handleDeploymentLogStream)
-	d.POST("/git-compose", handleDeploymentGitCompose)
-	d.POST("/manual-compose", handleDeploymentManualCompose)
+func registerOperationRoutes(g *router.RouterGroup[*core.RequestEvent]) {
+	o := g.Group("/operations")
+	o.Bind(apis.RequireSuperuserAuth())
+	o.GET("", handleOperationList)
+	o.GET("/{id}", handleOperationDetail)
+	o.DELETE("/{id}", handleOperationDelete)
+	o.POST("/{id}/cancel", handleOperationCancel)
+	o.GET("/{id}/logs", handleOperationLogs)
+	o.GET("/{id}/stream", handleOperationLogStream)
+	o.POST("/install/git-compose", handleOperationInstallGitCompose)
+	o.POST("/install/manual-compose", handleOperationInstallManualCompose)
+
+	p := g.Group("/pipelines")
+	p.Bind(apis.RequireSuperuserAuth())
+	p.GET("", handlePipelineList)
+	p.GET("/{id}", handlePipelineDetail)
 }
 
-func handleDeploymentList(e *core.RequestEvent) error {
+func handlePipelineList(e *core.RequestEvent) error {
+	col, err := e.App.FindCollectionByNameOrId("pipeline_runs")
+	if err != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "pipeline_runs collection not found"})
+	}
+
+	records, err := e.App.FindRecordsByFilter(col, "", "-created", 100, 0)
+	if err != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "failed to list pipelines"})
+	}
+
+	result := make([]map[string]any, 0, len(records))
+	for _, record := range records {
+		response, responseErr := pipelineRunRecordResponse(e.App, record)
+		if responseErr != nil {
+			return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "failed to build pipeline response"})
+		}
+		result = append(result, response)
+	}
+
+	return e.JSON(http.StatusOK, result)
+}
+
+func handlePipelineDetail(e *core.RequestEvent) error {
+	id := e.Request.PathValue("id")
+	if id == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "id is required"})
+	}
+
+	record, err := e.App.FindRecordById("pipeline_runs", id)
+	if err != nil {
+		return e.JSON(http.StatusNotFound, map[string]any{"code": 404, "message": "pipeline not found"})
+	}
+
+	response, err := pipelineRunRecordResponse(e.App, record)
+	if err != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "failed to build pipeline response"})
+	}
+
+	return e.JSON(http.StatusOK, response)
+}
+
+func handleOperationList(e *core.RequestEvent) error {
 	col, err := e.App.FindCollectionByNameOrId("app_operations")
 	if err != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "app_operations collection not found"})
@@ -54,7 +105,7 @@ func handleDeploymentList(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, result)
 }
 
-func handleDeploymentDetail(e *core.RequestEvent) error {
+func handleOperationDetail(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 	if id == "" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "id is required"})
@@ -73,7 +124,7 @@ func handleDeploymentDetail(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, response)
 }
 
-func handleDeploymentDelete(e *core.RequestEvent) error {
+func handleOperationDelete(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 	if id == "" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "id is required"})
@@ -120,7 +171,7 @@ func handleDeploymentDelete(e *core.RequestEvent) error {
 	audit.Write(e.App, audit.Entry{
 		UserID:       userID,
 		UserEmail:    userEmail,
-		Action:       "deploy.delete",
+		Action:       "operation.delete",
 		ResourceType: "app_operation",
 		ResourceID:   id,
 		ResourceName: record.GetString("compose_project_name"),
@@ -135,7 +186,58 @@ func handleDeploymentDelete(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"id": id, "deleted": true})
 }
 
-func handleDeploymentLogs(e *core.RequestEvent) error {
+func handleOperationCancel(e *core.RequestEvent) error {
+	id := e.Request.PathValue("id")
+	if id == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "id is required"})
+	}
+
+	var response map[string]any
+	err := e.App.RunInTransaction(func(txApp core.App) error {
+		record, err := txApp.FindRecordById("app_operations", id)
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(record.GetString("terminal_status")) != "" {
+			return fmt.Errorf("terminal operations cannot be cancelled")
+		}
+		if record.GetDateTime("cancel_requested_at").IsZero() {
+			record.Set("cancel_requested_at", time.Now())
+			if err := txApp.Save(record); err != nil {
+				return err
+			}
+		}
+		response, err = operationRecordResponse(txApp, record)
+		return err
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "terminal operations cannot be cancelled") {
+			return e.JSON(http.StatusConflict, map[string]any{"code": 409, "message": err.Error()})
+		}
+		return e.JSON(http.StatusNotFound, map[string]any{"code": 404, "message": "operation not found"})
+	}
+
+	if asynqClient != nil {
+		_ = worker.EnqueueOperation(asynqClient, id)
+	}
+
+	userID, userEmail, ip, ua := clientInfo(e)
+	audit.Write(e.App, audit.Entry{
+		UserID:       userID,
+		UserEmail:    userEmail,
+		Action:       "operation.cancel",
+		ResourceType: "app_operation",
+		ResourceID:   id,
+		ResourceName: fmt.Sprint(response["compose_project_name"]),
+		Status:       audit.StatusPending,
+		IP:           ip,
+		UserAgent:    ua,
+	})
+
+	return e.JSON(http.StatusAccepted, response)
+}
+
+func handleOperationLogs(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 	if id == "" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "id is required"})
@@ -149,13 +251,13 @@ func handleDeploymentLogs(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{
 		"id":                      record.Id,
 		"status":                  operationDisplayStatus(record),
-		"execution_log":           "",
-		"execution_log_truncated": false,
+		"execution_log":           record.GetString("execution_log"),
+		"execution_log_truncated": record.GetBool("execution_log_truncated"),
 		"updated":                 record.GetDateTime("updated").String(),
 	})
 }
 
-func handleDeploymentLogStream(e *core.RequestEvent) error {
+func handleOperationLogStream(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 	if id == "" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "id is required"})
@@ -180,9 +282,9 @@ func handleDeploymentLogStream(e *core.RequestEvent) error {
 			"id":                      current.Id,
 			"status":                  operationDisplayStatus(current),
 			"updated":                 current.GetDateTime("updated").String(),
-			"execution_log_truncated": false,
+			"execution_log_truncated": current.GetBool("execution_log_truncated"),
 			"type":                    "snapshot",
-			"content":                 "",
+			"content":                 current.GetString("execution_log"),
 		}
 		lastStatus = payload["status"].(string)
 		lastUpdated = payload["updated"].(string)
@@ -215,7 +317,7 @@ func handleDeploymentLogStream(e *core.RequestEvent) error {
 	return nil
 }
 
-func handleDeploymentGitCompose(e *core.RequestEvent) error {
+func handleOperationInstallGitCompose(e *core.RequestEvent) error {
 	body, err := readBody(e)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "invalid request body"})
@@ -254,7 +356,7 @@ func handleDeploymentGitCompose(e *core.RequestEvent) error {
 		req.ProjectName = deriveGitProjectName(req.RepositoryURL, req.ComposePath, rawURL)
 	}
 
-	result, err := createDeploymentFromCompose(
+	result, err := createOperationFromCompose(
 		e,
 		req.ServerID,
 		req.ProjectName,
@@ -267,7 +369,7 @@ func handleDeploymentGitCompose(e *core.RequestEvent) error {
 			"compose_path":   req.ComposePath,
 			"raw_url":        rawURL,
 		},
-		deploymentCreateOptions{},
+		operationCreateOptions{},
 	)
 	if err != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": err.Error()})
@@ -276,7 +378,7 @@ func handleDeploymentGitCompose(e *core.RequestEvent) error {
 	return e.JSON(http.StatusAccepted, result)
 }
 
-func handleDeploymentManualCompose(e *core.RequestEvent) error {
+func handleOperationInstallManualCompose(e *core.RequestEvent) error {
 	body, err := readBody(e)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "invalid request body"})
@@ -291,7 +393,7 @@ func handleDeploymentManualCompose(e *core.RequestEvent) error {
 		req.ServerID = "local"
 	}
 
-	result, err := createDeploymentFromCompose(
+	result, err := createOperationFromCompose(
 		e,
 		req.ServerID,
 		req.ProjectName,
@@ -299,7 +401,7 @@ func handleDeploymentManualCompose(e *core.RequestEvent) error {
 		deploy.SourceManualOps,
 		deploy.AdapterManualCompose,
 		nil,
-		deploymentCreateOptions{},
+		operationCreateOptions{},
 	)
 	if err != nil {
 		if strings.Contains(err.Error(), "compose") {
@@ -311,14 +413,14 @@ func handleDeploymentManualCompose(e *core.RequestEvent) error {
 	return e.JSON(http.StatusAccepted, result)
 }
 
-type deploymentCreateOptions struct {
+type operationCreateOptions struct {
 	ExistingAppID      string
 	OperationType      string
 	ProjectDir         string
 	ComposeProjectName string
 }
 
-func createDeploymentFromCompose(
+func createOperationFromCompose(
 	e *core.RequestEvent,
 	serverID string,
 	projectName string,
@@ -326,152 +428,27 @@ func createDeploymentFromCompose(
 	source string,
 	adapter string,
 	auditDetail map[string]any,
-	options deploymentCreateOptions,
+	options operationCreateOptions,
 ) (map[string]any, error) {
-	if err := deploy.ValidateManualCompose(compose); err != nil {
-		return nil, err
-	}
-
-	normalizedProjectName := deploy.NormalizeProjectName(projectName)
-	if normalizedProjectName == "" {
-		normalizedProjectName = "app"
-	}
-	composeProjectName := normalizedProjectName
-	if value := strings.TrimSpace(options.ComposeProjectName); value != "" {
-		composeProjectName = value
-	}
-	projectDir := filepath.Join("/appos/data/apps/operations", normalizedProjectName)
-	if value := strings.TrimSpace(options.ProjectDir); value != "" {
-		projectDir = value
-	}
-	operationType := strings.TrimSpace(options.OperationType)
-	if operationType == "" {
-		operationType = "install"
-	}
-	pipelineFamily := "ProvisionPipeline"
-	if strings.TrimSpace(options.ExistingAppID) != "" {
-		pipelineFamily = "ChangePipeline"
-	}
-
-	spec := map[string]any{
-		"server_id":            serverID,
-		"source":               source,
-		"adapter":              adapter,
-		"compose_project_name": composeProjectName,
-		"project_dir":          projectDir,
-		"rendered_compose":     compose,
-		"operation_type":       operationType,
-	}
-
-	var operationRecord *core.Record
-	err := e.App.RunInTransaction(func(txApp core.App) error {
-		appInstancesCol, err := txApp.FindCollectionByNameOrId("app_instances")
-		if err != nil {
-			return err
-		}
-		operationsCol, err := txApp.FindCollectionByNameOrId("app_operations")
-		if err != nil {
-			return err
-		}
-		pipelineRunsCol, err := txApp.FindCollectionByNameOrId("pipeline_runs")
-		if err != nil {
-			return err
-		}
-		nodeRunsCol, err := txApp.FindCollectionByNameOrId("pipeline_node_runs")
-		if err != nil {
-			return err
-		}
-
-		var appRecord *core.Record
-		if existingAppID := strings.TrimSpace(options.ExistingAppID); existingAppID != "" {
-			appRecord, err = txApp.FindRecordById("app_instances", existingAppID)
-			if err != nil {
-				return err
-			}
-		} else {
-			appRecord = core.NewRecord(appInstancesCol)
-			appRecord.Set("key", fmt.Sprintf("%s-%d", normalizedProjectName, time.Now().UnixNano()))
-			appRecord.Set("name", composeProjectName)
-			appRecord.Set("server_id", serverID)
-			appRecord.Set("lifecycle_state", "installing")
-			appRecord.Set("desired_state", "running")
-			appRecord.Set("health_summary", "unknown")
-			appRecord.Set("publication_summary", "unpublished")
-			appRecord.Set("state_reason", "operation queued")
-			if err := txApp.Save(appRecord); err != nil {
-				return err
-			}
-		}
-
-		operationRecord = core.NewRecord(operationsCol)
-		operationRecord.Set("app", appRecord.Id)
-		operationRecord.Set("server_id", serverID)
-		operationRecord.Set("operation_type", operationType)
-		operationRecord.Set("trigger_source", source)
-		operationRecord.Set("adapter", adapter)
-		if e.Auth != nil && e.Auth.Collection() != nil && e.Auth.Collection().Name == "users" {
-			operationRecord.Set("requested_by", e.Auth.Id)
-		}
-		operationRecord.Set("phase", "queued")
-		operationRecord.Set("spec_json", spec)
-		operationRecord.Set("compose_project_name", composeProjectName)
-		operationRecord.Set("project_dir", projectDir)
-		operationRecord.Set("rendered_compose", compose)
-		operationRecord.Set("queued_at", time.Now())
-		if err := txApp.Save(operationRecord); err != nil {
-			return err
-		}
-
-		pipelineRun := core.NewRecord(pipelineRunsCol)
-		pipelineRun.Set("operation", operationRecord.Id)
-		pipelineRun.Set("pipeline_family", pipelineFamily)
-		pipelineRun.Set("current_phase", "validating")
-		pipelineRun.Set("status", "active")
-		pipelineRun.Set("node_count", 4)
-		pipelineRun.Set("completed_node_count", 0)
-		if err := txApp.Save(pipelineRun); err != nil {
-			return err
-		}
-
-		for _, node := range []struct {
-			key   string
-			label string
-			phase string
-		}{
-			{key: "validating", label: "Validating", phase: "validating"},
-			{key: "upload", label: "Upload", phase: "preparing"},
-			{key: "compose_up", label: "Compose Up", phase: "executing"},
-			{key: "health_check", label: "Health Check", phase: "verifying"},
-		} {
-			nodeRun := core.NewRecord(nodeRunsCol)
-			nodeRun.Set("pipeline_run", pipelineRun.Id)
-			nodeRun.Set("node_key", node.key)
-			nodeRun.Set("node_type", "compose_step")
-			nodeRun.Set("display_name", node.label)
-			nodeRun.Set("phase", node.phase)
-			nodeRun.Set("status", "pending")
-			nodeRun.Set("retry_count", 0)
-			if err := txApp.Save(nodeRun); err != nil {
-				return err
-			}
-		}
-
-		appRecord.Set("last_operation", operationRecord.Id)
-		if strings.TrimSpace(options.ExistingAppID) != "" {
-			appRecord.Set("lifecycle_state", "updating")
-		} else {
-			appRecord.Set("lifecycle_state", "installing")
-		}
-		appRecord.Set("state_reason", "operation queued")
-		if err := txApp.Save(appRecord); err != nil {
-			return err
-		}
-
-		operationRecord.Set("pipeline_run", pipelineRun.Id)
-		return txApp.Save(operationRecord)
-	})
+	operationRecord, err := lifecyclesvc.CreateOperationFromCompose(
+		e.App,
+		e.Auth,
+		lifecyclesvc.ComposeOperationRequest{
+			ServerID:    serverID,
+			ProjectName: projectName,
+			Compose:     compose,
+			Source:      source,
+			Adapter:     adapter,
+		},
+		lifecyclesvc.ComposeOperationOptions{
+			ExistingAppID:      options.ExistingAppID,
+			OperationType:      options.OperationType,
+			ProjectDir:         options.ProjectDir,
+			ComposeProjectName: options.ComposeProjectName,
+		},
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create operation: %w", err)
+		return nil, err
 	}
 
 	userID, userEmail, ip, ua := clientInfo(e)
@@ -479,13 +456,14 @@ func createDeploymentFromCompose(
 		"source":  source,
 		"adapter": adapter,
 	}
+	composeProjectName := operationRecord.GetString("compose_project_name")
 	for key, value := range auditDetail {
 		detail[key] = value
 	}
 	audit.Write(e.App, audit.Entry{
 		UserID:       userID,
 		UserEmail:    userEmail,
-		Action:       "deploy.create",
+		Action:       "operation.create",
 		ResourceType: "app_operation",
 		ResourceID:   operationRecord.Id,
 		ResourceName: composeProjectName,
@@ -499,7 +477,13 @@ func createDeploymentFromCompose(
 	if err != nil {
 		return nil, err
 	}
-	result["enqueued"] = false
+	enqueued := false
+	if asynqClient != nil {
+		if err := worker.EnqueueOperation(asynqClient, operationRecord.Id); err == nil {
+			enqueued = true
+		}
+	}
+	result["enqueued"] = enqueued
 	return result, nil
 }
 
@@ -529,17 +513,17 @@ func operationDisplayStatus(record *core.Record) string {
 	}
 
 	switch strings.TrimSpace(record.GetString("phase")) {
-	case "queued":
+	case string(model.OperationPhaseQueued):
 		return deploy.StatusQueued
-	case "validating":
+	case string(model.OperationPhaseValidating):
 		return deploy.StatusValidating
-	case "preparing":
+	case string(model.OperationPhasePreparing):
 		return deploy.StatusPreparing
-	case "executing":
+	case string(model.OperationPhaseExecuting):
 		return deploy.StatusRunning
-	case "verifying":
+	case string(model.OperationPhaseVerifying):
 		return deploy.StatusVerifying
-	case "compensating":
+	case string(model.OperationPhaseCompensating):
 		return deploy.StatusRollingBack
 	default:
 		return deploy.StatusQueued
@@ -552,23 +536,33 @@ func operationRecordResponse(app core.App, record *core.Record) (map[string]any,
 	if err != nil {
 		return nil, err
 	}
+	pipelinePayload, err := buildPipelineResponse(app, pipelineRunID, record, stepRuns)
+	if err != nil {
+		return nil, err
+	}
 	result := map[string]any{
-		"id":                   record.Id,
-		"app_id":               record.GetString("app"),
-		"server_id":            record.GetString("server_id"),
-		"source":               record.GetString("trigger_source"),
-		"status":               operationDisplayStatus(record),
-		"adapter":              record.GetString("adapter"),
-		"compose_project_name": record.GetString("compose_project_name"),
-		"project_dir":          record.GetString("project_dir"),
-		"rendered_compose":     record.GetString("rendered_compose"),
-		"error_summary":        record.GetString("error_message"),
-		"has_execution_log":    false,
-		"created":              record.GetDateTime("created").String(),
-		"updated":              record.GetDateTime("updated").String(),
-		"spec":                 record.Get("spec_json"),
-		"lifecycle":            buildOperationLifecycle(record),
-		"steps":                buildOperationSteps(stepRuns),
+		"id":                       record.Id,
+		"app_id":                   record.GetString("app"),
+		"server_id":                record.GetString("server_id"),
+		"source":                   record.GetString("trigger_source"),
+		"status":                   operationDisplayStatus(record),
+		"adapter":                  record.GetString("adapter"),
+		"compose_project_name":     record.GetString("compose_project_name"),
+		"project_dir":              record.GetString("project_dir"),
+		"rendered_compose":         record.GetString("rendered_compose"),
+		"error_summary":            record.GetString("error_message"),
+		"has_execution_log":        strings.TrimSpace(record.GetString("execution_log")) != "",
+		"pipeline":                 pipelinePayload,
+		"pipeline_family":          pipelinePayload["family"],
+		"pipeline_family_internal": pipelinePayload["family_internal"],
+		"pipeline_definition_key":  pipelinePayload["definition_key"],
+		"pipeline_version":         pipelinePayload["version"],
+		"pipeline_selector":        pipelinePayload["selector"],
+		"created":                  record.GetDateTime("created").String(),
+		"updated":                  record.GetDateTime("updated").String(),
+		"spec":                     record.Get("spec_json"),
+		"lifecycle":                buildOperationLifecycle(record),
+		"steps":                    buildOperationSteps(stepRuns),
 	}
 	if value := record.GetDateTime("started_at"); !value.IsZero() {
 		result["started_at"] = value.String()
@@ -577,6 +571,108 @@ func operationRecordResponse(app core.App, record *core.Record) (map[string]any,
 		result["finished_at"] = value.String()
 	}
 	return result, nil
+}
+
+func pipelineRunRecordResponse(app core.App, pipelineRunRecord *core.Record) (map[string]any, error) {
+	operationRecord, err := app.FindRecordById("app_operations", pipelineRunRecord.GetString("operation"))
+	if err != nil {
+		return nil, err
+	}
+	stepRuns, err := findPipelineNodeRuns(app, pipelineRunRecord.Id)
+	if err != nil {
+		return nil, err
+	}
+	return buildPipelineResponse(app, pipelineRunRecord.Id, operationRecord, stepRuns)
+}
+
+func buildPipelineResponse(app core.App, pipelineRunID string, record *core.Record, stepRuns []*core.Record) (map[string]any, error) {
+	var pipelineFamily string
+	var pipelineDefinitionKey string
+	var pipelineVersion string
+	var pipelineStatus string
+	var currentPhase string
+	var failedNodeKey string
+	var nodeCount int
+	var completedNodeCount int
+	var createdAt string
+	var updatedAt string
+	var startedAt string
+	var finishedAt string
+	if strings.TrimSpace(pipelineRunID) != "" {
+		pipelineRunRecord, err := app.FindRecordById("pipeline_runs", pipelineRunID)
+		if err != nil {
+			return nil, err
+		}
+		pipelineFamily = pipelineRunRecord.GetString("pipeline_family")
+		pipelineDefinitionKey = pipelineRunRecord.GetString("pipeline_definition_key")
+		pipelineVersion = pipelineRunRecord.GetString("pipeline_version")
+		pipelineStatus = pipelineRunRecord.GetString("status")
+		currentPhase = pipelineRunRecord.GetString("current_phase")
+		failedNodeKey = pipelineRunRecord.GetString("failed_node_key")
+		nodeCount = pipelineRunRecord.GetInt("node_count")
+		completedNodeCount = pipelineRunRecord.GetInt("completed_node_count")
+		createdAt = pipelineRunRecord.GetDateTime("created").String()
+		updatedAt = pipelineRunRecord.GetDateTime("updated").String()
+		if value := pipelineRunRecord.GetDateTime("started_at"); !value.IsZero() {
+			startedAt = value.String()
+		}
+		if value := pipelineRunRecord.GetDateTime("ended_at"); !value.IsZero() {
+			finishedAt = value.String()
+		}
+	}
+	result := map[string]any{
+		"id":                   pipelineRunID,
+		"operation_id":         record.Id,
+		"app_id":               record.GetString("app"),
+		"server_id":            record.GetString("server_id"),
+		"family":               externalPipelineFamilyKey(pipelineFamily),
+		"family_internal":      pipelineFamily,
+		"definition_key":       pipelineDefinitionKey,
+		"version":              pipelineVersion,
+		"status":               pipelineStatus,
+		"current_phase":        currentPhase,
+		"node_count":           nodeCount,
+		"completed_node_count": completedNodeCount,
+		"failed_node_key":      failedNodeKey,
+		"selector": map[string]any{
+			"operation_type": record.GetString("operation_type"),
+			"source":         record.GetString("trigger_source"),
+			"adapter":        record.GetString("adapter"),
+		},
+		"steps": buildOperationSteps(stepRuns),
+	}
+	if createdAt != "" {
+		result["created"] = createdAt
+	}
+	if updatedAt != "" {
+		result["updated"] = updatedAt
+	}
+	if startedAt != "" {
+		result["started_at"] = startedAt
+	}
+	if finishedAt != "" {
+		result["finished_at"] = finishedAt
+	}
+	return result, nil
+}
+
+func externalPipelineFamilyKey(family string) string {
+	switch strings.TrimSpace(family) {
+	case "ProvisionPipeline":
+		return "provision"
+	case "ChangePipeline":
+		return "change"
+	case "ExposurePipeline":
+		return "exposure"
+	case "RecoveryPipeline":
+		return "recovery"
+	case "MaintenancePipeline":
+		return "maintenance"
+	case "RetirePipeline":
+		return "retire"
+	default:
+		return strings.TrimSpace(family)
+	}
 }
 
 func buildOperationLifecycle(record *core.Record) []map[string]any {
@@ -677,7 +773,7 @@ func findPipelineNodeRuns(app core.App, pipelineRunID string) ([]*core.Record, e
 func buildOperationSteps(nodeRuns []*core.Record) []map[string]any {
 	if len(nodeRuns) == 0 {
 		return []map[string]any{
-			{"key": "validating", "label": "Validating", "status": "pending"},
+			{"key": string(model.PipelinePhaseValidating), "label": "Validating", "status": "pending"},
 			{"key": "upload", "label": "Upload", "status": "pending"},
 			{"key": "compose_up", "label": "Compose Up", "status": "pending"},
 			{"key": "health_check", "label": "Health Check", "status": "pending"},

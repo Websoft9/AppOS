@@ -22,8 +22,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import {
   type AppConfigResponse,
+  type AppExposure,
   type AppInstance,
   type AppLogsResponse,
+  type AppRelease,
   buildUnifiedDiff,
   formatTime,
   formatUptime,
@@ -41,6 +43,8 @@ type AppAction = 'start' | 'stop' | 'restart' | 'uninstall'
 export function AppDetailPage({ appId }: { appId: string }) {
   const navigate = useNavigate()
   const [app, setApp] = useState<AppInstance | null>(null)
+  const [releases, setReleases] = useState<AppRelease[]>([])
+  const [exposures, setExposures] = useState<AppExposure[]>([])
   const [logs, setLogs] = useState<AppLogsResponse | null>(null)
   const [configText, setConfigText] = useState('')
   const [originalConfig, setOriginalConfig] = useState('')
@@ -70,6 +74,20 @@ export function AppDetailPage({ appId }: { appId: string }) {
       setError(getApiErrorMessage(err, 'Failed to load app detail'))
     } finally {
       setLoading(false)
+    }
+  }, [appId])
+
+  const fetchLifecycleResources = useCallback(async () => {
+    try {
+      const [releaseResponse, exposureResponse] = await Promise.all([
+        pb.send<AppRelease[]>(`/api/apps/${appId}/releases`, { method: 'GET' }),
+        pb.send<AppExposure[]>(`/api/apps/${appId}/exposures`, { method: 'GET' }),
+      ])
+      setReleases(Array.isArray(releaseResponse) ? releaseResponse : [])
+      setExposures(Array.isArray(exposureResponse) ? exposureResponse : [])
+    } catch {
+      setReleases([])
+      setExposures([])
     }
   }, [appId])
 
@@ -115,7 +133,8 @@ export function AppDetailPage({ appId }: { appId: string }) {
 
   useEffect(() => {
     void fetchDetail()
-  }, [fetchDetail])
+    void fetchLifecycleResources()
+  }, [fetchDetail, fetchLifecycleResources])
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -236,21 +255,20 @@ export function AppDetailPage({ appId }: { appId: string }) {
     }
   }, [appId, fetchDetail, fetchLogs, navigate, tab])
 
-  const triggerDeployment = useCallback(async (action: 'redeploy' | 'upgrade') => {
+  const triggerOperation = useCallback(async (action: 'redeploy' | 'upgrade') => {
     if (!app) return
     setDeploying(action)
     setError('')
     setSuccess('')
     try {
-      const response = await pb.send<{ id: string }>(`/api/apps/${app.id}/deploy`, {
+      const response = await pb.send<{ id: string }>(`/api/apps/${app.id}/${action}`, {
         method: 'POST',
-        body: { action },
       })
-      setSuccess(`${app.name} ${action} deployment created`)
+      setSuccess(`${app.name} ${action} operation created`)
       await fetchDetail()
       void navigate({
-        to: '/deployments/$deploymentId' as never,
-        params: { deploymentId: response.id } as never,
+        to: '/operations/$operationId' as never,
+        params: { operationId: response.id } as never,
         search: { returnTo: 'list' } as never,
       })
     } catch (err) {
@@ -260,11 +278,11 @@ export function AppDetailPage({ appId }: { appId: string }) {
     }
   }, [app, fetchDetail, navigate])
 
-  const openDeploymentStatus = useCallback(() => {
-    if (!app?.deployment_id) return
+  const openOperationStatus = useCallback(() => {
+    if (!app?.last_operation) return
     void navigate({
-      to: '/deployments/$deploymentId' as never,
-      params: { deploymentId: app.deployment_id } as never,
+      to: '/operations/$operationId' as never,
+      params: { operationId: app.last_operation } as never,
       search: { returnTo: 'list' } as never,
     })
   }, [app, navigate])
@@ -298,9 +316,9 @@ export function AppDetailPage({ appId }: { appId: string }) {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => void fetchDetail()} disabled={loading}><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button>
-          {app?.deployment_id ? <Button variant="outline" onClick={openDeploymentStatus} disabled={loading}><ExternalLink className="mr-2 h-4 w-4" />Deploy Status</Button> : null}
-          <Button variant="outline" onClick={() => void triggerDeployment('redeploy')} disabled={loading || deploying !== ''}><RotateCcw className="mr-2 h-4 w-4" />{deploying === 'redeploy' ? 'Redeploying...' : 'Redeploy'}</Button>
-          <Button variant="outline" onClick={() => void triggerDeployment('upgrade')} disabled={loading || deploying !== ''}><ArrowUp className="mr-2 h-4 w-4" />{deploying === 'upgrade' ? 'Upgrading...' : 'Upgrade'}</Button>
+          {app?.last_operation ? <Button variant="outline" onClick={openOperationStatus} disabled={loading}><ExternalLink className="mr-2 h-4 w-4" />Execution Status</Button> : null}
+          <Button variant="outline" onClick={() => void triggerOperation('redeploy')} disabled={loading || deploying !== ''}><RotateCcw className="mr-2 h-4 w-4" />{deploying === 'redeploy' ? 'Redeploying...' : 'Redeploy'}</Button>
+          <Button variant="outline" onClick={() => void triggerOperation('upgrade')} disabled={loading || deploying !== ''}><ArrowUp className="mr-2 h-4 w-4" />{deploying === 'upgrade' ? 'Upgrading...' : 'Upgrade'}</Button>
           <Button variant="outline" onClick={() => void runAction('start')} disabled={actionLoading !== '' || loading}><Play className="mr-2 h-4 w-4" />{actionLoading === 'start' ? 'Starting...' : 'Start'}</Button>
           <Button variant="outline" onClick={() => void runAction('stop')} disabled={actionLoading !== '' || loading}><Square className="mr-2 h-4 w-4" />{actionLoading === 'stop' ? 'Stopping...' : 'Stop'}</Button>
           <Button variant="outline" onClick={() => void runAction('restart')} disabled={actionLoading !== '' || loading}><RotateCcw className="mr-2 h-4 w-4" />{actionLoading === 'restart' ? 'Restarting...' : 'Restart'}</Button>
@@ -325,25 +343,31 @@ export function AppDetailPage({ appId }: { appId: string }) {
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <Card><CardHeader><CardTitle className="text-sm">Created</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground">{formatTime(app.created)}</CardContent></Card>
               <Card><CardHeader><CardTitle className="text-sm">Updated</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground">{formatTime(app.updated)}</CardContent></Card>
-              <Card><CardHeader><CardTitle className="text-sm">Last Deployed</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground">{formatTime(app.last_deployed_at)}</CardContent></Card>
-              <Card><CardHeader><CardTitle className="text-sm">Last Action</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground">{app.last_action || '-'} {app.last_action_at ? `· ${formatTime(app.last_action_at)}` : ''}</CardContent></Card>
+              <Card><CardHeader><CardTitle className="text-sm">Installed</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground">{formatTime(app.installed_at)}</CardContent></Card>
+              <Card><CardHeader><CardTitle className="text-sm">Current Execution</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground">{app.current_pipeline?.family || '-' } {app.current_pipeline?.current_phase ? `· ${app.current_pipeline.current_phase}` : ''}</CardContent></Card>
             </div>
             <Card className="mt-4">
-              <CardHeader><CardTitle className="text-sm">Deployment Metadata</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-sm">Lifecycle Metadata</CardTitle></CardHeader>
               <CardContent className="grid gap-3 text-sm md:grid-cols-2">
                 <div><span className="text-muted-foreground">App ID:</span> <span className="font-mono text-xs">{app.id}</span></div>
                 <div>
-                  <span className="text-muted-foreground">Deployment ID:</span>{' '}
-                  {app.deployment_id ? (
-                    <button type="button" className="font-mono text-xs text-primary underline-offset-4 hover:underline" onClick={openDeploymentStatus}>
-                      {app.deployment_id}
+                  <span className="text-muted-foreground">Last Action:</span>{' '}
+                  {app.last_operation ? (
+                    <button type="button" className="font-mono text-xs text-primary underline-offset-4 hover:underline" onClick={openOperationStatus}>
+                      {app.last_operation}
                     </button>
                   ) : (
                     <span className="font-mono text-xs">-</span>
                   )}
                 </div>
-                <div><span className="text-muted-foreground">Source:</span> {app.source || '-'}</div>
+                <div><span className="text-muted-foreground">Source:</span> {app.source || app.current_pipeline?.selector?.source || '-'}</div>
                 <div><span className="text-muted-foreground">Project Dir:</span> <span className="break-all">{app.project_dir}</span></div>
+                <div><span className="text-muted-foreground">Lifecycle State:</span> {app.lifecycle_state || '-'}</div>
+                <div><span className="text-muted-foreground">Publication Summary:</span> {app.publication_summary || '-'}</div>
+                <div><span className="text-muted-foreground">Release Count:</span> {releases.length}</div>
+                <div><span className="text-muted-foreground">Exposure Count:</span> {exposures.length}</div>
+                <div><span className="text-muted-foreground">Current Release:</span> {releases.find(item => item.is_active)?.version_label || '-'}</div>
+                <div><span className="text-muted-foreground">Primary Exposure:</span> {exposures.find(item => item.is_primary)?.domain || exposures.find(item => item.is_primary)?.path || '-'}</div>
                 <div className="md:col-span-2"><span className="text-muted-foreground">IaC Path:</span> <span className="font-mono text-xs">{app.iac_path || '-'}</span></div>
                 {app.runtime_reason ? <div className="md:col-span-2 rounded-lg bg-amber-50 px-3 py-2 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">{app.runtime_reason}</div> : null}
               </CardContent>

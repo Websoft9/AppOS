@@ -218,21 +218,20 @@ export function AppsPage() {
     setSortDir('asc')
   }
 
-  async function triggerDeployment(app: AppInstance, action: 'redeploy' | 'upgrade') {
+  async function triggerOperation(app: AppInstance, action: 'redeploy' | 'upgrade') {
     const key = `${app.id}:${action}`
     setDeployLoading(key)
     setError('')
     setSuccess('')
     try {
-      const response = await pb.send<{ id: string }>(`/api/apps/${app.id}/deploy`, {
+      const response = await pb.send<{ id: string }>(`/api/apps/${app.id}/${action}`, {
         method: 'POST',
-        body: { action },
       })
-      setSuccess(`${app.name} ${action} deployment created`)
+      setSuccess(`${app.name} ${action} operation created`)
       await fetchApps()
       void navigate({
-        to: '/deployments/$deploymentId' as never,
-        params: { deploymentId: response.id } as never,
+        to: '/operations/$operationId' as never,
+        params: { operationId: response.id } as never,
         search: { returnTo: 'list' } as never,
       })
     } catch (err) {
@@ -242,18 +241,18 @@ export function AppsPage() {
     }
   }
 
-  function openDeploymentStatus(app: AppInstance) {
-    if (!app.deployment_id) return
+  function openOperationStatus(app: AppInstance) {
+    if (!app.last_operation) return
     void navigate({
-      to: '/deployments/$deploymentId' as never,
-      params: { deploymentId: app.deployment_id } as never,
+      to: '/operations/$operationId' as never,
+      params: { operationId: app.last_operation } as never,
       search: { returnTo: 'list' } as never,
     })
   }
 
   function renderActionMenu(app: AppInstance) {
     const currentAction = actionLoading.startsWith(`${app.id}:`) ? actionLoading.split(':')[1] : ''
-    const currentDeployAction = deployLoading.startsWith(`${app.id}:`) ? deployLoading.split(':')[1] : ''
+    const currentOperationAction = deployLoading.startsWith(`${app.id}:`) ? deployLoading.split(':')[1] : ''
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -267,20 +266,20 @@ export function AppsPage() {
             <ExternalLink className="h-4 w-4" />
             Open detail
           </DropdownMenuItem>
-          {app.deployment_id ? (
-            <DropdownMenuItem onSelect={() => openDeploymentStatus(app)}>
+          {app.last_operation ? (
+            <DropdownMenuItem onSelect={() => openOperationStatus(app)}>
               <ExternalLink className="h-4 w-4" />
-              View deploy status
+              View execution status
             </DropdownMenuItem>
           ) : null}
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => void triggerDeployment(app, 'redeploy')} disabled={Boolean(deployLoading || actionLoading)}>
+          <DropdownMenuItem onSelect={() => void triggerOperation(app, 'redeploy')} disabled={Boolean(deployLoading || actionLoading)}>
             <RotateCcw className="h-4 w-4" />
-            {currentDeployAction === 'redeploy' ? 'Redeploying...' : 'Redeploy'}
+            {currentOperationAction === 'redeploy' ? 'Redeploying...' : 'Redeploy'}
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => void triggerDeployment(app, 'upgrade')} disabled={Boolean(deployLoading || actionLoading)}>
+          <DropdownMenuItem onSelect={() => void triggerOperation(app, 'upgrade')} disabled={Boolean(deployLoading || actionLoading)}>
             <ArrowUp className="h-4 w-4" />
-            {currentDeployAction === 'upgrade' ? 'Upgrading...' : 'Upgrade'}
+            {currentOperationAction === 'upgrade' ? 'Upgrading...' : 'Upgrade'}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => void runAction(app, 'start')} disabled={Boolean(actionLoading)}>
@@ -314,7 +313,7 @@ export function AppsPage() {
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Installed Applications</h1>
-          <p className="text-sm text-muted-foreground">Installed apps support grid and list views, and now hand off redeploy and upgrade flows into Deploy Center instead of owning deployment logic locally.</p>
+          <p className="text-sm text-muted-foreground">Installed apps support grid and list views, and now hand off redeploy and upgrade flows into Operations Center instead of owning deployment logic locally.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant={view === 'grid' ? 'default' : 'outline'} onClick={() => setView('grid')}><LayoutGrid className="mr-2 h-4 w-4" />Grid</Button>
