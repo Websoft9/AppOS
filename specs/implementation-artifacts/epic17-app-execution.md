@@ -13,7 +13,7 @@ Epic 17 is not a broad "deploy" bucket. Store entry, installed-app management, a
 Additional references:
 
 - `specs/adr/app-lifecycle-pipeline-execution-engine.md`
-- `specs/adr/lifecycle-install-input-resolution.md`
+- `specs/adr/app-lifecycle-install-resolution.md`
 
 ## Scope Guardrails
 
@@ -122,9 +122,9 @@ Add adapter entry slices that normalize into the shared execution contract witho
 
 Expose action history, execution detail, timeline, log, and audit surfaces for lifecycle execution so other modules consume one shared execution truth.
 
-### Story 17.6 Publication Operations on Shared Execution Core
+### Story 17.6 Create Deployment Page and Install Resolution Surface
 
-Implement `publish` and `unpublish` as lifecycle operations on the same execution core rather than as a separate publication workflow.
+Replace modal-based deployment creation with a full-page lifecycle entry surface that collects source-specific inputs, shows normalized install intent, and submits through the shared install resolution boundary.
 
 ## Story Status
 
@@ -137,7 +137,7 @@ Implement `publish` and `unpublish` as lifecycle operations on the same executio
 | 17.4b Git Compose Adapter | review |
 | 17.4e Install Input Resolution | in-progress |
 | 17.5 Action History and Execution Timeline Surface | review |
-| 17.6 Publication Operations on Shared Execution Core | backlog |
+| 17.6 Create Deployment Page and Install Resolution Surface | backlog |
 
 ## Story Artifacts
 
@@ -147,11 +147,12 @@ Implement `publish` and `unpublish` as lifecycle operations on the same executio
 - `story17.4b-git-compose.md`
 - `story17.4e-install-input-resolution.md`
 - `story17.5-operation-history-timeline.md`
+- `story17.6-create-deployment-page.md`
 
 ## Remaining Work Summary
 
 1. Move change/recovery operations onto the shared core.
-2. Move publication-sensitive execution onto the shared core.
+2. Replace modal-only deployment creation with a full-page install-resolution surface.
 3. Finish backend-owned install input convergence so adapter-specific install flows resolve through one explicit normalizer.
 4. Finish Installed-side convergence so lifecycle action entry points stop bypassing Epic 17.
 5. Expand compensation and manual-intervention behavior beyond the first install slice.

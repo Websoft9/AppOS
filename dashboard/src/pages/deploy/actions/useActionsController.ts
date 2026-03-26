@@ -7,36 +7,32 @@ import { fetchStoreJson } from '@/lib/store-api'
 import { type PrimaryCategory, type Product, type ProductWithCategories } from '@/lib/store-types'
 import { useUserApps } from '@/lib/store-user-api'
 import { type AppConfigResponse } from '@/pages/apps/types'
-import { buildOperationDetailSearch, isActiveStatus } from '@/pages/deploy/operations/operation-utils'
+import { buildActionDetailSearch, isActiveStatus } from '@/pages/deploy/actions/action-utils'
 import type {
   ActiveFilterChip,
-  OperationRecord,
-  OperationListSearch,
+  ActionRecord,
+  ActionListSearch,
+  CreateDeploymentEntryMode,
   ManualEntryMode,
   Notice,
   ServerEntry,
   SortDir,
   SortField,
   StoreShortcut,
-} from '@/pages/deploy/operations/operation-types'
+} from '@/pages/deploy/actions/action-types'
 
 const STORE_SHORTCUT_COUNT = 15
-const SAMPLE_COMPOSE = `services:
-  web:
-    image: nginx:alpine
-    ports:
-      - "8080:80"
-`
 
-type UseOperationsControllerArgs = {
+type UseActionsControllerArgs = {
   prefillMode?: string
   prefillSource?: string
   prefillAppId?: string
   prefillAppKey?: string
   prefillAppName?: string
   prefillServerId?: string
-  listSearch?: OperationListSearch
-  view?: 'home' | 'list'
+  entryMode?: CreateDeploymentEntryMode
+  listSearch?: ActionListSearch
+  view?: 'home' | 'list' | 'create'
 }
 
 const DEFAULT_SORT_FIELD: SortField = 'started_at'
@@ -77,7 +73,7 @@ function buildListSearchState({
   excludeStatus: Set<string>
   excludeSource: Set<string>
   excludeServer: Set<string>
-}): OperationListSearch {
+}): ActionListSearch {
   const normalizedSearch = search.trim() || undefined
   const normalizedSortField = sortField && sortField !== DEFAULT_SORT_FIELD ? sortField : undefined
   const normalizedSortDir = sortDir !== DEFAULT_SORT_DIR ? sortDir : undefined
@@ -99,7 +95,7 @@ function buildListSearchState({
   }
 }
 
-function areListSearchEqual(left: OperationListSearch, right: OperationListSearch): boolean {
+function areListSearchEqual(left: ActionListSearch, right: ActionListSearch): boolean {
   return left.q === right.q
     && left.sortField === right.sortField
     && left.sortDir === right.sortDir
@@ -110,16 +106,17 @@ function areListSearchEqual(left: OperationListSearch, right: OperationListSearc
     && left.excludeServer === right.excludeServer
 }
 
-export function useOperationsController({
+export function useActionsController({
   prefillMode,
   prefillSource,
   prefillAppId,
   prefillAppKey,
   prefillAppName,
   prefillServerId,
+  entryMode,
   listSearch,
   view = 'home',
-}: UseOperationsControllerArgs) {
+}: UseActionsControllerArgs) {
   const navigate = useNavigate()
   const locale = getLocale()
   const { data: userApps = [] } = useUserApps()
@@ -129,13 +126,13 @@ export function useOperationsController({
   const [storePrimaryCategories, setStorePrimaryCategories] = useState<PrimaryCategory[]>([])
   const [selectedStoreProduct, setSelectedStoreProduct] = useState<ProductWithCategories | null>(null)
   const [storeDetailOpen, setStoreDetailOpen] = useState(false)
-  const [operations, setOperations] = useState<OperationRecord[]>([])
-  const [createOpen, setCreateOpen] = useState(false)
-  const [gitCreateOpen, setGitCreateOpen] = useState(false)
+  const [operations, setOperations] = useState<ActionRecord[]>([])
+  const [createEntryMode, setCreateEntryMode] = useState<CreateDeploymentEntryMode>(entryMode || 'compose')
   const [manualEntryMode, setManualEntryMode] = useState<ManualEntryMode>('compose')
-  const [serverId, setServerId] = useState('local')
-  const [projectName, setProjectName] = useState('demo-nginx')
-  const [compose, setCompose] = useState(SAMPLE_COMPOSE)
+  const [serverId, setServerId] = useState('')
+  const [projectName, setProjectName] = useState('')
+  const [compose, setCompose] = useState('')
+  const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>([{ key: '', value: '' }])
   const [gitProjectName, setGitProjectName] = useState('')
   const [gitRepositoryUrl, setGitRepositoryUrl] = useState('')
   const [gitRef, setGitRef] = useState('main')
@@ -157,9 +154,36 @@ export function useOperationsController({
   const [notice, setNotice] = useState<Notice | null>(null)
   const [prefillLoading, setPrefillLoading] = useState(false)
   const [prefillReady, setPrefillReady] = useState('')
-  const [pendingDelete, setPendingDelete] = useState<OperationRecord[]>([])
+  const [pendingDelete, setPendingDelete] = useState<ActionRecord[]>([])
 
   const serverMap = useMemo(() => new Map(servers.map(item => [item.id, item])), [servers])
+
+  useEffect(() => {
+    if (!entryMode) return
+    setCreateEntryMode(entryMode)
+    if (entryMode !== 'git-compose') {
+      setManualEntryMode(entryMode)
+    }
+  }, [entryMode])
+
+  useEffect(() => {
+    if (view === 'create') return
+    if (entryMode || prefillMode === 'target' || prefillMode === 'installed') {
+      void navigate({
+        to: '/deploy/create',
+        search: {
+          entry: entryMode || 'compose',
+          prefillMode,
+          prefillSource,
+          prefillAppId,
+          prefillAppKey,
+          prefillAppName,
+          prefillServerId,
+        },
+        replace: true,
+      })
+    }
+  }, [entryMode, navigate, prefillAppId, prefillAppKey, prefillAppName, prefillMode, prefillServerId, prefillSource, view])
 
   function showNotice(variant: Notice['variant'], message: string) {
     setNotice({ variant, message })
@@ -213,8 +237,8 @@ export function useOperationsController({
         setProjectName(prefillAppName || prefillAppKey || '')
         setCompose(loadedCompose)
         setPrefillReady(prefillAppName || prefillAppKey || '')
+        setCreateEntryMode('compose')
         setManualEntryMode(prefillMode === 'installed' ? 'installed-prefill' : 'store-prefill')
-        setCreateOpen(true)
       } catch {
         if (!cancelled) {
           showNotice('destructive', prefillMode === 'installed'
@@ -362,7 +386,7 @@ export function useOperationsController({
 
     if (areListSearchEqual(nextSearch, currentSearch)) return
 
-    void navigate({ to: '/operations' as never, search: nextSearch as never, replace: true })
+    void navigate({ to: '/actions' as never, search: nextSearch as never, replace: true })
   }, [excludeServer, excludeSource, excludeStatus, listSearch, navigate, page, pageSize, search, sortDir, sortField, view])
 
   useEffect(() => {
@@ -385,7 +409,7 @@ export function useOperationsController({
       const response = await pb.send<ServerEntry[]>('/api/ext/docker/servers', { method: 'GET' })
       if (Array.isArray(response) && response.length > 0) {
         setServers(response)
-        setServerId(current => (response.some(item => item.id === current) ? current : response[0].id))
+        setServerId(current => current && response.some(item => item.id === current) ? current : '')
       }
     } catch {
       // Keep local fallback.
@@ -435,10 +459,10 @@ export function useOperationsController({
 
   async function fetchOperations() {
     try {
-      const response = await pb.send<OperationRecord[]>('/api/operations', { method: 'GET' })
+      const response = await pb.send<ActionRecord[]>('/api/actions', { method: 'GET' })
       setOperations(Array.isArray(response) ? response : [])
     } catch (err) {
-      showNotice('destructive', err instanceof Error ? err.message : 'Failed to load operations')
+      showNotice('destructive', err instanceof Error ? err.message : 'Failed to load actions')
     } finally {
       setLoading(false)
     }
@@ -476,8 +500,9 @@ export function useOperationsController({
   function deployFromStoreProduct(product: StoreShortcut | ProductWithCategories) {
     setStoreDetailOpen(false)
     void navigate({
-      to: '/deploy',
+      to: '/deploy/create',
       search: {
+        entry: 'compose',
         prefillMode: 'target',
         prefillSource: 'library',
         prefillAppId: undefined,
@@ -488,15 +513,26 @@ export function useOperationsController({
     })
   }
 
-  function openManualDialog(mode: ManualEntryMode) {
+  function selectCreateEntryMode(mode: CreateDeploymentEntryMode) {
+    setCreateEntryMode(mode)
+    if (mode === 'git-compose') return
     setManualEntryMode(mode)
-    if ((mode === 'docker-command' || mode === 'install-script') && compose === SAMPLE_COMPOSE) {
-      setCompose('')
-    }
-    if (mode === 'compose' && !compose.trim()) {
-      setCompose(SAMPLE_COMPOSE)
-    }
-    setCreateOpen(true)
+  }
+
+  function openManualDialog(mode: CreateDeploymentEntryMode) {
+    selectCreateEntryMode(mode)
+    void navigate({
+      to: '/deploy/create',
+      search: {
+        entry: mode,
+        prefillMode: undefined,
+        prefillSource: undefined,
+        prefillAppId: undefined,
+        prefillAppKey: undefined,
+        prefillAppName: undefined,
+        prefillServerId: undefined,
+      },
+    })
   }
 
   function openOperationDetail(id: string) {
@@ -513,35 +549,35 @@ export function useOperationsController({
         })
       : undefined
     const currentListSearch = nextListSearch && Object.keys(nextListSearch).length > 0 ? nextListSearch : undefined
-    const detailSearch = buildOperationDetailSearch(currentListSearch, true)
+    const detailSearch = buildActionDetailSearch(currentListSearch, true)
     void navigate({
-      to: '/operations/$operationId' as never,
-      params: { operationId: id } as never,
+      to: '/actions/$actionId' as never,
+      params: { actionId: id } as never,
       search: detailSearch as never,
     })
   }
 
   function openLatestOperationDetail(id: string) {
     void navigate({
-      to: '/operations/$operationId' as never,
-      params: { operationId: id } as never,
+      to: '/actions/$actionId' as never,
+      params: { actionId: id } as never,
       search: { returnTo: 'list' } as never,
     })
   }
 
-  function getServerLabel(item: OperationRecord): string {
+  function getServerLabel(item: ActionRecord): string {
     if (item.server_label) return item.server_label
     if (item.server_id && serverMap.has(item.server_id)) return serverMap.get(item.server_id)?.label || item.server_id
     return item.server_id || 'local'
   }
 
-  function getServerHost(item: OperationRecord): string {
+  function getServerHost(item: ActionRecord): string {
     if (item.server_host) return item.server_host
     if (item.server_id && serverMap.has(item.server_id)) return serverMap.get(item.server_id)?.host || '-'
     return item.server_id === 'local' || !item.server_id ? 'local' : '-'
   }
 
-  function getUserLabel(item: OperationRecord): string {
+  function getUserLabel(item: ActionRecord): string {
     return item.user_email || item.user_id || '-'
   }
 
@@ -549,16 +585,15 @@ export function useOperationsController({
     setSubmitting(true)
     setNotice(null)
     try {
-      const created = await pb.send<OperationRecord>('/api/operations/install/manual-compose', {
+      const created = await pb.send<ActionRecord>('/api/actions/install/manual-compose', {
         method: 'POST',
-        body: { server_id: serverId, project_name: projectName, compose },
+        body: { server_id: serverId, project_name: projectName, compose, env: Object.fromEntries(envVars.filter(e => e.key.trim()).map(e => [e.key.trim(), e.value])) },
       })
-      showNotice('default', `Operation ${created.compose_project_name || created.id} created`)
-      setCreateOpen(false)
+      showNotice('default', `Action ${created.compose_project_name || created.id} created`)
       await fetchOperations()
       openOperationDetail(created.id)
     } catch (err) {
-      showNotice('destructive', err instanceof Error ? err.message : 'Failed to create operation')
+      showNotice('destructive', err instanceof Error ? err.message : 'Failed to create action')
     } finally {
       setSubmitting(false)
     }
@@ -568,7 +603,7 @@ export function useOperationsController({
     setGitSubmitting(true)
     setNotice(null)
     try {
-      const created = await pb.send<OperationRecord>('/api/operations/install/git-compose', {
+      const created = await pb.send<ActionRecord>('/api/actions/install/git-compose', {
         method: 'POST',
         body: {
           server_id: serverId,
@@ -580,12 +615,11 @@ export function useOperationsController({
           auth_header_value: gitAuthHeaderValue,
         },
       })
-      showNotice('default', `Operation ${created.compose_project_name || created.id} created from Git repository`)
-      setGitCreateOpen(false)
+      showNotice('default', `Action ${created.compose_project_name || created.id} created from Git repository`)
       await fetchOperations()
       openOperationDetail(created.id)
     } catch (err) {
-      showNotice('destructive', err instanceof Error ? err.message : 'Failed to create git operation')
+      showNotice('destructive', err instanceof Error ? err.message : 'Failed to create git action')
     } finally {
       setGitSubmitting(false)
     }
@@ -595,7 +629,7 @@ export function useOperationsController({
     const targets = operations.filter(item => ids.includes(item.id))
     setNotice(null)
     try {
-      await Promise.all(ids.map(id => pb.send(`/api/operations/${id}`, { method: 'DELETE' })))
+      await Promise.all(ids.map(id => pb.send(`/api/actions/${id}`, { method: 'DELETE' })))
       await fetchOperations()
       setSelectedIds(current => {
         const next = new Set(current)
@@ -603,8 +637,8 @@ export function useOperationsController({
         return next
       })
       showNotice('default', ids.length === 1
-        ? `Operation ${targets[0]?.compose_project_name || ids[0]} deleted`
-        : `${ids.length} operations deleted`)
+        ? `Action ${targets[0]?.compose_project_name || ids[0]} deleted`
+        : `${ids.length} actions deleted`)
       setPendingDelete([])
     } catch (err) {
       showNotice('destructive', err instanceof Error ? err.message : 'Failed to delete actions')
@@ -726,16 +760,17 @@ export function useOperationsController({
     setNotice,
     prefillLoading,
     prefillReady,
-    createOpen,
-    setCreateOpen,
-    gitCreateOpen,
-    setGitCreateOpen,
+    createEntryMode,
+    setCreateEntryMode: selectCreateEntryMode,
     serverId,
     setServerId,
     projectName,
     setProjectName,
     compose,
     setCompose,
+    envVars,
+    setEnvVars,
+    storeProducts,
     gitProjectName,
     setGitProjectName,
     gitRepositoryUrl,

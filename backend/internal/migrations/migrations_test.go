@@ -273,6 +273,8 @@ func TestPipelineNodeRunsCollectionFields(t *testing.T) {
 	assertFieldExists(t, col, "compensation_node_key", core.FieldTypeText, false)
 	assertFieldExists(t, col, "error_code", core.FieldTypeText, false)
 	assertFieldExists(t, col, "error_message", core.FieldTypeText, false)
+	assertFieldExists(t, col, "execution_log", core.FieldTypeText, false)
+	assertFieldExists(t, col, "execution_log_truncated", core.FieldTypeBool, false)
 	assertFieldExists(t, col, "started_at", core.FieldTypeDate, false)
 	assertFieldExists(t, col, "ended_at", core.FieldTypeDate, false)
 	assertRelationTarget(t, app, col, "pipeline_run", "pipeline_runs")

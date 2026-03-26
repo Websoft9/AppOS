@@ -62,7 +62,7 @@ const workspaceGroup: NavGroup = {
       children: [
         { id: 'store', label: 'App Store', href: '/store' },
         { id: 'deploy', label: 'Deploy', href: '/deploy' },
-        { id: 'operations', label: 'Actions', href: '/operations' },
+        { id: 'actions', label: 'Actions', href: '/actions' },
         { id: 'installed', label: 'Installed', href: '/apps' },
       ],
     },

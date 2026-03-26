@@ -47,7 +47,7 @@ so that every lifecycle action enters one deterministic, auditable execution mod
 - [Source: specs/adr/app-lifecycle-field-definitions.md#Decisions]
 - [Source: specs/adr/app-lifecycle-pocketbase-collections.md#Decisions]
 - [Source: specs/adr/app-lifecycle-pipeline-execution-engine.md]
-- [Source: specs/adr/lifecycle-install-input-resolution.md]
+- [Source: specs/adr/app-lifecycle-install-resolution.md]
 
 ## Dev Agent Record
 

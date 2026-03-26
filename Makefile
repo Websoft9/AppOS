@@ -241,7 +241,7 @@ openapi-merge:
 
 openapi-check:
 	@echo "Checking all generated custom routes are covered by OpenAPI spec..."
-	@cd backend && go test ./internal/routes/ -run TestAllExtRoutesCoveredByOpenAPISpec -v
+	@cd backend && go test ./internal/routes/ -run TestAllCustomRoutesCoveredByOpenAPISpec -v
 
 openapi-sync:
 	@echo "Syncing OpenAPI spec (generate + merge + validate)..."

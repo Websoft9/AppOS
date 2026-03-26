@@ -102,7 +102,6 @@ func getDockerClient(e *core.RequestEvent) (*docker.Client, error) {
 	return getDockerClientByServerID(e.App, serverID)
 }
 
-
 func getDockerClientByServerID(app core.App, serverID string) (*docker.Client, error) {
 	if serverID == "" || serverID == "local" {
 		return localDockerClient, nil
@@ -371,6 +370,32 @@ func bodyBool(body map[string]any, key string) bool {
 		return v
 	}
 	return false
+}
+
+// bodyMap extracts a nested object field from body.
+func bodyMap(body map[string]any, key string) map[string]any {
+	if v, ok := body[key].(map[string]any); ok {
+		return v
+	}
+	return nil
+}
+
+// bodyInt extracts an integer field from body.
+func bodyInt(body map[string]any, key string) int {
+	switch v := body[key].(type) {
+	case int:
+		return v
+	case int32:
+		return int(v)
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	case float32:
+		return int(v)
+	default:
+		return 0
+	}
 }
 
 // ─── Compose Handlers ────────────────────────────────────

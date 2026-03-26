@@ -1,9 +1,9 @@
 import { ArrowLeft, RefreshCw } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { OperationDetailContent } from '@/pages/deploy/operations/OperationDetailDialog'
-import { buildOperationListHref, formatTime, statusVariant } from '@/pages/deploy/operations/operation-utils'
-import { useOperationDetailController } from '@/pages/deploy/operations/useOperationDetailController'
+import { ActionDetailContent } from '@/pages/deploy/actions/ActionDetailDialog'
+import { buildActionListHref, formatTime } from '@/pages/deploy/actions/action-utils'
+import { useActionDetailController } from '@/pages/deploy/actions/useActionDetailController'
 
 function getUserLabel(item: { user_email?: string; user_id?: string }): string {
   return item.user_email || item.user_id || '-'
@@ -17,10 +17,10 @@ function getServerHost(item: { server_host?: string; server_id: string }): strin
   return item.server_host || (item.server_id === 'local' || !item.server_id ? 'local' : '-')
 }
 
-export function OperationDetailPage({ operationId }: { operationId: string }) {
+export function ActionDetailPage({ actionId }: { actionId: string }) {
   const backHref = typeof window === 'undefined'
-    ? '/operations'
-    : buildOperationListHref(Object.fromEntries(new URLSearchParams(window.location.search).entries()))
+    ? '/actions'
+    : buildActionListHref(Object.fromEntries(new URLSearchParams(window.location.search).entries()))
   const {
     operation,
     loading,
@@ -34,7 +34,7 @@ export function OperationDetailPage({ operationId }: { operationId: string }) {
     logViewportRef,
     handleLogScroll,
     refresh,
-  } = useOperationDetailController(operationId)
+  } = useActionDetailController(actionId)
 
   return (
     <div className="flex flex-col gap-4">
@@ -46,7 +46,7 @@ export function OperationDetailPage({ operationId }: { operationId: string }) {
               Back to Actions
             </a>
           </Button>
-          <h1 className="text-2xl font-bold">Execution Detail: {operation?.compose_project_name || operationId}</h1>
+          <h1 className="text-2xl font-bold">Execution Detail: {operation?.compose_project_name || actionId}</h1>
         </div>
         <Button variant="outline" size="icon" title="Refresh" aria-label="Refresh" onClick={() => void refresh()}>
           <RefreshCw className="h-4 w-4" />
@@ -59,7 +59,7 @@ export function OperationDetailPage({ operationId }: { operationId: string }) {
         </Alert>
       ) : null}
 
-      <OperationDetailContent
+      <ActionDetailContent
         operation={operation}
         loading={loading}
         streamStatus={streamStatus}
@@ -74,7 +74,7 @@ export function OperationDetailPage({ operationId }: { operationId: string }) {
         getServerLabel={getServerLabel}
         getServerHost={getServerHost}
         formatTime={formatTime}
-        statusVariant={statusVariant}
+        onRefresh={() => void refresh()}
       />
     </div>
   )

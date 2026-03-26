@@ -7,16 +7,18 @@ export type ServerEntry = {
   status: 'online' | 'offline'
 }
 
-export type OperationStep = {
+export type ActionStep = {
   key: string
   label: string
   status: string
   detail?: string
+  execution_log?: string
+  execution_log_truncated?: boolean
   started_at?: string
   finished_at?: string
 }
 
-export type OperationLifecycleStep = {
+export type ActionLifecycleStep = {
   key: string
   label: string
   status: 'pending' | 'active' | 'completed' | 'terminal' | string
@@ -44,14 +46,14 @@ export type PipelineRecord = {
   completed_node_count?: number
   failed_node_key?: string
   selector?: PipelineSelector
-  steps?: OperationStep[]
+  steps?: ActionStep[]
   created?: string
   updated?: string
   started_at?: string
   finished_at?: string
 }
 
-export type OperationRecord = {
+export type ActionRecord = {
   id: string
   server_id: string
   server_label?: string
@@ -75,11 +77,11 @@ export type OperationRecord = {
   pipeline_definition_key?: string
   pipeline_version?: string
   pipeline_selector?: PipelineSelector
-  lifecycle?: OperationLifecycleStep[]
-  steps?: OperationStep[]
+  lifecycle?: ActionLifecycleStep[]
+  steps?: ActionStep[]
 }
 
-export type OperationLogsResponse = {
+export type ActionLogsResponse = {
   id: string
   status: string
   execution_log: string
@@ -87,7 +89,7 @@ export type OperationLogsResponse = {
   updated: string
 }
 
-export type OperationStreamMessage = {
+export type ActionStreamMessage = {
   type: 'snapshot' | 'append' | 'status' | 'error'
   status?: string
   updated?: string
@@ -104,9 +106,10 @@ export type Notice = {
 export type SortField = 'compose_project_name' | 'created' | 'started_at' | 'finished_at'
 export type SortDir = 'asc' | 'desc'
 export type ManualEntryMode = 'compose' | 'docker-command' | 'install-script' | 'store-prefill' | 'installed-prefill'
+export type CreateDeploymentEntryMode = 'compose' | 'git-compose' | 'docker-command' | 'install-script'
 export type StoreShortcut = Pick<Product, 'key' | 'trademark' | 'logo'>
 
-export type OperationListSearch = {
+export type ActionListSearch = {
   q?: string
   sortField?: SortField
   sortDir?: SortDir
@@ -117,7 +120,7 @@ export type OperationListSearch = {
   excludeServer?: string
 }
 
-export type OperationDetailSearch = OperationListSearch & {
+export type ActionDetailSearch = ActionListSearch & {
   returnTo?: 'list'
 }
 

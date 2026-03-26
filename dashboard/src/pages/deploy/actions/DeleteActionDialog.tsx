@@ -8,15 +8,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import type { OperationRecord } from '@/pages/deploy/operations/operation-types'
+import type { ActionRecord } from '@/pages/deploy/actions/action-types'
 
 type DeleteOperationDialogProps = {
-  operations: OperationRecord[]
+  operations: ActionRecord[]
   onOpenChange: (open: boolean) => void
-  onConfirm: (operations: OperationRecord[]) => void
+  onConfirm: (operations: ActionRecord[]) => void
 }
 
-export function DeleteOperationDialog({ operations, onOpenChange, onConfirm }: DeleteOperationDialogProps) {
+export function DeleteActionDialog({ operations, onOpenChange, onConfirm }: DeleteOperationDialogProps) {
   const singleOperation = operations.length === 1 ? operations[0] : null
   return (
     <AlertDialog open={operations.length > 0} onOpenChange={onOpenChange}>

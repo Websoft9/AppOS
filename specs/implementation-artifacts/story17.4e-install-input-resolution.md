@@ -39,7 +39,7 @@ so that different install entry points can reuse the same execution core without
 
 ### References
 
-- [Source: specs/adr/lifecycle-install-input-resolution.md]
+- [Source: specs/adr/app-lifecycle-install-resolution.md]
 - [Source: specs/implementation-artifacts/epic17-app-execution.md#Story 17.4 Input Adapters (MVP Scope)]
 
 ## Dev Agent Record

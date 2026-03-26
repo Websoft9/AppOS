@@ -10,11 +10,11 @@ import (
 )
 
 type ExecutionContext struct {
-	AppRecord *core.Record
-	Operation *core.Record
-	Pipeline  *core.Record
+	AppRecord  *core.Record
+	Operation  *core.Record
+	Pipeline   *core.Record
 	Definition model.Definition
-	NodeRuns  map[string]*core.Record
+	NodeRuns   map[string]*core.Record
 }
 
 func LoadExecutionContext(app core.App, operationID string) (*ExecutionContext, error) {
@@ -55,11 +55,11 @@ func LoadExecutionContext(app core.App, operationID string) (*ExecutionContext, 
 	}
 
 	return &ExecutionContext{
-		AppRecord: appRecord,
-		Operation: operation,
-		Pipeline:  pipeline,
+		AppRecord:  appRecord,
+		Operation:  operation,
+		Pipeline:   pipeline,
 		Definition: definition,
-		NodeRuns:  nodeRuns,
+		NodeRuns:   nodeRuns,
 	}, nil
 }
 
@@ -67,6 +67,8 @@ func StartNode(app core.App, execCtx *ExecutionContext, nodeRun *core.Record, no
 	now := time.Now()
 	nodeRun.Set("status", "running")
 	nodeRun.Set("error_message", "")
+	nodeRun.Set("execution_log", "")
+	nodeRun.Set("execution_log_truncated", false)
 	nodeRun.Set("started_at", now)
 	if err := app.Save(nodeRun); err != nil {
 		return err

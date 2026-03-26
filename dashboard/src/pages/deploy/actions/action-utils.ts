@@ -1,5 +1,5 @@
 import { pb } from '@/lib/pb'
-import type { OperationDetailSearch, OperationListSearch } from '@/pages/deploy/operations/operation-types'
+import type { ActionDetailSearch, ActionListSearch } from '@/pages/deploy/actions/action-types'
 
 export function statusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
   switch (status) {
@@ -29,16 +29,46 @@ export function formatTime(value?: string): string {
   return date.toLocaleString()
 }
 
-export function buildOperationWebSocketUrl(id: string): string {
+export function formatDurationCompact(start?: string, finish?: string): string {
+  if (!start) return '-'
+
+  const startedAt = new Date(start)
+  if (Number.isNaN(startedAt.getTime())) return '-'
+
+  const finishedAt = finish ? new Date(finish) : new Date()
+  if (Number.isNaN(finishedAt.getTime())) return '-'
+
+  const totalSeconds = Math.max(0, Math.floor((finishedAt.getTime() - startedAt.getTime()) / 1000))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+
+  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`
+  if (minutes > 0) return `${minutes}m ${seconds}s`
+  return `${seconds}s`
+}
+
+export function actionDurationLabel(action: {
+  started_at?: string
+  finished_at?: string
+  pipeline?: { started_at?: string; finished_at?: string }
+}): string {
+  return formatDurationCompact(
+    action.pipeline?.started_at || action.started_at,
+    action.pipeline?.finished_at || action.finished_at,
+  )
+}
+
+export function buildActionWebSocketUrl(id: string): string {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const url = new URL(`${proto}//${window.location.host}/api/operations/${id}/stream`)
+  const url = new URL(`${proto}//${window.location.host}/api/actions/${id}/stream`)
   if (pb.authStore.token) url.searchParams.set('token', pb.authStore.token)
   return url.toString()
 }
 
-export function stripOperationDetailReturnTo(search?: OperationDetailSearch): OperationListSearch | undefined {
+export function stripActionDetailReturnTo(search?: ActionDetailSearch): ActionListSearch | undefined {
   if (!search) return undefined
-  const next: OperationListSearch = {}
+  const next: ActionListSearch = {}
   if (search.q) next.q = search.q
   if (search.sortField) next.sortField = search.sortField
   if (search.sortDir) next.sortDir = search.sortDir
@@ -50,17 +80,17 @@ export function stripOperationDetailReturnTo(search?: OperationDetailSearch): Op
   return Object.keys(next).length > 0 ? next : undefined
 }
 
-export function buildOperationDetailSearch(search?: OperationListSearch, returnToList = false): OperationDetailSearch | undefined {
-  const next: OperationDetailSearch = {
+export function buildActionDetailSearch(search?: ActionListSearch, returnToList = false): ActionDetailSearch | undefined {
+  const next: ActionDetailSearch = {
     ...(search || {}),
     ...(returnToList ? { returnTo: 'list' as const } : {}),
   }
   return Object.keys(next).length > 0 ? next : undefined
 }
 
-export function buildOperationListHref(search?: OperationDetailSearch): string {
-  const listSearch = stripOperationDetailReturnTo(search)
-  if (!listSearch) return '/operations'
+export function buildActionListHref(search?: ActionDetailSearch): string {
+  const listSearch = stripActionDetailReturnTo(search)
+  if (!listSearch) return '/actions'
 
   const params = new URLSearchParams()
   if (listSearch.q) params.set('q', listSearch.q)
@@ -73,5 +103,5 @@ export function buildOperationListHref(search?: OperationDetailSearch): string {
   if (listSearch.excludeServer) params.set('excludeServer', listSearch.excludeServer)
 
   const query = params.toString()
-  return query ? `/operations?${query}` : '/operations'
+  return query ? `/actions?${query}` : '/actions'
 }

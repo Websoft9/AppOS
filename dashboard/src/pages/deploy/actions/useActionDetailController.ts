@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type UIEvent } from 'react'
 import { pb } from '@/lib/pb'
-import { buildOperationWebSocketUrl, isActiveStatus } from '@/pages/deploy/operations/operation-utils'
-import type { OperationLogsResponse, OperationRecord, OperationStreamMessage } from '@/pages/deploy/operations/operation-types'
+import { buildActionWebSocketUrl, isActiveStatus } from '@/pages/deploy/actions/action-utils'
+import type { ActionLogsResponse, ActionRecord, ActionStreamMessage } from '@/pages/deploy/actions/action-types'
 
-export function useOperationDetailController(operationId: string) {
-  const [operation, setOperation] = useState<OperationRecord | null>(null)
+export function useActionDetailController(actionId: string) {
+  const [operation, setOperation] = useState<ActionRecord | null>(null)
   const [loading, setLoading] = useState(true)
   const [logText, setLogText] = useState('')
   const [logUpdatedAt, setLogUpdatedAt] = useState('')
@@ -16,30 +16,30 @@ export function useOperationDetailController(operationId: string) {
   const stickToBottomRef = useRef(true)
 
   useEffect(() => {
-    void fetchOperationDetail()
-  }, [operationId])
+    void fetchActionDetail()
+  }, [actionId])
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      void fetchOperationDetail(false)
+      void fetchActionDetail(false)
     }, 3000)
     return () => window.clearInterval(timer)
-  }, [operationId])
+  }, [actionId])
 
   useEffect(() => {
     if (!operation) return
     if (!isActiveStatus(operation.status)) {
       setStreamStatus('idle')
-      void fetchOperationLogs()
+      void fetchActionLogs()
       return
     }
 
     setStreamStatus('connecting')
-    const ws = new WebSocket(buildOperationWebSocketUrl(operationId))
+    const ws = new WebSocket(buildActionWebSocketUrl(actionId))
     ws.onopen = () => setStreamStatus('live')
     ws.onmessage = event => {
       try {
-        const message = JSON.parse(String(event.data)) as OperationStreamMessage
+        const message = JSON.parse(String(event.data)) as ActionStreamMessage
         if (message.type === 'error') {
           setStreamStatus('closed')
           return
@@ -56,7 +56,7 @@ export function useOperationDetailController(operationId: string) {
     ws.onerror = () => setStreamStatus('closed')
     ws.onclose = () => setStreamStatus(current => (current === 'live' ? 'closed' : current))
     return () => ws.close()
-  }, [operation, operationId])
+  }, [operation, actionId])
 
   useEffect(() => {
     if (!logViewportRef.current || !autoScrollEnabled || !stickToBottomRef.current) return
@@ -69,10 +69,10 @@ export function useOperationDetailController(operationId: string) {
     logViewportRef.current.scrollTop = logViewportRef.current.scrollHeight
   }, [autoScrollEnabled])
 
-  async function fetchOperationDetail(showSpinner = true) {
+  async function fetchActionDetail(showSpinner = true) {
     if (showSpinner) setLoading(true)
     try {
-      const response = await pb.send<OperationRecord>(`/api/operations/${operationId}`, { method: 'GET' })
+      const response = await pb.send<ActionRecord>(`/api/actions/${actionId}`, { method: 'GET' })
       setOperation(response)
       setError('')
     } catch (err) {
@@ -82,14 +82,14 @@ export function useOperationDetailController(operationId: string) {
     }
   }
 
-  async function fetchOperationLogs() {
+  async function fetchActionLogs() {
     try {
-      const response = await pb.send<OperationLogsResponse>(`/api/operations/${operationId}/logs`, { method: 'GET' })
+      const response = await pb.send<ActionLogsResponse>(`/api/actions/${actionId}/logs`, { method: 'GET' })
       setLogText(response.execution_log || '')
       setLogUpdatedAt(response.updated)
       setLogTruncated(Boolean(response.execution_log_truncated))
     } catch (err) {
-      setLogText(err instanceof Error ? err.message : 'Failed to load operation logs')
+      setLogText(err instanceof Error ? err.message : 'Failed to load action logs')
     }
   }
 
@@ -111,6 +111,6 @@ export function useOperationDetailController(operationId: string) {
     setAutoScrollEnabled,
     logViewportRef,
     handleLogScroll,
-    refresh: () => fetchOperationDetail(),
+    refresh: () => fetchActionDetail(),
   }
 }

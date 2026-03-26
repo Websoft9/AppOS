@@ -176,6 +176,7 @@ development_status:
   17.3-change-and-recovery-operations: backlog
   17.4-trigger-adapters-mvp-scope: review
   17.5-operation-history-and-timeline-surface: review
+  17.6-create-deployment-page-and-install-resolution-surface: backlog
   epic17-retrospective: optional
 
   # Epic 18: Operations

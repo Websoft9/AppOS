@@ -75,17 +75,18 @@ groups:
         - docker.go
       nativeRefs: []
 
-  - group: Operations
-    description: Lifecycle operation APIs for install inputs, operation history, detail, and logs.
+  - group: Actions
+    description: Lifecycle action APIs for install inputs, action history, execution detail, and logs.
     apiType: Ext
     extSurface:
-      - GET /api/operations
-      - GET /api/operations/{id}
-      - DELETE /api/operations/{id}
-      - GET /api/operations/{id}/logs
-      - GET /api/operations/{id}/stream
-      - POST /api/operations/install/git-compose
-      - POST /api/operations/install/manual-compose
+      - GET /api/actions
+      - GET /api/actions/{id}
+      - DELETE /api/actions/{id}
+      - POST /api/actions/{id}/cancel
+      - GET /api/actions/{id}/logs
+      - GET /api/actions/{id}/stream
+      - POST /api/actions/install/git-compose
+      - POST /api/actions/install/manual-compose
     nativeSurface: []
     sources:
       extRouteFiles:

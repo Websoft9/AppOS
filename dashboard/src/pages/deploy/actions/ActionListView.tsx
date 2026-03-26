@@ -17,12 +17,13 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
-import type { ActiveFilterChip } from '@/pages/deploy/operations/operation-types'
+import { actionDurationLabel } from '@/pages/deploy/actions/action-utils'
+import type { ActiveFilterChip } from '@/pages/deploy/actions/action-types'
 
 type SortField = 'compose_project_name' | 'created' | 'started_at' | 'finished_at'
 type SortDir = 'asc' | 'desc'
 
-type OperationListItem = {
+type ActionListItem = {
   id: string
   compose_project_name: string
   source: string
@@ -30,6 +31,10 @@ type OperationListItem = {
   server_id: string
   started_at?: string
   finished_at?: string
+  pipeline?: {
+    started_at?: string
+    finished_at?: string
+  }
 }
 
 type FilterOption = {
@@ -37,7 +42,7 @@ type FilterOption = {
   label: string
 }
 
-type OperationListViewProps<TOperation extends OperationListItem> = {
+type ActionListViewProps<TOperation extends ActionListItem> = {
   search: string
   onSearchChange: (value: string) => void
   loading: boolean
@@ -126,7 +131,7 @@ function FilterHeader({ label, options, excluded, onChange }: { label: string; o
   )
 }
 
-export function OperationListView<TOperation extends OperationListItem>({
+export function ActionListView<TOperation extends ActionListItem>({
   search,
   onSearchChange,
   loading,
@@ -166,7 +171,7 @@ export function OperationListView<TOperation extends OperationListItem>({
   onDeleteSelected,
   onOpenOperation,
   renderActionMenu,
-}: OperationListViewProps<TOperation>) {
+}: ActionListViewProps<TOperation>) {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -224,10 +229,11 @@ export function OperationListView<TOperation extends OperationListItem>({
                   onCheckedChange={checked => onTogglePageSelection(Boolean(checked))}
                 />
               </TableHead>
-              <TableHead><SortableHeader label="Action" field="compose_project_name" current={sortField} dir={sortDir} onSort={onSort} /></TableHead>
+              <TableHead><SortableHeader label="App Name" field="compose_project_name" current={sortField} dir={sortDir} onSort={onSort} /></TableHead>
               <TableHead><FilterHeader label="Source" options={filterOptions.source} excluded={excludeSource} onChange={onSourceFilterChange} /></TableHead>
               <TableHead><FilterHeader label="Status" options={filterOptions.status} excluded={excludeStatus} onChange={onStatusFilterChange} /></TableHead>
               <TableHead><FilterHeader label="Server" options={filterOptions.server} excluded={excludeServer} onChange={onServerFilterChange} /></TableHead>
+              <TableHead>Total duration</TableHead>
               <TableHead><SortableHeader label="Started" field="started_at" current={sortField} dir={sortDir} onSort={onSort} /></TableHead>
               <TableHead><SortableHeader label="Finished" field="finished_at" current={sortField} dir={sortDir} onSort={onSort} /></TableHead>
               <TableHead>User</TableHead>
@@ -236,9 +242,9 @@ export function OperationListView<TOperation extends OperationListItem>({
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={9} className="py-8 text-center text-muted-foreground">Loading actions...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} className="py-8 text-center text-muted-foreground">Loading actions...</TableCell></TableRow>
             ) : pagedItems.length === 0 ? (
-              <TableRow><TableCell colSpan={9} className="py-8 text-center text-muted-foreground">No action records found.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} className="py-8 text-center text-muted-foreground">No action records found.</TableCell></TableRow>
             ) : pagedItems.map(item => (
               <TableRow key={item.id} data-state={selectedIds.has(item.id) ? 'selected' : undefined}>
                 <TableCell>
@@ -266,6 +272,7 @@ export function OperationListView<TOperation extends OperationListItem>({
                   <div className="font-medium">{getServerLabel(item)}</div>
                   <div className="text-xs text-muted-foreground">{item.server_id || 'local'}</div>
                 </TableCell>
+                <TableCell>{actionDurationLabel(item)}</TableCell>
                 <TableCell>{formatTime(item.started_at)}</TableCell>
                 <TableCell>{formatTime(item.finished_at)}</TableCell>
                 <TableCell>{getUserLabel(item)}</TableCell>

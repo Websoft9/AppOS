@@ -59,7 +59,7 @@ describe('DeployPage homepage', () => {
       if (path === '/api/ext/docker/servers') {
         return Promise.resolve([{ id: 'local', label: 'local', host: '127.0.0.1', status: 'online' }])
       }
-      if (path === '/api/operations') {
+      if (path === '/api/actions') {
         return Promise.resolve([
           {
             id: 'dep_1',
@@ -78,6 +78,10 @@ describe('DeployPage homepage', () => {
             started_at: '2026-03-21T08:01:00Z',
             finished_at: '2026-03-21T08:10:00Z',
             user_email: 'admin@example.com',
+            pipeline: {
+              started_at: '2026-03-21T08:01:00Z',
+              finished_at: '2026-03-21T08:10:00Z',
+            },
           },
           {
             id: 'dep_2',
@@ -96,17 +100,21 @@ describe('DeployPage homepage', () => {
             started_at: '2026-03-21T07:02:00Z',
             finished_at: '2026-03-21T07:15:00Z',
             user_email: 'ops@example.com',
+            pipeline: {
+              started_at: '2026-03-21T07:02:00Z',
+              finished_at: '2026-03-21T07:15:00Z',
+            },
           },
         ])
       }
-      if ((path === '/api/operations/dep_1' || path === '/api/operations/dep_2') && options?.method === 'DELETE') {
+      if ((path === '/api/actions/dep_1' || path === '/api/actions/dep_2') && options?.method === 'DELETE') {
         return Promise.resolve({})
       }
       return Promise.resolve({})
     })
   })
 
-  it('renders the deploy homepage and opens the repository dialog', async () => {
+  it('renders the deploy homepage and routes custom deployment entries to the create page', async () => {
     render(
       <TooltipProvider>
         <DeployPage />
@@ -130,7 +138,12 @@ describe('DeployPage homepage', () => {
 
     fireEvent.click(screen.getByText('Git Repository').closest('button') as HTMLButtonElement)
 
-    expect(screen.getByText('Create Deployment from Git Repository')).toBeInTheDocument()
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/deploy/create',
+      search: {
+        entry: 'git-compose',
+      },
+    })
   })
 
   it('opens operation detail when clicking the latest operation name', async () => {
@@ -147,8 +160,8 @@ describe('DeployPage homepage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'wordpress-prod' }))
 
     expect(navigateMock).toHaveBeenCalledWith({
-      to: '/operations/$operationId',
-      params: { operationId: 'dep_1' },
+      to: '/actions/$actionId',
+      params: { actionId: 'dep_1' },
       search: { returnTo: 'list' },
     })
   })
@@ -167,8 +180,8 @@ describe('DeployPage homepage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'wordpress-prod' }))
 
     expect(navigateMock).toHaveBeenCalledWith({
-      to: '/operations/$operationId',
-      params: { operationId: 'dep_1' },
+      to: '/actions/$actionId',
+      params: { actionId: 'dep_1' },
       search: { returnTo: 'list' },
     })
   })
@@ -196,8 +209,8 @@ describe('DeployPage homepage', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'View' }))
 
     expect(navigateMock).toHaveBeenCalledWith({
-      to: '/operations/$operationId',
-      params: { operationId: 'dep_1' },
+      to: '/actions/$actionId',
+      params: { actionId: 'dep_1' },
       search: { returnTo: 'list' },
     })
   })
@@ -218,6 +231,10 @@ describe('DeployPage homepage', () => {
     fireEvent.click(screen.getByLabelText('Select mysql-prod'))
 
     expect(screen.getByText('Delete Selected (2)')).toBeInTheDocument()
+    expect(screen.getByText('App Name')).toBeInTheDocument()
+    expect(screen.getByText('Total duration')).toBeInTheDocument()
+    expect(screen.getByText('9m 0s')).toBeInTheDocument()
+    expect(screen.getByText('13m 0s')).toBeInTheDocument()
     expect(screen.getByText('Started')).toBeInTheDocument()
     expect(screen.getByText('Finished')).toBeInTheDocument()
 
@@ -231,8 +248,8 @@ describe('DeployPage homepage', () => {
     fireEvent.click(screen.getByText('Delete 2'))
 
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith('/api/operations/dep_1', { method: 'DELETE' })
-      expect(sendMock).toHaveBeenCalledWith('/api/operations/dep_2', { method: 'DELETE' })
+      expect(sendMock).toHaveBeenCalledWith('/api/actions/dep_1', { method: 'DELETE' })
+      expect(sendMock).toHaveBeenCalledWith('/api/actions/dep_2', { method: 'DELETE' })
     })
   })
 })

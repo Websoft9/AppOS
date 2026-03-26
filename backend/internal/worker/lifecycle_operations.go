@@ -31,8 +31,8 @@ type RunOperationPayload struct {
 
 type lifecycleExecutionContext struct {
 	*orchestration.ExecutionContext
-	executor   lifecycleruntime.Executor
-	docker     *docker.Client
+	executor lifecycleruntime.Executor
+	docker   *docker.Client
 }
 
 var errOperationCancelled = errors.New("operation cancelled")
@@ -235,10 +235,12 @@ func (w *Worker) handleRunOperation(ctx context.Context, t *asynq.Task) error {
 		OnNodeStarted: func(runCtx *orchestration.ExecutionContext, nodeRun *core.Record, node model.NodeDefinition) {
 			execCtx.ExecutionContext = runCtx
 			appendOperationLog(w.app, execCtx.Operation, "step started: "+node.DisplayName)
+			appendNodeRunLog(w.app, nodeRun, "step started: "+node.DisplayName)
 		},
 		OnNodeCompleted: func(runCtx *orchestration.ExecutionContext, nodeRun *core.Record) {
 			execCtx.ExecutionContext = runCtx
 			appendOperationLog(w.app, execCtx.Operation, "step completed: "+nodeRun.GetString("display_name"))
+			appendNodeRunLog(w.app, nodeRun, "step completed: "+nodeRun.GetString("display_name"))
 		},
 	})
 	if err != nil {
@@ -347,6 +349,7 @@ func (w *Worker) executeNode(ctx context.Context, execCtx *lifecycleExecutionCon
 		lifecycleruntime.NodeExecutionHooks{
 			Logf: func(line string) {
 				appendOperationLog(w.app, execCtx.Operation, line)
+				appendNodeRunLog(w.app, nodeRun, line)
 			},
 			HealthCheck: operationHealthCheck,
 		},
@@ -638,6 +641,32 @@ func appendOperationLog(app core.App, record *core.Record, line string) {
 	record.Set("log_cursor", map[string]any{"bytes": len(current)})
 	if err := app.Save(record); err != nil {
 		log.Printf("appendOperationLog: save operation %s: %v", record.Id, err)
+	}
+}
+
+func appendNodeRunLog(app core.App, record *core.Record, line string) {
+	if record == nil || strings.TrimSpace(line) == "" {
+		return
+	}
+	current := record.GetString("execution_log")
+	entry := time.Now().UTC().Format(time.RFC3339) + " " + line
+	if current == "" {
+		current = entry
+	} else {
+		current += "\n" + entry
+	}
+	truncated := false
+	if len(current) > deploy.MaxExecutionLogBytes {
+		current = current[len(current)-deploy.MaxExecutionLogBytes:]
+		if idx := strings.IndexByte(current, '\n'); idx >= 0 && idx < len(current)-1 {
+			current = current[idx+1:]
+		}
+		truncated = true
+	}
+	record.Set("execution_log", current)
+	record.Set("execution_log_truncated", record.GetBool("execution_log_truncated") || truncated)
+	if err := app.Save(record); err != nil {
+		log.Printf("appendNodeRunLog: save node run %s: %v", record.Id, err)
 	}
 }
 

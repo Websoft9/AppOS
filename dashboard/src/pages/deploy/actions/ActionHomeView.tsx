@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { buildOperationListHref } from '@/pages/deploy/operations/operation-utils'
+import { buildActionListHref } from '@/pages/deploy/actions/action-utils'
 
 type StoreShortcut = {
   key: string
@@ -45,7 +45,7 @@ type CustomEntry = {
   variant?: 'default' | 'outline'
 }
 
-type OperationHomeViewProps<TOperation extends LatestOperationItem> = {
+type ActionHomeViewProps<TOperation extends LatestOperationItem> = {
   prefillLoading: boolean
   prefillMode?: string
   prefillAppName?: string
@@ -145,7 +145,7 @@ function MoreAppsTile() {
   )
 }
 
-export function OperationHomeView<TOperation extends LatestOperationItem>({
+export function ActionHomeView<TOperation extends LatestOperationItem>({
   prefillLoading,
   prefillMode,
   prefillAppName,
@@ -165,7 +165,7 @@ export function OperationHomeView<TOperation extends LatestOperationItem>({
   statusVariant,
   onOpenOperation,
   renderActionMenu,
-}: OperationHomeViewProps<TOperation>) {
+}: ActionHomeViewProps<TOperation>) {
   return (
     <div className="space-y-6">
       {prefillLoading ? (
@@ -267,7 +267,7 @@ export function OperationHomeView<TOperation extends LatestOperationItem>({
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base">Latest Actions</CardTitle>
           <Button variant="outline" size="sm" asChild>
-            <a href={buildOperationListHref()}>View action history</a>
+            <a href={buildActionListHref()}>View action history</a>
           </Button>
         </CardHeader>
         <CardContent>

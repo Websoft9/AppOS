@@ -1,18 +1,19 @@
 package service
 
 import (
+	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/internal/deploy"
 	"github.com/websoft9/appos/backend/internal/lifecycle/metadata"
 	"github.com/websoft9/appos/backend/internal/lifecycle/model"
 	"github.com/websoft9/appos/backend/internal/lifecycle/orchestration"
 	"github.com/websoft9/appos/backend/internal/lifecycle/projection"
 )
+
+var ErrDuplicateAppName = errors.New("application name already exists")
 
 type ComposeOperationOptions struct {
 	ExistingAppID      string
@@ -22,52 +23,48 @@ type ComposeOperationOptions struct {
 }
 
 type ComposeOperationRequest struct {
-	ServerID    string
-	ProjectName string
-	Compose     string
-	Source      string
-	Adapter     string
+	ServerID       string
+	ProjectName    string
+	Compose        string
+	Source         string
+	Adapter        string
+	ResolvedEnv    map[string]any
+	ExposureIntent *ExposureIntent
+	Metadata       map[string]any
 }
 
 func CreateOperationFromCompose(app core.App, auth *core.Record, request ComposeOperationRequest, options ComposeOperationOptions) (*core.Record, error) {
-	if err := deploy.ValidateManualCompose(request.Compose); err != nil {
+	normalizedSpec, err := ResolveInstallFromCompose(app, InstallResolutionRequest{
+		ServerID:           request.ServerID,
+		ProjectName:        request.ProjectName,
+		Compose:            request.Compose,
+		OperationType:      options.OperationType,
+		Source:             request.Source,
+		Adapter:            request.Adapter,
+		ProjectDir:         options.ProjectDir,
+		ComposeProjectName: options.ComposeProjectName,
+		Env:                request.ResolvedEnv,
+		ExposureIntent:     request.ExposureIntent,
+		Metadata:           request.Metadata,
+		UserID:             operationUserID(auth),
+	})
+	if err != nil {
 		return nil, err
 	}
+	return CreateOperationFromNormalizedInstallSpec(app, auth, normalizedSpec, options)
+}
 
-	normalizedProjectName := deploy.NormalizeProjectName(request.ProjectName)
-	if normalizedProjectName == "" {
-		normalizedProjectName = "app"
-	}
-	composeProjectName := normalizedProjectName
-	if value := strings.TrimSpace(options.ComposeProjectName); value != "" {
-		composeProjectName = value
-	}
-	projectDir := filepath.Join("/appos/data/apps/operations", normalizedProjectName)
-	if value := strings.TrimSpace(options.ProjectDir); value != "" {
-		projectDir = value
-	}
-	operationType := strings.TrimSpace(options.OperationType)
-	if operationType == "" {
-		operationType = string(model.OperationTypeInstall)
-	}
+func CreateOperationFromNormalizedInstallSpec(app core.App, auth *core.Record, normalizedSpec NormalizedInstallSpec, options ComposeOperationOptions) (*core.Record, error) {
 	pipelineDefinition, err := metadata.DefinitionForSelector(model.DefinitionSelector{
-		OperationType: operationType,
-		Source:        request.Source,
-		Adapter:       request.Adapter,
+		OperationType: normalizedSpec.OperationType,
+		Source:        normalizedSpec.Source,
+		Adapter:       normalizedSpec.Adapter,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	spec := map[string]any{
-		"server_id":            request.ServerID,
-		"source":               request.Source,
-		"adapter":              request.Adapter,
-		"compose_project_name": composeProjectName,
-		"project_dir":          projectDir,
-		"rendered_compose":     request.Compose,
-		"operation_type":       operationType,
-	}
+	spec := normalizedSpec.OperationSpec()
 
 	var operationRecord *core.Record
 	err = app.RunInTransaction(func(txApp core.App) error {
@@ -87,10 +84,24 @@ func CreateOperationFromCompose(app core.App, auth *core.Record, request Compose
 				return err
 			}
 		} else {
+			existing, err := txApp.FindRecordsByFilter(
+				appInstancesCol,
+				fmt.Sprintf("name = '%s' && lifecycle_state != '%s'", escapeServiceFilterValue(normalizedSpec.ComposeProjectName), escapeServiceFilterValue(string(model.AppStateRetired))),
+				"",
+				1,
+				0,
+			)
+			if err != nil {
+				return err
+			}
+			if len(existing) > 0 {
+				return fmt.Errorf("%w: %s", ErrDuplicateAppName, normalizedSpec.ComposeProjectName)
+			}
+
 			appRecord = core.NewRecord(appInstancesCol)
-			appRecord.Set("key", fmt.Sprintf("%s-%d", normalizedProjectName, time.Now().UnixNano()))
-			appRecord.Set("name", composeProjectName)
-			appRecord.Set("server_id", request.ServerID)
+			appRecord.Set("key", fmt.Sprintf("%s-%d", normalizedSpec.ProjectName, time.Now().UnixNano()))
+			appRecord.Set("name", normalizedSpec.ComposeProjectName)
+			appRecord.Set("server_id", normalizedSpec.ServerID)
 			appRecord.Set("lifecycle_state", string(model.AppStateInstalling))
 			appRecord.Set("desired_state", string(model.DesiredStateRunning))
 			appRecord.Set("health_summary", string(model.HealthUnknown))
@@ -103,18 +114,21 @@ func CreateOperationFromCompose(app core.App, auth *core.Record, request Compose
 
 		operationRecord = core.NewRecord(operationsCol)
 		operationRecord.Set("app", appRecord.Id)
-		operationRecord.Set("server_id", request.ServerID)
-		operationRecord.Set("operation_type", operationType)
-		operationRecord.Set("trigger_source", request.Source)
-		operationRecord.Set("adapter", request.Adapter)
+		operationRecord.Set("server_id", normalizedSpec.ServerID)
+		operationRecord.Set("operation_type", normalizedSpec.OperationType)
+		operationRecord.Set("trigger_source", normalizedSpec.Source)
+		operationRecord.Set("adapter", normalizedSpec.Adapter)
 		if auth != nil && auth.Collection() != nil && auth.Collection().Name == "users" {
 			operationRecord.Set("requested_by", auth.Id)
 		}
 		operationRecord.Set("phase", string(model.OperationPhaseQueued))
 		operationRecord.Set("spec_json", spec)
-		operationRecord.Set("compose_project_name", composeProjectName)
-		operationRecord.Set("project_dir", projectDir)
-		operationRecord.Set("rendered_compose", request.Compose)
+		operationRecord.Set("compose_project_name", normalizedSpec.ComposeProjectName)
+		operationRecord.Set("project_dir", normalizedSpec.ProjectDir)
+		operationRecord.Set("rendered_compose", normalizedSpec.RenderedCompose)
+		if len(normalizedSpec.ResolvedEnv) > 0 {
+			operationRecord.Set("resolved_env_json", normalizedSpec.ResolvedEnv)
+		}
 		operationRecord.Set("queued_at", time.Now())
 		if err := txApp.Save(operationRecord); err != nil {
 			return err
@@ -140,4 +154,15 @@ func CreateOperationFromCompose(app core.App, auth *core.Record, request Compose
 	}
 
 	return operationRecord, nil
+}
+
+func operationUserID(auth *core.Record) string {
+	if auth == nil {
+		return ""
+	}
+	return strings.TrimSpace(auth.Id)
+}
+
+func escapeServiceFilterValue(value string) string {
+	return strings.ReplaceAll(value, "'", "\\'")
 }

@@ -1,4 +1,4 @@
-# Lifecycle Install Input Resolution
+# App Lifecycle Install Resolution
 
 ## Status
 Proposed
@@ -26,6 +26,12 @@ Install input collection and install execution are separate concerns.
 2. backend resolves and normalizes them
 3. shared lifecycle execution consumes only normalized operation data
 
+Resolution belongs to the lifecycle operations ingress boundary, not to `AppInstance` state modeling.
+
+It prepares normalized data for install operation creation and queueing.
+
+It is not a standalone lifecycle action type.
+
 ### 2. Resolver role
 
 The backend must own install input resolution.
@@ -49,6 +55,10 @@ Minimum outputs are:
 3. source and adapter attribution
 4. normalized operation spec metadata required by the shared lifecycle execution core
 
+These outputs are operation-facing inputs.
+
+They must not be treated as `AppInstance` state.
+
 ### 4. Exposure and publication inputs
 
 Inputs such as public domain names must not be treated only as raw install form fields.
@@ -61,6 +71,8 @@ Sensitive install inputs such as passwords, tokens, or external database credent
 
 They must not rely on frontend-only rendering rules or direct worker payload injection.
 
+Operation records should keep secret-backed references rather than raw secret values.
+
 ### 6. Execution boundary
 
 Workers, pipeline runners, and node executors must consume only normalized lifecycle operation data.
@@ -70,3 +82,11 @@ They must not interpret raw install dialog payloads.
 ## Consequences
 
 This keeps install dialogs flexible without leaking UI-specific payloads into the shared lifecycle execution engine.
+
+`OperationJob` owns the normalized execution contract and related references needed for queueing and execution.
+
+`ReleaseSnapshot` receives only the verified deployment baseline after successful execution.
+
+`AppInstance` remains the product-facing projection and must not store raw install inputs or resolver intermediate state.
+
+Publication or exposure facts should be projected from normalized intent into the appropriate lifecycle projection, not hidden inside worker-only runtime payloads.

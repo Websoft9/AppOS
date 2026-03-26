@@ -1,6 +1,6 @@
 import { Suspense, lazy } from 'react'
 import { Outlet, createFileRoute, useLocation } from '@tanstack/react-router'
-import type { OperationListSearch, SortDir, SortField } from '@/pages/deploy/operations/operation-types'
+import type { ActionListSearch, SortDir, SortField } from '@/pages/deploy/actions/action-types'
 
 const LazyDeployPage = lazy(() =>
   import('@/pages/deploy/DeployPage').then(module => ({ default: module.DeployPage }))
@@ -41,10 +41,10 @@ function parseCsv(value: unknown): string | undefined {
   return normalized || undefined
 }
 
-function OperationsRoutePage() {
+function ActionsRoutePage() {
   const location = useLocation()
   const search = Route.useSearch()
-  const isListRoute = location.pathname === '/operations' || location.pathname === '/operations/'
+  const isListRoute = location.pathname === '/actions' || location.pathname === '/actions/'
 
   return (
     <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading Actions...</div>}>
@@ -53,9 +53,9 @@ function OperationsRoutePage() {
   )
 }
 
-export const Route = createFileRoute('/_app/_auth/operations' as never)({
-  component: OperationsRoutePage,
-  validateSearch: (search: Record<string, unknown>): OperationListSearch => ({
+export const Route = createFileRoute('/_app/_auth/actions' as never)({
+  component: ActionsRoutePage,
+  validateSearch: (search: Record<string, unknown>): ActionListSearch => ({
     q: typeof search.q === 'string' && search.q.trim() ? search.q : undefined,
     sortField: parseSortField(search.sortField),
     sortDir: parseSortDir(search.sortDir),

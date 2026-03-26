@@ -230,8 +230,8 @@ export function AppsPage() {
       setSuccess(`${app.name} ${action} operation created`)
       await fetchApps()
       void navigate({
-        to: '/operations/$operationId' as never,
-        params: { operationId: response.id } as never,
+        to: '/actions/$actionId' as never,
+        params: { actionId: response.id } as never,
         search: { returnTo: 'list' } as never,
       })
     } catch (err) {
@@ -244,8 +244,8 @@ export function AppsPage() {
   function openOperationStatus(app: AppInstance) {
     if (!app.last_operation) return
     void navigate({
-      to: '/operations/$operationId' as never,
-      params: { operationId: app.last_operation } as never,
+      to: '/actions/$actionId' as never,
+      params: { actionId: app.last_operation } as never,
       search: { returnTo: 'list' } as never,
     })
   }

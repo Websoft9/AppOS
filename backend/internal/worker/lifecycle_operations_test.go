@@ -90,6 +90,15 @@ func TestHandleRunOperationCreatesReleaseAndProjection(t *testing.T) {
 			Compose:     "services:\n  web:\n    image: nginx:alpine\n",
 			Source:      "manualops",
 			Adapter:     "manual-compose",
+			ResolvedEnv: map[string]any{
+				"APP_ENV": "prod",
+				"PORT":    8080,
+			},
+			ExposureIntent: &lifecyclesvc.ExposureIntent{
+				Domain:     "demo.local",
+				TargetPort: 8080,
+				IsPrimary:  true,
+			},
 		},
 		lifecyclesvc.ComposeOperationOptions{ProjectDir: projectDir},
 	)
@@ -139,6 +148,14 @@ func TestHandleRunOperationCreatesReleaseAndProjection(t *testing.T) {
 	if got := release.GetString("release_role"); got != "active" {
 		t.Fatalf("expected active release role, got %q", got)
 	}
+	resolvedEnv := mustJSONMap(t, release.Get("resolved_env_json"))
+	if resolvedEnv["APP_ENV"] != "prod" || resolvedEnv["PORT"] != "8080" {
+		t.Fatalf("unexpected release resolved_env_json: %v", resolvedEnv)
+	}
+	spec := mustJSONMap(t, operation.Get("spec_json"))
+	if _, ok := spec["exposure_intent"].(map[string]any); !ok {
+		t.Fatalf("expected exposure_intent in operation spec, got %T", spec["exposure_intent"])
+	}
 
 	pipeline, err := app.FindRecordById("pipeline_runs", operation.GetString("pipeline_run"))
 	if err != nil {
@@ -150,4 +167,29 @@ func TestHandleRunOperationCreatesReleaseAndProjection(t *testing.T) {
 	if got := pipeline.GetInt("completed_node_count"); got != 5 {
 		t.Fatalf("expected 5 completed nodes, got %d", got)
 	}
+}
+
+func mustJSONMap(t *testing.T, value any) map[string]any {
+	t.Helper()
+	if direct, ok := value.(map[string]any); ok {
+		return direct
+	}
+	var raw []byte
+	switch typed := value.(type) {
+	case []byte:
+		raw = typed
+	case string:
+		raw = []byte(typed)
+	default:
+		encoded, err := json.Marshal(typed)
+		if err != nil {
+			t.Fatalf("marshal json field: %v", err)
+		}
+		raw = encoded
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		t.Fatalf("unmarshal json field: %v", err)
+	}
+	return parsed
 }

@@ -11,7 +11,7 @@ import {
   X,
 } from 'lucide-react'
 import { getLocale } from '@/lib/i18n'
-import { DeleteOperationDialog } from '@/pages/deploy/operations/DeleteOperationDialog'
+import { DeleteActionDialog } from '@/pages/deploy/actions/DeleteActionDialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,13 +21,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { AppDetailModal } from '@/components/store/AppDetailModal'
-import { OperationHomeView } from '@/pages/deploy/operations/OperationHomeView'
-import { OperationListView } from '@/pages/deploy/operations/OperationListView'
-import { buildOperationListHref, formatTime, isActiveStatus, statusVariant } from '@/pages/deploy/operations/operation-utils'
-import { GitDeploymentDialog } from '@/pages/deploy/entry/GitDeploymentDialog'
-import { ManualDeploymentDialog } from '@/pages/deploy/entry/ManualDeploymentDialog'
-import type { OperationListSearch, OperationRecord, ManualEntryMode } from '@/pages/deploy/operations/operation-types'
-import { useOperationsController } from '@/pages/deploy/operations/useOperationsController'
+import { ActionHomeView } from '@/pages/deploy/actions/ActionHomeView'
+import { ActionListView } from '@/pages/deploy/actions/ActionListView'
+import { buildActionListHref, formatTime, isActiveStatus, statusVariant } from '@/pages/deploy/actions/action-utils'
+import type { ActionListSearch, ActionRecord, CreateDeploymentEntryMode } from '@/pages/deploy/actions/action-types'
+import { useActionsController } from '@/pages/deploy/actions/useActionsController'
 
 type DeployPageProps = {
   prefillMode?: string
@@ -36,7 +34,7 @@ type DeployPageProps = {
   prefillAppKey?: string
   prefillAppName?: string
   prefillServerId?: string
-  listSearch?: OperationListSearch
+  listSearch?: ActionListSearch
   view?: 'home' | 'list'
 }
 
@@ -54,7 +52,6 @@ export function DeployPage({
 }: DeployPageProps) {
   const locale = getLocale()
   const {
-    servers,
     storeShortcuts,
     storePrimaryCategories,
     selectedStoreProduct,
@@ -63,7 +60,6 @@ export function DeployPage({
     userApps,
     summary,
     latestOperations,
-    manualDialogCopy,
     filterOptions,
     pagedItems,
     totalPages,
@@ -90,30 +86,6 @@ export function DeployPage({
     setNotice,
     prefillLoading,
     prefillReady,
-    createOpen,
-    setCreateOpen,
-    gitCreateOpen,
-    setGitCreateOpen,
-    serverId,
-    setServerId,
-    projectName,
-    setProjectName,
-    compose,
-    setCompose,
-    gitProjectName,
-    setGitProjectName,
-    gitRepositoryUrl,
-    setGitRepositoryUrl,
-    gitRef,
-    setGitRef,
-    gitComposePath,
-    setGitComposePath,
-    gitAuthHeaderName,
-    setGitAuthHeaderName,
-    gitAuthHeaderValue,
-    setGitAuthHeaderValue,
-    submitting,
-    gitSubmitting,
     pendingDelete,
     setPendingDelete,
     handleSort,
@@ -132,11 +104,9 @@ export function DeployPage({
     getUserLabel,
     getServerLabel,
     getServerHost,
-    submitManualOperation,
-    submitGitOperation,
     deleteOperations,
     fetchOperations,
-  } = useOperationsController({
+  } = useActionsController({
     prefillMode,
     prefillSource,
     prefillAppId,
@@ -148,7 +118,7 @@ export function DeployPage({
   })
 
   const customEntries: Array<{
-    key: ManualEntryMode | 'git-compose'
+    key: CreateDeploymentEntryMode
     title: string
     description: string
     icon: ReactNode
@@ -168,7 +138,7 @@ export function DeployPage({
       title: 'Git Repository',
       description: 'Pull a compose file from a repository branch or tag, then create the deployment task.',
       icon: <GitBranch className="h-4 w-4" />,
-      action: () => setGitCreateOpen(true),
+      action: () => openManualDialog('git-compose'),
       variant: 'outline',
     },
     {
@@ -187,11 +157,11 @@ export function DeployPage({
       action: () => openManualDialog('install-script'),
       variant: 'outline',
     },
-  ], [openManualDialog, setGitCreateOpen])
+  ], [openManualDialog])
 
-  const operationListHref = buildOperationListHref()
+  const operationListHref = buildActionListHref()
 
-  function renderActionMenu(item: OperationRecord) {
+  function renderActionMenu(item: ActionRecord) {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -257,7 +227,7 @@ export function DeployPage({
       ) : null}
 
       {view === 'list' ? (
-        <OperationListView
+        <ActionListView
           search={search}
           onSearchChange={setSearch}
           loading={loading}
@@ -302,7 +272,7 @@ export function DeployPage({
           renderActionMenu={renderActionMenu}
         />
       ) : (
-        <OperationHomeView
+        <ActionHomeView
           prefillLoading={prefillLoading}
           prefillMode={prefillMode}
           prefillAppName={prefillAppName}
@@ -325,44 +295,7 @@ export function DeployPage({
         />
       )}
 
-      <ManualDeploymentDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        dialogCopy={manualDialogCopy}
-        servers={servers}
-        serverId={serverId}
-        onServerIdChange={setServerId}
-        projectName={projectName}
-        onProjectNameChange={setProjectName}
-        compose={compose}
-        onComposeChange={setCompose}
-        submitting={submitting}
-        onSubmit={() => void submitManualOperation()}
-      />
-
-      <GitDeploymentDialog
-        open={gitCreateOpen}
-        onOpenChange={setGitCreateOpen}
-        servers={servers}
-        serverId={serverId}
-        onServerIdChange={setServerId}
-        projectName={gitProjectName}
-        onProjectNameChange={setGitProjectName}
-        repositoryUrl={gitRepositoryUrl}
-        onRepositoryUrlChange={setGitRepositoryUrl}
-        gitRef={gitRef}
-        onGitRefChange={setGitRef}
-        composePath={gitComposePath}
-        onComposePathChange={setGitComposePath}
-        authHeaderName={gitAuthHeaderName}
-        onAuthHeaderNameChange={setGitAuthHeaderName}
-        authHeaderValue={gitAuthHeaderValue}
-        onAuthHeaderValueChange={setGitAuthHeaderValue}
-        submitting={gitSubmitting}
-        onSubmit={() => void submitGitOperation()}
-      />
-
-      <DeleteOperationDialog
+      <DeleteActionDialog
         operations={pendingDelete}
         onOpenChange={open => {
           if (!open) setPendingDelete([])

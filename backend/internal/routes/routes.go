@@ -9,7 +9,7 @@
 //   - /api/ext/space      — User private space (Epic 9)
 //   - /api/components     — component inventory and runtime service diagnostics (Epic 6)
 //   - /api/apps           — installed app inventory and lifecycle operations
-//   - /api/operations     — lifecycle operations and execution logs
+//   - /api/actions        — lifecycle actions and execution logs
 //   - /api/releases       — release inventory and app-scoped release views
 //   - /api/exposures      — publication inventory and app-scoped exposure views
 //   - /api/pipelines      — pipeline run inventory and detail views

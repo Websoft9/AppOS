@@ -23,7 +23,7 @@ import (
 const maxGitComposeBytes = 1 << 20
 
 func registerOperationRoutes(g *router.RouterGroup[*core.RequestEvent]) {
-	o := g.Group("/operations")
+	o := g.Group("/actions")
 	o.Bind(apis.RequireSuperuserAuth())
 	o.GET("", handleOperationList)
 	o.GET("/{id}", handleOperationDetail)
@@ -369,9 +369,24 @@ func handleOperationInstallGitCompose(e *core.RequestEvent) error {
 			"compose_path":   req.ComposePath,
 			"raw_url":        rawURL,
 		},
-		operationCreateOptions{},
+		operationCreateOptions{
+			ResolvedEnv:    bodyMap(body, "env"),
+			ExposureIntent: parseExposureIntent(bodyMap(body, "exposure")),
+			Metadata: map[string]any{
+				"repository_url": req.RepositoryURL,
+				"ref":            req.Ref,
+				"compose_path":   req.ComposePath,
+				"raw_url":        rawURL,
+			},
+		},
 	)
 	if err != nil {
+		if isOperationCreateConflict(err) {
+			return e.JSON(http.StatusConflict, map[string]any{"code": 409, "message": err.Error()})
+		}
+		if isOperationCreateBadRequest(err) {
+			return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+		}
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": err.Error()})
 	}
 
@@ -401,10 +416,16 @@ func handleOperationInstallManualCompose(e *core.RequestEvent) error {
 		deploy.SourceManualOps,
 		deploy.AdapterManualCompose,
 		nil,
-		operationCreateOptions{},
+		operationCreateOptions{
+			ResolvedEnv:    bodyMap(body, "env"),
+			ExposureIntent: parseExposureIntent(bodyMap(body, "exposure")),
+		},
 	)
 	if err != nil {
-		if strings.Contains(err.Error(), "compose") {
+		if isOperationCreateConflict(err) {
+			return e.JSON(http.StatusConflict, map[string]any{"code": 409, "message": err.Error()})
+		}
+		if isOperationCreateBadRequest(err) {
 			return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 		}
 		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": err.Error()})
@@ -418,6 +439,9 @@ type operationCreateOptions struct {
 	OperationType      string
 	ProjectDir         string
 	ComposeProjectName string
+	ResolvedEnv        map[string]any
+	ExposureIntent     *lifecyclesvc.ExposureIntent
+	Metadata           map[string]any
 }
 
 func createOperationFromCompose(
@@ -434,11 +458,14 @@ func createOperationFromCompose(
 		e.App,
 		e.Auth,
 		lifecyclesvc.ComposeOperationRequest{
-			ServerID:    serverID,
-			ProjectName: projectName,
-			Compose:     compose,
-			Source:      source,
-			Adapter:     adapter,
+			ServerID:       serverID,
+			ProjectName:    projectName,
+			Compose:        compose,
+			Source:         source,
+			Adapter:        adapter,
+			ResolvedEnv:    options.ResolvedEnv,
+			ExposureIntent: options.ExposureIntent,
+			Metadata:       options.Metadata,
 		},
 		lifecyclesvc.ComposeOperationOptions{
 			ExistingAppID:      options.ExistingAppID,
@@ -489,6 +516,46 @@ func createOperationFromCompose(
 
 func isOperationActive(record *core.Record) bool {
 	return strings.TrimSpace(record.GetString("terminal_status")) == ""
+}
+
+func parseExposureIntent(raw map[string]any) *lifecyclesvc.ExposureIntent {
+	if len(raw) == 0 {
+		return nil
+	}
+	intent := &lifecyclesvc.ExposureIntent{
+		ExposureType:  bodyString(raw, "exposure_type"),
+		IsPrimary:     true,
+		Domain:        bodyString(raw, "domain"),
+		Path:          bodyString(raw, "path"),
+		TargetPort:    bodyInt(raw, "target_port"),
+		CertificateID: bodyString(raw, "certificate_id"),
+		Notes:         bodyString(raw, "notes"),
+	}
+	if _, exists := raw["is_primary"]; exists {
+		intent.IsPrimary = bodyBool(raw, "is_primary")
+	}
+	return intent
+}
+
+func isOperationCreateBadRequest(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(strings.TrimSpace(err.Error()))
+	return strings.Contains(message, "compose") ||
+		strings.Contains(message, "env ") ||
+		strings.Contains(message, "unsupported env") ||
+		strings.Contains(message, "target_port") ||
+		strings.Contains(message, "exposure") ||
+		strings.Contains(message, "secret ")
+}
+
+func isOperationCreateConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(strings.TrimSpace(err.Error()))
+	return strings.Contains(message, "already exists") || strings.Contains(message, "duplicate")
 }
 
 func operationDisplayStatus(record *core.Record) string {
@@ -789,6 +856,12 @@ func buildOperationSteps(nodeRuns []*core.Record) []map[string]any {
 		}
 		if message := nodeRun.GetString("error_message"); message != "" {
 			step["detail"] = message
+		}
+		if executionLog := nodeRun.GetString("execution_log"); executionLog != "" {
+			step["execution_log"] = executionLog
+		}
+		if nodeRun.GetBool("execution_log_truncated") {
+			step["execution_log_truncated"] = true
 		}
 		if value := nodeRun.GetDateTime("started_at"); !value.IsZero() {
 			step["started_at"] = value.String()
