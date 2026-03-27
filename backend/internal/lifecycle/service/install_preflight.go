@@ -11,6 +11,7 @@ import (
 	"github.com/websoft9/appos/backend/internal/deploy"
 	"github.com/websoft9/appos/backend/internal/lifecycle/model"
 	"github.com/websoft9/appos/backend/internal/settings"
+	settingscatalog "github.com/websoft9/appos/backend/internal/settings/catalog"
 	"gopkg.in/yaml.v3"
 )
 
@@ -255,16 +256,16 @@ func buildInstallResourceChecks(ctx context.Context, app core.App, probe Install
 	warnings = append(warnings, diskWarnings...)
 
 	return InstallPreflightChecks{
-		Compose: InstallPreflightCheck{OK: true, Status: "ok", Message: "compose config is valid"},
-		Ports: portsCheck,
-		ContainerNames: containerCheck,
+		Compose:            InstallPreflightCheck{OK: true, Status: "ok", Message: "compose config is valid"},
+		Ports:              portsCheck,
+		ContainerNames:     containerCheck,
 		DockerAvailability: dockerCheck,
-		DiskSpace: diskCheck,
+		DiskSpace:          diskCheck,
 	}, warnings, nil
 }
 
 func loadDeployMinFreeDiskBytes(app core.App) int64 {
-	fallback := map[string]any{"minFreeDiskBytes": defaultMinFreeDiskBytes}
+	fallback := settingscatalog.DefaultGroup("deploy", "preflight")
 	group, _ := settings.GetGroup(app, "deploy", "preflight", fallback)
 	configured := settings.Int(group, "minFreeDiskBytes", int(defaultMinFreeDiskBytes))
 	if configured < 0 {

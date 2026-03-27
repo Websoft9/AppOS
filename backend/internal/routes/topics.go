@@ -11,14 +11,12 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/websoft9/appos/backend/internal/settings"
+	settingscatalog "github.com/websoft9/appos/backend/internal/settings/catalog"
 )
 
 // defaultTopicShareQuota is the code-level safety net when the DB row
-// is missing.  Mirrors the space share quota structure.
-var defaultTopicShareQuota = map[string]any{
-	"shareMaxMinutes":     60,
-	"shareDefaultMinutes": 30,
-}
+// is missing. Mirrors the space share quota structure.
+var defaultTopicShareQuota = settingscatalog.DefaultGroup("space", "quota")
 
 // ─── Route registration ────────────────────────────────────────────────────
 
@@ -152,14 +150,14 @@ func handleTopicShareResolve(e *core.RequestEvent) error {
 	}
 
 	return e.JSON(http.StatusOK, map[string]any{
-		"id":         record.Id,
-		"title":      record.GetString("title"),
+		"id":          record.Id,
+		"title":       record.GetString("title"),
 		"description": record.GetString("description"),
-		"closed":     record.GetBool("closed"),
-		"created":    record.GetString("created"),
-		"updated":    record.GetString("updated"),
-		"expires_at": record.GetString("share_expires_at"),
-		"comments":   commentList,
+		"closed":      record.GetBool("closed"),
+		"created":     record.GetString("created"),
+		"updated":     record.GetString("updated"),
+		"expires_at":  record.GetString("share_expires_at"),
+		"comments":    commentList,
 	})
 }
 

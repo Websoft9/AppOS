@@ -166,6 +166,7 @@ development_status:
   13.5-ext-infra-backend: done
   13.6-ext-infra-ui: done
   13.7-connect-terminal-settings-ui: review
+  13.8-unified-settings-api: review
   epic13-retrospective: optional
 
   # Epic 17: Lifecycle Execution Core

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  AlertTriangle,
   ChevronDown,
   CircleHelp,
   Eraser,
@@ -13,6 +14,7 @@ import {
   Upload,
   X,
 } from 'lucide-react'
+import { useYamlValidation } from '@/hooks/useYamlValidation'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Input } from '@/components/ui/input'
@@ -87,6 +89,8 @@ export type OrchestrationSectionProps = {
   srcFiles: File[]
   setSrcFiles: React.Dispatch<React.SetStateAction<File[]>>
   srcUploaded: string[]
+  /** Reports the current YAML syntax error string to the parent (null = no error). */
+  onYamlError?: (error: string | null) => void
 }
 
 export function OrchestrationSection({
@@ -100,9 +104,17 @@ export function OrchestrationSection({
   srcFiles,
   setSrcFiles,
   srcUploaded,
+  onYamlError,
 }: OrchestrationSectionProps) {
   const srcRelativePath = './src/'
   const templateMenuRef = useRef<HTMLDivElement>(null)
+
+  // ── YAML validation ──
+  const yamlValidation = useYamlValidation(compose)
+  const yamlError = yamlValidation?.valid === false ? yamlValidation : null
+  useEffect(() => {
+    onYamlError?.(yamlError ? yamlError.message : null)
+  }, [yamlError, onYamlError])
 
   // ── Compose file upload ──
   const composeFileRef = useRef<HTMLInputElement>(null)
@@ -314,18 +326,29 @@ export function OrchestrationSection({
           <summary className="flex cursor-pointer items-center gap-2 py-2">
             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-open:rotate-0 [-webkit-details-marker]:hidden [&:not([open]_&)]:rotate-[-90deg]" />
             <span className="text-[13px] font-medium">Compose File</span>
-            {compose.trim() ? <span className="ml-auto text-xs text-muted-foreground">{compose.split('\n').length} lines</span> : null}
+            {compose.trim() && !yamlError ? <span className="ml-auto text-xs text-muted-foreground">{compose.split('\n').length} lines</span> : null}
+            {yamlError ? <span className="ml-auto text-xs text-destructive">YAML syntax error</span> : null}
           </summary>
           <div className="pl-5 pt-2">
-            <div className="max-h-[420px] overflow-y-auto rounded-md border">
+            <div className={`max-h-[420px] overflow-y-auto rounded-md border${yamlError ? ' border-destructive/60' : ''}`}>
               <Textarea
                 id="compose-content"
                 className="min-h-[280px] resize-none border-0 font-mono text-xs focus-visible:ring-0"
                 value={compose}
                 onChange={e => setCompose(e.target.value)}
                 placeholder="services:&#10;  web:&#10;    image: nginx:alpine&#10;    ports:&#10;      - '8080:80'"
+                aria-invalid={yamlError ? true : undefined}
+                aria-describedby={yamlError ? 'compose-yaml-error' : undefined}
               />
             </div>
+            {yamlError ? (
+              <div id="compose-yaml-error" role="alert" className="mt-1.5 flex items-start gap-1.5 text-xs text-destructive">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  {yamlError.line !== undefined ? `Line ${yamlError.line}: ` : ''}{yamlError.message}
+                </span>
+              </div>
+            ) : null}
             <div className="mt-3 flex items-center gap-2">
               <input ref={composeFileRef} type="file" accept=".yml,.yaml" className="hidden" onChange={handleComposeFileUpload} />
               <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => composeFileRef.current?.click()}>

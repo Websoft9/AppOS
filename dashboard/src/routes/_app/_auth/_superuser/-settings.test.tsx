@@ -1,20 +1,14 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  extSettingsModulePath,
-  TUNNEL_SETTINGS_API_PATH,
-  SECRETS_SETTINGS_API_PATH,
-  SETTINGS_API_PATH,
-} from '@/lib/settings-api'
+import { SETTINGS_ENTRIES_API_PATH, SETTINGS_SCHEMA_API_PATH } from '@/lib/settings-api'
 import { SettingsPage } from './settings'
 
 const sendMock = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
-  createFileRoute: () =>
-    (config: Record<string, unknown>) => ({
-      ...config,
-    }),
+  createFileRoute: () => (config: Record<string, unknown>) => ({
+    ...config,
+  }),
 }))
 
 vi.mock('@/lib/pb', () => ({
@@ -30,37 +24,129 @@ describe('SettingsPage shared settings paths', () => {
   beforeEach(() => {
     sendMock.mockReset()
     sendMock.mockImplementation((path: string) => {
-      if (path === SETTINGS_API_PATH) {
+      if (path === SETTINGS_SCHEMA_API_PATH) {
         return Promise.resolve({
-          meta: { appName: 'AppOS', appURL: 'https://appos.test' },
-          smtp: { enabled: false, host: '', port: 25, username: '', password: '', authMethod: '', tls: false, localName: '' },
-          s3: { enabled: false, bucket: '', region: '', endpoint: '', accessKey: '', secret: '', forcePathStyle: false },
-          logs: { maxDays: 7, minLevel: 5, logIP: false, logAuthId: false },
+          entries: [
+            { id: 'basic', title: 'Basic', section: 'system', source: 'pocketbase', fields: [] },
+            { id: 'smtp', title: 'SMTP', section: 'system', source: 'pocketbase', fields: [] },
+            { id: 's3', title: 'S3 Storage', section: 'system', source: 'pocketbase', fields: [] },
+            { id: 'logs', title: 'Logs', section: 'system', source: 'pocketbase', fields: [] },
+            {
+              id: 'secrets-policy',
+              title: 'Secrets',
+              section: 'system',
+              source: 'app_settings',
+              fields: [],
+            },
+            {
+              id: 'space-quota',
+              title: 'Space Quota',
+              section: 'workspace',
+              source: 'app_settings',
+              fields: [],
+            },
+            {
+              id: 'connect-terminal',
+              title: 'Connect Terminal',
+              section: 'workspace',
+              source: 'app_settings',
+              fields: [],
+            },
+            {
+              id: 'deploy-preflight',
+              title: 'Deploy Preflight',
+              section: 'workspace',
+              source: 'app_settings',
+              fields: [],
+            },
+            {
+              id: 'iac-files',
+              title: 'IaC Files',
+              section: 'workspace',
+              source: 'app_settings',
+              fields: [],
+            },
+            {
+              id: 'tunnel-port-range',
+              title: 'Tunnel',
+              section: 'workspace',
+              source: 'app_settings',
+              fields: [],
+            },
+            {
+              id: 'proxy-network',
+              title: 'Proxy',
+              section: 'workspace',
+              source: 'app_settings',
+              fields: [],
+            },
+            {
+              id: 'docker-mirror',
+              title: 'Docker Mirrors',
+              section: 'workspace',
+              source: 'app_settings',
+              fields: [],
+            },
+            {
+              id: 'docker-registries',
+              title: 'Docker Registries',
+              section: 'workspace',
+              source: 'app_settings',
+              fields: [],
+            },
+            {
+              id: 'llm-providers',
+              title: 'LLM Providers',
+              section: 'workspace',
+              source: 'app_settings',
+              fields: [],
+            },
+          ],
+          actions: [],
         })
       }
-      if (path === extSettingsModulePath('space')) {
-        return Promise.resolve({ quota: {} })
-      }
-      if (path === extSettingsModulePath('connect')) {
-        return Promise.resolve({ terminal: {} })
-      }
-      if (path === extSettingsModulePath('deploy')) {
-        return Promise.resolve({ preflight: { minFreeDiskBytes: 536870912 } })
-      }
-      if (path === TUNNEL_SETTINGS_API_PATH) {
-        return Promise.resolve({ port_range: {} })
-      }
-      if (path === SECRETS_SETTINGS_API_PATH) {
-        return Promise.resolve({ policy: {} })
-      }
-      if (path === extSettingsModulePath('proxy')) {
-        return Promise.resolve({ network: {} })
-      }
-      if (path === extSettingsModulePath('docker')) {
-        return Promise.resolve({ mirror: {}, registries: { items: [] } })
-      }
-      if (path === extSettingsModulePath('llm')) {
-        return Promise.resolve({ providers: { items: [] } })
+      if (path === SETTINGS_ENTRIES_API_PATH) {
+        return Promise.resolve({
+          items: [
+            { id: 'basic', value: { appName: 'AppOS', appURL: 'https://appos.test' } },
+            {
+              id: 'smtp',
+              value: {
+                enabled: false,
+                host: '',
+                port: 25,
+                username: '',
+                password: '',
+                authMethod: '',
+                tls: false,
+                localName: '',
+              },
+            },
+            {
+              id: 's3',
+              value: {
+                enabled: false,
+                bucket: '',
+                region: '',
+                endpoint: '',
+                accessKey: '',
+                secret: '',
+                forcePathStyle: false,
+              },
+            },
+            { id: 'logs', value: { maxDays: 7, minLevel: 5, logIP: false, logAuthId: false } },
+            { id: 'space-quota', value: {} },
+            { id: 'connect-terminal', value: {} },
+            { id: 'deploy-preflight', value: { minFreeDiskBytes: 536870912 } },
+            { id: 'iac-files', value: { maxSizeMB: 10, maxZipSizeMB: 50 } },
+            { id: 'tunnel-port-range', value: {} },
+            { id: 'secrets-policy', value: {} },
+            { id: 'proxy-network', value: {} },
+            { id: 'docker-mirror', value: {} },
+            { id: 'docker-registries', value: { items: [] } },
+            { id: 'llm-providers', value: { items: [] } },
+          ],
+        })
       }
       return Promise.resolve({})
     })
@@ -74,15 +160,8 @@ describe('SettingsPage shared settings paths', () => {
     render(<SettingsPage />)
 
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith(SETTINGS_API_PATH, { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith(extSettingsModulePath('space'), { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith(extSettingsModulePath('connect'), { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith(extSettingsModulePath('deploy'), { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith(TUNNEL_SETTINGS_API_PATH, { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith(SECRETS_SETTINGS_API_PATH, { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith(extSettingsModulePath('proxy'), { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith(extSettingsModulePath('docker'), { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith(extSettingsModulePath('llm'), { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith(SETTINGS_SCHEMA_API_PATH, { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith(SETTINGS_ENTRIES_API_PATH, { method: 'GET' })
     })
   })
 
@@ -94,7 +173,7 @@ describe('SettingsPage shared settings paths', () => {
       expect(nav).toBeTruthy()
       const navQueries = within(nav as HTMLElement)
       expect(navQueries.getByText('Tunnel')).toBeInTheDocument()
-      expect(sendMock).toHaveBeenCalledWith(TUNNEL_SETTINGS_API_PATH, { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith(SETTINGS_ENTRIES_API_PATH, { method: 'GET' })
     })
   })
 
@@ -106,7 +185,19 @@ describe('SettingsPage shared settings paths', () => {
       expect(nav).toBeTruthy()
       const navQueries = within(nav as HTMLElement)
       expect(navQueries.getByText('Deploy Preflight')).toBeInTheDocument()
-      expect(sendMock).toHaveBeenCalledWith(extSettingsModulePath('deploy'), { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith(SETTINGS_ENTRIES_API_PATH, { method: 'GET' })
+    })
+  })
+
+  it('shows IaC Files under Workspace', async () => {
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      const navQueries = within(nav as HTMLElement)
+      expect(navQueries.getByText('IaC Files')).toBeInTheDocument()
+      expect(sendMock).toHaveBeenCalledWith(SETTINGS_ENTRIES_API_PATH, { method: 'GET' })
     })
   })
 

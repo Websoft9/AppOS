@@ -367,9 +367,10 @@ groups:
     description: Configuration management spanning System and Workspace settings APIs.
     apiType: Mixed
     extSurface:
-      - /api/settings/workspace/*
-      - /api/settings/tunnel
-      - /api/settings/secrets
+      - /api/settings/schema
+      - /api/settings/entries
+      - /api/settings/entries/*
+      - /api/settings/actions/*
     nativeSurface:
       - GET /api/settings
       - PATCH /api/settings
@@ -379,6 +380,7 @@ groups:
     sources:
       extRouteFiles:
         - settings.go
+        - settings_unified.go
       nativeRefs:
         - https://pocketbase.io/docs/api-settings/
 

@@ -6940,6 +6940,39 @@ paths:
             summary: Patch Native settings
             tags:
                 - Settings
+    /api/settings/actions/{actionId}:
+        post:
+            operationId: post_api_settings_actions_actionid
+            parameters:
+                - in: path
+                  name: actionId
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Create or execute settings actions by actionId
+            tags:
+                - Settings
     /api/settings/apple/generate-client-secret:
         post:
             operationId: pb_settings_apple_generate_client_secret
@@ -6951,10 +6984,9 @@ paths:
             summary: Generate Apple client secret
             tags:
                 - Settings
-    /api/settings/secrets:
+    /api/settings/entries:
         get:
-            description: Returns the `policy` group for secrets settings. Superuser only.
-            operationId: get_api_settings_secrets
+            operationId: get_api_settings_entries
             responses:
                 "200":
                     content:
@@ -6970,18 +7002,50 @@ paths:
                     description: Unauthorized
             security:
                 - bearerAuth: []
-            summary: Get secrets settings
+            summary: Get settings entries
+            tags:
+                - Settings
+    /api/settings/entries/{entryId}:
+        get:
+            operationId: get_api_settings_entries_entryid
+            parameters:
+                - in: path
+                  name: entryId
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get settings entries by entryId
             tags:
                 - Settings
         patch:
-            description: Updates the `policy` group for secrets settings. Superuser only.
-            operationId: patch_api_settings_secrets
+            operationId: patch_api_settings_entries_entryid
+            parameters:
+                - in: path
+                  name: entryId
+                  required: true
+                  schema:
+                    type: string
             requestBody:
                 content:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
-                required: true
+                required: false
             responses:
                 "200":
                     content:
@@ -6989,27 +7053,36 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
                 "401":
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
-                "422":
+            security:
+                - bearerAuth: []
+            summary: Patch settings entries by entryId
+            tags:
+                - Settings
+    /api/settings/schema:
+        get:
+            operationId: get_api_settings_schema
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unprocessable Entity
+                    description: Unauthorized
             security:
                 - bearerAuth: []
-            summary: Patch secrets settings
+            summary: Get settings schema
             tags:
                 - Settings
     /api/settings/test/email:
@@ -7032,168 +7105,6 @@ paths:
             security:
                 - bearerAuth: []
             summary: Test S3 settings
-            tags:
-                - Settings
-    /api/settings/tunnel:
-        get:
-            description: Returns the `port_range` group for tunnel settings. Superuser only.
-            operationId: get_api_settings_tunnel
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Get tunnel settings
-            tags:
-                - Settings
-        patch:
-            description: Updates the `port_range` group for tunnel settings. Superuser only.
-            operationId: patch_api_settings_tunnel
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: true
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-                "422":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unprocessable Entity
-            security:
-                - bearerAuth: []
-            summary: Patch tunnel settings
-            tags:
-                - Settings
-    /api/settings/workspace:
-        get:
-            description: Lists all available setting modules (e.g. space, proxy, docker, llm, connect, tunnel, secrets). Each entry includes the module name, its group keys, and the full URL to call. Use the returned URL directly for direct settings surfaces such as tunnel and secrets. Superuser only.
-            operationId: get_api_settings_workspace
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Discover settings modules
-            tags:
-                - Settings
-    /api/settings/workspace/{module}:
-        get:
-            description: Returns all group keys and their values for the given module. Supported modules include `space` (file quota), `proxy` (HTTP proxy), `docker` (mirrors & registries), `tunnel` (port range), `secrets` (global secrets policy), and others — call GET /api/settings/workspace first to discover all available modules. Sensitive fields (password, apiKey, secret) are masked to "***". Superuser only.
-            operationId: get_api_settings_workspace_module
-            parameters:
-                - in: path
-                  name: module
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Get settings module
-            tags:
-                - Settings
-        patch:
-            description: Partially updates settings groups for the given module. Use \"***\" to preserve existing sensitive values. Superuser only.
-            operationId: patch_api_settings_workspace_module
-            parameters:
-                - in: path
-                  name: module
-                  required: true
-                  schema:
-                    type: string
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: true
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-                "422":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unprocessable Entity
-            security:
-                - bearerAuth: []
-            summary: Patch settings module
             tags:
                 - Settings
     /api/tunnel/overview:

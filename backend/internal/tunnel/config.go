@@ -5,6 +5,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/internal/settings"
+	settingscatalog "github.com/websoft9/appos/backend/internal/settings/catalog"
 	"golang.org/x/time/rate"
 )
 
@@ -70,6 +71,6 @@ func LoadPortRange(app core.App) PortRange {
 		return DefaultPortRange()
 	}
 
-	raw, _ := settings.GetGroup(app, SettingsModule, PortRangeKey, DefaultPortRange().ToMap())
+	raw, _ := settings.GetGroup(app, SettingsModule, PortRangeKey, settingscatalog.DefaultGroup(SettingsModule, PortRangeKey))
 	return NormalizePortRange(raw)
 }

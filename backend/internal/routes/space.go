@@ -19,6 +19,7 @@ import (
 	"github.com/pocketbase/pocketbase/tools/filesystem"
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/websoft9/appos/backend/internal/settings"
+	settingscatalog "github.com/websoft9/appos/backend/internal/settings/catalog"
 )
 
 // ─── Quota defaults (Story 13.2: values now stored in app_settings DB) ───────
@@ -27,17 +28,8 @@ import (
 // missing or unavailable.  settings.GetGroup always returns a non-nil map, so
 // callers using  quota, _ := settings.GetGroup(...)  are always safe.
 //
-// NOTE: These values must stay in sync with:
-//   - routes/settings.go  fallbackForKey("space/quota")
-//   - migrations/1741200001_seed_app_settings.go  (seed defaults)
-var defaultSpaceQuota = map[string]any{
-	"maxSizeMB":             10,
-	"maxPerUser":            100,
-	"shareMaxMinutes":       60,
-	"shareDefaultMinutes":   30,
-	"maxUploadFiles":        50,
-	"disallowedFolderNames": []string{},
-}
+// NOTE: Canonical defaults live in internal/settings/catalog.
+var defaultSpaceQuota = settingscatalog.DefaultGroup("space", "quota")
 
 const (
 	// Root-level folder names reserved by the system (not creatable by users).
@@ -253,6 +245,7 @@ func handleSpacePreview(e *core.RequestEvent) error {
 // Response:
 //
 //	{ "share_token": "...", "share_url": "/files/share/...", "expires_at": "..." }
+//
 // handleFileShareCreate creates or refreshes a time-limited share token for a file.
 //
 // @Summary Create file share token
@@ -494,6 +487,7 @@ func fileError(msg string) map[string]any {
 //   - URL must be http or https
 //   - Extension must pass allowlist / denylist
 //   - Downloaded size must not exceed max_size_mb quota
+//
 // handleSpaceFetch fetches a remote resource and saves it to the user's space.
 //
 // @Summary Fetch remote file into space

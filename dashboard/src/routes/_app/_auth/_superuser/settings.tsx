@@ -5,12 +5,15 @@ import { Loader2, Plus, Trash2 } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { parseExtListInput } from '@/lib/ext-normalize'
 import {
-  extSettingsModulePath,
-  TUNNEL_SETTINGS_API_PATH,
-  SECRETS_SETTINGS_API_PATH,
-  SETTINGS_API_PATH,
-  SETTINGS_TEST_EMAIL_API_PATH,
-  SETTINGS_TEST_S3_API_PATH,
+  SETTINGS_SCHEMA_API_PATH,
+  SETTINGS_ENTRIES_API_PATH,
+  settingsActionPath,
+  settingsEntryPath,
+  type SettingsEntriesListResponse,
+  type SettingsEntryId,
+  type SettingsSchemaEntry,
+  type SettingsSchemaResponse,
+  type SettingsSection,
 } from '@/lib/settings-api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -32,41 +35,6 @@ import {
 } from '@/lib/secrets-policy'
 
 // ─── Types ────────────────────────────────────────────────────────────────
-
-interface PBSettings {
-  meta: {
-    appName: string
-    appURL: string
-    senderName?: string
-    senderAddress?: string
-    hideControls?: boolean
-  }
-  smtp: {
-    enabled: boolean
-    host: string
-    port: number
-    username: string
-    password: string
-    authMethod: string
-    tls: boolean
-    localName: string
-  }
-  s3: {
-    enabled: boolean
-    bucket: string
-    region: string
-    endpoint: string
-    accessKey: string
-    secret: string
-    forcePathStyle: boolean
-  }
-  logs: {
-    maxDays: number
-    minLevel: number
-    logIP: boolean
-    logAuthId: boolean
-  }
-}
 
 interface SpaceQuota {
   maxSizeMB: number
@@ -114,6 +82,12 @@ interface TunnelPortRange {
 
 interface DeployPreflightGroup {
   minFreeDiskBytes: number
+}
+
+interface IacFilesGroup {
+  maxSizeMB: number
+  maxZipSizeMB: number
+  extensionBlacklist: string
 }
 
 function extractFieldError(value: unknown): string | null {
@@ -243,25 +217,11 @@ function Toggle({
   )
 }
 
-// ─── Nav items ────────────────────────────────────────────────────────────
+function sectionLabel(section: SettingsSection): string {
+  return section === 'system' ? 'System' : 'Workspace'
+}
 
-const NAV_ITEMS = [
-  { id: 'basic', group: 'System', label: 'Basic' },
-  { id: 'smtp', group: 'System', label: 'SMTP' },
-  { id: 's3', group: 'System', label: 'S3 Storage' },
-  { id: 'logs', group: 'System', label: 'Logs' },
-  { id: 'secrets', group: 'System', label: 'Secrets' },
-  { id: 'space', group: 'Workspace', label: 'Space Quota' },
-  { id: 'connect-terminal', group: 'Workspace', label: 'Connect Terminal' },
-  { id: 'deploy-preflight', group: 'Workspace', label: 'Deploy Preflight' },
-  { id: 'tunnel', group: 'Workspace', label: 'Tunnel' },
-  { id: 'proxy', group: 'Workspace', label: 'Proxy' },
-  { id: 'docker-mirrors', group: 'Workspace', label: 'Docker Mirrors' },
-  { id: 'docker-registries', group: 'Workspace', label: 'Docker Registries' },
-  { id: 'llm', group: 'Workspace', label: 'LLM Providers' },
-] as const
-
-type SectionId = (typeof NAV_ITEMS)[number]['id']
+type SectionId = SettingsEntryId
 
 // ─── Module-level defaults (outside component to avoid stale closure captures) ─
 
@@ -298,14 +258,18 @@ const DEFAULT_DEPLOY_PREFLIGHT: DeployPreflightGroup = {
   minFreeDiskBytes: 512 * 1024 * 1024,
 }
 
+const DEFAULT_IAC_FILES: IacFilesGroup = {
+  maxSizeMB: 10,
+  maxZipSizeMB: 50,
+  extensionBlacklist: '.exe,.dll,.so,.bin,.deb,.rpm,.apk,.msi,.dmg,.pkg',
+}
+
 // ─── Component ────────────────────────────────────────────────────────────
 
 export function SettingsPage() {
   const { toasts, show: showToast } = useToast()
   const [activeSection, setActiveSection] = useState<SectionId>('basic')
-
-  // ── PB settings state ──
-  const [pbSettings, setPbSettings] = useState<PBSettings | null>(null)
+  const [schemaEntries, setSchemaEntries] = useState<SettingsSchemaEntry[]>([])
   const [pbLoading, setPbLoading] = useState(true)
 
   // Basic form
@@ -369,6 +333,12 @@ export function SettingsPage() {
     Partial<Record<keyof DeployPreflightGroup, string>>
   >({})
 
+  const [iacFilesForm, setIacFilesForm] = useState<IacFilesGroup>(DEFAULT_IAC_FILES)
+  const [iacFilesSaving, setIacFilesSaving] = useState(false)
+  const [iacFilesErrors, setIacFilesErrors] = useState<
+    Partial<Record<keyof IacFilesGroup, string>>
+  >({})
+
   const [tunnelPortRangeForm, setTunnelPortRangeForm] =
     useState<TunnelPortRange>(DEFAULT_TUNNEL_PORT_RANGE)
   const [tunnelPortRangeSaving, setTunnelPortRangeSaving] = useState(false)
@@ -412,36 +382,160 @@ export function SettingsPage() {
   const [llmSecretCreateSaving, setLlmSecretCreateSaving] = useState(false)
   const [llmSecretCreateError, setLlmSecretCreateError] = useState('')
 
-  // ── Load PB settings ──
-  const loadPBSettings = useCallback(async () => {
+  const loadSettingsData = useCallback(async () => {
     setPbLoading(true)
     try {
-      const data = (await pb.send(SETTINGS_API_PATH, { method: 'GET' })) as PBSettings
-      setPbSettings(data)
-      setAppName(data.meta?.appName ?? '')
-      setAppURL(data.meta?.appURL ?? '')
-      setSmtpEnabled(data.smtp?.enabled ?? false)
-      setSmtpHost(data.smtp?.host ?? '')
-      setSmtpPort(data.smtp?.port ?? 587)
-      setSmtpUsername(data.smtp?.username ?? '')
-      setSmtpPassword(data.smtp?.password ?? '')
-      setSmtpAuthMethod(data.smtp?.authMethod ?? '')
-      setSmtpTls(data.smtp?.tls ?? false)
-      setSmtpLocalName(data.smtp?.localName ?? '')
-      setS3Enabled(data.s3?.enabled ?? false)
-      setS3Bucket(data.s3?.bucket ?? '')
-      setS3Region(data.s3?.region ?? '')
-      setS3Endpoint(data.s3?.endpoint ?? '')
-      setS3AccessKey(data.s3?.accessKey ?? '')
-      setS3Secret(data.s3?.secret ?? '')
-      setS3ForcePathStyle(data.s3?.forcePathStyle ?? false)
-      setLogsMaxDays(data.logs?.maxDays ?? 7)
-      setLogsMinLevel(data.logs?.minLevel ?? 5)
-      setLogsLogIP(data.logs?.logIP ?? false)
-      setLogsLogAuthId(data.logs?.logAuthId ?? false)
+      const [schemaResult, entriesResult] = await Promise.all([
+        pb.send<SettingsSchemaResponse>(SETTINGS_SCHEMA_API_PATH, { method: 'GET' }),
+        pb.send<SettingsEntriesListResponse>(SETTINGS_ENTRIES_API_PATH, { method: 'GET' }),
+      ])
+
+      setSchemaEntries(schemaResult.entries)
+      if (schemaResult.entries.length > 0 && !schemaResult.entries.some(entry => entry.id === activeSection)) {
+        setActiveSection(schemaResult.entries[0].id)
+      }
+
+      const entryMap = new Map(entriesResult.items.map(item => [item.id, item.value]))
+
+      const basic = (entryMap.get('basic') as Partial<{ appName: string; appURL: string }>) ?? {}
+      setAppName(basic.appName ?? '')
+      setAppURL(basic.appURL ?? '')
+
+      const smtp = (entryMap.get('smtp') as Partial<{
+        enabled: boolean
+        host: string
+        port: number
+        username: string
+        password: string
+        authMethod: string
+        tls: boolean
+        localName: string
+      }>) ?? {}
+      setSmtpEnabled(Boolean(smtp.enabled))
+      setSmtpHost(smtp.host ?? '')
+      setSmtpPort(Number(smtp.port ?? 587))
+      setSmtpUsername(smtp.username ?? '')
+      setSmtpPassword(smtp.password ?? '')
+      setSmtpAuthMethod(smtp.authMethod ?? '')
+      setSmtpTls(Boolean(smtp.tls))
+      setSmtpLocalName(smtp.localName ?? '')
+
+      const s3 = (entryMap.get('s3') as Partial<{
+        enabled: boolean
+        bucket: string
+        region: string
+        endpoint: string
+        accessKey: string
+        secret: string
+        forcePathStyle: boolean
+      }>) ?? {}
+      setS3Enabled(Boolean(s3.enabled))
+      setS3Bucket(s3.bucket ?? '')
+      setS3Region(s3.region ?? '')
+      setS3Endpoint(s3.endpoint ?? '')
+      setS3AccessKey(s3.accessKey ?? '')
+      setS3Secret(s3.secret ?? '')
+      setS3ForcePathStyle(Boolean(s3.forcePathStyle))
+
+      const logs = (entryMap.get('logs') as Partial<{
+        maxDays: number
+        minLevel: number
+        logIP: boolean
+        logAuthId: boolean
+      }>) ?? {}
+      setLogsMaxDays(Number(logs.maxDays ?? 7))
+      setLogsMinLevel(Number(logs.minLevel ?? 5))
+      setLogsLogIP(Boolean(logs.logIP))
+      setLogsLogAuthId(Boolean(logs.logAuthId))
+
+      const quota = (entryMap.get('space-quota') as Partial<SpaceQuota>) ?? {}
+      const mergedQuota = {
+        ...DEFAULT_SPACE_QUOTA,
+        ...quota,
+        uploadAllowExts: Array.isArray(quota.uploadAllowExts) ? quota.uploadAllowExts : [],
+        uploadDenyExts: Array.isArray(quota.uploadDenyExts) ? quota.uploadDenyExts : [],
+        disallowedFolderNames: Array.isArray(quota.disallowedFolderNames)
+          ? quota.disallowedFolderNames
+          : [],
+      }
+      setSpaceQuotaForm(mergedQuota)
+      setAllowExtsText(mergedQuota.uploadAllowExts.join(', '))
+      setDenyExtsText(mergedQuota.uploadDenyExts.join(', '))
+      setDisallowedFolderNamesText(mergedQuota.disallowedFolderNames.join(', '))
+
+      const terminal = (entryMap.get('connect-terminal') as Partial<ConnectTerminalGroup>) ?? {}
+      const idleTimeoutSeconds = Number(terminal.idleTimeoutSeconds)
+      const maxConnections = Number(terminal.maxConnections)
+      setConnectTerminalForm({
+        idleTimeoutSeconds:
+          Number.isFinite(idleTimeoutSeconds) && idleTimeoutSeconds >= 60
+            ? Math.floor(idleTimeoutSeconds)
+            : DEFAULT_CONNECT_TERMINAL.idleTimeoutSeconds,
+        maxConnections:
+          Number.isFinite(maxConnections) && maxConnections >= 0
+            ? Math.floor(maxConnections)
+            : DEFAULT_CONNECT_TERMINAL.maxConnections,
+      })
+
+      const preflight =
+        (entryMap.get('deploy-preflight') as Partial<DeployPreflightGroup>) ?? {}
+      const minFreeDiskBytes = Number(preflight.minFreeDiskBytes)
+      setDeployPreflightForm({
+        minFreeDiskBytes:
+          Number.isFinite(minFreeDiskBytes) && minFreeDiskBytes >= 0
+            ? Math.floor(minFreeDiskBytes)
+            : DEFAULT_DEPLOY_PREFLIGHT.minFreeDiskBytes,
+      })
+
+      const iacFiles = (entryMap.get('iac-files') as Partial<IacFilesGroup>) ?? {}
+      const iacMaxSizeMB = Number(iacFiles.maxSizeMB)
+      const iacMaxZipSizeMB = Number(iacFiles.maxZipSizeMB)
+      setIacFilesForm({
+        maxSizeMB:
+          Number.isFinite(iacMaxSizeMB) && iacMaxSizeMB >= 1
+            ? Math.floor(iacMaxSizeMB)
+            : DEFAULT_IAC_FILES.maxSizeMB,
+        maxZipSizeMB:
+          Number.isFinite(iacMaxZipSizeMB) && iacMaxZipSizeMB >= 1
+            ? Math.floor(iacMaxZipSizeMB)
+            : DEFAULT_IAC_FILES.maxZipSizeMB,
+        extensionBlacklist:
+          typeof iacFiles.extensionBlacklist === 'string'
+            ? iacFiles.extensionBlacklist
+            : DEFAULT_IAC_FILES.extensionBlacklist,
+      })
+
+      const portRange = (entryMap.get('tunnel-port-range') as Partial<TunnelPortRange>) ?? {}
+      const start = Number(portRange.start)
+      const end = Number(portRange.end)
+      setTunnelPortRangeForm({
+        start:
+          Number.isFinite(start) && start >= 1
+            ? Math.floor(start)
+            : DEFAULT_TUNNEL_PORT_RANGE.start,
+        end: Number.isFinite(end) && end >= 1 ? Math.floor(end) : DEFAULT_TUNNEL_PORT_RANGE.end,
+      })
+
+      setSecretPolicy(normalizeSecretPolicy(entryMap.get('secrets-policy')))
+
+      const network = (entryMap.get('proxy-network') as ProxyNetwork) ?? EMPTY_PROXY
+      setProxyNetwork(network)
+      setProxyForm(network)
+
+      const mirror = (entryMap.get('docker-mirror') as Partial<DockerMirror>) ?? {}
+      setMirrors(Array.isArray(mirror.mirrors) ? mirror.mirrors : [])
+      setInsecureRegs(Array.isArray(mirror.insecureRegistries) ? mirror.insecureRegistries : [])
+
+      const registries =
+        (entryMap.get('docker-registries') as Partial<DockerRegistries>) ?? { items: [] }
+      setDockerRegistries(Array.isArray(registries.items) ? registries.items : [])
+
+      const providers =
+        (entryMap.get('llm-providers') as Partial<{ items: LLMProviderItem[] }>) ?? { items: [] }
+      setLlmItems(Array.isArray(providers.items) ? providers.items : [])
     } catch (err) {
       showToast(
-        'Failed to load system settings: ' + (err instanceof Error ? err.message : String(err)),
+        'Failed to load settings: ' + (err instanceof Error ? err.message : String(err)),
         false
       )
     } finally {
@@ -449,105 +543,9 @@ export function SettingsPage() {
     }
   }, [showToast])
 
-  // ── Load Ext settings ──
-  const loadExtSettings = useCallback(async () => {
-    try {
-      const [filesRes, connectRes, deployRes, tunnelRes, secretsRes, proxyRes, dockerRes, llmRes] =
-        await Promise.allSettled([
-          pb.send(extSettingsModulePath('space'), { method: 'GET' }),
-          pb.send(extSettingsModulePath('connect'), { method: 'GET' }),
-          pb.send(extSettingsModulePath('deploy'), { method: 'GET' }),
-          pb.send(TUNNEL_SETTINGS_API_PATH, { method: 'GET' }),
-          pb.send(SECRETS_SETTINGS_API_PATH, { method: 'GET' }),
-          pb.send(extSettingsModulePath('proxy'), { method: 'GET' }),
-          pb.send(extSettingsModulePath('docker'), { method: 'GET' }),
-          pb.send(extSettingsModulePath('llm'), { method: 'GET' }),
-        ])
-      if (filesRes.status === 'fulfilled') {
-        const q = (filesRes.value as { quota: Partial<SpaceQuota> }).quota ?? {}
-        const merged = {
-          ...DEFAULT_SPACE_QUOTA,
-          ...q,
-          uploadAllowExts: Array.isArray(q.uploadAllowExts) ? q.uploadAllowExts : [],
-          uploadDenyExts: Array.isArray(q.uploadDenyExts) ? q.uploadDenyExts : [],
-          disallowedFolderNames: Array.isArray(q.disallowedFolderNames)
-            ? q.disallowedFolderNames
-            : [],
-        }
-        setSpaceQuotaForm(merged)
-        setAllowExtsText(merged.uploadAllowExts.join(', '))
-        setDenyExtsText(merged.uploadDenyExts.join(', '))
-        setDisallowedFolderNamesText(merged.disallowedFolderNames.join(', '))
-      }
-      if (connectRes.status === 'fulfilled') {
-        const terminal = (connectRes.value as { terminal?: Partial<ConnectTerminalGroup> }).terminal
-        const idleTimeoutSeconds = Number(terminal?.idleTimeoutSeconds)
-        const maxConnections = Number(terminal?.maxConnections)
-        setConnectTerminalForm({
-          idleTimeoutSeconds:
-            Number.isFinite(idleTimeoutSeconds) && idleTimeoutSeconds >= 60
-              ? Math.floor(idleTimeoutSeconds)
-              : DEFAULT_CONNECT_TERMINAL.idleTimeoutSeconds,
-          maxConnections:
-            Number.isFinite(maxConnections) && maxConnections >= 0
-              ? Math.floor(maxConnections)
-              : DEFAULT_CONNECT_TERMINAL.maxConnections,
-        })
-      }
-      if (deployRes.status === 'fulfilled') {
-        const preflight = (deployRes.value as { preflight?: Partial<DeployPreflightGroup> }).preflight
-        const minFreeDiskBytes = Number(preflight?.minFreeDiskBytes)
-        setDeployPreflightForm({
-          minFreeDiskBytes:
-            Number.isFinite(minFreeDiskBytes) && minFreeDiskBytes >= 0
-              ? Math.floor(minFreeDiskBytes)
-              : DEFAULT_DEPLOY_PREFLIGHT.minFreeDiskBytes,
-        })
-      }
-      if (tunnelRes.status === 'fulfilled') {
-        const portRange = (tunnelRes.value as { port_range?: Partial<TunnelPortRange> }).port_range
-        const start = Number(portRange?.start)
-        const end = Number(portRange?.end)
-        setTunnelPortRangeForm({
-          start:
-            Number.isFinite(start) && start >= 1
-              ? Math.floor(start)
-              : DEFAULT_TUNNEL_PORT_RANGE.start,
-          end:
-            Number.isFinite(end) && end >= 1 ? Math.floor(end) : DEFAULT_TUNNEL_PORT_RANGE.end,
-        })
-      }
-      if (secretsRes.status === 'fulfilled') {
-        const policy = (secretsRes.value as { policy?: unknown }).policy
-        setSecretPolicy(normalizeSecretPolicy(policy))
-      }
-      if (proxyRes.status === 'fulfilled') {
-        const n = (proxyRes.value as { network: ProxyNetwork }).network ?? EMPTY_PROXY
-        setProxyNetwork(n)
-        setProxyForm(n)
-      }
-      if (dockerRes.status === 'fulfilled') {
-        const dv = dockerRes.value as { mirror?: DockerMirror; registries?: DockerRegistries }
-        setMirrors(dv.mirror?.mirrors ?? [])
-        setInsecureRegs(dv.mirror?.insecureRegistries ?? [])
-        setDockerRegistries(dv.registries?.items ?? [])
-      }
-      if (llmRes.status === 'fulfilled') {
-        const lv = (llmRes.value as { providers: { items: LLMProviderItem[] } }).providers
-        setLlmItems(lv?.items ?? [])
-      }
-    } catch (err) {
-      showToast(
-        'Failed to load app settings: ' + (err instanceof Error ? err.message : String(err)),
-        false
-      )
-    }
-  }, [showToast])
-
   useEffect(() => {
-    loadPBSettings()
-    loadExtSettings()
-  }, [loadPBSettings, loadExtSettings])
+    loadSettingsData()
+  }, [loadSettingsData])
 
   // Load secrets list when LLM section is active (for apiKey secret picker)
   const loadSecretPickerItems = useCallback(async () => {
@@ -563,7 +561,7 @@ export function SettingsPage() {
   }, [])
 
   useEffect(() => {
-    if (activeSection !== 'llm') return
+    if (activeSection !== 'llm-providers') return
     void loadSecretPickerItems()
   }, [activeSection, loadSecretPickerItems])
 
@@ -597,17 +595,10 @@ export function SettingsPage() {
   const saveApp = async () => {
     setAppSaving(true)
     try {
-      // Use cached settings if available; re-fetch only when not yet loaded to
-      // avoid overwriting meta fields (senderName, etc.) not exposed in this form.
-      const current =
-        pbSettings ?? ((await pb.send(SETTINGS_API_PATH, { method: 'GET' })) as PBSettings)
-      await pb.send(SETTINGS_API_PATH, {
+      await pb.send(settingsEntryPath('basic'), {
         method: 'PATCH',
-        body: { meta: { ...current.meta, appName, appURL } },
+        body: { appName, appURL },
       })
-      // Update local state to reflect the saved values so subsequent saves in
-      // the same session use an accurate base (not the stale initial fetch).
-      setPbSettings({ ...current, meta: { ...current.meta, appName, appURL } })
       showToast('Basic settings saved')
     } catch (err) {
       showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
@@ -619,19 +610,17 @@ export function SettingsPage() {
   const saveSmtp = async () => {
     setSmtpSaving(true)
     try {
-      await pb.send(SETTINGS_API_PATH, {
+      await pb.send(settingsEntryPath('smtp'), {
         method: 'PATCH',
         body: {
-          smtp: {
-            enabled: smtpEnabled,
-            host: smtpHost,
-            port: smtpPort,
-            username: smtpUsername,
-            password: smtpPassword,
-            authMethod: smtpAuthMethod,
-            tls: smtpTls,
-            localName: smtpLocalName,
-          },
+          enabled: smtpEnabled,
+          host: smtpHost,
+          port: smtpPort,
+          username: smtpUsername,
+          password: smtpPassword,
+          authMethod: smtpAuthMethod,
+          tls: smtpTls,
+          localName: smtpLocalName,
         },
       })
       showToast('SMTP settings saved')
@@ -649,7 +638,7 @@ export function SettingsPage() {
     }
     setTestEmailSending(true)
     try {
-      await pb.send(SETTINGS_TEST_EMAIL_API_PATH, {
+      await pb.send(settingsActionPath('test-email'), {
         method: 'POST',
         body: {
           template: { subject: 'Test email from AppOS', actionUrl: '', actionName: '' },
@@ -667,18 +656,16 @@ export function SettingsPage() {
   const saveS3 = async () => {
     setS3Saving(true)
     try {
-      await pb.send(SETTINGS_API_PATH, {
+      await pb.send(settingsEntryPath('s3'), {
         method: 'PATCH',
         body: {
-          s3: {
-            enabled: s3Enabled,
-            bucket: s3Bucket,
-            region: s3Region,
-            endpoint: s3Endpoint,
-            accessKey: s3AccessKey,
-            secret: s3Secret,
-            forcePathStyle: s3ForcePathStyle,
-          },
+          enabled: s3Enabled,
+          bucket: s3Bucket,
+          region: s3Region,
+          endpoint: s3Endpoint,
+          accessKey: s3AccessKey,
+          secret: s3Secret,
+          forcePathStyle: s3ForcePathStyle,
         },
       })
       showToast('S3 settings saved')
@@ -692,7 +679,7 @@ export function SettingsPage() {
   const testS3 = async () => {
     setS3Testing(true)
     try {
-      await pb.send(SETTINGS_TEST_S3_API_PATH, { method: 'POST' })
+      await pb.send(settingsActionPath('test-s3'), { method: 'POST' })
       showToast('S3 connection successful')
     } catch (err) {
       showToast('S3 test failed: ' + (err instanceof Error ? err.message : String(err)), false)
@@ -704,15 +691,13 @@ export function SettingsPage() {
   const saveLogs = async () => {
     setLogsSaving(true)
     try {
-      await pb.send(SETTINGS_API_PATH, {
+      await pb.send(settingsEntryPath('logs'), {
         method: 'PATCH',
         body: {
-          logs: {
-            maxDays: logsMaxDays,
-            minLevel: logsMinLevel,
-            logIP: logsLogIP,
-            logAuthId: logsLogAuthId,
-          },
+          maxDays: logsMaxDays,
+          minLevel: logsMinLevel,
+          logIP: logsLogIP,
+          logAuthId: logsLogAuthId,
         },
       })
       showToast('Log settings saved')
@@ -757,11 +742,11 @@ export function SettingsPage() {
         .filter(Boolean),
     }
     try {
-      const res = (await pb.send(extSettingsModulePath('space'), {
+      const res = (await pb.send(settingsEntryPath('space-quota'), {
         method: 'PATCH',
-        body: { quota: payload },
-      })) as { quota?: Partial<SpaceQuota> }
-      const q = res.quota ?? payload
+        body: payload,
+      })) as { value?: Partial<SpaceQuota> }
+      const q = res.value ?? payload
       const merged = {
         ...DEFAULT_SPACE_QUOTA,
         ...q,
@@ -786,9 +771,9 @@ export function SettingsPage() {
   const saveProxy = async () => {
     setProxySaving(true)
     try {
-      await pb.send(extSettingsModulePath('proxy'), {
+      await pb.send(settingsEntryPath('proxy-network'), {
         method: 'PATCH',
-        body: { network: proxyForm },
+        body: proxyForm,
       })
       setProxyNetwork(proxyForm)
       showToast('Proxy settings saved')
@@ -822,13 +807,11 @@ export function SettingsPage() {
     setConnectTerminalSaving(true)
     setConnectTerminalErrors({})
     try {
-      await pb.send(extSettingsModulePath('connect'), {
+      await pb.send(settingsEntryPath('connect-terminal'), {
         method: 'PATCH',
         body: {
-          terminal: {
-            idleTimeoutSeconds: connectTerminalForm.idleTimeoutSeconds,
-            maxConnections: connectTerminalForm.maxConnections,
-          },
+          idleTimeoutSeconds: connectTerminalForm.idleTimeoutSeconds,
+          maxConnections: connectTerminalForm.maxConnections,
         },
       })
       showToast('Connect terminal settings saved')
@@ -866,15 +849,13 @@ export function SettingsPage() {
     setDeployPreflightSaving(true)
     setDeployPreflightErrors({})
     try {
-      const res = (await pb.send(extSettingsModulePath('deploy'), {
+      const res = (await pb.send(settingsEntryPath('deploy-preflight'), {
         method: 'PATCH',
         body: {
-          preflight: {
-            minFreeDiskBytes: deployPreflightForm.minFreeDiskBytes,
-          },
+          minFreeDiskBytes: deployPreflightForm.minFreeDiskBytes,
         },
-      })) as { preflight?: Partial<DeployPreflightGroup> }
-      const preflight = res.preflight ?? deployPreflightForm
+      })) as { value?: Partial<DeployPreflightGroup> }
+      const preflight = res.value ?? deployPreflightForm
       setDeployPreflightForm({
         minFreeDiskBytes: Number(preflight.minFreeDiskBytes ?? deployPreflightForm.minFreeDiskBytes),
       })
@@ -898,6 +879,77 @@ export function SettingsPage() {
       showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
     } finally {
       setDeployPreflightSaving(false)
+    }
+  }
+
+  const validateIacFiles = (): boolean => {
+    const errors: Partial<Record<keyof IacFilesGroup, string>> = {}
+
+    if (!Number.isInteger(iacFilesForm.maxSizeMB) || iacFilesForm.maxSizeMB < 1) {
+      errors.maxSizeMB = 'Must be an integer >= 1'
+    }
+    if (!Number.isInteger(iacFilesForm.maxZipSizeMB) || iacFilesForm.maxZipSizeMB < 1) {
+      errors.maxZipSizeMB = 'Must be an integer >= 1'
+    }
+    if (
+      !errors.maxSizeMB &&
+      !errors.maxZipSizeMB &&
+      iacFilesForm.maxZipSizeMB < iacFilesForm.maxSizeMB
+    ) {
+      errors.maxZipSizeMB = 'Must be >= Max File Size MB'
+    }
+    if (typeof iacFilesForm.extensionBlacklist !== 'string') {
+      errors.extensionBlacklist = 'Must be a string'
+    }
+
+    setIacFilesErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const saveIacFiles = async () => {
+    if (!validateIacFiles()) return
+    setIacFilesSaving(true)
+    setIacFilesErrors({})
+    try {
+      const res = (await pb.send(settingsEntryPath('iac-files'), {
+        method: 'PATCH',
+        body: {
+          maxSizeMB: iacFilesForm.maxSizeMB,
+          maxZipSizeMB: iacFilesForm.maxZipSizeMB,
+          extensionBlacklist: iacFilesForm.extensionBlacklist,
+        },
+      })) as { value?: Partial<IacFilesGroup> }
+      const next = res.value ?? iacFilesForm
+      setIacFilesForm({
+        maxSizeMB: Number(next.maxSizeMB ?? iacFilesForm.maxSizeMB),
+        maxZipSizeMB: Number(next.maxZipSizeMB ?? iacFilesForm.maxZipSizeMB),
+        extensionBlacklist:
+          typeof next.extensionBlacklist === 'string'
+            ? next.extensionBlacklist
+            : iacFilesForm.extensionBlacklist,
+      })
+      showToast('IaC file limits saved')
+    } catch (err) {
+      if (err instanceof ClientResponseError && (err.status === 400 || err.status === 422)) {
+        const root = err.response as Record<string, unknown>
+        const bag =
+          root.errors && typeof root.errors === 'object'
+            ? (root.errors as Record<string, unknown>)
+            : root
+        const nextErrors = {
+          maxSizeMB: extractFieldError(bag.maxSizeMB) ?? undefined,
+          maxZipSizeMB: extractFieldError(bag.maxZipSizeMB) ?? undefined,
+          extensionBlacklist: extractFieldError(bag.extensionBlacklist) ?? undefined,
+        }
+        if (Object.values(nextErrors).some(Boolean)) {
+          setIacFilesErrors(nextErrors)
+          showToast('Please fix validation errors and try again.', false)
+          return
+        }
+      }
+      showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
+    } finally {
+      setIacFilesSaving(false)
     }
   }
 
@@ -931,16 +983,14 @@ export function SettingsPage() {
     setTunnelPortRangeSaving(true)
     setTunnelPortRangeErrors({})
     try {
-      const res = (await pb.send(TUNNEL_SETTINGS_API_PATH, {
+      const res = (await pb.send(settingsEntryPath('tunnel-port-range'), {
         method: 'PATCH',
         body: {
-          port_range: {
-            start: tunnelPortRangeForm.start,
-            end: tunnelPortRangeForm.end,
-          },
+          start: tunnelPortRangeForm.start,
+          end: tunnelPortRangeForm.end,
         },
-      })) as { port_range?: Partial<TunnelPortRange> }
-      const portRange = res.port_range ?? tunnelPortRangeForm
+      })) as { value?: Partial<TunnelPortRange> }
+      const portRange = res.value ?? tunnelPortRangeForm
       setTunnelPortRangeForm({
         start: Number(portRange.start ?? tunnelPortRangeForm.start),
         end: Number(portRange.end ?? tunnelPortRangeForm.end),
@@ -965,11 +1015,11 @@ export function SettingsPage() {
     setSecretPolicySaving(true)
     setSecretPolicyErrors({})
     try {
-      const res = (await pb.send(SECRETS_SETTINGS_API_PATH, {
+      const res = (await pb.send(settingsEntryPath('secrets-policy'), {
         method: 'PATCH',
-        body: { policy: secretPolicy },
-      })) as { policy?: unknown }
-      setSecretPolicy(normalizeSecretPolicy(res.policy))
+        body: secretPolicy,
+      })) as { value?: unknown }
+      setSecretPolicy(normalizeSecretPolicy(res.value))
       showToast('Secrets policy saved')
     } catch (err) {
       if (err instanceof ClientResponseError && err.status === 422) {
@@ -993,13 +1043,11 @@ export function SettingsPage() {
   const saveDockerMirrors = async () => {
     setMirrorsSaving(true)
     try {
-      await pb.send(extSettingsModulePath('docker'), {
+      await pb.send(settingsEntryPath('docker-mirror'), {
         method: 'PATCH',
         body: {
-          mirror: {
-            mirrors: mirrors.filter(Boolean),
-            insecureRegistries: insecureRegs.filter(Boolean),
-          },
+          mirrors: mirrors.filter(Boolean),
+          insecureRegistries: insecureRegs.filter(Boolean),
         },
       })
       showToast('Docker mirror settings saved')
@@ -1013,9 +1061,9 @@ export function SettingsPage() {
   const saveDockerRegistries = async () => {
     setRegsSaving(true)
     try {
-      await pb.send(extSettingsModulePath('docker'), {
+      await pb.send(settingsEntryPath('docker-registries'), {
         method: 'PATCH',
-        body: { registries: { items: dockerRegistries } },
+        body: { items: dockerRegistries },
       })
       showToast('Docker registries saved')
     } catch (err) {
@@ -1028,9 +1076,9 @@ export function SettingsPage() {
   const saveLlm = async () => {
     setLlmSaving(true)
     try {
-      await pb.send(extSettingsModulePath('llm'), {
+      await pb.send(settingsEntryPath('llm-providers'), {
         method: 'PATCH',
-        body: { providers: { items: llmItems } },
+        body: { items: llmItems },
       })
       showToast('LLM providers saved')
     } catch (err) {
@@ -1597,6 +1645,79 @@ export function SettingsPage() {
     </Card>
   )
 
+  const renderIacFiles = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>IaC Files</CardTitle>
+        <CardDescription>
+          Limits for IaC file reading and uploads in the workspace browser.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-2">
+          <Label htmlFor="iac-max-size-mb">Max File Size MB</Label>
+          <Input
+            id="iac-max-size-mb"
+            type="number"
+            value={iacFilesForm.maxSizeMB}
+            onChange={e =>
+              setIacFilesForm(current => ({
+                ...current,
+                maxSizeMB: Number(e.target.value),
+              }))
+            }
+          />
+          {iacFilesErrors.maxSizeMB && (
+            <p className="text-sm text-destructive">{iacFilesErrors.maxSizeMB}</p>
+          )}
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="iac-max-zip-size-mb">Max ZIP Size MB</Label>
+          <Input
+            id="iac-max-zip-size-mb"
+            type="number"
+            value={iacFilesForm.maxZipSizeMB}
+            onChange={e =>
+              setIacFilesForm(current => ({
+                ...current,
+                maxZipSizeMB: Number(e.target.value),
+              }))
+            }
+          />
+          {iacFilesErrors.maxZipSizeMB && (
+            <p className="text-sm text-destructive">{iacFilesErrors.maxZipSizeMB}</p>
+          )}
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="iac-extension-blacklist">Extension Blacklist</Label>
+          <Input
+            id="iac-extension-blacklist"
+            value={iacFilesForm.extensionBlacklist}
+            onChange={e =>
+              setIacFilesForm(current => ({
+                ...current,
+                extensionBlacklist: e.target.value,
+              }))
+            }
+            placeholder=".exe,.dll,.so"
+          />
+          {iacFilesErrors.extensionBlacklist && (
+            <p className="text-sm text-destructive">{iacFilesErrors.extensionBlacklist}</p>
+          )}
+        </div>
+
+        <div className="flex justify-end">
+          <Button onClick={() => void saveIacFiles()} disabled={iacFilesSaving}>
+            {iacFilesSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Save
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+
   const renderTunnel = () => (
     <Card>
       <CardHeader>
@@ -2079,30 +2200,34 @@ export function SettingsPage() {
         return renderS3()
       case 'logs':
         return renderLogs()
-      case 'space':
+      case 'space-quota':
         return renderSpace()
       case 'connect-terminal':
         return renderConnectTerminal()
       case 'deploy-preflight':
         return renderDeployPreflight()
-      case 'tunnel':
+      case 'iac-files':
+        return renderIacFiles()
+      case 'tunnel-port-range':
         return renderTunnel()
-      case 'secrets':
+      case 'secrets-policy':
         return renderSecrets()
-      case 'proxy':
+      case 'proxy-network':
         return renderProxy()
-      case 'docker-mirrors':
+      case 'docker-mirror':
         return renderDockerMirrors()
       case 'docker-registries':
         return renderDockerRegistries()
-      case 'llm':
+      case 'llm-providers':
         return renderLlm()
     }
   }
 
   // ─── Main layout ──────────────────────────────────────────────────────────
 
-  const groups = [...new Set(NAV_ITEMS.map(n => n.group))]
+  const groups: SettingsSection[] = ['system', 'workspace'].filter(group =>
+    schemaEntries.some(entry => entry.section === group)
+  ) as SettingsSection[]
 
   return (
     <div className="p-6">
@@ -2131,10 +2256,12 @@ export function SettingsPage() {
             {groups.map(group => (
               <div key={group}>
                 <p className="px-3 mb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  {group}
+                  {sectionLabel(group)}
                 </p>
                 <div className="space-y-0.5">
-                  {NAV_ITEMS.filter(n => n.group === group).map(item => (
+                  {schemaEntries
+                    .filter(entry => entry.section === group)
+                    .map(item => (
                     <button
                       key={item.id}
                       onClick={() => setActiveSection(item.id)}
@@ -2144,7 +2271,7 @@ export function SettingsPage() {
                           : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
                       }`}
                     >
-                      {item.label}
+                      {item.title}
                     </button>
                   ))}
                 </div>

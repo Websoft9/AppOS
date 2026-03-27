@@ -5996,153 +5996,65 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-  /api/settings/secrets:
-    get:
+  /api/settings/actions/{actionId}:
+    post:
       tags: [Settings]
-      summary: Get secrets settings
-      description: "Returns the `policy` group for secrets settings. Superuser only."
-      operationId: get_api_settings_secrets
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-    patch:
-      tags: [Settings]
-      summary: Patch secrets settings
-      description: "Updates the `policy` group for secrets settings. Superuser only."
-      operationId: patch_api_settings_secrets
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenericRequest'
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        "422":
-          description: Unprocessable Entity
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-  /api/settings/tunnel:
-    get:
-      tags: [Settings]
-      summary: Get tunnel settings
-      description: "Returns the `port_range` group for tunnel settings. Superuser only."
-      operationId: get_api_settings_tunnel
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-    patch:
-      tags: [Settings]
-      summary: Patch tunnel settings
-      description: "Updates the `port_range` group for tunnel settings. Superuser only."
-      operationId: patch_api_settings_tunnel
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenericRequest'
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        "422":
-          description: Unprocessable Entity
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-  /api/settings/workspace:
-    get:
-      tags: [Settings]
-      summary: Discover settings modules
-      description: "Lists all available setting modules (e.g. space, proxy, docker, llm, connect, tunnel, secrets). Each entry includes the module name, its group keys, and the full URL to call. Use the returned URL directly for direct settings surfaces such as tunnel and secrets. Superuser only."
-      operationId: get_api_settings_workspace
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-  /api/settings/workspace/{module}:
-    get:
-      tags: [Settings]
-      summary: Get settings module
-      description: "Returns all group keys and their values for the given module. Supported modules include `space` (file quota), `proxy` (HTTP proxy), `docker` (mirrors & registries), `tunnel` (port range), `secrets` (global secrets policy), and others — call GET /api/settings/workspace first to discover all available modules. Sensitive fields (password, apiKey, secret) are masked to \"***\". Superuser only."
-      operationId: get_api_settings_workspace_module
+      summary: Create or execute settings actions by actionId
+      operationId: post_api_settings_actions_actionid
       parameters:
-        - name: module
+        - name: actionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/settings/entries:
+    get:
+      tags: [Settings]
+      summary: Get settings entries
+      operationId: get_api_settings_entries
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/settings/entries/{entryId}:
+    get:
+      tags: [Settings]
+      summary: Get settings entries by entryId
+      operationId: get_api_settings_entries_entryid
+      parameters:
+        - name: entryId
           in: path
           required: true
           schema:
@@ -6162,25 +6074,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
     patch:
       tags: [Settings]
-      summary: Patch settings module
-      description: "Partially updates settings groups for the given module. Use \\\"***\\\" to preserve existing sensitive values. Superuser only."
-      operationId: patch_api_settings_workspace_module
+      summary: Patch settings entries by entryId
+      operationId: patch_api_settings_entries_entryid
       parameters:
-        - name: module
+        - name: entryId
           in: path
           required: true
           schema:
             type: string
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
@@ -6200,14 +6105,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-        "400":
-          description: Bad Request
+  /api/settings/schema:
+    get:
+      tags: [Settings]
+      summary: Get settings schema
+      operationId: get_api_settings_schema
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        "422":
-          description: Unprocessable Entity
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:

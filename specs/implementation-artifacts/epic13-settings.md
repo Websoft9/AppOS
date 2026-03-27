@@ -67,8 +67,9 @@ Data model (`app_settings` collection), API contract, seed values, mask semantic
 | 13.5 | Ext infra backend (proxy/docker/llm seed + mask) |
 | 13.6 | Ext infra UI (proxy/docker/llm cards) |
 | 13.7 | Connect terminal settings UI (`idleTimeoutSeconds`, `maxConnections`) |
+| 13.8 | Unified settings API + schema-driven settings page |
 
-**Execution**: 13.1 → 13.2 → 13.3 (parallelisable after 13.1) → 13.4 → 13.5 → 13.6 → 13.7 (after 13.6)
+**Execution**: 13.1 → 13.2 → 13.3 (parallelisable after 13.1) → 13.4 → 13.5 → 13.6 → 13.7 (after 13.6) → 13.8
 
 ---
 

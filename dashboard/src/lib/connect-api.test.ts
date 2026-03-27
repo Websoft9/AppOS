@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getConnectTerminalSettings } from './connect-api'
-import { extSettingsModulePath } from './settings-api'
+import { settingsEntryPath } from './settings-api'
 
 const sendMock = vi.fn()
 
@@ -17,7 +17,7 @@ describe('getConnectTerminalSettings', () => {
 
   it('loads connect terminal settings via the shared workspace helper path', async () => {
     sendMock.mockResolvedValue({
-      terminal: {
+      value: {
         idleTimeoutSeconds: 900,
         maxConnections: 8,
       },
@@ -28,7 +28,7 @@ describe('getConnectTerminalSettings', () => {
       maxConnections: 8,
     })
 
-    expect(sendMock).toHaveBeenCalledWith(extSettingsModulePath('connect'), {
+    expect(sendMock).toHaveBeenCalledWith(settingsEntryPath('connect-terminal'), {
       method: 'GET',
     })
   })

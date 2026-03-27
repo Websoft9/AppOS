@@ -22,21 +22,7 @@ func doSettingsRoute(t *testing.T, te *testEnv, method, url, body string, authen
 		t.Fatal(err)
 	}
 
-	g := r.Group("/api/settings/workspace")
-	g.Bind(apis.RequireSuperuserAuth())
-	g.GET("", handleExtSettingsDiscover)
-	g.GET("/{module}", handleExtSettingsGet)
-	g.PATCH("/{module}", handleExtSettingsPatch)
-
-	tunnelGroup := r.Group("/api/settings/tunnel")
-	tunnelGroup.Bind(apis.RequireSuperuserAuth())
-	tunnelGroup.GET("", handleTunnelSettingsGet)
-	tunnelGroup.PATCH("", handleTunnelSettingsPatch)
-
-	secretsGroup := r.Group("/api/settings/secrets")
-	secretsGroup.Bind(apis.RequireSuperuserAuth())
-	secretsGroup.GET("", handleSecretsSettingsGet)
-	secretsGroup.PATCH("", handleSecretsSettingsPatch)
+	RegisterSettings(&core.ServeEvent{App: te.app, Router: r})
 
 	mux, err := r.BuildMux()
 	if err != nil {
@@ -59,219 +45,197 @@ func doSettingsRoute(t *testing.T, te *testEnv, method, url, body string, authen
 	return rec
 }
 
-func TestSettingsSecretsPolicyGetReturnsFallback(t *testing.T) {
+func TestSettingsSchemaIncludesUnifiedEntries(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	rec := doSettingsRoute(t, te, http.MethodGet, "/api/settings/secrets", "", true)
+	rec := doSettingsRoute(t, te, http.MethodGet, "/api/settings/schema", "", true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 
-	var body map[string]map[string]any
+	var body map[string][]map[string]any
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
 
-	policy := body["policy"]
-	if policy == nil {
-		t.Fatal("expected policy group in response")
+	entries := body["entries"]
+	if len(entries) == 0 {
+		t.Fatal("expected schema entries")
 	}
-	normalized := secrets.NormalizePolicy(policy)
-	if normalized.DefaultAccessMode != secrets.AccessModeUseOnly {
-		t.Fatalf("expected defaultAccessMode use_only, got %#v", normalized.DefaultAccessMode)
+
+	var foundSystem bool
+	var foundWorkspace bool
+	for _, entry := range entries {
+		id, _ := entry["id"].(string)
+		section, _ := entry["section"].(string)
+		source, _ := entry["source"].(string)
+		switch id {
+		case "smtp":
+			foundSystem = section == "system" && source == "pocketbase"
+		case "space-quota":
+			foundWorkspace = section == "workspace" && source == "app_settings"
+		case "iac-files":
+			if section != "workspace" || source != "app_settings" {
+				t.Fatalf("expected iac-files schema entry with workspace/app_settings metadata, got section=%s source=%s", section, source)
+			}
+		}
 	}
-	if normalized.RevealDisabled != false {
-		t.Fatalf("expected revealDisabled false, got %#v", normalized.RevealDisabled)
+
+	if !foundSystem {
+		t.Fatal("expected smtp schema entry with system/pocketbase metadata")
 	}
-	if normalized.ClipboardClearSeconds != 0 {
-		t.Fatalf("expected clipboardClearSeconds 0, got %d", normalized.ClipboardClearSeconds)
+	if !foundWorkspace {
+		t.Fatal("expected space-quota schema entry with workspace/app_settings metadata")
 	}
 }
 
-func TestSettingsSecretsPolicyPatchValidation(t *testing.T) {
+func TestSettingsEntriesListIncludesRepresentativeValues(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	badMode := `{"policy":{"defaultAccessMode":"invalid"}}`
-	rec := doSettingsRoute(t, te, http.MethodPatch, "/api/settings/secrets", badMode, true)
+	rec := doSettingsRoute(t, te, http.MethodGet, "/api/settings/entries", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var body map[string][]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+
+	items := body["items"]
+	if len(items) == 0 {
+		t.Fatal("expected entry payloads")
+	}
+
+	var foundIacFiles bool
+	var foundTunnel bool
+	var foundSecrets bool
+	for _, item := range items {
+		id, _ := item["id"].(string)
+		value, _ := item["value"].(map[string]any)
+		switch id {
+		case "iac-files":
+			foundIacFiles = value != nil && int(value["maxSizeMB"].(float64)) == 10 && int(value["maxZipSizeMB"].(float64)) == 50
+		case "tunnel-port-range":
+			foundTunnel = value != nil && int(value["start"].(float64)) == 40000 && int(value["end"].(float64)) == 49999
+		case "secrets-policy":
+			foundSecrets = value != nil && value["defaultAccessMode"] == string(secrets.AccessModeUseOnly)
+		}
+	}
+
+	if !foundIacFiles {
+		t.Fatal("expected iac-files fallback value")
+	}
+	if !foundTunnel {
+		t.Fatal("expected tunnel-port-range fallback value")
+	}
+	if !foundSecrets {
+		t.Fatal("expected secrets-policy fallback value")
+	}
+}
+
+func TestSettingsEntryPatchValidation(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	badMode := `{"defaultAccessMode":"invalid"}`
+	rec := doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/secrets-policy", badMode, true)
 	if rec.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("expected 422 for invalid mode, got %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("expected 422 for invalid secrets policy, got %d: %s", rec.Code, rec.Body.String())
 	}
 	if !strings.Contains(rec.Body.String(), "defaultAccessMode") {
 		t.Fatalf("expected defaultAccessMode error, got %s", rec.Body.String())
 	}
 
-	badClipboard := `{"policy":{"clipboardClearSeconds":-1}}`
-	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/secrets", badClipboard, true)
-	if rec.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("expected 422 for negative clipboardClearSeconds, got %d: %s", rec.Code, rec.Body.String())
-	}
-	if !strings.Contains(rec.Body.String(), "clipboardClearSeconds") {
-		t.Fatalf("expected clipboardClearSeconds error, got %s", rec.Body.String())
-	}
-}
-
-func TestSettingsSecretsPolicyPatchPersistsValidValue(t *testing.T) {
-	te := newTestEnv(t)
-	defer te.cleanup()
-
-	body := `{"policy":{"revealDisabled":true,"defaultAccessMode":"reveal_allowed","clipboardClearSeconds":45}}`
-	rec := doSettingsRoute(t, te, http.MethodPatch, "/api/settings/secrets", body, true)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	stored, err := settings.GetGroup(te.app, "secrets", "policy", nil)
-	if err != nil {
-		t.Fatalf("expected stored policy, got error: %v", err)
-	}
-	normalized := secrets.NormalizePolicy(stored)
-	if normalized.DefaultAccessMode != secrets.AccessModeRevealAllowed {
-		t.Fatalf("expected defaultAccessMode reveal_allowed, got %#v", normalized.DefaultAccessMode)
-	}
-	if normalized.RevealDisabled != true {
-		t.Fatalf("expected revealDisabled true, got %#v", normalized.RevealDisabled)
-	}
-	if normalized.ClipboardClearSeconds != 45 {
-		t.Fatalf("expected clipboardClearSeconds 45, got %v", normalized.ClipboardClearSeconds)
-	}
-}
-
-func TestSettingsDiscoverIncludesSecretsModule(t *testing.T) {
-	te := newTestEnv(t)
-	defer te.cleanup()
-
-	rec := doSettingsRoute(t, te, http.MethodGet, "/api/settings/workspace", "", true)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	var body []map[string]any
-	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
-		t.Fatal(err)
-	}
-
-	found := false
-	for _, entry := range body {
-		if entry["module"] != "secrets" {
-			continue
-		}
-		found = true
-		keys, _ := entry["keys"].([]any)
-		if len(keys) != 1 || keys[0] != "policy" {
-			t.Fatalf("unexpected secrets keys: %#v", entry["keys"])
-		}
-		if entry["url"] != "/api/settings/secrets" {
-			t.Fatalf("expected direct secrets settings URL, got %#v", entry["url"])
-		}
-	}
-	if !found {
-		t.Fatal("expected secrets module in discover response")
-	}
-}
-
-func TestSettingsDiscoverIncludesTunnelModule(t *testing.T) {
-	te := newTestEnv(t)
-	defer te.cleanup()
-
-	rec := doSettingsRoute(t, te, http.MethodGet, "/api/settings/workspace", "", true)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	var body []map[string]any
-	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
-		t.Fatal(err)
-	}
-
-	found := false
-	for _, entry := range body {
-		if entry["module"] != "tunnel" {
-			continue
-		}
-		found = true
-		keys, _ := entry["keys"].([]any)
-		if len(keys) != 1 || keys[0] != "port_range" {
-			t.Fatalf("unexpected tunnel keys: %#v", entry["keys"])
-		}
-		if entry["url"] != "/api/settings/tunnel" {
-			t.Fatalf("expected direct tunnel settings URL, got %#v", entry["url"])
-		}
-	}
-	if !found {
-		t.Fatal("expected tunnel module in discover response")
-	}
-}
-
-func TestSettingsTunnelGetReturnsFallback(t *testing.T) {
-	te := newTestEnv(t)
-	defer te.cleanup()
-
-	rec := doSettingsRoute(t, te, http.MethodGet, "/api/settings/tunnel", "", true)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	var body map[string]map[string]any
-	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
-		t.Fatal(err)
-	}
-
-	portRange := body["port_range"]
-	if portRange == nil {
-		t.Fatal("expected port_range group in response")
-	}
-	if got := int(portRange["start"].(float64)); got != 40000 {
-		t.Fatalf("expected start 40000, got %d", got)
-	}
-	if got := int(portRange["end"].(float64)); got != 49999 {
-		t.Fatalf("expected end 49999, got %d", got)
-	}
-}
-
-func TestSettingsTunnelPatchValidation(t *testing.T) {
-	te := newTestEnv(t)
-	defer te.cleanup()
-
-	badRange := `{"port_range":{"start":50000,"end":40000}}`
-	rec := doSettingsRoute(t, te, http.MethodPatch, "/api/settings/tunnel", badRange, true)
+	badRange := `{"start":50000,"end":40000}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/tunnel-port-range", badRange, true)
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("expected 422 for descending range, got %d: %s", rec.Code, rec.Body.String())
 	}
 	if !strings.Contains(rec.Body.String(), "must be greater than start") {
-		t.Fatalf("expected range ordering error, got %s", rec.Body.String())
+		t.Fatalf("expected tunnel validation error, got %s", rec.Body.String())
 	}
 
-	sshConflict := `{"port_range":{"start":2200,"end":2300}}`
-	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/tunnel", sshConflict, true)
+	badIacFiles := `{"maxSizeMB":0,"maxZipSizeMB":-1}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/iac-files", badIacFiles, true)
 	if rec.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("expected 422 for ssh port overlap, got %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("expected 422 for invalid iac-files limits, got %d: %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "2222") {
-		t.Fatalf("expected ssh port conflict error, got %s", rec.Body.String())
+	if !strings.Contains(rec.Body.String(), "maxSizeMB") {
+		t.Fatalf("expected iac-files validation error, got %s", rec.Body.String())
 	}
 }
 
-func TestSettingsTunnelPatchPersistsValidValue(t *testing.T) {
+func TestSettingsEntryPatchPersistsUnifiedValues(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	body := `{"port_range":{"start":41000,"end":41999}}`
-	rec := doSettingsRoute(t, te, http.MethodPatch, "/api/settings/tunnel", body, true)
+	basicBody := `{"appName":"Unified AppOS","appURL":"https://unified.test"}`
+	rec := doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/basic", basicBody, true)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("expected 200 for basic entry patch, got %d: %s", rec.Code, rec.Body.String())
 	}
 
-	stored, err := settings.GetGroup(te.app, "tunnel", "port_range", nil)
+	basicGet := doSettingsRoute(t, te, http.MethodGet, "/api/settings/entries/basic", "", true)
+	if basicGet.Code != http.StatusOK {
+		t.Fatalf("expected 200 for basic entry get, got %d: %s", basicGet.Code, basicGet.Body.String())
+	}
+	if !strings.Contains(basicGet.Body.String(), "Unified AppOS") {
+		t.Fatalf("expected updated basic entry payload, got %s", basicGet.Body.String())
+	}
+
+	policyBody := `{"revealDisabled":true,"defaultAccessMode":"reveal_allowed","clipboardClearSeconds":45}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/secrets-policy", policyBody, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for secrets-policy patch, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	storedPolicy, err := settings.GetGroup(te.app, "secrets", "policy", nil)
+	if err != nil {
+		t.Fatalf("expected stored policy, got error: %v", err)
+	}
+	normalized := secrets.NormalizePolicy(storedPolicy)
+	if normalized.DefaultAccessMode != secrets.AccessModeRevealAllowed || !normalized.RevealDisabled || normalized.ClipboardClearSeconds != 45 {
+		t.Fatalf("unexpected persisted unified secrets policy: %#v", normalized)
+	}
+
+	tunnelBody := `{"start":41000,"end":41999}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/tunnel-port-range", tunnelBody, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for tunnel entry patch, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	storedTunnel, err := settings.GetGroup(te.app, "tunnel", "port_range", nil)
 	if err != nil {
 		t.Fatalf("expected stored tunnel port range, got error: %v", err)
 	}
-	if got := settings.Int(stored, "start", 0); got != 41000 {
+	if got := settings.Int(storedTunnel, "start", 0); got != 41000 {
 		t.Fatalf("expected start 41000, got %d", got)
 	}
-	if got := settings.Int(stored, "end", 0); got != 41999 {
+	if got := settings.Int(storedTunnel, "end", 0); got != 41999 {
 		t.Fatalf("expected end 41999, got %d", got)
+	}
+
+	iacBody := `{"maxSizeMB":25,"maxZipSizeMB":100,"extensionBlacklist":".exe,.bin"}`
+	rec = doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/iac-files", iacBody, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for iac-files patch, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	storedIacFiles, err := settings.GetGroup(te.app, "files", "limits", nil)
+	if err != nil {
+		t.Fatalf("expected stored iac-files limits, got error: %v", err)
+	}
+	if got := settings.Int(storedIacFiles, "maxSizeMB", 0); got != 25 {
+		t.Fatalf("expected maxSizeMB 25, got %d", got)
+	}
+	if got := settings.Int(storedIacFiles, "maxZipSizeMB", 0); got != 100 {
+		t.Fatalf("expected maxZipSizeMB 100, got %d", got)
+	}
+	if got := settings.String(storedIacFiles, "extensionBlacklist", ""); got != ".exe,.bin" {
+		t.Fatalf("expected extensionBlacklist .exe,.bin, got %q", got)
 	}
 }
 

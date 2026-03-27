@@ -4,35 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/internal/tunnel"
 	"github.com/websoft9/appos/backend/internal/secrets"
-	"github.com/websoft9/appos/backend/internal/settings"
+	settingscatalog "github.com/websoft9/appos/backend/internal/settings/catalog"
+	"github.com/websoft9/appos/backend/internal/tunnel"
 )
-
-// ─── Settings allowlist ────────────────────────────────────────────────────
-//
-// allowedModuleKeys defines which (module, key) pairs may be read/written via
-// the Ext Settings API.  Unknown pairs are rejected with 400.
-//
-// Phase 1 (Story 13.1): space only.
-// Phase 2 (Story 13.5): proxy, docker, llm added.
-var allowedModuleKeys = map[string][]string{
-	"space":   {"quota"},
-	"proxy":   {"network"},
-	"docker":  {"mirror", "registries"},
-	"llm":     {"providers"},
-	"connect": {"sftp", "terminal"},
-	"tunnel":  {"port_range"},
-	"secrets": {"policy"},
-	"deploy":  {"preflight"},
-}
 
 // sensitiveFields is the set of field names that are masked on GET and
 // whose "***" placeholder is preserved on PATCH.
@@ -41,22 +21,6 @@ var sensitiveFields = map[string]bool{
 	"apiKey":   true,
 	"secret":   true,
 }
-
-// Code-level fallback maps — returned when the DB row is unavailable.
-var (
-	defaultProxyNetwork = map[string]any{
-		"httpProxy": "", "httpsProxy": "", "noProxy": "", "username": "", "password": "",
-	}
-	defaultDockerMirror = map[string]any{
-		"mirrors": []any{}, "insecureRegistries": []any{},
-	}
-	defaultDockerRegistries = map[string]any{"items": []any{}}
-	defaultLLMProviders     = map[string]any{"items": []any{}}
-	defaultConnectSFTP      = map[string]any{"maxUploadFiles": 10}
-	defaultConnectTerminal  = map[string]any{"idleTimeoutSeconds": 1800, "maxConnections": 0}
-	defaultTunnelPortRange  = map[string]any{"start": tunnel.DefaultPortRangeStart, "end": tunnel.DefaultPortRangeEnd}
-	defaultDeployPreflight  = map[string]any{"minFreeDiskBytes": 512 * 1024 * 1024}
-)
 
 const defaultTunnelSSHPort = 2222
 
@@ -226,29 +190,51 @@ func validateDeployPreflight(v map[string]any) map[string]string {
 	return errors
 }
 
+func validateIacFiles(v map[string]any) map[string]string {
+	errors := map[string]string{}
+
+	maxSizeMB, err := parseIntWithDefault(v["maxSizeMB"], 10)
+	if err != nil {
+		errors["maxSizeMB"] = "must be an integer"
+	} else if maxSizeMB < 1 {
+		errors["maxSizeMB"] = "must be >= 1"
+	} else {
+		v["maxSizeMB"] = maxSizeMB
+	}
+
+	maxZipSizeMB, err := parseIntWithDefault(v["maxZipSizeMB"], 50)
+	if err != nil {
+		errors["maxZipSizeMB"] = "must be an integer"
+	} else if maxZipSizeMB < 1 {
+		errors["maxZipSizeMB"] = "must be >= 1"
+	} else {
+		v["maxZipSizeMB"] = maxZipSizeMB
+	}
+
+	if len(errors) == 0 && maxZipSizeMB < maxSizeMB {
+		errors["maxZipSizeMB"] = "must be >= maxSizeMB"
+	}
+
+	defaultBlacklist := settingscatalog.DefaultGroup("files", "limits")["extensionBlacklist"]
+	if raw, ok := v["extensionBlacklist"]; !ok || raw == nil {
+		v["extensionBlacklist"] = defaultBlacklist
+	} else if text, ok := raw.(string); ok {
+		v["extensionBlacklist"] = strings.TrimSpace(text)
+	} else {
+		errors["extensionBlacklist"] = "must be a string"
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
 // fallbackForKey returns the code-level fallback for a given (module, key) pair.
 func fallbackForKey(module, key string) map[string]any {
-	switch module + "/" + key {
-	case "space/quota":
-		return defaultSpaceQuota
-	case "proxy/network":
-		return defaultProxyNetwork
-	case "docker/mirror":
-		return defaultDockerMirror
-	case "docker/registries":
-		return defaultDockerRegistries
-	case "llm/providers":
-		return defaultLLMProviders
-	case "connect/sftp":
-		return defaultConnectSFTP
-	case "connect/terminal":
-		return defaultConnectTerminal
-	case "tunnel/port_range":
-		return defaultTunnelPortRange
-	case "secrets/policy":
-		return secrets.DefaultPolicy().ToMap()
-	case "deploy/preflight":
-		return defaultDeployPreflight
+	fallback := settingscatalog.DefaultGroup(module, key)
+	if len(fallback) != 0 {
+		return fallback
 	}
 	return map[string]any{}
 }
@@ -258,131 +244,13 @@ func fallbackForKey(module, key string) map[string]any {
 // RegisterSettings mounts the Ext Settings API on the given ServeEvent.
 // Routes require superuser authentication.
 func RegisterSettings(se *core.ServeEvent) {
-	g := se.Router.Group("/api/settings/workspace")
+	g := se.Router.Group("/api/settings")
 	g.Bind(apis.RequireSuperuserAuth())
-	g.GET("", handleExtSettingsDiscover)
-	g.GET("/{module}", handleExtSettingsGet)
-	g.PATCH("/{module}", handleExtSettingsPatch)
-
-	secretsGroup := se.Router.Group("/api/settings/secrets")
-	secretsGroup.Bind(apis.RequireSuperuserAuth())
-	secretsGroup.GET("", handleSecretsSettingsGet)
-	secretsGroup.PATCH("", handleSecretsSettingsPatch)
-
-	tunnelGroup := se.Router.Group("/api/settings/tunnel")
-	tunnelGroup.Bind(apis.RequireSuperuserAuth())
-	tunnelGroup.GET("", handleTunnelSettingsGet)
-	tunnelGroup.PATCH("", handleTunnelSettingsPatch)
-}
-
-func handleExtSettingsGetModule(e *core.RequestEvent, module string) error {
-	allowedKeys, ok := allowedModuleKeys[module]
-	if !ok {
-		return e.BadRequestError("unknown settings module: "+module, nil)
-	}
-
-	result := make(map[string]any, len(allowedKeys))
-	for _, key := range allowedKeys {
-		fb := fallbackForKey(module, key)
-		v, _ := settings.GetGroup(e.App, module, key, fb)
-		if module == secrets.SettingsModule && key == secrets.PolicySettingsKey {
-			v = secrets.NormalizePolicy(v).ToMap()
-		}
-		result[key] = maskValue(v)
-	}
-
-	return e.JSON(http.StatusOK, result)
-}
-
-func handleExtSettingsPatchModule(e *core.RequestEvent, module string) error {
-	allowedKeys, ok := allowedModuleKeys[module]
-	if !ok {
-		return e.BadRequestError("unknown settings module: "+module, nil)
-	}
-
-	var body map[string]any
-	if err := e.BindBody(&body); err != nil {
-		return e.BadRequestError("invalid JSON body", err)
-	}
-
-	allowedSet := make(map[string]bool, len(allowedKeys))
-	for _, k := range allowedKeys {
-		allowedSet[k] = true
-	}
-	for k := range body {
-		if !allowedSet[k] {
-			return e.BadRequestError("unknown settings key: "+module+"/"+k, nil)
-		}
-	}
-
-	for key, rawIncoming := range body {
-		incomingMap, ok := rawIncoming.(map[string]any)
-		if !ok {
-			return e.JSON(http.StatusUnprocessableEntity, map[string]string{
-				"error": "value for key '" + key + "' must be an object",
-			})
-		}
-
-		fb := fallbackForKey(module, key)
-		existing, _ := settings.GetGroup(e.App, module, key, fb)
-		merged := preserveSensitive(incomingMap, existing)
-		if module == "space" && key == "quota" {
-			if err := validateSpaceQuota(merged); err != nil {
-				return e.BadRequestError(err.Error(), nil)
-			}
-		}
-		if module == "connect" && key == "terminal" {
-			if validationErrors := validateConnectTerminal(merged); validationErrors != nil {
-				return e.JSON(http.StatusUnprocessableEntity, map[string]any{
-					"errors": validationErrors,
-				})
-			}
-		}
-		if module == "tunnel" && key == "port_range" {
-			if validationErrors := validateTunnelPortRange(merged); validationErrors != nil {
-				return e.JSON(http.StatusUnprocessableEntity, map[string]any{
-					"errors": validationErrors,
-				})
-			}
-		}
-		if module == "deploy" && key == "preflight" {
-			if validationErrors := validateDeployPreflight(merged); validationErrors != nil {
-				return e.JSON(http.StatusUnprocessableEntity, map[string]any{
-					"errors": validationErrors,
-				})
-			}
-		}
-		if module == secrets.SettingsModule && key == secrets.PolicySettingsKey {
-			if validationErrors := secrets.ValidatePolicy(merged); validationErrors != nil {
-				return e.JSON(http.StatusUnprocessableEntity, map[string]any{
-					"errors": validationErrors,
-				})
-			}
-			merged = secrets.NormalizePolicy(merged).ToMap()
-		}
-
-		if module == "llm" && key == "providers" {
-			if err := validateLLMProvidersSecretRefs(e, merged); err != nil {
-				return e.BadRequestError(err.Error(), nil)
-			}
-		}
-
-		if err := settings.SetGroup(e.App, module, key, merged); err != nil {
-			return e.InternalServerError("failed to save "+module+"/"+key, err)
-		}
-	}
-
-	result := make(map[string]any, len(allowedKeys))
-	for _, key := range allowedKeys {
-		fb := fallbackForKey(module, key)
-		v, _ := settings.GetGroup(e.App, module, key, fb)
-		if module == secrets.SettingsModule && key == secrets.PolicySettingsKey {
-			v = secrets.NormalizePolicy(v).ToMap()
-		}
-		result[key] = maskValue(v)
-	}
-
-	return e.JSON(http.StatusOK, result)
+	g.GET("/schema", handleSettingsSchema)
+	g.GET("/entries", handleSettingsEntriesList)
+	g.GET("/entries/{entryId}", handleSettingsEntryGet)
+	g.PATCH("/entries/{entryId}", handleSettingsEntryPatch)
+	g.POST("/actions/{actionId}", handleSettingsAction)
 }
 
 // ─── Mask helpers ──────────────────────────────────────────────────────────
@@ -509,141 +377,4 @@ func validateLLMProvidersSecretRefs(e *core.RequestEvent, v map[string]any) erro
 		}
 	}
 	return nil
-}
-
-// ─── Handlers ─────────────────────────────────────────────────────────────
-
-// handleExtSettingsDiscover lists all available settings modules and their group keys.
-//
-// @Summary Discover settings modules
-// @Description Lists all available setting modules (e.g. space, proxy, docker, llm, connect, tunnel, secrets). Each entry includes the module name, its group keys, and the full URL to call. Use the returned URL directly for direct settings surfaces such as tunnel and secrets. Superuser only.
-// @Tags Settings
-// @Security BearerAuth
-// @Success 200 {array} object
-// @Failure 401 {object} map[string]any
-// @Router /api/settings/workspace [get]
-func handleExtSettingsDiscover(e *core.RequestEvent) error {
-	type moduleEntry struct {
-		Module string   `json:"module"`
-		Keys   []string `json:"keys"`
-		URL    string   `json:"url"`
-	}
-
-	// Collect and sort module names for deterministic output
-	names := make([]string, 0, len(allowedModuleKeys))
-	for m := range allowedModuleKeys {
-		names = append(names, m)
-	}
-	sort.Strings(names)
-
-	out := make([]moduleEntry, 0, len(names))
-	for _, m := range names {
-		url := "/api/settings/workspace/" + m
-		if m == secrets.SettingsModule {
-			url = "/api/settings/secrets"
-		}
-		if m == "tunnel" {
-			url = "/api/settings/tunnel"
-		}
-		out = append(out, moduleEntry{
-			Module: m,
-			Keys:   allowedModuleKeys[m],
-			URL:    url,
-		})
-	}
-	return e.JSON(http.StatusOK, out)
-}
-
-// handleExtSettingsGet returns all settings groups for the given module.
-// Sensitive string fields are masked to "***".
-//
-// @Summary Get settings module
-// @Description Returns all group keys and their values for the given module. Supported modules include `space` (file quota), `proxy` (HTTP proxy), `docker` (mirrors & registries), `tunnel` (port range), `secrets` (global secrets policy), and others — call GET /api/settings/workspace first to discover all available modules. Sensitive fields (password, apiKey, secret) are masked to "***". Superuser only.
-// @Tags Settings
-// @Security BearerAuth
-// @Param module path string true "settings module" Enums(space, proxy, docker, llm, connect, tunnel, secrets)
-// @Success 200 {object} map[string]any
-// @Failure 400 {object} map[string]any
-// @Failure 401 {object} map[string]any
-// @Router /api/settings/workspace/{module} [get]
-func handleExtSettingsGet(e *core.RequestEvent) error {
-	module := e.Request.PathValue("module")
-	return handleExtSettingsGetModule(e, module)
-}
-
-// handleExtSettingsPatch updates one or more settings groups for the given module.
-// For each incoming group key, "***" sentinel values are preserved from the existing DB row.
-//
-// @Summary Patch settings module
-// @Description Partially updates settings groups for the given module. Use \"***\" to preserve existing sensitive values. Superuser only.
-// @Tags Settings
-// @Security BearerAuth
-// @Param module path string true "settings module" Enums(space, proxy, docker, llm, connect, tunnel, secrets)
-// @Param body body object true "map of group key to partial settings object"
-// @Success 200 {object} map[string]any "updated settings (masked)"
-// @Failure 400 {object} map[string]any
-// @Failure 401 {object} map[string]any
-// @Failure 422 {object} map[string]any
-// @Router /api/settings/workspace/{module} [patch]
-func handleExtSettingsPatch(e *core.RequestEvent) error {
-	module := e.Request.PathValue("module")
-	return handleExtSettingsPatchModule(e, module)
-}
-
-// handleSecretsSettingsGet returns the secrets policy via a direct path.
-//
-// @Summary Get secrets settings
-// @Description Returns the `policy` group for secrets settings. Superuser only.
-// @Tags Settings
-// @Security BearerAuth
-// @Success 200 {object} map[string]any
-// @Failure 401 {object} map[string]any
-// @Router /api/settings/secrets [get]
-func handleSecretsSettingsGet(e *core.RequestEvent) error {
-	return handleExtSettingsGetModule(e, secrets.SettingsModule)
-}
-
-// handleSecretsSettingsPatch updates the secrets policy via a direct path.
-//
-// @Summary Patch secrets settings
-// @Description Updates the `policy` group for secrets settings. Superuser only.
-// @Tags Settings
-// @Security BearerAuth
-// @Param body body object true "map of group key to partial settings object"
-// @Success 200 {object} map[string]any
-// @Failure 400 {object} map[string]any
-// @Failure 401 {object} map[string]any
-// @Failure 422 {object} map[string]any
-// @Router /api/settings/secrets [patch]
-func handleSecretsSettingsPatch(e *core.RequestEvent) error {
-	return handleExtSettingsPatchModule(e, secrets.SettingsModule)
-}
-
-// handleTunnelSettingsGet returns the tunnel settings via a direct path.
-//
-// @Summary Get tunnel settings
-// @Description Returns the `port_range` group for tunnel settings. Superuser only.
-// @Tags Settings
-// @Security BearerAuth
-// @Success 200 {object} map[string]any
-// @Failure 401 {object} map[string]any
-// @Router /api/settings/tunnel [get]
-func handleTunnelSettingsGet(e *core.RequestEvent) error {
-	return handleExtSettingsGetModule(e, "tunnel")
-}
-
-// handleTunnelSettingsPatch updates tunnel settings via a direct path.
-//
-// @Summary Patch tunnel settings
-// @Description Updates the `port_range` group for tunnel settings. Superuser only.
-// @Tags Settings
-// @Security BearerAuth
-// @Param body body object true "map of group key to partial settings object"
-// @Success 200 {object} map[string]any
-// @Failure 400 {object} map[string]any
-// @Failure 401 {object} map[string]any
-// @Failure 422 {object} map[string]any
-// @Router /api/settings/tunnel [patch]
-func handleTunnelSettingsPatch(e *core.RequestEvent) error {
-	return handleExtSettingsPatchModule(e, "tunnel")
 }

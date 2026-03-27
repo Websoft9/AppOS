@@ -56,7 +56,7 @@ import {
 import { SecretForm, type SecretTemplate } from '@/components/secrets/SecretForm'
 import { RevealOverlay } from '@/components/secrets/RevealOverlay'
 import { getLocale } from '@/lib/i18n'
-import { SECRETS_SETTINGS_API_PATH } from '@/lib/settings-api'
+import { settingsEntryPath } from '@/lib/settings-api'
 import {
   canRevealSecret,
   DEFAULT_SECRET_ACCESS_MODE,
@@ -457,9 +457,9 @@ export function SecretsPage() {
 
   useEffect(() => {
     void pb
-      .send<{ policy?: unknown }>(SECRETS_SETTINGS_API_PATH, { method: 'GET' })
+      .send<{ value?: unknown }>(settingsEntryPath('secrets-policy'), { method: 'GET' })
       .then(result => {
-        setSecretPolicy(normalizeSecretPolicy(result.policy))
+        setSecretPolicy(normalizeSecretPolicy(result.value))
       })
       .catch(() => {
         setSecretPolicy(DEFAULT_SECRET_POLICY)

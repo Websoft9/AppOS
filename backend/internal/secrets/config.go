@@ -1,8 +1,8 @@
 package secrets
 
 import (
-	"encoding/json"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/internal/settings"
+	settingscatalog "github.com/websoft9/appos/backend/internal/settings/catalog"
 )
 
 const (
@@ -31,7 +32,7 @@ var (
 type Policy struct {
 	RevealDisabled        bool   `json:"revealDisabled"`
 	DefaultAccessMode     string `json:"defaultAccessMode"`
-	ClipboardClearSeconds int   `json:"clipboardClearSeconds"`
+	ClipboardClearSeconds int    `json:"clipboardClearSeconds"`
 }
 
 func DefaultPolicy() Policy {
@@ -128,7 +129,7 @@ func GetPolicy(app core.App) Policy {
 	if app == nil {
 		return DefaultPolicy()
 	}
-	policy, _ := settings.GetGroup(app, SettingsModule, PolicySettingsKey, DefaultPolicy().ToMap())
+	policy, _ := settings.GetGroup(app, SettingsModule, PolicySettingsKey, settingscatalog.DefaultGroup(SettingsModule, PolicySettingsKey))
 	return NormalizePolicy(policy)
 }
 

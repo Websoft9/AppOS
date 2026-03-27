@@ -3,20 +3,17 @@ package migrations
 import (
 	"github.com/pocketbase/pocketbase/core"
 	m "github.com/pocketbase/pocketbase/migrations"
+	"github.com/websoft9/appos/backend/internal/settings"
+	settingscatalog "github.com/websoft9/appos/backend/internal/settings/catalog"
 )
 
-// Story 13.1: Create app_settings BaseCollection for centralized extension settings.
+// Story 13 MVP: Create and seed app_settings for the current unified settings model.
 //
 // Access rules:
 //   - List/View: superuser only
 //   - Create/Update/Delete: nil = forbidden (all writes go through settings.SetGroup on the backend)
 //
 // Schema:
-//
-//	module  — which subsystem owns the row (e.g. "files", "proxy")
-//	key     — group name within the module (e.g. "quota", "network")
-//	value   — JSON blob holding all fields for that group
-//
 // Unique index on (module, key) ensures one row per logical group.
 func init() {
 	m.Register(func(app core.App) error {
@@ -42,7 +39,17 @@ func init() {
 			"CREATE UNIQUE INDEX idx_app_settings_module_key ON app_settings (module, `key`)",
 		}
 
-		return app.Save(col)
+		if err := app.Save(col); err != nil {
+			return err
+		}
+
+		for _, row := range settingscatalog.SeedRows() {
+			if err := settings.SetGroup(app, row.Module, row.Key, row.Value); err != nil {
+				return err
+			}
+		}
+
+		return nil
 	}, func(app core.App) error {
 		// Down: remove the collection
 		col, err := app.FindCollectionByNameOrId("app_settings")

@@ -122,12 +122,14 @@ export function CreateDeploymentPage({
   const activeName = isGit ? gitProjectName : projectName
   const activeSubmitting = isGit ? gitSubmitting : submitting
   const activeChecking = isGit ? gitChecking : checking
+  const [composeYamlError, setComposeYamlError] = useState<string | null>(null)
+
   const createDisabled = isGit
     ? !gitRepositoryUrl.trim() || !gitComposePath.trim() || !serverId || activeSubmitting
-    : !compose.trim() || !serverId || activeSubmitting
+    : !compose.trim() || !serverId || activeSubmitting || Boolean(composeYamlError)
   const checkDisabled = isGit
     ? !gitRepositoryUrl.trim() || !gitComposePath.trim() || !serverId || activeChecking
-    : !compose.trim() || !serverId || activeChecking
+    : !compose.trim() || !serverId || activeChecking || Boolean(composeYamlError)
 
   // ── Src file state (shared with OrchestrationSection, uploaded on submit) ──
   const [srcFiles, setSrcFiles] = useState<File[]>([])
@@ -202,6 +204,7 @@ export function CreateDeploymentPage({
   const validationItems = [
     { label: 'Target server', passed: serverId.length > 0 },
     { label: isGit ? 'Repository inputs' : 'Compose content', passed: isGit ? gitRepositoryUrl.trim().length > 0 && gitComposePath.trim().length > 0 : compose.trim().length > 0 },
+    ...(!isGit && compose.trim() ? [{ label: 'YAML syntax', passed: !composeYamlError }] : []),
   ]
 
   const srcRelativePath = './src/'
@@ -444,6 +447,7 @@ export function CreateDeploymentPage({
               srcFiles={srcFiles}
               setSrcFiles={setSrcFiles}
               srcUploaded={srcUploaded}
+              onYamlError={setComposeYamlError}
             />
           )}
 

@@ -20,6 +20,7 @@ import (
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/websoft9/appos/backend/internal/fileutil"
 	"github.com/websoft9/appos/backend/internal/settings"
+	settingscatalog "github.com/websoft9/appos/backend/internal/settings/catalog"
 )
 
 const (
@@ -31,16 +32,13 @@ const (
 var (
 	filesAllowedRoots   = []string{"apps", "workflows", "templates"}
 	libraryAllowedRoots = []string{"apps"}
-
-	// defaultFileSettings are the fallback values used when the "files" settings
-	// group is absent from app_settings. All limits and the blacklist can be
-	// overridden at runtime via the Settings API.
-	defaultFileSettings = map[string]any{
-		"maxSizeMB":          10,
-		"maxZipSizeMB":       50,
-		"extensionBlacklist": ".exe,.dll,.so,.bin,.deb,.rpm,.apk,.msi,.dmg,.pkg",
-	}
+	defaultFileSettings = settingscatalog.DefaultGroup("files", "limits")
 )
+
+func loadIacFileLimits(app core.App) map[string]any {
+	limits, _ := settings.GetGroup(app, "files", "limits", defaultFileSettings)
+	return limits
+}
 
 // registerIaCRoutes mounts /api/ext/iac with superuser-only access.
 func registerIaCRoutes(g *router.RouterGroup[*core.RequestEvent]) {
@@ -190,7 +188,7 @@ func handleFileRead(e *core.RequestEvent) error {
 		return apis.NewBadRequestError("path is a directory", nil)
 	}
 
-	cfg, _ := settings.GetGroup(e.App, "files", "limits", defaultFileSettings)
+	cfg := loadIacFileLimits(e.App)
 	maxSizeMB := settings.Int(cfg, "maxSizeMB", 10)
 	maxRead := int64(maxSizeMB) * 1024 * 1024
 
@@ -462,7 +460,7 @@ func handleFileMove(e *core.RequestEvent) error {
 // @Failure 415 {object} map[string]any
 // @Router /api/ext/iac/upload [post]
 func handleFileUpload(e *core.RequestEvent) error {
-	cfg, _ := settings.GetGroup(e.App, "files", "limits", defaultFileSettings)
+	cfg := loadIacFileLimits(e.App)
 	maxSizeMB := int64(settings.Int(cfg, "maxSizeMB", 10))
 	maxZipSizeMB := int64(settings.Int(cfg, "maxZipSizeMB", 50))
 	blacklist := settings.String(cfg, "extensionBlacklist", ".exe,.dll,.so,.bin,.deb,.rpm,.apk,.msi,.dmg,.pkg")
@@ -725,7 +723,7 @@ func handleLibraryRead(e *core.RequestEvent) error {
 		return apis.NewBadRequestError("path is a directory", nil)
 	}
 
-	cfg, _ := settings.GetGroup(e.App, "files", "limits", defaultFileSettings)
+	cfg := loadIacFileLimits(e.App)
 	maxSizeMB := settings.Int(cfg, "maxSizeMB", 10)
 	maxRead := int64(maxSizeMB) * 1024 * 1024
 

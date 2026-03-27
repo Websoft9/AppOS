@@ -16,19 +16,14 @@ import (
 	"github.com/websoft9/appos/backend/internal/certs"
 	"github.com/websoft9/appos/backend/internal/secrets"
 	"github.com/websoft9/appos/backend/internal/settings"
+	settingscatalog "github.com/websoft9/appos/backend/internal/settings/catalog"
 )
 
 // ─── File quota defaults (Story 13.2: values now stored in app_settings DB) ───────
 //
 // hookDefaultSpaceQuota is the code-level fallback used when the DB row is
 // missing or the DB is unavailable.
-var hookDefaultSpaceQuota = map[string]any{
-	"maxSizeMB":           10,
-	"maxPerUser":          100,
-	"shareMaxMinutes":     60,
-	"shareDefaultMinutes": 30,
-	"maxUploadFiles":      50,
-}
+var hookDefaultSpaceQuota = settingscatalog.DefaultGroup("space", "quota")
 
 const (
 	// Reserved root-level folder names used by the system.

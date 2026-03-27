@@ -13,8 +13,9 @@ import (
 	"github.com/pocketbase/pocketbase/tools/router"
 
 	"github.com/websoft9/appos/backend/internal/audit"
-	"github.com/websoft9/appos/backend/internal/settings"
 	servers "github.com/websoft9/appos/backend/internal/servers"
+	"github.com/websoft9/appos/backend/internal/settings"
+	settingscatalog "github.com/websoft9/appos/backend/internal/settings/catalog"
 )
 
 func registerServerFileRoutes(g *router.RouterGroup[*core.RequestEvent]) {
@@ -133,7 +134,7 @@ func handleSFTPSearch(e *core.RequestEvent) error {
 // @Failure 401 {object} map[string]any
 // @Router /api/servers/{serverId}/files/constraints [get]
 func handleSFTPConstraints(e *core.RequestEvent) error {
-	cfg, _ := settings.GetGroup(e.App, "connect", "sftp", map[string]any{"maxUploadFiles": 10})
+	cfg, _ := settings.GetGroup(e.App, "connect", "sftp", settingscatalog.DefaultGroup("connect", "sftp"))
 	return e.JSON(http.StatusOK, map[string]any{
 		"max_upload_files": settings.Int(cfg, "maxUploadFiles", 10),
 	})

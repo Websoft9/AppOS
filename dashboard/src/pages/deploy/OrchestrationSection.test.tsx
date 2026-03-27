@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { OrchestrationSection } from './OrchestrationSection'
@@ -88,6 +88,102 @@ describe('OrchestrationSection', () => {
 
     await waitFor(() => {
       expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    })
+  })
+
+  it('shows YAML syntax error inline when compose content is invalid', async () => {
+    const onYamlError = vi.fn()
+    render(
+      <TooltipProvider>
+        <OrchestrationSection
+          compose=""
+          setCompose={vi.fn()}
+          envVars={[{ key: '', value: '' }]}
+          setEnvVars={vi.fn()}
+          projectName=""
+          setProjectName={vi.fn()}
+          storeProducts={[]}
+          srcFiles={[]}
+          setSrcFiles={vi.fn()}
+          srcUploaded={[]}
+          onYamlError={onYamlError}
+        />
+      </TooltipProvider>,
+    )
+
+    // Open the Compose File details section
+    fireEvent.click(screen.getByText('Compose File'))
+
+    // Simulate entering invalid YAML via state update
+    const { rerender } = render(
+      <TooltipProvider>
+        <OrchestrationSection
+          compose=": invalid: yaml: [unterminated"
+          setCompose={vi.fn()}
+          envVars={[{ key: '', value: '' }]}
+          setEnvVars={vi.fn()}
+          projectName=""
+          setProjectName={vi.fn()}
+          storeProducts={[]}
+          srcFiles={[]}
+          setSrcFiles={vi.fn()}
+          srcUploaded={[]}
+          onYamlError={onYamlError}
+        />
+      </TooltipProvider>,
+    )
+    rerender(
+      <TooltipProvider>
+        <OrchestrationSection
+          compose=": invalid: yaml: [unterminated"
+          setCompose={vi.fn()}
+          envVars={[{ key: '', value: '' }]}
+          setEnvVars={vi.fn()}
+          projectName=""
+          setProjectName={vi.fn()}
+          storeProducts={[]}
+          srcFiles={[]}
+          setSrcFiles={vi.fn()}
+          srcUploaded={[]}
+          onYamlError={onYamlError}
+        />
+      </TooltipProvider>,
+    )
+
+    // Wait for debounce + state update
+    await act(async () => { await new Promise(r => setTimeout(r, 500)) })
+
+    await waitFor(() => {
+      expect(onYamlError).toHaveBeenCalledWith(expect.stringContaining(''))
+      const lastCall = onYamlError.mock.calls.at(-1)?.[0]
+      expect(lastCall).not.toBeNull()
+    })
+  })
+
+  it('calls onYamlError with null for valid YAML', async () => {
+    const onYamlError = vi.fn()
+    render(
+      <TooltipProvider>
+        <OrchestrationSection
+          compose="services:\n  web:\n    image: nginx\n"
+          setCompose={vi.fn()}
+          envVars={[{ key: '', value: '' }]}
+          setEnvVars={vi.fn()}
+          projectName=""
+          setProjectName={vi.fn()}
+          storeProducts={[]}
+          srcFiles={[]}
+          setSrcFiles={vi.fn()}
+          srcUploaded={[]}
+          onYamlError={onYamlError}
+        />
+      </TooltipProvider>,
+    )
+
+    await act(async () => { await new Promise(r => setTimeout(r, 500)) })
+
+    await waitFor(() => {
+      expect(onYamlError).toHaveBeenCalledWith(null)
     })
   })
 })

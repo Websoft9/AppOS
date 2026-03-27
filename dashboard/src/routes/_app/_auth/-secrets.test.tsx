@@ -1,6 +1,6 @@
 import { render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SECRETS_SETTINGS_API_PATH } from '@/lib/settings-api'
+import { settingsEntryPath } from '@/lib/settings-api'
 import { SecretsPage } from './secrets'
 
 const sendMock = vi.fn()
@@ -37,8 +37,8 @@ describe('SecretsPage policy loading', () => {
       if (path === '/api/secrets/templates') {
         return Promise.resolve([])
       }
-      if (path === SECRETS_SETTINGS_API_PATH) {
-        return Promise.resolve({ policy: {} })
+      if (path === settingsEntryPath('secrets-policy')) {
+        return Promise.resolve({ value: {} })
       }
       return Promise.resolve({})
     })
@@ -52,11 +52,7 @@ describe('SecretsPage policy loading', () => {
     render(<SecretsPage />)
 
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith(SECRETS_SETTINGS_API_PATH, { method: 'GET' })
-    })
-
-    expect(sendMock).not.toHaveBeenCalledWith('/api/settings/workspace/secrets', {
-      method: 'GET',
+      expect(sendMock).toHaveBeenCalledWith(settingsEntryPath('secrets-policy'), { method: 'GET' })
     })
   })
 })
