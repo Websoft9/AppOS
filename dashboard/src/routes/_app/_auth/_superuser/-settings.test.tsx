@@ -44,6 +44,9 @@ describe('SettingsPage shared settings paths', () => {
       if (path === extSettingsModulePath('connect')) {
         return Promise.resolve({ terminal: {} })
       }
+      if (path === extSettingsModulePath('deploy')) {
+        return Promise.resolve({ preflight: { minFreeDiskBytes: 536870912 } })
+      }
       if (path === TUNNEL_SETTINGS_API_PATH) {
         return Promise.resolve({ port_range: {} })
       }
@@ -74,6 +77,7 @@ describe('SettingsPage shared settings paths', () => {
       expect(sendMock).toHaveBeenCalledWith(SETTINGS_API_PATH, { method: 'GET' })
       expect(sendMock).toHaveBeenCalledWith(extSettingsModulePath('space'), { method: 'GET' })
       expect(sendMock).toHaveBeenCalledWith(extSettingsModulePath('connect'), { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith(extSettingsModulePath('deploy'), { method: 'GET' })
       expect(sendMock).toHaveBeenCalledWith(TUNNEL_SETTINGS_API_PATH, { method: 'GET' })
       expect(sendMock).toHaveBeenCalledWith(SECRETS_SETTINGS_API_PATH, { method: 'GET' })
       expect(sendMock).toHaveBeenCalledWith(extSettingsModulePath('proxy'), { method: 'GET' })
@@ -91,6 +95,18 @@ describe('SettingsPage shared settings paths', () => {
       const navQueries = within(nav as HTMLElement)
       expect(navQueries.getByText('Tunnel')).toBeInTheDocument()
       expect(sendMock).toHaveBeenCalledWith(TUNNEL_SETTINGS_API_PATH, { method: 'GET' })
+    })
+  })
+
+  it('shows Deploy Preflight under Workspace', async () => {
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      const navQueries = within(nav as HTMLElement)
+      expect(navQueries.getByText('Deploy Preflight')).toBeInTheDocument()
+      expect(sendMock).toHaveBeenCalledWith(extSettingsModulePath('deploy'), { method: 'GET' })
     })
   })
 

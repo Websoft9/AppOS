@@ -86,7 +86,10 @@ groups:
       - GET /api/actions/{id}/logs
       - GET /api/actions/{id}/stream
       - POST /api/actions/install/git-compose
+      - POST /api/actions/install/git-compose/check
+      - POST /api/actions/install/name-availability
       - POST /api/actions/install/manual-compose
+      - POST /api/actions/install/manual-compose/check
     nativeSurface: []
     sources:
       extRouteFiles:

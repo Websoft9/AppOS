@@ -5,7 +5,7 @@ export const EXT_SETTINGS_WORKSPACE_API_PATH = '/api/settings/workspace'
 export const TUNNEL_SETTINGS_API_PATH = '/api/settings/tunnel'
 export const SECRETS_SETTINGS_API_PATH = '/api/settings/secrets'
 
-export type ExtSettingsModule = 'space' | 'connect' | 'proxy' | 'docker' | 'llm'
+export type ExtSettingsModule = 'space' | 'connect' | 'deploy' | 'proxy' | 'docker' | 'llm'
 
 export function extSettingsModulePath(module: ExtSettingsModule): string {
   return `${EXT_SETTINGS_WORKSPACE_API_PATH}/${module}`

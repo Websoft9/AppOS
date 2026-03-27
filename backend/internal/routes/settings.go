@@ -31,6 +31,7 @@ var allowedModuleKeys = map[string][]string{
 	"connect": {"sftp", "terminal"},
 	"tunnel":  {"port_range"},
 	"secrets": {"policy"},
+	"deploy":  {"preflight"},
 }
 
 // sensitiveFields is the set of field names that are masked on GET and
@@ -54,6 +55,7 @@ var (
 	defaultConnectSFTP      = map[string]any{"maxUploadFiles": 10}
 	defaultConnectTerminal  = map[string]any{"idleTimeoutSeconds": 1800, "maxConnections": 0}
 	defaultTunnelPortRange  = map[string]any{"start": tunnel.DefaultPortRangeStart, "end": tunnel.DefaultPortRangeEnd}
+	defaultDeployPreflight  = map[string]any{"minFreeDiskBytes": 512 * 1024 * 1024}
 )
 
 const defaultTunnelSSHPort = 2222
@@ -204,6 +206,26 @@ func validateTunnelPortRange(v map[string]any) map[string]string {
 	return errors
 }
 
+func validateDeployPreflight(v map[string]any) map[string]string {
+	errors := map[string]string{}
+
+	minFreeDiskBytes, err := parseIntWithDefault(v["minFreeDiskBytes"], 512*1024*1024)
+	if err != nil {
+		errors["minFreeDiskBytes"] = "must be an integer"
+	} else if minFreeDiskBytes < 0 {
+		errors["minFreeDiskBytes"] = "must be >= 0"
+	} else if minFreeDiskBytes > 1_099_511_627_776 {
+		errors["minFreeDiskBytes"] = "must be <= 1099511627776"
+	} else {
+		v["minFreeDiskBytes"] = minFreeDiskBytes
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
 // fallbackForKey returns the code-level fallback for a given (module, key) pair.
 func fallbackForKey(module, key string) map[string]any {
 	switch module + "/" + key {
@@ -225,6 +247,8 @@ func fallbackForKey(module, key string) map[string]any {
 		return defaultTunnelPortRange
 	case "secrets/policy":
 		return secrets.DefaultPolicy().ToMap()
+	case "deploy/preflight":
+		return defaultDeployPreflight
 	}
 	return map[string]any{}
 }
@@ -316,6 +340,13 @@ func handleExtSettingsPatchModule(e *core.RequestEvent, module string) error {
 		}
 		if module == "tunnel" && key == "port_range" {
 			if validationErrors := validateTunnelPortRange(merged); validationErrors != nil {
+				return e.JSON(http.StatusUnprocessableEntity, map[string]any{
+					"errors": validationErrors,
+				})
+			}
+		}
+		if module == "deploy" && key == "preflight" {
+			if validationErrors := validateDeployPreflight(merged); validationErrors != nil {
 				return e.JSON(http.StatusUnprocessableEntity, map[string]any{
 					"errors": validationErrors,
 				})

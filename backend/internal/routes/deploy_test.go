@@ -11,6 +11,7 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/internal/lifecycle/model"
+	lifecyclesvc "github.com/websoft9/appos/backend/internal/lifecycle/service"
 )
 
 func (te *testEnv) doOperations(t *testing.T, method, url, body string, authenticated bool) *httptest.ResponseRecorder {
@@ -280,8 +281,9 @@ func TestOperationManualComposeRejectsDuplicateAppName(t *testing.T) {
 		t.Fatalf("duplicate create: expected 409, got %d: %s", rec.Code, rec.Body.String())
 	}
 	body := parseJSON(t, rec)
-	if !strings.Contains(strings.ToLower(body["message"].(string)), "already exists") {
-		t.Fatalf("expected duplicate app name message, got %v", body["message"])
+	message := strings.ToLower(body["message"].(string))
+	if !strings.Contains(message, "preflight") {
+		t.Fatalf("expected preflight conflict message, got %v", body["message"])
 	}
 }
 
@@ -325,6 +327,169 @@ func TestOperationManualComposeResolutionPayload(t *testing.T) {
 	}
 	if created["compose_project_name"] != "resolver-demo" {
 		t.Fatalf("expected normalized compose project name resolver-demo, got %v", created["compose_project_name"])
+	}
+}
+
+func TestOperationInstallNameAvailability(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	compose := "services:\n  web:\n    image: nginx:alpine\n"
+	rec := te.doOperations(t, http.MethodPost, "/api/actions/install/name-availability", `{"project_name":"Demo App"}`, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("name availability: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := parseJSON(t, rec)
+	if body["ok"] != true {
+		t.Fatalf("expected ok=true before creation, got %v", body["ok"])
+	}
+	if body["normalized_name"] != "demo-app" {
+		t.Fatalf("expected normalized name demo-app, got %v", body["normalized_name"])
+	}
+
+	rec = te.doOperations(t, http.MethodPost, "/api/actions/install/manual-compose", `{"project_name":"Demo App","compose":`+jsonString(compose)+`}`, true)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("create: expected 202, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = te.doOperations(t, http.MethodPost, "/api/actions/install/name-availability", `{"project_name":"Demo App"}`, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("name availability after create: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body = parseJSON(t, rec)
+	if body["ok"] != false {
+		t.Fatalf("expected ok=false after duplicate create, got %v", body["ok"])
+	}
+	if !strings.Contains(strings.ToLower(body["message"].(string)), "already exists") {
+		t.Fatalf("expected duplicate message, got %v", body["message"])
+	}
+}
+
+func TestOperationManualComposeCheck(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	compose := "services:\n  web:\n    image: nginx:alpine\n"
+	rec := te.doOperations(
+		t,
+		http.MethodPost,
+		"/api/actions/install/manual-compose/check",
+		`{"project_name":"Resolver Demo","compose":`+jsonString(compose)+`,"env":{"APP_ENV":"prod"}}`,
+		true,
+	)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	body := parseJSON(t, rec)
+	if body["ok"] != true {
+		t.Fatalf("expected ok=true, got %v", body["ok"])
+	}
+	if body["compose_project_name"] != "resolver-demo" {
+		t.Fatalf("expected normalized compose project name resolver-demo, got %v", body["compose_project_name"])
+	}
+	checks, ok := body["checks"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected checks map, got %T", body["checks"])
+	}
+	composeCheck, ok := checks["compose"].(map[string]any)
+	if !ok || composeCheck["ok"] != true {
+		t.Fatalf("expected compose check ok=true, got %v", checks["compose"])
+	}
+	portsCheck, ok := checks["ports"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected ports check map, got %T", checks["ports"])
+	}
+	if portsCheck["status"] != "not_applicable" {
+		t.Fatalf("expected not_applicable ports status, got %v", portsCheck["status"])
+	}
+	appNameCheck, ok := checks["app_name"].(map[string]any)
+	if !ok || appNameCheck["ok"] != true {
+		t.Fatalf("expected app_name check ok=true, got %v", checks["app_name"])
+	}
+	if _, ok := checks["container_names"].(map[string]any); !ok {
+		t.Fatalf("expected container_names check map, got %T", checks["container_names"])
+	}
+	if _, ok := checks["docker_availability"].(map[string]any); !ok {
+		t.Fatalf("expected docker_availability check map, got %T", checks["docker_availability"])
+	}
+	diskCheck, ok := checks["disk_space"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected disk_space check map, got %T", checks["disk_space"])
+	}
+	if _, ok := diskCheck["min_free_bytes"]; !ok {
+		t.Fatalf("expected disk_space.min_free_bytes field, got %v", diskCheck)
+	}
+	if diskCheck["required_app_bytes"] != float64(0) {
+		t.Fatalf("expected disk_space.required_app_bytes=0, got %v", diskCheck["required_app_bytes"])
+	}
+}
+
+func TestOperationManualComposeCheckDetectsDuplicateAppName(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	compose := "services:\n  web:\n    image: nginx:alpine\n"
+	rec := te.doOperations(t, http.MethodPost, "/api/actions/install/manual-compose", `{"project_name":"Demo App","compose":`+jsonString(compose)+`}`, true)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("first create: expected 202, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = te.doOperations(t, http.MethodPost, "/api/actions/install/manual-compose/check", `{"project_name":"Demo App","compose":`+jsonString(compose)+`}`, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("duplicate check: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := parseJSON(t, rec)
+	if body["ok"] != false {
+		t.Fatalf("expected ok=false for duplicate app name, got %v", body["ok"])
+	}
+	checks := body["checks"].(map[string]any)
+	appNameCheck := checks["app_name"].(map[string]any)
+	if appNameCheck["ok"] != false {
+		t.Fatalf("expected app_name check ok=false, got %v", appNameCheck["ok"])
+	}
+	if !strings.Contains(strings.ToLower(appNameCheck["message"].(string)), "already exists") {
+		t.Fatalf("expected duplicate message, got %v", appNameCheck["message"])
+	}
+}
+
+func TestExtractComposePublishedPorts(t *testing.T) {
+	compose := `services:
+  web:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+      - "127.0.0.1:8443:443"
+      - "5353:53/udp"
+  api:
+    image: nginx:alpine
+    ports:
+      - target: 3000
+        published: 3001
+        protocol: tcp
+      - target: 9000
+        published: "9001"
+        protocol: udp
+`
+
+	ports, err := lifecyclesvc.ExtractComposePublishedPortsForTest(compose)
+	if err != nil {
+		t.Fatalf("expected valid compose ports, got error: %v", err)
+	}
+	if len(ports) != 5 {
+		t.Fatalf("expected 5 published host ports, got %d: %#v", len(ports), ports)
+	}
+	expected := []lifecyclesvc.InstallPreflightPublishedPort{
+		{Port: 3001, Protocol: "tcp"},
+		{Port: 8080, Protocol: "tcp"},
+		{Port: 8443, Protocol: "tcp"},
+		{Port: 5353, Protocol: "udp"},
+		{Port: 9001, Protocol: "udp"},
+	}
+	for index, port := range expected {
+		if ports[index] != port {
+			t.Fatalf("expected port %v at index %d, got %v", port, index, ports[index])
+		}
 	}
 }
 

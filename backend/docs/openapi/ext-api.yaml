@@ -135,6 +135,45 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/actions/install/git-compose/check:
+    post:
+      tags: [Actions]
+      summary: Check Git Compose install preflight
+      description: "Resolves and validates a Git Compose install request without creating an action. Returns compose validity, duplicate-name checks, and host-port conflict findings when available. Superuser only."
+      operationId: post_api_actions_install_git-compose_check
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/actions/install/manual-compose:
     post:
       tags: [Actions]
@@ -157,6 +196,84 @@ paths:
                 $ref: '#/components/schemas/SuccessEnvelope'
         "401":
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/actions/install/manual-compose/check:
+    post:
+      tags: [Actions]
+      summary: Check manual Compose install preflight
+      description: "Resolves and validates a manual Compose install request without creating an action. Returns compose validity, duplicate-name checks, and host-port conflict findings when available. Superuser only."
+      operationId: post_api_actions_install_manual-compose_check
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/actions/install/name-availability:
+    post:
+      tags: [Actions]
+      summary: Check install name availability
+      description: "Normalizes a candidate install name and reports whether it is available for a new app instance. Superuser only."
+      operationId: post_api_actions_install_name-availability
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "500":
+          description: Internal Server Error
           content:
             application/json:
               schema:

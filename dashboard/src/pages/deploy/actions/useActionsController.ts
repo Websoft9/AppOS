@@ -35,6 +35,34 @@ type UseActionsControllerArgs = {
   view?: 'home' | 'list' | 'create'
 }
 
+type InstallPreflightCheck = {
+  ok?: boolean
+  message?: string
+  status?: string
+  conflict?: boolean
+  items?: Array<{
+    port: number
+    protocol: string
+    occupied?: boolean
+    reserved?: boolean
+    conflict?: boolean
+  }>
+}
+
+export type InstallPreflightResult = {
+  ok: boolean
+  message: string
+  compose_project_name?: string
+  project_name?: string
+  warnings?: string[]
+  checks?: {
+    compose?: InstallPreflightCheck
+    app_name?: InstallPreflightCheck
+    ports?: InstallPreflightCheck
+    disk_space?: InstallPreflightCheck
+  }
+}
+
 const DEFAULT_SORT_FIELD: SortField = 'started_at'
 const DEFAULT_SORT_DIR: SortDir = 'desc'
 const DEFAULT_PAGE = 1
@@ -139,6 +167,10 @@ export function useActionsController({
   const [gitComposePath, setGitComposePath] = useState('docker-compose.yml')
   const [gitAuthHeaderName, setGitAuthHeaderName] = useState('Authorization')
   const [gitAuthHeaderValue, setGitAuthHeaderValue] = useState('')
+  const [appRequiredDiskGiB, setAppRequiredDiskGiB] = useState('')
+  const [checkResult, setCheckResult] = useState<InstallPreflightResult | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [gitChecking, setGitChecking] = useState(false)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [gitSubmitting, setGitSubmitting] = useState(false)
@@ -587,7 +619,13 @@ export function useActionsController({
     try {
       const created = await pb.send<ActionRecord>('/api/actions/install/manual-compose', {
         method: 'POST',
-        body: { server_id: serverId, project_name: projectName, compose, env: Object.fromEntries(envVars.filter(e => e.key.trim()).map(e => [e.key.trim(), e.value])) },
+        body: {
+          server_id: serverId,
+          project_name: projectName,
+          compose,
+          env: Object.fromEntries(envVars.filter(e => e.key.trim()).map(e => [e.key.trim(), e.value])),
+          app_required_disk_gib: appRequiredDiskGiB,
+        },
       })
       showNotice('default', `Action ${created.compose_project_name || created.id} created`)
       await fetchOperations()
@@ -596,6 +634,35 @@ export function useActionsController({
       showNotice('destructive', err instanceof Error ? err.message : 'Failed to create action')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function checkManualOperation(options?: { silentNotice?: boolean }): Promise<InstallPreflightResult | null> {
+    setChecking(true)
+    setNotice(null)
+    try {
+      const result = await pb.send<InstallPreflightResult>('/api/actions/install/manual-compose/check', {
+        method: 'POST',
+        body: {
+          server_id: serverId,
+          project_name: projectName,
+          compose,
+          env: Object.fromEntries(envVars.filter(e => e.key.trim()).map(e => [e.key.trim(), e.value])),
+          app_required_disk_gib: appRequiredDiskGiB,
+        },
+      })
+      setCheckResult(result)
+      if (!options?.silentNotice) {
+        showNotice(result.ok ? 'default' : 'destructive', result.message)
+      }
+      return result
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to run preflight check'
+      setCheckResult(null)
+      showNotice('destructive', message)
+      return null
+    } finally {
+      setChecking(false)
     }
   }
 
@@ -613,6 +680,7 @@ export function useActionsController({
           compose_path: gitComposePath,
           auth_header_name: gitAuthHeaderValue.trim() ? gitAuthHeaderName : '',
           auth_header_value: gitAuthHeaderValue,
+          app_required_disk_gib: appRequiredDiskGiB,
         },
       })
       showNotice('default', `Action ${created.compose_project_name || created.id} created from Git repository`)
@@ -622,6 +690,38 @@ export function useActionsController({
       showNotice('destructive', err instanceof Error ? err.message : 'Failed to create git action')
     } finally {
       setGitSubmitting(false)
+    }
+  }
+
+  async function checkGitOperation(options?: { silentNotice?: boolean }): Promise<InstallPreflightResult | null> {
+    setGitChecking(true)
+    setNotice(null)
+    try {
+      const result = await pb.send<InstallPreflightResult>('/api/actions/install/git-compose/check', {
+        method: 'POST',
+        body: {
+          server_id: serverId,
+          project_name: gitProjectName,
+          repository_url: gitRepositoryUrl,
+          ref: gitRef,
+          compose_path: gitComposePath,
+          auth_header_name: gitAuthHeaderValue.trim() ? gitAuthHeaderName : '',
+          auth_header_value: gitAuthHeaderValue,
+          app_required_disk_gib: appRequiredDiskGiB,
+        },
+      })
+      setCheckResult(result)
+      if (!options?.silentNotice) {
+        showNotice(result.ok ? 'default' : 'destructive', result.message)
+      }
+      return result
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to run git preflight check'
+      setCheckResult(null)
+      showNotice('destructive', message)
+      return null
+    } finally {
+      setGitChecking(false)
     }
   }
 
@@ -783,6 +883,12 @@ export function useActionsController({
     setGitAuthHeaderName,
     gitAuthHeaderValue,
     setGitAuthHeaderValue,
+    appRequiredDiskGiB,
+    setAppRequiredDiskGiB,
+    checkResult,
+    setCheckResult,
+    checking,
+    gitChecking,
     submitting,
     gitSubmitting,
     pendingDelete,
@@ -803,6 +909,8 @@ export function useActionsController({
     getUserLabel,
     getServerLabel,
     getServerHost,
+    checkManualOperation,
+    checkGitOperation,
     submitManualOperation,
     submitGitOperation,
     deleteOperations,

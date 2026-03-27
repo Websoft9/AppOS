@@ -21,6 +21,7 @@ import (
 )
 
 const maxGitComposeBytes = 1 << 20
+const defaultMinFreeDiskBytes int64 = 512 * 1024 * 1024
 
 func registerOperationRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	o := g.Group("/actions")
@@ -31,8 +32,11 @@ func registerOperationRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	o.POST("/{id}/cancel", handleOperationCancel)
 	o.GET("/{id}/logs", handleOperationLogs)
 	o.GET("/{id}/stream", handleOperationLogStream)
+	o.POST("/install/name-availability", handleOperationInstallNameAvailability)
 	o.POST("/install/git-compose", handleOperationInstallGitCompose)
 	o.POST("/install/manual-compose", handleOperationInstallManualCompose)
+	o.POST("/install/git-compose/check", handleOperationInstallGitComposeCheck)
+	o.POST("/install/manual-compose/check", handleOperationInstallManualComposeCheck)
 
 	p := g.Group("/pipelines")
 	p.Bind(apis.RequireSuperuserAuth())
@@ -317,6 +321,34 @@ func handleOperationLogStream(e *core.RequestEvent) error {
 	return nil
 }
 
+// @Summary Check install name availability
+// @Description Normalizes a candidate install name and reports whether it is available for a new app instance. Superuser only.
+// @Tags Actions
+// @Security BearerAuth
+// @Param body body object true "name availability payload"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/actions/install/name-availability [post]
+func handleOperationInstallNameAvailability(e *core.RequestEvent) error {
+	body, err := readBody(e)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "invalid request body"})
+	}
+
+	rawName := bodyString(body, "project_name")
+	result, err := lifecyclesvc.CheckInstallNameAvailability(e.App, rawName)
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "required") {
+			return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+		}
+		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": err.Error()})
+	}
+
+	return e.JSON(http.StatusOK, result)
+}
+
 func handleOperationInstallGitCompose(e *core.RequestEvent) error {
 	body, err := readBody(e)
 	if err != nil {
@@ -372,12 +404,15 @@ func handleOperationInstallGitCompose(e *core.RequestEvent) error {
 		operationCreateOptions{
 			ResolvedEnv:    bodyMap(body, "env"),
 			ExposureIntent: parseExposureIntent(bodyMap(body, "exposure")),
-			Metadata: map[string]any{
+			Metadata: mergeMetadata(
+				map[string]any{
 				"repository_url": req.RepositoryURL,
 				"ref":            req.Ref,
 				"compose_path":   req.ComposePath,
 				"raw_url":        rawURL,
-			},
+				},
+				parseInstallMetadata(body),
+			),
 		},
 	)
 	if err != nil {
@@ -391,6 +426,83 @@ func handleOperationInstallGitCompose(e *core.RequestEvent) error {
 	}
 
 	return e.JSON(http.StatusAccepted, result)
+}
+
+// @Summary Check Git Compose install preflight
+// @Description Resolves and validates a Git Compose install request without creating an action. Returns compose validity, duplicate-name checks, and host-port conflict findings when available. Superuser only.
+// @Tags Actions
+// @Security BearerAuth
+// @Param body body object true "git compose install preflight payload"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/actions/install/git-compose/check [post]
+func handleOperationInstallGitComposeCheck(e *core.RequestEvent) error {
+	body, err := readBody(e)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "invalid request body"})
+	}
+
+	req := deploy.GitComposeRequest{
+		ServerID:        bodyString(body, "server_id"),
+		ProjectName:     bodyString(body, "project_name"),
+		RepositoryURL:   bodyString(body, "repository_url"),
+		Ref:             bodyString(body, "ref"),
+		ComposePath:     bodyString(body, "compose_path"),
+		RawURL:          bodyString(body, "raw_url"),
+		AuthHeaderName:  bodyString(body, "auth_header_name"),
+		AuthHeaderValue: bodyString(body, "auth_header_value"),
+	}
+	if req.ServerID == "" {
+		req.ServerID = "local"
+	}
+	if req.Ref == "" {
+		req.Ref = "main"
+	}
+	if req.ComposePath == "" {
+		req.ComposePath = "docker-compose.yml"
+	}
+
+	rawURL, err := resolveGitComposeRawURL(req)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+	}
+
+	compose, err := fetchRemoteCompose(rawURL, req.AuthHeaderName, req.AuthHeaderValue)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+	}
+	if req.ProjectName == "" {
+		req.ProjectName = deriveGitProjectName(req.RepositoryURL, req.ComposePath, rawURL)
+	}
+
+	options := operationCreateOptions{
+		ResolvedEnv:    bodyMap(body, "env"),
+		ExposureIntent: parseExposureIntent(bodyMap(body, "exposure")),
+		Metadata: mergeMetadata(
+			map[string]any{
+				"repository_url": req.RepositoryURL,
+				"ref":            req.Ref,
+				"compose_path":   req.ComposePath,
+				"raw_url":        rawURL,
+			},
+			parseInstallMetadata(body),
+		),
+	}
+	result, err := lifecyclesvc.CheckInstallFromCompose(
+		e.App,
+		buildInstallPreflightRequest(e.Auth, req.ServerID, req.ProjectName, compose, deploy.SourceGitOps, deploy.AdapterGitCompose, options),
+		newRouteInstallPreflightProbe(e),
+	)
+	if err != nil {
+		if isOperationCreateBadRequest(err) {
+			return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+		}
+		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": err.Error()})
+	}
+
+	return e.JSON(http.StatusOK, result)
 }
 
 func handleOperationInstallManualCompose(e *core.RequestEvent) error {
@@ -419,6 +531,7 @@ func handleOperationInstallManualCompose(e *core.RequestEvent) error {
 		operationCreateOptions{
 			ResolvedEnv:    bodyMap(body, "env"),
 			ExposureIntent: parseExposureIntent(bodyMap(body, "exposure")),
+			Metadata:       parseInstallMetadata(body),
 		},
 	)
 	if err != nil {
@@ -432,6 +545,51 @@ func handleOperationInstallManualCompose(e *core.RequestEvent) error {
 	}
 
 	return e.JSON(http.StatusAccepted, result)
+}
+
+// @Summary Check manual Compose install preflight
+// @Description Resolves and validates a manual Compose install request without creating an action. Returns compose validity, duplicate-name checks, and host-port conflict findings when available. Superuser only.
+// @Tags Actions
+// @Security BearerAuth
+// @Param body body object true "manual compose install preflight payload"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/actions/install/manual-compose/check [post]
+func handleOperationInstallManualComposeCheck(e *core.RequestEvent) error {
+	body, err := readBody(e)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "invalid request body"})
+	}
+
+	req := deploy.ManualComposeRequest{
+		ServerID:    bodyString(body, "server_id"),
+		ProjectName: bodyString(body, "project_name"),
+		Compose:     bodyString(body, "compose"),
+	}
+	if req.ServerID == "" {
+		req.ServerID = "local"
+	}
+
+	options := operationCreateOptions{
+		ResolvedEnv:    bodyMap(body, "env"),
+		ExposureIntent: parseExposureIntent(bodyMap(body, "exposure")),
+		Metadata:       parseInstallMetadata(body),
+	}
+	result, err := lifecyclesvc.CheckInstallFromCompose(
+		e.App,
+		buildInstallPreflightRequest(e.Auth, req.ServerID, req.ProjectName, req.Compose, deploy.SourceManualOps, deploy.AdapterManualCompose, options),
+		newRouteInstallPreflightProbe(e),
+	)
+	if err != nil {
+		if isOperationCreateBadRequest(err) {
+			return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
+		}
+		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": err.Error()})
+	}
+
+	return e.JSON(http.StatusOK, result)
 }
 
 type operationCreateOptions struct {
@@ -454,6 +612,20 @@ func createOperationFromCompose(
 	auditDetail map[string]any,
 	options operationCreateOptions,
 ) (map[string]any, error) {
+	if strings.TrimSpace(options.ExistingAppID) == "" {
+		preflightResult, err := lifecyclesvc.CheckInstallFromCompose(
+			e.App,
+			buildInstallPreflightRequest(e.Auth, serverID, projectName, compose, source, adapter, options),
+			newRouteInstallPreflightProbe(e),
+		)
+		if err != nil {
+			return nil, err
+		}
+		if !preflightResult.OK {
+			return nil, fmt.Errorf("install preflight blocked: %v", preflightResult.Message)
+		}
+	}
+
 	operationRecord, err := lifecyclesvc.CreateOperationFromCompose(
 		e.App,
 		e.Auth,
@@ -555,7 +727,7 @@ func isOperationCreateConflict(err error) bool {
 		return false
 	}
 	message := strings.ToLower(strings.TrimSpace(err.Error()))
-	return strings.Contains(message, "already exists") || strings.Contains(message, "duplicate")
+	return strings.Contains(message, "already exists") || strings.Contains(message, "duplicate") || strings.Contains(message, "preflight blocked")
 }
 
 func operationDisplayStatus(record *core.Record) string {

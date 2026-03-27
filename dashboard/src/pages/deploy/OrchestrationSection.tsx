@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ChevronDown,
   CircleHelp,
@@ -102,6 +102,7 @@ export function OrchestrationSection({
   srcUploaded,
 }: OrchestrationSectionProps) {
   const srcRelativePath = './src/'
+  const templateMenuRef = useRef<HTMLDivElement>(null)
 
   // ── Compose file upload ──
   const composeFileRef = useRef<HTMLInputElement>(null)
@@ -116,6 +117,7 @@ export function OrchestrationSection({
 
   // ── Template import ──
   const [templateLoading, setTemplateLoading] = useState(false)
+  const [templateMenuOpen, setTemplateMenuOpen] = useState(false)
   const importTemplate = useCallback(async (appKey: string, appName: string) => {
     setTemplateLoading(true)
     try {
@@ -130,6 +132,7 @@ export function OrchestrationSection({
       // silently skip — template unavailable
     } finally {
       setTemplateLoading(false)
+      setTemplateMenuOpen(false)
     }
   }, [projectName, setCompose, setEnvVars, setProjectName])
 
@@ -178,9 +181,39 @@ export function OrchestrationSection({
   const [templateSearch, setTemplateSearch] = useState('')
   const filteredProducts = useMemo(() => {
     const q = templateSearch.trim().toLowerCase()
-    if (!q) return storeProducts
-    return storeProducts.filter(p => p.trademark.toLowerCase().includes(q) || p.key.toLowerCase().includes(q))
+    const filtered = q
+      ? storeProducts.filter(p => p.trademark.toLowerCase().includes(q) || p.key.toLowerCase().includes(q))
+      : storeProducts
+
+    return [...filtered].sort((left, right) => {
+      const leftLabel = (left.trademark || left.key).toLowerCase()
+      const rightLabel = (right.trademark || right.key).toLowerCase()
+      return leftLabel.localeCompare(rightLabel)
+    })
   }, [storeProducts, templateSearch])
+
+  useEffect(() => {
+    if (!templateMenuOpen) return
+
+    function handlePointerDown(event: MouseEvent) {
+      if (!templateMenuRef.current?.contains(event.target as Node)) {
+        setTemplateMenuOpen(false)
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setTemplateMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [templateMenuOpen])
 
   // ── Env mode: sensitive auto-generation / shared env mapping ──
   const [envModes, setEnvModes] = useState<Record<number, 'sensitive' | 'shared'>>({})
@@ -260,25 +293,22 @@ export function OrchestrationSection({
   const envCount = envVars.filter(e => e.key.trim()).length
 
   return (
-    <details className="group rounded-lg border bg-card" open>
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 [&::-webkit-details-marker]:hidden">
-        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-0 [&:not([open]_&)]:rotate-[-90deg]" />
-        <div className="min-w-0">
-          <div className="flex items-center gap-1">
-            <span className="text-base font-semibold">Orchestration</span>
-            <TooltipProvider delayDuration={200}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <CircleHelp className="ml-0.5 inline h-3.5 w-3.5 cursor-help text-muted-foreground/60 hover:text-muted-foreground" />
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-xs text-xs">Define the service stack: compose file, environment variables, and mount files.</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-          <div className="text-xs text-muted-foreground">Compose, environment variables, and mount files</div>
+    <section className="rounded-lg border bg-card px-4 py-3">
+      <div className="min-w-0">
+        <div className="flex items-center gap-1">
+          <span className="text-base font-semibold">Orchestration</span>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <CircleHelp className="ml-0.5 inline h-3.5 w-3.5 cursor-help text-muted-foreground/60 hover:text-muted-foreground" />
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs text-xs">Define the service stack: compose file, environment variables, and mount files.</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
-      </summary>
-      <div className="space-y-3 px-4 pb-4">
+        <div className="text-xs text-muted-foreground">Compose, environment variables, and mount files</div>
+      </div>
+      <div className="space-y-3 pt-4">
         {/* ── Sub-area 1: Compose File (collapsed by default) ── */}
         <details className="group pl-2">
           <summary className="flex cursor-pointer items-center gap-2 py-2">
@@ -286,7 +316,7 @@ export function OrchestrationSection({
             <span className="text-[13px] font-medium">Compose File</span>
             {compose.trim() ? <span className="ml-auto text-xs text-muted-foreground">{compose.split('\n').length} lines</span> : null}
           </summary>
-          <div className="pt-2">
+          <div className="pl-5 pt-2">
             <div className="max-h-[420px] overflow-y-auto rounded-md border">
               <Textarea
                 id="compose-content"
@@ -302,40 +332,59 @@ export function OrchestrationSection({
                 <Upload className="mr-1 h-3 w-3" />Upload YAML
               </Button>
               {storeProducts.length > 0 ? (
-                <details className="relative">
-                  <summary className="cursor-pointer list-none">
-                    <Button variant="outline" size="sm" className="h-7 text-xs" asChild><span>Import from App Store</span></Button>
-                  </summary>
-                  <div className="absolute left-0 z-20 mt-1 w-64 rounded-md border bg-popover shadow-md">
-                    <div className="flex items-center gap-2 border-b px-2 py-1.5">
-                      <Search className="h-3.5 w-3.5 text-muted-foreground" />
-                      <input
-                        type="text"
-                        className="h-7 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
-                        placeholder="Search apps…"
-                        value={templateSearch}
-                        onChange={e => setTemplateSearch(e.target.value)}
-                      />
-                    </div>
-                    <div className="max-h-64 overflow-y-auto p-1">
-                      {filteredProducts.map(p => (
-                        <button
-                          key={p.key}
+                <div className="relative" ref={templateMenuRef}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setTemplateMenuOpen(open => !open)}
+                    aria-expanded={templateMenuOpen}
+                    aria-haspopup="menu"
+                  >
+                    Import from App Store
+                  </Button>
+                  {templateMenuOpen ? (
+                    <div className="absolute left-0 z-20 mt-1 w-64 rounded-md border bg-popover shadow-md" role="menu">
+                      <div className="flex items-center gap-2 border-b px-2 py-1.5">
+                        <Search className="h-3.5 w-3.5 text-muted-foreground" />
+                        <input
+                          type="text"
+                          className="h-7 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+                          placeholder="Search apps…"
+                          value={templateSearch}
+                          onChange={e => setTemplateSearch(e.target.value)}
+                        />
+                        <Button
                           type="button"
-                          disabled={templateLoading}
-                          className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-accent disabled:opacity-50"
-                          onClick={() => void importTemplate(p.key, p.trademark)}
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={() => setTemplateMenuOpen(false)}
+                          aria-label="Close import menu"
                         >
-                          {p.logo?.imageurl ? <img src={p.logo.imageurl} alt="" className="h-4 w-4 rounded" /> : null}
-                          <span className="truncate">{p.trademark}</span>
-                        </button>
-                      ))}
-                      {filteredProducts.length === 0 ? (
-                        <div className="px-2 py-3 text-center text-xs text-muted-foreground">No matching apps</div>
-                      ) : null}
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      <div className="max-h-64 overflow-y-auto p-1">
+                        {filteredProducts.map(p => (
+                          <button
+                            key={p.key}
+                            type="button"
+                            disabled={templateLoading}
+                            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-accent disabled:opacity-50"
+                            onClick={() => void importTemplate(p.key, p.trademark)}
+                          >
+                            {p.logo?.imageurl ? <img src={p.logo.imageurl} alt="" className="h-4 w-4 rounded" /> : null}
+                            <span className="truncate">{p.trademark}</span>
+                          </button>
+                        ))}
+                        {filteredProducts.length === 0 ? (
+                          <div className="px-2 py-3 text-center text-xs text-muted-foreground">No matching apps</div>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
-                </details>
+                  ) : null}
+                </div>
               ) : null}
               <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setCompose(SAMPLE_COMPOSE)}>
                 Use sample
@@ -363,7 +412,7 @@ export function OrchestrationSection({
             <span className="text-[13px] font-medium">Environment Variables & Secret-backed</span>
             {envCount > 0 ? <span className="ml-auto text-xs text-muted-foreground">{envCount} defined</span> : null}
           </summary>
-          <div className="pt-2">
+          <div className="pl-5 pt-2">
             <div className="max-h-[400px] space-y-1.5 overflow-y-auto">
               {envVars.map((env, i) => {
                 const mode = envModes[i]
@@ -443,7 +492,7 @@ export function OrchestrationSection({
             <span className="text-[13px] font-medium">Mount Files</span>
             {srcFiles.length + srcUploaded.length > 0 ? <span className="ml-auto text-xs text-muted-foreground">{srcFiles.length + srcUploaded.length} file(s)</span> : null}
           </summary>
-          <div className="pt-2">
+          <div className="pl-5 pt-2">
             <div className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
               Volume mount path: <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">{srcRelativePath}&lt;upload_file&gt;</code>
             </div>
@@ -473,6 +522,6 @@ export function OrchestrationSection({
           </div>
         </details>
       </div>
-    </details>
+    </section>
   )
 }

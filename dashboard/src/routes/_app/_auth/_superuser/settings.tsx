@@ -112,6 +112,10 @@ interface TunnelPortRange {
   end: number
 }
 
+interface DeployPreflightGroup {
+  minFreeDiskBytes: number
+}
+
 function extractFieldError(value: unknown): string | null {
   if (typeof value === 'string' && value.trim()) {
     return value.trim()
@@ -249,6 +253,7 @@ const NAV_ITEMS = [
   { id: 'secrets', group: 'System', label: 'Secrets' },
   { id: 'space', group: 'Workspace', label: 'Space Quota' },
   { id: 'connect-terminal', group: 'Workspace', label: 'Connect Terminal' },
+  { id: 'deploy-preflight', group: 'Workspace', label: 'Deploy Preflight' },
   { id: 'tunnel', group: 'Workspace', label: 'Tunnel' },
   { id: 'proxy', group: 'Workspace', label: 'Proxy' },
   { id: 'docker-mirrors', group: 'Workspace', label: 'Docker Mirrors' },
@@ -287,6 +292,10 @@ const DEFAULT_CONNECT_TERMINAL: ConnectTerminalGroup = {
 const DEFAULT_TUNNEL_PORT_RANGE: TunnelPortRange = {
   start: 40000,
   end: 49999,
+}
+
+const DEFAULT_DEPLOY_PREFLIGHT: DeployPreflightGroup = {
+  minFreeDiskBytes: 512 * 1024 * 1024,
 }
 
 // ─── Component ────────────────────────────────────────────────────────────
@@ -351,6 +360,13 @@ export function SettingsPage() {
   const [connectTerminalSaving, setConnectTerminalSaving] = useState(false)
   const [connectTerminalErrors, setConnectTerminalErrors] = useState<
     Partial<Record<keyof ConnectTerminalGroup, string>>
+  >({})
+
+  const [deployPreflightForm, setDeployPreflightForm] =
+    useState<DeployPreflightGroup>(DEFAULT_DEPLOY_PREFLIGHT)
+  const [deployPreflightSaving, setDeployPreflightSaving] = useState(false)
+  const [deployPreflightErrors, setDeployPreflightErrors] = useState<
+    Partial<Record<keyof DeployPreflightGroup, string>>
   >({})
 
   const [tunnelPortRangeForm, setTunnelPortRangeForm] =
@@ -436,10 +452,11 @@ export function SettingsPage() {
   // ── Load Ext settings ──
   const loadExtSettings = useCallback(async () => {
     try {
-      const [filesRes, connectRes, tunnelRes, secretsRes, proxyRes, dockerRes, llmRes] =
+      const [filesRes, connectRes, deployRes, tunnelRes, secretsRes, proxyRes, dockerRes, llmRes] =
         await Promise.allSettled([
           pb.send(extSettingsModulePath('space'), { method: 'GET' }),
           pb.send(extSettingsModulePath('connect'), { method: 'GET' }),
+          pb.send(extSettingsModulePath('deploy'), { method: 'GET' }),
           pb.send(TUNNEL_SETTINGS_API_PATH, { method: 'GET' }),
           pb.send(SECRETS_SETTINGS_API_PATH, { method: 'GET' }),
           pb.send(extSettingsModulePath('proxy'), { method: 'GET' }),
@@ -475,6 +492,16 @@ export function SettingsPage() {
             Number.isFinite(maxConnections) && maxConnections >= 0
               ? Math.floor(maxConnections)
               : DEFAULT_CONNECT_TERMINAL.maxConnections,
+        })
+      }
+      if (deployRes.status === 'fulfilled') {
+        const preflight = (deployRes.value as { preflight?: Partial<DeployPreflightGroup> }).preflight
+        const minFreeDiskBytes = Number(preflight?.minFreeDiskBytes)
+        setDeployPreflightForm({
+          minFreeDiskBytes:
+            Number.isFinite(minFreeDiskBytes) && minFreeDiskBytes >= 0
+              ? Math.floor(minFreeDiskBytes)
+              : DEFAULT_DEPLOY_PREFLIGHT.minFreeDiskBytes,
         })
       }
       if (tunnelRes.status === 'fulfilled') {
@@ -817,6 +844,60 @@ export function SettingsPage() {
       showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
     } finally {
       setConnectTerminalSaving(false)
+    }
+  }
+
+  const validateDeployPreflight = (): boolean => {
+    const errors: Partial<Record<keyof DeployPreflightGroup, string>> = {}
+
+    if (
+      !Number.isInteger(deployPreflightForm.minFreeDiskBytes) ||
+      deployPreflightForm.minFreeDiskBytes < 0
+    ) {
+      errors.minFreeDiskBytes = 'Must be an integer = 0 bytes'
+    }
+
+    setDeployPreflightErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const saveDeployPreflight = async () => {
+    if (!validateDeployPreflight()) return
+    setDeployPreflightSaving(true)
+    setDeployPreflightErrors({})
+    try {
+      const res = (await pb.send(extSettingsModulePath('deploy'), {
+        method: 'PATCH',
+        body: {
+          preflight: {
+            minFreeDiskBytes: deployPreflightForm.minFreeDiskBytes,
+          },
+        },
+      })) as { preflight?: Partial<DeployPreflightGroup> }
+      const preflight = res.preflight ?? deployPreflightForm
+      setDeployPreflightForm({
+        minFreeDiskBytes: Number(preflight.minFreeDiskBytes ?? deployPreflightForm.minFreeDiskBytes),
+      })
+      showToast('Deploy preflight settings saved')
+    } catch (err) {
+      if (err instanceof ClientResponseError && (err.status === 400 || err.status === 422)) {
+        const root = err.response as Record<string, unknown>
+        const bag =
+          root.errors && typeof root.errors === 'object'
+            ? (root.errors as Record<string, unknown>)
+            : root
+        const nextErrors = {
+          minFreeDiskBytes: extractFieldError(bag.minFreeDiskBytes) ?? undefined,
+        }
+        if (Object.values(nextErrors).some(Boolean)) {
+          setDeployPreflightErrors(nextErrors)
+          showToast('Please fix validation errors and try again.', false)
+          return
+        }
+      }
+      showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
+    } finally {
+      setDeployPreflightSaving(false)
     }
   }
 
@@ -1480,6 +1561,42 @@ export function SettingsPage() {
     </Card>
   )
 
+  const renderDeployPreflight = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Deploy Preflight</CardTitle>
+        <CardDescription>Disk-capacity guardrails used during install preflight</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <Label htmlFor="deployMinFreeDiskBytes">Minimum Free Disk (bytes)</Label>
+            <Input
+              id="deployMinFreeDiskBytes"
+              type="number"
+              min={0}
+              step={1}
+              value={deployPreflightForm.minFreeDiskBytes}
+              onChange={event =>
+                setDeployPreflightForm(form => ({
+                  ...form,
+                  minFreeDiskBytes: Number(event.target.value),
+                }))
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              Default is 536870912 bytes (0.5 GiB). Creation is blocked when available disk falls below this threshold.
+            </p>
+            {deployPreflightErrors.minFreeDiskBytes && (
+              <p className="text-xs text-destructive">{deployPreflightErrors.minFreeDiskBytes}</p>
+            )}
+          </div>
+        </div>
+        <SaveBtn onClick={saveDeployPreflight} saving={deployPreflightSaving} />
+      </CardContent>
+    </Card>
+  )
+
   const renderTunnel = () => (
     <Card>
       <CardHeader>
@@ -1966,6 +2083,8 @@ export function SettingsPage() {
         return renderSpace()
       case 'connect-terminal':
         return renderConnectTerminal()
+      case 'deploy-preflight':
+        return renderDeployPreflight()
       case 'tunnel':
         return renderTunnel()
       case 'secrets':
