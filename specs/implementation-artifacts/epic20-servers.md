@@ -15,7 +15,7 @@ Covers all server-domain business: the `servers` resource registry, SSH-based te
 | Server Registry (CRUD + secrets) | Terminal framework / tab rail (→ Epic 15) |
 | SSH PTY backend + shell route | Tunnel establishment (→ Epic 16) |
 | SFTP file management | App lifecycle execution and managed app operations (→ Epic 17 / Epic 18) |
-| Docker Exec on server containers | Terminal idle/max-connections settings (→ Epic 13) |
+| Docker Exec on server containers | Shared settings delivery for terminal limits (→ Epic 13 Settings Module) |
 | Server Ops: connectivity, power, ports, systemd | Database / cloud resource types (future epics) |
 | Server-specific frontend (Files, Docker panels) | |
 
@@ -240,7 +240,7 @@ Server lifecycle management and OS-level inspection via SSH.
 | SSH connect timeout | 10 s |
 | SFTP upload max size | 50 MB |
 
-Terminal behavior settings (idle timeout, max connections) are owned by Epic 13.
+Terminal behavior settings consumed by Servers are delivered through the Epic 13 Settings Module. Semantic ownership for `connect-terminal` remains in Epic 15.
 
 ---
 
@@ -248,7 +248,7 @@ Terminal behavior settings (idle timeout, max connections) are owned by Epic 13.
 
 1. **Credentials never leave the backend** — Frontend sends only `serverId`; backend decrypts the credential in-memory and injects it into the connector. No secret appears in any HTTP response or WebSocket message.
 2. **Every session is audited** — All SSH / SFTP / Docker exec sessions written to Epic 12 audit log: `user_id`, `server_id`, `session_id`, `ip`, `started_at`, `ended_at`, `bytes_in`, `bytes_out`. Key SFTP events (upload, download, delete) logged individually.
-3. **Minimal session lifecycle** — Valid PB auth token required on WebSocket upgrade; session auto-closes on token expiry or Epic 13 idle timeout. Docker exec restricted to Superuser only.
+3. **Minimal session lifecycle** — Valid PB auth token required on WebSocket upgrade; session auto-closes on token expiry or the configured `connect-terminal` idle timeout delivered through the Epic 13 Settings Module. Docker exec restricted to Superuser only.
 
 Post-MVP: session recording/playback, JIT access approval, MFA on connect.
 

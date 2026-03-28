@@ -157,16 +157,12 @@ development_status:
   16.5-tunnel-settings: done
   epic16-retrospective: optional
 
-  # Epic 13: Settings Management
-  epic13: in-progress
-  13.1-settings-foundation: done
-  13.2-migrate-file-constants: done    # Resolves Story 9.5
-  13.3-pb-settings-ui: done
-  13.4-ext-settings-ui: done
-  13.5-ext-infra-backend: done
-  13.6-ext-infra-ui: done
-  13.7-connect-terminal-settings-ui: review
-  13.8-unified-settings-api: review
+  # Epic 13: Settings Module
+  epic13: done
+  13.1-native: done
+  13.2-custom: done
+  13.3-frontend: done
+  13.4-onboarding: done
   epic13-retrospective: optional
 
   # Epic 17: Lifecycle Execution Core

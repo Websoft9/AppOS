@@ -4,7 +4,7 @@
 
 **Per-user private space** — each authenticated user gets an isolated space for storing, editing, organizing, and sharing files.
 
-**Status**: 4-story normalized split complete (as-built) | **Priority**: P2 | **Depends on**: Epic 1, Epic 3 (Epic 13 for settings dependency)
+**Status**: 4-story normalized split complete (as-built) | **Priority**: P2 | **Depends on**: Epic 1, Epic 3 (Epic 13 Settings Module for settings dependency)
 
 ---
 
@@ -109,7 +109,7 @@ Share `POST` body: `{ "minutes": N }`. Response: `{ "share_token", "share_url", 
 | `1740300001_user_files_add_autodate.go` | Adds `created`/`updated` AutodateFields to existing deployments |
 | `1740300002_user_files_folder_support.go` | Adds `is_folder` (bool) + `parent` (text) fields |
 | `1740300003_user_files_add_size.go` | Adds `size` (number, bytes) field for file-size display |
-| `1741300010_rename_settings_files_to_space.go` | Renames `app_settings` module key from `files` → `space` (Epic 9 rebrand) |
+| `1741300010_rename_settings_files_to_space.go` | Renames `custom_settings` module key from `files` → `space` (Epic 9 rebrand) |
 | `1741600000_user_files_soft_delete.go` | Adds `is_deleted` (bool) field for soft-delete / trash |
 
 ---
@@ -124,7 +124,7 @@ Share `POST` body: `{ "minutes": N }`. Response: `{ "share_token", "share_url", 
 | 9.2 | Space Content Operations | ✅ Done |
 | 9.3 | Space Sharing and Access | ✅ Done |
 | 9.4 | Space Lifecycle Management | ✅ Done (9.6 kept planned) |
-| 9.5 | Settings (space quotas/formats) | ✅ Resolved by Epic 13 (no standalone Epic9 story file) |
+| 9.5 | Settings (space quotas/formats) | ✅ Resolved by Epic 13 Settings Module (no standalone Epic9 story file) |
 | 9.6 | File Version History | 📋 Planned |
 
 Related documents:
@@ -141,7 +141,7 @@ Related documents:
 | 9.2 | Space List UI | ✅ Mapped to Story 9.1 |
 | 9.3 | Online Editor | ✅ Mapped to Story 9.2 |
 | 9.4 | Share | ✅ Mapped to Story 9.3 |
-| 9.5 | Settings UI (Admin) | ⏳ Resolved by Epic 13 (Story 13.2 + 13.4) |
+| 9.5 | Settings UI (Admin) | ⏳ Resolved by Epic 13 Settings Module (`space-quota` entry) |
 | 9.6 | File Version History | 📋 Planned |
 | 9.7 | File Preview (browser-native) | ✅ Mapped to Story 9.3 |
 | 9.8 | Soft Delete & Trash | ✅ Mapped to Story 9.4 |
@@ -152,7 +152,7 @@ Related documents:
 
 ## Numbering Notes
 
-- 9.5 is intentionally retained for historical traceability and is resolved by Epic 13 (Stories 13.2 + 13.4).
+- 9.5 is intentionally retained for historical traceability and is resolved by the Epic 13 Settings Module through the `space-quota` entry.
 - 9.6 remains planned as future scope (File Version History).
 - Legacy 9.7/9.8/9.9/9.10 details are maintained in consolidated Story files 9.1~9.4, not duplicated in this Epic document.
 

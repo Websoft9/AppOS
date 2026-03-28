@@ -19,7 +19,7 @@ import (
 	settingscatalog "github.com/websoft9/appos/backend/internal/settings/catalog"
 )
 
-// ─── File quota defaults (Story 13.2: values now stored in app_settings DB) ───────
+// ─── File quota defaults (Story 13.2: values now stored in custom_settings DB) ───────
 //
 // hookDefaultSpaceQuota is the code-level fallback used when the DB row is
 // missing or the DB is unavailable.

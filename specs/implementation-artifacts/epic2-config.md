@@ -9,6 +9,14 @@
 
 **Status**: Not Started
 
+## Boundary Note
+
+Epic 2 is about runtime and file-based **configuration management**, not the Epic 13 Settings Module.
+
+- Epic 13 Settings Module: admin-facing persisted settings delivered through `/api/settings`
+- Epic 2: config files, sync, reload, init, and environment propagation for services
+- User/browser preferences are a separate concern unless a later story explicitly promotes them into either Epic 2 or Epic 13
+
 **Core Requirements**:
 1. **Watch** - Monitor config.ini changes in real-time
 2. **Sync** - Propagate configuration to target services (containers and internal processes)
@@ -35,8 +43,8 @@
 - Perfect for all-in-one philosophy
 
 **Components**:
-1. **config.ini** - User-modifiable config (API accessible, credentials, preferences)
-2. **system.ini** - System-level config (API read-only, paths, core settings)
+1. **config.ini** - User-modifiable runtime config (API accessible, credentials, service-level options, local product choices for this legacy surface)
+2. **system.ini** - System-level runtime config (API read-only, paths, core settings)
 3. **config-sync thread** - Background thread within FastAPI process
 4. **Service init scripts** - Bootstrap configuration on container start
 
@@ -77,8 +85,8 @@ Cockpit Container
 ```
 
 **Configuration File Strategy**:
-- **config.ini**: User-facing settings (credentials, URLs, preferences) - Modifiable via API
-- **system.ini**: System settings (paths, core config) - NOT modifiable via API
+- **config.ini**: User-facing runtime configuration (credentials, URLs, service options) - Modifiable via API
+- **system.ini**: System runtime configuration (paths, core config) - NOT modifiable via API
 - **Stability**: Preserve existing business logic, dual-config approach for backward compatibility
 
 **Init vs Runtime**:

@@ -1,96 +1,245 @@
-# Epic 13: Settings Management
+# Epic 13: Settings Module
+
+**Module**: Settings | **Status**: Canonicalized | **Priority**: P2 | **Depends on**: Epic 1, Epic 3
 
 ## Overview
 
-**Objective**: Unified settings page — PocketBase built-in settings + AppOS custom (Ext) settings in one Dashboard view.
+Epic 13 owns the Settings platform itself:
 
-**Priority**: P2 | **Status**: in-progress | **Depends on**: Epic 1, Epic 3
+- one backend-owned `/api/settings` surface
+- one schema/catalog that describes all settings entries
+- one schema-driven Dashboard Settings page
+- one shared rule set for defaults, masking, actions, and persistence adapters
 
----
+Epic 13 does **not** own the full product semantics of every individual setting. Once a settings entry belongs to a business domain, that domain's epic or story owns the field meaning, validation intent, and runtime behavior.
 
-## Two Settings Domains
+The canonical module design is intentionally split into four delivery stories:
 
-| Domain | Storage | API | Auth |
-|--------|---------|-----|------|
-| **PB Settings** | `_params` table (PB internal) | `/api/settings` | superuser |
-| **Ext Settings** | `app_settings` collection | `/api/settings/workspace/{module}` | superuser |
+- [specs/implementation-artifacts/story13.1-native.md](specs/implementation-artifacts/story13.1-native.md)
+- [specs/implementation-artifacts/story13.2-custom.md](specs/implementation-artifacts/story13.2-custom.md)
+- [specs/implementation-artifacts/story13.3-frontend.md](specs/implementation-artifacts/story13.3-frontend.md)
+- [specs/implementation-artifacts/story13.4-onboarding.md](specs/implementation-artifacts/story13.4-onboarding.md)
 
----
+## Responsibilities
 
-## PB Settings Scope
+Epic 13 is responsible for:
 
-Dashboard calls PB `/api/settings` directly — no new backend code.
+- unified settings routes under `/api/settings`
+- schema registry for sections, entries, sources, fields, and actions
+- adapter layer for PocketBase settings and `custom_settings`
+- masking and preserve-on-patch semantics for sensitive fields
+- fallback/default behavior for missing settings rows
+- schema-driven Settings navigation and load/save orchestration
 
-| Section | Key Fields |
-|---------|------------|
-| Application | `meta.appName`, `meta.appURL` |
-| SMTP | `enabled`, `host`, `port`, `username`, `password`, `authMethod`, `tls`, `localName` |
-| S3 | `enabled`, `bucket`, `region`, `endpoint`, `accessKey`, `secret`, `forcePathStyle` |
-| Logs | `maxDays`, `minLevel`, `logIP`, `logAuthId` |
+## API Surface
 
----
+All Epic 13 routes are mounted under `/api/settings` and require superuser authentication.
 
-## Ext Settings Scope
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/settings/schema` | Return the backend-owned settings catalog: entries, sections, fields, sources, and action bindings |
+| `GET` | `/api/settings/entries` | Return current values for all settings entries |
+| `GET` | `/api/settings/entries/{entryId}` | Return one settings entry by unified identifier |
+| `PATCH` | `/api/settings/entries/{entryId}` | Update one settings entry by unified identifier |
+| `POST` | `/api/settings/actions/{actionId}` | Execute an entry-bound action such as SMTP or S3 connectivity tests |
 
-| Module | Group | Fields |
-|--------|-------|--------|
-| `space` | `quota` | `maxSizeMB`, `maxPerUser`, `maxUploadFiles`, `shareMaxMinutes`, `shareDefaultMinutes`, `uploadAllowExts[]`, `uploadDenyExts[]` |
-| `connect` | `terminal` | `idleTimeoutSeconds`, `maxConnections` |
-| `proxy` | `network` | `httpProxy`, `httpsProxy`, `noProxy`, `username`, `password`* |
-| `docker` | `mirror` | `mirrors[]`, `insecureRegistries[]` |
-| `docker` | `registries` | `items: [{host, username, password*}]` |
-| `llm` | `providers` | `items: [{name, endpoint, apiKey*}]` |
+### Route Shape
 
-`connect.terminal.maxConnections` default is `0` (unlimited).
+`GET /api/settings/schema`
 
-Data model (`app_settings` collection), API contract, seed values, mask semantics → Story 13.1 / 13.2 / 13.5.
+```json
+{
+  "entries": [
+    {
+      "id": "basic",
+      "title": "Basic",
+      "section": "system",
+      "source": "native",
+      "fields": [
+        { "id": "appName", "label": "App Name", "type": "string" }
+      ],
+      "actions": []
+    }
+  ],
+  "actions": [
+    {
+      "id": "test-email",
+      "title": "Send Test Email",
+      "entryId": "smtp"
+    }
+  ]
+}
+```
 
----
+`GET /api/settings/entries`
 
-## Key Design Decisions
+```json
+{
+  "items": [
+    {
+      "id": "space-quota",
+      "value": {
+        "maxSizeMB": 10,
+        "maxPerUser": 100
+      }
+    }
+  ]
+}
+```
 
-- **Sensitive fields** (`password`, `apiKey`, `secret`): GET returns `"***"`, PATCH `"***"` preserves existing value
-- **Array groups** (`registries`, `providers`): `{"items":[...]}` wrapper, UI sends full list (replace semantics)
-- **Code-level defaults**: `GetGroup` always returns `(fallback, err)`, never `(nil, err)`
-- **No SSO with PB Admin**: self-built UI + escape hatch link to `/_/`
+`GET` or `PATCH /api/settings/entries/{entryId}`
 
----
+```json
+{
+  "id": "space-quota",
+  "value": {
+    "maxSizeMB": 10,
+    "maxPerUser": 100
+  }
+}
+```
 
-## Stories
+Validation errors use `422` with field-level payload:
 
-| Story | Title |
-|-------|-------|
-| 13.1 | Settings foundation (collection + helper + Ext API) |
-| 13.2 | Migrate file constants → settings DB (resolves Story 9.5) |
-| 13.3 | PB Settings UI (Application + SMTP + S3 + Logs) |
-| 13.4 | Ext Settings UI — Space quota (+ upload allow/deny lists) |
-| 13.5 | Ext infra backend (proxy/docker/llm seed + mask) |
-| 13.6 | Ext infra UI (proxy/docker/llm cards) |
-| 13.7 | Connect terminal settings UI (`idleTimeoutSeconds`, `maxConnections`) |
-| 13.8 | Unified settings API + schema-driven settings page |
+```json
+{
+  "errors": {
+    "maxUploadFiles": "must be between 1 and 200"
+  }
+}
+```
 
-**Execution**: 13.1 → 13.2 → 13.3 (parallelisable after 13.1) → 13.4 → 13.5 → 13.6 → 13.7 (after 13.6) → 13.8
+## Storage Model
 
----
+Epic 13 currently spans two persistence families.
+
+### 1. PocketBase native settings
+
+- source value: `native`
+- storage model: PocketBase internal settings object
+- AppOS adapter behavior: read with `app.Settings().Clone()`, project only catalog-declared fields, patch by wrapping the target PocketBase group and saving the cloned settings object
+
+Current native group mapping:
+
+| Entry ID | PocketBase group |
+|---|---|
+| `basic` | `meta` |
+| `smtp` | `smtp` |
+| `s3` | `s3` |
+| `logs` | `logs` |
+
+### 2. `custom_settings` collection
+
+- source value: `custom`
+- storage model: one JSON row per `(module, key)` pair
+- backend helper package: `internal/settings/settings.go`
+
+Current collection structure:
+
+| Field | Type | Notes |
+|---|---|---|
+| `module` | text | required |
+| `key` | text | required |
+| `value` | JSON | settings payload for that logical group |
+
+Current collection constraints and rules:
+
+- unique index: `(module, key)`
+- list/view: superuser only
+- create/update/delete via PocketBase client API: forbidden
+- backend writes use `settings.SetGroup()`
+
+Current custom row mapping:
+
+| Entry ID | Module | Key |
+|---|---|---|
+| `secrets-policy` | `secrets` | `policy` |
+| `space-quota` | `space` | `quota` |
+| `connect-terminal` | `connect` | `terminal` |
+| `connect-sftp` | `connect` | `sftp` |
+| `deploy-preflight` | `deploy` | `preflight` |
+| `iac-files` | `files` | `limits` |
+| `tunnel-port-range` | `tunnel` | `port_range` |
+| `proxy-network` | `proxy` | `network` |
+| `docker-mirror` | `docker` | `mirror` |
+| `docker-registries` | `docker` | `registries` |
+| `llm-providers` | `llm` | `providers` |
+
+## Catalog Contract
+
+Each settings entry is defined in the backend catalog with this logical structure:
+
+| Field | Meaning |
+|---|---|
+| `id` | unified entry identifier used by API paths |
+| `title` | UI-facing entry label |
+| `section` | navigation group, currently `system` or `workspace` |
+| `source` | persistence adapter, currently `native` or `custom` |
+| `fields` | field metadata exposed to the frontend |
+| `actions` | optional action IDs bound to the entry |
+
+Action metadata currently uses this structure:
+
+| Field | Meaning |
+|---|---|
+| `id` | unified action identifier used by API paths |
+| `title` | operator-facing action label |
+| `entryId` | owning entry ID |
+
+## Terminology Boundary
+
+- **Settings**: admin-facing persisted values exposed through the Epic 13 Settings Module and its shared `/api/settings` surface.
+- **Configuration**: runtime system, service, deploy, or file-based configuration outside the shared Settings Module contract.
+- **Preferences**: user-local or browser-local choices such as theme, panel state, or terminal font size; preferences are not Epic 13 settings unless explicitly promoted into the shared Settings Module.
+
+Epic 13 is not responsible for:
+
+- domain-specific business workflows behind a setting
+- feature-specific UI outside the shared Settings surface
+- consumer runtime behavior after settings are read
+- compatibility aliases for legacy settings routes
+
+## Ownership Model
+
+| Settings surface | Canonical owner |
+|---|---|
+| `basic`, `smtp`, `s3`, `logs` | Epic 13 |
+| `space-quota` | Epic 9 / Space |
+| `connect-terminal` | Epic 15 / Connect Terminal |
+| `connect-sftp` | Epic 20 / Servers |
+| `tunnel-port-range` | Story 16.5 |
+| `secrets-policy` | Story 19.4 |
+| `deploy-preflight` | Story 17.10 |
+| `iac-files` | Epic 14 |
+| `proxy-network`, `docker-mirror`, `docker-registries`, `llm-providers` | Remain documented in Epic 13 until a dedicated consumer document exists |
+
+## Story Split
+
+| Story | Focus |
+|---|---|
+| 13.1 | Backend native settings adapter for PocketBase settings |
+| 13.2 | Backend custom settings adapter for `custom_settings` |
+| 13.3 | Frontend schema-driven Settings page |
+| 13.4 | Module onboarding path for adding new settings entries |
+
+## Documentation Policy
+
+- Epic 13 is intentionally split by platform responsibility, not by individual consumer module.
+- Core module design lives across Stories 13.1 to 13.4.
+- Consumer-specific settings should be documented in the consumer epic or story, not in a separate Epic 13 sub-story.
+- New settings work should update the consumer doc first, then register the entry in the Epic 13 canonical module spec.
+- Transitional legacy docs from the previous decomposition are intentionally removed.
 
 ## Out of Scope
 
-- Backups / Crons / Sync — dedicated future module
-- RateLimits / Batch / TrustedProxy UI
-- Non-superuser preferences
-- Settings import/export
-- Settings change audit
+- user-level preferences
+- import/export of settings
+- settings audit/change history
+- compatibility routes for legacy module-specific settings APIs
+- duplicating consumer rules that already belong to the owning epic
 
----
+## Follow-up Direction
 
-## Proposed Follow-up (from Epic 15 UX cycle)
-
-Epic keeps only theme-level follow-up direction:
-
-- Connect session continuity policy (resume TTL)
-- Per-server panel cache governance (bounded memory)
-- Optional persistence policy for split/layout preferences
-
-Detailed field proposals are maintained in Story 13.7 to avoid Epic/Story duplication.
-
-These are backlog items and not required for current Epic 13 completion.
+- Add more consumer-owned entries without changing the unified API shape.
+- Keep schema entry ordering backend-defined and stable.
+- Continue migrating old docs to consumer ownership when a domain matures enough to own its own settings contract.

@@ -30,7 +30,7 @@ The name "Files" creates a conceptual mismatch:
 | 9.2 | File List UI | ✅ Done |
 | 9.3 | Online Editor | ✅ Done |
 | 9.4 | Share | ✅ Done |
-| 9.5 | Settings UI (Admin) | ✅ Resolved by Epic 13 |
+| 9.5 | Settings UI (Admin) | ✅ Resolved by Epic 13 Settings Module |
 | 9.6 | File Version History | 📋 Planned (not started) |
 
 ### Impact by Layer
@@ -169,9 +169,9 @@ registerSpaceRoutes(g, se)
 
 ### 4.4 Backend — Settings key migration concern
 
-The settings group key `"files/quota"` is used by `settings.go` as a fallback key. This key is also referenced in Epic 13 (Story 13.2 + 13.4). 
+The settings group key `"files/quota"` is used by `settings.go` as a fallback key. This key is also referenced by the Epic 13 Settings Module as the predecessor of the `space-quota` entry.
 
-**Action required**: Coordinate with Epic 13 stories to update the settings key from `"files/quota"` → `"space/quota"`. If Story 13.2/13.4 are already done, update the stored key via a settings migration or a one-time update script.
+**Action required**: Coordinate with the Epic 13 Settings Module to update the settings key from `"files/quota"` → `"space/quota"`. If the migration is already done, keep the canonical entry on `space/quota` only.
 
 ---
 
@@ -281,7 +281,7 @@ File: `specs/implementation-artifacts/epic9-files.md`
 5. Update i18n locale files
 6. Restart dev server → verify `routeTree.gen.ts` regenerates correctly
 7. Update `specs/implementation-artifacts/epic9-files.md`
-8. Coordinate settings key change with Epic 13 stories (Story 13.2 / 13.4)
+8. Coordinate settings key change with the Epic 13 Settings Module (`space-quota` entry)
 
 ### Success Criteria
 

@@ -16,22 +16,24 @@ func getSettingsEntrySchema(entryID string) (settingscatalog.EntrySchema, bool) 
 	return settingscatalog.FindEntry(entryID)
 }
 
-func getAppSettingsEntryValue(app core.App, module, key string) (map[string]any, error) {
+func getCustomSettingsEntryValue(app core.App, module, key string) (map[string]any, error) {
 	fallback := fallbackForKey(module, key)
 	value, err := settings.GetGroup(app, module, key, fallback)
+	if err != nil {
+		app.Logger().Debug("settings fallback used", "module", module, "key", key, "error", err)
+	}
 	if module == secrets.SettingsModule && key == secrets.PolicySettingsKey {
 		value = secrets.NormalizePolicy(value).ToMap()
 	}
-	_ = err
 	return maskValue(value), nil
 }
 
-func patchAppSettingsEntry(e *core.RequestEvent, module, key string, value map[string]any) (map[string]any, error) {
+func patchCustomSettingsEntry(e *core.RequestEvent, module, key string, value map[string]any) (map[string]any, error) {
 	fallback := fallbackForKey(module, key)
 	existing, _ := settings.GetGroup(e.App, module, key, fallback)
 	merged := preserveSensitive(value, existing)
 
-	if validationErrors := validateAppSettingsEntry(e, module, key, merged); validationErrors != nil {
+	if validationErrors := validateCustomSettingsEntry(e, module, key, merged); validationErrors != nil {
 		return nil, &settingsValidationError{Fields: validationErrors}
 	}
 
@@ -39,10 +41,7 @@ func patchAppSettingsEntry(e *core.RequestEvent, module, key string, value map[s
 		return nil, err
 	}
 
-	stored, err := getAppSettingsEntryValue(e.App, module, key)
-	if err != nil {
-		return stored, nil
-	}
+	stored, _ := getCustomSettingsEntryValue(e.App, module, key)
 	return stored, nil
 }
 
@@ -54,14 +53,14 @@ func (e *settingsValidationError) Error() string {
 	return "settings validation failed"
 }
 
-func validateAppSettingsEntry(e *core.RequestEvent, module, key string, value map[string]any) map[string]string {
+func validateCustomSettingsEntry(e *core.RequestEvent, module, key string, value map[string]any) map[string]string {
 	switch module + "/" + key {
 	case "space/quota":
-		if err := validateSpaceQuota(value); err != nil {
-			return map[string]string{"maxUploadFiles": err.Error()}
-		}
+		return validateSpaceQuota(value)
 	case "connect/terminal":
 		return validateConnectTerminal(value)
+	case "connect/sftp":
+		return validateConnectSftp(value)
 	case "tunnel/port_range":
 		return validateTunnelPortRange(value)
 	case "deploy/preflight":
@@ -95,12 +94,6 @@ func validateAppSettingsEntry(e *core.RequestEvent, module, key string, value ma
 // @Router /api/settings/schema [get]
 func handleSettingsSchema(e *core.RequestEvent) error {
 	entries := settingscatalog.Entries()
-	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].Section == entries[j].Section {
-			return entries[i].Title < entries[j].Title
-		}
-		return entries[i].Section < entries[j].Section
-	})
 
 	actions := settingscatalog.Actions()
 	sort.Slice(actions, func(i, j int) bool { return actions[i].Title < actions[j].Title })
@@ -207,17 +200,17 @@ func handleSettingsEntryPatch(e *core.RequestEvent) error {
 }
 
 func loadSettingsEntryValue(app core.App, entry settingscatalog.EntrySchema) (map[string]any, error) {
-	if entry.Source == settingscatalog.SourcePocketBase {
+	if entry.Source == settingscatalog.SourceNative {
 		return settings.LoadPocketBaseEntry(app, entry)
 	}
-	return getAppSettingsEntryValue(app, entry.Module, entry.Key)
+	return getCustomSettingsEntryValue(app, entry.Module, entry.Key)
 }
 
 func patchSettingsEntryValue(e *core.RequestEvent, entry settingscatalog.EntrySchema, value map[string]any) (map[string]any, error) {
-	if entry.Source == settingscatalog.SourcePocketBase {
+	if entry.Source == settingscatalog.SourceNative {
 		return settings.PatchPocketBaseEntry(e.App, entry, value)
 	}
-	return patchAppSettingsEntry(e, entry.Module, entry.Key, value)
+	return patchCustomSettingsEntry(e, entry.Module, entry.Key, value)
 }
 
 // handleSettingsAction executes a settings-related action bound to a schema entry.

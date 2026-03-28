@@ -42,7 +42,7 @@ As a superuser, I can add a local server (behind NAT) to appos by copying a gene
 backend/internal/routes/tunnel.go          # API routes + TokenValidator + SessionHooks impls
 backend/internal/migrations/
   1741500000_add_tunnel_fields.go          # servers + secrets schema extension
-  1741500001_seed_tunnel_settings.go       # tunnel port range in app_settings
+  1741500001_seed_tunnel_settings.go       # tunnel port range in custom_settings
   1741500002_add_tunnel_token_type.go      # adds "tunnel_token" to secrets.type select values
 dashboard/src/
   components/servers/
@@ -71,7 +71,7 @@ Also extends `secrets` with `type = 'tunnel_token'` value added via migration `1
 
 ### Settings migration — `1741500001_seed_tunnel_settings.go`
 
-Inserts two rows into `app_settings` (upsert — idempotent):
+Inserts two rows into `custom_settings` (upsert — idempotent):
 
 ```go
 {"key": "tunnel.port_range_start", "value": "40000", "group": "infrastructure"}
@@ -86,7 +86,7 @@ Inserts two rows into `app_settings` (upsert — idempotent):
 
 ```go
 func RegisterTunnelServer(se *core.ServeEvent, g *router.RouterGroup[*core.RequestEvent]) {
-    // 1. Read port range from app_settings
+    // 1. Read port range from custom_settings
     start := readSettingInt(se.App, "tunnel.port_range_start", 40000)
     end   := readSettingInt(se.App, "tunnel.port_range_end",   49999)
 
@@ -397,7 +397,7 @@ Add a "Rotate Token" button in the server edit view (tunnel servers only):
 ## Acceptance Criteria
 
 - [x] Migration adds `connect_type`, `tunnel_status`, `tunnel_last_seen`, `tunnel_services` to `servers` — existing direct servers unaffected
-- [x] Migration seeds `tunnel.port_range_start` and `tunnel.port_range_end` in `app_settings`
+- [x] Migration seeds `tunnel.port_range_start` and `tunnel.port_range_end` in `custom_settings`
 - [x] `POST /api/tunnel/servers/:id/token` returns a plaintext base32 token; token stored AES-encrypted in `secrets`
 - [x] `GET /api/tunnel/servers/:id/setup` returns valid `autossh_cmd` and `systemd_unit` strings using the appos host URL
 - [x] Setup shell script (`/tunnel/setup/{token}`) installs autossh if absent and creates + enables the systemd service

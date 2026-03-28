@@ -16,58 +16,83 @@ import (
 
 // sensitiveFields is the set of field names that are masked on GET and
 // whose "***" placeholder is preserved on PATCH.
-var sensitiveFields = map[string]bool{
-	"password": true,
-	"apiKey":   true,
-	"secret":   true,
+// Derived from catalog Sensitive flags; apiKey is added manually because
+// it appears inside object-list items not modeled in the field schema.
+var sensitiveFields = buildSensitiveFieldSet()
+
+func buildSensitiveFieldSet() map[string]bool {
+	m := map[string]bool{}
+	for _, entry := range settingscatalog.Entries() {
+		for _, f := range entry.Fields {
+			if f.Sensitive {
+				m[f.ID] = true
+			}
+		}
+	}
+	m["apiKey"] = true
+	return m
 }
 
 const defaultTunnelSSHPort = 2222
 
-func validateSpaceQuota(v map[string]any) error {
-	raw, ok := v["maxUploadFiles"]
-	if !ok || raw == nil {
-		v["maxUploadFiles"] = 50
+var iacDefaultBlacklist = settingscatalog.DefaultGroup("files", "limits")["extensionBlacklist"]
+
+func validateSpaceQuota(v map[string]any) map[string]string {
+	errors := map[string]string{}
+
+	maxSizeMB, err := parseIntWithDefault(v["maxSizeMB"], 10)
+	if err != nil {
+		errors["maxSizeMB"] = "must be an integer"
+	} else if maxSizeMB < 1 {
+		errors["maxSizeMB"] = "must be >= 1"
+	} else {
+		v["maxSizeMB"] = maxSizeMB
+	}
+
+	maxPerUser, err := parseIntWithDefault(v["maxPerUser"], 100)
+	if err != nil {
+		errors["maxPerUser"] = "must be an integer"
+	} else if maxPerUser < 1 {
+		errors["maxPerUser"] = "must be >= 1"
+	} else {
+		v["maxPerUser"] = maxPerUser
+	}
+
+	maxUploadFiles, err := parseIntWithDefault(v["maxUploadFiles"], 50)
+	if err != nil {
+		errors["maxUploadFiles"] = "must be an integer"
+	} else if maxUploadFiles < 1 || maxUploadFiles > 200 {
+		errors["maxUploadFiles"] = "must be between 1 and 200"
+	} else {
+		v["maxUploadFiles"] = maxUploadFiles
+	}
+
+	shareMaxMinutes, err := parseIntWithDefault(v["shareMaxMinutes"], 60)
+	if err != nil {
+		errors["shareMaxMinutes"] = "must be an integer"
+	} else if shareMaxMinutes < 1 {
+		errors["shareMaxMinutes"] = "must be >= 1"
+	} else {
+		v["shareMaxMinutes"] = shareMaxMinutes
+	}
+
+	shareDefaultMinutes, err := parseIntWithDefault(v["shareDefaultMinutes"], 30)
+	if err != nil {
+		errors["shareDefaultMinutes"] = "must be an integer"
+	} else if shareDefaultMinutes < 1 {
+		errors["shareDefaultMinutes"] = "must be >= 1"
+	} else {
+		v["shareDefaultMinutes"] = shareDefaultMinutes
+	}
+
+	if len(errors) == 0 && shareDefaultMinutes > shareMaxMinutes {
+		errors["shareDefaultMinutes"] = "must be <= shareMaxMinutes"
+	}
+
+	if len(errors) == 0 {
 		return nil
 	}
-
-	maxUploadFiles := 0
-	switch n := raw.(type) {
-	case float64:
-		if math.Trunc(n) != n {
-			return fmt.Errorf("maxUploadFiles must be an integer")
-		}
-		maxUploadFiles = int(n)
-	case int:
-		maxUploadFiles = n
-	case int64:
-		maxUploadFiles = int(n)
-	case json.Number:
-		i, err := n.Int64()
-		if err != nil {
-			return fmt.Errorf("maxUploadFiles must be an integer")
-		}
-		maxUploadFiles = int(i)
-	case string:
-		s := strings.TrimSpace(n)
-		if s == "" {
-			maxUploadFiles = 50
-		} else {
-			i, err := strconv.Atoi(s)
-			if err != nil {
-				return fmt.Errorf("maxUploadFiles must be an integer")
-			}
-			maxUploadFiles = i
-		}
-	default:
-		return fmt.Errorf("maxUploadFiles must be an integer")
-	}
-
-	if maxUploadFiles < 1 || maxUploadFiles > 200 {
-		return fmt.Errorf("maxUploadFiles must be between 1 and 200")
-	}
-	v["maxUploadFiles"] = maxUploadFiles
-	return nil
+	return errors
 }
 
 func parseIntWithDefault(raw any, defaultValue int) (int, error) {
@@ -215,13 +240,30 @@ func validateIacFiles(v map[string]any) map[string]string {
 		errors["maxZipSizeMB"] = "must be >= maxSizeMB"
 	}
 
-	defaultBlacklist := settingscatalog.DefaultGroup("files", "limits")["extensionBlacklist"]
 	if raw, ok := v["extensionBlacklist"]; !ok || raw == nil {
-		v["extensionBlacklist"] = defaultBlacklist
+		v["extensionBlacklist"] = iacDefaultBlacklist
 	} else if text, ok := raw.(string); ok {
 		v["extensionBlacklist"] = strings.TrimSpace(text)
 	} else {
 		errors["extensionBlacklist"] = "must be a string"
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
+}
+
+func validateConnectSftp(v map[string]any) map[string]string {
+	errors := map[string]string{}
+
+	maxUploadFiles, err := parseIntWithDefault(v["maxUploadFiles"], 10)
+	if err != nil {
+		errors["maxUploadFiles"] = "must be an integer"
+	} else if maxUploadFiles < 1 {
+		errors["maxUploadFiles"] = "must be >= 1"
+	} else {
+		v["maxUploadFiles"] = maxUploadFiles
 	}
 
 	if len(errors) == 0 {
@@ -324,12 +366,11 @@ func preserveSensitive(incoming, existing map[string]any) map[string]any {
 }
 
 // preserveItemsSensitive merges "***" sentinels in incoming items array with
-// stored values from existing items array using positional matching (index i
-// in incoming maps to index i in existing).
+// stored values from existing items array.
 //
-// CONSTRAINT: Callers must not reorder items between successive GET and PATCH
-// calls. If the UI allows reordering, passwords at position i will be resolved
-// from the wrong existing entry. Currently the UI does not support drag-to-reorder.
+// Matching strategy: for each incoming item, first try to find an existing item
+// whose non-sensitive fields all match (handles delete/reorder). Falls back to
+// positional matching when no field-based match is found.
 func preserveItemsSensitive(rawIncoming, rawExisting any) any {
 	inArr, ok := rawIncoming.([]any)
 	if !ok {
@@ -343,16 +384,47 @@ func preserveItemsSensitive(rawIncoming, rawExisting any) any {
 			out[i] = item
 			continue
 		}
-		var exItem map[string]any
-		if i < len(exArr) {
-			exItem, _ = exArr[i].(map[string]any)
-		}
-		if exItem == nil {
-			exItem = map[string]any{}
-		}
+		exItem := findMatchingItem(inItem, exArr, i)
 		out[i] = preserveSensitive(inItem, exItem)
 	}
 	return out
+}
+
+// findMatchingItem finds the best existing item to resolve "***" placeholders.
+// Prefers a match by non-sensitive fields; falls back to positional index.
+func findMatchingItem(incoming map[string]any, exArr []any, posHint int) map[string]any {
+	for _, ex := range exArr {
+		exItem, ok := ex.(map[string]any)
+		if !ok {
+			continue
+		}
+		if nonSensitiveFieldsMatch(incoming, exItem) {
+			return exItem
+		}
+	}
+	if posHint < len(exArr) {
+		if exItem, ok := exArr[posHint].(map[string]any); ok {
+			return exItem
+		}
+	}
+	return map[string]any{}
+}
+
+// nonSensitiveFieldsMatch returns true when every non-sensitive field in
+// incoming matches the corresponding field in existing.
+func nonSensitiveFieldsMatch(incoming, existing map[string]any) bool {
+	matched := 0
+	for k, v := range incoming {
+		if sensitiveFields[k] || k == "items" {
+			continue
+		}
+		ev, ok := existing[k]
+		if !ok || fmt.Sprint(v) != fmt.Sprint(ev) {
+			return false
+		}
+		matched++
+	}
+	return matched > 0
 }
 
 // validateLLMProvidersSecretRefs checks any provider item whose apiKey is a

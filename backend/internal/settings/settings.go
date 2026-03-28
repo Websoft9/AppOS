@@ -1,7 +1,7 @@
 // Package settings provides a centralized helper for reading and writing
-// grouped configuration values stored in the app_settings PocketBase collection.
+// grouped configuration values stored in the custom_settings PocketBase collection.
 //
-// Each row in app_settings represents one "group" identified by (module, key),
+// Each row in custom_settings represents one "group" identified by (module, key),
 // e.g. ("files", "quota") or ("proxy", "network").  The value column holds a
 // JSON blob containing all fields for that group.
 //
@@ -26,7 +26,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// GetGroup loads the settings group identified by (module, key) from app_settings.
+// GetGroup loads the settings group identified by (module, key) from custom_settings.
 //
 // On success it returns (parsed value map, nil).
 // On any error — row not found, DB failure, JSON parse error — it returns
@@ -34,7 +34,7 @@ import (
 // use  v, _ := GetGroup(...)  without a nil check.
 func GetGroup(app core.App, module, key string, fallback map[string]any) (map[string]any, error) {
 	record, err := app.FindFirstRecordByFilter(
-		"app_settings",
+		"custom_settings",
 		"module = {:module} && key = {:key}",
 		dbx.Params{"module": module, "key": key},
 	)
@@ -82,13 +82,13 @@ func GetGroup(app core.App, module, key string, fallback map[string]any) (map[st
 func SetGroup(app core.App, module, key string, value map[string]any) error {
 	// Try to find existing record first.
 	record, err := app.FindFirstRecordByFilter(
-		"app_settings",
+		"custom_settings",
 		"module = {:module} && key = {:key}",
 		dbx.Params{"module": module, "key": key},
 	)
 	if err != nil {
 		// Not found — create a new record.
-		collection, colErr := app.FindCollectionByNameOrId("app_settings")
+		collection, colErr := app.FindCollectionByNameOrId("custom_settings")
 		if colErr != nil {
 			return fmt.Errorf("settings.SetGroup(%s/%s): find collection: %w", module, key, colErr)
 		}

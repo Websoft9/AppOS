@@ -21,13 +21,13 @@ As an authenticated user, I want safe lifecycle controls for files (trash/restor
   - [x] 1.1 Add migration and model field for soft delete
   - [x] 1.2 Implement delete/restore/permanent-delete behaviors in UI and API usage
 - [x] Task 2: Scope governance
-  - [x] 2.1 Link settings ownership to Epic 13 outputs
+  - [x] 2.1 Link settings ownership to the Epic 13 Settings Module and Space-owned semantics
   - [x] 2.2 Keep version-history as future planned slice
 
 ## Dev Notes
 
 - This story consolidates legacy capability: 9.8.
-- Legacy 9.5 is represented as cross-epic dependency resolution (implemented in Epic 13).
+- Legacy 9.5 is represented as cross-epic dependency resolution through the Epic 13 Settings Module `space-quota` entry.
 - Legacy 9.6 remains planned and intentionally not marked done.
 
 ### Frontend Behaviors
@@ -40,7 +40,7 @@ As an authenticated user, I want safe lifecycle controls for files (trash/restor
 ## Legacy Mapping
 
 - Legacy 9.8 (Soft Delete & Trash) → included
-- Legacy 9.5 (Settings UI) → resolved by Epic 13 reference
+- Legacy 9.5 (Settings UI) → resolved by Epic 13 Settings Module `space-quota` entry
 - Legacy 9.6 (File Version History) → future planned scope
 
 ## Change Log

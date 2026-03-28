@@ -7,7 +7,7 @@ import (
 	settingscatalog "github.com/websoft9/appos/backend/internal/settings/catalog"
 )
 
-// Story 13 MVP: Create and seed app_settings for the current unified settings model.
+// Story 13 MVP: Create and seed custom_settings for the current unified settings model.
 //
 // Access rules:
 //   - List/View: superuser only
@@ -17,7 +17,7 @@ import (
 // Unique index on (module, key) ensures one row per logical group.
 func init() {
 	m.Register(func(app core.App) error {
-		col := core.NewBaseCollection("app_settings")
+		col := core.NewBaseCollection("custom_settings")
 
 		col.Fields.Add(&core.TextField{Name: "module", Required: true})
 		col.Fields.Add(&core.TextField{Name: "key", Required: true})
@@ -36,7 +36,7 @@ func init() {
 
 		// Unique constraint to prevent duplicate module/key rows.
 		col.Indexes = []string{
-			"CREATE UNIQUE INDEX idx_app_settings_module_key ON app_settings (module, `key`)",
+			"CREATE UNIQUE INDEX idx_custom_settings_module_key ON custom_settings (module, `key`)",
 		}
 
 		if err := app.Save(col); err != nil {
@@ -52,7 +52,7 @@ func init() {
 		return nil
 	}, func(app core.App) error {
 		// Down: remove the collection
-		col, err := app.FindCollectionByNameOrId("app_settings")
+		col, err := app.FindCollectionByNameOrId("custom_settings")
 		if err != nil {
 			return nil // already gone
 		}

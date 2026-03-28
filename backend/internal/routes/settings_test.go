@@ -72,21 +72,63 @@ func TestSettingsSchemaIncludesUnifiedEntries(t *testing.T) {
 		source, _ := entry["source"].(string)
 		switch id {
 		case "smtp":
-			foundSystem = section == "system" && source == "pocketbase"
+			foundSystem = section == "system" && source == "native"
 		case "space-quota":
-			foundWorkspace = section == "workspace" && source == "app_settings"
+			foundWorkspace = section == "workspace" && source == "custom"
 		case "iac-files":
-			if section != "workspace" || source != "app_settings" {
-				t.Fatalf("expected iac-files schema entry with workspace/app_settings metadata, got section=%s source=%s", section, source)
+			if section != "workspace" || source != "custom" {
+				t.Fatalf("expected iac-files schema entry with workspace/custom metadata, got section=%s source=%s", section, source)
 			}
 		}
 	}
 
 	if !foundSystem {
-		t.Fatal("expected smtp schema entry with system/pocketbase metadata")
+		t.Fatal("expected smtp schema entry with system/native metadata")
 	}
 	if !foundWorkspace {
-		t.Fatal("expected space-quota schema entry with workspace/app_settings metadata")
+		t.Fatal("expected space-quota schema entry with workspace/custom metadata")
+	}
+}
+
+func TestSettingsSchemaPreservesCatalogOrder(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := doSettingsRoute(t, te, http.MethodGet, "/api/settings/schema", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var body map[string][]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+
+	entries := body["entries"]
+	if len(entries) < 8 {
+		t.Fatalf("expected representative schema entries, got %d", len(entries))
+	}
+
+	ids := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		id, _ := entry["id"].(string)
+		ids = append(ids, id)
+	}
+
+	expectedPrefix := []string{
+		"basic",
+		"smtp",
+		"s3",
+		"logs",
+		"secrets-policy",
+		"space-quota",
+		"connect-terminal",
+		"connect-sftp",
+	}
+	for idx, want := range expectedPrefix {
+		if ids[idx] != want {
+			t.Fatalf("expected schema order %v, got %v", expectedPrefix, ids[:len(expectedPrefix)])
+		}
 	}
 }
 

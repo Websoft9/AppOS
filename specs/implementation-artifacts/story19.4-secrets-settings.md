@@ -3,7 +3,7 @@
 **Epic**: Epic 19 - Secrets Management
 **Priority**: P3
 **Status**: review
-**Depends on**: Story 13.1, Epic 19 (Secrets)
+**Depends on**: Story 13.4, Epic 19 (Secrets)
 
 ## User Story
 
@@ -30,9 +30,9 @@ so that I can enforce reveal restrictions and default behaviors across all secre
 
 ## Acceptance Criteria
 
-- AC1: `secrets/policy` added to allowlist; seed migration inserts default row.
-- AC2: `GET /api/settings/secrets` returns `policy` group.
-- AC3: `PATCH /api/settings/secrets` validates: `defaultAccessMode` must be one of the three values; `clipboardClearSeconds ≥ 0`.
+- AC1: Unified settings catalog includes entry `secrets-policy`; seed migration inserts the default row.
+- AC2: `GET /api/settings/entries/secrets-policy` returns the normalized policy entry.
+- AC3: `PATCH /api/settings/entries/secrets-policy` validates: `defaultAccessMode` must be one of the three values; `clipboardClearSeconds ≥ 0`.
 - AC4: `GET /api/secrets/:id/reveal` returns `403` with message when `revealDisabled == true`, regardless of per-secret `access_mode`.
 - AC5: Secret creation applies `defaultAccessMode` from policy when client omits `access_mode`.
 - AC6: Frontend hides Reveal button when `revealDisabled == true`.
@@ -41,9 +41,9 @@ so that I can enforce reveal restrictions and default behaviors across all secre
 ## Tasks / Subtasks
 
 - [x] Task 1: Backend — settings plumbing
-  - [x] 1.1 Add `"secrets": {"policy"}` to `allowedModuleKeys` in `routes/settings.go`
+  - [x] 1.1 Register unified settings entry `secrets-policy`
   - [x] 1.2 Add `defaultSecretsPolicy` code-level fallback
-  - [x] 1.3 Add validation in PATCH handler
+  - [x] 1.3 Add validation in unified PATCH handler
   - [x] 1.4 Seed migration `1741200005_seed_secrets_policy.go`
 
 - [x] Task 2: Backend — enforce revealDisabled

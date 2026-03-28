@@ -94,10 +94,12 @@ entrypoint.sh (main entry)
 
 ### Configuration File Strategy
 **Preserve Existing Business Stability**:
-- **config.ini**: User-facing configuration, modifiable via API (credentials, preferences)
-- **system.ini**: System-level configuration, NOT modifiable via API (paths, core settings)
+- **config.ini**: User-facing runtime configuration, modifiable via API (credentials, service options)
+- **system.ini**: System-level runtime configuration, NOT modifiable via API (paths, core settings)
 - **Read Priority**: config.ini first, fallback to system.ini
 - **API Exposure**: Only config.ini exposed to `/api/v1/settings` endpoints
+
+This legacy API surface is a configuration-management concern. It is not the Epic 13 Settings Module.
 
 ### Configuration Management
 **Dual Configuration Architecture**: `/websoft9/apphub/src/config/`
@@ -105,7 +107,7 @@ entrypoint.sh (main entry)
 **config.ini** - User-modifiable configuration (API accessible):
 - Service credentials (encrypted)
 - Service URLs and ports
-- User preferences
+- Runtime user-facing options for this config surface
 - Modifiable via `/api/v1/settings` endpoints
 
 **system.ini** - System-level configuration (API read-only):

@@ -6,7 +6,7 @@
 
 Completely separate from Epic 9 (user private space, PocketBase record-based storage).
 
-**Status**: Done (Phase 1) | **Priority**: P1 | **Depends on**: Epic 1, Epic 3, Epic 13
+**Status**: Done (Phase 1) | **Priority**: P1 | **Depends on**: Epic 1, Epic 3, Epic 13 Settings Module
 
 ---
 
@@ -103,6 +103,8 @@ All routes under `/api/ext/iac`, require `apis.RequireSuperuserAuth()`.
 | Max zip file size | 50 MB | ✅ Settings |
 | Allowed archive format | `.zip` only | ❌ Constant |
 | Extension blacklist | `.exe .dll .so .bin .deb .rpm .apk .msi .dmg .pkg` | ✅ Settings |
+
+These configurable limits are delivered through the Epic 13 Settings Module entry `iac-files`.
 
 Blacklist applies to upload only (`POST /upload`). Regular `POST`/`PUT` (text content via JSON body) is not subject to blacklist — content is already a string.
 

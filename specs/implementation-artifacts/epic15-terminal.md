@@ -16,7 +16,7 @@ Provides the generic, resource-agnostic Terminal UI framework. This epic owns th
 | ConnectError classification system | Resource-specific error handling |
 | Connect page layout & routing | Server-specific side panels |
 | `<TerminalPanel>` generic component | Server Registry, Server Ops APIs |
-| UX conventions (establish, disconnect, split, breadcrumb) | Terminal settings (→ Epic 13) |
+| UX conventions (establish, disconnect, split, breadcrumb) | Shared settings delivery (→ Epic 13 Settings Module) |
 
 ---
 
@@ -140,7 +140,7 @@ Show "Establishing secure connection…" spinner for at least 2 seconds, even wh
 **Disconnect flow (minimum 2 s feedback)**
 Replace disconnect action with a 2-second "Safely disconnecting…" phase before session teardown.
 
-**Idle indicator**: inactive tabs show a visual idle badge; timer defined in Epic 13 settings.
+**Idle indicator**: inactive tabs show a visual idle badge; timer is delivered through the Epic 13 Settings Module and semantically owned here.
 
 **Multiple connections**: opening an already-connected resource requires explicit confirmation before creating a second tab.
 
@@ -169,14 +169,15 @@ dashboard/src/components/connect/TerminalPanel.tsx
 | `session_failed` | ServerCrash | Session Failed |
 | `server_disconnected` | Unplug | Server Disconnected |
 
-**Local preferences** (localStorage):
+**Local preferences** (localStorage, not Epic 13 settings):
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `connect.terminal.font_size` | `14` | Terminal font size (px) |
 | `connect.terminal.scrollback` | `1000` | Scrollback buffer lines |
 
-Terminal behavior settings (idle timeout, max connections) are owned by Epic 13.
+Terminal behavior settings (`connect-terminal`) are delivered through the Epic 13 Settings Module, while semantic ownership belongs to Epic 15.
+Local browser preferences such as font size and scrollback remain preferences, not shared settings.
 
 ### File Structure
 
@@ -198,7 +199,7 @@ dashboard/src/
 
 1. **Credentials never leave the backend** — Frontend sends only a resource ID; backend decrypts and injects credentials in-memory only. No secret appears in any HTTP response or WebSocket message.
 2. **Every session is audited** — All streaming sessions write to the Epic 12 audit log: `user_id`, `resource_id`, `session_id`, `ip`, `started_at`, `ended_at`, `bytes_in`, `bytes_out`.
-3. **Minimal session lifecycle** — Valid PB auth token required on WebSocket upgrade; session auto-closes on token expiry or Epic 13 idle timeout.
+3. **Minimal session lifecycle** — Valid PB auth token required on WebSocket upgrade; session auto-closes on token expiry or the configured `connect-terminal` idle timeout delivered through the Epic 13 Settings Module.
 
 Post-MVP: session recording/playback, JIT access approval, MFA on connect.
 

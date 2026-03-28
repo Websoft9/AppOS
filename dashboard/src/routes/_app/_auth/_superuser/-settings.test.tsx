@@ -27,78 +27,144 @@ describe('SettingsPage shared settings paths', () => {
       if (path === SETTINGS_SCHEMA_API_PATH) {
         return Promise.resolve({
           entries: [
-            { id: 'basic', title: 'Basic', section: 'system', source: 'pocketbase', fields: [] },
-            { id: 'smtp', title: 'SMTP', section: 'system', source: 'pocketbase', fields: [] },
-            { id: 's3', title: 'S3 Storage', section: 'system', source: 'pocketbase', fields: [] },
-            { id: 'logs', title: 'Logs', section: 'system', source: 'pocketbase', fields: [] },
+            { id: 'basic', title: 'Basic', section: 'system', source: 'native', fields: [] },
+            { id: 'smtp', title: 'SMTP', section: 'system', source: 'native', fields: [] },
+            { id: 's3', title: 'S3 Storage', section: 'system', source: 'native', fields: [] },
+            { id: 'logs', title: 'Logs', section: 'system', source: 'native', fields: [] },
             {
               id: 'secrets-policy',
               title: 'Secrets',
               section: 'system',
-              source: 'app_settings',
+              source: 'custom',
               fields: [],
             },
             {
               id: 'space-quota',
               title: 'Space Quota',
               section: 'workspace',
-              source: 'app_settings',
+              source: 'custom',
               fields: [],
             },
             {
               id: 'connect-terminal',
               title: 'Connect Terminal',
               section: 'workspace',
-              source: 'app_settings',
-              fields: [],
+              source: 'custom',
+              fields: [
+                {
+                  id: 'idleTimeoutSeconds',
+                  label: 'Idle Timeout Seconds',
+                  type: 'integer',
+                  helpText: 'Disconnect idle terminal sessions after this many seconds.',
+                },
+                {
+                  id: 'maxConnections',
+                  label: 'Max Connections',
+                  type: 'integer',
+                  helpText: '0 means unlimited',
+                },
+              ],
+            },
+            {
+              id: 'connect-sftp',
+              title: 'Connect SFTP',
+              section: 'workspace',
+              source: 'custom',
+              fields: [
+                {
+                  id: 'maxUploadFiles',
+                  label: 'Max Upload Files',
+                  type: 'integer',
+                  helpText: 'Maximum number of files allowed in a single SFTP upload.',
+                },
+              ],
             },
             {
               id: 'deploy-preflight',
               title: 'Deploy Preflight',
               section: 'workspace',
-              source: 'app_settings',
-              fields: [],
+              source: 'custom',
+              fields: [
+                {
+                  id: 'minFreeDiskBytes',
+                  label: 'Min Free Disk Bytes',
+                  type: 'integer',
+                  helpText: 'Block installation when available disk falls below this threshold.',
+                },
+              ],
             },
             {
               id: 'iac-files',
               title: 'IaC Files',
               section: 'workspace',
-              source: 'app_settings',
-              fields: [],
+              source: 'custom',
+              fields: [
+                {
+                  id: 'maxSizeMB',
+                  label: 'Max File Size MB',
+                  type: 'integer',
+                  helpText: 'Maximum size allowed for a single IaC file upload or read.',
+                },
+                {
+                  id: 'maxZipSizeMB',
+                  label: 'Max ZIP Size MB',
+                  type: 'integer',
+                  helpText: 'Maximum size allowed when importing IaC ZIP archives.',
+                },
+                {
+                  id: 'extensionBlacklist',
+                  label: 'Extension Blacklist',
+                  type: 'string',
+                  helpText: 'Comma-separated file extensions blocked in the IaC workspace browser.',
+                },
+              ],
             },
             {
               id: 'tunnel-port-range',
               title: 'Tunnel',
               section: 'workspace',
-              source: 'app_settings',
-              fields: [],
+              source: 'custom',
+              fields: [
+                {
+                  id: 'start',
+                  label: 'Start Port',
+                  type: 'integer',
+                  helpText: 'Lowest port that can be assigned to a reverse tunnel session.',
+                },
+                {
+                  id: 'end',
+                  label: 'End Port',
+                  type: 'integer',
+                  helpText: 'Highest port that can be assigned to a reverse tunnel session.',
+                },
+              ],
             },
             {
               id: 'proxy-network',
               title: 'Proxy',
               section: 'workspace',
-              source: 'app_settings',
+              source: 'custom',
               fields: [],
             },
             {
               id: 'docker-mirror',
               title: 'Docker Mirrors',
               section: 'workspace',
-              source: 'app_settings',
+              source: 'custom',
               fields: [],
             },
             {
               id: 'docker-registries',
               title: 'Docker Registries',
               section: 'workspace',
-              source: 'app_settings',
+              source: 'custom',
               fields: [],
             },
             {
               id: 'llm-providers',
               title: 'LLM Providers',
               section: 'workspace',
-              source: 'app_settings',
+              source: 'custom',
               fields: [],
             },
           ],
@@ -137,6 +203,7 @@ describe('SettingsPage shared settings paths', () => {
             { id: 'logs', value: { maxDays: 7, minLevel: 5, logIP: false, logAuthId: false } },
             { id: 'space-quota', value: {} },
             { id: 'connect-terminal', value: {} },
+            { id: 'connect-sftp', value: { maxUploadFiles: 10 } },
             { id: 'deploy-preflight', value: { minFreeDiskBytes: 536870912 } },
             { id: 'iac-files', value: { maxSizeMB: 10, maxZipSizeMB: 50 } },
             { id: 'tunnel-port-range', value: {} },
@@ -227,5 +294,144 @@ describe('SettingsPage shared settings paths', () => {
     expect(
       secretsButton.compareDocumentPosition(workspaceHeading) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
+  })
+
+  it('renders settings navigation in schema order instead of alphabetical title order', async () => {
+    sendMock.mockImplementation((path: string) => {
+      if (path === SETTINGS_SCHEMA_API_PATH) {
+        return Promise.resolve({
+          entries: [
+            { id: 'basic', title: 'Basic', section: 'system', source: 'native', fields: [] },
+            {
+              id: 'secrets-policy',
+              title: 'Secrets',
+              section: 'system',
+              source: 'custom',
+              fields: [],
+            },
+            { id: 'logs', title: 'Logs', section: 'system', source: 'native', fields: [] },
+            {
+              id: 'space-quota',
+              title: 'Space Quota',
+              section: 'workspace',
+              source: 'custom',
+              fields: [],
+            },
+          ],
+          actions: [],
+        })
+      }
+      if (path === SETTINGS_ENTRIES_API_PATH) {
+        return Promise.resolve({
+          items: [
+            { id: 'basic', value: { appName: 'AppOS', appURL: 'https://appos.test' } },
+            { id: 'logs', value: { maxDays: 7, minLevel: 5, logIP: false, logAuthId: false } },
+            { id: 'secrets-policy', value: {} },
+            { id: 'space-quota', value: {} },
+          ],
+        })
+      }
+      return Promise.resolve({})
+    })
+
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      const buttons = within(nav as HTMLElement).getAllByRole('button')
+      expect(buttons.map(button => button.textContent)).toEqual([
+        'Basic',
+        'Secrets',
+        'Logs',
+        'Space Quota',
+      ])
+    })
+  })
+
+  it('renders simple connect terminal fields from schema metadata', async () => {
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      expect(
+        within(nav as HTMLElement).getByRole('button', { name: 'Connect Terminal' })
+      ).toBeInTheDocument()
+    })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    within(nav).getByRole('button', { name: 'Connect Terminal' }).click()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Idle Timeout Seconds')).toBeInTheDocument()
+      expect(
+        screen.getByText('Disconnect idle terminal sessions after this many seconds.')
+      ).toBeInTheDocument()
+      expect(screen.getByLabelText('Max Connections')).toBeInTheDocument()
+      expect(screen.getByText('0 means unlimited')).toBeInTheDocument()
+    })
+  })
+
+  it('renders IaC file fields from schema metadata', async () => {
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      expect(
+        within(nav as HTMLElement).getByRole('button', { name: 'IaC Files' })
+      ).toBeInTheDocument()
+    })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    within(nav).getByRole('button', { name: 'IaC Files' }).click()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Max File Size MB')).toBeInTheDocument()
+      expect(
+        screen.getByText('Maximum size allowed for a single IaC file upload or read.')
+      ).toBeInTheDocument()
+      expect(screen.getByLabelText('Extension Blacklist')).toBeInTheDocument()
+      expect(
+        screen.getByText('Comma-separated file extensions blocked in the IaC workspace browser.')
+      ).toBeInTheDocument()
+    })
+  })
+
+  it('renders tunnel fields from schema metadata', async () => {
+    const { container } = render(<SettingsPage />)
+
+    await waitFor(() => {
+      const nav = container.querySelector('nav') as HTMLElement | null
+      expect(nav).toBeTruthy()
+      expect(within(nav as HTMLElement).getByRole('button', { name: 'Tunnel' })).toBeInTheDocument()
+    })
+
+    const nav = container.querySelector('nav') as HTMLElement | null
+    if (!nav) {
+      throw new Error('expected settings navigation to be rendered')
+    }
+
+    within(nav).getByRole('button', { name: 'Tunnel' }).click()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Start Port')).toBeInTheDocument()
+      expect(
+        screen.getByText('Lowest port that can be assigned to a reverse tunnel session.')
+      ).toBeInTheDocument()
+      expect(screen.getByLabelText('End Port')).toBeInTheDocument()
+      expect(
+        screen.getByText('Highest port that can be assigned to a reverse tunnel session.')
+      ).toBeInTheDocument()
+    })
   })
 })

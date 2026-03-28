@@ -19,7 +19,7 @@ As an admin, I want to create, update, delete, move, upload, and download files 
 - [x] `POST /api/ext/iac/upload` accepts `multipart/form-data` with `file` and `path` fields
   - Non-zip files: rejected if extension is in the blacklist (`415`) or size exceeds the single-file limit (`413`, default 10 MB)
   - `.zip` files: rejected if size exceeds the zip limit (`413`, default 50 MB); stored as-is at target path (no extraction)
-  - Limits and blacklist read from Settings
+  - Limits and blacklist read from the Epic 13 Settings Module entry `iac-files`
 - [x] `GET /api/ext/iac/download` streams file with correct `Content-Type` and `Content-Disposition` headers; directory → `400`
 - [x] All path safety checks applied to every path parameter
 

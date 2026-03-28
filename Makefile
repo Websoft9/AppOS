@@ -1,3 +1,4 @@
+
 .PHONY: help install tidy build run test lint fmt check sec scan sbom \
 	image start stop restart logs stats delete rm kill-port redo \
 	openapi-gen openapi-merge openapi-check openapi-sync

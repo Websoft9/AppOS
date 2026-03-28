@@ -8,8 +8,8 @@ const (
 	SectionSystem    = "system"
 	SectionWorkspace = "workspace"
 
-	SourcePocketBase = "pocketbase"
-	SourceApp        = "app_settings"
+	SourceNative = "native"
+	SourceCustom = "custom"
 )
 
 type FieldSchema struct {
@@ -39,7 +39,7 @@ type EntrySchema struct {
 	Key             string `json:"-"`
 }
 
-type AppSettingSeedRow struct {
+type CustomSettingSeedRow struct {
 	Module string
 	Key    string
 	Value  map[string]any
@@ -55,7 +55,7 @@ var entryCatalog = []EntrySchema{
 		ID:      "basic",
 		Title:   "Basic",
 		Section: SectionSystem,
-		Source:  SourcePocketBase,
+		Source:  SourceNative,
 		Fields: []FieldSchema{
 			{ID: "appName", Label: "App Name", Type: "string"},
 			{ID: "appURL", Label: "App URL", Type: "url"},
@@ -66,7 +66,7 @@ var entryCatalog = []EntrySchema{
 		ID:      "smtp",
 		Title:   "SMTP",
 		Section: SectionSystem,
-		Source:  SourcePocketBase,
+		Source:  SourceNative,
 		Actions: []string{"test-email"},
 		Fields: []FieldSchema{
 			{ID: "enabled", Label: "Enable SMTP", Type: "boolean"},
@@ -84,7 +84,7 @@ var entryCatalog = []EntrySchema{
 		ID:      "s3",
 		Title:   "S3 Storage",
 		Section: SectionSystem,
-		Source:  SourcePocketBase,
+		Source:  SourceNative,
 		Actions: []string{"test-s3"},
 		Fields: []FieldSchema{
 			{ID: "enabled", Label: "Enable S3", Type: "boolean"},
@@ -101,7 +101,7 @@ var entryCatalog = []EntrySchema{
 		ID:      "logs",
 		Title:   "Logs",
 		Section: SectionSystem,
-		Source:  SourcePocketBase,
+		Source:  SourceNative,
 		Fields: []FieldSchema{
 			{ID: "maxDays", Label: "Max Days", Type: "integer"},
 			{ID: "minLevel", Label: "Min Level", Type: "integer"},
@@ -114,7 +114,7 @@ var entryCatalog = []EntrySchema{
 		ID:      "secrets-policy",
 		Title:   "Secrets",
 		Section: SectionSystem,
-		Source:  SourceApp,
+		Source:  SourceCustom,
 		Module:  "secrets",
 		Key:     "policy",
 		Fields: []FieldSchema{
@@ -127,7 +127,7 @@ var entryCatalog = []EntrySchema{
 		ID:      "space-quota",
 		Title:   "Space Quota",
 		Section: SectionWorkspace,
-		Source:  SourceApp,
+		Source:  SourceCustom,
 		Module:  "space",
 		Key:     "quota",
 		Fields: []FieldSchema{
@@ -145,55 +145,66 @@ var entryCatalog = []EntrySchema{
 		ID:      "connect-terminal",
 		Title:   "Connect Terminal",
 		Section: SectionWorkspace,
-		Source:  SourceApp,
+		Source:  SourceCustom,
 		Module:  "connect",
 		Key:     "terminal",
 		Fields: []FieldSchema{
-			{ID: "idleTimeoutSeconds", Label: "Idle Timeout Seconds", Type: "integer"},
+			{ID: "idleTimeoutSeconds", Label: "Idle Timeout Seconds", Type: "integer", HelpText: "Disconnect idle terminal sessions after this many seconds."},
 			{ID: "maxConnections", Label: "Max Connections", Type: "integer", HelpText: "0 means unlimited"},
+		},
+	},
+	{
+		ID:      "connect-sftp",
+		Title:   "Connect SFTP",
+		Section: SectionWorkspace,
+		Source:  SourceCustom,
+		Module:  "connect",
+		Key:     "sftp",
+		Fields: []FieldSchema{
+			{ID: "maxUploadFiles", Label: "Max Upload Files", Type: "integer", HelpText: "Maximum number of files allowed in a single SFTP upload."},
 		},
 	},
 	{
 		ID:      "deploy-preflight",
 		Title:   "Deploy Preflight",
 		Section: SectionWorkspace,
-		Source:  SourceApp,
+		Source:  SourceCustom,
 		Module:  "deploy",
 		Key:     "preflight",
 		Fields: []FieldSchema{
-			{ID: "minFreeDiskBytes", Label: "Min Free Disk Bytes", Type: "integer"},
+			{ID: "minFreeDiskBytes", Label: "Min Free Disk Bytes", Type: "integer", HelpText: "Block installation when available disk falls below this threshold."},
 		},
 	},
 	{
 		ID:      "iac-files",
 		Title:   "IaC Files",
 		Section: SectionWorkspace,
-		Source:  SourceApp,
+		Source:  SourceCustom,
 		Module:  "files",
 		Key:     "limits",
 		Fields: []FieldSchema{
-			{ID: "maxSizeMB", Label: "Max File Size MB", Type: "integer"},
-			{ID: "maxZipSizeMB", Label: "Max ZIP Size MB", Type: "integer"},
-			{ID: "extensionBlacklist", Label: "Extension Blacklist", Type: "string"},
+			{ID: "maxSizeMB", Label: "Max File Size MB", Type: "integer", HelpText: "Maximum size allowed for a single IaC file upload or read."},
+			{ID: "maxZipSizeMB", Label: "Max ZIP Size MB", Type: "integer", HelpText: "Maximum size allowed when importing IaC ZIP archives."},
+			{ID: "extensionBlacklist", Label: "Extension Blacklist", Type: "string", HelpText: "Comma-separated file extensions blocked in the IaC workspace browser."},
 		},
 	},
 	{
 		ID:      "tunnel-port-range",
 		Title:   "Tunnel",
 		Section: SectionWorkspace,
-		Source:  SourceApp,
+		Source:  SourceCustom,
 		Module:  "tunnel",
 		Key:     "port_range",
 		Fields: []FieldSchema{
-			{ID: "start", Label: "Start", Type: "integer"},
-			{ID: "end", Label: "End", Type: "integer"},
+			{ID: "start", Label: "Start Port", Type: "integer", HelpText: "Lowest port that can be assigned to a reverse tunnel session."},
+			{ID: "end", Label: "End Port", Type: "integer", HelpText: "Highest port that can be assigned to a reverse tunnel session."},
 		},
 	},
 	{
 		ID:      "proxy-network",
 		Title:   "Proxy",
 		Section: SectionWorkspace,
-		Source:  SourceApp,
+		Source:  SourceCustom,
 		Module:  "proxy",
 		Key:     "network",
 		Fields: []FieldSchema{
@@ -208,7 +219,7 @@ var entryCatalog = []EntrySchema{
 		ID:      "docker-mirror",
 		Title:   "Docker Mirrors",
 		Section: SectionWorkspace,
-		Source:  SourceApp,
+		Source:  SourceCustom,
 		Module:  "docker",
 		Key:     "mirror",
 		Fields: []FieldSchema{
@@ -220,7 +231,7 @@ var entryCatalog = []EntrySchema{
 		ID:      "docker-registries",
 		Title:   "Docker Registries",
 		Section: SectionWorkspace,
-		Source:  SourceApp,
+		Source:  SourceCustom,
 		Module:  "docker",
 		Key:     "registries",
 		Fields:  []FieldSchema{{ID: "items", Label: "Items", Type: "object-list"}},
@@ -229,14 +240,14 @@ var entryCatalog = []EntrySchema{
 		ID:      "llm-providers",
 		Title:   "LLM Providers",
 		Section: SectionWorkspace,
-		Source:  SourceApp,
+		Source:  SourceCustom,
 		Module:  "llm",
 		Key:     "providers",
 		Fields:  []FieldSchema{{ID: "items", Label: "Items", Type: "object-list"}},
 	},
 }
 
-var appSettingDefaults = map[string]map[string]any{
+var customSettingDefaults = map[string]map[string]any{
 	"space/quota": {
 		"maxSizeMB":             10,
 		"maxPerUser":            100,
@@ -299,32 +310,19 @@ func FindEntry(id string) (EntrySchema, bool) {
 }
 
 func DefaultGroup(module, key string) map[string]any {
-	return cloneMap(appSettingDefaults[module+"/"+key])
+	return cloneMap(customSettingDefaults[module+"/"+key])
 }
 
-func SeedRows() []AppSettingSeedRow {
-	keys := []struct {
-		module string
-		key    string
-	}{
-		{module: "space", key: "quota"},
-		{module: "proxy", key: "network"},
-		{module: "docker", key: "mirror"},
-		{module: "docker", key: "registries"},
-		{module: "llm", key: "providers"},
-		{module: "connect", key: "sftp"},
-		{module: "connect", key: "terminal"},
-		{module: "files", key: "limits"},
-		{module: "tunnel", key: "port_range"},
-		{module: "secrets", key: "policy"},
-		{module: "deploy", key: "preflight"},
-	}
-	out := make([]AppSettingSeedRow, 0, len(keys))
-	for _, item := range keys {
-		out = append(out, AppSettingSeedRow{
-			Module: item.module,
-			Key:    item.key,
-			Value:  DefaultGroup(item.module, item.key),
+func SeedRows() []CustomSettingSeedRow {
+	out := make([]CustomSettingSeedRow, 0, len(entryCatalog))
+	for _, entry := range entryCatalog {
+		if entry.Source != SourceCustom {
+			continue
+		}
+		out = append(out, CustomSettingSeedRow{
+			Module: entry.Module,
+			Key:    entry.Key,
+			Value:  DefaultGroup(entry.Module, entry.Key),
 		})
 	}
 	return out

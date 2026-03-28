@@ -14,28 +14,28 @@ func newSecretsApp(t *testing.T) *tests.TestApp {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ensureAppSettingsCollection(t, app)
+	ensureCustomSettingsCollection(t, app)
 	ensureSecretsCollection(t, app)
 	return app
 }
 
-func ensureAppSettingsCollection(t *testing.T, app *tests.TestApp) {
+func ensureCustomSettingsCollection(t *testing.T, app *tests.TestApp) {
 	t.Helper()
 
-	if _, err := app.FindCollectionByNameOrId("app_settings"); err == nil {
+	if _, err := app.FindCollectionByNameOrId("custom_settings"); err == nil {
 		return
 	}
 
-	col := core.NewBaseCollection("app_settings")
+	col := core.NewBaseCollection("custom_settings")
 	col.Fields.Add(&core.TextField{Name: "module", Required: true})
 	col.Fields.Add(&core.TextField{Name: "key", Required: true})
 	col.Fields.Add(&core.JSONField{Name: "value"})
 	col.Indexes = []string{
-		"CREATE UNIQUE INDEX idx_app_settings_module_key ON app_settings (module, `key`)",
+		"CREATE UNIQUE INDEX idx_custom_settings_module_key ON custom_settings (module, `key`)",
 	}
 
 	if err := app.Save(col); err != nil {
-		t.Fatalf("create app_settings collection: %v", err)
+		t.Fatalf("create custom_settings collection: %v", err)
 	}
 }
 

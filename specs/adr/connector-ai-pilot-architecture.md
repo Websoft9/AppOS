@@ -156,7 +156,7 @@ AI Chat 不是独立产品，而是各工具可按需嵌入的能力：
 
 ## 对 Epic 8 的影响
 
-需新增 `ai_providers` collection（建议在 Epic 13 Settings 阶段同步添加配置 UI）：
+需新增 `ai_providers` collection（建议通过 Epic 13 Settings Module 的模块配置落地流程同步添加配置 UI）：
 
 ```
 ai_providers collection

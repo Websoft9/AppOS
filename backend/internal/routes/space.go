@@ -22,7 +22,7 @@ import (
 	settingscatalog "github.com/websoft9/appos/backend/internal/settings/catalog"
 )
 
-// ─── Quota defaults (Story 13.2: values now stored in app_settings DB) ───────
+// ─── Quota defaults (Story 13.2: values now stored in custom_settings DB) ───────
 //
 // defaultSpaceQuota is the code-level safety net used when the DB row is
 // missing or unavailable.  settings.GetGroup always returns a non-nil map, so
@@ -91,7 +91,7 @@ func registerSpacePublicRoutes(se *core.ServeEvent) {
 
 // ─── Handlers ──────────────────────────────────────────────────────────────
 
-// handleSpaceQuota returns the currently active quota limits read from app_settings.
+// handleSpaceQuota returns the currently active quota limits read from custom_settings.
 //
 // @Summary Get space quota limits
 // @Description Returns effective upload/share quota limits for the authenticated user. Auth required.

@@ -1,6 +1,6 @@
 # Epic 19: Secrets Management
 
-**Module**: Security Foundation | **Status**: done | **Priority**: P0 | **Depends on**: Epic 12, Epic 13
+**Module**: Security Foundation | **Status**: done | **Priority**: P0 | **Depends on**: Epic 12, Epic 13 Settings Module
 
 ## Navigation
 
@@ -27,7 +27,7 @@ Provide a centralized, minimal, and secure secrets module for AppOS so all sensi
 
 1. Support CRUD for secrets metadata and encrypted payload in a single `secrets` table.
 2. Support configurable `access_mode` per secret (default: `use_only`).
-3. Support secret reference (`secretRef`) usage from other modules (e.g. settings/AI/deploy).
+3. Support secret reference (`secretRef`) usage from other modules (for example Epic 13 settings entries, AI providers, and deploy flows).
 4. Reuse Epic 12 audit pipeline for secret lifecycle events (no dedicated secrets audit table).
 5. Use file-based credential templates to drive form fields and backend validation.
 
@@ -195,7 +195,7 @@ Implement Secrets page under Admin → Credentials → Secrets. Client-side sear
 
 ### Story 19.3 SecretRef Consumption — **done**
 
-Enable modules (settings/AI/deploy) to bind and resolve secrets via `secretRef: <id>` at runtime.
+Enable modules (for example Epic 13 settings entries, AI providers, and deploy flows) to bind and resolve secrets via `secretRef: <id>` at runtime.
 
 **AC:**
 - Shared crypto helper extracted so resolver and HTTP route share identical decrypt logic.

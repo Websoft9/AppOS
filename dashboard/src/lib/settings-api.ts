@@ -2,25 +2,10 @@ export const SETTINGS_SCHEMA_API_PATH = '/api/settings/schema'
 export const SETTINGS_ENTRIES_API_PATH = '/api/settings/entries'
 export const SETTINGS_ACTIONS_API_PATH = '/api/settings/actions'
 
-export type SettingsSection = 'system' | 'workspace'
-export type SettingsSource = 'pocketbase' | 'app_settings'
-export type SettingsActionId = 'test-email' | 'test-s3'
-
-export type SettingsEntryId =
-  | 'basic'
-  | 'smtp'
-  | 's3'
-  | 'logs'
-  | 'secrets-policy'
-  | 'space-quota'
-  | 'connect-terminal'
-  | 'deploy-preflight'
-  | 'iac-files'
-  | 'tunnel-port-range'
-  | 'proxy-network'
-  | 'docker-mirror'
-  | 'docker-registries'
-  | 'llm-providers'
+export type SettingsSection = string
+export type SettingsSource = 'native' | 'custom'
+export type SettingsActionId = string
+export type SettingsEntryId = string
 
 export interface SettingsFieldSchema {
   id: string
@@ -28,6 +13,19 @@ export interface SettingsFieldSchema {
   type: string
   sensitive?: boolean
   helpText?: string
+}
+
+export interface SettingsActionMeta {
+  title: string
+  entryId?: SettingsEntryId
+}
+
+export interface SettingsEntryMeta {
+  title: string
+  section: SettingsSection
+  source: SettingsSource
+  fields: readonly SettingsFieldSchema[]
+  actions?: readonly SettingsActionId[]
 }
 
 export interface SettingsSchemaEntry {

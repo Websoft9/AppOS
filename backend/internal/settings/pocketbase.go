@@ -49,11 +49,6 @@ func pocketBasePatchWrapper(entry settingscatalog.EntrySchema, value map[string]
 	if entry.PocketBaseGroup == "" {
 		return nil, fmt.Errorf("settings entry %s has no pocketbase group", entry.ID)
 	}
-
-	if entry.PocketBaseGroup == "meta" {
-		return map[string]any{"meta": value}, nil
-	}
-
 	return map[string]any{entry.PocketBaseGroup: value}, nil
 }
 
@@ -72,17 +67,17 @@ func exportPocketBaseEntry(current *core.Settings, entry settingscatalog.EntrySc
 		return nil, err
 	}
 
-	if entry.PocketBaseGroup == "meta" {
-		meta, _ := exported[entry.PocketBaseGroup].(map[string]any)
-		return map[string]any{
-			"appName": meta["appName"],
-			"appURL":  meta["appURL"],
-		}, nil
-	}
-
 	group, _ := exported[entry.PocketBaseGroup].(map[string]any)
 	if group == nil {
 		return map[string]any{}, nil
 	}
-	return group, nil
+
+	// Project only fields declared in the catalog entry schema.
+	result := make(map[string]any, len(entry.Fields))
+	for _, f := range entry.Fields {
+		if v, ok := group[f.ID]; ok {
+			result[f.ID] = v
+		}
+	}
+	return result, nil
 }

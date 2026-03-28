@@ -14,6 +14,7 @@ so that disk-capacity blocking behavior can match different host sizes and app p
 - Extract hardcoded minimum free-disk threshold into persisted settings.
 - Keep preflight blocking semantics explicit and stable.
 - Document metadata contract for app-level estimated disk requirement.
+- Land the configuration through the shared Epic 13 Settings Module onboarding path.
 
 ## Acceptance Criteria
 
