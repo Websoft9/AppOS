@@ -2,9 +2,9 @@ package routes
 
 import (
 	"net/http"
-	"sort"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
+	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/forms"
 	"github.com/websoft9/appos/backend/internal/secrets"
@@ -12,76 +12,21 @@ import (
 	settingscatalog "github.com/websoft9/appos/backend/internal/settings/catalog"
 )
 
-func getSettingsEntrySchema(entryID string) (settingscatalog.EntrySchema, bool) {
-	return settingscatalog.FindEntry(entryID)
+// ─── Route registration ────────────────────────────────────────────────────
+
+// RegisterSettings mounts the Ext Settings API on the given ServeEvent.
+// Routes require superuser authentication.
+func RegisterSettings(se *core.ServeEvent) {
+	g := se.Router.Group("/api/settings")
+	g.Bind(apis.RequireSuperuserAuth())
+	g.GET("/schema", handleSettingsSchema)
+	g.GET("/entries", handleSettingsEntriesList)
+	g.GET("/entries/{entryId}", handleSettingsEntryGet)
+	g.PATCH("/entries/{entryId}", handleSettingsEntryPatch)
+	g.POST("/actions/{actionId}", handleSettingsAction)
 }
 
-func getCustomSettingsEntryValue(app core.App, module, key string) (map[string]any, error) {
-	fallback := fallbackForKey(module, key)
-	value, err := settings.GetGroup(app, module, key, fallback)
-	if err != nil {
-		app.Logger().Debug("settings fallback used", "module", module, "key", key, "error", err)
-	}
-	if module == secrets.SettingsModule && key == secrets.PolicySettingsKey {
-		value = secrets.NormalizePolicy(value).ToMap()
-	}
-	return maskValue(value), nil
-}
-
-func patchCustomSettingsEntry(e *core.RequestEvent, module, key string, value map[string]any) (map[string]any, error) {
-	fallback := fallbackForKey(module, key)
-	existing, _ := settings.GetGroup(e.App, module, key, fallback)
-	merged := preserveSensitive(value, existing)
-
-	if validationErrors := validateCustomSettingsEntry(e, module, key, merged); validationErrors != nil {
-		return nil, &settingsValidationError{Fields: validationErrors}
-	}
-
-	if err := settings.SetGroup(e.App, module, key, merged); err != nil {
-		return nil, err
-	}
-
-	stored, _ := getCustomSettingsEntryValue(e.App, module, key)
-	return stored, nil
-}
-
-type settingsValidationError struct {
-	Fields map[string]string
-}
-
-func (e *settingsValidationError) Error() string {
-	return "settings validation failed"
-}
-
-func validateCustomSettingsEntry(e *core.RequestEvent, module, key string, value map[string]any) map[string]string {
-	switch module + "/" + key {
-	case "space/quota":
-		return validateSpaceQuota(value)
-	case "connect/terminal":
-		return validateConnectTerminal(value)
-	case "connect/sftp":
-		return validateConnectSftp(value)
-	case "tunnel/port_range":
-		return validateTunnelPortRange(value)
-	case "deploy/preflight":
-		return validateDeployPreflight(value)
-	case "files/limits":
-		return validateIacFiles(value)
-	case "secrets/policy":
-		if validationErrors := secrets.ValidatePolicy(value); validationErrors != nil {
-			return validationErrors
-		}
-		normalized := secrets.NormalizePolicy(value).ToMap()
-		for field, fieldValue := range normalized {
-			value[field] = fieldValue
-		}
-	case "llm/providers":
-		if err := validateLLMProvidersSecretRefs(e, value); err != nil {
-			return map[string]string{"items": err.Error()}
-		}
-	}
-	return nil
-}
+// ─── HTTP handlers ─────────────────────────────────────────────────────────
 
 // handleSettingsSchema returns the backend-defined settings catalog for the dashboard.
 //
@@ -96,7 +41,6 @@ func handleSettingsSchema(e *core.RequestEvent) error {
 	entries := settingscatalog.Entries()
 
 	actions := settingscatalog.Actions()
-	sort.Slice(actions, func(i, j int) bool { return actions[i].Title < actions[j].Title })
 
 	return e.JSON(http.StatusOK, map[string]any{
 		"entries": entries,
@@ -199,20 +143,6 @@ func handleSettingsEntryPatch(e *core.RequestEvent) error {
 	})
 }
 
-func loadSettingsEntryValue(app core.App, entry settingscatalog.EntrySchema) (map[string]any, error) {
-	if entry.Source == settingscatalog.SourceNative {
-		return settings.LoadPocketBaseEntry(app, entry)
-	}
-	return getCustomSettingsEntryValue(app, entry.Module, entry.Key)
-}
-
-func patchSettingsEntryValue(e *core.RequestEvent, entry settingscatalog.EntrySchema, value map[string]any) (map[string]any, error) {
-	if entry.Source == settingscatalog.SourceNative {
-		return settings.PatchPocketBaseEntry(e.App, entry, value)
-	}
-	return patchCustomSettingsEntry(e, entry.Module, entry.Key, value)
-}
-
 // handleSettingsAction executes a settings-related action bound to a schema entry.
 //
 // @Summary Execute settings action
@@ -255,4 +185,107 @@ func handleSettingsAction(e *core.RequestEvent) error {
 	default:
 		return e.BadRequestError("unknown settings action: "+actionID, nil)
 	}
+}
+
+// ─── Entry adapters ────────────────────────────────────────────────────────
+
+func getSettingsEntrySchema(entryID string) (settingscatalog.EntrySchema, bool) {
+	return settingscatalog.FindEntry(entryID)
+}
+
+func loadSettingsEntryValue(app core.App, entry settingscatalog.EntrySchema) (map[string]any, error) {
+	if entry.Source == settingscatalog.SourceNative {
+		value, err := settings.LoadPocketBaseEntry(app, entry)
+		if err != nil {
+			return nil, err
+		}
+		return maskValue(value), nil
+	}
+	return getCustomSettingsEntryValue(app, entry.Module, entry.Key)
+}
+
+func patchSettingsEntryValue(e *core.RequestEvent, entry settingscatalog.EntrySchema, value map[string]any) (map[string]any, error) {
+	if entry.Source == settingscatalog.SourceNative {
+		// Load existing native values to preserve "***" sentinels on sensitive fields.
+		existing, err := settings.LoadPocketBaseEntry(e.App, entry)
+		if err != nil {
+			return nil, err
+		}
+		merged := preserveSensitive(value, existing)
+		stored, err := settings.PatchPocketBaseEntry(e.App, entry, merged)
+		if err != nil {
+			return nil, err
+		}
+		return maskValue(stored), nil
+	}
+	return patchCustomSettingsEntry(e, entry.Module, entry.Key, value)
+}
+
+func getCustomSettingsEntryValue(app core.App, module, key string) (map[string]any, error) {
+	fallback := fallbackForKey(module, key)
+	value, err := settings.GetGroup(app, module, key, fallback)
+	if err != nil {
+		app.Logger().Debug("settings fallback used", "module", module, "key", key, "error", err)
+	}
+	if module == secrets.SettingsModule && key == secrets.PolicySettingsKey {
+		value = secrets.NormalizePolicy(value).ToMap()
+	}
+	return maskValue(value), nil
+}
+
+func patchCustomSettingsEntry(e *core.RequestEvent, module, key string, value map[string]any) (map[string]any, error) {
+	fallback := fallbackForKey(module, key)
+	existing, _ := settings.GetGroup(e.App, module, key, fallback)
+	merged := preserveSensitive(value, existing)
+
+	if validationErrors := validateCustomSettingsEntry(e, module, key, merged); validationErrors != nil {
+		return nil, &settingsValidationError{Fields: validationErrors}
+	}
+
+	if err := settings.SetGroup(e.App, module, key, merged); err != nil {
+		return nil, err
+	}
+
+	stored, _ := getCustomSettingsEntryValue(e.App, module, key)
+	return stored, nil
+}
+
+// ─── Validation dispatch ───────────────────────────────────────────────────
+
+type settingsValidationError struct {
+	Fields map[string]string
+}
+
+func (e *settingsValidationError) Error() string {
+	return "settings validation failed"
+}
+
+func validateCustomSettingsEntry(e *core.RequestEvent, module, key string, value map[string]any) map[string]string {
+	switch module + "/" + key {
+	case "space/quota":
+		return validateSpaceQuota(value)
+	case "connect/terminal":
+		return validateConnectTerminal(value)
+	case "connect/sftp":
+		return validateConnectSftp(value)
+	case "tunnel/port_range":
+		return validateTunnelPortRange(value)
+	case "deploy/preflight":
+		return validateDeployPreflight(value)
+	case "files/limits":
+		return validateIacFiles(value)
+	case "secrets/policy":
+		if validationErrors := secrets.ValidatePolicy(value); validationErrors != nil {
+			return validationErrors
+		}
+		normalized := secrets.NormalizePolicy(value).ToMap()
+		for field, fieldValue := range normalized {
+			value[field] = fieldValue
+		}
+	case "llm/providers":
+		if err := validateLLMProvidersSecretRefs(e, value); err != nil {
+			return map[string]string{"items": err.Error()}
+		}
+	}
+	return nil
 }

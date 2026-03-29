@@ -2,23 +2,21 @@
 stepsCompleted: [1, 2, 3]
 inputDocuments: []
 date: 2026-02-04
-author: Websoft9
+author: AppOS
 ---
 
-# Product Brief: websoft9
+# Product Brief: AppOS
 
 <!-- Content will be appended sequentially through collaborative workflow steps -->
 
 ## Executive Summary
 
-**websoft9** is an open-source application deployment platform designed for small-to-medium teams and individual developers without dedicated DevOps capabilities. By combining **one-click deployment of 300+ popular open-source applications** with **Infrastructure as Code (IaC)** and **configuration version control**, websoft9 delivers a complete solution for single-server scenarios that is more powerful than Docker Compose yet simpler than Kubernetes.
+**AppOS** is an intelligent app operations and lifecycle platform, single-server first and designed to evolve toward coordinated multi-server operation for one logical application.
 
 **Core Value Propositions:**
-- 🚀 **App Store**: 300+ pre-configured open-source application templates with one-click deployment
-- 🔄 **Version Control**: Automatic configuration history with one-click rollback capability
-- 🎯 **Complete Integration**: All-in-one container with built-in reverse proxy management, automatic SSL certificates
-- ⚡ **Lightweight**: Self-contained single-server architecture, no external dependencies
-- 🌐 **Open Source**: Community-driven, transparent and trustworthy
+- **Lifecycle-Centered Control**: Manage applications through a clear lifecycle model instead of disconnected runtime actions
+- **Unified Operations and Visibility**: Bring terminal, files, services, containers, logs, health, and diagnostics into one operator surface
+- **AI-Native Assistance**: Combine embedded guidance with workflow-style automation for concrete operational tasks
 
 ---
 
@@ -28,53 +26,148 @@ author: Websoft9
 
 **Target User Pain Points:**
 
-Small-to-medium teams and novice/intermediate developers without DevOps capabilities face a triple challenge when deploying containerized applications:
+Small-to-medium teams and novice/intermediate developers without DevOps capabilities face four recurring problems when operating self-hosted applications:
 
-1. **Lack of Deployment Orchestration Control** - Traditional container orchestration tools lack version control mechanisms, making configuration changes inconvenient and prone to deployment errors or inconsistencies
-2. **Tool Fragmentation & Steep Learning Curve** - Manual integration of container runtimes, reverse proxies, Git repositories, SSL certificate management, and other tools leads to complex configurations and error-prone setups
-3. **Solution Mismatch** - Enterprise-grade orchestration platforms are overly complex for single-server scenarios, while traditional PaaS platforms are too heavy with limitations, lacking a "just right" middle-ground solution
+1. **Lifecycle Fragmentation** - install, update, publish, recover, and retire actions are often handled by unrelated tools or scripts with no consistent state model
+2. **Operational Blindness** - logs, health, events, and runtime status are disconnected from the action that caused them
+3. **Resource Operation Sprawl** - terminal, files, services, containers, and diagnostics are exposed as isolated tools instead of one coherent operations surface
+4. **Solution Mismatch** - enterprise orchestration is too heavy for small environments, while basic container tooling is too shallow for real lifecycle management
 
 ### Problem Impact
 
 **If the problem remains unsolved:**
-- ⏱️ **Time Waste** - Developers spend excessive time on infrastructure configuration instead of business development
-- 🔥 **Deployment Risk** - Inability to deploy applications consistently and accurately, leading to poor production environment stability
-- 💰 **Increased Costs** - Forced to use overly complex enterprise-grade solutions or expensive managed PaaS platforms
+- **Time Waste** - operators spend too much time stitching together tools and recovering context
+- **Change Risk** - routine app changes remain hard to verify, observe, and roll back safely
+- **Growth Friction** - teams can manage a single host informally, but struggle once one logical app needs coordination across multiple hosts or roles
 
 ### Why Existing Solutions Fall Short
 
 | Solution | Limitations |
 |---------|------------|
-| **Basic Orchestration Tools** | Lack GitOps mechanisms, no version control integration, inconvenient configuration changes, no built-in reverse proxy or certificate management |
-| **Enterprise Orchestration Platforms** | Overly complex for single-server scenarios, steep learning curve, heavy operational burden |
-| **Traditional PaaS Platforms** | Too heavy, feature limitations, high cost, vendor lock-in risks |
-| **Manual Tool Assembly** | Requires integrating multiple tools (container runtime, reverse proxy, Git server, certificate manager), fragmented configuration, difficult maintenance |
+| **Basic Container Tooling** | Strong primitives, weak lifecycle model, limited rollback, limited product-level observability |
+| **Enterprise Orchestration Platforms** | Powerful but too complex for the target team and environment size |
+| **Traditional PaaS Platforms** | Simplify some operations but constrain control, topology, and extensibility |
+| **Manual Tool Assembly** | Produces fragmented operations, inconsistent state, and fragile troubleshooting workflows |
 
-**Market Gap:** Lack of lightweight deployment platforms optimized for single-server/non-cluster scenarios with complete integration and GitOps capabilities.
+**Market Gap:** Lack of a lightweight platform that unifies app lifecycle, operations, observability, and AI assistance for single-server-first teams.
 
 ### Proposed Solution
 
-**websoft9** fills the market gap through the following mechanisms:
+**Product Positioning:** An intelligent app operations and lifecycle platform, single-server first and designed to evolve toward coordinated multi-server operation.
 
-1. **Hybrid App Store + GitOps Model**
-   - For beginners: One-click deployment of 300+ popular open-source applications (WordPress, GitLab, Nextcloud, etc.) via the app store
-   - For advanced users: Infrastructure as Code (IaC) through Git repository file modifications, manual trigger for precise deployment
+**AppOS** fills the gap through three product mechanisms:
 
-2. **Fully Integrated Technology Stack**
-   - **Reverse Proxy Integration**: Visual UI + automatic reverse proxy configuration + automatic free SSL certificates
-   - **Git Server Integration**: Built-in Git repository management with web interface, no external dependencies
-   - **Container Orchestration**: Based on industry-standard container runtime, without enterprise-grade platform complexity
-   - **Basic Monitoring**: Server and container metrics visibility for operational awareness
+1. **Lifecycle Management as the Product Center**
+   - Model one app through install, operate, change, publish, recover, and retire
+   - Separate long-lived app state from short-lived operation execution state
 
-3. **"Just Right" Complexity Design**
-   - More powerful than basic tools: GitOps, visual management, automated certificates, built-in monitoring
-   - Simpler than enterprise platforms: Focus on single servers, minimal learning curve
-   - More flexible than PaaS: Open-source control, no vendor lock-in
+2. **Unified Resource Operations Platform**
+   - Expose terminal, files, services, containers, diagnostics, logs, and health through one consistent operations surface
 
-4. **Lightweight Collaboration Layer**
-   - `Groups`: Organize apps and reusable resources into stable customer-, department-, or environment-oriented views
-   - `Notes`: Capture user-authored history, updates, and comments without introducing a full ticketing system
-   - Product navigation keeps both under a dedicated `Collaboration` module
+3. **Single-Server First, AI-Native Evolution**
+   - Optimize first for simple self-hosted environments
+   - Preserve a path for one logical app to coordinate across multiple hosts while adding embedded AI assistance and workflow automation
+
+## Product Domain Hierarchy
+
+```text
+Mission
+└── Intelligent App Operations Platform
+   Goal: single-server-first intelligent app operations and lifecycle platform with a path to coordinated multi-server operation
+
+Core Domain
+└── Application Lifecycle
+   ├── App Instance Management
+   ├── Operation Management
+   ├── Release Management
+   ├── Exposure Management
+   ├── Recovery Management
+   └── Application Topology & Coordination
+
+Supporting Domains
+├── Lifecycle Execution
+│   ├── Pipeline Execution
+│   ├── Worker Scheduling
+│   ├── Projection Update
+│   └── Compensation Control
+├── Resource Operations Platform
+│   ├── Remote Access
+│   ├── Terminal Operations
+│   ├── File Operations
+│   ├── Service Operations
+│   └── Container Operations
+├── Observability
+│   ├── Telemetry
+│   │   ├── Metrics
+│   │   ├── Logs
+│   │   └── Events
+│   ├── Health & Diagnostics
+│   │   ├── Health
+│   │   ├── Topology Status
+│   │   └── Diagnostic Views
+│   └── Platform Self-Observation
+├── Operations Management
+│   ├── Resource Topology
+│   ├── Operational Knowledge
+│   ├── Incident Response
+│   └── Operations Automation
+├── App Catalog
+│   ├── Catalog Apps
+│   ├── Custom Apps
+│   ├── Templates
+│   └── Favorites / Notes
+├── Gateway Management
+│   ├── Domain Binding
+│   ├── Routing & Upstreams
+│   ├── Certificate Binding
+│   ├── Gateway Policies
+│   └── Gateway Views
+├── Runtime Infrastructure
+│   ├── Runtime Execution
+│   ├── Recovery Assets
+│   └── Configuration Assets
+├── Integrations & Connectors
+│   ├── Source Integrations
+│   ├── Artifact & Registry Integrations
+│   ├── Notification Integrations
+│   ├── AI Provider Integrations
+│   └── External Secret / Identity Integrations
+├── AI Workflow / Agent Automation
+│   ├── Skills
+│   ├── Task Plans
+│   ├── Guided Automation
+│   └── Domain-Specific Agents
+└── Edition & Entitlement
+   ├── Edition Model
+   ├── License Activation
+   ├── Subscription State
+   └── Feature Entitlements
+
+Generic Domains
+├── Platform Configuration
+├── Identity and Access
+├── Security and Secret Management
+│   ├── Secrets
+│   └── Secret Policies
+└── Audit and Policy
+
+Cross-Cutting Capability
+└── AI Assistant
+   ├── Suggestion
+   ├── Explanation
+   ├── Guidance
+   ├── Contextual Help
+   └── Embedded Copilot Experience
+```
+
+**Interpretation:**
+- `Application Lifecycle` is the only core domain and the product's main organizing concept.
+- The hierarchy shows domains and subdomains only; user-facing modules and model objects are documented separately.
+- `Operations Management` groups resource topology, operational knowledge, incident response, and deterministic operations automation.
+- `Gateway Management` owns shared domain routing, upstream binding, and centralized gateway views across apps, servers, and containers.
+- `Integrations & Connectors` owns external provider connections rather than treating them as settings-only concerns.
+- `Edition & Entitlement` controls which capabilities are available across open-source, standard, and enterprise offerings.
+- `Observability`, `Resource Operations Platform`, and `AI Workflow / Agent Automation` remain supporting domains around the lifecycle core.
 
 ### Key Differentiators
 
@@ -82,17 +175,14 @@ Small-to-medium teams and novice/intermediate developers without DevOps capabili
 
 | Differentiator | Description | Competitive Advantage |
 |---------------|-------------|----------------------|
-| 🎯 **Single-Server Deep Optimization** | No pursuit of cluster capabilities, focused on simplicity and efficiency | Avoids over-engineering, meets 80% of users' real needs |
-| 📦 **300+ App Store** | Pre-configured popular open-source software templates | Out-of-the-box, lowers deployment barriers |
-| 🔄 **App Store + GitOps Dual Mode** | Quick start + fine-grained control | Balances beginner-friendliness with expert flexibility |
-| 🎨 **Complete Integration Solution** | Reverse proxy, Git server, and deployment engine all-in-one | No tool assembly required, reduces configuration fragmentation |
-| 🌐 **Open Source Transparency** | Community-driven, open codebase | High trust, no vendor lock-in |
-| ⚡ **Lightweight Architecture** | Based on standard container technology, no enterprise platform burden | Low resource consumption, fast startup |
+| **Lifecycle-Centered Product Model** | App state, operation state, release state, and exposure state are separated cleanly | Stronger operational clarity than basic runtime dashboards |
+| **Unified Operations and Visibility** | Terminal, files, services, containers, diagnostics, logs, health, and events work as one product surface | Reduces fragmentation and improves diagnosis |
+| **Single-Server First, AI-Native Evolution** | Optimized for simple environments while preserving room for coordinated multi-host operation and AI-guided workflows | Keeps adoption simple without capping long-term capability |
 
 **Moats:**
-- **Completeness Moat** - Competitors either provide single-purpose tools or are overly complex enterprise platforms; few deeply cultivate the "lightweight + fully integrated" niche market
-- **Application Ecosystem Moat** - 300+ pre-configured application templates require continuous maintenance and testing, providing first-mover advantage
-- **Positioning Moat** - Clear positioning as "single-server deployment specialist" avoids direct competition with enterprise orchestration ecosystems
+- **Model Moat** - A coherent lifecycle model is harder to copy than a collection of runtime screens
+- **Workflow Moat** - Resource operations, observability, and AI workflows become more valuable when they share one product context
+- **Ecosystem Moat** - Catalog depth and reusable operational skills compound over time
 
 ---
 
@@ -102,10 +192,8 @@ Small-to-medium teams and novice/intermediate developers without DevOps capabili
 
 | User Segment | Profile | Tech Level | Primary Use Case | Key Needs |
 |--------------|---------|------------|------------------|-----------|
-| **Solo Developer / Indie Hacker** | Independent developers building side projects, SaaS products, or client websites | Intermediate | Deploy multiple apps on single VPS with minimal overhead | One-click deployment + GitOps control without complexity |
-| **Small Development Team** | Startups, digital agencies, or small software teams (2-10 people) | Mixed (junior to senior, no dedicated DevOps) | Manage multiple client projects or internal tools | Consistent deployments with version control, team collaboration |
-| **Technical SMB Owner / CTO** | Small business owners running their own infrastructure | Intermediate to advanced (time-constrained) | Self-host business applications with full data control | Data sovereignty, app store for business tools (CRM, collaboration, etc.) |
-| **System Administrators** | Sysadmins in schools, non-profits, or small enterprises | Linux-savvy (transitioning to containers) | Bridge traditional IT practices with modern containerization | Familiar workflow with container benefits, minimal learning curve |
+| **Independent Builders** | Solo developers, indie hackers, technical founders, and small project owners | Intermediate | Run and maintain apps on simple self-hosted infrastructure | Low-friction lifecycle control without platform complexity |
+| **Small Teams and Operators** | Small product teams, SMB technical owners, and system administrators without dedicated platform engineering | Mixed to advanced | Operate internal tools and customer workloads consistently | Unified operations, visibility, safer changes, and room to grow |
 
 ### Common Characteristics
 
@@ -113,13 +201,14 @@ Small-to-medium teams and novice/intermediate developers without DevOps capabili
 - ❌ No dedicated DevOps team or expertise
 - ❌ Single-server or small infrastructure (not cluster-scale)
 - ❌ Limited time/budget for complex infrastructure management
-- ❌ Need consistent, repeatable deployments with version control
+- ❌ Need consistent, repeatable app changes with clear visibility and rollback
 - ❌ Want control over data and infrastructure (no vendor lock-in)
 
-**What Makes Them Choose websoft9:**
+**What Makes Them Choose AppOS:**
 - ✅ **Simplicity First**: Can deploy production apps in minutes, not days
-- ✅ **GitOps Benefits**: Version-controlled infrastructure without enterprise platform complexity
-- ✅ **Complete Solution**: Don't need to piece together multiple tools (container runtime, reverse proxy, Git server, certificate manager)
-- ✅ **App Ecosystem**: 300+ pre-configured apps cover most common needs
+- ✅ **Lifecycle Control**: Safer changes, clearer rollback paths, and better operational context
+- ✅ **Unified Operations**: One place for terminal, files, services, containers, and diagnostics
+- ✅ **Operational Visibility**: Better understanding of what changed, what failed, and what to do next
+- ✅ **App Ecosystem**: Ready-to-use templates plus room for custom app definitions
 - ✅ **Open Source Trust**: No vendor lock-in, community-driven development
 

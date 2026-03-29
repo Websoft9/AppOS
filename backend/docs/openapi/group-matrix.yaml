@@ -379,8 +379,8 @@ groups:
       - POST /api/settings/apple/generate-client-secret
     sources:
       extRouteFiles:
-        - settings.go
-        - settings_unified.go
+        - settings_handlers.go
+        - settings_rules.go
       nativeRefs:
         - https://pocketbase.io/docs/api-settings/
 

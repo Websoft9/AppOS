@@ -108,3 +108,9 @@ Render one shared Settings page from backend schema and entry payloads instead o
 
 - backend registration of new entries
 - consumer runtime logic after a setting is saved
+
+## Review Follow-ups (AI)
+
+- [ ] [AI-Review][MEDIUM] `sectionLabel()` in `shared.tsx` hardcodes "System" and "Workspace" labels — consider deriving from backend or i18n [dashboard/src/routes/_app/_auth/_superuser/-settings-sections/shared.tsx:L61-69]
+- [ ] [AI-Review][LOW] `StringSlice` helper in `settings.go` is defined but unused by settings routes — verify consumer usage or remove [backend/internal/settings/settings.go:L139]
+- [ ] [AI-Review][LOW] `nonSensitiveFieldsMatch` uses `fmt.Sprint` for value comparison, which may be unreliable for nested types [backend/internal/routes/settings.go:L342]

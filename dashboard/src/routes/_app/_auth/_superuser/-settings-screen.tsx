@@ -244,6 +244,12 @@ function renderSection(controller: SettingsPageController) {
           saveLlm={controller.saveLlm}
         />
       )
+    default:
+      return (
+        <div className="text-sm text-muted-foreground">
+          No editor available for this entry.
+        </div>
+      )
   }
 }
 

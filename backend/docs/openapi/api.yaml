@@ -6942,6 +6942,7 @@ paths:
                 - Settings
     /api/settings/actions/{actionId}:
         post:
+            description: Executes a supported settings action such as SMTP or S3 connectivity tests. Superuser only.
             operationId: post_api_settings_actions_actionid
             parameters:
                 - in: path
@@ -6954,7 +6955,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
-                required: false
+                required: true
             responses:
                 "200":
                     content:
@@ -6962,6 +6963,14 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
+                "204":
+                    description: No Content
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
                 "401":
                     content:
                         application/json:
@@ -6970,7 +6979,7 @@ paths:
                     description: Unauthorized
             security:
                 - bearerAuth: []
-            summary: Create or execute settings actions by actionId
+            summary: Execute settings action
             tags:
                 - Settings
     /api/settings/apple/generate-client-secret:
@@ -6986,6 +6995,7 @@ paths:
                 - Settings
     /api/settings/entries:
         get:
+            description: Returns all settings entries with their current masked or normalized values. Superuser only.
             operationId: get_api_settings_entries
             responses:
                 "200":
@@ -7000,13 +7010,20 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
             security:
                 - bearerAuth: []
-            summary: Get settings entries
+            summary: List settings entries
             tags:
                 - Settings
     /api/settings/entries/{entryId}:
         get:
+            description: Returns the current masked or normalized value for a single settings entry. Superuser only.
             operationId: get_api_settings_entries_entryid
             parameters:
                 - in: path
@@ -7021,18 +7038,31 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
                 "401":
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
             security:
                 - bearerAuth: []
-            summary: Get settings entries by entryId
+            summary: Get settings entry
             tags:
                 - Settings
         patch:
+            description: Updates a single settings entry while preserving masking, defaults, and validation rules for its source. Superuser only.
             operationId: patch_api_settings_entries_entryid
             parameters:
                 - in: path
@@ -7045,7 +7075,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
-                required: false
+                required: true
             responses:
                 "200":
                     content:
@@ -7053,19 +7083,32 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
                 "401":
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
+                "422":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unprocessable Entity
             security:
                 - bearerAuth: []
-            summary: Patch settings entries by entryId
+            summary: Patch settings entry
             tags:
                 - Settings
     /api/settings/schema:
         get:
+            description: Returns all available settings entries and actions, including their section, source, fields, and action bindings. Superuser only.
             operationId: get_api_settings_schema
             responses:
                 "200":

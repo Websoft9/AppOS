@@ -5999,7 +5999,8 @@ paths:
   /api/settings/actions/{actionId}:
     post:
       tags: [Settings]
-      summary: Create or execute settings actions by actionId
+      summary: Execute settings action
+      description: "Executes a supported settings action such as SMTP or S3 connectivity tests. Superuser only."
       operationId: post_api_settings_actions_actionid
       parameters:
         - name: actionId
@@ -6008,7 +6009,7 @@ paths:
           schema:
             type: string
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
@@ -6022,8 +6023,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
+        "204":
+          description: No Content
         "401":
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "400":
+          description: Bad Request
           content:
             application/json:
               schema:
@@ -6031,7 +6040,8 @@ paths:
   /api/settings/entries:
     get:
       tags: [Settings]
-      summary: Get settings entries
+      summary: List settings entries
+      description: "Returns all settings entries with their current masked or normalized values. Superuser only."
       operationId: get_api_settings_entries
       security:
         - bearerAuth: []  # superuser required
@@ -6048,10 +6058,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/settings/entries/{entryId}:
     get:
       tags: [Settings]
-      summary: Get settings entries by entryId
+      summary: Get settings entry
+      description: "Returns the current masked or normalized value for a single settings entry. Superuser only."
       operationId: get_api_settings_entries_entryid
       parameters:
         - name: entryId
@@ -6074,9 +6091,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
     patch:
       tags: [Settings]
-      summary: Patch settings entries by entryId
+      summary: Patch settings entry
+      description: "Updates a single settings entry while preserving masking, defaults, and validation rules for its source. Superuser only."
       operationId: patch_api_settings_entries_entryid
       parameters:
         - name: entryId
@@ -6085,7 +6115,7 @@ paths:
           schema:
             type: string
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
@@ -6105,10 +6135,23 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "422":
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/settings/schema:
     get:
       tags: [Settings]
       summary: Get settings schema
+      description: "Returns all available settings entries and actions, including their section, source, fields, and action bindings. Superuser only."
       operationId: get_api_settings_schema
       security:
         - bearerAuth: []  # superuser required

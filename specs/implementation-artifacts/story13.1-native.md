@@ -90,3 +90,7 @@ Actions execute through `POST /api/settings/actions/{actionId}`.
 - `custom_settings` persistence
 - consumer-specific setting semantics
 - frontend composition rules
+
+## Review Follow-ups (AI)
+
+- [ ] [AI-Review][LOW] `test-s3` action body binds to PB `forms.NewTestS3Filesystem` instead of unified entry value shape — leaky abstraction [backend/internal/routes/settings_unified.go:L216-225]

@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/internal/secrets"
 	settingscatalog "github.com/websoft9/appos/backend/internal/settings/catalog"
@@ -36,6 +35,8 @@ func buildSensitiveFieldSet() map[string]bool {
 const defaultTunnelSSHPort = 2222
 
 var iacDefaultBlacklist = settingscatalog.DefaultGroup("files", "limits")["extensionBlacklist"]
+
+// ─── Validation functions ──────────────────────────────────────────────────
 
 func validateSpaceQuota(v map[string]any) map[string]string {
 	errors := map[string]string{}
@@ -272,6 +273,8 @@ func validateConnectSftp(v map[string]any) map[string]string {
 	return errors
 }
 
+// ─── Defaults ──────────────────────────────────────────────────────────────
+
 // fallbackForKey returns the code-level fallback for a given (module, key) pair.
 func fallbackForKey(module, key string) map[string]any {
 	fallback := settingscatalog.DefaultGroup(module, key)
@@ -279,20 +282,6 @@ func fallbackForKey(module, key string) map[string]any {
 		return fallback
 	}
 	return map[string]any{}
-}
-
-// ─── Route registration ────────────────────────────────────────────────────
-
-// RegisterSettings mounts the Ext Settings API on the given ServeEvent.
-// Routes require superuser authentication.
-func RegisterSettings(se *core.ServeEvent) {
-	g := se.Router.Group("/api/settings")
-	g.Bind(apis.RequireSuperuserAuth())
-	g.GET("/schema", handleSettingsSchema)
-	g.GET("/entries", handleSettingsEntriesList)
-	g.GET("/entries/{entryId}", handleSettingsEntryGet)
-	g.PATCH("/entries/{entryId}", handleSettingsEntryPatch)
-	g.POST("/actions/{actionId}", handleSettingsAction)
 }
 
 // ─── Mask helpers ──────────────────────────────────────────────────────────
@@ -426,6 +415,8 @@ func nonSensitiveFieldsMatch(incoming, existing map[string]any) bool {
 	}
 	return matched > 0
 }
+
+// ─── Secret-ref validation ─────────────────────────────────────────────────
 
 // validateLLMProvidersSecretRefs checks any provider item whose apiKey is a
 // secretRef pointer. Returns an error if the referenced secret is missing,
