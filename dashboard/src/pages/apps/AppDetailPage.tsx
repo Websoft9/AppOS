@@ -25,6 +25,7 @@ import {
   type AppExposure,
   type AppInstance,
   type AppLogsResponse,
+  type AppOperationResponse,
   type AppRelease,
   buildUnifiedDiff,
   formatTime,
@@ -234,26 +235,34 @@ export function AppDetailPage({ appId }: { appId: string }) {
     }
   }, [appId, fetchDetail])
 
+  const navigateToActionDetail = useCallback((actionId: string) => {
+    void navigate({
+      to: '/actions/$actionId' as never,
+      params: { actionId } as never,
+      search: { returnTo: 'list' } as never,
+    })
+  }, [navigate])
+
   const runAction = useCallback(async (action: AppAction) => {
     setActionLoading(action)
     setError('')
     setSuccess('')
     try {
-      if (action === 'uninstall') {
-        await pb.send(`/api/apps/${appId}`, { method: 'DELETE' })
-        void navigate({ to: '/apps' })
+      const response = action === 'uninstall'
+        ? await pb.send<AppOperationResponse>(`/api/apps/${appId}`, { method: 'DELETE' })
+        : await pb.send<AppOperationResponse>(`/api/apps/${appId}/${action}`, { method: 'POST' })
+      if (response?.id) {
+        navigateToActionDetail(response.id)
         return
       }
-      await pb.send(`/api/apps/${appId}/${action}`, { method: 'POST' })
-      setSuccess(`App ${action} completed`)
+      setSuccess(`${app?.name || 'App'} ${action} operation created`)
       await fetchDetail()
-      if (tab === 'logs') await fetchLogs(true)
     } catch (err) {
       setError(getApiErrorMessage(err, `Failed to ${action} app`))
     } finally {
       setActionLoading('')
     }
-  }, [appId, fetchDetail, fetchLogs, navigate, tab])
+  }, [app?.name, appId, fetchDetail, navigateToActionDetail])
 
   const triggerOperation = useCallback(async (action: 'redeploy' | 'upgrade') => {
     if (!app) return
@@ -266,26 +275,18 @@ export function AppDetailPage({ appId }: { appId: string }) {
       })
       setSuccess(`${app.name} ${action} operation created`)
       await fetchDetail()
-      void navigate({
-        to: '/actions/$actionId' as never,
-        params: { actionId: response.id } as never,
-        search: { returnTo: 'list' } as never,
-      })
+      navigateToActionDetail(response.id)
     } catch (err) {
       setError(getApiErrorMessage(err, `Failed to ${action} app`))
     } finally {
       setDeploying('')
     }
-  }, [app, fetchDetail, navigate])
+  }, [app, fetchDetail, navigateToActionDetail])
 
   const openOperationStatus = useCallback(() => {
     if (!app?.last_operation) return
-    void navigate({
-      to: '/actions/$actionId' as never,
-      params: { actionId: app.last_operation } as never,
-      search: { returnTo: 'list' } as never,
-    })
-  }, [app, navigate])
+    navigateToActionDetail(app.last_operation)
+  }, [app, navigateToActionDetail])
 
   const hasConfigChanges = configText !== originalConfig
   const saveDisabled = !hasConfigChanges || !validation?.valid || validation.validatedContent !== configText || saving
@@ -413,7 +414,7 @@ export function AppDetailPage({ appId }: { appId: string }) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Uninstall App</AlertDialogTitle>
-            <AlertDialogDescription>{app ? `Uninstall ${app.name}? This runs docker compose down and removes the app from the installed list.` : 'This action cannot be undone.'}</AlertDialogDescription>
+            <AlertDialogDescription>{app ? `Uninstall ${app.name}? This creates a shared uninstall operation and moves execution tracking to the canonical action detail view.` : 'This action cannot be undone.'}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>

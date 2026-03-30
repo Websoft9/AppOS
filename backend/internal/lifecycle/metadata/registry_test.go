@@ -20,6 +20,7 @@ func TestDefaultRegistryCoversLifecycleOperations(t *testing.T) {
 		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), Source: string(model.TriggerSourceManualOps), Adapter: string(model.AdapterManualCompose)}, family: model.ProvisionPipeline, definitionKey: "provision.install.manual_compose"},
 		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeInstall), Source: string(model.TriggerSourceGitOps), Adapter: string(model.AdapterGitCompose)}, family: model.ProvisionPipeline, definitionKey: "provision.install.git_compose"},
 		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeStart)}, family: model.ProvisionPipeline, definitionKey: "provision.start"},
+		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeRestart)}, family: model.ProvisionPipeline, definitionKey: "provision.restart"},
 		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeUpgrade)}, family: model.ChangePipeline, definitionKey: "change.upgrade"},
 		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeRedeploy)}, family: model.ChangePipeline, definitionKey: "change.redeploy"},
 		{selector: model.DefinitionSelector{OperationType: string(model.OperationTypeReconfigure)}, family: model.ChangePipeline, definitionKey: "change.reconfigure"},

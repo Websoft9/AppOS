@@ -70,9 +70,15 @@ Epic 18 is the management surface above Epic 17. It should consume the lifecycle
 
 Define installed app list and summary cards centered on `AppInstance` projection and normalized lifecycle status.
 
+### Story 18.1a App Detail Boundary Classification
+
+Classify `App Detail` data into `AppInstance` aggregate state, lifecycle-related projections, and external runtime or observability data so the management surface stops behaving like one giant app aggregate.
+
 ### Story 18.2 Lifecycle Actions
 
 Implement lifecycle action entry points for start, stop, maintain, recover, publish, unpublish, and uninstall by creating or resuming shared Epic 17 operations with appropriate guards. Existing local action paths should be treated as interim behavior to be retired.
+
+- **18.2a Local Action Convergence:** move Installed-side `start`, `stop`, `restart`, and `uninstall` off direct compose execution paths and onto shared Epic 17 lifecycle operations.
 
 ### Story 18.3 Configuration Management
 
@@ -81,6 +87,8 @@ Implement config edit/apply surfaces with validation, preview, and operation-res
 ### Story 18.4 Action Handoff and Status
 
 Provide Installed-side action entry points and execution status tracking by integrating Epic 17 action workflows and execution views.
+
+- **18.4a App Detail Action Handoff:** standardize how `App Detail` links to shared operation detail, exposes current execution context, and hands lifecycle actions off to Epic 17 without owning execution semantics locally.
 
 ### Story 18.5 Proxy and Domain Binding
 
@@ -99,9 +107,29 @@ Implement data management, backup, and restore user flows that delegate executio
 | Story | Status |
 |-------|--------|
 | 18.1 Installed App Inventory | in-progress |
+| 18.1a App Detail Boundary Classification | review |
 | 18.2 Lifecycle Actions | in-progress |
+| 18.2a Local Action Convergence | proposed |
 | 18.3 Configuration Management | in-progress |
 | 18.4 Action Handoff and Status | in-progress |
+| 18.4a App Detail Action Handoff | proposed |
 | 18.5 Proxy and Domain Binding | backlog |
 | 18.6 Audit and Action Records | backlog |
 | 18.7 Data Management and Backup | backlog |
+
+## Story Artifacts
+
+- `story18.1a-app-detail-boundary-classification.md`
+- `story18.2a-local-action-convergence.md`
+- `story18.4a-app-detail-action-handoff.md`
+- `iteration1-epic18-lifecycle-convergence-slice.md`
+
+## Recommended Iteration Slice
+
+For the first lifecycle-management convergence pass, use:
+
+- `18.1a App Detail Boundary Classification`
+- `18.2a Local Action Convergence`
+- `18.4a App Detail Action Handoff`
+
+Execution order and dependency notes are captured in `iteration1-epic18-lifecycle-convergence-slice.md`.

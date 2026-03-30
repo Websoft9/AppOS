@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -78,9 +79,73 @@ func ExecuteNode(
 			return result, err
 		}
 		result.DockerClient = client
-		output, err := client.ComposeUp(ctx, operation.GetString("project_dir"))
+		var output string
+		if strings.TrimSpace(operation.GetString("operation_type")) == string(model.OperationTypeStart) {
+			output, err = client.ComposeStart(ctx, operation.GetString("project_dir"))
+		} else {
+			output, err = client.ComposeUp(ctx, operation.GetString("project_dir"))
+		}
 		if output != "" {
-			logf("docker compose up output:\n" + output)
+			logf("docker runtime start output:\n" + output)
+		}
+		if err != nil {
+			return result, err
+		}
+		return result, nil
+	case "runtime_stop":
+		client, err := ensureDockerClient(executor, dockerClient)
+		if err != nil {
+			return result, err
+		}
+		result.DockerClient = client
+		output, err := client.ComposeStop(ctx, operation.GetString("project_dir"))
+		if output != "" {
+			logf("docker compose stop output:\n" + output)
+		}
+		if err != nil {
+			return result, err
+		}
+		return result, nil
+	case "runtime_restart":
+		client, err := ensureDockerClient(executor, dockerClient)
+		if err != nil {
+			return result, err
+		}
+		result.DockerClient = client
+		output, err := client.ComposeRestart(ctx, operation.GetString("project_dir"))
+		if output != "" {
+			logf("docker compose restart output:\n" + output)
+		}
+		if err != nil {
+			return result, err
+		}
+		return result, nil
+	case "runtime_check":
+		client, err := ensureDockerClient(executor, dockerClient)
+		if err != nil {
+			return result, err
+		}
+		result.DockerClient = client
+		composeFile := operation.GetString("project_dir") + "/docker-compose.yml"
+		output, err := client.Exec(ctx, "compose", "-f", composeFile, "ps", "--status", "running", "-q")
+		if err != nil {
+			return result, err
+		}
+		if strings.TrimSpace(output) != "" {
+			return result, fmt.Errorf("runtime still reports running services")
+		}
+		logf("runtime check passed")
+		return result, nil
+	case "retirement":
+		client, err := ensureDockerClient(executor, dockerClient)
+		if err != nil {
+			return result, err
+		}
+		result.DockerClient = client
+		removeVolumes := operationMetadataBool(operation, "remove_volumes")
+		output, err := client.ComposeDown(ctx, operation.GetString("project_dir"), removeVolumes)
+		if output != "" {
+			logf("docker compose down output:\n" + output)
 		}
 		if err != nil {
 			return result, err
@@ -102,6 +167,39 @@ func ExecuteNode(
 	default:
 		logf("skipped unsupported node type: " + node.NodeType)
 		return result, nil
+	}
+}
+
+func operationMetadataBool(operation *core.Record, key string) bool {
+	if operation == nil || strings.TrimSpace(key) == "" {
+		return false
+	}
+	raw := operation.Get("spec_json")
+	spec, ok := raw.(map[string]any)
+	if !ok {
+		encoded, err := json.Marshal(raw)
+		if err != nil {
+			return false
+		}
+		if err := json.Unmarshal(encoded, &spec); err != nil {
+			return false
+		}
+	}
+	metadata, ok := spec["metadata"].(map[string]any)
+	if !ok {
+		return false
+	}
+	value, ok := metadata[key]
+	if !ok {
+		return false
+	}
+	switch typed := value.(type) {
+	case bool:
+		return typed
+	case string:
+		return strings.EqualFold(strings.TrimSpace(typed), "true") || strings.TrimSpace(typed) == "1"
+	default:
+		return false
 	}
 }
 

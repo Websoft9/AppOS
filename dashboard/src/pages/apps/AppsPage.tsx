@@ -48,7 +48,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
-import { type AppInstance, appIconClass, appInitials, formatTime, formatUptime, runtimeVariant } from '@/pages/apps/types'
+import { type AppInstance, type AppOperationResponse, appIconClass, appInitials, formatTime, formatUptime, runtimeVariant } from '@/pages/apps/types'
 
 type AppAction = 'start' | 'stop' | 'restart' | 'uninstall'
 
@@ -135,6 +135,14 @@ export function AppsPage() {
     }
   }
 
+  function navigateToActionDetail(actionId: string) {
+    void navigate({
+      to: '/actions/$actionId' as never,
+      params: { actionId } as never,
+      search: { returnTo: 'list' } as never,
+    })
+  }
+
   async function runAction(app: AppInstance, action: AppAction) {
     if (action === 'uninstall') {
       setPendingUninstall(app)
@@ -145,8 +153,12 @@ export function AppsPage() {
     setError('')
     setSuccess('')
     try {
-      await pb.send(`/api/apps/${app.id}/${action}`, { method: 'POST' })
-      setSuccess(`${app.name} ${action} completed`)
+      const response = await pb.send<AppOperationResponse>(`/api/apps/${app.id}/${action}`, { method: 'POST' })
+      if (response?.id) {
+        navigateToActionDetail(response.id)
+        return
+      }
+      setSuccess(`${app.name} ${action} operation created`)
       await fetchApps()
     } catch (err) {
       setError(getApiErrorMessage(err, `Failed to ${action} ${app.name}`))
@@ -163,9 +175,13 @@ export function AppsPage() {
     setError('')
     setSuccess('')
     try {
-      await pb.send(`/api/apps/${app.id}`, { method: 'DELETE' })
-      setSuccess(`${app.name} uninstalled`)
+      const response = await pb.send<AppOperationResponse>(`/api/apps/${app.id}`, { method: 'DELETE' })
       setPendingUninstall(null)
+      if (response?.id) {
+        navigateToActionDetail(response.id)
+        return
+      }
+      setSuccess(`${app.name} uninstall operation created`)
       await fetchApps()
     } catch (err) {
       setError(getApiErrorMessage(err, `Failed to uninstall ${app.name}`))
@@ -229,11 +245,7 @@ export function AppsPage() {
       })
       setSuccess(`${app.name} ${action} operation created`)
       await fetchApps()
-      void navigate({
-        to: '/actions/$actionId' as never,
-        params: { actionId: response.id } as never,
-        search: { returnTo: 'list' } as never,
-      })
+      navigateToActionDetail(response.id)
     } catch (err) {
       setError(getApiErrorMessage(err, `Failed to ${action} ${app.name}`))
     } finally {
@@ -243,11 +255,7 @@ export function AppsPage() {
 
   function openOperationStatus(app: AppInstance) {
     if (!app.last_operation) return
-    void navigate({
-      to: '/actions/$actionId' as never,
-      params: { actionId: app.last_operation } as never,
-      search: { returnTo: 'list' } as never,
-    })
+    navigateToActionDetail(app.last_operation)
   }
 
   function renderActionMenu(app: AppInstance) {
@@ -425,7 +433,7 @@ export function AppsPage() {
             <AlertDialogTitle>Uninstall Application</AlertDialogTitle>
             <AlertDialogDescription>
               {pendingUninstall
-                ? `Uninstall ${pendingUninstall.name}? This runs docker compose down and removes it from the installed inventory.`
+                ? `Uninstall ${pendingUninstall.name}? This creates a shared uninstall operation and moves execution tracking to the canonical action detail view.`
                 : 'This action cannot be undone.'}
             </AlertDialogDescription>
           </AlertDialogHeader>

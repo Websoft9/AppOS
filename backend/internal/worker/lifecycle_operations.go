@@ -368,16 +368,24 @@ func (w *Worker) executeNode(ctx context.Context, execCtx *lifecycleExecutionCon
 
 func (w *Worker) finishOperationSucceeded(execCtx *lifecycleExecutionContext) error {
 	now := time.Now()
-	releaseRecord, err := w.createReleaseBaseline(execCtx, now)
-	if err != nil {
-		return w.finishOperationFailed(execCtx, nil, model.NodeDefinition{Key: "release_baseline", DisplayName: "Create Release Baseline", NodeType: "runtime_config", Phase: string(model.PipelinePhaseVerifying)}, err)
+	var releaseRecord *core.Record
+	if shouldCreateReleaseBaseline(execCtx.Operation) {
+		var err error
+		releaseRecord, err = w.createReleaseBaseline(execCtx, now)
+		if err != nil {
+			return w.finishOperationFailed(execCtx, nil, model.NodeDefinition{Key: "release_baseline", DisplayName: "Create Release Baseline", NodeType: "runtime_config", Phase: string(model.PipelinePhaseVerifying)}, err)
+		}
 	}
 
 	execCtx.Operation.Set("terminal_status", "success")
 	execCtx.Operation.Set("failure_reason", "")
-	execCtx.Operation.Set("app_outcome", "new_release_active")
+	execCtx.Operation.Set("app_outcome", operationSuccessOutcome(execCtx.AppRecord, execCtx.Operation))
 	execCtx.Operation.Set("error_message", "")
-	execCtx.Operation.Set("result_release", releaseRecord.Id)
+	if releaseRecord != nil {
+		execCtx.Operation.Set("result_release", releaseRecord.Id)
+	} else {
+		execCtx.Operation.Set("result_release", "")
+	}
 	execCtx.Operation.Set("ended_at", now)
 	if err := w.app.Save(execCtx.Operation); err != nil {
 		return err
@@ -389,8 +397,15 @@ func (w *Worker) finishOperationSucceeded(execCtx *lifecycleExecutionContext) er
 		return err
 	}
 
-	execCtx.AppRecord.Set("current_release", releaseRecord.Id)
+	if releaseRecord != nil {
+		execCtx.AppRecord.Set("current_release", releaseRecord.Id)
+	}
 	projection.ApplyOperationSucceeded(execCtx.AppRecord, execCtx.Operation, now)
+	if strings.TrimSpace(execCtx.Operation.GetString("operation_type")) == string(model.OperationTypeUninstall) {
+		if err := w.deactivateActiveReleases(execCtx, now); err != nil {
+			return err
+		}
+	}
 	if err := w.app.Save(execCtx.AppRecord); err != nil {
 		return err
 	}
@@ -681,11 +696,41 @@ func failureReasonForNode(node model.NodeDefinition) string {
 	switch node.NodeType {
 	case "validation":
 		return "validation_error"
-	case "health_check":
+	case "health_check", "runtime_check":
 		return "verification_failed"
 	default:
 		return "execution_error"
 	}
+}
+
+func (w *Worker) deactivateActiveReleases(execCtx *lifecycleExecutionContext, now time.Time) error {
+	if execCtx == nil || execCtx.AppRecord == nil {
+		return nil
+	}
+	releasesCol, err := w.app.FindCollectionByNameOrId("app_releases")
+	if err != nil {
+		return err
+	}
+	records, err := w.app.FindRecordsByFilter(
+		releasesCol,
+		fmt.Sprintf("app = '%s' && is_active = true", escapePBFilterValue(execCtx.AppRecord.Id)),
+		"-created",
+		50,
+		0,
+	)
+	if err != nil {
+		return err
+	}
+	for _, release := range records {
+		release.Set("is_active", false)
+		release.Set("is_last_known_good", false)
+		release.Set("release_role", "historical")
+		release.Set("superseded_at", now)
+		if err := w.app.Save(release); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func operationFailureOutcome(appRecord *core.Record) string {
@@ -693,6 +738,32 @@ func operationFailureOutcome(appRecord *core.Record) string {
 		return "no_healthy_release"
 	}
 	return "previous_release_active"
+}
+
+func operationSuccessOutcome(appRecord, operation *core.Record) string {
+	if operation == nil {
+		return operationFailureOutcome(appRecord)
+	}
+	switch strings.TrimSpace(operation.GetString("operation_type")) {
+	case string(model.OperationTypeUninstall):
+		return "no_healthy_release"
+	case string(model.OperationTypeInstall), string(model.OperationTypeUpgrade), string(model.OperationTypeRedeploy), string(model.OperationTypeReconfigure), string(model.OperationTypeRecover), string(model.OperationTypeRollback), string(model.OperationTypeRestore):
+		return "new_release_active"
+	default:
+		return operationFailureOutcome(appRecord)
+	}
+}
+
+func shouldCreateReleaseBaseline(operation *core.Record) bool {
+	if operation == nil {
+		return false
+	}
+	switch strings.TrimSpace(operation.GetString("operation_type")) {
+	case string(model.OperationTypeInstall), string(model.OperationTypeUpgrade), string(model.OperationTypeRedeploy), string(model.OperationTypeReconfigure), string(model.OperationTypeRecover), string(model.OperationTypeRollback), string(model.OperationTypeRestore):
+		return true
+	default:
+		return false
+	}
 }
 
 func buildReleaseVersionLabel(operation *core.Record, now time.Time) string {

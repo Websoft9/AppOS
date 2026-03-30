@@ -423,6 +423,10 @@ func handleAppInstanceRedeploy(e *core.RequestEvent) error {
 }
 
 func handleAppInstanceLifecycleOperation(e *core.RequestEvent, action string) error {
+	return handleAppInstanceLifecycleOperationWithMetadata(e, action, nil)
+}
+
+func handleAppInstanceLifecycleOperationWithMetadata(e *core.RequestEvent, action string, operationMetadata map[string]any) error {
 	record, err := findAppInstance(e, e.Request.PathValue("id"))
 	if err != nil {
 		return err
@@ -456,6 +460,7 @@ func handleAppInstanceLifecycleOperation(e *core.RequestEvent, action string) er
 			OperationType:      action,
 			ProjectDir:         runtimeContext.ProjectDir,
 			ComposeProjectName: record.GetString("name"),
+			Metadata:           operationMetadata,
 		},
 	)
 	if err != nil {
@@ -472,136 +477,65 @@ func handleAppInstanceLifecycleOperation(e *core.RequestEvent, action string) er
 }
 
 // @Summary Start app
-// @Description Starts an installed app via docker compose start. Superuser only.
+// @Description Creates a shared lifecycle start operation for an installed app. Superuser only.
 // @Tags Apps
 // @Security BearerAuth
 // @Param id path string true "app instance ID"
-// @Success 200 {object} map[string]any
+// @Success 202 {object} map[string]any
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 404 {object} map[string]any
 // @Failure 500 {object} map[string]any
 // @Router /api/apps/{id}/start [post]
 func handleAppInstanceStart(e *core.RequestEvent) error {
-	return handleAppInstanceAction(e, string(model.OperationTypeStart))
+	return handleAppInstanceLifecycleOperation(e, string(model.OperationTypeStart))
 }
 
 // @Summary Stop app
-// @Description Stops an installed app via docker compose stop. Superuser only.
+// @Description Creates a shared lifecycle stop operation for an installed app. Superuser only.
 // @Tags Apps
 // @Security BearerAuth
 // @Param id path string true "app instance ID"
-// @Success 200 {object} map[string]any
+// @Success 202 {object} map[string]any
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 404 {object} map[string]any
 // @Failure 500 {object} map[string]any
 // @Router /api/apps/{id}/stop [post]
 func handleAppInstanceStop(e *core.RequestEvent) error {
-	return handleAppInstanceAction(e, string(model.OperationTypeStop))
+	return handleAppInstanceLifecycleOperation(e, string(model.OperationTypeStop))
 }
 
 // @Summary Restart app
-// @Description Restarts an installed app via docker compose restart. Superuser only.
+// @Description Creates a shared lifecycle restart operation for an installed app. Superuser only.
 // @Tags Apps
 // @Security BearerAuth
 // @Param id path string true "app instance ID"
-// @Success 200 {object} map[string]any
+// @Success 202 {object} map[string]any
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 404 {object} map[string]any
 // @Failure 500 {object} map[string]any
 // @Router /api/apps/{id}/restart [post]
 func handleAppInstanceRestart(e *core.RequestEvent) error {
-	return handleAppInstanceAction(e, "restart")
+	return handleAppInstanceLifecycleOperation(e, string(model.OperationTypeRestart))
 }
 
 // @Summary Uninstall app
-// @Description Runs docker compose down for an installed app and marks it uninstalled. Superuser only.
+// @Description Creates a shared lifecycle uninstall operation for an installed app. Superuser only.
 // @Tags Apps
 // @Security BearerAuth
 // @Param id path string true "app instance ID"
 // @Param removeVolumes query boolean false "remove named volumes"
-// @Success 200 {object} map[string]any
+// @Success 202 {object} map[string]any
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 404 {object} map[string]any
 // @Failure 500 {object} map[string]any
 // @Router /api/apps/{id} [delete]
 func handleAppInstanceUninstall(e *core.RequestEvent) error {
-	record, err := findAppInstance(e, e.Request.PathValue("id"))
-	if err != nil {
-		return err
-	}
-	runtimeContext, err := resolveAppRuntimeContext(e.App, record)
-	if err != nil {
-		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
-	}
-
-	client, err := getDockerClientByServerID(e.App, normalizeAppServerID(record.GetString("server_id")))
-	if err != nil {
-		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
-	}
-
 	removeVolumes := e.Request.URL.Query().Get("removeVolumes") == "1" || strings.EqualFold(e.Request.URL.Query().Get("removeVolumes"), "true")
-	output, err := client.ComposeDown(e.Request.Context(), runtimeContext.ProjectDir, removeVolumes)
-	if err != nil {
-		writeAppAudit(e, record, "app.uninstall", audit.StatusFailed, map[string]any{"errorMessage": err.Error()})
-		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "compose down failed"})
-	}
-
-	markAppAction(record, string(model.OperationTypeUninstall), "removed", "")
-	if saveErr := e.App.Save(record); saveErr != nil {
-		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "failed to update app instance"})
-	}
-	writeAppAudit(e, record, "app.uninstall", audit.StatusSuccess, nil)
-
-	return e.JSON(http.StatusOK, map[string]any{"id": record.Id, "output": output, "status": "uninstalled"})
-}
-
-func handleAppInstanceAction(e *core.RequestEvent, action string) error {
-	record, err := findAppInstance(e, e.Request.PathValue("id"))
-	if err != nil {
-		return err
-	}
-	runtimeContext, err := resolveAppRuntimeContext(e.App, record)
-	if err != nil {
-		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
-	}
-
-	client, err := getDockerClientByServerID(e.App, normalizeAppServerID(record.GetString("server_id")))
-	if err != nil {
-		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
-	}
-
-	var output string
-	switch action {
-	case string(model.OperationTypeStart):
-		output, err = client.ComposeStart(e.Request.Context(), runtimeContext.ProjectDir)
-	case string(model.OperationTypeStop):
-		output, err = client.ComposeStop(e.Request.Context(), runtimeContext.ProjectDir)
-	case "restart":
-		output, err = client.ComposeRestart(e.Request.Context(), runtimeContext.ProjectDir)
-	default:
-		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "unsupported action"})
-	}
-	if err != nil {
-		writeAppAudit(e, record, "app."+action, audit.StatusFailed, map[string]any{"errorMessage": err.Error()})
-		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "compose " + action + " failed"})
-	}
-
-	runtimeStatus := map[string]string{
-		string(model.OperationTypeStart): "running",
-		string(model.OperationTypeStop):  "stopped",
-		"restart":                        "running",
-	}[action]
-	markAppAction(record, action, runtimeStatus, "")
-	if saveErr := e.App.Save(record); saveErr != nil {
-		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "failed to update app instance"})
-	}
-	writeAppAudit(e, record, "app."+action, audit.StatusSuccess, nil)
-
-	return e.JSON(http.StatusOK, map[string]any{"id": record.Id, "output": output, "runtime_status": runtimeStatus})
+	return handleAppInstanceLifecycleOperationWithMetadata(e, string(model.OperationTypeUninstall), map[string]any{"remove_volumes": removeVolumes})
 }
 
 func findAppInstance(e *core.RequestEvent, id string) (*core.Record, error) {
@@ -731,21 +665,6 @@ func composeStatusIndex(app core.App, serverID string) (map[string]string, error
 	return index, nil
 }
 
-func markAppAction(record *core.Record, action string, runtimeStatus string, runtimeReason string) {
-	record.Set("state_reason", strings.TrimSpace(runtimeReason))
-	switch action {
-	case string(model.OperationTypeStart), "restart":
-		record.Set("lifecycle_state", string(model.AppStateRunningHealthy))
-		record.Set("health_summary", string(model.HealthHealthy))
-	case string(model.OperationTypeStop):
-		record.Set("lifecycle_state", string(model.AppStateStopped))
-		record.Set("health_summary", string(model.HealthStopped))
-	case string(model.OperationTypeUninstall):
-		record.Set("lifecycle_state", string(model.AppStateRetired))
-		record.Set("health_summary", string(model.HealthStopped))
-		record.Set("retired_at", time.Now())
-	}
-}
 
 func resolveAppRuntimeContext(app core.App, record *core.Record) (appRuntimeContext, error) {
 	context := appRuntimeContext{ComposeProjectName: record.GetString("name")}

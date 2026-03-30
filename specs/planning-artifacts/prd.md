@@ -37,77 +37,155 @@ This table separates three concepts that were previously mixed together:
 - `Domain / Subdomain`: business capability boundary
 - `Product Module`: user-facing feature entry
 - `Status`: current delivery state of the module projection
-- `Objects`: candidate model concepts inside that capability
+- `Proposed Aggregate Root`: current best candidate for consistency-boundary ownership in that subdomain
+- `Candidate Objects`: model concepts currently visible inside that capability
 
-| Domain | Subdomain | Product Module | Status | Candidate Objects |
-| --- | --- | --- | --- | --- |
-| Application Lifecycle | App Instance Management | Apps, Installed Apps, App Detail | Current | `AppInstance`, `AppSummary`, `DesiredState` |
-| Application Lifecycle | Operation Management | Actions, Operations, Operation Detail, Operation Timeline | Current | `OperationJob`, `OperationLog`, `OperationOutcome` |
-| Application Lifecycle | Release Management | Releases, Current Release, Release History | Current | `ReleaseSnapshot`, `ReleaseRole`, `ReleaseDiff` |
-| Application Lifecycle | Exposure Management | Exposures, Domains, Publication Detail | Current + Planned | `Exposure`, `DomainBinding`, `PublicationState` |
-| Application Lifecycle | Recovery Management | Backup, Restore, Rollback, Recover | Current + Planned | `RecoveryPlan`, `RollbackPoint`, `RecoveryOutcome` |
-| Application Lifecycle | Application Topology & Coordination | App Topology, Node Roles, Failover View | Planned | `AppTopology`, `DeploymentUnit`, `NodeAssignment` |
-| Lifecycle Execution | Pipeline Execution | Pipelines, Pipeline Detail | Current | `PipelineRun`, `PipelineNodeRun`, `PipelinePhase` |
-| Lifecycle Execution | Worker Scheduling | No standalone module; surfaced through operation status | Internal | `WorkerClaim`, `ExecutionSlot`, `QueueState` |
-| Lifecycle Execution | Projection Update | No standalone module; surfaced through app and operation projections | Internal | `ProjectionTarget`, `ProjectionVersion`, `ProjectionState` |
-| Lifecycle Execution | Compensation Control | Compensation Timeline, Retry / Resume Controls | Planned | `CompensationPlan`, `CompensationStep`, `ResumeToken` |
-| Resource Operations Platform | Remote Access | Tunnels, Servers, Connect | Current | `Server`, `TunnelEndpoint`, `TunnelSession` |
-| Resource Operations Platform | Terminal Operations | Terminal, Server Shell | Current | `TerminalSession`, `ExecSession`, `ShellProfile` |
-| Resource Operations Platform | File Operations | Server Files, SFTP, File Browser | Current | `RemoteFile`, `TransferJob`, `DirectoryEntry` |
-| Resource Operations Platform | Service Operations | Components, Services, Service Logs, Systemd Diagnostics | Current | `ServiceStatus`, `ServiceLogView`, `ServiceAction` |
-| Resource Operations Platform | Container Operations | Docker, Containers, Compose, Exec | Current | `ContainerRef`, `ComposeProject`, `ContainerAction` |
-| Observability | Telemetry | Metrics, Logs, Events, Container Stats | Current | `MetricSeries`, `LogEntry`, `PlatformEvent` |
-| Observability | Health & Diagnostics | Health, Diagnostic Views, App Health, Connectivity Checks | Current + Planned | `HealthSummary`, `DiagnosticSignal`, `CheckResult` |
-| Observability | Platform Self-Observation | AppOS Status, Active Services, System Crons | Current + Planned | `ComponentStatus`, `ServiceStatus`, `CronStatus` |
-| Operations Management | Resource Topology | Groups | Current | `Group`, `GroupItem`, `ResourceReference` |
-| Operations Management | Operational Knowledge | Topics | Current | `Topic`, `TopicPost`, `TopicReference` |
-| Operations Management | Operational Knowledge | Space | Current | `KnowledgeDocument`, `KnowledgeFolder`, `Attachment` |
-| Operations Management | Incident Response | Alerts, Incidents, Notification Rules, Incident Timeline | Planned | `Incident`, `AlertRule`, `EscalationPolicy` |
-| Operations Management | Operations Automation | Operational Procedures, Script Library, Scheduled Jobs | Current + Planned | `Procedure`, `ProcedureStep`, `ProcedureRun` |
-| App Catalog | Catalog Apps | Store, Catalog, App Listing | Current | `CatalogApp`, `CatalogCategory`, `CatalogFilter` |
-| App Catalog | Custom Apps | Custom Apps, Private Templates | Current | `CustomApp`, `CustomAppSource`, `CustomAppVisibility` |
-| App Catalog | Templates | Install Templates, Compose Templates, Starter Blueprints | Current + Planned | `Template`, `TemplateVersion`, `TemplateInput` |
-| App Catalog | Favorites / Notes | Favorites, Store Notes | Current | `Favorite`, `CatalogNote`, `UserCatalogState` |
-| Runtime Infrastructure | Runtime Execution | Docker / Compose Runtime, Compose Config | Current | `RuntimeProject`, `ComposeSpec`, `RuntimeAction` |
-| Runtime Infrastructure | Recovery Assets | Backups, Restore Artifacts | Current | `BackupSnapshot`, `BackupArtifact`, `RestoreRequest` |
-| Runtime Infrastructure | Configuration Assets | IaC Workspace, IaC Browser, Shared Envs, Runtime Settings | Current + Planned | `IaCWorkspace`, `IaCFile`, `SharedEnvSet` |
-| Gateway Management | Domain Binding | Domains, Gateway Domains, App Exposure Bindings | Current + Planned | `DomainBinding`, `Hostname`, `BindingScope` |
-| Gateway Management | Routing & Upstreams | Proxy, Route Config, Upstream Targets, Gateway Routes | Current + Planned | `GatewayRoute`, `UpstreamTarget`, `BackendRef` |
-| Gateway Management | Certificate Binding | SSL, TLS Bindings, Certificate Attachments | Current + Planned | `CertificateBinding`, `TlsPolicy`, `CertificateRef` |
-| Gateway Management | Gateway Policies | Publish Policies, Routing Policies, Access Rules | Planned | `GatewayPolicy`, `RoutingPolicy`, `PublishConstraint` |
-| Gateway Management | Gateway Views | Gateway Overview, Domain View, Route Inventory | Planned | `GatewayView`, `RouteInventoryItem`, `BindingSummary` |
-| Integrations & Connectors | Source Integrations | Git Sources, Source Connectors | Planned | `SourceConnector`, `RepositoryBinding`, `SourceCredentialRef` |
-| Integrations & Connectors | Artifact & Registry Integrations | Registries, Artifact Sources, Registry Settings | Current + Planned | `RegistryConnector`, `ArtifactSource`, `RegistryCredentialRef` |
-| Integrations & Connectors | Notification Integrations | Email Channels, Webhooks, Chat Connectors | Planned | `NotificationConnector`, `DeliveryChannel`, `NotificationEndpoint` |
-| Integrations & Connectors | AI Provider Integrations | LLM Providers, Model Connectors | Current + Planned | `AIProvider`, `ModelEndpoint`, `ProviderCredentialRef` |
-| Integrations & Connectors | External Secret / Identity Integrations | External Secret Backends, SSO, Identity Bridges | Planned | `ExternalSecretProvider`, `IdentityConnector`, `FederationBinding` |
-| AI Workflow / Agent Automation | Skills | Skills Library | Planned | `Skill`, `SkillCapability`, `SkillInputSchema` |
-| AI Workflow / Agent Automation | Task Plans | Task Plan Builder, Planned Workflows | Planned | `TaskPlan`, `TaskStep`, `TaskConstraint` |
-| AI Workflow / Agent Automation | Guided Automation | Guided Ops Flows, AI-Assisted Runbooks | Planned | `GuidedFlow`, `AutomationContext`, `FlowCheckpoint` |
-| AI Workflow / Agent Automation | Domain-Specific Agents | Specialized Agents, Copilot Actions | Planned | `AgentProfile`, `AgentTask`, `AgentResult` |
-| Edition & Entitlement | Edition Model | Edition Overview, Plan Comparison | Planned | `Edition`, `EditionCapabilitySet`, `EditionRule` |
-| Edition & Entitlement | License Activation | License Center, Activation Flow | Planned | `License`, `ActivationRecord`, `LicenseFingerprint` |
-| Edition & Entitlement | Subscription State | Subscription Status, Renewal State | Planned | `Subscription`, `SubscriptionState`, `ExpiryWindow` |
-| Edition & Entitlement | Feature Entitlements | Entitlement Summary, Feature Availability | Planned | `Entitlement`, `CapabilityFlag`, `UsageLimit` |
-| Platform Configuration | Platform Configuration | Settings, Settings Schema, Settings Entries | Current | `SettingEntry`, `SettingSchema`, `SettingScope` |
-| Identity and Access | Identity and Access | Setup, Auth, Users, Access Control | Current + Planned | `User`, `Session`, `AccessGrant` |
-| Security and Secret Management | Secrets | Credentials, Secrets, Secret Reveal / Resolve | Current | `Secret`, `SecretPayload`, `SecretUsage` |
-| Security and Secret Management | Secret Policies | Secret Policies, Reveal Rules, Access Modes | Current + Planned | `SecretPolicy`, `AccessMode`, `RevealRule` |
-| Audit and Policy | Audit and Policy | Audit Log, Policy Events, Compliance Views | Current + Planned | `AuditEntry`, `PolicyDecision`, `PolicyEvent` |
-| AI Assistant | Suggestion | Embedded Copilot Suggestions | Planned | `Suggestion`, `SuggestionContext`, `SuggestionAction` |
-| AI Assistant | Explanation | Explain This, Failure Explanation | Planned | `Explanation`, `ExplanationSource`, `ReasoningNote` |
-| AI Assistant | Guidance | Guided Help, Contextual Recommendations | Planned | `GuidanceCard`, `GuidanceStep`, `Recommendation` |
-| AI Assistant | Contextual Help | Inline Help, Smart Hints | Planned | `HelpHint`, `ContextAnchor`, `HelpTopic` |
-| AI Assistant | Embedded Copilot Experience | Global Assistant, In-Page Assistant | Planned | `AssistantSession`, `AssistantIntent`, `AssistantResponse` |
+| Domain | Subdomain | Product Module | Status | Proposed Aggregate Root | Candidate Objects |
+| --- | --- | --- | --- | --- | --- |
+| Application Lifecycle | App Instance Management | Apps, Installed Apps, App Detail | Current | `AppInstance` | `AppInstance`, `AppSummary`, `DesiredState` |
+| Application Lifecycle | Operation Management | Actions, Operations, Operation Detail, Operation Timeline | Current | `Operation` | `OperationJob`, `OperationLog`, `OperationOutcome` |
+| Application Lifecycle | Release Management | Releases, Current Release, Release History | Current | `Release` | `ReleaseSnapshot`, `ReleaseRole`, `ReleaseDiff` |
+| Application Lifecycle | Exposure Management | Exposures, Domains, Publication Detail | Current + Planned | `Exposure` | `Exposure`, `DomainBinding`, `PublicationState` |
+| Application Lifecycle | Recovery Management | Backup, Restore, Rollback, Recover | Current + Planned | `RecoveryPlan` | `RecoveryPlan`, `RollbackPoint`, `RecoveryOutcome` |
+| Application Lifecycle | Application Topology & Coordination | App Topology, Node Roles, Failover View | Planned | `AppTopology` | `AppTopology`, `DeploymentUnit`, `NodeAssignment` |
+| Lifecycle Execution | Pipeline Execution | Pipelines, Pipeline Detail | Current | `PipelineRun` | `PipelineRun`, `PipelineNodeRun`, `PipelinePhase` |
+| Lifecycle Execution | Worker Scheduling | No standalone module; surfaced through operation status | Internal | `None (internal mechanism)` | `WorkerClaim`, `ExecutionSlot`, `QueueState` |
+| Lifecycle Execution | Projection Update | No standalone module; surfaced through app and operation projections | Internal | `None (internal mechanism)` | `ProjectionTarget`, `ProjectionVersion`, `ProjectionState` |
+| Lifecycle Execution | Compensation Control | Compensation Timeline, Retry / Resume Controls | Planned | `CompensationPlan` | `CompensationPlan`, `CompensationStep`, `ResumeToken` |
+| Resource Operations Platform | Remote Access | Tunnels, Servers, Connect | Current | `Server` | `Server`, `TunnelEndpoint`, `TunnelSession` |
+| Resource Operations Platform | Terminal Operations | Terminal, Server Shell | Current | `TerminalSession` | `TerminalSession`, `ExecSession`, `ShellProfile` |
+| Resource Operations Platform | File Operations | Server Files, SFTP, File Browser | Current | `RemoteFileSession` | `RemoteFile`, `TransferJob`, `DirectoryEntry` |
+| Resource Operations Platform | Service Operations | Components, Services, Service Logs, Systemd Diagnostics | Current | `ServiceTarget` | `ServiceStatus`, `ServiceLogView`, `ServiceAction` |
+| Resource Operations Platform | Container Operations | Docker, Containers, Compose, Exec | Current | `RuntimeContainer` | `ContainerRef`, `ComposeProject`, `ContainerAction` |
+| Observability | Telemetry | Metrics, Logs, Events, Container Stats | Current | `TelemetryStream` | `MetricSeries`, `LogEntry`, `PlatformEvent` |
+| Observability | Health & Diagnostics | Health, Diagnostic Views, App Health, Connectivity Checks | Current + Planned | `HealthCheckSet` | `HealthSummary`, `DiagnosticSignal`, `CheckResult` |
+| Observability | Platform Self-Observation | AppOS Status, Active Services, System Crons | Current + Planned | `PlatformStatusSnapshot` | `ComponentStatus`, `ServiceStatus`, `CronStatus` |
+| Operations Management | Resource Inventory & Topology | Groups, Resource Inventory, Resource Graph | Current + Planned | `ResourceGroup` | `ResourceItem`, `Group`, `GroupItem`, `ResourceReference`, `ResourceEdge`, `OwnershipBinding` |
+| Operations Management | Operational Knowledge | Topics | Current | `Topic` | `Topic`, `TopicPost`, `TopicReference` |
+| Operations Management | Operational Knowledge | Space | Current | `KnowledgeDocument` | `KnowledgeDocument`, `KnowledgeFolder`, `Attachment` |
+| Operations Management | Incident Response | Alerts, Incidents, Notification Rules, Incident Timeline | Planned | `Incident` | `Incident`, `AlertRule`, `EscalationPolicy` |
+| Operations Management | Operations Automation | Operational Procedures, Script Library, Scheduled Jobs | Current + Planned | `Procedure` | `Procedure`, `ProcedureStep`, `ProcedureRun` |
+| App Catalog | Catalog Apps | Store, Catalog, App Listing | Current | `CatalogApp` | `CatalogApp`, `CatalogCategory`, `CatalogFilter` |
+| App Catalog | Custom Apps | Custom Apps, Private Templates | Current | `CustomApp` | `CustomApp`, `CustomAppSource`, `CustomAppVisibility` |
+| App Catalog | Templates | Install Templates, Compose Templates, Starter Blueprints | Current + Planned | `Template` | `Template`, `TemplateVersion`, `TemplateInput` |
+| App Catalog | Favorites / Notes | Favorites, Store Notes | Current | `UserCatalogState` | `Favorite`, `CatalogNote`, `UserCatalogState` |
+| Runtime Infrastructure | Runtime Execution | Docker / Compose Runtime, Compose Config | Current | `RuntimeProject` | `RuntimeProject`, `ComposeSpec`, `RuntimeAction` |
+| Runtime Infrastructure | Recovery Assets | Backups, Restore Artifacts | Current | `BackupSnapshot` | `BackupSnapshot`, `BackupArtifact`, `RestoreRequest` |
+| Runtime Infrastructure | Configuration Assets | IaC Workspace, IaC Browser, Shared Envs, Runtime Settings | Current + Planned | `IaCWorkspace` | `IaCWorkspace`, `IaCFile`, `SharedEnvSet` |
+| Gateway Management | Domain Binding | Domains, Gateway Domains, App Exposure Bindings | Current + Planned | `DomainBinding` | `DomainBinding`, `Hostname`, `BindingScope` |
+| Gateway Management | Routing & Upstreams | Proxy, Route Config, Upstream Targets, Gateway Routes | Current + Planned | `GatewayRoute` | `GatewayRoute`, `UpstreamTarget`, `BackendRef` |
+| Gateway Management | Certificate Binding | SSL, TLS Bindings, Certificate Attachments | Current + Planned | `CertificateBinding` | `CertificateBinding`, `TlsPolicy`, `CertificateRef` |
+| Gateway Management | Gateway Policies | Publish Policies, Routing Policies, Access Rules | Planned | `GatewayPolicy` | `GatewayPolicy`, `RoutingPolicy`, `PublishConstraint` |
+| Gateway Management | Gateway Views | Gateway Overview, Domain View, Route Inventory | Planned | `TBD (view projection)` | `GatewayView`, `RouteInventoryItem`, `BindingSummary` |
+| Integrations & Connectors | Source Integrations | Git Sources, Source Connectors | Planned | `SourceConnector` | `SourceConnector`, `RepositoryBinding`, `SourceCredentialRef` |
+| Integrations & Connectors | Artifact & Registry Integrations | Registries, Artifact Sources, Registry Settings | Current + Planned | `RegistryConnector` | `RegistryConnector`, `ArtifactSource`, `RegistryCredentialRef` |
+| Integrations & Connectors | Notification Integrations | Email Channels, Webhooks, Chat Connectors | Planned | `NotificationConnector` | `NotificationConnector`, `DeliveryChannel`, `NotificationEndpoint` |
+| Integrations & Connectors | AI Provider Integrations | LLM Providers, Model Connectors | Current + Planned | `AIProvider` | `AIProvider`, `ModelEndpoint`, `ProviderCredentialRef` |
+| Integrations & Connectors | External Secret / Identity Integrations | External Secret Backends, SSO, Identity Bridges | Planned | `IdentityConnector` | `ExternalSecretProvider`, `IdentityConnector`, `FederationBinding` |
+| AI Workflow / Agent Automation | Skills | Skills Library | Planned | `Skill` | `Skill`, `SkillCapability`, `SkillInputSchema` |
+| AI Workflow / Agent Automation | Task Plans | Task Plan Builder, Planned Workflows | Planned | `TaskPlan` | `TaskPlan`, `TaskStep`, `TaskConstraint` |
+| AI Workflow / Agent Automation | Guided Automation | Guided Ops Flows, AI-Assisted Runbooks | Planned | `GuidedFlow` | `GuidedFlow`, `AutomationContext`, `FlowCheckpoint` |
+| AI Workflow / Agent Automation | Domain-Specific Agents | Specialized Agents, Copilot Actions | Planned | `AgentProfile` | `AgentProfile`, `AgentTask`, `AgentResult` |
+| Edition & Entitlement | Edition Model | Edition Overview, Plan Comparison | Planned | `Edition` | `Edition`, `EditionCapabilitySet`, `EditionRule` |
+| Edition & Entitlement | License Activation | License Center, Activation Flow | Planned | `License` | `License`, `ActivationRecord`, `LicenseFingerprint` |
+| Edition & Entitlement | Subscription State | Subscription Status, Renewal State | Planned | `Subscription` | `Subscription`, `SubscriptionState`, `ExpiryWindow` |
+| Edition & Entitlement | Feature Entitlements | Entitlement Summary, Feature Availability | Planned | `Entitlement` | `Entitlement`, `CapabilityFlag`, `UsageLimit` |
+| Platform Configuration | Platform Configuration | Settings, Settings Schema, Settings Entries | Current | `SettingEntry` | `SettingEntry`, `SettingSchema`, `SettingScope` |
+| Identity and Access | Identity and Access | Setup, Auth, Users, Access Control | Current + Planned | `User` | `User`, `Session`, `AccessGrant` |
+| Security and Secret Management | Secrets | Credentials, Secrets, Secret Reveal / Resolve | Current | `Secret` | `Secret`, `SecretPayload`, `SecretUsage` |
+| Security and Secret Management | Secret Policies | Secret Policies, Reveal Rules, Access Modes | Current + Planned | `SecretPolicy` | `SecretPolicy`, `AccessMode`, `RevealRule` |
+| Audit and Policy | Audit and Policy | Audit Log, Policy Events, Compliance Views | Current + Planned | `AuditEntry` | `AuditEntry`, `PolicyDecision`, `PolicyEvent` |
+| AI Assistant | Suggestion | Embedded Copilot Suggestions | Planned | `SuggestionSession` | `Suggestion`, `SuggestionContext`, `SuggestionAction` |
+| AI Assistant | Explanation | Explain This, Failure Explanation | Planned | `ExplanationRequest` | `Explanation`, `ExplanationSource`, `ReasoningNote` |
+| AI Assistant | Guidance | Guided Help, Contextual Recommendations | Planned | `GuidanceCard` | `GuidanceCard`, `GuidanceStep`, `Recommendation` |
+| AI Assistant | Contextual Help | Inline Help, Smart Hints | Planned | `HelpTopic` | `HelpHint`, `ContextAnchor`, `HelpTopic` |
+| AI Assistant | Embedded Copilot Experience | Global Assistant, In-Page Assistant | Planned | `AssistantSession` | `AssistantSession`, `AssistantIntent`, `AssistantResponse` |
 
 Rules:
 
 - Domains and subdomains should stay stable.
 - Product modules may change with UX and navigation.
 - One product module may map to multiple rows when it projects capabilities from multiple domains.
+- `Proposed Aggregate Root` is a lightweight modeling decision for PRD alignment, not a final persistence or transaction design.
 - The table should cover all domains and subdomains, even when a subdomain has no standalone module yet.
 - Shared gateway and integration capabilities should appear as their own domains instead of being hidden inside generic runtime settings.
 - Objects belong to the model, not to the menu.
+
+Resource modeling note:
+
+- `Resource Inventory & Topology` is not a standalone super-domain for every resource in the system.
+- It owns inventory, references, relationships, grouping, and ownership views across resources.
+- The full business semantics of resource objects still belong to their professional domains.
+- Examples: `Server` belongs to `Resource Operations Platform`, `Secret` belongs to `Security and Secret Management`, `Certificate` belongs to `Gateway Management` or trust usage, `SharedEnvSet` belongs to `Runtime Infrastructure`, `GatewayRoute` belongs to `Gateway Management`, and `RegistryConnector` or `AIProvider` belongs to `Integrations & Connectors`.
+
+## Product Surface and Navigation Mapping
+
+This table covers user-facing surfaces that do not map one-to-one to a single domain row.
+
+- `Type` distinguishes navigation grouping, single-domain entry, cross-domain container, and overview surface.
+- `Owned Domains` records which domains are projected through that surface.
+- `Primary Routes / Entrypoints` keeps the mapping grounded in the current dashboard IA.
+
+| Surface / Entry | Type | Owned Domains | Primary Routes / Entrypoints | Current Reality |
+| --- | --- | --- | --- | --- |
+| Workspace | Navigation Group | Multiple | `/dashboard`, `/store`, `/deploy`, `/actions`, `/apps`, `/terminal`, `/groups`, `/topics`, `/space` | Current sidebar grouping for day-to-day operator work; not a domain |
+| Admin | Navigation Group | Multiple | `/status`, `/tunnels`, `/logs`, `/audit`, `/iac`, `/resources`, `/secrets`, `/certificates`, `/shared-envs`, `/users`, `/settings` | Current sidebar grouping for platform administration; not a domain |
+| Dashboard | Overview Surface | `Application Lifecycle`, `Observability`, `Platform Self-Observation` | `/dashboard` | Cross-domain summary and entry page; should stay an overview, not become its own domain |
+| Applications | Navigation Bundle | `Application Lifecycle`, `App Catalog` | `/store`, `/deploy`, `/actions`, `/apps` | Current collapsible navigation bucket that groups the app journey |
+| App Store | Single-Domain Entry with supporting projections | `App Catalog`, `Edition & Entitlement` | `/store` | Real module for catalog browsing, custom apps, favorites, and notes |
+| Deploy | Task-Oriented Entry | `Application Lifecycle`, `Runtime Infrastructure` | `/deploy`, `/deploy/create` | User flow for install or deployment initiation; product entry, not a separate domain |
+| Actions | Single-Domain Entry with execution projection | `Application Lifecycle`, `Lifecycle Execution` | `/actions`, `/actions/$actionId` | Operation list and detail surface projecting both lifecycle state and execution state |
+| Installed Apps | Single-Domain Entry | `Application Lifecycle` | `/apps`, `/apps/$appId` | Current installed app list and app detail entry |
+| App Detail | Cross-Domain Container | `Application Lifecycle`, `Observability`, `Resource Operations Platform`, `Gateway Management` | `/apps/$appId` | App-centric work surface that can aggregate status, actions, exposures, diagnostics, and operations |
+| Terminal | Single-Domain Entry with cross-links | `Resource Operations Platform` | `/terminal`, `/terminal/server/$serverId` | Real operations surface; can be launched from app or server context without becoming a lifecycle domain |
+| Collaboration | Navigation Bundle | `Operations Management` | `/groups`, `/topics` | Current grouping for collaboration and operational knowledge workflows |
+| Space | Single-Domain Entry | `Operations Management` | `/space` | User workspace / document surface for operational knowledge artifacts |
+| Resources | Cross-Domain Container | `Operations Management`, `Resource Operations Platform`, `Integrations & Connectors` | `/resources`, `/resources/servers`, `/resources/tunnels`, `/resources/scripts`, `/resources/integrations`, `/resources/groups`, `/resources/databases`, `/resources/cloud-accounts` | Inventory-style container that mixes grouping, access targets, and connector-style resources |
+| System | Cross-Domain Container | `Observability`, `Runtime Infrastructure`, `Audit and Policy` | `/status`, `/tunnels`, `/logs`, `/audit`, `/iac` | Admin container for platform health, tunnel state, logs, audit, and IaC assets |
+| Credentials | Navigation Bundle | `Security and Secret Management`, `Gateway Management`, `Runtime Infrastructure` | `/secrets`, `/certificates`, `/shared-envs` | Current admin grouping for secret-like assets with different domain ownership |
+| Users | Single-Domain Entry | `Identity and Access` | `/users`, `/profile` | Account and access administration surface |
+| Settings | Cross-Domain Configuration Entry | `Platform Configuration`, `Integrations & Connectors`, `Security and Secret Management` | `/settings`, `/admin/credentials/env-vars` | Composite configuration surface driven by settings schema/controllers rather than by one business domain |
+| Setup / Auth Entrypoints | Entry Flow | `Identity and Access`, `Platform Configuration` | `/setup`, `/login`, `/register`, `/forgot-password`, `/reset-password` | System entry flows; required product surface, but not part of the business domain hierarchy |
+| Public Share Surface | External Entry | `Operations Management` | `/share/topic/$token` | Public delivery surface for shared topic content, derived from domain data but not a separate module family |
+
+Rules:
+
+- A product surface may project one domain, multiple domains, or just navigation intent.
+- Navigation groups such as `Workspace` and `Admin` should never be promoted to domains unless they gain stable business responsibility.
+- Container surfaces such as `App Detail`, `Resources`, `System`, and `Settings` are allowed to aggregate multiple domains without collapsing those domains.
+- Route structure and sidebar grouping are IA evidence, not domain evidence.
+
+## Technical Mechanism Mapping
+
+This table captures technical mechanisms that support product capabilities but should not be mistaken for business domains.
+
+- `Mechanism Category` explains the role of the mechanism in the system.
+- `Supports Domains` records which business capabilities depend on it.
+- `Product Exposure` clarifies whether users see it directly, indirectly, or not at all.
+
+| Mechanism | Mechanism Category | Supports Domains | Product Exposure | Current Evidence / Notes |
+| --- | --- | --- | --- | --- |
+| CLI / Exec | Command execution mechanism | `Resource Operations Platform`, `Runtime Infrastructure` | Direct + Indirect | Exposed through terminal sessions, docker exec, compose actions, and tunnel setup scripts; mechanism, not domain |
+| SSH Tunnel Session | Remote connectivity mechanism | `Resource Operations Platform` | Direct | Backing mechanism for `/tunnels`, `/resources/tunnels`, `/terminal/server/$serverId`, and server session setup |
+| SFTP / Remote File Access | Remote file transport mechanism | `Resource Operations Platform` | Direct | Powers server file browser and transfer flows; implementation mechanism under file operations |
+| Docker / Compose Executor | Runtime execution mechanism | `Application Lifecycle`, `Runtime Infrastructure`, `Resource Operations Platform` | Direct + Indirect | Used by lifecycle actions, runtime control, docker page, and compose operations |
+| Asynq Queue | Background task queue | `Lifecycle Execution`, `Application Lifecycle`, `Runtime Infrastructure` | Indirect | Used to enqueue deploy, backup, restore, and lifecycle operation tasks |
+| Embedded Worker | Background execution worker | `Lifecycle Execution` | Indirect | PocketBase-embedded worker processes queue tasks, recovers orphaned work, and writes execution state |
+| Lifecycle Scheduler | Polling / dispatch mechanism | `Lifecycle Execution` | Indirect | Periodically dispatches queued lifecycle operations; supports operation progression rather than representing a domain |
+| Cron Jobs | Scheduled execution mechanism | `Observability`, `Platform Self-Observation`, `Operations Automation` | Direct + Indirect | Surfaced in `/system-tasks` and the status screen; scheduling itself is not a domain |
+| Structured Cron Logs | Execution trace mechanism | `Observability` | Direct | `/api/crons/{jobId}/logs` and `System Crons` UI expose instrumented cron history |
+| Domain Events | State transition mechanism | `Application Lifecycle`, `Lifecycle Execution` | Indirect | Lifecycle code applies events to records and advances state; event semantics belong to the owning domain |
+| Projection Updater | Read-model mechanism | `Lifecycle Execution`, `Application Lifecycle`, `Observability` | Indirect | Projection application keeps app and operation summaries current; read-model support, not business capability |
+| Settings Schema / Controller | Configuration composition mechanism | `Platform Configuration`, `Integrations & Connectors`, `Security and Secret Management` | Direct + Indirect | Current settings UI is assembled from shared controllers and schema-driven sections |
+| Share Token Resolver | Public access mechanism | `Operations Management` | Indirect | Share links for topics are delivered via token validation and public routes; mechanism under collaboration sharing |
+| Audit Writer | Traceability mechanism | `Audit and Policy` | Indirect + Direct | HTTP handlers and async workers both write audit records that later appear in audit views |
+
+Rules:
+
+- Technical mechanisms should not be listed as domains unless they gain stable business responsibility and user-facing policy semantics.
+- A mechanism may be directly exposed in UI and still remain a mechanism rather than a domain.
+- `CLI`, `Cron`, `Worker`, `Queue`, `Projection`, and `Event` are implementation or interaction mechanisms in the current AppOS model.
+- Mechanism ownership follows the domain it supports; it does not replace the domain boundary.
 
 ## Success Criteria
 

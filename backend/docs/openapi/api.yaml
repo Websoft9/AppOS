@@ -609,7 +609,7 @@ paths:
                 - Apps
     /api/apps/{id}:
         delete:
-            description: Runs docker compose down for an installed app and marks it uninstalled. Superuser only.
+            description: Creates a shared lifecycle uninstall operation for an installed app. Superuser only.
             operationId: delete_api_apps_id
             parameters:
                 - in: path
@@ -629,6 +629,12 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
+                "202":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: Accepted
                 "400":
                     content:
                         application/json:
@@ -1122,7 +1128,7 @@ paths:
                 - Releases
     /api/apps/{id}/restart:
         post:
-            description: Restarts an installed app via docker compose restart. Superuser only.
+            description: Creates a shared lifecycle restart operation for an installed app. Superuser only.
             operationId: post_api_apps_id_restart
             parameters:
                 - in: path
@@ -1143,6 +1149,12 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
+                "202":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: Accepted
                 "400":
                     content:
                         application/json:
@@ -1174,7 +1186,7 @@ paths:
                 - Apps
     /api/apps/{id}/start:
         post:
-            description: Starts an installed app via docker compose start. Superuser only.
+            description: Creates a shared lifecycle start operation for an installed app. Superuser only.
             operationId: post_api_apps_id_start
             parameters:
                 - in: path
@@ -1195,6 +1207,12 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
+                "202":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: Accepted
                 "400":
                     content:
                         application/json:
@@ -1226,7 +1244,7 @@ paths:
                 - Apps
     /api/apps/{id}/stop:
         post:
-            description: Stops an installed app via docker compose stop. Superuser only.
+            description: Creates a shared lifecycle stop operation for an installed app. Superuser only.
             operationId: post_api_apps_id_stop
             parameters:
                 - in: path
@@ -1247,6 +1265,12 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
+                "202":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: Accepted
                 "400":
                     content:
                         application/json:

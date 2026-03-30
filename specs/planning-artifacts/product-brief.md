@@ -73,7 +73,7 @@ Small-to-medium teams and novice/intermediate developers without DevOps capabili
 ```text
 Mission
 └── Intelligent App Operations Platform
-   Goal: single-server-first intelligent app operations and lifecycle platform with a path to coordinated multi-server operation
+   Goal: single-server-first AI app operations and lifecycle platform with a path to coordinated multi-server operation
 
 Core Domain
 └── Application Lifecycle
@@ -107,7 +107,7 @@ Supporting Domains
 │   │   └── Diagnostic Views
 │   └── Platform Self-Observation
 ├── Operations Management
-│   ├── Resource Topology
+│   ├── Resource Inventory & Topology
 │   ├── Operational Knowledge
 │   ├── Incident Response
 │   └── Operations Automation
@@ -160,14 +160,21 @@ Cross-Cutting Capability
    └── Embedded Copilot Experience
 ```
 
+```text
+Navigation / IA
+├── Workspace
+└── Admin
+```
+
 **Interpretation:**
 - `Application Lifecycle` is the only core domain and the product's main organizing concept.
 - The hierarchy shows domains and subdomains only; user-facing modules and model objects are documented separately.
-- `Operations Management` groups resource topology, operational knowledge, incident response, and deterministic operations automation.
+- `Operations Management` groups resource inventory, topology, operational knowledge, incident response, and deterministic operations automation.
 - `Gateway Management` owns shared domain routing, upstream binding, and centralized gateway views across apps, servers, and containers.
 - `Integrations & Connectors` owns external provider connections rather than treating them as settings-only concerns.
 - `Edition & Entitlement` controls which capabilities are available across open-source, standard, and enterprise offerings.
 - `Observability`, `Resource Operations Platform`, and `AI Workflow / Agent Automation` remain supporting domains around the lifecycle core.
+- `Workspace` and `Admin` are navigation groups, not business domains.
 
 ### Key Differentiators
 

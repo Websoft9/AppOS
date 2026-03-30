@@ -10,6 +10,7 @@ default_compensation_policy: best_effort
 applies_to:
   - install
   - start
+  - restart
 
 definitions:
   - key: provision.install.manual_compose
@@ -147,3 +148,34 @@ definitions:
           - AppInstance
         depends_on:
           - start_runtime
+
+  - key: provision.restart
+    version: v1
+    family: ProvisionPipeline
+    operation_types:
+      - restart
+    initial_phase: validating
+    nodes:
+      - key: validate_runtime_target
+        node_type: validation
+        display_name: Validate Runtime Target
+        phase: validating
+        retryable: false
+        writes_projection:
+          - OperationJob
+      - key: restart_runtime
+        node_type: runtime_restart
+        display_name: Restart Runtime
+        phase: executing
+        retryable: true
+        depends_on:
+          - validate_runtime_target
+      - key: verify_runtime_health
+        node_type: health_check
+        display_name: Verify Runtime Health
+        phase: verifying
+        retryable: true
+        writes_projection:
+          - AppInstance
+        depends_on:
+          - restart_runtime

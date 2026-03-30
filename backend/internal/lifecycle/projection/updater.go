@@ -121,6 +121,8 @@ func ApplyOperationSucceeded(appRecord, operationRecord *core.Record, now time.T
 	case string(model.OperationTypeUninstall):
 		projection.LifecycleState = model.AppStateRetired
 		projection.HealthSummary = model.HealthStopped
+		projection.CurrentReleaseID = ""
+		projection.PrimaryExposureID = ""
 		projection.RetiredAt = &now
 	case string(model.OperationTypeMaintain):
 		projection.LifecycleState = model.AppStateMaintenance

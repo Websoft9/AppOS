@@ -83,6 +83,15 @@ export type AppConfigResponse = {
   rollback_source_action?: string
 }
 
+export type AppOperationResponse = {
+  id: string
+  status?: string
+  project_dir?: string
+  compose_project_name?: string
+  source?: string
+  enqueued?: boolean
+}
+
 export function formatTime(value?: string): string {
   if (!value) return '-'
   const date = new Date(value)

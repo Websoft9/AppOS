@@ -69,6 +69,7 @@ const (
 const (
 	OperationTypeInstall     OperationType = "install"
 	OperationTypeStart       OperationType = "start"
+	OperationTypeRestart     OperationType = "restart"
 	OperationTypeStop        OperationType = "stop"
 	OperationTypeUpgrade     OperationType = "upgrade"
 	OperationTypeRedeploy    OperationType = "redeploy"
@@ -193,6 +194,7 @@ var OperationAdapters = []string{
 var OperationTypes = []string{
 	string(OperationTypeInstall),
 	string(OperationTypeStart),
+	string(OperationTypeRestart),
 	string(OperationTypeStop),
 	string(OperationTypeUpgrade),
 	string(OperationTypeRedeploy),

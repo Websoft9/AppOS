@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -298,4 +299,91 @@ func TestAppInstanceUpgradeCreatesQueuedOperationForExistingProject(t *testing.T
 	if createdOperation.GetString("project_dir") != operation.GetString("project_dir") {
 		t.Fatalf("expected stored project dir %s, got %s", operation.GetString("project_dir"), createdOperation.GetString("project_dir"))
 	}
+}
+
+func TestAppInstanceLifecycleActionsCreateQueuedOperations(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	tests := []struct {
+		name                  string
+		method                string
+		urlSuffix             string
+		expectedOperationType string
+		assertSpec            func(t *testing.T, operation *core.Record)
+	}{
+		{name: "start", method: http.MethodPost, urlSuffix: "/start", expectedOperationType: string(model.OperationTypeStart)},
+		{name: "stop", method: http.MethodPost, urlSuffix: "/stop", expectedOperationType: string(model.OperationTypeStop)},
+		{name: "restart", method: http.MethodPost, urlSuffix: "/restart", expectedOperationType: string(model.OperationTypeRestart)},
+		{
+			name:                  "uninstall",
+			method:                http.MethodDelete,
+			urlSuffix:             "?removeVolumes=true",
+			expectedOperationType: string(model.OperationTypeUninstall),
+			assertSpec: func(t *testing.T, operation *core.Record) {
+				t.Helper()
+				spec := mustRouteJSONMap(t, operation.Get("spec_json"))
+				metadata := spec["metadata"].(map[string]any)
+				if metadata["remove_volumes"] != true {
+					t.Fatalf("expected remove_volumes metadata true, got %v", metadata["remove_volumes"])
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			record := seedAppInstance(t, te, "demo-app-"+tc.name)
+			baseline := seedAppOperation(t, te, record)
+
+			url := "/api/apps/" + record.Id + tc.urlSuffix
+			if tc.method == http.MethodDelete {
+				url = "/api/apps/" + record.Id + tc.urlSuffix
+			}
+			rec := te.doApps(t, tc.method, url, "", true)
+			if rec.Code != http.StatusAccepted {
+				t.Fatalf("expected 202, got %d: %s", rec.Code, rec.Body.String())
+			}
+			created := parseJSON(t, rec)
+			if created["status"] != string(model.OperationPhaseQueued) {
+				t.Fatalf("expected queued operation, got %v", created["status"])
+			}
+			if created["project_dir"] != baseline.GetString("project_dir") {
+				t.Fatalf("expected existing project dir %s, got %v", baseline.GetString("project_dir"), created["project_dir"])
+			}
+			operation, err := te.app.FindRecordById("app_operations", created["id"].(string))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if operation.GetString("operation_type") != tc.expectedOperationType {
+				t.Fatalf("expected operation_type %s, got %s", tc.expectedOperationType, operation.GetString("operation_type"))
+			}
+			storedApp, err := te.app.FindRecordById("app_instances", record.Id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if storedApp.GetString("last_operation") != operation.Id {
+				t.Fatalf("expected last_operation to update to %s, got %s", operation.Id, storedApp.GetString("last_operation"))
+			}
+			if tc.assertSpec != nil {
+				tc.assertSpec(t, operation)
+			}
+		})
+	}
+}
+
+func mustRouteJSONMap(t *testing.T, value any) map[string]any {
+	t.Helper()
+	if direct, ok := value.(map[string]any); ok {
+		return direct
+	}
+	raw, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("marshal json field: %v", err)
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		t.Fatalf("unmarshal json field: %v", err)
+	}
+	return parsed
 }
