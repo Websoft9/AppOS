@@ -37,9 +37,11 @@ export type AppExposure = {
   domain?: string
   path?: string
   target_port?: number
+  certificate_id?: string
   publication_state?: string
   health_state?: string
   last_verified_at?: string
+  notes?: string
   updated: string
 }
 
@@ -55,6 +57,10 @@ export type AppInstance = {
   lifecycle_state?: string
   health_summary?: string
   publication_summary?: string
+  access_username?: string
+  access_secret_hint?: string
+  access_retrieval_method?: string
+  access_notes?: string
   last_operation?: string
   current_pipeline?: AppPipeline | null
   runtime_reason?: string

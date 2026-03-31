@@ -170,7 +170,19 @@ const DEFAULT_CONNECT_SETTINGS: ConnectTerminalSettings = {
   maxConnections: 0,
 }
 
-export function ConnectServerPage({ serverId }: { serverId: string }) {
+type ConnectServerPageProps = {
+  serverId: string
+  initialSidePanel?: 'files' | 'docker'
+  initialFilePath?: string
+  initialLockedRootPath?: string
+}
+
+export function ConnectServerPage({
+  serverId,
+  initialSidePanel,
+  initialFilePath,
+  initialLockedRootPath,
+}: ConnectServerPageProps) {
   const initialSessionRef = useRef(loadInitialTerminalSession(serverId))
   const initialSession = initialSessionRef.current
   const opButtonClass = 'h-8 w-[116px] justify-start'
@@ -326,6 +338,35 @@ export function ConnectServerPage({ serverId }: { serverId: string }) {
     () => Array.from(new Set(terminalTabs.map(tab => tab.serverId))),
     [terminalTabs]
   )
+
+  useEffect(() => {
+    if (initialSidePanel === 'docker') {
+      setTabRailCollapsed(true)
+      setSidePanel('docker')
+      return
+    }
+    if (initialSidePanel === 'files' && initialFilePath) {
+      setFilePanelPresets(state => {
+        const current = state[serverId] || {
+          path: '/',
+          lockedRoot: null,
+          nonce: 0,
+        }
+        return {
+          ...state,
+          [serverId]: {
+            path: initialFilePath,
+            lockedRoot: initialLockedRootPath || null,
+            nonce: current.path === initialFilePath && current.lockedRoot === (initialLockedRootPath || null)
+              ? current.nonce
+              : current.nonce + 1,
+          },
+        }
+      })
+      setTabRailCollapsed(true)
+      setSidePanel('files')
+    }
+  }, [initialFilePath, initialLockedRootPath, initialSidePanel, serverId])
 
   useEffect(() => {
     const activeServerSet = new Set(tabServerIds)

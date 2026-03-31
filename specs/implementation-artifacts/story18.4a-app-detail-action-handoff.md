@@ -1,6 +1,6 @@
 # Story 18.4a: App Detail Action Handoff
 
-Status: proposed
+Status: review
 
 ## Story
 
@@ -19,15 +19,22 @@ so that installed-app management remains app-centric without rebuilding executio
 
 ## Delivered Now
 
-- [ ] Current App Detail handoff behavior is documented.
-- [ ] A target handoff pattern is defined for management-side lifecycle actions.
-- [ ] Follow-on Epic 18 implementation can converge action buttons and status links without re-deciding ownership boundaries.
+- [x] Current App Detail handoff behavior is documented.
+- [x] A target handoff pattern is defined for management-side lifecycle actions.
+- [x] Follow-on Epic 18 implementation can converge action buttons and status links without re-deciding ownership boundaries.
 
 ## Still Deferred
 
 - [ ] Full UI polish for pending/running/completed execution states in Installed views.
-- [ ] Unified handoff behavior for all lifecycle actions after local action convergence is implemented.
+- [x] Unified handoff behavior for all lifecycle actions in the current Installed-side slice.
 - [ ] Rich cross-linking to timeline, logs, and audit from secondary surfaces.
+
+## Implemented in This Slice
+
+1. `App Detail` now routes `start`, `stop`, `restart`, `uninstall`, `redeploy`, and `upgrade` to shared action detail through operation ids.
+2. `Installed Apps` now uses the same handoff model from the list/grid action menu.
+3. `App Detail` now explicitly labels inline execution state as summary-only and points operators to Actions for execution truth.
+4. Installed-side pages now use explicit handoff copy so management summary and execution detail ownership are separated in the UI.
 
 ## Current Baseline (2026-03-30)
 
@@ -38,11 +45,11 @@ so that installed-app management remains app-centric without rebuilding executio
 3. `redeploy` and `upgrade` create an operation and immediately navigate to the shared action detail page.
 4. `current_pipeline` is shown only as lightweight summary in the overview tab rather than rendering a local pipeline timeline.
 
-However, the handoff model is not yet fully standardized because:
+The remaining gaps are now narrower:
 
-1. `start`, `stop`, `restart`, and `uninstall` still behave as local actions rather than operation-driven handoffs.
-2. `App Detail` mixes app summary, execution summary, runtime information, config editing, and logs in one page, so ownership boundaries must stay explicit.
-3. The page currently offers execution status links, but it does not yet define one formal rule for which action outcomes should stay local versus redirect to shared execution views.
+1. `start`, `stop`, `restart`, and `uninstall` have been converged to shared operation-driven handoff.
+2. `App Detail` still mixes app summary, execution summary, runtime information, config editing, and logs in one page, so ownership boundaries still require continued discipline.
+3. Pending/running/completed state polish across Installed views is still lighter than the full target interaction model.
 
 ## Current UI Evidence
 
@@ -53,8 +60,8 @@ However, the handoff model is not yet fully standardized because:
 | `redeploy` action | creates shared operation then navigates to action detail | canonical handoff | keep |
 | `upgrade` action | creates shared operation then navigates to action detail | canonical handoff | keep |
 | `current_pipeline` summary card | shows family and current phase inline | lightweight execution summary | keep as summary only |
-| `start` / `stop` / `restart` buttons | execute locally and stay on page | incomplete handoff | converge to shared operation and status navigation |
-| `uninstall` dialog | executes locally and returns to installed list | incomplete handoff | converge to shared operation and result handoff |
+| `start` / `stop` / `restart` buttons | create shared operations then navigate to action detail | canonical handoff | keep and refine copy/state polish |
+| `uninstall` dialog | creates shared uninstall operation then navigates to action detail | canonical handoff | keep and refine copy/state polish |
 | `logs` tab | shows runtime logs inside App Detail | supporting operational view | may stay as convenience view, but not execution ownership |
 
 ## Dev Notes
@@ -103,7 +110,7 @@ GPT-5.4
 
 ### Completion Notes List
 
-- Story created to formalize management-to-execution handoff behavior in App Detail.
-- Current UI already has partial handoff for shared operations and should converge remaining local actions to the same pattern.
+- Story updated after implementation. `App Detail` and `Installed Apps` now use one shared handoff model for the Installed-side lifecycle slice.
+- Remaining work is mainly UX polish around richer inline status summaries and deeper cross-links, not ownership re-definition.
 
 ### File List

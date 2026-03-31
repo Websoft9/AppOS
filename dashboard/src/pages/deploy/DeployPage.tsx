@@ -226,6 +226,17 @@ export function DeployPage({
         </Alert>
       ) : null}
 
+      {view === 'list' && listSearch?.appId ? (
+        <Alert>
+          <AlertDescription className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <span>Showing actions scoped to app {listSearch.appId}. Search, sorting, and filters apply within this app only.</span>
+            <Button variant="outline" size="sm" asChild>
+              <a href="/actions">Clear App Scope</a>
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       {view === 'list' ? (
         <ActionListView
           search={search}

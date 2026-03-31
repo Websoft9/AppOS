@@ -207,7 +207,7 @@ function ServersPage() {
       }
 
       setConnectingOpen(false)
-      await navigate({ to: '/terminal/server/$serverId', params: { serverId: id } })
+      await navigate({ to: '/terminal/server/$serverId', params: { serverId: id }, search: {} })
     },
     [connectingOpen, navigate]
   )

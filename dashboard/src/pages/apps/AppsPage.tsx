@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { getApiErrorMessage } from '@/lib/api-error'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -128,7 +128,7 @@ export function AppsPage() {
       setApps(Array.isArray(response) ? response : [])
       setError('')
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to load installed apps'))
+      setError(getApiErrorMessage(err, 'Failed to load my apps'))
     } finally {
       setLoading(false)
       if (showRefresh) setRefreshing(false)
@@ -320,8 +320,8 @@ export function AppsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Installed Applications</h1>
-          <p className="text-sm text-muted-foreground">Installed apps support grid and list views, and now hand off redeploy and upgrade flows into Operations Center instead of owning deployment logic locally.</p>
+          <h1 className="text-2xl font-bold">My Apps</h1>
+          <p className="text-sm text-muted-foreground">Your app workspace stays focused on management summary. Lifecycle requests hand execution tracking off to the canonical Actions detail surface.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant={view === 'grid' ? 'default' : 'outline'} onClick={() => setView('grid')}><LayoutGrid className="mr-2 h-4 w-4" />Grid</Button>
@@ -332,6 +332,13 @@ export function AppsPage() {
 
       {error ? <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert> : null}
       {success ? <Alert><AlertDescription>{success}</AlertDescription></Alert> : null}
+      <Alert>
+        <AlertTitle>Execution Handoff</AlertTitle>
+        <AlertDescription>
+          <p>Start, stop, restart, uninstall, redeploy, and upgrade all create or resume shared lifecycle operations.</p>
+          <p>This page shows app summary. Timeline, node progress, and final execution detail live in Actions.</p>
+        </AlertDescription>
+      </Alert>
 
       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
         <div className="relative">
@@ -363,6 +370,7 @@ export function AppsPage() {
                   <div>Uptime: {formatUptime(app)}</div>
                   <div>Created: {formatTime(app.created)}</div>
                   <div>Server: {app.server_id || 'local'}</div>
+                  <div>Last Operation: {app.last_operation || '-'}</div>
                   <div className="truncate">{app.project_dir}</div>
                 </div>
                 <div className="mt-auto flex items-center justify-between gap-2 pt-2">
@@ -385,6 +393,7 @@ export function AppsPage() {
                 <TableHead><FilterHeader label="Runtime" options={filterOptions.runtime} excluded={excludeRuntime} onChange={setExcludeRuntime} /></TableHead>
                 <TableHead><FilterHeader label="Server" options={filterOptions.server} excluded={excludeServer} onChange={setExcludeServer} /></TableHead>
                 <TableHead>Uptime</TableHead>
+                <TableHead>Last Operation</TableHead>
                 <TableHead><SortableHeader label="Created" field="created" current={sortField} dir={sortDir} onSort={handleSort} /></TableHead>
                 <TableHead><SortableHeader label="Updated" field="updated" current={sortField} dir={sortDir} onSort={handleSort} /></TableHead>
                 <TableHead className="w-[96px]" />
@@ -392,7 +401,7 @@ export function AppsPage() {
             </TableHeader>
             <TableBody>
               {pagedItems.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">No installed apps found.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">No apps found.</TableCell></TableRow>
               ) : pagedItems.map(item => (
                 <TableRow key={item.id}>
                   <TableCell>
@@ -407,6 +416,15 @@ export function AppsPage() {
                   <TableCell><div className="flex items-center gap-2"><Badge variant={runtimeVariant(item.runtime_status)}>{item.runtime_status}</Badge><Badge variant="outline">{item.status}</Badge></div></TableCell>
                   <TableCell>{item.server_id || 'local'}</TableCell>
                   <TableCell>{formatUptime(item)}</TableCell>
+                  <TableCell>
+                    {item.last_operation ? (
+                      <button type="button" className="font-mono text-xs text-primary underline-offset-4 hover:underline" onClick={() => openOperationStatus(item)}>
+                        {item.last_operation}
+                      </button>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
                   <TableCell>{formatTime(item.created)}</TableCell>
                   <TableCell>{formatTime(item.updated)}</TableCell>
                   <TableCell className="text-right">{renderActionMenu(item)}</TableCell>

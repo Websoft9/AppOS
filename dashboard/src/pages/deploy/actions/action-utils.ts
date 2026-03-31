@@ -69,6 +69,7 @@ export function buildActionWebSocketUrl(id: string): string {
 export function stripActionDetailReturnTo(search?: ActionDetailSearch): ActionListSearch | undefined {
   if (!search) return undefined
   const next: ActionListSearch = {}
+  if (search.appId) next.appId = search.appId
   if (search.q) next.q = search.q
   if (search.sortField) next.sortField = search.sortField
   if (search.sortDir) next.sortDir = search.sortDir
@@ -93,6 +94,7 @@ export function buildActionListHref(search?: ActionDetailSearch): string {
   if (!listSearch) return '/actions'
 
   const params = new URLSearchParams()
+  if (listSearch.appId) params.set('appId', listSearch.appId)
   if (listSearch.q) params.set('q', listSearch.q)
   if (listSearch.sortField) params.set('sortField', listSearch.sortField)
   if (listSearch.sortDir) params.set('sortDir', listSearch.sortDir)

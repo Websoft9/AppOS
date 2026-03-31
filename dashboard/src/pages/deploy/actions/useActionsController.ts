@@ -84,6 +84,7 @@ function areSetsEqual(left: Set<string>, right: Set<string>): boolean {
 }
 
 function buildListSearchState({
+  appId,
   search,
   sortField,
   sortDir,
@@ -93,6 +94,7 @@ function buildListSearchState({
   excludeSource,
   excludeServer,
 }: {
+  appId?: string
   search: string
   sortField: SortField | null
   sortDir: SortDir
@@ -102,6 +104,7 @@ function buildListSearchState({
   excludeSource: Set<string>
   excludeServer: Set<string>
 }): ActionListSearch {
+  const normalizedAppId = appId?.trim() || undefined
   const normalizedSearch = search.trim() || undefined
   const normalizedSortField = sortField && sortField !== DEFAULT_SORT_FIELD ? sortField : undefined
   const normalizedSortDir = sortDir !== DEFAULT_SORT_DIR ? sortDir : undefined
@@ -112,6 +115,7 @@ function buildListSearchState({
   const normalizedExcludeServer = serializeExcludedSet(excludeServer)
 
   return {
+    ...(normalizedAppId ? { appId: normalizedAppId } : {}),
     ...(normalizedSearch ? { q: normalizedSearch } : {}),
     ...(normalizedSortField ? { sortField: normalizedSortField } : {}),
     ...(normalizedSortDir ? { sortDir: normalizedSortDir } : {}),
@@ -124,7 +128,8 @@ function buildListSearchState({
 }
 
 function areListSearchEqual(left: ActionListSearch, right: ActionListSearch): boolean {
-  return left.q === right.q
+  return left.appId === right.appId
+    && left.q === right.q
     && left.sortField === right.sortField
     && left.sortDir === right.sortDir
     && left.page === right.page
@@ -187,6 +192,7 @@ export function useActionsController({
   const [prefillLoading, setPrefillLoading] = useState(false)
   const [prefillReady, setPrefillReady] = useState('')
   const [pendingDelete, setPendingDelete] = useState<ActionRecord[]>([])
+  const appFilterId = listSearch?.appId?.trim() || undefined
 
   const serverMap = useMemo(() => new Map(servers.map(item => [item.id, item])), [servers])
 
@@ -369,6 +375,7 @@ export function useActionsController({
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase()
     return operations.filter(item => {
+      if (appFilterId && item.app_id !== appFilterId && item.pipeline?.app_id !== appFilterId) return false
       if (excludeStatus.has(item.status)) return false
       if (excludeSource.has(item.source)) return false
       if (excludeServer.has(item.server_id || 'local')) return false
@@ -377,7 +384,7 @@ export function useActionsController({
         .filter(Boolean)
         .some(value => String(value).toLowerCase().includes(query))
     })
-  }, [operations, excludeServer, excludeSource, excludeStatus, search])
+  }, [appFilterId, operations, excludeServer, excludeSource, excludeStatus, search])
 
   const sortedItems = useMemo(() => {
     if (!sortField) return filteredItems
@@ -396,6 +403,7 @@ export function useActionsController({
     if (view !== 'list') return
 
     const nextSearch = buildListSearchState({
+      appId: appFilterId,
       search,
       sortField,
       sortDir,
@@ -406,6 +414,7 @@ export function useActionsController({
       excludeServer,
     })
     const currentSearch = {
+      appId: listSearch?.appId,
       q: listSearch?.q,
       sortField: listSearch?.sortField,
       sortDir: listSearch?.sortDir,
@@ -419,7 +428,7 @@ export function useActionsController({
     if (areListSearchEqual(nextSearch, currentSearch)) return
 
     void navigate({ to: '/actions' as never, search: nextSearch as never, replace: true })
-  }, [excludeServer, excludeSource, excludeStatus, listSearch, navigate, page, pageSize, search, sortDir, sortField, view])
+  }, [appFilterId, excludeServer, excludeSource, excludeStatus, listSearch, navigate, page, pageSize, search, sortDir, sortField, view])
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -570,6 +579,7 @@ export function useActionsController({
   function openOperationDetail(id: string) {
     const nextListSearch = view === 'list'
       ? buildListSearchState({
+          appId: appFilterId,
           search,
           sortField,
           sortDir,
@@ -757,6 +767,7 @@ export function useActionsController({
 
   const activeFilterChips = useMemo<ActiveFilterChip[]>(() => {
     const chips: ActiveFilterChip[] = []
+    if (appFilterId) chips.push({ key: 'app', label: `App: ${appFilterId}` })
     if (search.trim()) chips.push({ key: 'search', label: `Keyword: ${search.trim()}` })
 
     const statusMap = new Map(filterOptions.status.map(option => [option.value, option.label]))
@@ -768,9 +779,27 @@ export function useActionsController({
     Array.from(excludeServer).sort().forEach(value => chips.push({ key: `server:${value}`, label: `Excluded server: ${serverLabelMap.get(value) || value}` }))
 
     return chips
-  }, [excludeServer, excludeSource, excludeStatus, filterOptions.server, filterOptions.source, filterOptions.status, search])
+  }, [appFilterId, excludeServer, excludeSource, excludeStatus, filterOptions.server, filterOptions.source, filterOptions.status, search])
 
   function removeFilterChip(chipKey: string) {
+    if (chipKey === 'app') {
+      void navigate({
+        to: '/actions' as never,
+        search: buildListSearchState({
+          search,
+          sortField,
+          sortDir,
+          page,
+          pageSize,
+          excludeStatus,
+          excludeSource,
+          excludeServer,
+        }) as never,
+        replace: true,
+      })
+      return
+    }
+
     if (chipKey === 'search') {
       setSearch('')
       return
@@ -807,6 +836,9 @@ export function useActionsController({
   }
 
   function clearAllFilters() {
+    if (appFilterId && view === 'list') {
+      void navigate({ to: '/actions' as never, search: {} as never, replace: true })
+    }
     setSearch('')
     setExcludeStatus(new Set())
     setExcludeSource(new Set())

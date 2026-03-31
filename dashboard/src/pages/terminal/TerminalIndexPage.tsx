@@ -542,7 +542,7 @@ export function TerminalIndexPage() {
           return
         }
         setConnectingOpen(false)
-        navigate({ to: '/terminal/server/$serverId', params: { serverId: server.id } })
+        navigate({ to: '/terminal/server/$serverId', params: { serverId: server.id }, search: {} })
       } catch (err) {
         setConnectingPhase('offline')
         setConnectingDetail(err instanceof Error ? err.message : 'Connection check failed.')

@@ -1,6 +1,6 @@
 # Story 18.2a: Local Action Convergence
 
-Status: proposed
+Status: review
 
 ## Story
 
@@ -19,15 +19,24 @@ so that `start`, `stop`, `restart`, and `uninstall` no longer bypass the common 
 
 ## Delivered Now
 
-- [ ] Installed-side local action bypasses are documented.
-- [ ] Convergence target for `start`, `stop`, `restart`, and `uninstall` is defined against the shared execution core.
-- [ ] Epic 18 follow-on work can use one convergence note instead of re-deciding local vs shared action semantics.
+- [x] Installed-side local action bypasses are documented.
+- [x] Convergence target for `start`, `stop`, `restart`, and `uninstall` is defined against the shared execution core.
+- [x] Epic 18 follow-on work can use one convergence note instead of re-deciding local vs shared action semantics.
 
 ## Still Deferred
 
-- [ ] Full implementation of shared lifecycle operations for all management-side actions.
+- [x] Full implementation of shared lifecycle operations for `start`, `stop`, `restart`, and `uninstall` in the Installed-side slice.
 - [ ] Publication, maintenance, recovery, and backup convergence beyond this local-action slice.
 - [ ] UI refinements for pending/running/completed action feedback once shared operations become canonical.
+
+## Implemented in This Slice
+
+1. `start`, `stop`, `restart`, and `uninstall` now create shared lifecycle operations from `backend/internal/routes/apps.go`.
+2. `restart` is now a formal lifecycle vocabulary item with metadata registry coverage.
+3. Runtime execution now supports converged `runtime_stop`, `runtime_restart`, `runtime_check`, and `retirement` nodes.
+4. Installed-side projections now update from shared operation success semantics instead of route-local `markAppAction` mutations.
+5. `handleAppInstanceAction` and `markAppAction` were removed from the primary backend path.
+6. `App Detail` and `Installed Apps` now navigate to shared action detail after creating these operations.
 
 ## Current Baseline (2026-03-30)
 
@@ -121,11 +130,11 @@ Recommended default for this story:
 
 ## Minimal Acceptance Test Checklist
 
-- [ ] `POST /api/apps/{id}/start` returns a shared operation payload instead of synchronous runtime output.
-- [ ] `POST /api/apps/{id}/stop` returns a shared operation payload instead of synchronous runtime output.
-- [ ] `DELETE /api/apps/{id}` creates a shared uninstall operation and does not mutate `app_instances` directly in-route.
-- [ ] `AppInstance.last_operation` is updated through shared operation/projection flow for converged actions.
-- [ ] No primary Installed-side path still depends on `markAppAction` for `start`, `stop`, or `uninstall`.
+- [x] `POST /api/apps/{id}/start` returns a shared operation payload instead of synchronous runtime output.
+- [x] `POST /api/apps/{id}/stop` returns a shared operation payload instead of synchronous runtime output.
+- [x] `DELETE /api/apps/{id}` creates a shared uninstall operation and does not mutate `app_instances` directly in-route.
+- [x] `AppInstance.last_operation` is updated through shared operation/projection flow for converged actions.
+- [x] No primary Installed-side path still depends on `markAppAction` for `start`, `stop`, or `uninstall`.
 - [ ] Audit records for converged actions reflect operation creation semantics rather than local direct execution semantics.
 
 ### Migration Intent
@@ -165,7 +174,7 @@ GPT-5.4
 
 ### Completion Notes List
 
-- Story created to converge Installed-side local lifecycle actions onto the Epic 17 shared execution core.
-- Current backend evidence shows `upgrade` and `redeploy` already use shared operations, while `start`, `stop`, `restart`, and `uninstall` still bypass them.
+- Story updated after implementation. Installed-side `start`, `stop`, `restart`, and `uninstall` now converge on the Epic 17 shared execution core.
+- Backend route tests and worker/runtime tests now cover the converged path, and Installed-side frontend pages hand off to shared action detail.
 
 ### File List

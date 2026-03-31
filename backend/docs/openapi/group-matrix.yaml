@@ -145,6 +145,7 @@ groups:
       - GET /api/apps
       - GET /api/apps/{id}
       - GET /api/apps/{id}/logs
+      - PUT /api/apps/{id}/access
       - GET /api/apps/{id}/config
       - PUT /api/apps/{id}/config
       - POST /api/apps/{id}/config/validate

@@ -301,6 +301,43 @@ func TestAppInstanceUpgradeCreatesQueuedOperationForExistingProject(t *testing.T
 	}
 }
 
+func TestAppInstanceAccessHintsUpdate(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	record := seedAppInstance(t, te, "demo-app")
+	rec := te.doApps(t, http.MethodPut, "/api/apps/"+record.Id+"/access", `{"access_username":"admin","access_secret_hint":"initial password from welcome page","access_retrieval_method":"Use the setup wizard output after first install","access_notes":"Rotate after first login"}`, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := parseJSON(t, rec)
+	if body["access_username"] != "admin" {
+		t.Fatalf("expected access_username admin, got %v", body["access_username"])
+	}
+	stored, err := te.app.FindRecordById("app_instances", record.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.GetString("access_secret_hint") != "initial password from welcome page" {
+		t.Fatalf("expected access_secret_hint persisted, got %q", stored.GetString("access_secret_hint"))
+	}
+	if stored.GetString("access_retrieval_method") != "Use the setup wizard output after first install" {
+		t.Fatalf("expected access_retrieval_method persisted, got %q", stored.GetString("access_retrieval_method"))
+	}
+	if stored.GetString("access_notes") != "Rotate after first login" {
+		t.Fatalf("expected access_notes persisted, got %q", stored.GetString("access_notes"))
+	}
+
+	rec = te.doApps(t, http.MethodGet, "/api/apps/"+record.Id, "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("detail: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	detail := parseJSON(t, rec)
+	if detail["access_username"] != "admin" {
+		t.Fatalf("expected access_username in detail response, got %v", detail["access_username"])
+	}
+}
+
 func TestAppInstanceLifecycleActionsCreateQueuedOperations(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()

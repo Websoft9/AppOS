@@ -106,7 +106,7 @@ export function ServerSelector({ className }: ServerSelectorProps) {
         return
       }
       setConnectingOpen(false)
-      navigate({ to: '/terminal/server/$serverId', params: { serverId: selected.id } })
+      navigate({ to: '/terminal/server/$serverId', params: { serverId: selected.id }, search: {} })
     } catch (err) {
       setConnectingPhase('offline')
       setConnectingDetail(err instanceof Error ? err.message : 'Connection check failed.')
@@ -162,6 +162,7 @@ export function ServerSelector({ className }: ServerSelectorProps) {
                     navigate({
                       to: '/terminal/server/$serverId',
                       params: { serverId: resumeServerId },
+                      search: {},
                     })
                   }
                 >

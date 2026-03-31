@@ -109,10 +109,10 @@ Implement data management, backup, and restore user flows that delegate executio
 | 18.1 Installed App Inventory | in-progress |
 | 18.1a App Detail Boundary Classification | review |
 | 18.2 Lifecycle Actions | in-progress |
-| 18.2a Local Action Convergence | proposed |
+| 18.2a Local Action Convergence | review |
 | 18.3 Configuration Management | in-progress |
 | 18.4 Action Handoff and Status | in-progress |
-| 18.4a App Detail Action Handoff | proposed |
+| 18.4a App Detail Action Handoff | review |
 | 18.5 Proxy and Domain Binding | backlog |
 | 18.6 Audit and Action Records | backlog |
 | 18.7 Data Management and Backup | backlog |

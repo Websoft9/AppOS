@@ -55,6 +55,7 @@ export type PipelineRecord = {
 
 export type ActionRecord = {
   id: string
+  app_id?: string
   server_id: string
   server_label?: string
   server_host?: string
@@ -110,6 +111,7 @@ export type CreateDeploymentEntryMode = 'compose' | 'git-compose' | 'docker-comm
 export type StoreShortcut = Pick<Product, 'key' | 'trademark' | 'logo'>
 
 export type ActionListSearch = {
+  appId?: string
   q?: string
   sortField?: SortField
   sortDir?: SortDir

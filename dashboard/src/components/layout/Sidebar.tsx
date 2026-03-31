@@ -63,7 +63,7 @@ const workspaceGroup: NavGroup = {
         { id: 'store', label: 'App Store', href: '/store' },
         { id: 'deploy', label: 'Deploy', href: '/deploy' },
         { id: 'actions', label: 'Actions', href: '/actions' },
-        { id: 'installed', label: 'Installed', href: '/apps' },
+        { id: 'installed', label: 'My Apps', href: '/apps' },
       ],
     },
     {

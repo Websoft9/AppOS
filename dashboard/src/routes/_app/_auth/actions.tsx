@@ -56,6 +56,7 @@ function ActionsRoutePage() {
 export const Route = createFileRoute('/_app/_auth/actions' as never)({
   component: ActionsRoutePage,
   validateSearch: (search: Record<string, unknown>): ActionListSearch => ({
+    appId: typeof search.appId === 'string' && search.appId.trim() ? search.appId : undefined,
     q: typeof search.q === 'string' && search.q.trim() ? search.q : undefined,
     sortField: parseSortField(search.sortField),
     sortDir: parseSortDir(search.sortDir),

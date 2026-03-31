@@ -45,6 +45,7 @@ func registerAppsRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	a.GET("/{id}/exposures/{exposureId}", handleAppExposureDetail)
 	a.GET("/{id}/logs", handleAppInstanceLogs)
 	a.GET("/{id}/config", handleAppInstanceConfigGet)
+	a.PUT("/{id}/access", handleAppInstanceAccessUpdate)
 	a.POST("/{id}/config/validate", handleAppInstanceConfigValidate)
 	a.POST("/{id}/config/rollback", handleAppInstanceConfigRollback)
 	a.POST("/{id}/upgrade", handleAppInstanceUpgrade)
@@ -209,6 +210,43 @@ func handleAppInstanceConfigGet(e *core.RequestEvent) error {
 		"project_dir":        runtimeContext.ProjectDir,
 		"content":            content,
 		"rollback_available": false,
+	})
+}
+
+// @Summary Update app access account hints
+// @Description Updates operator-maintained access hints for one installed app. Superuser only.
+// @Tags Apps
+// @Security BearerAuth
+// @Param id path string true "app instance ID"
+// @Param body body object true "access hints"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/apps/{id}/access [put]
+func handleAppInstanceAccessUpdate(e *core.RequestEvent) error {
+	record, err := findAppInstance(e, e.Request.PathValue("id"))
+	if err != nil {
+		return err
+	}
+	body, err := readBody(e)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "invalid request body"})
+	}
+	record.Set("access_username", strings.TrimSpace(bodyString(body, "access_username")))
+	record.Set("access_secret_hint", strings.TrimSpace(bodyString(body, "access_secret_hint")))
+	record.Set("access_retrieval_method", strings.TrimSpace(bodyString(body, "access_retrieval_method")))
+	record.Set("access_notes", strings.TrimSpace(bodyString(body, "access_notes")))
+	if err := e.App.Save(record); err != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"code": 500, "message": "failed to update access hints"})
+	}
+	return e.JSON(http.StatusOK, map[string]any{
+		"id":                      record.Id,
+		"access_username":         record.GetString("access_username"),
+		"access_secret_hint":      record.GetString("access_secret_hint"),
+		"access_retrieval_method": record.GetString("access_retrieval_method"),
+		"access_notes":            record.GetString("access_notes"),
 	})
 }
 
@@ -577,6 +615,10 @@ func appInstanceResponse(app core.App, record *core.Record, runtimeIndex map[str
 		"health_summary":      record.GetString("health_summary"),
 		"publication_summary": record.GetString("publication_summary"),
 		"state_reason":        record.GetString("state_reason"),
+		"access_username":     record.GetString("access_username"),
+		"access_secret_hint":  record.GetString("access_secret_hint"),
+		"access_retrieval_method": record.GetString("access_retrieval_method"),
+		"access_notes":        record.GetString("access_notes"),
 		"last_operation":      record.GetString("last_operation"),
 		"current_pipeline":    currentPipeline,
 		"created":             record.GetDateTime("created").String(),
