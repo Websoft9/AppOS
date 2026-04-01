@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/websoft9/appos/backend/internal/certs"
-	"github.com/websoft9/appos/backend/internal/hooks"
-	"github.com/websoft9/appos/backend/internal/routes"
-	"github.com/websoft9/appos/backend/internal/secrets"
-	servers "github.com/websoft9/appos/backend/internal/servers"
-	"github.com/websoft9/appos/backend/internal/worker"
+	"github.com/websoft9/appos/backend/domain/certs"
+	"github.com/websoft9/appos/backend/platform/hooks"
+	"github.com/websoft9/appos/backend/domain/routes"
+	"github.com/websoft9/appos/backend/domain/secrets"
+	servers "github.com/websoft9/appos/backend/domain/servers"
+	"github.com/websoft9/appos/backend/domain/worker"
 
 	// Register custom PocketBase migrations (Epic 8: Resource Store)
-	_ "github.com/websoft9/appos/backend/internal/migrations"
+	_ "github.com/websoft9/appos/backend/infra/migrations"
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"

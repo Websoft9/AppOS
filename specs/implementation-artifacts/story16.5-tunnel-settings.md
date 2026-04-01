@@ -47,9 +47,9 @@ This story owns the Tunnel setting semantics, while delivery happens through the
 
 ## Dev Notes
 
-- Reuse existing seed: `backend/internal/migrations/1741500001_seed_tunnel_settings.go`
-- Reuse existing runtime consumer: `backend/internal/routes/tunnel.go`
-- Default constants remain in `backend/internal/tunnel/config.go`
+- Reuse existing seed: `backend/infra/migrations/1741500001_seed_tunnel_settings.go`
+- Reuse existing runtime consumer: `backend/domain/routes/tunnel.go`
+- Default constants remain in `backend/domain/tunnel/config.go`
 - Scope is settings only; no hot reload, no forward-rule work, no session mutation
 
 ---
@@ -74,8 +74,8 @@ GPT-5.4
 
 ### File List
 
-- `backend/internal/routes/settings.go`
-- `backend/internal/routes/settings_test.go`
+- `backend/domain/routes/settings.go`
+- `backend/domain/routes/settings_test.go`
 - `dashboard/src/lib/settings-api.ts`
 - `dashboard/src/routes/_app/_auth/_superuser/settings.tsx`
 - `dashboard/src/routes/_app/_auth/_superuser/settings.test.tsx`

@@ -110,7 +110,91 @@ Settings（配置层）
 2. Install  from store 和 Custom Deployment 区块没有考虑 dark 模式
 3.  
 
-
+backend/
+├── cmd/
+│   └── appos/main.go
+│
+├── domain/
+│   ├── lifecycle/                         # Domain: Application Lifecycle
+│   │   ├── appinstance/                   #   Subdomain: App Instance Management
+│   │   │   ├── model.go
+│   │   │   ├── service.go
+│   │   │   └── api.go
+│   │   ├── operation/                     #   Subdomain: Operation Management
+│   │   │   ├── model.go
+│   │   │   ├── service.go
+│   │   │   └── api.go
+│   │   ├── release/                       #   Subdomain: Release Management
+│   │   ├── exposure/                      #   Subdomain: Exposure Management
+│   │   └── recovery/                      #   Subdomain: Recovery Management
+│   │
+│   ├── execution/                         # Domain: Lifecycle Execution
+│   │   ├── pipeline/                      #   Subdomain: Pipeline Execution
+│   │   ├── worker/                        #   Subdomain: Worker Scheduling
+│   │   ├── projection/                    #   Subdomain: Projection Update
+│   │   └── compensation/                  #   Subdomain: Compensation Control
+│   │
+│   ├── resourceops/                       # Domain: Resource Operations Platform
+│   │   ├── remoteaccess/                  #   Subdomain: Remote Access (tunnel)
+│   │   ├── terminal/                      #   Subdomain: Terminal Operations
+│   │   ├── fileops/                       #   Subdomain: File Operations
+│   │   ├── serviceops/                    #   Subdomain: Service Operations
+│   │   └── containerops/                  #   Subdomain: Container Operations
+│   │
+│   ├── observability/                     # Domain: Observability
+│   │   ├── telemetry/                     #   Subdomain: Telemetry
+│   │   ├── health/                        #   Subdomain: Health & Diagnostics
+│   │   └── platformstatus/               #   Subdomain: Platform Self-Observation
+│   │
+│   ├── operations/                        # Domain: Operations Management
+│   │   ├── inventory/                     #   Subdomain: Resource Inventory & Topology
+│   │   ├── topics/                        #   Subdomain: Operational Knowledge (Topics)
+│   │   ├── space/                         #   Subdomain: Operational Knowledge (Space)
+│   │   ├── incidents/                     #   Subdomain: Incident Response
+│   │   └── automation/                    #   Subdomain: Operations Automation
+│   │
+│   ├── catalog/                           # Domain: App Catalog
+│   │   ├── apps/                          #   Subdomain: Catalog Apps
+│   │   ├── custom/                        #   Subdomain: Custom Apps
+│   │   ├── templates/                     #   Subdomain: Templates
+│   │   └── favorites/                     #   Subdomain: Favorites / Notes
+│   │
+│   ├── gateway/                           # Domain: Gateway Management
+│   │   ├── domainbinding/                 #   Subdomain: Domain Binding
+│   │   ├── routing/                       #   Subdomain: Routing & Upstreams
+│   │   ├── certbinding/                   #   Subdomain: Certificate Binding
+│   │   └── policies/                      #   Subdomain: Gateway Policies
+│   │
+│   ├── secrets/                           # Domain: Security and Secret Management
+│   │   ├── vault/                         #   Subdomain: Secrets
+│   │   └── policies/                      #   Subdomain: Secret Policies
+│   │
+│   ├── config/                            # Domain: Platform Configuration
+│   │   └── settings/
+│   │
+│   ├── identity/                          # Domain: Identity and Access
+│   │   └── access/
+│   │
+│   ├── audit/                             # Domain: Audit and Policy
+│   │   └── logging/
+│   │
+│   └── integrations/                      # Domain: Integrations & Connectors
+│       ├── sources/                       #   Subdomain: Source Integrations
+│       ├── registries/                    #   Subdomain: Artifact & Registry
+│       ├── notifications/                 #   Subdomain: Notification Integrations
+│       └── ai/                            #   Subdomain: AI Provider Integrations
+│
+├── infra/                                 # 跨领域技术基础设施
+│   ├── docker/
+│   ├── crypto/
+│   ├── fileutil/
+│   └── cronutil/
+│
+└── platform/                              # 平台级关注点
+    ├── migrations/
+    ├── components/
+    ├── hooks/
+    └── supervisor/
 
 
 

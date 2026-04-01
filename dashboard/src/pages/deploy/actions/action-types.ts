@@ -78,6 +78,7 @@ export type ActionRecord = {
   pipeline_definition_key?: string
   pipeline_version?: string
   pipeline_selector?: PipelineSelector
+  spec?: Record<string, unknown>
   lifecycle?: ActionLifecycleStep[]
   steps?: ActionStep[]
 }

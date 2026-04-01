@@ -21,16 +21,16 @@ As an operator, I want all key operations to be auditable, so that I can trace w
 
 ## Tasks / Subtasks
 
-- [x] Task 1: Add payload structs to `backend/internal/worker/worker.go`
+- [x] Task 1: Add payload structs to `backend/domain/worker/worker.go`
   - [x] 1.1 Define struct per task type with at minimum `UserID`, `UserEmail`, and operation-specific fields (e.g. `ProjectDir`)
   - [x] 1.2 Update enqueue call sites in route handlers to populate `UserID` / `UserEmail` from `e.Auth`
-- [x] Task 2: Integrate `audit.Write()` in sync handlers (`backend/internal/routes/docker.go`)
+- [x] Task 2: Integrate `audit.Write()` in sync handlers (`backend/domain/routes/docker.go`)
   - [x] 2.1 `handleComposeRestart` → write `app.restart` on success/failure
   - [x] 2.2 `handleComposeStop` → write `app.stop` on success/failure
   - [x] 2.3 `handleComposeConfigWrite` → write `app.env_update` on success/failure
-- [x] Task 3: Integrate `audit.Write()` in sync handler (`backend/internal/routes/backup.go`)
+- [x] Task 3: Integrate `audit.Write()` in sync handler (`backend/domain/routes/backup.go`)
   - [x] 3.1 `handleBackupRestore` + `handleBackupCreate` → write audit on success/failure
-- [x] Task 4: Integrate `audit.Write()` in async worker handlers (`backend/internal/worker/worker.go`)
+- [x] Task 4: Integrate `audit.Write()` in async worker handlers (`backend/domain/worker/worker.go`)
   - [x] 4.1 `handleDeployApp` → write `pending` at enqueue; `success/failed` at worker completion
   - [x] 4.2 `handleDeleteApp` → same pattern
   - [x] 4.3 `handleBackupCreate` → same pattern
@@ -60,13 +60,13 @@ All tasks complete. Backend compiles cleanly. Note: `handleDeployApp`/`handleDel
 
 ## File List
 
-- `backend/internal/worker/worker.go` — modified: payload structs + audit calls in handlers
-- `backend/internal/routes/docker.go` — modified: `clientInfo()` helper + audit calls in all compose handlers
-- `backend/internal/routes/backup.go` — modified: IP/UA + audit calls
-- `backend/internal/routes/users.go` — modified: IP/UA in reset-password audit
-- `backend/internal/routes/services.go` — modified: added `audit` import + `audit.Write` in `handleServiceRestart` (`service.restart`)
-- `backend/internal/hooks/hooks.go` — modified: login hooks + IP/UA in user hooks
-- `backend/internal/routes/routes.go` — modified: added `asynqClient` var + `SetAsynqClient()`
+- `backend/domain/worker/worker.go` — modified: payload structs + audit calls in handlers
+- `backend/domain/routes/docker.go` — modified: `clientInfo()` helper + audit calls in all compose handlers
+- `backend/domain/routes/backup.go` — modified: IP/UA + audit calls
+- `backend/domain/routes/users.go` — modified: IP/UA in reset-password audit
+- `backend/domain/routes/services.go` — modified: added `audit` import + `audit.Write` in `handleServiceRestart` (`service.restart`)
+- `backend/platform/hooks/hooks.go` — modified: login hooks + IP/UA in user hooks
+- `backend/domain/routes/routes.go` — modified: added `asynqClient` var + `SetAsynqClient()`
 - `backend/cmd/appos/main.go` — modified: `worker.New(app)`, `routes.SetAsynqClient(w.Client())`
 
 ## Change Log

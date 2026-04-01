@@ -43,6 +43,78 @@ export function displayValue(value?: string): string {
   return value?.trim() || '-'
 }
 
+export type ReleaseAttribution = {
+  summaryNotes: string[]
+  localImageRef?: string
+  targetService?: string
+  targetRef?: string
+}
+
+export type SourceBuildAttribution = {
+  sourceKind?: string
+  sourceRef?: string
+  builderStrategy?: string
+  publicationMode?: string
+  localImageRef?: string
+  targetService?: string
+  targetRef?: string
+}
+
+function recordField(record: Record<string, unknown> | undefined, key: string): Record<string, unknown> | undefined {
+  const value = record?.[key]
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined
+}
+
+function stringRecordField(record: Record<string, unknown> | undefined, key: string): string | undefined {
+  const value = record?.[key]
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+export function parseActionSourceBuildAttribution(action?: ActionRecord | null): SourceBuildAttribution | null {
+  const spec = action?.spec
+  if (!spec || typeof spec !== 'object' || Array.isArray(spec)) return null
+
+  const sourceBuild = recordField(spec, 'source_build')
+  if (!sourceBuild) return null
+
+  const artifactPublication = recordField(sourceBuild, 'artifact_publication')
+  const buildResult = recordField(sourceBuild, 'build_result')
+  const publicationResult = recordField(sourceBuild, 'publication_result')
+  const deployInputs = recordField(sourceBuild, 'deploy_inputs')
+
+  return {
+    sourceKind: stringRecordField(sourceBuild, 'source_kind'),
+    sourceRef: stringRecordField(sourceBuild, 'source_ref'),
+    builderStrategy: stringRecordField(sourceBuild, 'builder_strategy'),
+    publicationMode: stringRecordField(artifactPublication, 'mode') || stringRecordField(publicationResult, 'mode'),
+    localImageRef: stringRecordField(publicationResult, 'local_image_ref') || stringRecordField(buildResult, 'local_image_ref'),
+    targetService: stringRecordField(deployInputs, 'service_name'),
+    targetRef: stringRecordField(publicationResult, 'target_ref') || stringRecordField(artifactPublication, 'target_ref'),
+  }
+}
+
+export function parseReleaseAttribution(notes?: string): ReleaseAttribution {
+  const result: ReleaseAttribution = { summaryNotes: [] }
+  for (const rawPart of (notes || '').split('|')) {
+    const part = rawPart.trim()
+    if (!part) continue
+    if (part.startsWith('image=')) {
+      result.localImageRef = part.slice('image='.length).trim() || undefined
+      continue
+    }
+    if (part.startsWith('service=')) {
+      result.targetService = part.slice('service='.length).trim() || undefined
+      continue
+    }
+    if (part.startsWith('target=')) {
+      result.targetRef = part.slice('target='.length).trim() || undefined
+      continue
+    }
+    result.summaryNotes.push(part)
+  }
+  return result
+}
+
 export type RuntimeContainer = {
   ID: string
   Names: string

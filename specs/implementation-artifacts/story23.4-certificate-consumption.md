@@ -15,7 +15,7 @@ This story defines and implements the **reading side** only. It does not configu
 
 ## Acceptance Criteria
 
-- [x] AC1: A Go function `ResolveCertificate(app, certID, callerID string) (*CertMaterial, error)` exists in `backend/internal/certs/` and is importable by other packages.
+- [x] AC1: A Go function `ResolveCertificate(app, certID, callerID string) (*CertMaterial, error)` exists in `backend/domain/certs/` and is importable by other packages.
 - [x] AC2: `ResolveCertificate` reads the certificate record by ID via the PocketBase app instance (not via HTTP).
 - [x] AC3: If the certificate `status` is not `active`, `ResolveCertificate` returns an error (`ErrCertNotActive`).
 - [x] AC4: `CertMaterial` contains `CertPEM string` and `KeyPEM string`. `KeyPEM` is the decrypted private key text.
@@ -73,7 +73,7 @@ The `key` field is a relation ID pointing to a secret record. The caller must se
 
 ### Task 1: Resolve function and types
 
-File: `backend/internal/certs/resolve.go`
+File: `backend/domain/certs/resolve.go`
 
 ```go
 package certs
@@ -82,7 +82,7 @@ import (
     "fmt"
 
     "github.com/pocketbase/pocketbase/core"
-    "github.com/websoft9/appos/backend/internal/secrets"
+    "github.com/websoft9/appos/backend/domain/secrets"
 )
 
 func ResolveCertificate(app core.App, certID string, callerID string) (*CertMaterial, error) {
@@ -125,7 +125,7 @@ No new function is needed in the secrets package — `secrets.Resolve()` already
 
 ### Task 2: Unit test
 
-File: `backend/internal/certs/resolve_test.go`
+File: `backend/domain/certs/resolve_test.go`
 
 Test cases:
 1. Happy path: status=active, cert_pem populated, key relation present → returns CertMaterial with both PEM strings
@@ -139,7 +139,7 @@ Use table-driven tests with a minimal PocketBase test setup (see existing `*_tes
 **For proxy/deploy authors (internal Go consumers):**
 
 ```go
-import "github.com/websoft9/appos/backend/internal/certs"
+import "github.com/websoft9/appos/backend/domain/certs"
 
 material, err := certs.ResolveCertificate(app, certRecordID, "")
 if err != nil {
@@ -169,5 +169,5 @@ Private key retrieval from shell requires a second call to `/api/collections/sec
 
 | Path | Action |
 |------|--------|
-| `backend/internal/certs/resolve.go` | Created |
-| `backend/internal/certs/resolve_test.go` | Created (4 tests, all pass) |
+| `backend/domain/certs/resolve.go` | Created |
+| `backend/domain/certs/resolve_test.go` | Created (4 tests, all pass) |

@@ -18,12 +18,12 @@ As a developer, I want a unified audit persistence foundation, so that all modul
 
 ## Tasks / Subtasks
 
-- [x] Task 1: Add migration `backend/internal/migrations/1741000000_create_audit_logs.go`
+- [x] Task 1: Add migration `backend/infra/migrations/1741000000_create_audit_logs.go`
   - [x] 1.1 Create `audit_logs` BaseCollection with all fields from Epic 12 Data Model
   - [x] 1.2 Add `ip` TextField and `AutodateField` for `created` (required — not auto-included in BaseCollection)
   - [x] 1.3 `status` as `SelectField` with values `pending/success/failed`
   - [x] 1.4 Set access rules: `ListRule/ViewRule = user_id = @request.auth.id || @request.auth.collectionName = '_superusers'`
-- [x] Task 2: Create `backend/internal/audit/audit.go`
+- [x] Task 2: Create `backend/domain/audit/audit.go`
   - [x] 2.1 `audit.Entry` named struct with all fields including `IP string` and `UserAgent string`
   - [x] 2.2 `Write()` saves `ip` field and merges `UserAgent` into `detail` map automatically
   - [x] 2.3 Validate status; errors logged and swallowed
@@ -46,9 +46,9 @@ All tasks complete. Backend compiles cleanly (`go build ./...`). Migration will 
 
 ## File List
 
-- `backend/internal/migrations/1741000000_create_audit_logs.go` — new
-- `backend/internal/migrations/1741100000_add_audit_logs_ip.go` — new (incremental migration for existing installs)
-- `backend/internal/audit/audit.go` — new
+- `backend/infra/migrations/1741000000_create_audit_logs.go` — new
+- `backend/infra/migrations/1741100000_add_audit_logs_ip.go` — new (incremental migration for existing installs)
+- `backend/domain/audit/audit.go` — new
 
 ## Change Log
 

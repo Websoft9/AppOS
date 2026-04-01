@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { ArrowUp, MoreVertical, Play, RotateCcw, Square, Trash2 } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { getApiErrorMessage } from '@/lib/api-error'
+import { copyToClipboard } from '@/lib/clipboard'
 import { iacRead, iacSaveFile } from '@/lib/iac-api'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
@@ -53,6 +54,7 @@ import {
   parseDockerInspect,
   parseDockerJsonLines,
   parseMemoryUsageBytes,
+  parseReleaseAttribution,
   parseResourceList,
   type ResourceDatabase,
   type RuntimeContainer,
@@ -173,11 +175,14 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const [runtimeLogsTarget, setRuntimeLogsTarget] = useState<RuntimeContainer | null>(null)
   const [runtimeLogsContent, setRuntimeLogsContent] = useState('')
   const [runtimeLogsLoading, setRuntimeLogsLoading] = useState(false)
+  const [selectedRelease, setSelectedRelease] = useState<AppRelease | null>(null)
+  const [releaseCopyState, setReleaseCopyState] = useState<'idle' | 'artifact-copied' | 'source-copied' | 'failed'>('idle')
   const [envFileText, setEnvFileText] = useState('')
   const [originalEnvFileText, setOriginalEnvFileText] = useState('')
   const [envFileLoaded, setEnvFileLoaded] = useState(false)
   const logViewportRef = useRef<HTMLDivElement | null>(null)
   const stickToBottomRef = useRef(true)
+  const selectedReleaseAttribution = useMemo(() => parseReleaseAttribution(selectedRelease?.notes), [selectedRelease?.notes])
 
   const syncAccessDrafts = useCallback((detail: AppInstance | null) => {
     setAccessUsernameDraft(detail?.access_username || '')
@@ -643,6 +648,28 @@ export function AppDetailPage({ appId }: { appId: string }) {
     navigateToActionDetail(app.last_operation)
   }, [app, navigateToActionDetail])
 
+  const openReleaseDetail = useCallback((release: AppRelease) => {
+    setSelectedRelease(release)
+    setReleaseCopyState('idle')
+  }, [])
+
+  const openSelectedReleaseAction = useCallback(() => {
+    if (!selectedRelease?.created_by_operation) return
+    setSelectedRelease(null)
+    setReleaseCopyState('idle')
+    navigateToActionDetail(selectedRelease.created_by_operation)
+  }, [navigateToActionDetail, selectedRelease])
+
+  const copySelectedReleaseValue = useCallback(async (kind: 'artifact' | 'source') => {
+    const value = kind === 'artifact' ? selectedRelease?.artifact_digest : selectedRelease?.source_ref
+    if (!value) return
+    const ok = await copyToClipboard(value)
+    setReleaseCopyState(ok ? (kind === 'artifact' ? 'artifact-copied' : 'source-copied') : 'failed')
+    window.setTimeout(() => {
+      setReleaseCopyState(current => (current === 'failed' || current === 'artifact-copied' || current === 'source-copied' ? 'idle' : current))
+    }, 1500)
+  }, [selectedRelease])
+
   const cancelAccessEditing = useCallback(() => {
     syncAccessDrafts(app)
     setEditingAccess(false)
@@ -988,6 +1015,8 @@ export function AppDetailPage({ appId }: { appId: string }) {
           <AppDetailOverviewTab
             app={app}
             currentRelease={currentRelease}
+            releases={releases}
+            openReleaseDetail={openReleaseDetail}
             serverDisplayName={serverDisplayName}
             canOpenServerDetail={canOpenServerDetail}
             openServerDetail={openServerDetail}
@@ -1151,6 +1180,75 @@ export function AppDetailPage({ appId }: { appId: string }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={Boolean(selectedRelease)} onOpenChange={open => {
+    if (!open) {
+      setSelectedRelease(null)
+      setReleaseCopyState('idle')
+    }
+  }}>
+    <DialogContent className="sm:max-w-2xl">
+      <DialogHeader>
+        <DialogTitle>Release Detail: {selectedRelease?.version_label || selectedRelease?.id || '-'}</DialogTitle>
+        <DialogDescription>Candidate and active release attribution from the lifecycle release store.</DialogDescription>
+      </DialogHeader>
+      <div className="grid gap-3 text-sm sm:grid-cols-2">
+        <div>
+          <div className="text-muted-foreground">Role</div>
+          <div>{selectedRelease?.release_role || '-'}</div>
+        </div>
+        <div>
+          <div className="text-muted-foreground">Version</div>
+          <div>{selectedRelease?.version_label || '-'}</div>
+        </div>
+        <div className="sm:col-span-2">
+          <div className="text-muted-foreground">Artifact</div>
+          <div className="break-all font-mono text-[12px]">{selectedRelease?.artifact_digest || '-'}</div>
+          {selectedRelease?.artifact_digest ? <Button variant="link" size="sm" className="mt-1 h-auto px-0 text-[11px]" onClick={() => void copySelectedReleaseValue('artifact')}>{releaseCopyState === 'artifact-copied' ? 'Copied' : releaseCopyState === 'failed' ? 'Copy failed' : 'Copy Artifact'}</Button> : null}
+        </div>
+        {selectedReleaseAttribution.localImageRef ? (
+          <div className="sm:col-span-2">
+            <div className="text-muted-foreground">Local Image</div>
+            <div className="break-all font-mono text-[12px]">{selectedReleaseAttribution.localImageRef}</div>
+          </div>
+        ) : null}
+        <div className="sm:col-span-2">
+          <div className="text-muted-foreground">Source</div>
+          <div className="break-all">{selectedRelease?.source_ref || '-'}</div>
+          {selectedRelease?.source_ref ? <Button variant="link" size="sm" className="mt-1 h-auto px-0 text-[11px]" onClick={() => void copySelectedReleaseValue('source')}>{releaseCopyState === 'source-copied' ? 'Copied' : releaseCopyState === 'failed' ? 'Copy failed' : 'Copy Source'}</Button> : null}
+        </div>
+        <div>
+          <div className="text-muted-foreground">Source Type</div>
+          <div>{selectedRelease?.source_type || '-'}</div>
+        </div>
+        <div>
+          <div className="text-muted-foreground">Updated</div>
+          <div>{selectedRelease?.updated || '-'}</div>
+        </div>
+        {selectedReleaseAttribution.targetService ? (
+          <div>
+            <div className="text-muted-foreground">Target Service</div>
+            <div>{selectedReleaseAttribution.targetService}</div>
+          </div>
+        ) : null}
+        <div>
+          <div className="text-muted-foreground">Created By Operation</div>
+          <div className="break-all">{selectedRelease?.created_by_operation || '-'}</div>
+        </div>
+        {selectedRelease?.notes ? (
+          <div className="sm:col-span-2">
+            <div className="text-muted-foreground">Notes</div>
+            <div className="whitespace-pre-wrap">{selectedReleaseAttribution.summaryNotes.length > 0 ? selectedReleaseAttribution.summaryNotes.join(' | ') : selectedRelease.notes}</div>
+          </div>
+        ) : null}
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {selectedRelease?.created_by_operation ? (
+          <Button variant="outline" size="sm" onClick={openSelectedReleaseAction}>Open Related Action</Button>
+        ) : null}
+      </div>
+    </DialogContent>
+  </Dialog>
     </div>
   )
 }

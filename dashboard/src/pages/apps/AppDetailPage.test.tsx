@@ -26,6 +26,7 @@ vi.mock('@/lib/iac-api', () => ({
 describe('AppDetailPage', () => {
   let windowOpenMock: ReturnType<typeof vi.spyOn>
   let appDetailResponse: Record<string, unknown>
+  let clipboardWriteTextMock: ReturnType<typeof vi.fn>
 
   afterEach(() => {
     cleanup()
@@ -57,6 +58,11 @@ describe('AppDetailPage', () => {
       created: '2026-03-30T10:00:00Z',
       updated: '2026-03-30T10:10:00Z',
     }
+    clipboardWriteTextMock = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: clipboardWriteTextMock },
+    })
     windowOpenMock = vi.spyOn(window, 'open').mockImplementation(() => ({ closed: false } as Window))
     iacReadMock.mockResolvedValue({ content: 'APP_ENV=demo\n' })
     iacSaveFileMock.mockResolvedValue(undefined)
@@ -250,6 +256,258 @@ describe('AppDetailPage', () => {
         params: { actionId: 'op-start-1' },
         search: { returnTo: 'list' },
       })
+    })
+  })
+
+  it('shows current source-build release artifact and source details in overview', async () => {
+    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, string> }) => {
+      if (path === '/api/apps/app-1' && options?.method === 'GET') {
+        return Promise.resolve(appDetailResponse)
+      }
+      if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
+        return Promise.resolve([
+          {
+            id: 'rel-1',
+            app_id: 'app-1',
+            release_role: 'active',
+            version_label: 'source-build-demo-20260401',
+            source_type: 'file',
+            source_ref: 'apps/source-build-demo/src',
+            artifact_digest: 'apps/source-build-demo@sha256:abc123',
+            notes: 'uploaded source package | Source build promoted | image=apps/source-build-demo:candidate | service=web',
+            is_active: true,
+            is_last_known_good: true,
+            updated: '2026-04-01T06:00:00Z',
+          },
+          {
+            id: 'rel-2',
+            app_id: 'app-1',
+            release_role: 'candidate',
+            version_label: 'source-build-demo-20260401-candidate',
+            source_type: 'file',
+            source_ref: 'apps/source-build-demo/src',
+            artifact_digest: 'apps/source-build-demo:candidate',
+            is_active: false,
+            is_last_known_good: false,
+            updated: '2026-04-01T05:58:00Z',
+          },
+        ])
+      }
+      if (path === '/api/apps/app-1/exposures' && options?.method === 'GET') {
+        return Promise.resolve([])
+      }
+      if (path === '/api/actions' && options?.method === 'GET') {
+        return Promise.resolve([])
+      }
+      if (path === '/api/ext/resources/databases' && options?.method === 'GET') {
+        return Promise.resolve([])
+      }
+      if (path === '/api/ext/docker/containers' && options?.method === 'GET') {
+        return Promise.resolve({ output: '' })
+      }
+      if (path === '/api/ext/docker/volumes' && options?.method === 'GET') {
+        return Promise.resolve({ output: '' })
+      }
+      if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET') {
+        return Promise.resolve({ output: '' })
+      }
+      if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
+        return Promise.resolve({
+          id: 'app-1',
+          name: 'Demo App',
+          server_id: 'local',
+          project_dir: '/tmp/demo-app',
+          runtime_status: 'running',
+          output: '',
+        })
+      }
+      if (path === '/api/ext/backup/list' && options?.method === 'GET') {
+        return Promise.resolve({ message: 'not implemented' })
+      }
+      return Promise.resolve({})
+    })
+
+    render(<AppDetailPage appId="app-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
+    })
+
+    expect(screen.getAllByText('active · source-build-demo-20260401')).toHaveLength(2)
+    expect(screen.getAllByText('Artifact: apps/source-build-demo@sha256:abc123')).toHaveLength(2)
+    expect(screen.getAllByText('Local image: apps/source-build-demo:candidate')).toHaveLength(2)
+    expect(screen.getAllByText('Source: apps/source-build-demo/src')).toHaveLength(3)
+    expect(screen.getAllByText('Target service: web')).toHaveLength(2)
+    expect(screen.getByText('Release Lineage')).toBeInTheDocument()
+    expect(screen.getByText('candidate · source-build-demo-20260401-candidate')).toBeInTheDocument()
+    expect(screen.getByText('Artifact: apps/source-build-demo:candidate')).toBeInTheDocument()
+  })
+
+  it('opens a release detail dialog from the lineage section', async () => {
+    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, string> }) => {
+      if (path === '/api/apps/app-1' && options?.method === 'GET') {
+        return Promise.resolve(appDetailResponse)
+      }
+      if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
+        return Promise.resolve([
+          {
+            id: 'rel-1',
+            app_id: 'app-1',
+            release_role: 'active',
+            version_label: 'source-build-demo-20260401',
+            source_type: 'file',
+            source_ref: 'apps/source-build-demo/src',
+            artifact_digest: 'apps/source-build-demo@sha256:abc123',
+            notes: 'uploaded source package | Source build promoted | image=apps/source-build-demo:candidate | service=web',
+            is_active: true,
+            is_last_known_good: true,
+            updated: '2026-04-01T06:00:00Z',
+          },
+        ])
+      }
+      if (path === '/api/apps/app-1/exposures' && options?.method === 'GET') return Promise.resolve([])
+      if (path === '/api/actions' && options?.method === 'GET') return Promise.resolve([])
+      if (path === '/api/ext/resources/databases' && options?.method === 'GET') return Promise.resolve([])
+      if (path === '/api/ext/docker/containers' && options?.method === 'GET') return Promise.resolve({ output: '' })
+      if (path === '/api/ext/docker/volumes' && options?.method === 'GET') return Promise.resolve({ output: '' })
+      if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET') return Promise.resolve({ output: '' })
+      if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
+        return Promise.resolve({ id: 'app-1', name: 'Demo App', server_id: 'local', project_dir: '/tmp/demo-app', runtime_status: 'running', output: '' })
+      }
+      if (path === '/api/ext/backup/list' && options?.method === 'GET') return Promise.resolve({ message: 'not implemented' })
+      return Promise.resolve({})
+    })
+
+    render(<AppDetailPage appId="app-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Open detail' })[0])
+
+    const dialog = await screen.findByRole('dialog', { name: 'Release Detail: source-build-demo-20260401' })
+    expect(dialog).toHaveTextContent('apps/source-build-demo@sha256:abc123')
+    expect(dialog).toHaveTextContent('apps/source-build-demo:candidate')
+    expect(dialog).toHaveTextContent('apps/source-build-demo/src')
+    expect(dialog).toHaveTextContent('web')
+    expect(dialog).toHaveTextContent('uploaded source package | Source build promoted')
+  })
+
+  it('navigates to the related action from the release detail dialog', async () => {
+    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, string> }) => {
+      if (path === '/api/apps/app-1' && options?.method === 'GET') {
+        return Promise.resolve(appDetailResponse)
+      }
+      if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
+        return Promise.resolve([
+          {
+            id: 'rel-1',
+            app_id: 'app-1',
+            created_by_operation: 'op-source-build-1',
+            release_role: 'active',
+            version_label: 'source-build-demo-20260401',
+            source_type: 'file',
+            source_ref: 'apps/source-build-demo/src',
+            artifact_digest: 'apps/source-build-demo@sha256:abc123',
+            notes: 'uploaded source package | Source build promoted | image=apps/source-build-demo:candidate | service=web',
+            is_active: true,
+            is_last_known_good: true,
+            updated: '2026-04-01T06:00:00Z',
+          },
+        ])
+      }
+      if (path === '/api/apps/app-1/exposures' && options?.method === 'GET') return Promise.resolve([])
+      if (path === '/api/actions' && options?.method === 'GET') return Promise.resolve([])
+      if (path === '/api/ext/resources/databases' && options?.method === 'GET') return Promise.resolve([])
+      if (path === '/api/ext/docker/containers' && options?.method === 'GET') return Promise.resolve({ output: '' })
+      if (path === '/api/ext/docker/volumes' && options?.method === 'GET') return Promise.resolve({ output: '' })
+      if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET') return Promise.resolve({ output: '' })
+      if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
+        return Promise.resolve({ id: 'app-1', name: 'Demo App', server_id: 'local', project_dir: '/tmp/demo-app', runtime_status: 'running', output: '' })
+      }
+      if (path === '/api/ext/backup/list' && options?.method === 'GET') return Promise.resolve({ message: 'not implemented' })
+      return Promise.resolve({})
+    })
+
+    render(<AppDetailPage appId="app-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Open detail' })[0])
+
+    const dialog = await screen.findByRole('dialog', { name: 'Release Detail: source-build-demo-20260401' })
+    expect(dialog).toHaveTextContent('op-source-build-1')
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Open Related Action' }))
+
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: '/actions/$actionId',
+        params: { actionId: 'op-source-build-1' },
+        search: { returnTo: 'list' },
+      })
+    })
+  })
+
+  it('copies artifact and source values from the release detail dialog', async () => {
+    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, string> }) => {
+      if (path === '/api/apps/app-1' && options?.method === 'GET') {
+        return Promise.resolve(appDetailResponse)
+      }
+      if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
+        return Promise.resolve([
+          {
+            id: 'rel-1',
+            app_id: 'app-1',
+            created_by_operation: 'op-source-build-1',
+            release_role: 'active',
+            version_label: 'source-build-demo-20260401',
+            source_type: 'file',
+            source_ref: 'apps/source-build-demo/src',
+            artifact_digest: 'apps/source-build-demo@sha256:abc123',
+            notes: 'uploaded source package | Source build promoted | image=apps/source-build-demo:candidate | service=web',
+            is_active: true,
+            is_last_known_good: true,
+            updated: '2026-04-01T06:00:00Z',
+          },
+        ])
+      }
+      if (path === '/api/apps/app-1/exposures' && options?.method === 'GET') return Promise.resolve([])
+      if (path === '/api/actions' && options?.method === 'GET') return Promise.resolve([])
+      if (path === '/api/ext/resources/databases' && options?.method === 'GET') return Promise.resolve([])
+      if (path === '/api/ext/docker/containers' && options?.method === 'GET') return Promise.resolve({ output: '' })
+      if (path === '/api/ext/docker/volumes' && options?.method === 'GET') return Promise.resolve({ output: '' })
+      if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET') return Promise.resolve({ output: '' })
+      if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
+        return Promise.resolve({ id: 'app-1', name: 'Demo App', server_id: 'local', project_dir: '/tmp/demo-app', runtime_status: 'running', output: '' })
+      }
+      if (path === '/api/ext/backup/list' && options?.method === 'GET') return Promise.resolve({ message: 'not implemented' })
+      return Promise.resolve({})
+    })
+
+    render(<AppDetailPage appId="app-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Open detail' })[0])
+
+    const dialog = await screen.findByRole('dialog', { name: 'Release Detail: source-build-demo-20260401' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Copy Artifact' }))
+
+    await waitFor(() => {
+      expect(clipboardWriteTextMock).toHaveBeenCalledWith('apps/source-build-demo@sha256:abc123')
+      expect(within(dialog).getByRole('button', { name: 'Copied' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Copy Source' }))
+
+    await waitFor(() => {
+      expect(clipboardWriteTextMock).toHaveBeenCalledWith('apps/source-build-demo/src')
     })
   })
 

@@ -8,13 +8,15 @@ import { TabsContent } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { AppDetailActionHistoryTable } from '@/pages/apps/AppDetailActionHistoryTable'
 import { AppDetailDisplaySection } from '@/pages/apps/AppDetailDisplaySection'
-import { displayValue, formatActionType } from '@/pages/apps/app-detail-utils'
+import { displayValue, formatActionType, parseReleaseAttribution } from '@/pages/apps/app-detail-utils'
 import { formatTime, formatUptime } from '@/pages/apps/types'
 import type { AccessTabProps, ActionsTabProps, OverviewTabProps } from '@/pages/apps/AppDetailTabPanelTypes'
 
 export function AppDetailOverviewTab({
   app,
   currentRelease,
+  releases,
+  openReleaseDetail,
   serverDisplayName,
   canOpenServerDetail,
   openServerDetail,
@@ -24,6 +26,14 @@ export function AppDetailOverviewTab({
   setTab,
   displaySection,
 }: OverviewTabProps) {
+  const currentReleaseAttribution = parseReleaseAttribution(currentRelease?.notes)
+  const currentReleaseSummary = currentRelease
+    ? [currentRelease.release_role, currentRelease.version_label].filter(Boolean).join(' · ')
+    : '-'
+  const releaseLineage = [...releases]
+    .sort((left, right) => new Date(right.updated).getTime() - new Date(left.updated).getTime())
+    .slice(0, 4)
+
   return (
     <TabsContent value="overview" className="space-y-2.5">
       <Card>
@@ -35,7 +45,15 @@ export function AppDetailOverviewTab({
           <div className="rounded-2xl bg-muted/20 p-3"><div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">App ID</div><div className="mt-1 break-all font-mono text-[11px] font-semibold">{app.id}</div></div>
           <div className="rounded-2xl bg-muted/20 p-3"><div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Lifecycle</div><div className="mt-1 text-sm font-semibold">{app.lifecycle_state || '-'}</div></div>
           <div className="rounded-2xl bg-muted/20 p-3"><div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Publication</div><div className="mt-1 text-sm font-semibold">{app.publication_summary || '-'}</div></div>
-          <div className="rounded-2xl bg-muted/20 p-3"><div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Current Release</div><div className="mt-1 text-sm font-semibold">{currentRelease?.version_label || '-'}</div></div>
+          <div className="rounded-2xl bg-muted/20 p-3">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Current Release</div>
+            <div className="mt-1 text-sm font-semibold">{currentReleaseSummary}</div>
+            {currentRelease?.artifact_digest ? <div className="mt-1 break-all font-mono text-[11px] text-muted-foreground">Artifact: {currentRelease.artifact_digest}</div> : null}
+            {currentReleaseAttribution.localImageRef ? <div className="mt-1 break-all font-mono text-[11px] text-muted-foreground">Local image: {currentReleaseAttribution.localImageRef}</div> : null}
+            {currentRelease?.source_ref ? <div className="mt-1 break-all text-[11px] text-muted-foreground">Source: {currentRelease.source_ref}</div> : null}
+            {currentReleaseAttribution.targetService ? <div className="mt-1 text-[11px] text-muted-foreground">Target service: {currentReleaseAttribution.targetService}</div> : null}
+            {currentRelease ? <Button variant="link" size="sm" className="mt-1 h-auto px-0 text-[11px]" onClick={() => openReleaseDetail(currentRelease)}>Open release detail</Button> : null}
+          </div>
           <div className="rounded-2xl bg-muted/20 p-3"><div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Installed</div><div className="mt-1 text-sm font-semibold">{formatTime(app.installed_at)}</div></div>
           <div className="rounded-2xl bg-muted/20 p-3"><div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Server</div><div className="mt-1 flex flex-wrap items-center gap-2 text-sm font-semibold">{serverDisplayName}{canOpenServerDetail ? <Button variant="link" size="sm" className="h-auto px-0 text-[11px]" onClick={openServerDetail}>Open detail</Button> : null}</div></div>
           <div className="rounded-2xl bg-muted/20 p-3"><div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Uptime</div><div className="mt-1 text-sm font-semibold">{formatUptime(app)}</div></div>
@@ -79,6 +97,44 @@ export function AppDetailOverviewTab({
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader className="pb-2.5">
+          <CardTitle>Release Lineage</CardTitle>
+          <CardDescription>Recent candidate and active releases with source-build attribution.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {releaseLineage.length === 0 ? (
+            <div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">No releases recorded yet.</div>
+          ) : (
+            <div className="space-y-2">
+              {releaseLineage.map(release => (
+                <div key={release.id} className="rounded-2xl border bg-muted/10 p-3">
+                  {(() => {
+                    const attribution = parseReleaseAttribution(release.notes)
+                    return (
+                      <>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-sm font-semibold">{[release.release_role, release.version_label].filter(Boolean).join(' · ') || release.id}</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="text-[11px] text-muted-foreground">Updated {formatTime(release.updated)}</div>
+                      <Button variant="link" size="sm" className="h-auto px-0 text-[11px]" onClick={() => openReleaseDetail(release)}>Open detail</Button>
+                    </div>
+                  </div>
+                  {release.artifact_digest ? <div className="mt-1 break-all font-mono text-[11px] text-muted-foreground">Artifact: {release.artifact_digest}</div> : null}
+                  {attribution.localImageRef ? <div className="mt-1 break-all font-mono text-[11px] text-muted-foreground">Local image: {attribution.localImageRef}</div> : null}
+                  {release.source_ref ? <div className="mt-1 break-all text-[11px] text-muted-foreground">Source: {release.source_ref}</div> : null}
+                  {attribution.targetService ? <div className="mt-1 text-[11px] text-muted-foreground">Target service: {attribution.targetService}</div> : null}
+                  {release.notes ? <div className="mt-1 text-xs text-muted-foreground">{release.notes}</div> : null}
+                      </>
+                    )
+                  })()}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-2.5 xl:grid-cols-2">
         <Card>

@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { parseActionSourceBuildAttribution } from '@/pages/apps/app-detail-utils'
 import { formatDurationCompact } from '@/pages/deploy/actions/action-utils'
 import type { ActionRecord } from '@/pages/deploy/actions/action-types'
 
@@ -148,6 +149,7 @@ export function ActionDetailContent({
     ? formatDurationCompact(operation.pipeline?.started_at || operation.started_at, operation.pipeline?.finished_at || operation.finished_at)
     : '-'
   const headline = statusHeadline(operation?.status || '')
+  const sourceBuildAttribution = useMemo(() => parseActionSourceBuildAttribution(operation), [operation])
   const stageFallbackLogs = useMemo(() => {
     const result = new Map<string, string[]>()
     if (!logText || stageItems.length === 0) return result
@@ -285,6 +287,23 @@ export function ActionDetailContent({
                 <div className="rounded-lg border border-rose-200 bg-rose-50/80 px-3 py-2 text-xs text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/20 dark:text-rose-200">
                   <div className="font-medium">Quick error view</div>
                   <div className="mt-1">{failedStage?.detail || operation.error_summary || 'A failed stage is available for inspection.'}</div>
+                </div>
+              ) : null}
+
+              {sourceBuildAttribution ? (
+                <div className="rounded-lg border border-sky-200 bg-sky-50/60 px-4 py-3 dark:border-sky-900/60 dark:bg-sky-950/20">
+                  <div className="text-xs font-medium uppercase tracking-wide text-sky-700 dark:text-sky-300">Source Build</div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <OverviewField label="Source Kind" value={sourceBuildAttribution.sourceKind || '-'} />
+                    <OverviewField label="Builder" value={sourceBuildAttribution.builderStrategy || '-'} />
+                    <OverviewField label="Publication Mode" value={sourceBuildAttribution.publicationMode || '-'} />
+                    <OverviewField label="Source Ref" value={<span className="break-all">{sourceBuildAttribution.sourceRef || '-'}</span>} className="sm:col-span-2 xl:col-span-3" />
+                    <OverviewField label="Local Image" value={<span className="break-all">{sourceBuildAttribution.localImageRef || '-'}</span>} className="sm:col-span-2" />
+                    <OverviewField label="Target Service" value={sourceBuildAttribution.targetService || '-'} />
+                    {sourceBuildAttribution.targetRef ? (
+                      <OverviewField label="Publish Target" value={<span className="break-all">{sourceBuildAttribution.targetRef}</span>} className="sm:col-span-2 xl:col-span-3" />
+                    ) : null}
+                  </div>
                 </div>
               ) : null}
 

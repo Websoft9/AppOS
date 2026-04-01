@@ -16,12 +16,12 @@ As a superuser, I can open a terminal session and browse files on any registered
 ### New files
 
 ```
-backend/internal/servers/
+backend/domain/servers/
   connector.go      # Session & Connector interfaces
   ssh.go            # SSHConnector: dial, PTY alloc, stdin/stdout relay
   sftp.go           # SFTPConnector: per-request SFTP session over SSH transport
   session.go        # idle timeout (30 min), cleanup on PB token expiry
-backend/internal/routes/server.go   # register all routes below
+backend/domain/routes/server.go   # register all routes below
 ```
 
 ### Connector interfaces (`connector.go`)
@@ -157,16 +157,16 @@ location ~ ^/api/servers/(.+/shell|containers/.+/shell)$ {
 ```
 backend/go.mod                                          # added github.com/pkg/sftp
 backend/go.sum                                          # updated
-backend/internal/migrations/1741400000_add_server_shell.go  # servers.shell field
-backend/internal/servers/connector.go                  # Session & Connector interfaces, ConnectorConfig
-backend/internal/servers/terminal.go                   # LocalSession rename (was Session, conflicts with interface)
-backend/internal/servers/ssh.go                        # SSHConnector: dial, auth, PTY relay
-backend/internal/servers/sftp.go                       # SFTPClient: list, download, upload, mkdir, rename, delete
-backend/internal/servers/session.go                    # session registry with idle timeout (30 min)
-backend/internal/servers/terminal_test.go              # 7 unit tests (session registry, auth method, config)
-backend/internal/routes/server.go                     # SSH WS + SFTP REST routes, resolveServerConfig, audit
-backend/internal/routes/server_test.go                  # route tests (auth, validation, 400 paths)
-backend/internal/routes/routes.go                       # registerServerRoutes added
+backend/infra/migrations/1741400000_add_server_shell.go  # servers.shell field
+backend/domain/servers/connector.go                  # Session & Connector interfaces, ConnectorConfig
+backend/domain/servers/terminal.go                   # LocalSession rename (was Session, conflicts with interface)
+backend/domain/servers/ssh.go                        # SSHConnector: dial, auth, PTY relay
+backend/domain/servers/sftp.go                       # SFTPClient: list, download, upload, mkdir, rename, delete
+backend/domain/servers/session.go                    # session registry with idle timeout (30 min)
+backend/domain/servers/terminal_test.go              # 7 unit tests (session registry, auth method, config)
+backend/domain/routes/server.go                     # SSH WS + SFTP REST routes, resolveServerConfig, audit
+backend/domain/routes/server_test.go                  # route tests (auth, validation, 400 paths)
+backend/domain/routes/routes.go                       # registerServerRoutes added
 ```
 
 ### Decisions

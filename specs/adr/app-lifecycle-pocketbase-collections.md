@@ -563,6 +563,6 @@ Full MVP development readiness still depends on one more item outside this draft
 This draft should drive the next concrete work items:
 
 1. rewrite Story 17.2 against `app_instances` + `app_operations`
-2. define migration files under `backend/internal/migrations/`
+2. define migration files under `backend/infra/migrations/`
 3. define operation and timeline APIs against `app_operations`, `pipeline_runs`, and `pipeline_node_runs`
 4. define app projection APIs against `app_instances`, `app_releases`, and `app_exposures`

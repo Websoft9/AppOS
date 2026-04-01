@@ -123,7 +123,7 @@ MVP: superuser only. Phase 2: app creator inherits full CRUD over `apps/{appId}/
 
 ## Go Implementation Notes
 
-- Route file: `backend/internal/routes/iac.go` → `registerIaCRoutes(g)` under `/api/ext/iac`
+- Route file: `backend/domain/routes/iac.go` → `registerIaCRoutes(g)` under `/api/ext/iac`
 - `internal/fileutil/` package: `ResolveSafePath()`, `CopyDir()`, `CopyFile()` — shared by IaC API routes and deploy flow
 - `filesBasePath = "/appos/data"`, `filesAllowedRoots = ["apps", "workflows", "templates"]`
 - `filesAllowedArchive = ".zip"` (constant — not configurable)

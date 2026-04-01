@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { iacLoadLibraryAppFiles } from '@/lib/iac-api'
 import { pb } from '@/lib/pb'
+import type { RuntimeEnvInputPayload } from '@/pages/deploy/actions/useActionsController'
 
 const SENSITIVE_METHODS = [
   { id: 'password_16', label: 'Password (16)' },
@@ -91,6 +92,7 @@ export type OrchestrationSectionProps = {
   srcUploaded: string[]
   /** Reports the current YAML syntax error string to the parent (null = no error). */
   onYamlError?: (error: string | null) => void
+  onRuntimeEnvInputsChange?: (inputs: RuntimeEnvInputPayload[]) => void
 }
 
 export function OrchestrationSection({
@@ -105,6 +107,7 @@ export function OrchestrationSection({
   setSrcFiles,
   srcUploaded,
   onYamlError,
+  onRuntimeEnvInputsChange,
 }: OrchestrationSectionProps) {
   const srcRelativePath = './src/'
   const templateMenuRef = useRef<HTMLDivElement>(null)
@@ -230,6 +233,7 @@ export function OrchestrationSection({
   // ── Env mode: sensitive auto-generation / shared env mapping ──
   const [envModes, setEnvModes] = useState<Record<number, 'sensitive' | 'shared'>>({})
   const [sensitiveMethods, setSensitiveMethods] = useState<Record<number, string>>({})
+  const [sharedSelections, setSharedSelections] = useState<Record<number, { setId: string; varId: string; sourceKey: string }>>({})
   const [sharedSets, setSharedSets] = useState<Array<{ id: string; name: string }>>([])
   const [sharedVars, setSharedVars] = useState<Array<{ id: string; set: string; key: string; value: string }>>([])
   const [sharedLoaded, setSharedLoaded] = useState(false)
@@ -259,6 +263,12 @@ export function OrchestrationSection({
 
   const handleSensitiveMethod = useCallback((index: number, method: string) => {
     setSensitiveMethods(prev => ({ ...prev, [index]: method }))
+    setSharedSelections(prev => {
+      if (!(index in prev)) return prev
+      const next = { ...prev }
+      delete next[index]
+      return next
+    })
     updateEnvVar(index, 'value', generateSensitive(method))
   }, [updateEnvVar])
 
@@ -269,11 +279,18 @@ export function OrchestrationSection({
 
   const handleSharedVarSelect = useCallback((index: number, varId: string) => {
     if (varId.startsWith('current:')) {
+      setSharedSelections(prev => {
+        if (!(index in prev)) return prev
+        const next = { ...prev }
+        delete next[index]
+        return next
+      })
       const refVar = envVars.find(e => e.key === varId.slice(8))
       if (refVar) updateEnvVar(index, 'value', refVar.value)
     } else {
       const sv = sharedVars.find(v => v.id === varId)
       if (sv) {
+        setSharedSelections(prev => ({ ...prev, [index]: { setId: sv.set, varId: sv.id, sourceKey: sv.key } }))
         if (!envVars[index]?.key.trim()) updateEnvVar(index, 'key', sv.key)
         updateEnvVar(index, 'value', sv.value)
       }
@@ -300,9 +317,52 @@ export function OrchestrationSection({
       }
       return next
     })
+  	setSharedSelections(prev => {
+  	  const next: typeof prev = {}
+  	  for (const [k, v] of Object.entries(prev)) {
+  	    const idx = Number(k)
+  	    if (idx < index) next[idx] = v
+  	    else if (idx > index) next[idx - 1] = v
+  	  }
+  	  return next
+  	})
   }, [removeEnvVar])
 
   const envCount = envVars.filter(e => e.key.trim()).length
+
+  useEffect(() => {
+    const nextInputs: RuntimeEnvInputPayload[] = []
+    envVars.forEach((env, index) => {
+      const name = env.key.trim()
+      if (!name) return
+      const mode = envModes[index]
+      if (mode === 'shared') {
+        const selection = sharedSelections[index]
+        if (!selection) {
+          nextInputs.push({ name, kind: 'inline' })
+          return
+        }
+        nextInputs.push({
+          name,
+          kind: 'shared-import',
+          set_id: selection.setId,
+          var_id: selection.varId,
+          source_key: selection.sourceKey,
+        })
+        return
+      }
+      if (mode === 'sensitive') {
+        nextInputs.push({
+          name,
+          kind: 'sensitive',
+          ...(sensitiveMethods[index] ? { generator_method: sensitiveMethods[index] } : {}),
+        })
+        return
+      }
+      nextInputs.push({ name, kind: 'inline' })
+    })
+    onRuntimeEnvInputsChange?.(nextInputs)
+  }, [envModes, envVars, onRuntimeEnvInputsChange, sensitiveMethods, sharedSelections])
 
   return (
     <section className="rounded-lg border bg-card px-4 py-3">

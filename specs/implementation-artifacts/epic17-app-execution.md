@@ -69,7 +69,7 @@ Status: review
 
 Add Store/template prefill and Git Compose retrieval without creating adapter-specific execution paths.
 
-Status: review
+Status: in-progress
 
 ### Slice 4: Change and Recovery
 
@@ -85,14 +85,17 @@ Status: backlog
 
 ## Recommended Order
 
-1. 17.1 contract and scheduler core
-2. 17.5 minimum observability surface
-3. 17.2 first install closed loop
-4. 17.4 adapter entry slices
-5. 17.3 change and recovery
-6. 17.6 publication operations
+1. Keep 17.1, 17.2, 17.4a, 17.4b, and 17.5 as the accepted install-core baseline rather than reopening execution-foundation scope.
+2. 17.4e-A resolver boundary consolidation
+3. 17.4e-B source candidate convergence
+4. 17.4e-C runtime input resolution
+5. 17.4e-D secret and exposure intent normalization
+6. 17.4e-E resolution preview API and create-page consumption
+7. 17.6 create-deployment page refinement on top of the stabilized resolver contract
+8. 17.3 change and recovery
+9. publication operations on the shared core after install-ingress convergence and change/recovery baselines are stable
 
-Reason: the first closed loop is not valid unless it is queryable and debuggable.
+Reason: the first closed loop already exists. The highest-value remaining Epic 17 work is now install-ingress convergence, not more execution-foundation work.
 
 ## Stories
 
@@ -117,6 +120,11 @@ Add adapter entry slices that normalize into the shared execution contract witho
 - **17.4c Docker Run Adapter (post-MVP):** parse `docker run` into the normalized contract.
 - **17.4d Source Package Adapter (post-MVP):** resolve source package/build input into the normalized contract.
 - **17.4e Install Input Resolution:** normalize dialog-driven install inputs into one backend-owned lifecycle install payload before operation creation.
+	- **17.4e-A Resolver Boundary Consolidation:** unify create and check flows around one explicit lifecycle resolver boundary.
+	- **17.4e-B Source Candidate Convergence:** treat install entry paths as candidate-input variants rather than separate execution worlds.
+	- **17.4e-C Runtime Input Resolution:** move richer env/default/addon/mount semantics into backend-owned resolution.
+	- **17.4e-D Secret and Exposure Intent Normalization:** preserve sensitive input and publication-related intent as explicit normalized lifecycle data.
+	- **17.4e-E Resolution Preview API and Create-Page Consumption:** expose backend-authored normalized install preview before action creation.
 
 ### Story 17.5 Action History and Execution Timeline Surface
 
@@ -136,8 +144,13 @@ Replace modal-based deployment creation with a full-page lifecycle entry surface
 | 17.4a Store Compose Prefill | review |
 | 17.4b Git Compose Adapter | review |
 | 17.4e Install Input Resolution | in-progress |
+| 17.4e-A Resolver Boundary Consolidation | in-progress |
+| 17.4e-B Source Candidate Convergence | in-progress |
+| 17.4e-C Runtime Input Resolution | proposed |
+| 17.4e-D Secret and Exposure Intent Normalization | proposed |
+| 17.4e-E Resolution Preview API and Create-Page Consumption | proposed |
 | 17.5 Action History and Execution Timeline Surface | review |
-| 17.6 Create Deployment Page and Install Resolution Surface | backlog |
+| 17.6 Create Deployment Page and Install Resolution Surface | in-progress |
 
 ## Story Artifacts
 
@@ -146,13 +159,19 @@ Replace modal-based deployment creation with a full-page lifecycle entry surface
 - `story17.4a-store-deploy.md`
 - `story17.4b-git-compose.md`
 - `story17.4e-install-input-resolution.md`
+- `story17.4e-a-resolver-boundary-consolidation.md`
+- `story17.4e-b-source-candidate-convergence.md`
+- `story17.4e-c-runtime-input-resolution.md`
+- `story17.4e-d-secret-and-exposure-intent-normalization.md`
+- `story17.4e-e-resolution-preview-api.md`
 - `story17.5-operation-history-timeline.md`
 - `story17.6-create-deployment-page.md`
+- `iteration2-epic17-install-resolution-convergence-slice.md`
 
 ## Remaining Work Summary
 
-1. Move change/recovery operations onto the shared core.
-2. Replace modal-only deployment creation with a full-page install-resolution surface.
-3. Finish backend-owned install input convergence so adapter-specific install flows resolve through one explicit normalizer.
+1. Finish backend-owned install input convergence so adapter-specific install flows resolve through one explicit normalizer and previewable ingress contract.
+2. Continue refining the create-deployment surface only after the install resolver contract is stabilized.
+3. Move change/recovery operations onto the shared core.
 4. Finish Installed-side convergence so lifecycle action entry points stop bypassing Epic 17.
 5. Expand compensation and manual-intervention behavior beyond the first install slice.

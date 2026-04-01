@@ -50,7 +50,7 @@ users (PocketBase Auth Collection — built-in fields)
 
 **No extra fields.** `_superusers` is managed as-is by PocketBase.
 
-`name` and `avatar` fields are added to the `users` collection via a Go migration (same pattern as existing migrations in `backend/internal/migrations/`). Not manual Admin UI config.
+`name` and `avatar` fields are added to the `users` collection via a Go migration (same pattern as existing migrations in `backend/infra/migrations/`). Not manual Admin UI config.
 
 ---
 

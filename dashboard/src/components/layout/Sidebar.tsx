@@ -18,11 +18,12 @@ import {
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Separator } from '@/components/ui/separator'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useLayout } from '@/contexts/LayoutContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { Logo } from './Logo'
+import { navigateSidebarHref } from './sidebar-navigation'
 import { cn } from '@/lib/utils'
 
 // ─── Types ───────────────────────────────────────────────
@@ -60,10 +61,10 @@ const workspaceGroup: NavGroup = {
       icon: <Layers className="h-5 w-5" />,
       href: '/store',
       children: [
+        { id: 'installed', label: 'My Apps', href: '/apps' },
         { id: 'store', label: 'App Store', href: '/store' },
         { id: 'deploy', label: 'Deploy', href: '/deploy' },
         { id: 'actions', label: 'Actions', href: '/actions' },
-        { id: 'installed', label: 'My Apps', href: '/apps' },
       ],
     },
     {
@@ -157,7 +158,7 @@ const credentialsNavItem: NavItem = {
   ],
 }
 
-function buildNavGroups(isSuperuser: boolean): NavGroup[] {
+export function buildNavGroups(isSuperuser: boolean): NavGroup[] {
   return [
     workspaceGroup,
     {
@@ -199,10 +200,24 @@ function NavLink({
     router.location.pathname === item.href ||
     (item.href !== '/dashboard' && router.location.pathname.startsWith(item.href))
 
+  const handleParentClick = () => {
+    if (!hasChildren || collapsed || childrenOpen) {
+      return
+    }
+    const firstChild = item.children?.[0]
+    if (!firstChild) {
+      return
+    }
+    // A collapsed parent acts like a shortcut into its first child route.
+    onNavigate?.()
+    navigateSidebarHref(firstChild.href)
+  }
+
   if (hasChildren && !collapsed) {
     return (
       <Collapsible open={childrenOpen} onOpenChange={setChildrenOpen}>
         <CollapsibleTrigger
+          onClick={handleParentClick}
           className={cn(
             'flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
             'hover:bg-accent hover:text-accent-foreground',
@@ -345,6 +360,9 @@ export function Sidebar({ groups }: SidebarProps) {
             <SheetTitle>
               <Logo />
             </SheetTitle>
+            <SheetDescription>
+              Navigate between workspace, application, and admin sections.
+            </SheetDescription>
           </SheetHeader>
           <Separator />
           <div className="py-3">

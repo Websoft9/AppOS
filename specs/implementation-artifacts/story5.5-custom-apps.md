@@ -91,13 +91,13 @@ pb.collection('store_custom_apps').getFullList({ expand: 'created_by' })
 
 ### Backend Migration Pattern
 
-Follow `backend/internal/migrations/1740300000_create_user_files.go`. File naming: `17XXXXXXXXXX_create_store_custom_apps.go`.
+Follow `backend/infra/migrations/1740300000_create_user_files.go`. File naming: `17XXXXXXXXXX_create_store_custom_apps.go`.
 
 ### File Locations
 
 | File | Action |
 |------|--------|
-| `backend/internal/migrations/17XXXXXXXXXX_create_store_custom_apps.go` | NEW |
+| `backend/infra/migrations/17XXXXXXXXXX_create_store_custom_apps.go` | NEW |
 | `dashboard/src/lib/store-custom-api.ts` | NEW — custom apps CRUD hooks |
 | `dashboard/src/components/store/CustomAppDialog.tsx` | NEW — create/edit form (two modes) |
 | `dashboard/src/components/store/CustomAppCard.tsx` | NEW — card with edit/delete controls |
@@ -108,7 +108,7 @@ Follow `backend/internal/migrations/1740300000_create_user_files.go`. File namin
 ### References
 
 - Epic schema: [epic5-store.md](epic5-store.md#store_custom_apps)
-- Migration pattern: [backend/internal/migrations/1740300000_create_user_files.go](../../backend/internal/migrations/1740300000_create_user_files.go)
+- Migration pattern: [backend/infra/migrations/1740300000_create_user_files.go](../../backend/infra/migrations/1740300000_create_user_files.go)
 - Store page: [dashboard/src/routes/_app/_auth/store/index.tsx](../../dashboard/src/routes/_app/_auth/store/index.tsx)
 
 ## Minimal Acceptance Test Checklist
@@ -142,8 +142,8 @@ Follow `backend/internal/migrations/1740300000_create_user_files.go`. File namin
 
 ### File List
 
-- `backend/internal/migrations/1741300001_create_store_custom_apps.go` [NEW]
-- `backend/internal/routes/iac.go` [MODIFIED — library handlers + copy endpoint]
+- `backend/infra/migrations/1741300001_create_store_custom_apps.go` [NEW]
+- `backend/domain/routes/iac.go` [MODIFIED — library handlers + copy endpoint]
 - `dashboard/src/lib/iac-api.ts` [NEW — IAC client with library/template helpers]
 - `dashboard/src/lib/store-custom-api.ts` [NEW — custom apps CRUD hooks + adapter]
 - `dashboard/src/components/store/CustomAppDialog.tsx` [NEW]

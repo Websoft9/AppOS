@@ -200,7 +200,7 @@ else ifeq ($(ARG2),dashboard)
 	@echo "✓ Dashboard tests completed"
 else ifeq ($(ARG2),backend-targeted)
 	@echo "Running targeted backend tests..."
-	@cd backend && go test ./internal/routes ./internal/secrets ./internal/migrations -v
+	@cd backend && go test ./domain/routes ./domain/secrets ./infra/migrations -v
 	@echo "✓ Targeted backend tests completed"
 else
 	@echo "Running tests..."
@@ -242,7 +242,7 @@ openapi-merge:
 
 openapi-check:
 	@echo "Checking all generated custom routes are covered by OpenAPI spec..."
-	@cd backend && go test ./internal/routes/ -run TestAllCustomRoutesCoveredByOpenAPISpec -v
+	@cd backend && go test ./domain/routes/ -run TestAllCustomRoutesCoveredByOpenAPISpec -v
 
 openapi-sync:
 	@echo "Syncing OpenAPI spec (generate + merge + validate)..."

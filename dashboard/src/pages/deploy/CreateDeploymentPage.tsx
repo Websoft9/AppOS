@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import * as jsYaml from 'js-yaml'
 import {
   ArrowLeft,
   CheckCircle2,
@@ -19,6 +20,7 @@ import { pb } from '@/lib/pb'
 import { buildActionListHref } from '@/pages/deploy/actions/action-utils'
 import type { CreateDeploymentEntryMode } from '@/pages/deploy/actions/action-types'
 import { useActionsController } from '@/pages/deploy/actions/useActionsController'
+import type { RuntimeEnvInputPayload, RuntimeInputsPayload, SourceBuildPayload } from '@/pages/deploy/actions/useActionsController'
 import { OrchestrationSection } from '@/pages/deploy/OrchestrationSection'
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -43,6 +45,80 @@ type NameAvailabilityResult = {
   project_name?: string
   normalized_name?: string
   message?: string
+}
+
+function buildRuntimeInputsPayload(
+  createEntryMode: CreateDeploymentEntryMode,
+  isGit: boolean,
+  runtimeEnvInputs: RuntimeEnvInputPayload[],
+  srcFiles: File[],
+  srcUploaded: string[],
+  uploadedFileNames: string[] = [],
+): RuntimeInputsPayload | undefined {
+  if (isGit) return undefined
+
+  const uploadedNameSet = new Set(uploadedFileNames)
+  const files = [
+    ...srcUploaded.map(name => ({
+      name,
+      kind: createEntryMode === 'install-script' ? 'source-package' as const : 'mount-file' as const,
+      source_path: `./src/${name}`,
+      mount_path: createEntryMode === 'install-script' ? undefined : `./src/${name}`,
+      uploaded: true,
+    })),
+    ...srcFiles.map(file => ({
+      name: file.name,
+      kind: createEntryMode === 'install-script' ? 'source-package' as const : 'mount-file' as const,
+      source_path: `./src/${file.name}`,
+      mount_path: createEntryMode === 'install-script' ? undefined : `./src/${file.name}`,
+      uploaded: uploadedNameSet.has(file.name),
+    })),
+  ]
+
+  if (runtimeEnvInputs.length === 0 && files.length === 0) return undefined
+
+  return {
+    ...(runtimeEnvInputs.length > 0 ? { env: runtimeEnvInputs } : {}),
+    ...(files.length > 0 ? { files } : {}),
+  }
+}
+
+function buildSourceBuildPayload(
+  createEntryMode: CreateDeploymentEntryMode,
+  projectName: string,
+  targetServiceName?: string,
+): SourceBuildPayload | undefined {
+  if (createEntryMode !== 'install-script') return undefined
+
+  const trimmedName = projectName.trim()
+  if (!trimmedName) return undefined
+
+  return {
+    source_kind: 'uploaded-package',
+    source_ref: `apps/${trimmedName}/src`,
+    workspace_ref: `apps/${trimmedName}/src`,
+    builder_strategy: 'buildpacks',
+    ...(targetServiceName?.trim() ? { deploy_inputs: { service_name: targetServiceName.trim() } } : {}),
+    artifact_publication: {
+      mode: 'local',
+      image_name: `apps/${trimmedName}`,
+    },
+  }
+}
+
+function extractComposeServiceNames(compose: string): string[] {
+  const trimmed = compose.trim()
+  if (!trimmed) return []
+
+  try {
+    const doc = jsYaml.load(trimmed)
+    if (!doc || typeof doc !== 'object') return []
+    const services = (doc as { services?: unknown }).services
+    if (!services || typeof services !== 'object' || Array.isArray(services)) return []
+    return Object.keys(services as Record<string, unknown>).map(name => name.trim()).filter(Boolean)
+  } catch {
+    return []
+  }
 }
 
 function HelpTip({ text }: { text: string }) {
@@ -124,23 +200,59 @@ export function CreateDeploymentPage({
   const activeChecking = isGit ? gitChecking : checking
   const [composeYamlError, setComposeYamlError] = useState<string | null>(null)
 
-  const createDisabled = isGit
-    ? !gitRepositoryUrl.trim() || !gitComposePath.trim() || !serverId || activeSubmitting
-    : !compose.trim() || !serverId || activeSubmitting || Boolean(composeYamlError)
-  const checkDisabled = isGit
-    ? !gitRepositoryUrl.trim() || !gitComposePath.trim() || !serverId || activeChecking
-    : !compose.trim() || !serverId || activeChecking || Boolean(composeYamlError)
-
   // ── Src file state (shared with OrchestrationSection, uploaded on submit) ──
   const [srcFiles, setSrcFiles] = useState<File[]>([])
   const [srcUploading, setSrcUploading] = useState(false)
   const [srcUploaded, setSrcUploaded] = useState<string[]>([])
+  const [runtimeEnvInputs, setRuntimeEnvInputs] = useState<RuntimeEnvInputPayload[]>([])
+  const [targetServiceName, setTargetServiceName] = useState('')
+
+  const composeServiceNames = useMemo(() => {
+    if (createEntryMode !== 'install-script' || composeYamlError) return []
+    return extractComposeServiceNames(compose)
+  }, [compose, composeYamlError, createEntryMode])
+
+  const sourceBuildTargetServiceRequired = createEntryMode === 'install-script' && composeServiceNames.length > 1
+
+  const runtimeInputs = useMemo<RuntimeInputsPayload | undefined>(() => {
+    return buildRuntimeInputsPayload(createEntryMode, isGit, runtimeEnvInputs, srcFiles, srcUploaded)
+  }, [createEntryMode, isGit, runtimeEnvInputs, srcFiles, srcUploaded])
+  const sourceBuild = useMemo<SourceBuildPayload | undefined>(() => {
+    return buildSourceBuildPayload(createEntryMode, projectName, targetServiceName)
+  }, [createEntryMode, projectName, targetServiceName])
+
+  const sourceBuildTargetServiceError = sourceBuildTargetServiceRequired && !targetServiceName.trim()
+    ? 'Select which service should use the locally built application image.'
+    : null
+
+  const createDisabled = isGit
+    ? !gitRepositoryUrl.trim() || !gitComposePath.trim() || !serverId || activeSubmitting
+    : !compose.trim() || !serverId || activeSubmitting || Boolean(composeYamlError) || Boolean(sourceBuildTargetServiceError)
+  const checkDisabled = isGit
+    ? !gitRepositoryUrl.trim() || !gitComposePath.trim() || !serverId || activeChecking
+    : !compose.trim() || !serverId || activeChecking || Boolean(composeYamlError) || Boolean(sourceBuildTargetServiceError)
+
+  useEffect(() => {
+    if (createEntryMode !== 'install-script') {
+      setTargetServiceName('')
+      return
+    }
+    if (composeServiceNames.length === 1) {
+      setTargetServiceName(composeServiceNames[0] ?? '')
+      return
+    }
+    if (composeServiceNames.length === 0) {
+      setTargetServiceName('')
+      return
+    }
+    setTargetServiceName(current => composeServiceNames.includes(current) ? current : '')
+  }, [composeServiceNames, createEntryMode])
 
   // ── Submit with src uploads ──
   const handleSubmit = useCallback(async () => {
     const preflight = isGit
       ? await checkGitOperation({ silentNotice: true })
-      : await checkManualOperation({ silentNotice: true })
+      : await checkManualOperation({ silentNotice: true, runtimeInputs, sourceBuild })
 
     if (!preflight) {
       return
@@ -154,18 +266,18 @@ export function CreateDeploymentPage({
       return
     }
 
+    const uploadedFileNames: string[] = []
     if (srcFiles.length > 0 && projectName.trim()) {
       setSrcUploading(true)
       try {
         const dir = `apps/${projectName.trim()}/src`
         await iacMkdir(dir)
-        const uploaded: string[] = []
         for (const file of srcFiles) {
           await iacUploadFile(dir, file)
-          uploaded.push(file.name)
+          uploadedFileNames.push(file.name)
         }
-        setSrcUploaded(uploaded)
-        setSrcFiles([])
+        setSrcUploaded(prev => Array.from(new Set([...prev, ...uploadedFileNames])))
+        setSrcFiles(prev => prev.filter(file => !uploadedFileNames.includes(file.name)))
       } catch {
         // continue with deployment even if upload fails
       } finally {
@@ -175,15 +287,23 @@ export function CreateDeploymentPage({
     if (isGit) {
       await submitGitOperation()
     } else {
-      await submitManualOperation()
+	  await submitManualOperation(
+		buildRuntimeInputsPayload(createEntryMode, isGit, runtimeEnvInputs, srcFiles, srcUploaded, uploadedFileNames),
+		sourceBuild,
+	  )
     }
   }, [
+    createEntryMode,
     checkGitOperation,
     checkManualOperation,
+    isGit,
+    runtimeEnvInputs,
     setNotice,
     srcFiles,
     projectName,
-    isGit,
+    srcUploaded,
+    sourceBuild,
+    runtimeInputs,
     submitGitOperation,
     submitManualOperation,
   ])
@@ -194,6 +314,8 @@ export function CreateDeploymentPage({
     switch (createEntryMode) {
       case 'git-compose':
         return { source: 'gitops', adapter: 'git-compose' }
+      case 'install-script':
+        return { source: 'manualops', adapter: 'source-build' }
       default:
         return { source: 'manualops', adapter: 'manual-compose' }
     }
@@ -205,6 +327,7 @@ export function CreateDeploymentPage({
     { label: 'Target server', passed: serverId.length > 0 },
     { label: isGit ? 'Repository inputs' : 'Compose content', passed: isGit ? gitRepositoryUrl.trim().length > 0 && gitComposePath.trim().length > 0 : compose.trim().length > 0 },
     ...(!isGit && compose.trim() ? [{ label: 'YAML syntax', passed: !composeYamlError }] : []),
+    ...(createEntryMode === 'install-script' && sourceBuildTargetServiceRequired ? [{ label: 'Target service selected', passed: !!targetServiceName.trim() }] : []),
   ]
 
   const srcRelativePath = './src/'
@@ -436,19 +559,53 @@ export function CreateDeploymentPage({
               </CardContent>
             </Card>
           ) : (
-            <OrchestrationSection
-              compose={compose}
-              setCompose={setCompose}
-              envVars={envVars}
-              setEnvVars={setEnvVars}
-              projectName={projectName}
-              setProjectName={setProjectName}
-              storeProducts={storeProducts}
-              srcFiles={srcFiles}
-              setSrcFiles={setSrcFiles}
-              srcUploaded={srcUploaded}
-              onYamlError={setComposeYamlError}
-            />
+            <>
+              <OrchestrationSection
+                compose={compose}
+                setCompose={setCompose}
+                envVars={envVars}
+                setEnvVars={setEnvVars}
+                projectName={projectName}
+                setProjectName={setProjectName}
+                storeProducts={storeProducts}
+                srcFiles={srcFiles}
+                setSrcFiles={setSrcFiles}
+                srcUploaded={srcUploaded}
+                onYamlError={setComposeYamlError}
+                onRuntimeEnvInputsChange={setRuntimeEnvInputs}
+              />
+              {createEntryMode === 'install-script' && composeServiceNames.length > 0 ? (
+                <section className="rounded-lg border bg-card px-4 py-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1">
+                      <span className="text-base font-semibold">Build Target</span>
+                      <HelpTip text="Choose which compose service should use the image built from the uploaded source package. Single-service compose files are selected automatically." />
+                    </div>
+                    <div className="text-xs text-muted-foreground">Activation target for the local application image</div>
+                  </div>
+                  <div className="pt-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="source-build-target-service" className="text-xs">Target Service</Label>
+                      <select
+                        id="source-build-target-service"
+                        className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
+                        value={targetServiceName}
+                        onChange={e => setTargetServiceName(e.target.value)}
+                        disabled={composeServiceNames.length === 1}
+                      >
+                        {composeServiceNames.length > 1 ? <option value="" disabled>Select a service…</option> : null}
+                        {composeServiceNames.map(name => <option key={name} value={name}>{name}</option>)}
+                      </select>
+                      <div className={`text-[11px] ${sourceBuildTargetServiceError ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground'}`}>
+                        {sourceBuildTargetServiceError || (composeServiceNames.length > 1
+                          ? 'The selected service image will be replaced by the locally built application image.'
+                          : 'Single-service compose detected. The application image target is selected automatically.')}
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              ) : null}
+            </>
           )}
 
           {/* ── Section 3: Advanced Options ── */}
@@ -528,6 +685,12 @@ export function CreateDeploymentPage({
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground">Compose</span>
                         <span>{compose.trim() ? `${composeLineCount} lines` : '—'}</span>
+                      </div>
+                    ) : null}
+                    {createEntryMode === 'install-script' ? (
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Build target service</span>
+                        <span className="max-w-[200px] truncate">{targetServiceName || 'Auto / not selected'}</span>
                       </div>
                     ) : null}
                   </div>
@@ -632,7 +795,7 @@ export function CreateDeploymentPage({
 
                 {/* ── Actions ── */}
                 <div className="flex flex-col gap-2 pt-1">
-                  <Button variant="outline" onClick={() => void (isGit ? checkGitOperation() : checkManualOperation())} disabled={checkDisabled} className="h-10">
+                  <Button variant="outline" onClick={() => void (isGit ? checkGitOperation() : checkManualOperation({ runtimeInputs, sourceBuild }))} disabled={checkDisabled} className="h-10">
                     {activeChecking ? 'Checking...' : 'Check'}
                   </Button>
                   <Button onClick={() => void handleSubmit()} disabled={createDisabled || srcUploading} className="h-10">

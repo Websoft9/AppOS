@@ -27,7 +27,7 @@ Remove the old `env_groups` / `env_group_vars` collections that were part of the
 
 ## Implementation Notes
 
-- Migration file naming convention: `{timestamp}_shared_envs.go` under `backend/internal/migrations/`.
+- Migration file naming convention: `{timestamp}_shared_envs.go` under `backend/infra/migrations/`.
 - The old `env_groups`-related migration files should be deleted. If they created other collections as well, split the deletion carefully.
 - `is_secret` and `value` are mutually exclusive at the application layer, not the DB layer. DB allows both to have values; validation is enforced in the frontend and any future backend logic.
 - `apps.env_sets` order semantics: PocketBase Relation[] preserves insertion order. The frontend is responsible for sending the ordered array; the backend stores it as-is.

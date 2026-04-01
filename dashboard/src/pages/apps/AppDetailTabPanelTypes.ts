@@ -26,6 +26,8 @@ export type DisplaySectionProps = {
 export type OverviewTabProps = {
   app: AppInstance
   currentRelease?: AppRelease
+  releases: AppRelease[]
+  openReleaseDetail: (release: AppRelease) => void
   serverDisplayName: string
   canOpenServerDetail: boolean
   openServerDetail: () => void

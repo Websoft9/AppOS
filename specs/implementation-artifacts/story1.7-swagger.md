@@ -27,7 +27,7 @@ Provide a stable, generated OpenAPI contract for AppOS and serve Swagger UI dire
 
 ## Documentation Types (Critical)
 1) Business Logic Routes (named handlers)
-- Scope: custom handlers in `backend/internal/routes/*.go` (for example audit, docker, terminal, iac, settings).
+- Scope: custom handlers in `backend/domain/routes/*.go` (for example audit, docker, terminal, iac, settings).
 - Authoring: handler comment annotations (`@Summary`, `@Description`) are parsed and written to spec; `@swagger summary/auth` markers provide additional overrides.
 - Output: generated into `backend/docs/openapi/ext-api.yaml` by matrix-driven generator.
 
@@ -65,12 +65,12 @@ Provide a stable, generated OpenAPI contract for AppOS and serve Swagger UI dire
 
 - [x] Task 4: Build and quality gates
   - [x] 4.1 Provide unified command entry `backend/cmd/openapi` (`gen|merge|sync`)
-  - [x] 4.2 Keep route coverage gate in `backend/internal/routes/routes_coverage_test.go`
-  - [x] 4.3 Keep ext route ownership gate in `backend/internal/routes/ext_route_ownership_test.go`
+  - [x] 4.2 Keep route coverage gate in `backend/domain/routes/routes_coverage_test.go`
+  - [x] 4.3 Keep ext route ownership gate in `backend/domain/routes/ext_route_ownership_test.go`
 
 ## Verification Gates
-- Route coverage gate: `backend/internal/routes/routes_coverage_test.go`
-- Ownership gate: `backend/internal/routes/ext_route_ownership_test.go`
+- Route coverage gate: `backend/domain/routes/routes_coverage_test.go`
+- Ownership gate: `backend/domain/routes/ext_route_ownership_test.go`
 - Expected quality bar: no uncovered `/api/ext/*` route in CI.
 
 ## Known Pitfalls

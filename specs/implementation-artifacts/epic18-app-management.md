@@ -17,12 +17,15 @@ Epic 18 is the management surface above Epic 17. It should consume the lifecycle
 - Installed app list and detail APIs already expose `AppInstance`-oriented projections.
 - Installed app list and detail UI already render lifecycle state, runtime status, current execution, and last action links.
 - Redeploy and upgrade entry points already create Epic 17 actions and hand off to the Actions surface.
+- Start, stop, restart, and uninstall now converge on shared lifecycle operations and action-detail handoff.
 - App config read, validate, write, and rollback surfaces already exist as management features.
 
 ### Still Not Converged
 
-- Start, stop, restart, and uninstall still have local action paths instead of fully routing through Epic 17 actions.
+- App-scoped runtime context still leans too heavily on `last_operation` reconstruction in the current app-management response shaping.
+- Installed-side action history still depends on broad actions inventory plus local client filtering instead of an explicit app-scoped query contract.
 - Config apply and rollback are not yet modeled as shared lifecycle actions.
+- `desired_state` is not yet fully expressed in the current management API/UI contract.
 - Publication, recovery, backup, and broader operator guidance are not yet finished as shared management flows.
 
 ## Requirements
@@ -74,6 +77,14 @@ Define installed app list and summary cards centered on `AppInstance` projection
 
 Classify `App Detail` data into `AppInstance` aggregate state, lifecycle-related projections, and external runtime or observability data so the management surface stops behaving like one giant app aggregate.
 
+### Story 18.1b AppInstance Runtime Context Stabilization
+
+Harden the app-management read model so stable runtime and source context do not depend primarily on `last_operation` reconstruction.
+
+### Story 18.1c Desired State Projection Completion
+
+Complete `desired_state` exposure in backend and frontend management projections so operators can distinguish intent from current lifecycle state.
+
 ### Story 18.2 Lifecycle Actions
 
 Implement lifecycle action entry points for start, stop, maintain, recover, publish, unpublish, and uninstall by creating or resuming shared Epic 17 operations with appropriate guards. Existing local action paths should be treated as interim behavior to be retired.
@@ -84,11 +95,14 @@ Implement lifecycle action entry points for start, stop, maintain, recover, publ
 
 Implement config edit/apply surfaces with validation, preview, and operation-result handoff to shared lifecycle execution.
 
+- **18.3a Config Apply and Rollback Lifecycle Convergence:** move config apply/rollback off management-local direct mutation as the primary path and onto shared lifecycle operations.
+
 ### Story 18.4 Action Handoff and Status
 
 Provide Installed-side action entry points and execution status tracking by integrating Epic 17 action workflows and execution views.
 
 - **18.4a App Detail Action Handoff:** standardize how `App Detail` links to shared operation detail, exposes current execution context, and hands lifecycle actions off to Epic 17 without owning execution semantics locally.
+- **18.4b App-scoped Action History Query Contract:** provide an explicit app-scoped action-history query surface so Installed-side pages stop rebuilding execution filtering in the client.
 
 ### Story 18.5 Proxy and Domain Binding
 
@@ -108,11 +122,15 @@ Implement data management, backup, and restore user flows that delegate executio
 |-------|--------|
 | 18.1 Installed App Inventory | in-progress |
 | 18.1a App Detail Boundary Classification | review |
+| 18.1b AppInstance Runtime Context Stabilization | proposed |
+| 18.1c Desired State Projection Completion | proposed |
 | 18.2 Lifecycle Actions | in-progress |
 | 18.2a Local Action Convergence | review |
 | 18.3 Configuration Management | in-progress |
+| 18.3a Config Apply and Rollback Lifecycle Convergence | proposed |
 | 18.4 Action Handoff and Status | in-progress |
 | 18.4a App Detail Action Handoff | review |
+| 18.4b App-scoped Action History Query Contract | proposed |
 | 18.5 Proxy and Domain Binding | backlog |
 | 18.6 Audit and Action Records | backlog |
 | 18.7 Data Management and Backup | backlog |
@@ -120,16 +138,22 @@ Implement data management, backup, and restore user flows that delegate executio
 ## Story Artifacts
 
 - `story18.1a-app-detail-boundary-classification.md`
+- `story18.1b-app-instance-runtime-context-stabilization.md`
+- `story18.1c-desired-state-projection-completion.md`
 - `story18.2a-local-action-convergence.md`
+- `story18.3a-config-apply-rollback-lifecycle-convergence.md`
 - `story18.4a-app-detail-action-handoff.md`
+- `story18.4b-app-scoped-action-history-query-contract.md`
 - `iteration1-epic18-lifecycle-convergence-slice.md`
+- `iteration3-epic18-app-instance-boundary-hardening-slice.md`
 
 ## Recommended Iteration Slice
 
-For the first lifecycle-management convergence pass, use:
+For the next App Instance boundary-hardening pass, use:
 
-- `18.1a App Detail Boundary Classification`
-- `18.2a Local Action Convergence`
-- `18.4a App Detail Action Handoff`
+- `18.1b AppInstance Runtime Context Stabilization`
+- `18.4b App-scoped Action History Query Contract`
+- `18.3a Config Apply and Rollback Lifecycle Convergence`
+- `18.1c Desired State Projection Completion`
 
-Execution order and dependency notes are captured in `iteration1-epic18-lifecycle-convergence-slice.md`.
+Execution order and dependency notes are captured in `iteration3-epic18-app-instance-boundary-hardening-slice.md`.

@@ -22,6 +22,8 @@ export type AppRelease = {
   version_label?: string
   source_type?: string
   source_ref?: string
+  artifact_digest?: string
+  notes?: string
   is_active: boolean
   is_last_known_good: boolean
   activated_at?: string

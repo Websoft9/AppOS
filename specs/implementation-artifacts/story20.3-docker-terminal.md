@@ -17,7 +17,7 @@ As a superuser, I can open a terminal inside any running container directly from
 
 ## Implementation
 
-### Backend (`backend/internal/servers/docker_exec.go`)
+### Backend (`backend/domain/servers/docker_exec.go`)
 
 `DockerExecConnector` implements the `Session` interface via Docker socket (`/var/run/docker.sock`).
 
@@ -77,10 +77,10 @@ No file manager for containers (SFTP targets registered servers, not ephemeral c
 ### Files Created/Modified
 
 ```
-backend/internal/servers/docker_exec.go            # DockerExecConnector, Session impl via Docker socket
-backend/internal/servers/terminal_test.go          # +3 tests: default shell, socket, interface check
-backend/internal/routes/server.go                 # handleDockerExecTerminal + route registration
-backend/internal/routes/server_test.go              # +1 test: TestDockerExecRequiresAuth
+backend/domain/servers/docker_exec.go            # DockerExecConnector, Session impl via Docker socket
+backend/domain/servers/terminal_test.go          # +3 tests: default shell, socket, interface check
+backend/domain/routes/server.go                 # handleDockerExecTerminal + route registration
+backend/domain/routes/server_test.go              # +1 test: TestDockerExecRequiresAuth
 dashboard/src/components/docker/ContainersTab.tsx   # Added onOpenTerminal prop + "Terminal" menu item
 dashboard/src/routes/_app/_auth/docker.tsx           # Added TerminalPanel Dialog for docker exec
 ```

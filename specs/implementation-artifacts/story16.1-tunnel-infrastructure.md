@@ -16,7 +16,7 @@ As the appos platform, I provide a reverse SSH tunnel entry point so that local 
 ### New files
 
 ```
-backend/internal/tunnel/
+backend/domain/tunnel/
   server.go       # SSH server: listens :2222, accepts reverse port-forward requests
   portpool.go     # persistent port allocation pool
   token.go        # token generation (base32, 32 bytes entropy)
@@ -285,14 +285,14 @@ Called from `routes/tunnel.go` (Story 16.2) during PocketBase `OnAfterBootstrap`
 
 ## File List
 
-- `backend/internal/tunnel/token.go` (new)
-- `backend/internal/tunnel/session.go` (new)
-- `backend/internal/tunnel/portpool.go` (new)
-- `backend/internal/tunnel/server.go` (new)
-- `backend/internal/tunnel/token_test.go` (new)
-- `backend/internal/tunnel/session_test.go` (new)
-- `backend/internal/tunnel/portpool_test.go` (new)
-- `backend/internal/tunnel/server_test.go` (new)
+- `backend/domain/tunnel/token.go` (new)
+- `backend/domain/tunnel/session.go` (new)
+- `backend/domain/tunnel/portpool.go` (new)
+- `backend/domain/tunnel/server.go` (new)
+- `backend/domain/tunnel/token_test.go` (new)
+- `backend/domain/tunnel/session_test.go` (new)
+- `backend/domain/tunnel/portpool_test.go` (new)
+- `backend/domain/tunnel/server_test.go` (new)
 - `specs/implementation-artifacts/story16.1-tunnel-infrastructure.md` (updated)
 - `specs/implementation-artifacts/sprint-status.yaml` (updated)
 

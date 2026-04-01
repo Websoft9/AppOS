@@ -22,11 +22,11 @@ As a superuser, I want to edit user details and reset any user's password direct
 ## Tasks / Subtasks
 
 - [x] Task 1: Backend — admin reset password ext route
-  - [x] 1.1 Create `backend/internal/routes/users.go` with `registerUserRoutes(g)`
+  - [x] 1.1 Create `backend/domain/routes/users.go` with `registerUserRoutes(g)`
   - [x] 1.2 `POST /api/ext/users/{collection}/{id}/reset-password` — validate body, find record, `SetPassword`, save; require superuser auth
-  - [x] 1.3 Register route in `backend/internal/routes/routes.go`
+  - [x] 1.3 Register route in `backend/domain/routes/routes.go`
 - [x] Task 2: Backend — superuser delete hook
-  - [x] 2.1 Add `OnRecordDeleteRequest` hook in `backend/internal/hooks/hooks.go` scoped to `_superusers` collection
+  - [x] 2.1 Add `OnRecordDeleteRequest` hook in `backend/platform/hooks/hooks.go` scoped to `_superusers` collection
   - [x] 2.2 Guard 1: if `e.Auth.Id == e.Record.Id` → abort with `apis.NewBadRequestError("cannot_delete_self", nil)`
   - [x] 2.3 Guard 2: count remaining `_superusers` records; if count == 1 → abort with `apis.NewBadRequestError("cannot_delete_last_superuser", nil)`
 - [x] Task 3: Frontend — Edit Sheet
@@ -43,9 +43,9 @@ As a superuser, I want to edit user details and reset any user's password direct
 
 ## Dev Notes
 
-- Backend route file: `backend/internal/routes/users.go`; register as `registerUserRoutes(g)` with `g.Bind(apis.RequireSuperuserAuth())`
+- Backend route file: `backend/domain/routes/users.go`; register as `registerUserRoutes(g)` with `g.Bind(apis.RequireSuperuserAuth())`
 - `app.FindRecordById(collection, id)` works for both `users` and `_superusers`; collection comes from path param
-- Hook registration: add to `backend/internal/hooks/hooks.go` `Register()` function; hook fires before delete completes
+- Hook registration: add to `backend/platform/hooks/hooks.go` `Register()` function; hook fires before delete completes
 - PB hook abort: `return e.Error(400, "cannot_delete_last_superuser", nil)` — maps to PB error envelope `{ code: 400, message: "...", data: {} }`
 - For superuser count: use `app.CountRecords("_superusers")` (not `FindAllRecords` — avoids loading all records)
 - Frontend: `pb.send(...)` for ext route; `pb.collection(...).delete(id)` for native delete
@@ -59,9 +59,9 @@ All backend and frontend tasks complete. Used `OnRecordDeleteRequest` (not `OnRe
 
 ## File List
 
-- `backend/internal/routes/users.go` — new: admin reset password ext route
-- `backend/internal/routes/routes.go` — modified: registered `registerUserRoutes(g)`
-- `backend/internal/hooks/hooks.go` — modified: added superuser delete guard hooks
+- `backend/domain/routes/users.go` — new: admin reset password ext route
+- `backend/domain/routes/routes.go` — modified: registered `registerUserRoutes(g)`
+- `backend/platform/hooks/hooks.go` — modified: added superuser delete guard hooks
 - `dashboard/src/components/users/EditUserSheet.tsx` — new: edit user Sheet component
 - `dashboard/src/components/users/ResetPasswordDialog.tsx` — new: reset password Dialog component
 - `dashboard/src/routes/_app/_auth/_superuser/users/index.tsx` — modified: wired Edit/Reset buttons and overlay components

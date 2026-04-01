@@ -44,7 +44,7 @@ user_files (PocketBase Collection)
 | `spaceEditableFormats` | ~70 extensions | text and code only (no pdf/office) |
 | `spaceReservedFolderNames` | `deploy,artifact` | Root-level names reserved by system |
 
-All constants live in `backend/internal/routes/space.go` and mirrored in `backend/internal/hooks/hooks.go`.
+All constants live in `backend/domain/routes/space.go` and mirrored in `backend/platform/hooks/hooks.go`.
 All marked `// TODO (Story 9.5): replace with settings API`.
 
 The `/api/ext/space/quota` endpoint exposes all constants to the frontend as JSON.

@@ -4904,7 +4904,7 @@ paths:
     get:
       tags: [Server Files]
       summary: File constraints
-      description: "Returns effective upload limits (max_upload_files) from settings. Superuser only."
+      description: "Returns effective upload limits (max_upload_files) from sysconfig. Superuser only."
       operationId: get_api_servers_serverid_files_constraints
       parameters:
         - name: serverId

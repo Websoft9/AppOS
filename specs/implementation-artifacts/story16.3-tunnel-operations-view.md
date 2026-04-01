@@ -75,10 +75,10 @@ GPT-5.4
 
 ### File List
 
-- `backend/internal/routes/tunnel.go`
-- `backend/internal/routes/tunnel_handlers.go`
-- `backend/internal/routes/tunnel_helpers.go`
-- `backend/internal/routes/tunnel_test.go`
+- `backend/domain/routes/tunnel.go`
+- `backend/domain/routes/tunnel_handlers.go`
+- `backend/domain/routes/tunnel_helpers.go`
+- `backend/domain/routes/tunnel_test.go`
 - `dashboard/src/pages/system/TunnelsPage.tsx`
 - `dashboard/src/pages/system/TunnelsPage.test.tsx`
 - `dashboard/src/routes/_app/_auth/_superuser/tunnels.tsx`

@@ -16,3 +16,6 @@ pb_data/
 
 # Security / supply chain artifacts
 sbom.spdx.json
+
+# other
+session

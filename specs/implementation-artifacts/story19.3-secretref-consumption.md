@@ -11,7 +11,7 @@ As a module developer, I want to bind a `secretRef` to any sensitive config fiel
 
 ## Acceptance Criteria
 
-- [x] AC1: A shared `secretRef` resolver is available to all backend modules via `backend/internal/secrets/resolver.go`.
+- [x] AC1: A shared `secretRef` resolver is available to all backend modules via `backend/domain/secrets/resolver.go`.
 - [x] AC2: When a module saves a config field with `secretRef: <id>`, the resolver validates at bind time that the current user has read access to the referenced secret (scope/ownership check).
 - [x] AC3: At runtime, `resolver.Resolve(id)` calls the internal decrypt function directly (not via HTTP self-call); returns decrypted plaintext as `map[string]any` to the caller.
 - [x] AC4: Revoked or missing secret returns a structured error; caller receives a clear message, not a blank value.
@@ -20,7 +20,7 @@ As a module developer, I want to bind a `secretRef` to any sensitive config fiel
 
 ## Tasks / Subtasks
 
-- [x] Task 1: Create `backend/internal/secrets/resolver.go`
+- [x] Task 1: Create `backend/domain/secrets/resolver.go`
   - [x] 1.1 `Resolve(app, secretID, callerContext) (map[string]any, error)` — fetches record from DB, decrypts `payload_encrypted` using shared crypto helper from Story 19.1, returns plaintext map
   - [x] 1.2 Record `last_used_at`, `last_used_by`, emit `secret.use` audit event after successful resolve
   - [x] 1.3 Return structured error with `secret_id` and reason on failure
@@ -37,7 +37,7 @@ As a module developer, I want to bind a `secretRef` to any sensitive config fiel
 
 ## Integration Notes
 
-- Uses Story 19.1 shared crypto helper (`backend/internal/secrets/crypto.go`) and audit pipeline (Epic 12).
+- Uses Story 19.1 shared crypto helper (`backend/domain/secrets/crypto.go`) and audit pipeline (Epic 12).
 - Reference integrations: Settings `llm/providers` (secretRef bind-time validation) and Server credentials
   (full Resolve-at-runtime replacing legacy `crypto.Decrypt` call in `resolveServerConfig`).
 - AI/Deploy integrations follow the same `secretRef` contract in subsequent stories.
@@ -55,10 +55,10 @@ As a module developer, I want to bind a `secretRef` to any sensitive config fiel
 
 ## File List
 
-- `backend/internal/secrets/crypto.go` — existing (shared encrypt/decrypt helper)
-- `backend/internal/secrets/resolver.go` — new
-- `backend/internal/routes/settings.go` — modified (secretRef ValidateRef in llm/providers PATCH)
-- `backend/internal/routes/server.go` — modified (resolveServerConfig uses secrets.Resolve)
+- `backend/domain/secrets/crypto.go` — existing (shared encrypt/decrypt helper)
+- `backend/domain/secrets/resolver.go` — new
+- `backend/domain/routes/settings.go` — modified (secretRef ValidateRef in llm/providers PATCH)
+- `backend/domain/routes/server.go` — modified (resolveServerConfig uses secrets.Resolve)
 
 ## Change Log
 
@@ -71,12 +71,12 @@ As a module developer, I want to bind a `secretRef` to any sensitive config fiel
 ## Dev Agent Record
 
 ### Implemented
-- `backend/internal/secrets/resolver.go` (new): `Resolve()`, `ValidateRef()`, `IsSecretRef()`, `ExtractSecretID()`, `FirstStringFromPayload()`, `ResolveError` structured error type.
-- `backend/internal/routes/server.go` (modified): `resolveServerConfig` now calls `secrets.Resolve()` instead of `crypto.Decrypt()`. Supports new `payload_encrypted` (Epic 19) and legacy `value` (pre-Epic 19) formats. `FirstStringFromPayload` picks credential value by `auth_type`.
-- `backend/internal/routes/settings.go` (modified): Added `secrets` import; `maskValue` preserves `secretRef:<id>` values (not masked to `***`); `validateLLMProvidersSecretRefs` calls `ValidateRef` for each provider item with a `secretRef:` apiKey before PATCH saves.
+- `backend/domain/secrets/resolver.go` (new): `Resolve()`, `ValidateRef()`, `IsSecretRef()`, `ExtractSecretID()`, `FirstStringFromPayload()`, `ResolveError` structured error type.
+- `backend/domain/routes/server.go` (modified): `resolveServerConfig` now calls `secrets.Resolve()` instead of `crypto.Decrypt()`. Supports new `payload_encrypted` (Epic 19) and legacy `value` (pre-Epic 19) formats. `FirstStringFromPayload` picks credential value by `auth_type`.
+- `backend/domain/routes/settings.go` (modified): Added `secrets` import; `maskValue` preserves `secretRef:<id>` values (not masked to `***`); `validateLLMProvidersSecretRefs` calls `ValidateRef` for each provider item with a `secretRef:` apiKey before PATCH saves.
 
 ### Tests Created
-- `backend/internal/secrets/resolver_test.go`: Unit tests for `IsSecretRef`, `ExtractSecretID`, `FirstStringFromPayload`, `ResolveError` (pure, no DB).
-- `backend/internal/routes/resolver_integration_test.go`: Integration tests using full PocketBase test app — `TestResolve_NotFound`, `TestResolve_Revoked`, `TestResolve_NewFormat`, `TestResolve_NoPayload`, `TestResolve_RecordsLastUsed`, `TestValidateRef_NotFound`, `TestValidateRef_Revoked`, `TestValidateRef_PrivateOtherUser`, `TestValidateRef_PrivateOwnUser`, `TestValidateRef_GlobalAnyUser`.
+- `backend/domain/secrets/resolver_test.go`: Unit tests for `IsSecretRef`, `ExtractSecretID`, `FirstStringFromPayload`, `ResolveError` (pure, no DB).
+- `backend/domain/routes/resolver_integration_test.go`: Integration tests using full PocketBase test app — `TestResolve_NotFound`, `TestResolve_Revoked`, `TestResolve_NewFormat`, `TestResolve_NoPayload`, `TestResolve_RecordsLastUsed`, `TestValidateRef_NotFound`, `TestValidateRef_Revoked`, `TestValidateRef_PrivateOtherUser`, `TestValidateRef_PrivateOwnUser`, `TestValidateRef_GlobalAnyUser`.
 
 ### All tests: ✅ PASS (full suite `go test ./...`)

@@ -155,7 +155,7 @@ All routes under `/api/ext/docker/`. All list responses include `host` field ide
 
 ## Technical Notes
 
-**Executor Interface** (backend/internal/docker/executor.go):
+**Executor Interface** (backend/infra/docker/executor.go):
 ```go
 type Executor interface {
     Run(ctx context.Context, command string, args ...string) (string, error)

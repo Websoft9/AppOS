@@ -27,7 +27,7 @@ Covers all server-domain business: the `servers` resource registry, SSH-based te
 servers collection (PocketBase)
 secrets collection (PocketBase)
         ↓
-backend/internal/servers/   ← SSH, SFTP, Docker Exec, Session, Ops
+backend/domain/servers/   ← SSH, SFTP, Docker Exec, Session, Ops
         ↓
 /api/servers/*  (PocketBase custom routes, RequireSuperuserAuth)
         ↓
@@ -59,13 +59,13 @@ dashboard/src/components/connect/
 **Go structure:**
 
 ```
-backend/internal/servers/
+backend/domain/servers/
   connector.go        # ConnectError, ConnectErrorCategory, Connector/Session interfaces
   ssh.go              # SSHConnector: dial, auth, PTY relay, classifyDialError
   sftp.go             # SFTPConnector: file list/read/write/transfer via SFTP
   docker_exec.go      # DockerExecConnector: exec + PTY relay
   session.go          # session lifecycle, idle timeout, cleanup
-backend/internal/routes/
+backend/domain/routes/
   server_shell.go     # WS: SSH PTY handler
   server_files.go     # REST: SFTP-backed file operations
   server_ops.go       # REST: connectivity, power, ports, systemd
@@ -378,7 +378,7 @@ Establish the `servers` collection and its full CRUD surface. This is a pure dat
 
 ### 1) Package naming consistency (Review item #13)
 
-- The backend package under `backend/internal/servers/` now uses `package servers` in all source files.
+- The backend package under `backend/domain/servers/` now uses `package servers` in all source files.
 - Route-layer imports were normalized to `servers ".../internal/servers"` for readability and onboarding consistency.
 - This aligns Go package naming with directory naming and removes the previous `terminal`/`servers` mismatch.
 

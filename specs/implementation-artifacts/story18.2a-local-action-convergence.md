@@ -31,7 +31,7 @@ so that `start`, `stop`, `restart`, and `uninstall` no longer bypass the common 
 
 ## Implemented in This Slice
 
-1. `start`, `stop`, `restart`, and `uninstall` now create shared lifecycle operations from `backend/internal/routes/apps.go`.
+1. `start`, `stop`, `restart`, and `uninstall` now create shared lifecycle operations from `backend/domain/routes/apps.go`.
 2. `restart` is now a formal lifecycle vocabulary item with metadata registry coverage.
 3. Runtime execution now supports converged `runtime_stop`, `runtime_restart`, `runtime_check`, and `retirement` nodes.
 4. Installed-side projections now update from shared operation success semantics instead of route-local `markAppAction` mutations.
@@ -76,13 +76,13 @@ That split is exactly what this story is meant to eliminate.
 
 ### 1. Route entry-point convergence
 
-- Replace the `start` and `stop` handlers in `backend/internal/routes/apps.go` so they no longer call `handleAppInstanceAction` and instead use `handleAppInstanceLifecycleOperation`.
-- Change `uninstall` in `backend/internal/routes/apps.go` from direct `ComposeDown` execution to shared operation creation using the same `createOperationFromCompose` path already used by `upgrade` and `redeploy`.
-- Treat `restart` as a convergence case that may require a lifecycle-vocabulary addition before route unification, because the current route still passes the string literal `restart` and there is no formal `OperationTypeRestart` in `backend/internal/lifecycle/model/vocabulary.go`.
+- Replace the `start` and `stop` handlers in `backend/domain/routes/apps.go` so they no longer call `handleAppInstanceAction` and instead use `handleAppInstanceLifecycleOperation`.
+- Change `uninstall` in `backend/domain/routes/apps.go` from direct `ComposeDown` execution to shared operation creation using the same `createOperationFromCompose` path already used by `upgrade` and `redeploy`.
+- Treat `restart` as a convergence case that may require a lifecycle-vocabulary addition before route unification, because the current route still passes the string literal `restart` and there is no formal `OperationTypeRestart` in `backend/domain/lifecycle/model/vocabulary.go`.
 
 ### 2. Operation vocabulary and metadata alignment
 
-- Keep `start`, `stop`, and `uninstall` on the canonical operation vocabulary already present in `backend/internal/lifecycle/model/vocabulary.go`.
+- Keep `start`, `stop`, and `uninstall` on the canonical operation vocabulary already present in `backend/domain/lifecycle/model/vocabulary.go`.
 - Decide whether `restart` should become a first-class lifecycle operation type or be explicitly modeled as a composed sequence outside the primary convergence scope. The default recommendation for this story is to add a formal lifecycle operation type if the shared execution core is expected to own restart as a first-class action.
 - Ensure route-created operations carry enough metadata for Installed-side handoff, including `installed_app_id`, `requested_action`, and `project_dir`.
 - For `uninstall`, explicitly decide how `removeVolumes` is represented. Preferred direction: carry it in operation metadata/spec so the shared execution path, audit trail, and timeline remain reproducible.
@@ -99,11 +99,11 @@ That split is exactly what this story is meant to eliminate.
 - Stop mutating `app_instances` directly in the request path for converged actions.
 - Replace local `markAppAction`-driven state updates with projection updates derived from shared operation lifecycle events.
 - Preserve `AppInstance.last_operation` as the linkage point used by Installed-side detail and list views.
-- Verify that `backend/internal/lifecycle/projection/updater.go` remains the canonical place where `stop` and `uninstall` drive `AppInstance` state changes, and extend it only if `restart` becomes a first-class lifecycle operation.
+- Verify that `backend/domain/lifecycle/projection/updater.go` remains the canonical place where `stop` and `uninstall` drive `AppInstance` state changes, and extend it only if `restart` becomes a first-class lifecycle operation.
 
 ### 5. Backend test additions
 
-- Add route tests in `backend/internal/routes/apps_test.go` for `start` and `stop` that assert `202 Accepted` and creation of `app_operations`, matching the existing `upgrade` operation-creation test shape.
+- Add route tests in `backend/domain/routes/apps_test.go` for `start` and `stop` that assert `202 Accepted` and creation of `app_operations`, matching the existing `upgrade` operation-creation test shape.
 - Add a route test for `DELETE /api/apps/{id}` that asserts uninstall creates a queued shared operation instead of returning immediate local success.
 - Add tests that confirm the created operation carries the expected existing project directory, compose project name, and requested action metadata.
 - Add or update lifecycle metadata tests so selector coverage exists for every converged action. If `restart` becomes a formal operation type, add selector and registry coverage for it.

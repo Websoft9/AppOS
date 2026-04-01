@@ -63,6 +63,55 @@ export type InstallPreflightResult = {
   }
 }
 
+export type RuntimeEnvInputPayload = {
+  name: string
+  kind: 'inline' | 'sensitive' | 'shared-import'
+  generator_method?: string
+  set_id?: string
+  var_id?: string
+  source_key?: string
+}
+
+export type RuntimeFileInputPayload = {
+  kind: 'mount-file' | 'source-package'
+  name: string
+  source_path: string
+  mount_path?: string
+  uploaded?: boolean
+}
+
+export type RuntimeInputsPayload = {
+  env?: RuntimeEnvInputPayload[]
+  files?: RuntimeFileInputPayload[]
+}
+
+export type SourceBuildPayload = {
+  source_kind: 'uploaded-package'
+  source_ref: string
+  workspace_ref: string
+  builder_strategy: 'buildpacks'
+  deploy_inputs?: {
+    service_name?: string
+  }
+  artifact_publication: {
+    mode: 'local' | 'push'
+    target_ref?: string
+    image_name: string
+  }
+}
+
+type ManualCandidateMetadata = {
+  candidate_kind: 'manual-compose' | ManualEntryMode
+  prefill_context?: {
+    mode?: string
+    source?: string
+    app_id?: string
+    app_key?: string
+    app_name?: string
+    server_id?: string
+  }
+}
+
 const DEFAULT_SORT_FIELD: SortField = 'started_at'
 const DEFAULT_SORT_DIR: SortDir = 'desc'
 const DEFAULT_PAGE = 1
@@ -139,6 +188,47 @@ function areListSearchEqual(left: ActionListSearch, right: ActionListSearch): bo
     && left.excludeServer === right.excludeServer
 }
 
+function buildManualCandidateMetadata({
+  manualEntryMode,
+  prefillMode,
+  prefillSource,
+  prefillAppId,
+  prefillAppKey,
+  prefillAppName,
+  prefillServerId,
+}: {
+  manualEntryMode: ManualEntryMode
+  prefillMode?: string
+  prefillSource?: string
+  prefillAppId?: string
+  prefillAppKey?: string
+  prefillAppName?: string
+  prefillServerId?: string
+}): ManualCandidateMetadata {
+  const metadata: ManualCandidateMetadata = {
+    candidate_kind: manualEntryMode === 'compose' ? 'manual-compose' : manualEntryMode,
+  }
+
+  if (manualEntryMode !== 'store-prefill' && manualEntryMode !== 'installed-prefill') {
+    return metadata
+  }
+
+  const prefillContext = {
+    ...(prefillMode ? { mode: prefillMode } : {}),
+    ...(prefillSource ? { source: prefillSource } : {}),
+    ...(prefillAppId ? { app_id: prefillAppId } : {}),
+    ...(prefillAppKey ? { app_key: prefillAppKey } : {}),
+    ...(prefillAppName ? { app_name: prefillAppName } : {}),
+    ...(prefillServerId ? { server_id: prefillServerId } : {}),
+  }
+
+  if (Object.keys(prefillContext).length > 0) {
+    metadata.prefill_context = prefillContext
+  }
+
+  return metadata
+}
+
 export function useActionsController({
   prefillMode,
   prefillSource,
@@ -193,6 +283,16 @@ export function useActionsController({
   const [prefillReady, setPrefillReady] = useState('')
   const [pendingDelete, setPendingDelete] = useState<ActionRecord[]>([])
   const appFilterId = listSearch?.appId?.trim() || undefined
+
+  const manualCandidateMetadata = useMemo(() => buildManualCandidateMetadata({
+    manualEntryMode,
+    prefillMode,
+    prefillSource,
+    prefillAppId,
+    prefillAppKey,
+    prefillAppName,
+    prefillServerId,
+  }), [manualEntryMode, prefillAppId, prefillAppKey, prefillAppName, prefillMode, prefillServerId, prefillSource])
 
   const serverMap = useMemo(() => new Map(servers.map(item => [item.id, item])), [servers])
 
@@ -623,7 +723,7 @@ export function useActionsController({
     return item.user_email || item.user_id || '-'
   }
 
-  async function submitManualOperation() {
+  async function submitManualOperation(runtimeInputs?: RuntimeInputsPayload, sourceBuild?: SourceBuildPayload) {
     setSubmitting(true)
     setNotice(null)
     try {
@@ -634,6 +734,9 @@ export function useActionsController({
           project_name: projectName,
           compose,
           env: Object.fromEntries(envVars.filter(e => e.key.trim()).map(e => [e.key.trim(), e.value])),
+          metadata: manualCandidateMetadata,
+          runtime_inputs: runtimeInputs,
+          source_build: sourceBuild,
           app_required_disk_gib: appRequiredDiskGiB,
         },
       })
@@ -647,7 +750,7 @@ export function useActionsController({
     }
   }
 
-  async function checkManualOperation(options?: { silentNotice?: boolean }): Promise<InstallPreflightResult | null> {
+  async function checkManualOperation(options?: { silentNotice?: boolean; runtimeInputs?: RuntimeInputsPayload; sourceBuild?: SourceBuildPayload }): Promise<InstallPreflightResult | null> {
     setChecking(true)
     setNotice(null)
     try {
@@ -658,6 +761,9 @@ export function useActionsController({
           project_name: projectName,
           compose,
           env: Object.fromEntries(envVars.filter(e => e.key.trim()).map(e => [e.key.trim(), e.value])),
+          metadata: manualCandidateMetadata,
+          runtime_inputs: options?.runtimeInputs,
+          source_build: options?.sourceBuild,
           app_required_disk_gib: appRequiredDiskGiB,
         },
       })

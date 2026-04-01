@@ -80,7 +80,7 @@ Rationale:
 
 ## Section 4: Detailed Change Proposals
 
-### 4.1 Backend — `backend/internal/routes/files.go`
+### 4.1 Backend — `backend/domain/routes/files.go`
 
 **File rename**: Keep filename as `files.go` (internal implementation name, no user impact). Only content changes.
 
@@ -145,7 +145,7 @@ settings.GetGroup(e.App, "space", "quota", defaultSpaceQuota)
 
 ---
 
-### 4.2 Backend — `backend/internal/hooks/hooks.go`
+### 4.2 Backend — `backend/platform/hooks/hooks.go`
 
 Update any constant references from `files*` prefix to `space*` prefix (only if constants are referenced from here; otherwise no change needed if they are local to `files.go`).
 
@@ -153,7 +153,7 @@ Update any constant references from `files*` prefix to `space*` prefix (only if 
 
 ---
 
-### 4.3 Backend — `backend/internal/routes/routes.go` or main registration
+### 4.3 Backend — `backend/domain/routes/routes.go` or main registration
 
 **OLD**
 ```go
@@ -274,8 +274,8 @@ File: `specs/implementation-artifacts/epic9-files.md`
 ### Handoff to Dev Agent
 
 **Recommended execution order**:
-1. Update `backend/internal/routes/files.go` — route paths, constant names, function names
-2. Update `backend/internal/hooks/hooks.go` — constant references (if any)
+1. Update `backend/domain/routes/files.go` — route paths, constant names, function names
+2. Update `backend/platform/hooks/hooks.go` — constant references (if any)
 3. Rename `dashboard/src/routes/_app/_auth/files.tsx` → `space.tsx` and update contents
 4. Update `dashboard/src/components/layout/Sidebar.tsx`
 5. Update i18n locale files

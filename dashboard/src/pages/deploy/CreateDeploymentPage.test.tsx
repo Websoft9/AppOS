@@ -5,6 +5,8 @@ import { CreateDeploymentPage } from './CreateDeploymentPage'
 
 const sendMock = vi.fn()
 const navigateMock = vi.fn()
+const iacUploadFileMock = vi.fn()
+const iacMkdirMock = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
@@ -34,8 +36,8 @@ vi.mock('@/lib/pb', () => ({
 vi.mock('@/lib/iac-api', () => ({
   iacLoadLibraryAppFiles: vi.fn(),
   iacRead: vi.fn(),
-  iacUploadFile: vi.fn().mockResolvedValue(undefined),
-  iacMkdir: vi.fn().mockResolvedValue(undefined),
+  iacUploadFile: (...args: unknown[]) => iacUploadFileMock(...args),
+  iacMkdir: (...args: unknown[]) => iacMkdirMock(...args),
 }))
 
 describe('CreateDeploymentPage', () => {
@@ -46,6 +48,10 @@ describe('CreateDeploymentPage', () => {
   beforeEach(() => {
     sendMock.mockReset()
     navigateMock.mockReset()
+    iacUploadFileMock.mockReset()
+    iacMkdirMock.mockReset()
+    iacUploadFileMock.mockResolvedValue(undefined)
+    iacMkdirMock.mockResolvedValue(undefined)
     sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
       if (path === '/api/ext/docker/servers') {
         return Promise.resolve([{ id: 'local', label: 'local', host: '127.0.0.1', status: 'online' }])
@@ -133,6 +139,8 @@ describe('CreateDeploymentPage', () => {
           project_name: 'wordpress-prod',
           compose: 'services:\n  web:\n    image: nginx:alpine\n',
           env: {},
+          metadata: { candidate_kind: 'manual-compose' },
+          runtime_inputs: undefined,
           app_required_disk_gib: '',
         },
       })
@@ -146,6 +154,8 @@ describe('CreateDeploymentPage', () => {
           project_name: 'wordpress-prod',
           compose: 'services:\n  web:\n    image: nginx:alpine\n',
           env: {},
+          metadata: { candidate_kind: 'manual-compose' },
+          runtime_inputs: undefined,
           app_required_disk_gib: '',
         },
       })
@@ -217,6 +227,8 @@ describe('CreateDeploymentPage', () => {
           project_name: 'wordpress-prod',
           compose: 'services:\n  web:\n    image: nginx:alpine\n',
           env: {},
+          metadata: { candidate_kind: 'manual-compose' },
+          runtime_inputs: undefined,
           app_required_disk_gib: '',
         },
       })
@@ -249,6 +261,8 @@ describe('CreateDeploymentPage', () => {
           project_name: 'wordpress-prod',
           compose: 'services:\n  web:\n    image: nginx:alpine\n',
           env: {},
+          metadata: { candidate_kind: 'manual-compose' },
+          runtime_inputs: undefined,
           app_required_disk_gib: '',
         },
       })
@@ -319,6 +333,7 @@ describe('CreateDeploymentPage', () => {
           project_name: 'wordpress-prod',
           compose: 'services:\n  web:\n    image: nginx:alpine\n',
           env: {},
+          metadata: { candidate_kind: 'manual-compose' },
           app_required_disk_gib: '',
         },
       })
@@ -331,6 +346,7 @@ describe('CreateDeploymentPage', () => {
         project_name: 'wordpress-prod',
         compose: 'services:\n  web:\n    image: nginx:alpine\n',
         env: {},
+        metadata: { candidate_kind: 'manual-compose' },
         app_required_disk_gib: '',
       },
     })
@@ -403,6 +419,8 @@ describe('CreateDeploymentPage', () => {
           project_name: 'wordpress-prod',
           compose: 'services:\n  web:\n    image: nginx:alpine\n',
           env: {},
+          metadata: { candidate_kind: 'manual-compose' },
+          runtime_inputs: undefined,
           app_required_disk_gib: '2',
         },
       })
@@ -434,6 +452,229 @@ describe('CreateDeploymentPage', () => {
     })
 
     expect(screen.queryByText('application name is available')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['docker-command', 'docker-command'],
+    ['install-script', 'install-script'],
+  ] as const)('submits manual deployment with %s candidate metadata', async (entryMode, candidateKind) => {
+    render(
+      <TooltipProvider>
+        <CreateDeploymentPage entryMode={entryMode} />
+      </TooltipProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('App Name')).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText('App Name'), { target: { value: 'wordpress-prod' } })
+    fireEvent.change(screen.getByLabelText('Target Location'), { target: { value: 'local' } })
+    fireEvent.change(screen.getByPlaceholderText(/services:/i), { target: { value: 'services:\n  web:\n    image: nginx:alpine\n' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create Deployment' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/actions/install/manual-compose', {
+        method: 'POST',
+        body: {
+          server_id: 'local',
+          project_name: 'wordpress-prod',
+          compose: 'services:\n  web:\n    image: nginx:alpine\n',
+          env: {},
+          metadata: { candidate_kind: candidateKind },
+          runtime_inputs: undefined,
+          source_build: entryMode === 'install-script' ? {
+            source_kind: 'uploaded-package',
+            source_ref: 'apps/wordpress-prod/src',
+            workspace_ref: 'apps/wordpress-prod/src',
+            builder_strategy: 'buildpacks',
+            deploy_inputs: {
+              service_name: 'web',
+            },
+            artifact_publication: {
+              mode: 'local',
+              image_name: 'apps/wordpress-prod',
+            },
+          } : undefined,
+          app_required_disk_gib: '',
+        },
+      })
+    })
+  })
+
+  it('submits non-empty runtime inputs for install-script create after source upload', async () => {
+    render(
+      <TooltipProvider>
+        <CreateDeploymentPage entryMode="install-script" />
+      </TooltipProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('App Name')).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText('App Name'), { target: { value: 'wordpress-prod' } })
+    fireEvent.change(screen.getByLabelText('Target Location'), { target: { value: 'local' } })
+    fireEvent.change(screen.getByPlaceholderText(/services:/i), { target: { value: 'services:\n  web:\n    image: nginx:alpine\n' } })
+
+    fireEvent.click(screen.getByText('Environment Variables & Secret-backed'))
+    fireEvent.change(screen.getByPlaceholderText('KEY'), { target: { value: 'APP_SECRET' } })
+    fireEvent.click(screen.getByTitle('Auto-generate sensitive value'))
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('combobox').length).toBeGreaterThan(1)
+    })
+    const sensitiveMethodSelect = screen.getAllByRole('combobox').find(element => element.querySelector('option[value="password_16"]'))
+    expect(sensitiveMethodSelect).toBeTruthy()
+    fireEvent.change(sensitiveMethodSelect as Element, { target: { value: 'password_16' } })
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Target Service')).toBeInTheDocument()
+    })
+    fireEvent.change(screen.getByLabelText('Target Service'), { target: { value: 'web' } })
+
+    const sourceFileInput = document.querySelector('input[type="file"][multiple]') as HTMLInputElement | null
+    expect(sourceFileInput).not.toBeNull()
+    fireEvent.change(sourceFileInput as HTMLInputElement, {
+      target: {
+        files: [new File(['archive-bytes'], 'app.tar.gz', { type: 'application/gzip' })],
+      },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create Deployment' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/actions/install/manual-compose/check', {
+        method: 'POST',
+        body: {
+          server_id: 'local',
+          project_name: 'wordpress-prod',
+          compose: 'services:\n  web:\n    image: nginx:alpine\n',
+          env: { APP_SECRET: expect.any(String) },
+          metadata: { candidate_kind: 'install-script' },
+          runtime_inputs: {
+            env: [{ name: 'APP_SECRET', kind: 'sensitive', generator_method: 'password_16' }],
+            files: [{
+              name: 'app.tar.gz',
+              kind: 'source-package',
+              source_path: './src/app.tar.gz',
+              uploaded: false,
+            }],
+          },
+          source_build: {
+            source_kind: 'uploaded-package',
+            source_ref: 'apps/wordpress-prod/src',
+            workspace_ref: 'apps/wordpress-prod/src',
+            builder_strategy: 'buildpacks',
+            deploy_inputs: {
+              service_name: 'web',
+            },
+            artifact_publication: {
+              mode: 'local',
+              image_name: 'apps/wordpress-prod',
+            },
+          },
+          app_required_disk_gib: '',
+        },
+      })
+    })
+
+    expect(iacMkdirMock).toHaveBeenCalledWith('apps/wordpress-prod/src')
+    expect(iacUploadFileMock).toHaveBeenCalledWith('apps/wordpress-prod/src', expect.objectContaining({ name: 'app.tar.gz' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/actions/install/manual-compose', {
+        method: 'POST',
+        body: {
+          server_id: 'local',
+          project_name: 'wordpress-prod',
+          compose: 'services:\n  web:\n    image: nginx:alpine\n',
+          env: { APP_SECRET: expect.any(String) },
+          metadata: { candidate_kind: 'install-script' },
+          runtime_inputs: {
+            env: [{ name: 'APP_SECRET', kind: 'sensitive', generator_method: 'password_16' }],
+            files: [{
+              name: 'app.tar.gz',
+              kind: 'source-package',
+              source_path: './src/app.tar.gz',
+              uploaded: true,
+            }],
+          },
+          source_build: {
+            source_kind: 'uploaded-package',
+            source_ref: 'apps/wordpress-prod/src',
+            workspace_ref: 'apps/wordpress-prod/src',
+            builder_strategy: 'buildpacks',
+            deploy_inputs: {
+              service_name: 'web',
+            },
+            artifact_publication: {
+              mode: 'local',
+              image_name: 'apps/wordpress-prod',
+            },
+          },
+          app_required_disk_gib: '',
+        },
+      })
+    })
+  })
+
+  it('requires a target service selection for multi-service install-script deployments', async () => {
+    render(
+      <TooltipProvider>
+        <CreateDeploymentPage entryMode="install-script" />
+      </TooltipProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('App Name')).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText('App Name'), { target: { value: 'wordpress-prod' } })
+    fireEvent.change(screen.getByLabelText('Target Location'), { target: { value: 'local' } })
+    fireEvent.change(screen.getByPlaceholderText(/services:/i), {
+      target: {
+        value: 'services:\n  web:\n    image: nginx:alpine\n  worker:\n    image: busybox\n',
+      },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Target Service')).toBeInTheDocument()
+      expect(screen.getByText('Select which service should use the locally built application image.')).toBeInTheDocument()
+    })
+
+    expect(screen.getByRole('button', { name: 'Create Deployment' })).toBeDisabled()
+
+    fireEvent.change(screen.getByLabelText('Target Service'), { target: { value: 'worker' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create Deployment' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/actions/install/manual-compose', {
+        method: 'POST',
+        body: {
+          server_id: 'local',
+          project_name: 'wordpress-prod',
+          compose: 'services:\n  web:\n    image: nginx:alpine\n  worker:\n    image: busybox\n',
+          env: {},
+          metadata: { candidate_kind: 'install-script' },
+          runtime_inputs: undefined,
+          source_build: {
+            source_kind: 'uploaded-package',
+            source_ref: 'apps/wordpress-prod/src',
+            workspace_ref: 'apps/wordpress-prod/src',
+            builder_strategy: 'buildpacks',
+            deploy_inputs: {
+              service_name: 'worker',
+            },
+            artifact_publication: {
+              mode: 'local',
+              image_name: 'apps/wordpress-prod',
+            },
+          },
+          app_required_disk_gib: '',
+        },
+      })
+    })
   })
 
   it('supports the git repository create flow on the full page', async () => {

@@ -55,7 +55,7 @@ All tasks complete. Used inline success/error messages (no external toast librar
 
 - `dashboard/src/routes/_app/_auth/profile.tsx` — new: self-profile page (3 sections)
 - `dashboard/src/components/layout/UserMenu.tsx` — modified: added Profile menu item
-- `backend/internal/migrations/1740500000_add_users_name_avatar.go` — new: migration adds name+avatar to users
+- `backend/infra/migrations/1740500000_add_users_name_avatar.go` — new: migration adds name+avatar to users
 
 ## Change Log
 

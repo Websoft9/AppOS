@@ -70,9 +70,9 @@ Suggested response shape:
 
 ## File Targets
 
-- `backend/internal/routes/crons.go` — new file; implement `handleCronLogs` and `registerCronLogsRoute(se)`
-- `backend/internal/routes/routes.go` — call `registerCronLogsRoute(se)` directly inside `Register(se)`, **not** inside any existing route group; the route must live on `se.Router` directly so it sits under `/api/crons/{jobId}/logs` alongside the native prefix
-- `backend/internal/` cron wrapper — new shared helper (e.g. `backend/internal/cronutil/wrap.go`); apply to AppOS-maintained cron handlers when they are registered; no AppOS cron handlers exist yet — the wrapper ships as infrastructure and is wired up when the first entry appears in the Cron Specs Registry
+- `backend/domain/routes/crons.go` — new file; implement `handleCronLogs` and `registerCronLogsRoute(se)`
+- `backend/domain/routes/routes.go` — call `registerCronLogsRoute(se)` directly inside `Register(se)`, **not** inside any existing route group; the route must live on `se.Router` directly so it sits under `/api/crons/{jobId}/logs` alongside the native prefix
+- `backend/domain/` cron wrapper — new shared helper (e.g. `backend/infra/cronutil/wrap.go`); apply to AppOS-maintained cron handlers when they are registered; no AppOS cron handlers exist yet — the wrapper ships as infrastructure and is wired up when the first entry appears in the Cron Specs Registry
 - `backend/docs/openapi/native-api.yaml` — add `GET /api/crons/{jobId}/logs` under the `System Cron` tag
 - backend tests covering query/filter behavior
 

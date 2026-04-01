@@ -49,7 +49,7 @@ As a user, I can favorite apps and attach personal notes, so that I can quickly 
 
 ### Backend Migration Pattern
 
-Follow `backend/internal/migrations/1740300000_create_user_files.go` — `core.NewBaseCollection`, access rules via `types.Pointer(rule)`, `m.Register`.
+Follow `backend/infra/migrations/1740300000_create_user_files.go` — `core.NewBaseCollection`, access rules via `types.Pointer(rule)`, `m.Register`.
 
 File naming: use next available timestamp, e.g. `17XXXXXXXXXX_create_store_user_apps.go`.
 
@@ -57,7 +57,7 @@ File naming: use next available timestamp, e.g. `17XXXXXXXXXX_create_store_user_
 
 | File | Action |
 |------|--------|
-| `backend/internal/migrations/17XXXXXXXXXX_create_store_user_apps.go` | NEW |
+| `backend/infra/migrations/17XXXXXXXXXX_create_store_user_apps.go` | NEW |
 | `dashboard/src/lib/store-user-api.ts` | NEW — favorites/notes CRUD hooks |
 | `dashboard/src/components/store/FavoriteButton.tsx` | NEW |
 | `dashboard/src/components/store/NoteEditor.tsx` | NEW |
@@ -70,7 +70,7 @@ File naming: use next available timestamp, e.g. `17XXXXXXXXXX_create_store_user_
 ### References
 
 - PocketBase collections schema: [epic5-store.md](epic5-store.md#PocketBase-Collections)
-- Migration pattern: [backend/internal/migrations/1740300000_create_user_files.go](../../backend/internal/migrations/1740300000_create_user_files.go)
+- Migration pattern: [backend/infra/migrations/1740300000_create_user_files.go](../../backend/infra/migrations/1740300000_create_user_files.go)
 - PB SDK usage: [architecture.md](../planning-artifacts/architecture.md#Frontend-single-SDK)
 - Store page: [dashboard/src/routes/_app/_auth/store/index.tsx](../../dashboard/src/routes/_app/_auth/store/index.tsx)
 - Detail modal: [dashboard/src/components/store/AppDetailModal.tsx](../../dashboard/src/components/store/AppDetailModal.tsx)
@@ -101,7 +101,7 @@ File naming: use next available timestamp, e.g. `17XXXXXXXXXX_create_store_user_
 
 ### File List
 
-- `backend/internal/migrations/1741300000_create_store_user_apps.go` [NEW]
+- `backend/infra/migrations/1741300000_create_store_user_apps.go` [NEW]
 - `dashboard/src/lib/store-user-api.ts` [NEW]
 - `dashboard/src/components/store/FavoriteButton.tsx` [NEW]
 - `dashboard/src/components/store/NoteEditor.tsx` [NEW]

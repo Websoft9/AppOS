@@ -1185,7 +1185,7 @@ func runGen() error {
 	_, thisFile, _, _ := runtime.Caller(0)
 	// thisFile = backend/cmd/openapi/gen.go
 	root := filepath.Join(filepath.Dir(thisFile), "../..")
-	routesDir := filepath.Join(root, "internal/routes")
+	routesDir := filepath.Join(root, "domain/routes")
 	specPath := filepath.Join(root, "docs/openapi/ext-api.yaml")
 	groupMatrixPath := filepath.Join(root, "docs/openapi/group-matrix.yaml")
 

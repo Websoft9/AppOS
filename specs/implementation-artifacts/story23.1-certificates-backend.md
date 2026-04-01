@@ -12,7 +12,7 @@ Evolve the existing `certificates` collection into the Epic 23 data model, add a
 ## Acceptance Criteria
 
 - [x] AC1: All Epic 23 certificate fields are defined in `1740000000_create_resource_collections.go` (merged into the original creation migration; no separate upgrade migration). Schema includes `template_id`, `kind`, `issuer`, `subject`, `status`, `issued_at`, `serial_number`, `signature_algorithm`, `key_bits`, `cert_version`, plus `created`/`updated` autodate fields.
-- [x] AC2: `GET /api/certificates/templates` returns all templates from `backend/internal/certs/templates.json`, including at least `self_signed_basic` and `ca_import_basic`.
+- [x] AC2: `GET /api/certificates/templates` returns all templates from `backend/domain/certs/templates.json`, including at least `self_signed_basic` and `ca_import_basic`.
 - [x] AC3: Before-create hook on `certificates` rejects any request where `cert_pem` is provided but does not start with `-----BEGIN CERTIFICATE-----` (returns 400).
 - [x] AC4: Before-create hook on `certificates` rejects binary content in `cert_pem` (null bytes detected in first 8 KB slice) with 400.
 - [x] AC5: Before-create hook on `certificates` parses `cert_pem` when provided and writes `issuer`, `subject`, `expires_at`, `issued_at`, `serial_number`, `signature_algorithm`, `key_bits`, `cert_version` extracted from the first certificate in the chain. Frontend-supplied values for these fields are ignored.
@@ -24,10 +24,10 @@ Evolve the existing `certificates` collection into the Epic 23 data model, add a
 ## Tasks
 
 - [x] Task 1: All fields defined in `1740000000_create_resource_collections.go` (merged; no separate upgrade migration)
-- [x] Task 2: Certificate template loader `backend/internal/certs/templates.go`
-- [x] Task 3: PB collection hooks `backend/internal/certs/hooks.go`
-- [x] Task 4: PEM parsing utility `backend/internal/certs/pem.go`
-- [x] Task 5: Routes registered in `backend/internal/routes/certificates.go`
+- [x] Task 2: Certificate template loader `backend/domain/certs/templates.go`
+- [x] Task 3: PB collection hooks `backend/domain/certs/hooks.go`
+- [x] Task 4: PEM parsing utility `backend/domain/certs/pem.go`
+- [x] Task 5: Routes registered in `backend/domain/routes/certificates.go`
 
 ## Collection Schema
 
@@ -87,11 +87,11 @@ Collection rules (updated by migration):
 
 ## File List
 
-- `backend/internal/migrations/1762700000_update_certificates_for_epic23.go` — new
-- `backend/internal/certs/templates.go` — new
-- `backend/internal/certs/templates.json` — new
-- `backend/internal/certs/pem.go` — new (shared PEM parsing: `ExtractCertMeta`, `IsBinaryContent`, `ValidatePEMHeader`)
-- `backend/internal/certs/hooks.go` — new
-- `backend/internal/routes/certificates.go` — new (templates route only)
-- `backend/internal/routes/routes.go` — updated (register certificates routes + hooks)
-- `backend/internal/hooks/hooks.go` — updated (register certs hooks)
+- `backend/infra/migrations/1762700000_update_certificates_for_epic23.go` — new
+- `backend/domain/certs/templates.go` — new
+- `backend/domain/certs/templates.json` — new
+- `backend/domain/certs/pem.go` — new (shared PEM parsing: `ExtractCertMeta`, `IsBinaryContent`, `ValidatePEMHeader`)
+- `backend/domain/certs/hooks.go` — new
+- `backend/domain/routes/certificates.go` — new (templates route only)
+- `backend/domain/routes/routes.go` — updated (register certificates routes + hooks)
+- `backend/platform/hooks/hooks.go` — updated (register certs hooks)

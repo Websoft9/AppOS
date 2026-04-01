@@ -84,7 +84,7 @@ Error responses:
 
 ### Task 1: Certificate generation logic
 
-File: `backend/internal/certs/generate.go`
+File: `backend/domain/certs/generate.go`
 
 Functions:
 - `GenerateSelfSigned(domain string, keyBits int, validityDays int) (certPEM string, keyPEM string, err error)`
@@ -102,11 +102,11 @@ Functions:
   4. PEM-encode the certificate (`CERTIFICATE` block) and private key (`RSA PRIVATE KEY` block)
   5. Return both PEM strings
 
-Note: `ExtractCertMeta` is defined in `backend/internal/certs/pem.go` (Story 23.1). This story reuses it; does not redefine it.
+Note: `ExtractCertMeta` is defined in `backend/domain/certs/pem.go` (Story 23.1). This story reuses it; does not redefine it.
 
 ### Task 2: Secret creation/update helpers for private key
 
-File: `backend/internal/certs/keysecret.go`
+File: `backend/domain/certs/keysecret.go`
 
 **Important**: Secrets encryption hooks only fire on HTTP requests (`OnRecordCreateRequest`), not on direct `app.Save()` calls. These helpers must call `secrets.EncryptPayload()` and `secrets.BuildPayloadMeta()` directly before saving.
 
@@ -134,7 +134,7 @@ Functions:
 
 ### Task 3: Route handlers
 
-File: `backend/internal/certs/generate_routes.go`
+File: `backend/domain/certs/generate_routes.go`
 
 ```go
 import (
@@ -183,7 +183,7 @@ Error: `e.BadRequestError(msg, err)`, `e.NotFoundError(msg, err)`
 
 ### Task 4: Register generate routes
 
-In `backend/internal/certs/certificates.go` (or wherever `registerCertificatesRoutes` is defined):
+In `backend/domain/certs/certificates.go` (or wherever `registerCertificatesRoutes` is defined):
 
 ```go
 func RegisterCertificatesRoutes(se *core.ServeEvent) {
@@ -197,7 +197,7 @@ Note: `RegisterCertificatesRoutes` is the public entry point called from `routes
 
 ### Task 5: Add tls_private_key template to secrets (if not already present)
 
-Check `backend/internal/secrets/templates.json`. If no template with `id: "tls_private_key"` exists, add:
+Check `backend/domain/secrets/templates.json`. If no template with `id: "tls_private_key"` exists, add:
 
 ```json
 {
@@ -264,8 +264,8 @@ if saveErr != nil {
 
 | Path | Action |
 |------|--------|
-| `backend/internal/certs/generate.go` | Create |
-| `backend/internal/certs/keysecret.go` | Create |
-| `backend/internal/certs/generate_routes.go` | Create |
-| `backend/internal/certs/certificates.go` | Update — add `registerGenerateRoutes(g)` call |
-| `backend/internal/secrets/templates.json` | Update — add `tls_private_key` entry if absent |
+| `backend/domain/certs/generate.go` | Create |
+| `backend/domain/certs/keysecret.go` | Create |
+| `backend/domain/certs/generate_routes.go` | Create |
+| `backend/domain/certs/certificates.go` | Update — add `registerGenerateRoutes(g)` call |
+| `backend/domain/secrets/templates.json` | Update — add `tls_private_key` entry if absent |

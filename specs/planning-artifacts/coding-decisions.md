@@ -70,9 +70,9 @@ Decision: for each module, define constants, error codes, and variable configura
 
 ## Custom Route Ownership & Guard{#custom-route-guard}
 
-**Decision**: all custom `/api/<domain>/*` APIs must be defined in `backend/internal/routes/` only.
+**Decision**: all custom `/api/<domain>/*` APIs must be defined in `backend/domain/routes/` only.
 
-**Decision**: route registration entrypoint is centralized at `routes.Register(se)` from `backend/cmd/appos/main.go`; adding custom route registrations outside `backend/internal/routes/` is prohibited.
+**Decision**: route registration entrypoint is centralized at `routes.Register(se)` from `backend/cmd/appos/main.go`; adding custom route registrations outside `backend/domain/routes/` is prohibited.
 
 **Decision**: architecture guard is enforced as a **test gate**, not a lint rule.
 

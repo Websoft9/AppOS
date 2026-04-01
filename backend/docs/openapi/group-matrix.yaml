@@ -1,7 +1,7 @@
 version: 1
 name: openapi-group-matrix
 source: specs/implementation-artifacts/story1.7-swagger.md
-routerfilepath: backend/internal/routes
+routerfilepath: backend/domain/routes
 
 # Documentation types (critical):
 # 1) Business Logic Routes -> matrix-driven generation from route code to the generated custom-route spec (ext-api.yaml)

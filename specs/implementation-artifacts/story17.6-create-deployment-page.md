@@ -155,9 +155,9 @@ GPT-5.4
 - `dashboard/src/pages/deploy/CreateDeploymentPage.test.tsx`
 - `dashboard/src/routeTree.gen.ts`
 - `build/nginx.conf`
-- `backend/internal/routes/deploy.go`
-- `backend/internal/routes/deploy_test.go`
-- `backend/internal/routes/settings.go`
+- `backend/domain/routes/deploy.go`
+- `backend/domain/routes/deploy_test.go`
+- `backend/domain/routes/settings.go`
 - `backend/docs/openapi/ext-api.yaml`
 - `backend/docs/openapi/api.yaml`
 - `backend/docs/openapi/group-matrix.yaml`

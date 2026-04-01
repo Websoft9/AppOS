@@ -25,7 +25,7 @@ Provides the generic, resource-agnostic Terminal UI framework. This epic owns th
 ```
 Resource Store (any collection: servers, databases, …)
         ↓
-Connector Interface  (backend/internal/servers/)
+Connector Interface  (backend/domain/servers/)
         ↓
 WebSocket / REST  (PocketBase custom route, resource-scoped)
         ↓
@@ -34,7 +34,7 @@ WebSocket / REST  (PocketBase custom route, resource-scoped)
 
 ### Connector Interface
 
-Defined in `backend/internal/servers/connector.go`. All resource-specific connectors must implement these interfaces.
+Defined in `backend/domain/servers/connector.go`. All resource-specific connectors must implement these interfaces.
 
 ```go
 // Streaming connectors (PTY / shell)

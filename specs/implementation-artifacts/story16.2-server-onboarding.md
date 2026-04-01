@@ -39,8 +39,8 @@ As a superuser, I can add a local server (behind NAT) to appos by copying a gene
 ### New files
 
 ```
-backend/internal/routes/tunnel.go          # API routes + TokenValidator + SessionHooks impls
-backend/internal/migrations/
+backend/domain/routes/tunnel.go          # API routes + TokenValidator + SessionHooks impls
+backend/infra/migrations/
   1741500000_add_tunnel_fields.go          # servers + secrets schema extension
   1741500001_seed_tunnel_settings.go       # tunnel port range in custom_settings
   1741500002_add_tunnel_token_type.go      # adds "tunnel_token" to secrets.type select values
@@ -417,16 +417,16 @@ Add a "Rotate Token" button in the server edit view (tunnel servers only):
 ## Files Created / Modified
 
 ### New
-- `backend/internal/routes/tunnel.go` — pbTokenValidator, pbSessionHooks, registerTunnelRoutes, all handlers
-- `backend/internal/migrations/1741500000_add_tunnel_fields.go` — schema: connect_type, tunnel_status, tunnel_last_seen, tunnel_services
-- `backend/internal/migrations/1741500001_seed_tunnel_settings.go` — tunnel port_range default settings
-- `backend/internal/migrations/1741500002_add_tunnel_token_type.go` — adds `tunnel_token` to secrets.type select allowed values
+- `backend/domain/routes/tunnel.go` — pbTokenValidator, pbSessionHooks, registerTunnelRoutes, all handlers
+- `backend/infra/migrations/1741500000_add_tunnel_fields.go` — schema: connect_type, tunnel_status, tunnel_last_seen, tunnel_services
+- `backend/infra/migrations/1741500001_seed_tunnel_settings.go` — tunnel port_range default settings
+- `backend/infra/migrations/1741500002_add_tunnel_token_type.go` — adds `tunnel_token` to secrets.type select allowed values
 - `dashboard/src/components/servers/TunnelSetupWizard.tsx` — wizard UI with PB Realtime subscription
 
 ### Modified
-- `backend/internal/routes/routes.go` — added `registerTunnelRoutes(se, g)` call
-- `backend/internal/routes/resources.go` — added `connect_type` to serverFields
-- `backend/internal/routes/server.go` — added tunnel SSH port override in resolveServerConfig
+- `backend/domain/routes/routes.go` — added `registerTunnelRoutes(se, g)` call
+- `backend/domain/routes/resources.go` — added `connect_type` to serverFields
+- `backend/domain/routes/server.go` — added tunnel SSH port override in resolveServerConfig
 - `dashboard/src/components/resources/ResourcePage.tsx` — added `onCreateSuccess` callback to ResourcePageConfig
 - `dashboard/src/routes/_app/_auth/resources/servers.tsx` — connect_type field, tunnel_status column, wizard integration
 

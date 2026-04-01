@@ -79,7 +79,7 @@ Notes:
 
 - `issuer`, `subject`, `expires_at` are written by the before-create/update hook when `cert_pem` is provided. They must not be writeable directly by the frontend.
 - `key` retains the existing field name for backward compatibility. It references a `secrets` record holding the private key.
-- Template definitions live in a dedicated file `backend/internal/certs/templates.json`, not in the Secrets template file.
+- Template definitions live in a dedicated file `backend/domain/certs/templates.json`, not in the Secrets template file.
 - MVP only accepts text-based PEM content. Binary formats are rejected by the backend hook.
 - Uploaded source files are import carriers only. Normalized PEM content is stored; the original file object is not persisted.
 
@@ -152,7 +152,7 @@ Binary files:
 
 ### Template file
 
-Location: `backend/internal/certs/templates.json`. Loaded at startup; served via `GET /api/certificates/templates`.
+Location: `backend/domain/certs/templates.json`. Loaded at startup; served via `GET /api/certificates/templates`.
 
 Template object shape:
 

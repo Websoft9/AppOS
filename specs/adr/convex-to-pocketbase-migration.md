@@ -86,7 +86,7 @@ During Story 1.1 implementation (Container Build & Deployment), we encountered c
    + mkdir -p /appos/data/pocketbase
    ```
 
-4. **backend/internal/config/config.go**:
+4. **backend/domain/config/config.go**:
    ```diff
    - ConvexURL      string `env:"CONVEX_URL"`
    - ConvexDeployKey string `env:"CONVEX_DEPLOY_KEY"`

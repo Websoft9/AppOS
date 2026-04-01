@@ -122,8 +122,8 @@ All routes are under `/api/servers/{serverId}/ops`.
 
 ### File List
 
-- backend/internal/routes/server.go
-- backend/internal/routes/server_test.go
+- backend/domain/routes/server.go
+- backend/domain/routes/server_test.go
 - dashboard/src/lib/connect-api.ts
 - dashboard/src/routes/_app/_auth/resources/servers.tsx
 - dashboard/src/pages/connect/ConnectServerPage.tsx

@@ -41,27 +41,27 @@ Route handler → docker.Client.ComposeUp()  → Executor.Run("docker", "compose
 
 ### Current State
 
-- `backend/internal/docker/docker.go` — `Client` with `run()` via `os/exec`. Methods: Ping, ComposeUp, ComposeDown, ComposeRestart, ComposeStop, ComposeLogs
-- `backend/internal/routes/apps.go` — 7 stub routes under `/api/ext/apps/*` (all "not implemented")
-- `backend/internal/routes/routes.go` — `registerAppRoutes(g)` to be replaced
+- `backend/infra/docker/docker.go` — `Client` with `run()` via `os/exec`. Methods: Ping, ComposeUp, ComposeDown, ComposeRestart, ComposeStop, ComposeLogs
+- `backend/domain/routes/apps.go` — 7 stub routes under `/api/ext/apps/*` (all "not implemented")
+- `backend/domain/routes/routes.go` — `registerAppRoutes(g)` to be replaced
 
 ### Target State
 
-**1. Executor interface** (`backend/internal/docker/executor.go`):
+**1. Executor interface** (`backend/infra/docker/executor.go`):
 - `Run(ctx, command, args...) (string, error)` — buffered output
 - `RunStream(ctx, command, args...) (io.Reader, error)` — streaming (for logs)
 - `Ping(ctx) error`
 - `Host() string` — returns server identifier ("local" for LocalExecutor)
 
-**2. LocalExecutor** (`backend/internal/docker/local.go`):
+**2. LocalExecutor** (`backend/infra/docker/local.go`):
 - Move existing `Client.run()` logic here
 - `DOCKER_HOST` env set per command
 
-**3. Refactored Client** (`backend/internal/docker/docker.go`):
+**3. Refactored Client** (`backend/infra/docker/docker.go`):
 - `New(exec Executor) *Client`
 - All methods delegate to `c.exec.Run("docker", ...)`
 
-**4. Routes** (`backend/internal/routes/docker.go`):
+**4. Routes** (`backend/domain/routes/docker.go`):
 - `registerDockerRoutes(g)` replaces `registerAppRoutes(g)`
 - Compose group under `/docker/compose/*`
 
@@ -93,12 +93,12 @@ All compose routes accept `projectDir` to identify which compose project to oper
 
 | Action | File | What |
 |--------|------|------|
-| Create | `backend/internal/docker/executor.go` | Executor interface |
-| Create | `backend/internal/docker/local.go` | LocalExecutor implementation |
-| Modify | `backend/internal/docker/docker.go` | Client uses Executor, remove `run()` |
-| Create | `backend/internal/routes/docker.go` | Compose route handlers |
-| Modify | `backend/internal/routes/routes.go` | Replace `registerAppRoutes` → `registerDockerRoutes` |
-| Delete | `backend/internal/routes/apps.go` | Replaced by docker.go |
+| Create | `backend/infra/docker/executor.go` | Executor interface |
+| Create | `backend/infra/docker/local.go` | LocalExecutor implementation |
+| Modify | `backend/infra/docker/docker.go` | Client uses Executor, remove `run()` |
+| Create | `backend/domain/routes/docker.go` | Compose route handlers |
+| Modify | `backend/domain/routes/routes.go` | Replace `registerAppRoutes` → `registerDockerRoutes` |
+| Delete | `backend/domain/routes/apps.go` | Replaced by docker.go |
 
 ### Error Handling
 

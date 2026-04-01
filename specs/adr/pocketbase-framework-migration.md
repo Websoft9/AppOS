@@ -11,7 +11,7 @@
 Architecture v2.1 ran PocketBase as a standalone BaaS alongside a separate Go backend (chi). This meant:
 
 - **Two processes**: Backend (chi) + PocketBase (standalone), coordinated via HTTP
-- **Custom HTTP client**: `backend/internal/pocketbase/client.go` for Backend → PB communication
+- **Custom HTTP client**: `backend/domain/pocketbase/client.go` for Backend → PB communication
 - **No frontend SDK reuse**: Dashboard needed a custom Backend SDK or dual SDK (PB SDK + Backend SDK)
 - **Duplicated concerns**: Auth middleware in both Backend and PocketBase
 
@@ -44,11 +44,11 @@ Eliminate the separate Go backend. One process serves everything: built-in PB AP
 
 ### Removed
 - `backend/cmd/server/main.go` — replaced by PocketBase main
-- `backend/internal/server/` — chi router, middleware
-- `backend/internal/pocketbase/client.go` — no longer needed (direct Dao access)
+- `backend/domain/server/` — chi router, middleware
+- `backend/domain/pocketbase/client.go` — no longer needed (direct Dao access)
 
 ### Retained
-- `backend/internal/server/handlers/` — migrated to PB custom routes
+- `backend/domain/server/handlers/` — migrated to PB custom routes
 - Asynq + Redis integration — embedded in PB process
 - Docker/proxy/terminal logic — unchanged, just different entry point
 

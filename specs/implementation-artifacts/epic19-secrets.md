@@ -115,7 +115,7 @@ Read is intentionally open to all authenticated users: the list view only expose
 
 ## Template Source (File-Based)
 
-- Location: `backend/internal/secrets/templates.json`
+- Location: `backend/domain/secrets/templates.json`
 - Loaded at startup; `template_id` validated on create/update.
 - Frontend fetches via `GET /api/secrets/templates`.
 - No template table introduced.

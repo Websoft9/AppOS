@@ -32,7 +32,7 @@ Route handler → docker.Client.ImageList() → Executor.Run("docker", "image", 
 
 All 17 routes are **Docker CLI wrappers via Executor**. No file I/O, no business logic.
 
-### Client Methods to Add (`backend/internal/docker/docker.go`)
+### Client Methods to Add (`backend/infra/docker/docker.go`)
 
 | Method | Docker Command |
 |--------|---------------|
@@ -53,7 +53,7 @@ All 17 routes are **Docker CLI wrappers via Executor**. No file I/O, no business
 | `VolumeRemove(ctx, id)` | `docker volume rm <id>` |
 | `VolumePrune(ctx)` | `docker volume prune -f` |
 
-### Routes to Add (`backend/internal/routes/docker.go`)
+### Routes to Add (`backend/domain/routes/docker.go`)
 
 Extend `registerDockerRoutes()` from Story 4.1:
 
@@ -91,8 +91,8 @@ volumes.POST("/prune", handleVolumePrune)
 
 | Action | File |
 |--------|------|
-| Modify | `backend/internal/docker/docker.go` — add 16 Client methods |
-| Modify | `backend/internal/routes/docker.go` — add 4 resource groups, 17 handlers |
+| Modify | `backend/infra/docker/docker.go` — add 16 Client methods |
+| Modify | `backend/domain/routes/docker.go` — add 4 resource groups, 17 handlers |
 
 ---
 

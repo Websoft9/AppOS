@@ -112,4 +112,87 @@ describe('ActionDetailContent', () => {
     expect(screen.getByText('Node execution log')).toBeInTheDocument()
     expect(screen.getAllByText(/error: probe failed/i).length).toBeGreaterThan(0)
   })
+
+  it('shows source-build attribution when the action spec includes source_build metadata', () => {
+    render(
+      <TooltipProvider>
+        <ActionDetailContent
+          operation={{
+            id: 'act_source_build_1',
+            server_id: 'local',
+            server_label: 'Local Server',
+            server_host: 'local',
+            source: 'manualops',
+            status: 'success',
+            adapter: 'source_build',
+            compose_project_name: 'source-build-demo',
+            project_dir: '/srv/source-build-demo',
+            rendered_compose: '',
+            error_summary: '',
+            created: '2026-04-01T08:00:00Z',
+            updated: '2026-04-01T08:05:00Z',
+            started_at: '2026-04-01T08:00:10Z',
+            finished_at: '2026-04-01T08:05:00Z',
+            spec: {
+              source_build: {
+                source_kind: 'uploaded-package',
+                source_ref: 'upload://source-build-demo.tar.gz',
+                builder_strategy: 'buildpacks',
+                deploy_inputs: {
+                  service_name: 'web',
+                },
+                artifact_publication: {
+                  mode: 'local',
+                  image_name: 'apps/source-build-demo',
+                },
+                build_result: {
+                  local_image_ref: 'apps/source-build-demo:candidate',
+                },
+                publication_result: {
+                  local_image_ref: 'apps/source-build-demo:candidate',
+                },
+              },
+            },
+            pipeline: {
+              id: 'pipe_source_build_1',
+              operation_id: 'act_source_build_1',
+              family: 'provision',
+              definition_key: 'provision.install.source_build',
+              status: 'success',
+              current_phase: 'completed',
+              selector: { operation_type: 'install', source: 'manualops', adapter: 'source_build' },
+              steps: [],
+            },
+            pipeline_family: 'provision',
+            pipeline_definition_key: 'provision.install.source_build',
+            pipeline_selector: { operation_type: 'install', source: 'manualops', adapter: 'source_build' },
+            lifecycle: [],
+            steps: [],
+          }}
+          loading={false}
+          streamStatus="closed"
+          logText=""
+          logUpdatedAt="2026-04-01T08:05:00Z"
+          logTruncated={false}
+          logViewportRef={{ current: null }}
+          onLogScroll={vi.fn()}
+          autoScrollEnabled
+          onAutoScrollChange={vi.fn()}
+          getUserLabel={item => item.user_email || '-'}
+          getServerLabel={item => item.server_label || item.server_id}
+          getServerHost={item => item.server_host || '-'}
+          formatTime={value => value || '-'}
+          onRefresh={vi.fn()}
+        />
+      </TooltipProvider>
+    )
+
+    expect(screen.getByText('Source Build')).toBeInTheDocument()
+    expect(screen.getByText('uploaded-package')).toBeInTheDocument()
+    expect(screen.getByText('buildpacks')).toBeInTheDocument()
+    expect(screen.getByText('local')).toBeInTheDocument()
+    expect(screen.getByText('upload://source-build-demo.tar.gz')).toBeInTheDocument()
+    expect(screen.getByText('apps/source-build-demo:candidate')).toBeInTheDocument()
+    expect(screen.getByText('web')).toBeInTheDocument()
+  })
 })

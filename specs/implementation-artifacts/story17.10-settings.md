@@ -79,8 +79,8 @@ so that disk-capacity blocking behavior can match different host sizes and app p
 
 ## File Touchpoints
 
-- `backend/internal/routes/settings.go`
-- `backend/internal/routes/deploy.go`
+- `backend/domain/routes/settings.go`
+- `backend/domain/routes/deploy.go`
 - `dashboard/src/pages/deploy/actions/useActionsController.ts`
 - `dashboard/src/pages/deploy/CreateDeploymentPage.tsx`
 - `specs/implementation-artifacts/story17.10-settings.md`

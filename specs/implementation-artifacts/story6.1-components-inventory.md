@@ -30,7 +30,7 @@ so that I can quickly confirm which core parts are present and whether they are 
   - [ ] Define required fields per component entry
   - [ ] Define safe defaults for logs and operations
 - [ ] Implement backend aggregation endpoint for installed components (AC: 1,2,3,4,6)
-  - [ ] Add component aggregation service under `backend/internal/`
+  - [ ] Add component aggregation service under `backend/domain/`
   - [ ] Add PB route for `GET /api/components` or equivalent final route contract
   - [ ] Map YAML registry entries to detection results and simple availability status
 - [ ] Implement frontend Installed Components tab (AC: 5,6,7,8)

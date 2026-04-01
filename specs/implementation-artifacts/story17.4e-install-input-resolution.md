@@ -31,6 +31,25 @@ so that different install entry points can reuse the same execution core without
 - [ ] Preserve publication intent and exposure-related inputs as normalized lifecycle metadata.
 - [ ] Classify and convert broader sensitive install inputs into secret-backed references where required.
 
+## Follow-On Decomposition
+
+The remaining work in this story is now split into five narrower planning artifacts:
+
+1. `17.4e-A Resolver Boundary Consolidation`
+2. `17.4e-B Source Candidate Convergence`
+3. `17.4e-C Runtime Input Resolution`
+4. `17.4e-D Secret and Exposure Intent Normalization`
+5. `17.4e-E Resolution Preview API and Create-Page Consumption`
+
+These slices are recorded in:
+
+- `specs/implementation-artifacts/story17.4e-a-resolver-boundary-consolidation.md`
+- `specs/implementation-artifacts/story17.4e-b-source-candidate-convergence.md`
+- `specs/implementation-artifacts/story17.4e-c-runtime-input-resolution.md`
+- `specs/implementation-artifacts/story17.4e-d-secret-and-exposure-intent-normalization.md`
+- `specs/implementation-artifacts/story17.4e-e-resolution-preview-api.md`
+- `specs/implementation-artifacts/iteration2-epic17-install-resolution-convergence-slice.md`
+
 ## Dev Notes
 
 - This story defines the normalization boundary between install dialogs and the shared execution core.

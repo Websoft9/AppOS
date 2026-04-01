@@ -13,7 +13,7 @@ Verify that PocketBase native Records API fully serves all Shared Envs CRUD need
 
 ## Acceptance Criteria
 
-- [ ] AC1: All custom route handlers for `env_groups` in `backend/internal/routes/resources.go` (or equivalent) are deleted.
+- [ ] AC1: All custom route handlers for `env_groups` in `backend/domain/routes/resources.go` (or equivalent) are deleted.
 - [ ] AC2: `GET /api/collections/env_sets/records` returns a list of env sets for authenticated users.
 - [ ] AC3: `POST /api/collections/env_sets/records` creates an env set; superuser only.
 - [ ] AC4: `PATCH /api/collections/env_sets/records/{id}` updates an env set; superuser only.

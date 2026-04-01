@@ -35,10 +35,10 @@ This story is limited to SFTP/file manager enhancements only. Docker terminal be
 
 ### File List
 
-- backend/internal/servers/sftp.go
-- backend/internal/routes/server.go
-- backend/internal/routes/server_test.go
-- backend/internal/routes/settings.go
+- backend/domain/servers/sftp.go
+- backend/domain/routes/server.go
+- backend/domain/routes/server_test.go
+- backend/domain/routes/settings.go
 - dashboard/src/lib/connect-api.ts
 - dashboard/src/components/connect/FileManagerPanel.tsx
 - dashboard/src/components/connect/FileManagerPanel.test.tsx

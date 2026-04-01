@@ -31,7 +31,7 @@ Lightweight collaboration module for user-authored discussion threads with threa
 
 **Collection rules**: List/View require auth; Create requires auth; Update/Delete require ownership.
 
-## Custom Routes (`backend/internal/routes/topics.go`)
+## Custom Routes (`backend/domain/routes/topics.go`)
 
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|

@@ -86,13 +86,13 @@ so that I can enforce reveal restrictions and default behaviors across all secre
 - Story-specific tests pass. Full repo suites still include unrelated pre-existing failures: `dashboard/src/pages/components/ComponentsPage.test.tsx` expects the old grid class, and backend full `go test ./...` exits non-zero because of existing route-suite failures observed during validation.
 
 ### File List
-- `backend/internal/migrations/1741200005_seed_secrets_policy.go`
-- `backend/internal/migrations/migrations_test.go`
-- `backend/internal/routes/secrets.go`
-- `backend/internal/routes/settings.go`
-- `backend/internal/routes/settings_test.go`
-- `backend/internal/secrets/hooks.go`
-- `backend/internal/secrets/hooks_test.go`
+- `backend/infra/migrations/1741200005_seed_secrets_policy.go`
+- `backend/infra/migrations/migrations_test.go`
+- `backend/domain/routes/secrets.go`
+- `backend/domain/routes/settings.go`
+- `backend/domain/routes/settings_test.go`
+- `backend/domain/secrets/hooks.go`
+- `backend/domain/secrets/hooks_test.go`
 - `dashboard/src/components/secrets/RevealOverlay.test.tsx`
 - `dashboard/src/components/secrets/RevealOverlay.tsx`
 - `dashboard/src/lib/secrets-policy.test.ts`
