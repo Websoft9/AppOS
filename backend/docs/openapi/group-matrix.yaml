@@ -162,6 +162,20 @@ groups:
         - apps.go
       nativeRefs: []
 
+  - group: Catalog
+    description: Canonical app catalog read APIs.
+    apiType: Ext
+    extSurface:
+      - GET /api/catalog/categories
+      - GET /api/catalog/apps
+      - GET /api/catalog/apps/{key}
+      - GET /api/catalog/apps/{key}/deploy-source
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - catalog.go
+      nativeRefs: []
+
   - group: Health
     description: Platform liveness and health status endpoints.
     apiType: Native

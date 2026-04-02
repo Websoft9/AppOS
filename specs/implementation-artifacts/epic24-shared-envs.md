@@ -4,11 +4,16 @@
 
 **Shared reusable environment variables for apps and workflows** — named sets of key-value pairs (optionally referencing secrets) that can be attached to applications and workflow definitions. Shared Envs are the optional shared layer of env management, not the only source of env values.
 
-**Status**: In Progress | **Priority**: P1 | **Depends on**: Epic 1, Epic 3, Epic 19 (Secrets)
+**Status**: In Progress (`24.1` done, `24.2` core slice done, `24.3` pending) | **Priority**: P1 | **Depends on**: Epic 1, Epic 3, Epic 19 (Secrets)
 
 ## Definition
 
 `Shared Envs` is the product/module name used in UI, menus, and pages.
+
+DDD alignment for the current backend slice:
+- Shared Envs is treated as a reusable source-side configuration asset, not as lifecycle execution logic.
+- Secret ownership remains in `Secrets Management`; Shared Envs stores only secret references.
+- Merge precedence, effective-env construction, and target injection remain owned by Epic 17 lifecycle.
 
 It owns only the shared reusable env layer:
 - reusable non-sensitive values
@@ -51,6 +56,7 @@ Additional rules:
 - Resolution does not mutate upstream layers; only the resolved result is injected.
 - Compose `.env` is generated from the resolved result when needed; it should not be treated as the canonical storage model.
 - Resolution and injection policy (what gets injected into which target) is owned by the Epic 17 lifecycle resolver/normalizer. Shared Envs only provides the reusable source layer.
+- Current backend implementation keeps this split explicit: Shared Envs provides normalized set/var lookup and attachment expansion; lifecycle still owns merge precedence and injection semantics.
 
 ## Consumption Model
 
@@ -163,6 +169,9 @@ No custom ext routes needed. PocketBase native Records API covers all CRUD for `
 - Expand config on `env_set_vars`: `secret` field expand enabled
 - Verify `apps.env_sets` relation field is queryable with expand
 - Add automated contract test to ensure `payload_encrypted` is never returned via `expand=secret`
+- Add a minimal backend read boundary for shared env consumption: normalized set lookup, var lookup, attached-set ID normalization, and ordered attached-var expansion
+- Keep the read boundary source-only: it must not absorb lifecycle merge or injection policy
+- Current implementation follows this boundary: `sharedenv` exposes normalized read models and lookup services, while persistence details stay hidden from consumers as much as practical in the current codebase slice
 
 ### Story 24.3 — Frontend
 

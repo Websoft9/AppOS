@@ -23,6 +23,8 @@ tags:
     description: "Exposure inventory and app-scoped publication inspection APIs."
   - name: Apps
     description: "Installed app inventory and lifecycle APIs backed by compose projects."
+  - name: Catalog
+    description: "Canonical app catalog read APIs."
   - name: IaC
     description: "Infrastructure-as-Code workspace and template file operations."
   - name: OpenAPI Docs
@@ -1222,6 +1224,98 @@ paths:
                 $ref: '#/components/schemas/ErrorEnvelope'
         "500":
           description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/catalog/apps:
+    get:
+      tags: [Catalog]
+      summary: Get catalog apps
+      operationId: get_api_catalog_apps
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/catalog/apps/{key}:
+    get:
+      tags: [Catalog]
+      summary: Get catalog apps by key
+      operationId: get_api_catalog_apps_key
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/catalog/apps/{key}/deploy-source:
+    get:
+      tags: [Catalog]
+      summary: Get catalog apps by key deploy source
+      operationId: get_api_catalog_apps_key_deploy-source
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/catalog/categories:
+    get:
+      tags: [Catalog]
+      summary: Get catalog categories
+      operationId: get_api_catalog_categories
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:

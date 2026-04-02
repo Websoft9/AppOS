@@ -11,6 +11,7 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
+	"github.com/websoft9/appos/backend/domain/config/sharedenv"
 
 	_ "github.com/websoft9/appos/backend/infra/migrations"
 )
@@ -265,7 +266,7 @@ func TestEnvSetsNativeAPI(t *testing.T) {
 	defer te.cleanup()
 
 	// Create env_set via native API
-	rec := te.do(t, http.MethodPost, "/api/collections/env_sets/records",
+	rec := te.do(t, http.MethodPost, "/api/collections/"+sharedenv.SetCollection+"/records",
 		`{"name":"staging-env","description":"Staging vars"}`, true)
 
 	if rec.Code != http.StatusOK {
@@ -276,7 +277,7 @@ func TestEnvSetsNativeAPI(t *testing.T) {
 	setId := created["id"].(string)
 
 	// Create env_set_var via native API
-	rec = te.do(t, http.MethodPost, "/api/collections/env_set_vars/records",
+	rec = te.do(t, http.MethodPost, "/api/collections/"+sharedenv.VarCollection+"/records",
 		`{"set":"`+setId+`","key":"DB_HOST","value":"localhost","is_secret":false}`, true)
 
 	if rec.Code != http.StatusOK {
@@ -284,7 +285,7 @@ func TestEnvSetsNativeAPI(t *testing.T) {
 	}
 
 	// List env_set_vars filtered by set
-	rec = te.do(t, http.MethodGet, "/api/collections/env_set_vars/records?filter=set%3D'"+setId+"'", "", true)
+	rec = te.do(t, http.MethodGet, "/api/collections/"+sharedenv.VarCollection+"/records?filter=set%3D'"+setId+"'", "", true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("list env_set_vars: expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}

@@ -19,9 +19,9 @@ This ADR is intentionally domain-centered.
 | --- | --- | --- | --- |
 | Application Lifecycle | Core | Manage one application through install, run, change, publish, recover, and retire | `AppInstance`, `Operation`, `Release`, `Exposure`, `RecoveryPlan`, `AppTopology` |
 | Lifecycle Execution | Supporting | Execute lifecycle intent through pipelines, workers, dispatch, compensation, and projections | `PipelineRun`, `CompensationPlan` |
-| Resource Operations Platform | Supporting | Provide terminal, file, service, container, and remote access operations across targets | `Server`, `TerminalSession`, `RemoteFileSession`, `ServiceTarget`, `RuntimeContainer` |
+| Resource Control | Supporting | Provide connection, access, and control capabilities across managed resources | `Server`, `TerminalSession`, `RemoteFileSession`, `ServiceTarget`, `RuntimeContainer` |
 | Observability | Supporting | Provide telemetry, health, diagnostics, and platform self-observation | `TelemetryStream`, `HealthCheckSet`, `PlatformStatusSnapshot` |
-| Operations Management | Supporting | Organize resources, operational knowledge, incidents, and procedures | `ResourceGroup`, `Topic`, `KnowledgeDocument`, `Incident`, `Procedure` |
+| Resource Organization | Supporting | Organize resource references, operational knowledge, incidents, and procedures | `ResourceGroup`, `Topic`, `KnowledgeDocument`, `Incident`, `Procedure` |
 | App Catalog | Supporting | Provide catalog apps, custom apps, templates, favorites, and notes | `CatalogApp`, `CustomApp`, `Template`, `UserCatalogState` |
 | Gateway Management | Supporting | Manage shared domain binding, routing, certificates, and gateway policy | `DomainBinding`, `GatewayRoute`, `CertificateBinding`, `GatewayPolicy` |
 | Runtime Infrastructure | Supporting | Provide runtime projects, recovery artifacts, and configuration assets | `RuntimeProject`, `BackupSnapshot`, `IaCWorkspace` |
@@ -39,7 +39,7 @@ This ADR is intentionally domain-centered.
 1. `Application Lifecycle` is the only core domain.
 2. `Lifecycle Execution` realizes lifecycle behavior but does not own product meaning by itself.
 3. `Gateway Management` is distinct from lifecycle exposure intent; it owns shared routing, certificate, and gateway policy concerns.
-4. `Resource Operations Platform` is distinct from `Operations Management`; one provides operational action surfaces, the other organizes knowledge, relationships, and procedures.
+4. `Resource Control` is distinct from `Resource Organization`; one provides operational access and control surfaces, the other organizes knowledge, references, relationships, and procedures.
 5. `Observability` is a first-class supporting domain rather than a leftover runtime concern.
 6. `Integrations & Connectors` should not be hidden under generic settings or runtime configuration.
 7. `Workspace`, `Admin`, `Dashboard`, `Resources`, `System`, and `Settings` are product surfaces or navigation containers, not domains.
@@ -53,9 +53,9 @@ flowchart LR
     Lifecycle[Application Lifecycle]
     Execution[Lifecycle Execution]
     Gateway[Gateway Management]
-    OpsPlatform[Resource Operations Platform]
+    OpsPlatform[Resource Control]
     Observe[Observability]
-    OpsMgmt[Operations Management]
+    OpsMgmt[Resource Organization]
     Runtime[Runtime Infrastructure]
     Integrations[Integrations & Connectors]
     Platform[Platform Configuration]
@@ -91,9 +91,9 @@ flowchart LR
 | --- | --- | --- |
 | Application Lifecycle | app identity, lifecycle intent, desired state, release baseline, exposure intent, recovery intent, topology intent | terminal sessions, docker command details, gateway route policy internals |
 | Lifecycle Execution | pipeline progression, node execution, dispatch, compensation, projection update triggers | long-lived app business meaning, product-facing navigation |
-| Resource Operations Platform | remote connection, shell, file, service, container action targets | lifecycle release meaning, incident semantics, gateway policy |
+| Resource Control | remote connection, shell, file, service, container action targets | lifecycle release meaning, incident semantics, gateway policy |
 | Observability | telemetry streams, health summaries, diagnostics, platform self-observation views | lifecycle ownership, operational procedures |
-| Operations Management | grouping, inventory references, knowledge artifacts, incident coordination, procedures | server shell semantics, runtime mutation primitives |
+| Resource Organization | grouping, inventory references, knowledge artifacts, incident coordination, procedures | server shell semantics, runtime mutation primitives |
 | App Catalog | install source metadata, templates, custom app definitions, favorites, notes | installed app lifecycle state |
 | Gateway Management | domain binding, route policy, upstream mapping, certificate attachment, gateway views | app runtime lifecycle state, generic secret storage |
 | Runtime Infrastructure | runtime workspace, compose/runtime assets, backup artifacts, configuration assets | product-facing lifecycle decisions, shared gateway policy |
@@ -111,8 +111,8 @@ flowchart LR
 1. `Application Lifecycle` remains the orchestration owner for application business behavior.
 2. `Lifecycle Execution` executes commands and updates projections, but it does not redefine domain ownership.
 3. `Gateway Management` is the owner of shared routing and certificate policy, even when lifecycle surfaces summarize publication state.
-4. `Resource Operations Platform` provides operational actions and target access, but does not own app lifecycle meaning.
-5. `Operations Management` may reference and group resources from other domains without becoming the owner of every resource body.
+4. `Resource Control` provides operational actions and target access, but does not own app lifecycle meaning.
+5. `Resource Organization` may reference and group resources from other domains without becoming the owner of every resource body.
 6. `Runtime Infrastructure` exposes runtime and recovery primitives; it should not become the primary product API surface.
 7. `Integrations & Connectors` owns provider connections; platform settings may present them, but should not absorb their domain identity.
 8. `AI Assistant` is cross-cutting and must attach to other contexts rather than replacing them.
@@ -153,7 +153,7 @@ Boundary rules:
 2. `PipelineRun` is internal execution state, not product lifecycle state.
 3. Node runs are internal entities inside pipeline execution, not product roots.
 
-## 3.3 Resource Operations Platform Context
+## 3.3 Resource Control Context
 
 | Aggregate | Root | Boundary | Invariants |
 | --- | --- | --- | --- |
@@ -171,7 +171,7 @@ Boundary rules:
 | Health Check Set | `HealthCheckSet` | One coherent set of checks for a target scope | summary state must be derivable from its checks |
 | Platform Status Snapshot | `PlatformStatusSnapshot` | One point-in-time platform self-observation summary | snapshot fields must describe one observation horizon |
 
-## 3.5 Operations Management Context
+## 3.5 Resource Organization Context
 
 | Aggregate | Root | Boundary | Invariants |
 | --- | --- | --- | --- |
@@ -244,8 +244,8 @@ Boundary rules:
 1. App lifecycle decisions start in `Application Lifecycle`.
 2. Execution state lives in `Lifecycle Execution`.
 3. Shared publication infrastructure belongs to `Gateway Management`, not to generic runtime tooling.
-4. Remote operational capability comes from `Resource Operations Platform`.
-5. Inventory, grouping, knowledge, incidents, and procedures belong to `Operations Management`.
+4. Remote operational capability comes from `Resource Control`.
+5. Inventory, grouping, knowledge, incidents, and procedures belong to `Resource Organization`.
 6. Runtime and recovery primitives belong to `Runtime Infrastructure`.
 7. External providers belong to `Integrations & Connectors`.
 8. Platform settings, IAM, secrets, audit, and entitlements remain generic or cross-cutting support contexts.

@@ -1,14 +1,11 @@
 package secrets
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"math"
-	"os"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
@@ -16,23 +13,26 @@ import (
 )
 
 const (
-	EnvSecretKey            = "APPOS_SECRET_KEY"
-	SettingsModule          = "secrets"
-	PolicySettingsKey       = "policy"
+	SettingsModule    = "secrets"
+	PolicySettingsKey = "policy"
+
 	AccessModeUseOnly       = "use_only"
 	AccessModeRevealOnce    = "reveal_once"
 	AccessModeRevealAllowed = "reveal_allowed"
 )
 
-var (
-	keyMu  sync.RWMutex
-	keyRaw []byte
-)
-
+// Policy is a value object that governs secret reveal and access behaviour
+// for the entire platform. It is stored in sysconfig and applied at runtime.
 type Policy struct {
 	RevealDisabled        bool   `json:"revealDisabled"`
 	DefaultAccessMode     string `json:"defaultAccessMode"`
 	ClipboardClearSeconds int    `json:"clipboardClearSeconds"`
+	// MaxAgeDays is the maximum lifetime of a secret in days.
+	// 0 means secrets never expire.
+	MaxAgeDays int `json:"maxAgeDays"`
+	// WarnBeforeExpiryDays controls how many days before expiry the UI shows a warning.
+	// 0 means no warning is shown.
+	WarnBeforeExpiryDays int `json:"warnBeforeExpiryDays"`
 }
 
 func DefaultPolicy() Policy {
@@ -40,6 +40,8 @@ func DefaultPolicy() Policy {
 		RevealDisabled:        false,
 		DefaultAccessMode:     AccessModeUseOnly,
 		ClipboardClearSeconds: 0,
+		MaxAgeDays:            0,
+		WarnBeforeExpiryDays:  0,
 	}
 }
 
@@ -48,6 +50,8 @@ func (p Policy) ToMap() map[string]any {
 		"revealDisabled":        p.RevealDisabled,
 		"defaultAccessMode":     p.DefaultAccessMode,
 		"clipboardClearSeconds": p.ClipboardClearSeconds,
+		"maxAgeDays":            p.MaxAgeDays,
+		"warnBeforeExpiryDays":  p.WarnBeforeExpiryDays,
 	}
 }
 
@@ -87,6 +91,18 @@ func NormalizePolicy(raw map[string]any) Policy {
 		clipboardClearSeconds = 0
 	}
 	policy.ClipboardClearSeconds = clipboardClearSeconds
+
+	maxAgeDays, err := parsePolicyIntWithDefault(raw["maxAgeDays"], 0)
+	if err != nil || maxAgeDays < 0 {
+		maxAgeDays = 0
+	}
+	policy.MaxAgeDays = maxAgeDays
+
+	warnBeforeExpiryDays, err := parsePolicyIntWithDefault(raw["warnBeforeExpiryDays"], 0)
+	if err != nil || warnBeforeExpiryDays < 0 {
+		warnBeforeExpiryDays = 0
+	}
+	policy.WarnBeforeExpiryDays = warnBeforeExpiryDays
 	return policy
 }
 
@@ -119,12 +135,40 @@ func ValidatePolicy(raw map[string]any) map[string]string {
 		raw["clipboardClearSeconds"] = clipboardClearSeconds
 	}
 
+	maxAgeDays, err := parsePolicyIntWithDefault(raw["maxAgeDays"], 0)
+	if err != nil {
+		errors["maxAgeDays"] = "must be an integer"
+	} else if maxAgeDays < 0 {
+		errors["maxAgeDays"] = "must be >= 0"
+	} else {
+		raw["maxAgeDays"] = maxAgeDays
+	}
+
+	warnBeforeExpiryDays, err := parsePolicyIntWithDefault(raw["warnBeforeExpiryDays"], 0)
+	if err != nil {
+		errors["warnBeforeExpiryDays"] = "must be an integer"
+	} else if warnBeforeExpiryDays < 0 {
+		errors["warnBeforeExpiryDays"] = "must be >= 0"
+	} else {
+		raw["warnBeforeExpiryDays"] = warnBeforeExpiryDays
+	}
+
+	if _, hasMaxErr := errors["maxAgeDays"]; !hasMaxErr {
+		if _, hasWarnErr := errors["warnBeforeExpiryDays"]; !hasWarnErr {
+			if maxAgeDays > 0 && warnBeforeExpiryDays >= maxAgeDays {
+				errors["warnBeforeExpiryDays"] = "must be less than maxAgeDays"
+			}
+		}
+	}
+
 	if len(errors) == 0 {
 		return nil
 	}
 	return errors
 }
 
+// GetPolicy loads the current secret policy from sysconfig.
+// Returns DefaultPolicy() when app is nil or when no policy has been configured.
 func GetPolicy(app core.App) Policy {
 	if app == nil {
 		return DefaultPolicy()
@@ -182,40 +226,4 @@ func parsePolicyIntWithDefault(raw any, defaultValue int) (int, error) {
 	default:
 		return 0, fmt.Errorf("must be an integer")
 	}
-}
-
-func LoadKeyFromEnv() error {
-	raw := os.Getenv(EnvSecretKey)
-	if raw == "" {
-		return fmt.Errorf("%s is required", EnvSecretKey)
-	}
-	decoded, err := base64.StdEncoding.DecodeString(raw)
-	if err != nil {
-		return fmt.Errorf("%s must be valid base64: %w", EnvSecretKey, err)
-	}
-	if len(decoded) != 32 {
-		return fmt.Errorf("%s must decode to 32 bytes, got %d", EnvSecretKey, len(decoded))
-	}
-
-	keyMu.Lock()
-	defer keyMu.Unlock()
-	keyRaw = decoded
-	return nil
-}
-
-func currentKey() ([]byte, error) {
-	keyMu.RLock()
-	defer keyMu.RUnlock()
-	if len(keyRaw) != 32 {
-		return nil, fmt.Errorf("secret key is not initialized")
-	}
-	out := make([]byte, len(keyRaw))
-	copy(out, keyRaw)
-	return out, nil
-}
-
-func resetKeyForTest() {
-	keyMu.Lock()
-	defer keyMu.Unlock()
-	keyRaw = nil
 }

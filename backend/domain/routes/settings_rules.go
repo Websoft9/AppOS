@@ -10,7 +10,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
-	"github.com/websoft9/appos/backend/domain/tunnel"
+	"github.com/websoft9/appos/backend/domain/resource/control/tunnel"
 )
 
 // sensitiveFields is the set of field names that are masked on GET and

@@ -1,62 +1,28 @@
 package migrations
 
 import (
+	"fmt"
+
 	"github.com/pocketbase/pocketbase/core"
 	m "github.com/pocketbase/pocketbase/migrations"
 	"github.com/pocketbase/pocketbase/tools/types"
 )
 
-// Epic 8: Resource Store — create all resource collections.
+// Epic 8: Resource Store — create non-secrets resource collections.
+// Secrets collection is created by its own domain migration (1739000000).
 //
 // Collections are created in dependency order:
-//  1. secrets       (no deps)
-//  2. env_groups    (no deps)
-//  3. env_group_vars (→ env_groups, secrets)
-//  4. servers       (→ secrets)
-//  5. databases     (→ secrets)
-//  6. cloud_accounts (→ secrets)
-//  7. certificates  (→ secrets)
+//  1. env_groups    (no deps)
+//  2. env_group_vars (→ env_groups, secrets)
+//  3. databases     (→ secrets)
+//  4. cloud_accounts (→ secrets)
+//  5. certificates  (→ secrets)
 func init() {
 	m.Register(func(app core.App) error {
-		// ─── 1. secrets ──────────────────────────────────────
-		secrets := core.NewBaseCollection("secrets")
-		secrets.ListRule = nil // superuser only
-		secrets.ViewRule = nil
-		secrets.CreateRule = nil
-		secrets.UpdateRule = nil
-		secrets.DeleteRule = nil
-
-		secrets.Fields.Add(&core.TextField{
-			Name:     "name",
-			Required: true,
-			Max:      200,
-		})
-		secrets.Fields.Add(&core.SelectField{
-			Name:      "type",
-			Required:  true,
-			MaxSelect: 1,
-			Values:    []string{"password", "api_key", "token", "ssh_key"},
-		})
-		secrets.Fields.Add(&core.TextField{
-			Name:   "value",
-			Hidden: true, // never exposed in API list responses
-		})
-		secrets.Fields.Add(&core.TextField{
-			Name: "description",
-		})
-		secrets.Fields.Add(&core.AutodateField{
-			Name:     "created",
-			OnCreate: true,
-		})
-		secrets.Fields.Add(&core.AutodateField{
-			Name:     "updated",
-			OnCreate: true,
-			OnUpdate: true,
-		})
-		secrets.AddIndex("idx_secrets_name", true, "name", "")
-
-		if err := app.Save(secrets); err != nil {
-			return err
+		// Look up secrets collection (created by its own migration).
+		secrets, err := app.FindCollectionByNameOrId("secrets")
+		if err != nil {
+			return fmt.Errorf("secrets collection must exist before resource collections: %w", err)
 		}
 
 		// ─── 2. env_groups ───────────────────────────────────
@@ -293,14 +259,14 @@ func init() {
 
 		return app.Save(certificates)
 	}, func(app core.App) error {
-		// Down: delete collections in reverse dependency order
+		// Down: delete collections in reverse dependency order.
+		// Secrets is handled by its own domain migration.
 		for _, name := range []string{
 			"certificates",
 			"cloud_accounts",
 			"databases",
 			"env_group_vars",
 			"env_groups",
-			"secrets",
 		} {
 			col, err := app.FindCollectionByNameOrId(name)
 			if err != nil {

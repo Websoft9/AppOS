@@ -114,8 +114,7 @@ Supporting Domains
 ├── App Catalog
 │   ├── Catalog Apps
 │   ├── Custom Apps
-│   ├── Templates
-│   └── Favorites / Notes
+│   └── Catalog Personalization
 ├── Gateway Management
 │   ├── Domain Binding
 │   ├── Routing & Upstreams
@@ -146,9 +145,7 @@ Supporting Domains
 Generic Domains
 ├── Platform Configuration
 ├── Identity and Access
-├── Security and Secret Management
-│   ├── Secrets
-│   └── Secret Policies
+├── Secrets Management
 └── Audit and Policy
 
 Cross-Cutting Capability
@@ -170,10 +167,13 @@ Navigation / IA
 - `Application Lifecycle` is the only core domain and the product's main organizing concept.
 - The hierarchy shows domains and subdomains only; user-facing modules and model objects are documented separately.
 - `Operations Management` groups resource inventory, topology, operational knowledge, incident response, and deterministic operations automation.
+- `App Catalog` is currently managed through three subdomains: official catalog discovery, custom app authoring, and user personalization.
+- `Template` remains an important core object and supporting capability inside `App Catalog`, but it is not treated as a peer subdomain until it has its own lifecycle, rules, and management surface.
 - `Gateway Management` owns shared domain routing, upstream binding, and centralized gateway views across apps, servers, and containers.
 - `Integrations & Connectors` owns external provider connections rather than treating them as settings-only concerns.
 - `Edition & Entitlement` controls which capabilities are available across open-source, standard, and enterprise offerings.
 - `Observability`, `Resource Operations Platform`, and `AI Workflow / Agent Automation` remain supporting domains around the lifecycle core.
+- `Secrets Management` is a standalone generic domain; secret policy behavior is treated as governance inside secrets and settings rather than as a separate top-level subdomain.
 - `Workspace` and `Admin` are navigation groups, not business domains.
 
 ### Key Differentiators

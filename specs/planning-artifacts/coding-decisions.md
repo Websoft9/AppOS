@@ -138,4 +138,62 @@ Decision: for each module, define constants, error codes, and variable configura
 - API endpoint testing: `curl http://127.0.0.1:9091/api/health`
 - Dashboard access: `http://127.0.0.1:9091/`
 - Development server: `http://127.0.0.1:5173/`
-- Container health checks (internal): Use `localhost` (no proxy inside container)
+- Container health checks (internal): Use `localhost` (no proxy inside container
+
+## Migrations{#migrations}
+
+**Decision**: one migration file per domain. All schema changes for a domain are consolidated into a single file.
+
+**Decision**: during MVP, modify the existing migration file directly when schema changes are needed — do not create incremental migration files.
+
+## Architecture{#architecture}
+
+**Decision**: backend code follows DDD (Domain-Driven Design) model and conventions. Domain logic lives in aggregate roots and value objects under `domain/`; infrastructure concerns are isolated in `infra/`.)
+
+**Decision**: dependency direction must follow DDD inward-dependency rules.
+
+- the domain layer may depend on domain types and domain-owned abstractions only.
+- the domain layer must not import infrastructure implementations, framework adapters, transport handlers, ORM details, filesystem helpers, queue clients, or external service SDK wrappers.
+- infrastructure code may depend on domain code and implement domain-defined abstractions.
+- application-layer orchestration may depend on domain abstractions and invoke infrastructure implementations only through composition or dependency injection at the boundary.
+
+**Decision**: use this rule as the practical baseline.
+
+- domain layer can depend on abstractions.
+- domain layer cannot depend on infrastructure implementations.
+- infrastructure layer depends on domain layer and implements those abstractions.
+
+**Decision**: AppOS backend layering is interpreted as follows.
+
+### Domain layer
+
+- location baseline: `backend/domain/`
+- responsibility: business concepts, invariants, lifecycle semantics, policies, orchestration rules, route-facing use-case coordination, and domain-owned contracts.
+- allowed dependencies: other domain packages and domain-owned interfaces/types.
+- prohibited dependencies: `backend/infra/`, `backend/platform/`, PocketBase-specific persistence details, Docker SDK concrete calls, filesystem path manipulation details, supervisor process control details.
+
+### Infrastructure layer
+
+- location baseline: `backend/infra/`
+- responsibility: technical implementations and adapters for docker, crypto, filesystem utilities, migrations, cron helpers, and other concrete IO/integration concerns.
+- dependency direction: may import `backend/domain/` to implement domain contracts or support domain workflows.
+- prohibited responsibility: encoding business rules that belong to lifecycle, secrets, deploy, tunnel, or other domain modules.
+
+### Platform layer
+
+- location baseline: `backend/platform/`
+- responsibility: host/runtime integration for platform capabilities shared across domains, such as components inventory, PocketBase hooks, and supervisor-facing runtime integration.
+- dependency direction: may depend on domain and infrastructure packages where needed, but must not become the home for business decision logic.
+
+### Application-layer interpretation for AppOS
+
+- AppOS does not currently require a top-level `application/` directory as a mandatory packaging rule.
+- application-layer behavior is defined by responsibility, not folder name.
+- in current AppOS code, application-layer orchestration typically lives in domain services, workers, and route-coordination code when they are coordinating use cases rather than expressing core business invariants.
+- if a flow mostly coordinates steps such as validate -> resolve -> persist -> enqueue -> audit, it should be treated as application-layer logic even if it is placed under `backend/domain/` for now.
+
+**Decision**: when in doubt, classify code by question.
+
+- if the code answers "what business rule must always be true?" it belongs to domain.
+- if the code answers "in what order do we call collaborators to complete a use case?" it belongs to application-layer orchestration.
+- if the code answers "how do we talk to docker, pocketbase, filesystem, crypto, process supervisor, or another technical system?" it belongs to infrastructure or platform.

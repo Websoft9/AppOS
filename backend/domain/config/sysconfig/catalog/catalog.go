@@ -121,6 +121,8 @@ var entryCatalog = []EntrySchema{
 			{ID: "revealDisabled", Label: "Disable Reveal", Type: "boolean"},
 			{ID: "defaultAccessMode", Label: "Default Access Mode", Type: "string"},
 			{ID: "clipboardClearSeconds", Label: "Clipboard Clear Seconds", Type: "integer"},
+			{ID: "maxAgeDays", Label: "Max Age (days)", Type: "integer", HelpText: "Maximum lifetime of a secret in days. 0 means secrets never expire."},
+			{ID: "warnBeforeExpiryDays", Label: "Expiry Warning (days)", Type: "integer", HelpText: "Show an expiry warning this many days before a secret expires. 0 disables the warning."},
 		},
 	},
 	{

@@ -14,7 +14,7 @@ import (
 	"github.com/pocketbase/pocketbase/tools/router"
 
 	"github.com/websoft9/appos/backend/domain/audit"
-	servers "github.com/websoft9/appos/backend/domain/servers"
+	servers "github.com/websoft9/appos/backend/domain/resource/control/servers"
 )
 
 func registerServerContainerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
@@ -69,7 +69,7 @@ func handleDockerExecTerminal(e *core.RequestEvent) error {
 		cfg = servers.ConnectorConfig{Host: containerID, Shell: shell}
 		connector = &servers.DockerExecConnector{}
 	} else {
-		resolvedCfg, resolveErr := resolveServerConfig(e, serverID)
+		resolvedCfg, resolveErr := servers.ResolveConfig(e.App, e.Auth, serverID)
 		if resolveErr != nil {
 			return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 		}

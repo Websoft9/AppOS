@@ -27,6 +27,8 @@ tags:
       name: Exposures
     - description: Installed app inventory and lifecycle APIs backed by compose projects.
       name: Apps
+    - description: Canonical app catalog read APIs.
+      name: Catalog
     - description: Native service health endpoint
       name: Health
     - description: Infrastructure-as-Code workspace and template file operations.
@@ -1481,6 +1483,102 @@ paths:
             summary: Restore backup by name
             tags:
                 - Backups
+    /api/catalog/apps:
+        get:
+            operationId: get_api_catalog_apps
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get catalog apps
+            tags:
+                - Catalog
+    /api/catalog/apps/{key}:
+        get:
+            operationId: get_api_catalog_apps_key
+            parameters:
+                - in: path
+                  name: key
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get catalog apps by key
+            tags:
+                - Catalog
+    /api/catalog/apps/{key}/deploy-source:
+        get:
+            operationId: get_api_catalog_apps_key_deploy-source
+            parameters:
+                - in: path
+                  name: key
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get catalog apps by key deploy source
+            tags:
+                - Catalog
+    /api/catalog/categories:
+        get:
+            operationId: get_api_catalog_categories
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get catalog categories
+            tags:
+                - Catalog
     /api/certificates/templates:
         get:
             operationId: get_api_certificates_templates

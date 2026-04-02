@@ -12,7 +12,7 @@ import (
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 
-	"github.com/websoft9/appos/backend/domain/tunnel"
+	"github.com/websoft9/appos/backend/domain/resource/control/tunnel"
 )
 
 // resolveApposHost returns the public host name of the appos instance.

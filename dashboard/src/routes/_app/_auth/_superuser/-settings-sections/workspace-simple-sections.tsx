@@ -684,6 +684,48 @@ export function SecretsSection({
           )}
         </div>
 
+        <div className="space-y-1">
+          <Label htmlFor="maxAgeDays">Max Age (days)</Label>
+          <Input
+            id="maxAgeDays"
+            type="number"
+            min={0}
+            value={secretPolicy.maxAgeDays}
+            onChange={e =>
+              setSecretPolicy(policy => ({ ...policy, maxAgeDays: Number(e.target.value) }))
+            }
+          />
+          <p className="text-xs text-muted-foreground">
+            0 means secrets never expire. When set, new secrets will automatically receive an
+            expiry date.
+          </p>
+          {secretPolicyErrors.maxAgeDays && (
+            <p className="text-xs text-destructive">{secretPolicyErrors.maxAgeDays}</p>
+          )}
+        </div>
+
+        <div className="space-y-1">
+          <Label htmlFor="warnBeforeExpiryDays">Expiry Warning (days)</Label>
+          <Input
+            id="warnBeforeExpiryDays"
+            type="number"
+            min={0}
+            value={secretPolicy.warnBeforeExpiryDays}
+            onChange={e =>
+              setSecretPolicy(policy => ({
+                ...policy,
+                warnBeforeExpiryDays: Number(e.target.value),
+              }))
+            }
+          />
+          <p className="text-xs text-muted-foreground">
+            Show an expiry warning this many days before a secret expires. 0 disables the warning.
+          </p>
+          {secretPolicyErrors.warnBeforeExpiryDays && (
+            <p className="text-xs text-destructive">{secretPolicyErrors.warnBeforeExpiryDays}</p>
+          )}
+        </div>
+
         <SaveButton onClick={saveSecretPolicy} saving={secretPolicySaving} />
       </CardContent>
     </Card>

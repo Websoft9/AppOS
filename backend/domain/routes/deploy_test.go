@@ -11,6 +11,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/config/sharedenv"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
 )
@@ -526,7 +527,7 @@ func TestOperationManualComposeCheckMatchesCreateRuntimeInputNormalization(t *te
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	envSetsCol, err := te.app.FindCollectionByNameOrId("env_sets")
+	envSetsCol, err := te.app.FindCollectionByNameOrId(sharedenv.SetCollection)
 	if err != nil {
 		t.Fatalf("find env_sets collection: %v", err)
 	}
@@ -537,7 +538,7 @@ func TestOperationManualComposeCheckMatchesCreateRuntimeInputNormalization(t *te
 		t.Fatalf("create env_set: %v", err)
 	}
 
-	envSetVarsCol, err := te.app.FindCollectionByNameOrId("env_set_vars")
+	envSetVarsCol, err := te.app.FindCollectionByNameOrId(sharedenv.VarCollection)
 	if err != nil {
 		t.Fatalf("find env_set_vars collection: %v", err)
 	}

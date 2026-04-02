@@ -2,7 +2,7 @@
 
 **Epic**: Epic 24 - Shared Envs  
 **Priority**: P1  
-**Status**: ready-for-dev  
+**Status**: core slice implemented  
 **Depends on**: Story 24.1
 
 ---
@@ -10,6 +10,11 @@
 ## Objective
 
 Verify that PocketBase native Records API fully serves all Shared Envs CRUD needs. Remove any existing custom ext route code for `env_groups` from the Resource Store route file. No new custom routes are added.
+
+Current DDD-aligned backend scope for this story:
+- Shared Envs is implemented as a source-side read boundary, not as lifecycle merge logic.
+- `sharedenv` returns normalized set/var data for consumers instead of making lifecycle own low-level collection lookups.
+- Secret validation and secret payload ownership remain in the `secrets` domain.
 
 ## Acceptance Criteria
 
@@ -51,10 +56,11 @@ PATCH  /api/collections/apps/records/{id}   (update env_sets ordered list)
 ## Implementation Notes
 
 - This story is primarily a removal story: delete `env_groups` custom routes, verify PB native API rules are correctly set via migration (Story 24.1).
-- No Go handler code to write. Focus is on confirming the rules work and the expand configs are correct.
+- No custom Go route handlers are needed. The implemented backend slice is limited to migration/rules verification plus a minimal shared-env read boundary for lifecycle consumption.
 - If `resources.go` registers an `/env-groups` route group, remove it entirely. Ensure no 404 fallback or leftover registration remains.
 - Secret expand on `env_set_vars`: the expanded `secret` record should only surface `id`, `name`, `template_id` — never `payload_encrypted`. This is enforced by PocketBase ViewRule on the `secrets` collection (Epic 19).
 - Contract test should fail fast if a future schema change accidentally exposes encrypted payload fields.
+- Lifecycle remains the owner of attachment precedence, override order, and injection behavior; this story does not move those rules into Shared Envs.
 
 ## Dependencies
 

@@ -17,7 +17,7 @@
 
 ### Data Layer
 
-Official catalog (read-only) and user data (writable) are strictly separated and merged on the frontend before rendering:
+Official catalog (read-only) and user data (writable) are currently separated at the source layer. The next backend slice should normalize and merge them behind canonical catalog APIs instead of keeping the merge logic in the frontend:
 
 | Data | Storage | Notes |
 |------|---------|-------|
@@ -76,6 +76,17 @@ Unique index on `(user, app_key)`. List/View rule: `@request.auth.id = user`.
 Serve local JSON immediately (millisecond-level), then silently fetch CDN in the background to update the cache. CDN failures are ignored. Catalog data is decoupled from software releases and always available offline.
 
 **Manual Sync**: "Sync Latest" button in catalog header force-fetches from CDN via `syncLatestFromCdn(locale, queryClient)`, which calls `setQueryData` + `invalidateQueries` to trigger immediate re-render.
+
+### Backend Transition Direction
+
+The frontend-first Store implementation was acceptable for the first module delivery, but App Catalog should now move toward canonical backend APIs:
+
+- `/api/catalog/categories` becomes the normalized category source
+- `/api/catalog/apps` and `/api/catalog/apps/{key}` become the canonical read model for official + visible custom apps
+- `/api/catalog/me/*` owns favorites and notes instead of exposing raw PocketBase write patterns to the browser
+- `/api/ext/catalog/sources/*` owns catalog sync and projection rebuild
+
+Source bundles, PocketBase collections, and IAC template files remain implementation details behind the catalog contract.
 
 ---
 
@@ -141,6 +152,9 @@ location / {
 - [ ] [5.4: Favorites & Notes](story5.4-user-features.md) — per-user favorites toggle, catalog filter, inline notes
 - [x] [5.5: Custom Apps](story5.5-custom-apps.md) — create/edit/delete custom apps, IAC template files, catalog grouping, sharing
 - [ ] 5.6: i18n
+- [ ] [5.7: Catalog Read API](story5.7-catalog-read-api.md) — normalized categories, app list, app detail, deploy-source payload
+- [ ] [5.8: Catalog Personalization API](story5.8-catalog-personalization-api.md) — backend-owned favorites and notes contract
+- [ ] [5.9: Catalog Source Sync & Projection](story5.9-catalog-source-sync.md) — source sync, projection rebuild, admin inspection
 
 ---
 

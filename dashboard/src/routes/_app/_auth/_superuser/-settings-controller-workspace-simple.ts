@@ -542,6 +542,8 @@ export function useWorkspaceSimpleSettingsController(showToast: ShowToast) {
           revealDisabled: extractFieldError(bag.revealDisabled) ?? undefined,
           defaultAccessMode: extractFieldError(bag.defaultAccessMode) ?? undefined,
           clipboardClearSeconds: extractFieldError(bag.clipboardClearSeconds) ?? undefined,
+          maxAgeDays: extractFieldError(bag.maxAgeDays) ?? undefined,
+          warnBeforeExpiryDays: extractFieldError(bag.warnBeforeExpiryDays) ?? undefined,
         })
       }
       showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)

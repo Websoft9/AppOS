@@ -11,8 +11,8 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/websoft9/appos/backend/domain/audit"
+	servers "github.com/websoft9/appos/backend/domain/resource/control/servers"
 	"github.com/websoft9/appos/backend/infra/docker"
-	sec "github.com/websoft9/appos/backend/domain/secrets"
 )
 
 // localDockerClient is the Docker client for the local host, shared across all local requests.
@@ -99,116 +99,7 @@ func registerDockerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 // Falls back to localDockerClient when server_id is absent or "local".
 func getDockerClient(e *core.RequestEvent) (*docker.Client, error) {
 	serverID := e.Request.URL.Query().Get("server_id")
-	return getDockerClientByServerID(e.App, serverID)
-}
-
-func getDockerClientByServerID(app core.App, serverID string) (*docker.Client, error) {
-	if serverID == "" || serverID == "local" {
-		return localDockerClient, nil
-	}
-
-	// Fetch server record
-	serverRec, err := app.FindRecordById("servers", serverID)
-	if err != nil {
-		return nil, fmt.Errorf("server %s not found: %w", serverID, err)
-	}
-
-	host := serverRec.GetString("host")
-	port := serverRec.GetInt("port")
-	user := serverRec.GetString("user")
-	credentialID := serverRec.GetString("credential")
-
-	// auth_type inferred from secret template_id (servers.auth_type removed in Story 20.1)
-	authType := credAuthType(app, credentialID)
-
-	resolvedHost, resolvedPort, resolveErr := resolveDockerSSHAddress(serverRec)
-	if resolveErr != nil {
-		return nil, resolveErr
-	}
-	host = resolvedHost
-	port = resolvedPort
-
-	if port == 0 {
-		port = 22
-	}
-
-	// Resolve credential via sec.Resolve (supports both payload_encrypted and legacy value).
-	var secretValue string
-	if credentialID != "" {
-		payload, resolveErr := sec.Resolve(app, credentialID, "")
-		if resolveErr != nil {
-			return nil, fmt.Errorf("credential resolve: %w", resolveErr)
-		}
-		if authType == "password" {
-			secretValue = sec.FirstStringFromPayload(payload, "password", "value")
-		} else {
-			secretValue = sec.FirstStringFromPayload(payload, "private_key", "key", "value")
-		}
-	}
-
-	// When the remote user is not root, escalate via sudo.
-	// For password-based auth, the same credential is used as the sudo password.
-	sudoEnabled := user != "root"
-	sudoPassword := ""
-	if sudoEnabled && authType == "password" {
-		sudoPassword = secretValue
-	}
-
-	exec := docker.NewSSHExecutor(docker.SSHConfig{
-		Host:         host,
-		Port:         port,
-		User:         user,
-		AuthType:     authType,
-		Secret:       secretValue,
-		SudoEnabled:  sudoEnabled,
-		SudoPassword: sudoPassword,
-	})
-	return docker.New(exec), nil
-}
-
-func resolveDockerSSHAddress(serverRec *core.Record) (string, int, error) {
-	host := serverRec.GetString("host")
-	port := serverRec.GetInt("port")
-	if port == 0 {
-		port = 22
-	}
-
-	if serverRec.GetString("connect_type") != "tunnel" {
-		return host, port, nil
-	}
-
-	if serverRec.GetString("tunnel_status") != "online" {
-		return "", 0, fmt.Errorf("tunnel server %s is offline", serverRec.Id)
-	}
-
-	sshPort, err := tunnelSSHPortFromServices(serverRec.GetString("tunnel_services"))
-	if err != nil {
-		return "", 0, err
-	}
-
-	return "127.0.0.1", sshPort, nil
-}
-
-func tunnelSSHPortFromServices(raw string) (int, error) {
-	if raw == "" || raw == "null" {
-		return 0, fmt.Errorf("tunnel_services is empty")
-	}
-
-	var services []struct {
-		Name       string `json:"service_name"`
-		TunnelPort int    `json:"tunnel_port"`
-	}
-	if err := json.Unmarshal([]byte(raw), &services); err != nil {
-		return 0, fmt.Errorf("invalid tunnel_services: %w", err)
-	}
-
-	for _, svc := range services {
-		if svc.Name == "ssh" && svc.TunnelPort > 0 {
-			return svc.TunnelPort, nil
-		}
-	}
-
-	return 0, fmt.Errorf("ssh tunnel service not found")
+	return servers.NewDockerClient(e.App, serverID, localDockerClient)
 }
 
 // handleDockerServers returns all available servers (local + resource store servers)
@@ -237,14 +128,14 @@ func handleDockerServers(e *core.RequestEvent) error {
 		Status: "online",
 	}}
 
-	servers, err := e.App.FindAllRecords("servers")
-	if err != nil || len(servers) == 0 {
+	serverRecords, err := e.App.FindAllRecords("servers")
+	if err != nil || len(serverRecords) == 0 {
 		return e.JSON(http.StatusOK, result)
 	}
 
-	entries := make([]serverEntry, len(servers))
+	entries := make([]serverEntry, len(serverRecords))
 	var wg sync.WaitGroup
-	for i, s := range servers {
+	for i, s := range serverRecords {
 		wg.Add(1)
 		s := s // capture loop variable
 		go func(idx int) {
@@ -252,51 +143,18 @@ func handleDockerServers(e *core.RequestEvent) error {
 			status := "offline"
 			reason := "server unreachable"
 			host := s.GetString("host")
-			port := s.GetInt("port")
-			resolvedHost, resolvedPort, resolveErr := resolveDockerSSHAddress(s)
+			sshConfig, resolveErr := servers.ResolveDockerSSHConfig(e.App, s, "")
 			if resolveErr == nil {
-				host = resolvedHost
-				port = resolvedPort
-			} else {
-				reason = resolveErr.Error()
-			}
-			if port == 0 {
-				port = 22
-			}
-			user := s.GetString("user")
-			credID := s.GetString("credential")
-			authType := credAuthType(e.App, credID)
-			var secretValue string
-			if credID != "" {
-				if payload, err2 := sec.Resolve(e.App, credID, ""); err2 == nil {
-					if authType == "password" {
-						secretValue = sec.FirstStringFromPayload(payload, "password", "value")
-					} else {
-						secretValue = sec.FirstStringFromPayload(payload, "private_key", "key", "value")
-					}
-				}
-			}
-			srvSudoEnabled := user != "root"
-			srvSudoPassword := ""
-			if srvSudoEnabled && authType == "password" {
-				srvSudoPassword = secretValue
-			}
-			if resolveErr == nil {
-				execSSH := docker.NewSSHExecutor(docker.SSHConfig{
-					Host:         host,
-					Port:         port,
-					User:         user,
-					AuthType:     authType,
-					Secret:       secretValue,
-					SudoEnabled:  srvSudoEnabled,
-					SudoPassword: srvSudoPassword,
-				})
+				host = sshConfig.Host
+				execSSH := docker.NewSSHExecutor(sshConfig)
 				if pingErr := execSSH.Ping(e.Request.Context()); pingErr == nil {
 					status = "online"
 					reason = ""
 				} else {
 					reason = pingErr.Error()
 				}
+			} else {
+				reason = resolveErr.Error()
 			}
 			entries[idx] = serverEntry{
 				ID:     s.Id,

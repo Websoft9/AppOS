@@ -313,6 +313,7 @@ func TestSecretsCollectionFields(t *testing.T) {
 	assertFieldExists(t, col, "version", core.FieldTypeNumber, false)
 	assertFieldExists(t, col, "created_source", core.FieldTypeSelect, false)
 	assertFieldExists(t, col, "last_used_at", core.FieldTypeDate, false)
+	assertFieldExists(t, col, "expires_at", core.FieldTypeText, false)
 	assertFieldExists(t, col, "last_used_by", core.FieldTypeText, false)
 	assertFieldExists(t, col, "created_by", core.FieldTypeText, false)
 

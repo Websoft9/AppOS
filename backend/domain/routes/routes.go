@@ -8,6 +8,7 @@
 //   - /api/ext/resources  — Resource Store CRUD (Epic 8)
 //   - /api/ext/space      — User private space (Epic 9)
 //   - /api/components     — component inventory and runtime service diagnostics (Epic 6)
+//   - /api/catalog        — app catalog normalized read APIs
 //   - /api/apps           — installed app inventory and lifecycle operations
 //   - /api/actions        — lifecycle actions and execution logs
 //   - /api/releases       — release inventory and app-scoped release views
@@ -76,6 +77,7 @@ func Register(se *core.ServeEvent) {
 	registerSpaceRoutes(g)
 	registerUserRoutes(g)
 	registerComponentsRoutes(components)
+	registerCatalogRoutes(deployments)
 	registerAppsRoutes(deployments)
 	registerOperationRoutes(deployments)
 	registerReleaseRoutes(deployments)

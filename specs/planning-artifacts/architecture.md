@@ -111,6 +111,16 @@ Collaboration
 - `Notes` stores user-authored collaboration records and comments.
 - This separation keeps object organization and discussion history independent while still allowing loose linkage between the two modules.
 
+## Domain Boundary Alignment
+
+Architecture decisions should follow the planning-domain split rather than reintroducing oversized technical buckets.
+
+- `Secrets Management` is a standalone generic domain with its own storage, resolve/reveal rules, and consuming-module contracts.
+- Secret policy behavior is implemented as governance inside secrets and settings flows, not as a separate top-level domain or standalone service.
+- `Gateway Management` owns certificates, domain binding, routing, and upstream-facing publication concerns.
+- `Runtime Infrastructure` owns shared environment assets and other runtime configuration artifacts that are not secret storage.
+- `Platform Configuration` remains a composition mechanism for cross-domain settings surfaces rather than a catch-all business domain.
+
 ## API Architecture
 
 ### Route prefix convention
@@ -118,9 +128,9 @@ Collaboration
 | Layer | Prefix | Example |
 |-------|--------|---------|
 | PB Built-in | `/api/collections/`, `/api/realtime`, `/api/admins/` | `/api/collections/apps/records` |
-| Custom | `/api/<domain>/` | `/api/servers/shell`, `/api/proxy/domains` |
+| Custom | `/api/<domain>/` | `/api/servers/shell`, `/api/proxy/domains`, `/api/secrets/templates` |
 
-Custom routes use a domain-based prefix (`/api/<domain>/`) to clearly separate from PocketBase built-in API paths. Each business domain owns its own prefix (e.g. `servers`, `proxy`, `deploy`).
+Custom routes use a domain-based prefix (`/api/<domain>/`) to clearly separate from PocketBase built-in API paths. Each business domain owns its own prefix (e.g. `servers`, `proxy`, `deploy`, `secrets`).
 
 ### Two API layers, one process
 
@@ -143,6 +153,7 @@ Dashboard / CLI
 │  │  Apps:   deploy, restart, stop,      │   │
 │  │          delete, logs, env           │   │
 │  │  Config: save, history, rollback     │   │
+│  │  Secrets: templates, reveal, resolve │   │
 │  │  Proxy:  domains, ssl, reload        │   │
 │  │  System: terminal, metrics, files    │   │
 │  │  Backup: create, restore, list       │   │

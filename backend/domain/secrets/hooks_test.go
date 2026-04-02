@@ -2,6 +2,7 @@ package secrets
 
 import (
 	"testing"
+	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
@@ -48,6 +49,7 @@ func ensureSecretsCollection(t *testing.T, app *tests.TestApp) {
 
 	col := core.NewBaseCollection("secrets")
 	col.Fields.Add(&core.TextField{Name: "access_mode"})
+	col.Fields.Add(&core.TextField{Name: "expires_at"})
 
 	if err := app.Save(col); err != nil {
 		t.Fatalf("create secrets collection: %v", err)
@@ -128,4 +130,66 @@ func TestApplyDefaultAccessModeFallsBackToUseOnlyForInvalidPolicy(t *testing.T) 
 	if got := rec.GetString("access_mode"); got != "use_only" {
 		t.Fatalf("expected use_only fallback, got %q", got)
 	}
+}
+
+func TestApplyExpiryPolicySetsExpiresAt(t *testing.T) {
+	app := newSecretsApp(t)
+	defer app.Cleanup()
+
+	if err := sysconfig.SetGroup(app, "secrets", "policy", map[string]any{
+		"maxAgeDays": 30,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	col, err := app.FindCollectionByNameOrId("secrets")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := core.NewRecord(col)
+
+	before := time.Now().UTC().Truncate(time.Second)
+	applyExpiryPolicy(app, rec)
+	after := time.Now().UTC().Add(time.Second).Truncate(time.Second)
+
+	raw := rec.GetString("expires_at")
+	if raw == "" {
+		t.Fatal("expected expires_at to be set")
+	}
+	exp, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		t.Fatalf("invalid expires_at format: %v", err)
+	}
+	expMin := before.Add(30 * 24 * time.Hour)
+	expMax := after.Add(30 * 24 * time.Hour)
+	if exp.Before(expMin) || exp.After(expMax) {
+		t.Fatalf("expires_at %v out of expected range [%v, %v]", exp, expMin, expMax)
+	}
+}
+
+func TestApplyExpiryPolicyZeroMaxAgeLeavesFieldEmpty(t *testing.T) {
+	app := newSecretsApp(t)
+	defer app.Cleanup()
+
+	if err := sysconfig.SetGroup(app, "secrets", "policy", map[string]any{
+		"maxAgeDays": 0,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	col, err := app.FindCollectionByNameOrId("secrets")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := core.NewRecord(col)
+	applyExpiryPolicy(app, rec)
+
+	if got := rec.GetString("expires_at"); got != "" {
+		t.Fatalf("expected expires_at empty when maxAgeDays=0, got %q", got)
+	}
+}
+
+func TestApplyExpiryPolicyNilAppAndRecord(t *testing.T) {
+	// Must not panic
+	applyExpiryPolicy(nil, nil)
 }

@@ -140,7 +140,7 @@ func scanFile(filePath string) ([]route, map[string]bool) {
 	if filepath.Base(filePath) == "components.go" {
 		defaultG = "/api/components"
 	}
-	if filepath.Base(filePath) == "deploy.go" || filepath.Base(filePath) == "apps.go" || filepath.Base(filePath) == "lifecycle_resources.go" {
+	if filepath.Base(filePath) == "deploy.go" || filepath.Base(filePath) == "apps.go" || filepath.Base(filePath) == "lifecycle_resources.go" || filepath.Base(filePath) == "catalog.go" {
 		defaultG = "/api"
 	}
 

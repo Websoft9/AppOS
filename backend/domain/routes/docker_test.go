@@ -1,6 +1,10 @@
 package routes
 
-import "testing"
+import (
+	"testing"
+
+	servers "github.com/websoft9/appos/backend/domain/resource/control/servers"
+)
 
 func TestTunnelSSHPortFromServices(t *testing.T) {
 	tests := []struct {
@@ -37,7 +41,7 @@ func TestTunnelSSHPortFromServices(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := tunnelSSHPortFromServices(tt.raw)
+			got, err := servers.TunnelSSHPortFromServices(tt.raw)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatalf("expected error, got nil")

@@ -2,6 +2,8 @@ export interface SecretPolicy {
   revealDisabled: boolean
   defaultAccessMode: string
   clipboardClearSeconds: number
+  maxAgeDays: number
+  warnBeforeExpiryDays: number
 }
 export const DEFAULT_SECRET_ACCESS_MODE = 'use_only'
 
@@ -15,6 +17,8 @@ export const DEFAULT_SECRET_POLICY: SecretPolicy = {
   revealDisabled: false,
   defaultAccessMode: DEFAULT_SECRET_ACCESS_MODE,
   clipboardClearSeconds: 0,
+  maxAgeDays: 0,
+  warnBeforeExpiryDays: 0,
 }
 
 export function normalizeSecretPolicy(input: unknown): SecretPolicy {
@@ -38,6 +42,14 @@ export function normalizeSecretPolicy(input: unknown): SecretPolicy {
       Number.isFinite(clipboardClearSeconds) && clipboardClearSeconds >= 0
         ? Math.floor(clipboardClearSeconds)
         : DEFAULT_SECRET_POLICY.clipboardClearSeconds,
+    maxAgeDays: (() => {
+      const v = Math.floor(Number(raw.maxAgeDays))
+      return Number.isFinite(v) && v >= 0 ? v : 0
+    })(),
+    warnBeforeExpiryDays: (() => {
+      const v = Math.floor(Number(raw.warnBeforeExpiryDays))
+      return Number.isFinite(v) && v >= 0 ? v : 0
+    })(),
   }
 }
 

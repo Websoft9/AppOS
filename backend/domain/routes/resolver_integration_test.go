@@ -106,8 +106,8 @@ func TestResolve_NewFormat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resolve failed: %v", err)
 	}
-	if result["password"] != "correct-horse-battery-staple" {
-		t.Errorf("expected password in payload, got %v", result)
+	if result.Payload["password"] != "correct-horse-battery-staple" {
+		t.Errorf("expected password in payload, got %v", result.Payload)
 	}
 }
 

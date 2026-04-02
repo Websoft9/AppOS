@@ -13,8 +13,8 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/websoft9/appos/backend/domain/audit"
+	"github.com/websoft9/appos/backend/domain/resource/control/tunnel"
 	appcrypto "github.com/websoft9/appos/backend/infra/crypto"
-	"github.com/websoft9/appos/backend/domain/tunnel"
 )
 
 func (te *testEnv) doTunnel(t *testing.T, method, url, body string, authenticated bool) *httptest.ResponseRecorder {
@@ -65,7 +65,7 @@ func createTunnelTokenSecret(t *testing.T, te *testEnv, serverID, token string) 
 		t.Fatal(err)
 	}
 	rec := core.NewRecord(secretCol)
-	rec.Set("name", tunnelTokenSecretName(serverID))
+	rec.Set("name", tunnel.TokenSecretName(serverID))
 	rec.Set("type", "tunnel_token")
 	rec.Set("template_id", "single_value")
 	rec.Set("created_source", "system")
@@ -358,7 +358,7 @@ func TestTunnelTokenValidatorRejectsPausedServer(t *testing.T) {
 	}
 	createTunnelTokenSecret(t, te, server.Id, "paused-token")
 
-	validator := &pbTokenValidator{app: te.app}
+	validator := &tunnel.PBTokenValidator{App: te.app, TokenCache: &tunnelTokenCache, PauseUntil: tunnelPauseUntil}
 	if serverID, ok := validator.Validate("paused-token"); ok || serverID != "" {
 		t.Fatalf("expected paused token validation to fail, got ok=%v serverID=%q", ok, serverID)
 	}
@@ -529,7 +529,7 @@ func TestTunnelTokenCachePopulatedOnValidate(t *testing.T) {
 	server := createTunnelServerRecord(t, te, "cache-1")
 	createTunnelTokenSecret(t, te, server.Id, "cache-test-token")
 
-	validator := &pbTokenValidator{app: te.app}
+	validator := &tunnel.PBTokenValidator{App: te.app, TokenCache: &tunnelTokenCache, PauseUntil: tunnelPauseUntil}
 	serverID, ok := validator.Validate("cache-test-token")
 	if !ok || serverID != server.Id {
 		t.Fatalf("expected valid token, got ok=%v serverID=%q", ok, serverID)
@@ -624,7 +624,7 @@ func TestTunnelTokenValidatorRejectsInvalidToken(t *testing.T) {
 	tunnelTokenCache = sync.Map{}
 
 	createTunnelServerRecord(t, te, "reject-1")
-	validator := &pbTokenValidator{app: te.app}
+	validator := &tunnel.PBTokenValidator{App: te.app, TokenCache: &tunnelTokenCache, PauseUntil: tunnelPauseUntil}
 	if serverID, ok := validator.Validate("totally-invalid-token"); ok || serverID != "" {
 		t.Fatalf("expected invalid token to be rejected, got ok=%v serverID=%q", ok, serverID)
 	}
@@ -685,7 +685,7 @@ func TestTunnelPauseThenValidateRejects(t *testing.T) {
 	}
 
 	// Token validation should fail while paused (both cold and warm paths).
-	validator := &pbTokenValidator{app: te.app}
+	validator := &tunnel.PBTokenValidator{App: te.app, TokenCache: &tunnelTokenCache, PauseUntil: tunnelPauseUntil}
 
 	// Cold path (cache miss → full scan):
 	if sid, ok := validator.Validate("paused-val-token"); ok || sid != "" {

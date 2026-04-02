@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/config/sharedenv"
 	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	"github.com/websoft9/appos/backend/domain/secrets"
@@ -102,7 +103,7 @@ func (input InstallRuntimeEnvInput) ToMap() map[string]any {
 		return nil
 	}
 	return result
-	}
+}
 
 type InstallRuntimeFileInput struct {
 	Kind       string
@@ -264,12 +265,12 @@ func (input *InstallSourceBuildInput) ToMap() map[string]any {
 type InstallCandidateKind string
 
 const (
-	InstallCandidateKindManualCompose  InstallCandidateKind = "manual-compose"
-	InstallCandidateKindGitCompose     InstallCandidateKind = "git-compose"
-	InstallCandidateKindStorePrefill   InstallCandidateKind = "store-prefill"
+	InstallCandidateKindManualCompose    InstallCandidateKind = "manual-compose"
+	InstallCandidateKindGitCompose       InstallCandidateKind = "git-compose"
+	InstallCandidateKindStorePrefill     InstallCandidateKind = "store-prefill"
 	InstallCandidateKindInstalledPrefill InstallCandidateKind = "installed-prefill"
-	InstallCandidateKindDockerCommand  InstallCandidateKind = "docker-command"
-	InstallCandidateKindInstallScript  InstallCandidateKind = "install-script"
+	InstallCandidateKindDockerCommand    InstallCandidateKind = "docker-command"
+	InstallCandidateKindInstallScript    InstallCandidateKind = "install-script"
 )
 
 type InstallCandidateInput struct {
@@ -1105,16 +1106,20 @@ func resolveSharedEnvImport(app core.App, input InstallRuntimeEnvInput, userID s
 	if input.VarID == "" && input.SourceKey == "" {
 		return nil, "", "", fmt.Errorf("shared-import requires var_id or source_key")
 	}
-	varRec, err := findEnvSetVarRecord(app, input)
+	resolvedVar, err := sharedenv.FindVar(app, sharedenv.VarLookup{
+		SetID:     input.SetID,
+		VarID:     input.VarID,
+		SourceKey: input.SourceKey,
+	})
 	if err != nil {
 		return nil, "", "", err
 	}
-	sourceKey := strings.TrimSpace(varRec.GetString("key"))
+	sourceKey := strings.TrimSpace(resolvedVar.Key)
 	if sourceKey == "" {
 		return nil, "", "", fmt.Errorf("shared env variable has empty key")
 	}
-	if varRec.GetBool("is_secret") {
-		secretID := strings.TrimSpace(varRec.GetString("secret"))
+	if resolvedVar.IsSecret {
+		secretID := strings.TrimSpace(resolvedVar.SecretID)
 		if secretID == "" {
 			return nil, "", "", fmt.Errorf("shared secret env variable missing secret reference")
 		}
@@ -1123,26 +1128,7 @@ func resolveSharedEnvImport(app core.App, input InstallRuntimeEnvInput, userID s
 		}
 		return secrets.SecretRefPrefix + secretID, secrets.SecretRefPrefix + secretID, sourceKey, nil
 	}
-	return varRec.GetString("value"), "", sourceKey, nil
-}
-
-func findEnvSetVarRecord(app core.App, input InstallRuntimeEnvInput) (*core.Record, error) {
-	if input.VarID != "" {
-		record, err := app.FindRecordById("env_set_vars", input.VarID)
-		if err != nil {
-			return nil, fmt.Errorf("shared env variable not found")
-		}
-		if strings.TrimSpace(record.GetString("set")) != input.SetID {
-			return nil, fmt.Errorf("shared env variable does not belong to set %q", input.SetID)
-		}
-		return record, nil
-	}
-	filter := fmt.Sprintf("set = '%s' && key = '%s'", escapePBFilterValue(input.SetID), escapePBFilterValue(input.SourceKey))
-		record, err := app.FindFirstRecordByFilter("env_set_vars", filter)
-		if err != nil {
-			return nil, fmt.Errorf("shared env variable %q not found in set %q", input.SourceKey, input.SetID)
-		}
-	return record, nil
+	return resolvedVar.Value, "", sourceKey, nil
 }
 
 func collectRuntimeSecretRefs(inputs *InstallRuntimeInputs) []string {
@@ -1177,18 +1163,6 @@ func uniqueStrings(values []string) []string {
 	}
 	if len(result) == 0 {
 		return nil
-	}
-	return result
-}
-
-func escapePBFilterValue(value string) string {
-	result := ""
-	for _, part := range value {
-		if part == '\'' {
-			result += "\\'"
-			continue
-		}
-		result += string(part)
 	}
 	return result
 }

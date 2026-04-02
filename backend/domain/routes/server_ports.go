@@ -12,7 +12,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/websoft9/appos/backend/domain/audit"
-	servers "github.com/websoft9/appos/backend/domain/servers"
+	servers "github.com/websoft9/appos/backend/domain/resource/control/servers"
 )
 
 // ════════════════════════════════════════════════════════════
@@ -30,7 +30,7 @@ func handleServerPortsList(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": paramErr.Error()})
 	}
 
-	cfg, err := resolveServerConfig(e, serverID)
+	cfg, err := servers.ResolveConfig(e.App, e.Auth, serverID)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
@@ -136,7 +136,7 @@ func handleServerPortInspect(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": paramErr.Error()})
 	}
 
-	cfg, err := resolveServerConfig(e, serverID)
+	cfg, err := servers.ResolveConfig(e.App, e.Auth, serverID)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
@@ -216,7 +216,7 @@ func handleServerPortRelease(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": modeErr.Error()})
 	}
 
-	cfg, err := resolveServerConfig(e, serverID)
+	cfg, err := servers.ResolveConfig(e.App, e.Auth, serverID)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}

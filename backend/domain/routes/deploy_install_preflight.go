@@ -8,7 +8,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	installprobe "github.com/websoft9/appos/backend/domain/lifecycle/runtime/installprobe"
 	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
-	servers "github.com/websoft9/appos/backend/domain/servers"
+	servers "github.com/websoft9/appos/backend/domain/resource/control/servers"
 )
 
 func newRouteInstallPreflightProbe(e *core.RequestEvent) lifecyclesvc.InstallPreflightProbe {
@@ -22,7 +22,7 @@ func newRouteInstallPreflightProbe(e *core.RequestEvent) lifecyclesvc.InstallPre
 			targets[serverID] = target
 			return target, nil
 		}
-		cfg, err := resolveServerConfig(e, serverID)
+		cfg, err := servers.ResolveConfig(e.App, e.Auth, serverID)
 		if err != nil {
 			return installprobe.Target{}, err
 		}
@@ -128,4 +128,3 @@ func bodyFloat64(body map[string]any, key string) float64 {
 		return 0
 	}
 }
-

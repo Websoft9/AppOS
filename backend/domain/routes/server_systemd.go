@@ -12,7 +12,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/websoft9/appos/backend/domain/audit"
-	servers "github.com/websoft9/appos/backend/domain/servers"
+	servers "github.com/websoft9/appos/backend/domain/resource/control/servers"
 )
 
 // ════════════════════════════════════════════════════════════
@@ -25,7 +25,7 @@ func handleSystemdServices(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": "serverId required"})
 	}
 
-	cfg, err := resolveServerConfig(e, serverID)
+	cfg, err := servers.ResolveConfig(e.App, e.Auth, serverID)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
@@ -81,7 +81,7 @@ func handleSystemdServiceStatus(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, resolveErr := resolveServerConfig(e, serverID)
+	cfg, resolveErr := servers.ResolveConfig(e.App, e.Auth, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
@@ -147,7 +147,7 @@ func handleSystemdServiceLogs(e *core.RequestEvent) error {
 		}
 	}
 
-	cfg, resolveErr := resolveServerConfig(e, serverID)
+	cfg, resolveErr := servers.ResolveConfig(e.App, e.Auth, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
@@ -194,7 +194,7 @@ func handleSystemdServiceContent(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, resolveErr := resolveServerConfig(e, serverID)
+	cfg, resolveErr := servers.ResolveConfig(e.App, e.Auth, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
@@ -249,7 +249,7 @@ func handleSystemdServiceAction(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": "action must be start, stop, restart, enable, or disable"})
 	}
 
-	cfg, resolveErr := resolveServerConfig(e, serverID)
+	cfg, resolveErr := servers.ResolveConfig(e.App, e.Auth, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
@@ -292,7 +292,7 @@ func handleSystemdServiceUnitRead(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, resolveErr := resolveServerConfig(e, serverID)
+	cfg, resolveErr := servers.ResolveConfig(e.App, e.Auth, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
@@ -336,7 +336,7 @@ func handleSystemdServiceUnitWrite(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": "content too large (max 64KB)"})
 	}
 
-	cfg, resolveErr := resolveServerConfig(e, serverID)
+	cfg, resolveErr := servers.ResolveConfig(e.App, e.Auth, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
@@ -384,7 +384,7 @@ func handleSystemdServiceUnitVerify(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, resolveErr := resolveServerConfig(e, serverID)
+	cfg, resolveErr := servers.ResolveConfig(e.App, e.Auth, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
@@ -436,7 +436,7 @@ func handleSystemdServiceUnitApply(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, resolveErr := resolveServerConfig(e, serverID)
+	cfg, resolveErr := servers.ResolveConfig(e.App, e.Auth, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}

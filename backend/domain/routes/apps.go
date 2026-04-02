@@ -17,7 +17,7 @@ import (
 	"github.com/websoft9/appos/backend/domain/audit"
 	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
-	servers "github.com/websoft9/appos/backend/domain/servers"
+	servers "github.com/websoft9/appos/backend/domain/resource/control/servers"
 )
 
 const appComposeConfigMaxBytes int64 = 2 << 20
@@ -152,7 +152,7 @@ func handleAppInstanceLogs(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
 
-	client, err := getDockerClientByServerID(e.App, normalizeAppServerID(record.GetString("server_id")))
+	client, err := servers.NewDockerClient(e.App, normalizeAppServerID(record.GetString("server_id")), localDockerClient)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": err.Error()})
 	}
@@ -603,26 +603,26 @@ func appInstanceResponse(app core.App, record *core.Record, runtimeIndex map[str
 	}
 
 	result := map[string]any{
-		"id":                  record.Id,
-		"iac_path":            appInstanceIACPath(record.Id, name),
-		"server_id":           normalizeAppServerID(record.GetString("server_id")),
-		"name":                name,
-		"project_dir":         runtimeContext.ProjectDir,
-		"source":              runtimeContext.Source,
-		"status":              appInstallStatus(record),
-		"runtime_status":      runtimeStatus,
-		"lifecycle_state":     record.GetString("lifecycle_state"),
-		"health_summary":      record.GetString("health_summary"),
-		"publication_summary": record.GetString("publication_summary"),
-		"state_reason":        record.GetString("state_reason"),
-		"access_username":     record.GetString("access_username"),
-		"access_secret_hint":  record.GetString("access_secret_hint"),
+		"id":                      record.Id,
+		"iac_path":                appInstanceIACPath(record.Id, name),
+		"server_id":               normalizeAppServerID(record.GetString("server_id")),
+		"name":                    name,
+		"project_dir":             runtimeContext.ProjectDir,
+		"source":                  runtimeContext.Source,
+		"status":                  appInstallStatus(record),
+		"runtime_status":          runtimeStatus,
+		"lifecycle_state":         record.GetString("lifecycle_state"),
+		"health_summary":          record.GetString("health_summary"),
+		"publication_summary":     record.GetString("publication_summary"),
+		"state_reason":            record.GetString("state_reason"),
+		"access_username":         record.GetString("access_username"),
+		"access_secret_hint":      record.GetString("access_secret_hint"),
 		"access_retrieval_method": record.GetString("access_retrieval_method"),
-		"access_notes":        record.GetString("access_notes"),
-		"last_operation":      record.GetString("last_operation"),
-		"current_pipeline":    currentPipeline,
-		"created":             record.GetDateTime("created").String(),
-		"updated":             record.GetDateTime("updated").String(),
+		"access_notes":            record.GetString("access_notes"),
+		"last_operation":          record.GetString("last_operation"),
+		"current_pipeline":        currentPipeline,
+		"created":                 record.GetDateTime("created").String(),
+		"updated":                 record.GetDateTime("updated").String(),
 	}
 	if strings.TrimSpace(runtimeReason) != "" && runtimeStatus == "unknown" {
 		result["runtime_reason"] = runtimeReason
@@ -678,7 +678,7 @@ func normalizeAppServerID(serverID string) string {
 }
 
 func composeStatusIndex(app core.App, serverID string) (map[string]string, error) {
-	client, err := getDockerClientByServerID(app, serverID)
+	client, err := servers.NewDockerClient(app, serverID, localDockerClient)
 	if err != nil {
 		return nil, err
 	}
@@ -706,7 +706,6 @@ func composeStatusIndex(app core.App, serverID string) (map[string]string, error
 	}
 	return index, nil
 }
-
 
 func resolveAppRuntimeContext(app core.App, record *core.Record) (appRuntimeContext, error) {
 	context := appRuntimeContext{ComposeProjectName: record.GetString("name")}
@@ -779,7 +778,7 @@ func writeAppAudit(e *core.RequestEvent, record *core.Record, action string, sta
 }
 
 func validateAppComposeConfig(e *core.RequestEvent, serverID string, projectDir string, content string) error {
-	client, err := getDockerClientByServerID(e.App, serverID)
+	client, err := servers.NewDockerClient(e.App, serverID, localDockerClient)
 	if err != nil {
 		return err
 	}
@@ -899,7 +898,7 @@ func slugifyAppName(name string) string {
 }
 
 func openAppSFTPClient(e *core.RequestEvent, serverID string) (*servers.SFTPClient, error) {
-	cfg, err := resolveServerConfig(e, serverID)
+	cfg, err := servers.ResolveConfig(e.App, e.Auth, serverID)
 	if err != nil {
 		return nil, err
 	}

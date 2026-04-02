@@ -13,9 +13,9 @@ import (
 	"github.com/pocketbase/pocketbase/tools/router"
 
 	"github.com/websoft9/appos/backend/domain/audit"
-	servers "github.com/websoft9/appos/backend/domain/servers"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
+	servers "github.com/websoft9/appos/backend/domain/resource/control/servers"
 )
 
 func registerServerFileRoutes(g *router.RouterGroup[*core.RequestEvent]) {
@@ -741,7 +741,7 @@ func handleSFTPWrite(e *core.RequestEvent) error {
 // Returns the client, serverID, and any error.
 func openSFTPClient(e *core.RequestEvent) (*servers.SFTPClient, string, error) {
 	serverID := e.Request.PathValue("serverId")
-	cfg, err := resolveServerConfig(e, serverID)
+	cfg, err := servers.ResolveConfig(e.App, e.Auth, serverID)
 	if err != nil {
 		return nil, serverID, err
 	}

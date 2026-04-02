@@ -8,7 +8,6 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/audit"
-	"github.com/websoft9/appos/backend/infra/crypto"
 )
 
 // SecretRefPrefix is the string prefix that marks a field value as a secret reference.
@@ -53,26 +52,38 @@ func (e *ResolveError) Error() string {
 
 func (e *ResolveError) Unwrap() error { return e.Cause }
 
+// ─── ResolveResult ────────────────────────────────────────────────────────────
+
+// ResolveResult carries the decrypted payload together with expiry metadata so
+// callers (e.g. the HTTP resolve handler) can surface expiry status.
+type ResolveResult struct {
+	Payload   map[string]any
+	ExpiresAt string // RFC 3339 or empty
+	IsExpired bool
+}
+
 // ─── Resolve ─────────────────────────────────────────────────────────────────
 
 // Resolve looks up secretID from the DB, validates it is active, decrypts the payload,
 // records last_used_at / last_used_by, emits a "secret.use" audit event, and returns
-// the plaintext payload as map[string]any.
+// a ResolveResult.
 //
 // Format support:
 //   - New format (Epic 19): `payload_encrypted` field — AES-256-GCM, base64 JSON blob.
 //   - Legacy format (pre-Epic 19): `value` field — AES-256-GCM, hex-encoded, decrypted via
-//     internal/crypto. Result is wrapped as {"value": <plaintext>}.
+//     DecryptLegacyValue. Result is wrapped as {"value": <plaintext>}.
 //
 // The returned plaintext map MUST NOT be persisted by the caller (AC5).
 // Resolve is synchronous and not cached in MVP.
-func Resolve(app core.App, secretID, userID string) (map[string]any, error) {
+func Resolve(app core.App, secretID, userID string) (*ResolveResult, error) {
 	rec, err := app.FindRecordById("secrets", secretID)
 	if err != nil {
 		return nil, &ResolveError{SecretID: secretID, Reason: "secret not found", Cause: err}
 	}
 
-	if rec.GetString("status") == "revoked" {
+	s := From(rec)
+
+	if s.IsRevoked() {
 		return nil, &ResolveError{SecretID: secretID, Reason: "secret has been revoked"}
 	}
 
@@ -85,9 +96,9 @@ func Resolve(app core.App, secretID, userID string) (map[string]any, error) {
 			return nil, &ResolveError{SecretID: secretID, Reason: "decrypt failed", Cause: err}
 		}
 	} else if legacyVal := rec.GetString("value"); legacyVal != "" {
-		// Legacy pre-Epic-19 format: hex AES-256-GCM via internal/crypto package.
+		// Legacy pre-Epic-19 format: hex AES-256-GCM via APPOS_ENCRYPTION_KEY.
 		// TODO(story-19.4): remove this branch once all records are migrated to payload_encrypted.
-		plain, decErr := crypto.Decrypt(legacyVal)
+		plain, decErr := DecryptLegacyValue(legacyVal)
 		if decErr != nil {
 			return nil, &ResolveError{SecretID: secretID, Reason: "legacy decrypt failed", Cause: decErr}
 		}
@@ -108,11 +119,15 @@ func Resolve(app core.App, secretID, userID string) (map[string]any, error) {
 		Action:       "secret.use",
 		ResourceType: "secret",
 		ResourceID:   secretID,
-		ResourceName: rec.GetString("name"),
+		ResourceName: s.Name(),
 		Status:       audit.StatusSuccess,
 	})
 
-	return payload, nil
+	return &ResolveResult{
+		Payload:   payload,
+		ExpiresAt: rec.GetString("expires_at"),
+		IsExpired: s.IsExpired(),
+	}, nil
 }
 
 // ─── ValidateRef ─────────────────────────────────────────────────────────────
@@ -130,13 +145,13 @@ func ValidateRef(app core.App, secretID, userID string) error {
 		return &ResolveError{SecretID: secretID, Reason: "secret not found", Cause: err}
 	}
 
-	if rec.GetString("status") == "revoked" {
+	s := From(rec)
+
+	if s.IsRevoked() {
 		return &ResolveError{SecretID: secretID, Reason: "secret has been revoked"}
 	}
 
-	scope := rec.GetString("scope")
-	owner := rec.GetString("created_by")
-	if scope == "user_private" && owner != userID {
+	if s.Scope() == ScopeUserPrivate && s.CreatedBy() != userID {
 		return &ResolveError{SecretID: secretID, Reason: "access denied: secret is private to another user"}
 	}
 

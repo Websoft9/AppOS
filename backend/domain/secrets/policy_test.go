@@ -191,3 +191,74 @@ func TestCurrentKey_Uninitialized(t *testing.T) {
 		t.Fatal("expected error for uninitialized key")
 	}
 }
+
+func TestDefaultPolicyHasZeroExpiry(t *testing.T) {
+	p := DefaultPolicy()
+	if p.MaxAgeDays != 0 {
+		t.Fatalf("expected MaxAgeDays 0, got %d", p.MaxAgeDays)
+	}
+	if p.WarnBeforeExpiryDays != 0 {
+		t.Fatalf("expected WarnBeforeExpiryDays 0, got %d", p.WarnBeforeExpiryDays)
+	}
+}
+
+func TestNormalizePolicyExpiryFields(t *testing.T) {
+	p := NormalizePolicy(map[string]any{
+		"maxAgeDays":           "30",
+		"warnBeforeExpiryDays": 7,
+	})
+	if p.MaxAgeDays != 30 {
+		t.Fatalf("expected MaxAgeDays 30, got %d", p.MaxAgeDays)
+	}
+	if p.WarnBeforeExpiryDays != 7 {
+		t.Fatalf("expected WarnBeforeExpiryDays 7, got %d", p.WarnBeforeExpiryDays)
+	}
+}
+
+func TestNormalizePolicyNegativeExpiryClampedToZero(t *testing.T) {
+	p := NormalizePolicy(map[string]any{
+		"maxAgeDays":           -5,
+		"warnBeforeExpiryDays": -1,
+	})
+	if p.MaxAgeDays != 0 {
+		t.Fatalf("expected MaxAgeDays clamped to 0, got %d", p.MaxAgeDays)
+	}
+	if p.WarnBeforeExpiryDays != 0 {
+		t.Fatalf("expected WarnBeforeExpiryDays clamped to 0, got %d", p.WarnBeforeExpiryDays)
+	}
+}
+
+func TestValidatePolicyRejectsNegativeExpiry(t *testing.T) {
+	raw := map[string]any{
+		"maxAgeDays":           -1,
+		"warnBeforeExpiryDays": -3,
+	}
+	errs := ValidatePolicy(raw)
+	if errs["maxAgeDays"] == "" {
+		t.Fatal("expected maxAgeDays validation error")
+	}
+	if errs["warnBeforeExpiryDays"] == "" {
+		t.Fatal("expected warnBeforeExpiryDays validation error")
+	}
+}
+
+func TestValidatePolicyAcceptsZeroExpiry(t *testing.T) {
+	raw := map[string]any{
+		"maxAgeDays":           0,
+		"warnBeforeExpiryDays": 0,
+	}
+	if errs := ValidatePolicy(raw); errs != nil {
+		t.Fatalf("expected no errors, got %#v", errs)
+	}
+}
+
+func TestPolicyToMapIncludesExpiryFields(t *testing.T) {
+	p := Policy{MaxAgeDays: 90, WarnBeforeExpiryDays: 14}
+	m := p.ToMap()
+	if m["maxAgeDays"] != 90 {
+		t.Fatalf("expected maxAgeDays 90, got %#v", m["maxAgeDays"])
+	}
+	if m["warnBeforeExpiryDays"] != 14 {
+		t.Fatalf("expected warnBeforeExpiryDays 14, got %#v", m["warnBeforeExpiryDays"])
+	}
+}

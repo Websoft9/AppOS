@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"sync"
 )
@@ -39,6 +40,7 @@ func key() ([]byte, error) {
 	keyOnce.Do(func() {
 		hexKey := os.Getenv(EnvKey)
 		if hexKey == "" {
+			log.Printf("WARNING: %s is not set — using insecure dev-only key. Do NOT use this in production.", EnvKey)
 			hexKey = devKey
 		}
 		keyBytes, resolveErr = hex.DecodeString(hexKey)

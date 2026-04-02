@@ -18,7 +18,7 @@ import (
 	"golang.org/x/crypto/ssh/knownhosts"
 
 	"github.com/websoft9/appos/backend/domain/audit"
-	servers "github.com/websoft9/appos/backend/domain/servers"
+	servers "github.com/websoft9/appos/backend/domain/resource/control/servers"
 )
 
 func registerServerOpsRoutes(g *router.RouterGroup[*core.RequestEvent]) {
@@ -143,7 +143,7 @@ func handleServerConnectivity(e *core.RequestEvent) error {
 		}
 		return e.JSON(http.StatusOK, response)
 	case "ssh":
-		cfg, cfgErr := resolveServerConfig(e, serverID)
+		cfg, cfgErr := servers.ResolveConfig(e.App, e.Auth, serverID)
 		if cfgErr != nil {
 			response["reason"] = cfgErr.Error()
 			return e.JSON(http.StatusOK, response)
@@ -214,7 +214,7 @@ func handleServerPower(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": "action must be restart or shutdown"})
 	}
 
-	cfg, err := resolveServerConfig(e, serverID)
+	cfg, err := servers.ResolveConfig(e.App, e.Auth, serverID)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}

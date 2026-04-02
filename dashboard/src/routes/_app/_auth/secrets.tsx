@@ -76,6 +76,7 @@ interface SecretRecord {
   scope: string
   access_mode: string
   status: string
+  expires_at?: string
   last_used_at?: string
   last_used_by?: string
   created?: string
@@ -86,7 +87,7 @@ type ConfirmAction =
   | { type: 'delete'; id: string; name: string }
   | null
 
-type SortField = 'name' | 'last_used_at' | 'last_used_by' | 'created'
+type SortField = 'name' | 'last_used_at' | 'last_used_by' | 'created' | 'expires_at'
 type SortDir = 'asc' | 'desc'
 
 // Schema-level enums for Create/Edit forms. These must list ALL possible values
@@ -183,6 +184,25 @@ function SortableHeader({
       )}
     </button>
   )
+}
+
+type ExpiryStatus = 'expired' | 'expiring-soon' | 'ok' | 'none'
+
+function getExpiryStatus(
+  expiresAt: string | undefined,
+  warnBeforeExpiryDays: number,
+): ExpiryStatus {
+  if (!expiresAt) return 'none'
+  const exp = new Date(expiresAt)
+  if (isNaN(exp.getTime())) return 'none'
+  const now = new Date()
+  if (now > exp) return 'expired'
+  if (
+    warnBeforeExpiryDays > 0 &&
+    now.getTime() + warnBeforeExpiryDays * 86_400_000 > exp.getTime()
+  )
+    return 'expiring-soon'
+  return 'ok'
 }
 
 function humanize(value: string): string {
@@ -361,8 +381,9 @@ export function SecretsPage() {
     // Sort
     if (sortField) {
       result = [...result].sort((a, b) => {
-        const av = (a[sortField] ?? '') as string
-        const bv = (b[sortField] ?? '') as string
+        const nullFallback = sortField === 'expires_at' ? '\uFFFF' : ''
+        const av = (a[sortField] ?? nullFallback) as string
+        const bv = (b[sortField] ?? nullFallback) as string
         const cmp = av.localeCompare(bv)
         return sortDir === 'asc' ? cmp : -cmp
       })
@@ -836,6 +857,15 @@ export function SecretsPage() {
                   onSort={handleSort}
                 />
               </TableHead>
+              <TableHead>
+                <SortableHeader
+                  label="Expires At"
+                  field="expires_at"
+                  current={sortField}
+                  dir={sortDir}
+                  onSort={handleSort}
+                />
+              </TableHead>
               <TableHead className="w-[48px]" />
             </TableRow>
           </TableHeader>
@@ -873,6 +903,36 @@ export function SecretsPage() {
                   <TableCell>{formatDate(item.created)}</TableCell>
                   <TableCell>{formatDate(item.last_used_at)}</TableCell>
                   <TableCell>{item.last_used_by || '—'}</TableCell>
+                  <TableCell>
+                    {(() => {
+                      const status = getExpiryStatus(
+                        item.expires_at,
+                        secretPolicy.warnBeforeExpiryDays,
+                      )
+                      if (status === 'none') return '—'
+                      const label = formatDate(item.expires_at)
+                      if (status === 'expired')
+                        return (
+                          <span className="flex items-center gap-1.5">
+                            <span className="text-destructive">{label}</span>
+                            <Badge variant="destructive">Expired</Badge>
+                          </span>
+                        )
+                      if (status === 'expiring-soon')
+                        return (
+                          <span className="flex items-center gap-1.5">
+                            <span className="text-orange-500">{label}</span>
+                            <Badge
+                              variant="outline"
+                              className="border-orange-400 text-orange-500"
+                            >
+                              Expiring Soon
+                            </Badge>
+                          </span>
+                        )
+                      return <span className="text-muted-foreground">{label}</span>
+                    })()} 
+                  </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -920,7 +980,7 @@ export function SecretsPage() {
 
                 {expandedIds.has(item.id) && (
                   <TableRow>
-                    <TableCell colSpan={9} className="bg-muted/30 py-3">
+                    <TableCell colSpan={10} className="bg-muted/30 py-3">
                       <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
                         <div>
                           <span className="text-muted-foreground">ID:</span>{' '}
@@ -957,6 +1017,10 @@ export function SecretsPage() {
                         <div>
                           <span className="text-muted-foreground">Last Used By:</span>{' '}
                           <span>{item.last_used_by || '—'}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Expires At:</span>{' '}
+                          <span>{formatDate(item.expires_at)}</span>
                         </div>
                         {item.description && (
                           <div className="sm:col-span-2 lg:col-span-3">

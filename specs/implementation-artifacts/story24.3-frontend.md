@@ -2,7 +2,7 @@
 
 **Epic**: Epic 24 - Shared Envs  
 **Priority**: P1  
-**Status**: ready-for-dev  
+**Status**: pending  
 **Depends on**: Story 24.1, Story 24.2
 
 ---
@@ -10,6 +10,10 @@
 ## Objective
 
 Build the Shared Envs list and edit UI under the Resources section. Remove the old `EnvGroupsPage` component and `/resources/env-groups` route. Add an `env_sets` attachment field to the App config page.
+
+Frontend boundary note:
+- This story consumes the already-implemented standalone Shared Envs collections and backend read boundary.
+- Frontend remains responsible for attachment ordering UX; lifecycle merge and injection semantics remain backend-owned.
 
 ## Acceptance Criteria
 

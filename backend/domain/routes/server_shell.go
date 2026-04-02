@@ -14,7 +14,7 @@ import (
 	"github.com/pocketbase/pocketbase/tools/router"
 
 	"github.com/websoft9/appos/backend/domain/audit"
-	servers "github.com/websoft9/appos/backend/domain/servers"
+	servers "github.com/websoft9/appos/backend/domain/resource/control/servers"
 )
 
 func registerServerShellRoutes(g *router.RouterGroup[*core.RequestEvent]) {
@@ -35,7 +35,7 @@ func registerServerShellRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 // @Router /api/servers/{serverId}/shell [get]
 func handleSSHTerminal(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
-	cfg, err := resolveServerConfig(e, serverID)
+	cfg, err := servers.ResolveConfig(e.App, e.Auth, serverID)
 	if err != nil {
 		log.Printf("[server-shell] resolveServerConfig failed serverId=%s err=%v", serverID, err)
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})

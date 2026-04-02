@@ -36,14 +36,15 @@ func registerSecretsGroup(secretsGroup *router.RouterGroup[*core.RequestEvent]) 
 		if err != nil {
 			return e.NotFoundError("secret not found", err)
 		}
-		if !isSecretOwnerOrSuperuser(e.Auth, rec) {
+		s := secrets.From(rec)
+		if !s.IsOwnedBy(e.Auth) {
 			return apis.NewForbiddenError("forbidden", nil)
 		}
-		if rec.GetString("status") == "revoked" {
+		if s.IsRevoked() {
 			return apis.NewForbiddenError("revoked secret payload cannot be updated", nil)
 		}
-		if isSystemManagedSecretRecord(rec) {
-			writeSystemSecretDeniedAudit(e, rec, "secret.payload_update_denied", "system_secret_payload_read_only")
+		if s.IsSystemManaged() {
+			writeSystemSecretDeniedAudit(e, s, "secret.payload_update_denied", "system_secret_payload_read_only")
 			return apis.NewForbiddenError("system_secret_payload_read_only", nil)
 		}
 
@@ -79,14 +80,15 @@ func registerSecretsGroup(secretsGroup *router.RouterGroup[*core.RequestEvent]) 
 			if findErr != nil {
 				return apis.NewNotFoundError("secret not found", findErr)
 			}
+			txSecret := secrets.From(txRec)
 			if txRec.GetInt("version") != baseVersion {
 				return apis.NewBadRequestError("version conflict, retry with latest data", nil)
 			}
-			if txRec.GetString("status") == "revoked" {
+			if txSecret.IsRevoked() {
 				return apis.NewForbiddenError("revoked secret payload cannot be updated", nil)
 			}
-			if isSystemManagedSecretRecord(txRec) {
-				writeSystemSecretDeniedAudit(e, txRec, "secret.payload_update_denied", "system_secret_payload_read_only")
+			if txSecret.IsSystemManaged() {
+				writeSystemSecretDeniedAudit(e, txSecret, "secret.payload_update_denied", "system_secret_payload_read_only")
 				return apis.NewForbiddenError("system_secret_payload_read_only", nil)
 			}
 
@@ -148,7 +150,7 @@ func registerSecretsGroup(secretsGroup *router.RouterGroup[*core.RequestEvent]) 
 			return e.BadRequestError("secret_id is required", nil)
 		}
 
-		payload, err := secrets.Resolve(e.App, body.SecretID, strings.TrimSpace(body.UsedBy))
+		result, err := secrets.Resolve(e.App, body.SecretID, strings.TrimSpace(body.UsedBy))
 		if err != nil {
 			var resolveErr *secrets.ResolveError
 			if errors.As(err, &resolveErr) {
@@ -165,7 +167,12 @@ func registerSecretsGroup(secretsGroup *router.RouterGroup[*core.RequestEvent]) 
 			return e.InternalServerError("resolve failed", err)
 		}
 
-		return e.JSON(http.StatusOK, map[string]any{"payload": payload})
+		resp := map[string]any{"payload": result.Payload}
+		if result.ExpiresAt != "" {
+			resp["expires_at"] = result.ExpiresAt
+			resp["is_expired"] = result.IsExpired
+		}
+		return e.JSON(http.StatusOK, resp)
 	})
 
 	reveal := secretsGroup.Group("/{id}/reveal")
@@ -173,49 +180,25 @@ func registerSecretsGroup(secretsGroup *router.RouterGroup[*core.RequestEvent]) 
 	reveal.GET("", func(e *core.RequestEvent) error {
 		id := e.Request.PathValue("id")
 
-		var decryptedPayload map[string]any
-		var recordID, recordName string
-
-		txErr := e.App.RunInTransaction(func(txApp core.App) error {
-			policy := secrets.GetPolicy(txApp)
-			if policy.RevealDisabled {
+		result, err := secrets.RevealPayload(e.App, id, e.Auth)
+		if err != nil {
+			msg := err.Error()
+			switch {
+			case strings.Contains(msg, "reveal_disabled"):
 				return apis.NewForbiddenError("Secret reveal is disabled by administrator", nil)
-			}
-
-			rec, err := txApp.FindRecordById("secrets", id)
-			if err != nil {
-				return apis.NewNotFoundError("secret not found", err)
-			}
-			if !isSecretOwnerOrSuperuser(e.Auth, rec) {
+			case strings.Contains(msg, "not_found"):
+				return apis.NewNotFoundError("secret not found", nil)
+			case strings.Contains(msg, "forbidden"):
 				return apis.NewForbiddenError("forbidden", nil)
-			}
-			if rec.GetString("status") == "revoked" {
+			case strings.Contains(msg, "revoked"):
 				return apis.NewForbiddenError("secret is revoked", nil)
-			}
-			mode := rec.GetString("access_mode")
-			if mode == "use_only" {
+			case strings.Contains(msg, "reveal_not_allowed"):
 				return apis.NewForbiddenError("reveal disabled", nil)
-			}
-
-			payload, err := secrets.DecryptPayload(rec.GetString("payload_encrypted"))
-			if err != nil {
+			case strings.Contains(msg, "decrypt_failed"):
 				return apis.NewBadRequestError("decrypt failed", err)
+			default:
+				return apis.NewBadRequestError("reveal failed", err)
 			}
-
-			if mode == "reveal_once" {
-				rec.Set("access_mode", "use_only")
-				if err := txApp.Save(rec); err != nil {
-					return apis.NewBadRequestError("failed to update access mode", err)
-				}
-			}
-
-			decryptedPayload = payload
-			recordID = rec.Id
-			recordName = rec.GetString("name")
-			return nil
-		})
-		if txErr != nil {
-			return txErr
 		}
 
 		audit.Write(e.App, audit.Entry{
@@ -223,25 +206,15 @@ func registerSecretsGroup(secretsGroup *router.RouterGroup[*core.RequestEvent]) 
 			UserEmail:    e.Auth.GetString("email"),
 			Action:       "secret.reveal",
 			ResourceType: "secret",
-			ResourceID:   recordID,
-			ResourceName: recordName,
+			ResourceID:   result.RecordID,
+			ResourceName: result.RecordName,
 			Status:       audit.StatusSuccess,
 			IP:           e.RealIP(),
 			UserAgent:    e.Request.Header.Get("User-Agent"),
 		})
 
-		return e.JSON(http.StatusOK, map[string]any{"payload": decryptedPayload})
+		return e.JSON(http.StatusOK, map[string]any{"payload": result.Payload})
 	})
-}
-
-func isSecretOwnerOrSuperuser(auth *core.Record, secret *core.Record) bool {
-	if auth == nil {
-		return false
-	}
-	if auth.Collection().Name == core.CollectionNameSuperusers {
-		return true
-	}
-	return secret.GetString("created_by") == auth.Id
 }
 
 func isPrivateIP(ip string) bool {
@@ -252,17 +225,7 @@ func isPrivateIP(ip string) bool {
 	return parsed.IsLoopback() || parsed.IsPrivate()
 }
 
-func isSystemManagedSecretRecord(secret *core.Record) bool {
-	if secret == nil {
-		return false
-	}
-	if secret.GetString("created_source") == "system" {
-		return true
-	}
-	return secret.GetString("type") == "tunnel_token"
-}
-
-func writeSystemSecretDeniedAudit(e *core.RequestEvent, secret *core.Record, action string, reasonCode string) {
+func writeSystemSecretDeniedAudit(e *core.RequestEvent, secret *secrets.Secret, action string, reasonCode string) {
 	if e == nil || secret == nil {
 		return
 	}
@@ -277,8 +240,8 @@ func writeSystemSecretDeniedAudit(e *core.RequestEvent, secret *core.Record, act
 		UserEmail:    userEmail,
 		Action:       action,
 		ResourceType: "secret",
-		ResourceID:   secret.Id,
-		ResourceName: secret.GetString("name"),
+		ResourceID:   secret.ID(),
+		ResourceName: secret.Name(),
 		Status:       audit.StatusFailed,
 		IP:           e.RealIP(),
 		UserAgent:    e.Request.Header.Get("User-Agent"),

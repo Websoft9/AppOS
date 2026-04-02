@@ -49,11 +49,11 @@ func ResolveCertificate(app core.App, certID string, callerID string) (*CertMate
 	keyPEM := ""
 	secretID := record.GetString("key")
 	if secretID != "" {
-		payload, err := secrets.Resolve(app, secretID, callerID)
+		result, err := secrets.Resolve(app, secretID, callerID)
 		if err != nil {
 			return nil, fmt.Errorf("resolving private key secret: %w", err)
 		}
-		v, ok := payload["private_key"]
+		v, ok := result.Payload["private_key"]
 		if !ok {
 			return nil, fmt.Errorf("resolving private key secret: missing private_key field")
 		}

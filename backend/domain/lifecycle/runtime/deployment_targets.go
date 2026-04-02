@@ -11,7 +11,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/infra/docker"
 	sec "github.com/websoft9/appos/backend/domain/secrets"
-	"github.com/websoft9/appos/backend/domain/servers"
+	"github.com/websoft9/appos/backend/domain/resource/control/servers"
 )
 
 type SFTPClient interface {
@@ -183,16 +183,16 @@ func applyCredentialConfig(app core.App, server *core.Record, cfg *servers.Conne
 	}
 
 	cfg.AuthType = credentialAuthType(app, credID)
-	payload, err := sec.Resolve(app, credID, "")
+	result, err := sec.Resolve(app, credID, "")
 	if err != nil {
 		return fmt.Errorf("credential resolve failed: %w", err)
 	}
 
 	switch cfg.AuthType {
 	case "password":
-		cfg.Secret = sec.FirstStringFromPayload(payload, "password", "value")
+		cfg.Secret = sec.FirstStringFromPayload(result.Payload, "password", "value")
 	default:
-		cfg.Secret = sec.FirstStringFromPayload(payload, "private_key", "key", "value")
+		cfg.Secret = sec.FirstStringFromPayload(result.Payload, "private_key", "key", "value")
 	}
 	if cfg.Secret == "" {
 		return fmt.Errorf("credential resolve: no usable value for auth_type %q", cfg.AuthType)

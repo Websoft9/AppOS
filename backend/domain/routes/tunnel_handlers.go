@@ -12,8 +12,8 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/websoft9/appos/backend/domain/audit"
+	"github.com/websoft9/appos/backend/domain/resource/control/tunnel"
 	"github.com/websoft9/appos/backend/infra/crypto"
-	"github.com/websoft9/appos/backend/domain/tunnel"
 )
 
 // setupScriptLimiters is an IP-based rate limiter for the unauthenticated
@@ -64,7 +64,7 @@ func handleTunnelToken(e *core.RequestEvent) error {
 		return e.BadRequestError("server is not a tunnel server", nil)
 	}
 
-	secret, err := findTunnelTokenSecret(e.App, id)
+	secret, err := tunnel.FindTokenSecret(e.App, id)
 	if err != nil {
 		return e.InternalServerError("failed to load token secret", err)
 	}
@@ -94,7 +94,7 @@ func handleTunnelToken(e *core.RequestEvent) error {
 			tunnelTokenCache.Delete(oldRaw)
 		}
 
-		secret.Set("name", tunnelTokenSecretName(id))
+		secret.Set("name", tunnel.TokenSecretName(id))
 		secret.Set("type", "tunnel_token")
 		secret.Set("template_id", "single_value")
 		secret.Set("created_source", "system")
@@ -113,7 +113,7 @@ func handleTunnelToken(e *core.RequestEvent) error {
 			return e.InternalServerError("secrets collection not found", err)
 		}
 		secret := core.NewRecord(secretCol)
-		secret.Set("name", tunnelTokenSecretName(id))
+		secret.Set("name", tunnel.TokenSecretName(id))
 		secret.Set("type", "tunnel_token")
 		secret.Set("template_id", "single_value")
 		secret.Set("created_source", "system")
@@ -174,7 +174,7 @@ func handleTunnelSetup(e *core.RequestEvent) error {
 		return e.BadRequestError("server is not a tunnel server", nil)
 	}
 
-	secret, err := findTunnelTokenSecret(e.App, id)
+	secret, err := tunnel.FindTokenSecret(e.App, id)
 	if err != nil {
 		return e.InternalServerError("failed to load token secret", err)
 	}
@@ -648,7 +648,7 @@ func handleTunnelSetupScript(e *core.RequestEvent) error {
 	if token == "" {
 		return e.BadRequestError("missing token", nil)
 	}
-	serverID, ok := (&pbTokenValidator{app: e.App}).Validate(token)
+	serverID, ok := (&tunnel.PBTokenValidator{App: e.App, TokenCache: &tunnelTokenCache, PauseUntil: tunnelPauseUntil}).Validate(token)
 	if !ok {
 		return e.BadRequestError("invalid tunnel token", nil)
 	}

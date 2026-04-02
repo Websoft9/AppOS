@@ -2,13 +2,18 @@
 
 **Epic**: Epic 24 - Shared Envs  
 **Priority**: P1  
-**Status**: ready-for-dev
+**Status**: implemented
 
 ---
 
 ## Objective
 
 Remove the old `env_groups` / `env_group_vars` collections that were part of the Resource Store (Epic 8), and replace them with standalone `env_sets` / `env_set_vars` PocketBase native collections. Add an ordered `env_sets` relation field to the `apps` collection.
+
+Current boundary outcome:
+- `env_sets` / `env_set_vars` now exist as standalone shared-env collections rather than Resource Store-owned collections.
+- `apps.env_sets` is now the only attachment field for shared env consumption.
+- This migration aligns Shared Envs with the current model as a reusable runtime configuration asset, not a `resource` submodule.
 
 ## Acceptance Criteria
 
