@@ -198,3 +198,21 @@ backend/
 
 
 
+但它们不等于宇宙完备分类。将来还可能出现这些不太适合硬塞进去的类型：
+
+identity/：OAuth Provider、OIDC、LDAP、SSO
+storage/：S3、OSS、NAS、对象存储
+messaging/：Kafka、RabbitMQ、NATS、MQTT
+mail/：SMTP、邮件服务商
+dns/：DNS provider、域名解析
+llm/：如果后续有模型、用量、流式响应、工具调用等专属语义
+artifact/：如果你未来不只管镜像，还管 Helm Chart、包仓库、插件源
+所以答案是：
+
+这四个能覆盖“当前大多数外联资源”，但不应被当成最终固定全集。
+
+我更建议你这样理解：
+
+
+resource/  server/  database/  integration/  registry/  ...
+这里的 resource/ 是“外部资源命名空间”，而不是“只有这四类”。

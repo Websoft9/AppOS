@@ -56,6 +56,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { type PBList, pbFilterValue } from '@/lib/groups'
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -170,6 +171,12 @@ const INPUT_CLASS =
 
 type RelOpt = { id: string; label: string; raw?: Record<string, unknown> }
 
+const GROUPS_API_PATH = '/api/collections/groups/records?perPage=500&sort=name'
+
+function buildOrFilter(field: string, values: string[]): string {
+  return values.map(value => `${field}='${pbFilterValue(value)}'`).join('||')
+}
+
 // ─── ResourcePage ────────────────────────────────────────
 
 export function ResourcePage({ config }: { config: ResourcePageConfig }) {
@@ -207,6 +214,70 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set())
 
   const nameField = config.nameField || 'name'
+  const groupField = config.fields.find(f => f.key === 'groups' && f.type === 'relation')
+  const resourceObjectType = config.resourceType || ''
+
+  const listGroupMemberships = useCallback(
+    async (objectType: string, objectIds: string[]) => {
+      if (!objectType || objectIds.length === 0) return [] as Record<string, unknown>[]
+
+      const filter = [
+        `object_type='${pbFilterValue(objectType)}'`,
+        `(${buildOrFilter('object_id', objectIds)})`,
+      ].join('&&')
+      const params = new URLSearchParams({
+        perPage: '500',
+        filter: `(${filter})`,
+      })
+      const response = await pb.send<PBList<Record<string, unknown>>>(
+        `/api/collections/group_items/records?${params.toString()}`,
+        {}
+      )
+      return response.items ?? []
+    },
+    []
+  )
+
+  const syncGroupMemberships = useCallback(
+    async (objectId: string, nextGroupIds: string[]) => {
+      if (!groupField || !resourceObjectType || !objectId) return
+
+      const memberships = await listGroupMemberships(resourceObjectType, [objectId])
+      const existingByGroupId = new Map(
+        memberships
+          .map(membership => {
+            const groupId = String(membership['group_id'] ?? '')
+            const membershipId = String(membership['id'] ?? '')
+            return groupId && membershipId ? [groupId, membershipId] : null
+          })
+          .filter((entry): entry is [string, string] => entry !== null)
+      )
+
+      const desiredGroupIds = new Set(nextGroupIds)
+      const createOps = nextGroupIds
+        .filter(groupId => !existingByGroupId.has(groupId))
+        .map(groupId =>
+          pb.send('/api/collections/group_items/records', {
+            method: 'POST',
+            body: {
+              group_id: groupId,
+              object_type: resourceObjectType,
+              object_id: objectId,
+            },
+          })
+        )
+      const deleteOps = Array.from(existingByGroupId.entries())
+        .filter(([groupId]) => !desiredGroupIds.has(groupId))
+        .map(([, membershipId]) =>
+          pb.send(`/api/collections/group_items/records/${membershipId}`, {
+            method: 'DELETE',
+          })
+        )
+
+      await Promise.all([...createOps, ...deleteOps])
+    },
+    [groupField, listGroupMemberships, resourceObjectType]
+  )
 
   // ─── Fetch ───────────────────────────
 
@@ -240,12 +311,11 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   useEffect(() => {
     if (!config.enableGroupAssign) return
     setGroupsLoading(true)
-    pb.send<Record<string, unknown>[]>('/api/ext/resources/groups', {})
+    pb.send<PBList<Record<string, unknown>>>(GROUPS_API_PATH, {})
       .then(data => {
+        const records = Array.isArray(data.items) ? data.items : []
         setAvailableGroups(
-          Array.isArray(data)
-            ? data.map(g => ({ id: String(g.id), label: String(g['name'] ?? g.id) }))
-            : []
+          records.map(g => ({ id: String(g.id), label: String(g['name'] ?? g.id) }))
         )
       })
       .catch(() => setAvailableGroups([]))
@@ -346,6 +416,19 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
     setFormData(data)
     setFormError('')
     setDialogOpen(true)
+
+    if (groupField && resourceObjectType) {
+      void listGroupMemberships(resourceObjectType, [String(item.id)])
+        .then(memberships => {
+          const groupIds = memberships
+            .map(membership => String(membership['group_id'] ?? ''))
+            .filter(Boolean)
+          setFormData(prev => ({ ...prev, [groupField.key]: groupIds }))
+        })
+        .catch(() => {
+          setFormData(prev => ({ ...prev, [groupField.key]: [] }))
+        })
+    }
   }
 
   function updateField(key: string, value: unknown) {
@@ -430,22 +513,35 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
     setFormError('')
 
     try {
+      const payload = { ...formData }
+      const selectedGroups = groupField
+        ? Array.isArray(payload[groupField.key])
+          ? (payload[groupField.key] as string[])
+          : []
+        : []
+      if (groupField) delete payload[groupField.key]
+
       if (editingItem) {
         if (config.updateItem) {
-          await config.updateItem(String(editingItem.id), formData)
+          await config.updateItem(String(editingItem.id), payload)
         } else {
           await pb.send(`${config.apiPath}/${editingItem.id}`, {
             method: 'PUT',
-            body: formData,
+            body: payload,
           })
         }
+        await syncGroupMemberships(String(editingItem.id), selectedGroups)
       } else {
         const created = config.createItem
-          ? await config.createItem(formData)
+          ? await config.createItem(payload)
           : await pb.send(config.apiPath, {
               method: 'POST',
-              body: formData,
+              body: payload,
             })
+        await syncGroupMemberships(
+          String((created as Record<string, unknown>).id ?? ''),
+          selectedGroups
+        )
         setDialogOpen(false)
         await fetchItems()
         config.onCreateSuccess?.(created as Record<string, unknown>)
@@ -482,17 +578,35 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   async function handleAssignToGroups() {
     if (selectedGroupIds.size === 0) return
     setAssigningGroups(true)
-    const resourceType = config.resourceType || config.apiPath.split('/').pop() || ''
-    const batchItems = Array.from(selectedItems).map(id => ({ type: resourceType, id }))
     try {
-      await Promise.all(
-        Array.from(selectedGroupIds).map(groupId =>
-          pb.send(`/api/ext/resources/groups/${groupId}/resources/batch`, {
-            method: 'POST',
-            body: { action: 'add', items: batchItems },
-          })
+      if (!resourceObjectType) {
+        throw new Error('Missing resource type for group assignment')
+      }
+
+      const resourceIds = Array.from(selectedItems)
+      const targetGroupIds = Array.from(selectedGroupIds)
+      const existingMemberships = await listGroupMemberships(resourceObjectType, resourceIds)
+      const existingKeys = new Set(
+        existingMemberships.map(
+          membership => `${String(membership['group_id'] ?? '')}:${String(membership['object_id'] ?? '')}`
         )
       )
+      const createOps = targetGroupIds.flatMap(groupId =>
+        resourceIds
+          .filter(resourceId => !existingKeys.has(`${groupId}:${resourceId}`))
+          .map(resourceId =>
+            pb.send('/api/collections/group_items/records', {
+              method: 'POST',
+              body: {
+                group_id: groupId,
+                object_type: resourceObjectType,
+                object_id: resourceId,
+              },
+            })
+          )
+      )
+
+      await Promise.all(createOps)
       setSelectedItems(new Set())
       setSelectedGroupIds(new Set())
       setGroupAssignDialogOpen(false)

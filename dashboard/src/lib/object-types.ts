@@ -33,7 +33,7 @@ export const OBJECT_TYPES: ObjectTypeDef[] = [
   { type: 'database', label: 'Database', collection: 'databases', nameField: 'name', summaryField: 'engine', detailRoute: '/databases/$id' },
   { type: 'cloud_account', label: 'Cloud Account', collection: 'cloud_accounts', nameField: 'name', summaryField: 'provider', detailRoute: '/cloud-accounts/$id' },
   { type: 'certificate', label: 'Certificate', collection: 'certificates', nameField: 'domain', summaryField: 'expires', detailRoute: '/certificates/$id' },
-  { type: 'integration', label: 'Integration', collection: 'integrations', nameField: 'name', summaryField: 'provider', detailRoute: '/integrations/$id' },
+  { type: 'endpoint', label: 'Endpoint', collection: 'endpoints', nameField: 'name', summaryField: 'type', detailRoute: '/resources/endpoints', listSearchKey: 'id', createRoute: '/resources/endpoints' },
   { type: 'script', label: 'Script', collection: 'scripts', nameField: 'name', summaryField: undefined, detailRoute: '/scripts/$id' },
 ]
 

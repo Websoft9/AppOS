@@ -337,7 +337,7 @@ function getPreviewType(file: UserFile, quota: Quota | null): PreviewType | null
 
 /** Build a preview URL with an auth token so browsers can embed it directly. */
 function buildPreviewUrl(file: UserFile) {
-  return `/api/ext/space/preview/${file.id}?token=${encodeURIComponent(pb.authStore.token)}`
+  return `/api/space/preview/${file.id}?token=${encodeURIComponent(pb.authStore.token)}`
 }
 
 /** True if the file extension is in the editable (text/code) list. */
@@ -640,7 +640,7 @@ function FilesPage() {
     setError(null)
     try {
       const [quotaRes, listRes] = await Promise.all([
-        fetch('/api/ext/space/quota', {
+        fetch('/api/space/quota', {
           headers: { Authorization: pb.authStore.token },
         }).then(r => r.json()),
         pb.collection('user_files').getFullList<UserFile>({
@@ -963,7 +963,7 @@ function FilesPage() {
     setFetching(true)
     setFetchError(null)
     try {
-      const res = await fetch('/api/ext/space/fetch', {
+      const res = await fetch('/api/space/fetch', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1295,7 +1295,7 @@ function FilesPage() {
     setQrError(null)
     if (file.share_token && !isExpired(file.share_expires_at)) {
       // Reconstruct the public URL from the known token.
-      setShareUrl(buildPublicShareUrl(`/api/ext/space/share/${file.share_token}/download`))
+      setShareUrl(buildPublicShareUrl(`/api/space/share/${file.share_token}/download`))
     } else {
       setShareUrl(null)
     }
@@ -1306,7 +1306,7 @@ function FilesPage() {
     if (!shareFile) return
     setSharing(true)
     try {
-      const res = await fetch(`/api/ext/space/share/${shareFile.id}`, {
+      const res = await fetch(`/api/space/share/${shareFile.id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1336,7 +1336,7 @@ function FilesPage() {
   async function handleRevoke() {
     if (!shareFile) return
     try {
-      const res = await fetch(`/api/ext/space/share/${shareFile.id}`, {
+      const res = await fetch(`/api/space/share/${shareFile.id}`, {
         method: 'DELETE',
         headers: { Authorization: pb.authStore.token },
       })

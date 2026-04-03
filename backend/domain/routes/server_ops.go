@@ -18,7 +18,7 @@ import (
 	"golang.org/x/crypto/ssh/knownhosts"
 
 	"github.com/websoft9/appos/backend/domain/audit"
-	servers "github.com/websoft9/appos/backend/domain/resource/control/servers"
+	servers "github.com/websoft9/appos/backend/domain/resource/server"
 )
 
 func registerServerOpsRoutes(g *router.RouterGroup[*core.RequestEvent]) {

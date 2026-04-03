@@ -637,7 +637,7 @@ export function FileManagerPanel({
     setCopied(false)
     setShareRecordId(null)
     try {
-      const quotaRes = await fetch('/api/ext/space/quota', {
+      const quotaRes = await fetch('/api/space/quota', {
         headers: { Authorization: pb.authStore.token },
       })
       if (quotaRes.ok) {
@@ -678,7 +678,7 @@ export function FileManagerPanel({
 
       const created = (await pb.collection('user_files').create(form)) as { id: string }
       setShareRecordId(created.id)
-      const shareRes = await fetch(`/api/ext/space/share/${created.id}`, {
+      const shareRes = await fetch(`/api/space/share/${created.id}`, {
         method: 'POST',
         headers: {
           Authorization: pb.authStore.token,
@@ -713,7 +713,7 @@ export function FileManagerPanel({
   const handleRevokeShare = async () => {
     if (!shareRecordId) return
     try {
-      await fetch(`/api/ext/space/share/${shareRecordId}`, {
+      await fetch(`/api/space/share/${shareRecordId}`, {
         method: 'DELETE',
         headers: { Authorization: pb.authStore.token },
       })

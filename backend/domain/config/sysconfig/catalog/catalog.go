@@ -239,13 +239,16 @@ var entryCatalog = []EntrySchema{
 		Fields:  []FieldSchema{{ID: "items", Label: "Items", Type: "object-list"}},
 	},
 	{
-		ID:      "llm-providers",
-		Title:   "LLM Providers",
+		ID:      "topic-share",
+		Title:   "Topic Share",
 		Section: SectionWorkspace,
 		Source:  SourceCustom,
-		Module:  "llm",
-		Key:     "providers",
-		Fields:  []FieldSchema{{ID: "items", Label: "Items", Type: "object-list"}},
+		Module:  "topic",
+		Key:     "share",
+		Fields: []FieldSchema{
+			{ID: "shareMaxMinutes", Label: "Share Max Minutes", Type: "integer"},
+			{ID: "shareDefaultMinutes", Label: "Share Default Minutes", Type: "integer"},
+		},
 	},
 }
 
@@ -265,7 +268,6 @@ var customSettingDefaults = map[string]map[string]any{
 		"mirrors": []any{}, "insecureRegistries": []any{},
 	},
 	"docker/registries": {"items": []any{}},
-	"llm/providers":     {"items": []any{}},
 	"connect/sftp":      {"maxUploadFiles": 10},
 	"connect/terminal":  {"idleTimeoutSeconds": 1800, "maxConnections": 0},
 	"files/limits": {
@@ -280,6 +282,10 @@ var customSettingDefaults = map[string]map[string]any{
 		"clipboardClearSeconds": 0,
 	},
 	"deploy/preflight": {"minFreeDiskBytes": 512 * 1024 * 1024},
+	"topic/share": {
+		"shareMaxMinutes":     60,
+		"shareDefaultMinutes": 30,
+	},
 }
 
 func Actions() []ActionSchema {

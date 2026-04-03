@@ -12,7 +12,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/websoft9/appos/backend/domain/audit"
-	servers "github.com/websoft9/appos/backend/domain/resource/control/servers"
+	servers "github.com/websoft9/appos/backend/domain/resource/server"
 )
 
 // ════════════════════════════════════════════════════════════

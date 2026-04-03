@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/domain/resource/control/servers"
+	"github.com/websoft9/appos/backend/domain/resource/server"
 )
 
 type mockSFTPClient struct {

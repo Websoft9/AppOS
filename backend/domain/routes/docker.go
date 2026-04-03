@@ -11,7 +11,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/websoft9/appos/backend/domain/audit"
-	servers "github.com/websoft9/appos/backend/domain/resource/control/servers"
+	servers "github.com/websoft9/appos/backend/domain/resource/server"
 	"github.com/websoft9/appos/backend/infra/docker"
 )
 

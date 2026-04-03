@@ -7,7 +7,7 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 
-	"github.com/websoft9/appos/backend/domain/resource/control/tunnel"
+	"github.com/websoft9/appos/backend/domain/resource/tunnel"
 )
 
 // tunnelSessions holds the in-memory registry of active SSH tunnel connections.

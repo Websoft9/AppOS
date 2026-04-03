@@ -282,10 +282,6 @@ func validateCustomSettingsEntry(e *core.RequestEvent, module, key string, value
 		for field, fieldValue := range normalized {
 			value[field] = fieldValue
 		}
-	case "llm/providers":
-		if err := validateLLMProvidersSecretRefs(e, value); err != nil {
-			return map[string]string{"items": err.Error()}
-		}
 	}
 	return nil
 }

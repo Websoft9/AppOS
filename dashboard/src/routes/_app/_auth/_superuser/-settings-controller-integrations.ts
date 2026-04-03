@@ -41,11 +41,17 @@ export function useIntegrationSettingsController(
       items: [],
     }
     setDockerRegistries(Array.isArray(registries.items) ? registries.items : [])
+  }, [])
 
-    const providers = (entryMap.get('llm-providers') as Partial<{ items: LLMProviderItem[] }>) ?? {
-      items: [],
+  const loadLlmProviders = useCallback(async () => {
+    try {
+      const res = await pb.send<{ items: LLMProviderItem[] }>('/api/llm/providers', {
+        method: 'GET',
+      })
+      setLlmItems(Array.isArray(res.items) ? res.items : [])
+    } catch {
+      // ignore — will show empty list
     }
-    setLlmItems(Array.isArray(providers.items) ? providers.items : [])
   }, [])
 
   const loadSecretPickerItems = useCallback(async () => {
@@ -127,7 +133,7 @@ export function useIntegrationSettingsController(
   const saveLlm = async () => {
     setLlmSaving(true)
     try {
-      await pb.send(settingsEntryPath('llm-providers'), {
+      await pb.send('/api/llm/providers', {
         method: 'PATCH',
         body: { items: llmItems },
       })
@@ -166,6 +172,7 @@ export function useIntegrationSettingsController(
     setLlmSecretCreateError,
     handleLlmSecretCreate,
     saveLlm,
+    loadLlmProviders,
     hydrateIntegrationEntries,
   }
 }

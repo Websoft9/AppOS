@@ -1,37 +1,28 @@
 package routes
 
 import (
-	"crypto/rand"
-	"encoding/hex"
-	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tools/router"
-	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
+	"github.com/websoft9/appos/backend/domain/topic"
 )
-
-// defaultTopicShareQuota is the code-level safety net when the DB row
-// is missing. Mirrors the space share quota structure.
-var defaultTopicShareQuota = settingscatalog.DefaultGroup("space", "quota")
 
 // ─── Route registration ────────────────────────────────────────────────────
 
-// registerTopicRoutes registers authenticated topic routes under /api/ext/topics.
-func registerTopicRoutes(g *router.RouterGroup[*core.RequestEvent]) {
-	f := g.Group("/topics")
-	f.Bind(apis.RequireAuth())
+// registerTopicRoutes registers authenticated topic routes under /api/topics.
+func registerTopicRoutes(se *core.ServeEvent) {
+	g := se.Router.Group("/api/topics")
+	g.Bind(apis.RequireAuth())
 
-	f.POST("/share/{id}", handleTopicShareCreate)
-	f.DELETE("/share/{id}", handleTopicShareRevoke)
+	g.POST("/share/{id}", handleTopicShareCreate)
+	g.DELETE("/share/{id}", handleTopicShareRevoke)
 }
 
 // registerTopicPublicRoutes registers unauthenticated topic share routes.
 func registerTopicPublicRoutes(se *core.ServeEvent) {
-	pub := se.Router.Group("/api/ext/topics")
+	pub := se.Router.Group("/api/topics")
 	pub.GET("/share/{token}", handleTopicShareResolve)
 	pub.POST("/share/{token}/comments", handleTopicShareComment)
 }
@@ -42,49 +33,37 @@ func registerTopicPublicRoutes(se *core.ServeEvent) {
 func handleTopicShareCreate(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 
-	record, err := e.App.FindRecordById("topics", id)
+	record, err := e.App.FindRecordById(topic.Collection, id)
 	if err != nil {
 		return e.NotFoundError("Topic not found", err)
 	}
 
-	authRecord := e.Auth
-	if authRecord == nil || record.GetString("created_by") != authRecord.Id {
+	t := topic.From(record)
+	if !t.IsOwnedBy(e.Auth) {
 		return e.ForbiddenError("Access denied", nil)
 	}
 
-	quota, _ := sysconfig.GetGroup(e.App, "space", "quota", defaultTopicShareQuota)
-	shareMaxMin := sysconfig.Int(quota, "shareMaxMinutes", 60)
-	shareDefaultMin := sysconfig.Int(quota, "shareDefaultMinutes", 30)
+	cfg := topic.GetShareConfig(e.App)
 
 	var body struct {
 		Minutes int `json:"minutes"`
 	}
 	_ = e.BindBody(&body)
-	if body.Minutes <= 0 {
-		body.Minutes = shareDefaultMin
-	}
-	if body.Minutes > shareMaxMin {
-		return e.BadRequestError(
-			fmt.Sprintf("share duration cannot exceed %d minutes", shareMaxMin), nil,
-		)
+
+	share, err := topic.NewShareToken(body.Minutes, cfg.MaxMinutes, cfg.DefaultMinutes)
+	if err != nil {
+		return e.BadRequestError(err.Error(), nil)
 	}
 
-	tokenBytes := make([]byte, 32)
-	if _, err := rand.Read(tokenBytes); err != nil {
-		return e.JSON(http.StatusInternalServerError, map[string]any{"message": "failed to generate share token"})
-	}
-	token := hex.EncodeToString(tokenBytes)
-	expiresAt := time.Now().UTC().Add(time.Duration(body.Minutes) * time.Minute)
-
-	record.Set("share_token", token)
-	record.Set("share_expires_at", expiresAt.Format(time.RFC3339))
+	record.Set("share_token", share.Token)
+	record.Set("share_expires_at", share.ExpiresAt.Format(time.RFC3339))
 	if err := e.App.Save(record); err != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": "failed to save share token"})
 	}
 
 	return e.JSON(http.StatusOK, map[string]any{
-		"share_token": token,
-		"expires_at":  expiresAt.Format(time.RFC3339),
+		"share_token": share.Token,
+		"expires_at":  share.ExpiresAt.Format(time.RFC3339),
 	})
 }
 
@@ -92,13 +71,13 @@ func handleTopicShareCreate(e *core.RequestEvent) error {
 func handleTopicShareRevoke(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 
-	record, err := e.App.FindRecordById("topics", id)
+	record, err := e.App.FindRecordById(topic.Collection, id)
 	if err != nil {
 		return e.NotFoundError("Topic not found", err)
 	}
 
-	authRecord := e.Auth
-	if authRecord == nil || record.GetString("created_by") != authRecord.Id {
+	t := topic.From(record)
+	if !t.IsOwnedBy(e.Auth) {
 		return e.ForbiddenError("Access denied", nil)
 	}
 
@@ -116,18 +95,18 @@ func handleTopicShareRevoke(e *core.RequestEvent) error {
 func handleTopicShareResolve(e *core.RequestEvent) error {
 	token := e.Request.PathValue("token")
 
-	record, err := e.App.FindFirstRecordByData("topics", "share_token", token)
+	record, err := e.App.FindFirstRecordByData(topic.Collection, "share_token", token)
 	if err != nil || record == nil {
 		return e.NotFoundError("Share link not found", nil)
 	}
 
-	if expired, reason := isTopicShareExpired(record); expired {
+	t := topic.From(record)
+	if active, reason := t.ShareIsActive(); !active {
 		return e.JSON(http.StatusForbidden, map[string]any{"message": reason})
 	}
 
-	// Fetch comments for this topic.
 	comments, err := e.App.FindRecordsByFilter(
-		"topic_comments",
+		topic.CommentsCollection,
 		"topic_id = {:topicId}",
 		"created",
 		500,
@@ -140,23 +119,25 @@ func handleTopicShareResolve(e *core.RequestEvent) error {
 
 	commentList := make([]map[string]any, 0, len(comments))
 	for _, c := range comments {
+		cm := topic.CommentFrom(c)
 		commentList = append(commentList, map[string]any{
-			"id":         c.Id,
-			"body":       c.GetString("body"),
-			"created_by": c.GetString("created_by"),
-			"created":    c.GetString("created"),
-			"updated":    c.GetString("updated"),
+			"id":         cm.ID(),
+			"body":       cm.Body(),
+			"created_by": cm.CreatedBy(),
+			"created":    cm.Created(),
+			"updated":    cm.Updated(),
 		})
 	}
 
+	expiresAt, _ := t.ShareExpiresAt()
 	return e.JSON(http.StatusOK, map[string]any{
-		"id":          record.Id,
-		"title":       record.GetString("title"),
-		"description": record.GetString("description"),
-		"closed":      record.GetBool("closed"),
+		"id":          t.ID(),
+		"title":       t.Title(),
+		"description": t.Description(),
+		"closed":      t.IsClosed(),
 		"created":     record.GetString("created"),
 		"updated":     record.GetString("updated"),
-		"expires_at":  record.GetString("share_expires_at"),
+		"expires_at":  expiresAt.Format(time.RFC3339),
 		"comments":    commentList,
 	})
 }
@@ -165,16 +146,16 @@ func handleTopicShareResolve(e *core.RequestEvent) error {
 func handleTopicShareComment(e *core.RequestEvent) error {
 	token := e.Request.PathValue("token")
 
-	topic, err := e.App.FindFirstRecordByData("topics", "share_token", token)
-	if err != nil || topic == nil {
+	record, err := e.App.FindFirstRecordByData(topic.Collection, "share_token", token)
+	if err != nil || record == nil {
 		return e.NotFoundError("Share link not found", nil)
 	}
 
-	if expired, reason := isTopicShareExpired(topic); expired {
+	t := topic.From(record)
+	if active, reason := t.ShareIsActive(); !active {
 		return e.JSON(http.StatusForbidden, map[string]any{"message": reason})
 	}
-
-	if topic.GetBool("closed") {
+	if t.IsClosed() {
 		return e.BadRequestError("This topic is closed", nil)
 	}
 
@@ -185,55 +166,35 @@ func handleTopicShareComment(e *core.RequestEvent) error {
 	if err := e.BindBody(&body); err != nil {
 		return e.BadRequestError("Invalid request body", err)
 	}
-	if len(body.Body) == 0 || len(body.Body) > 10000 {
+	if len(body.Body) == 0 || len(body.Body) > topic.MaxCommentBodyLen {
 		return e.BadRequestError("Comment body is required (max 10000 chars)", nil)
 	}
 	guestName := body.GuestName
 	if guestName == "" {
-		guestName = "Guest"
+		guestName = topic.DefaultGuestName
 	}
-	if len(guestName) > 100 {
+	if len(guestName) > topic.MaxGuestNameLen {
 		return e.BadRequestError("Guest name too long (max 100 chars)", nil)
 	}
 
-	col, err := e.App.FindCollectionByNameOrId("topic_comments")
+	col, err := e.App.FindCollectionByNameOrId(topic.CommentsCollection)
 	if err != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": "internal error"})
 	}
 
 	comment := core.NewRecord(col)
-	comment.Set("topic_id", topic.Id)
+	comment.Set("topic_id", t.ID())
 	comment.Set("body", body.Body)
-	comment.Set("created_by", "guest:"+guestName)
+	comment.Set("created_by", topic.GuestAuthorPrefix+guestName)
 	if err := e.App.Save(comment); err != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": "failed to save comment"})
 	}
 
+	cm := topic.CommentFrom(comment)
 	return e.JSON(http.StatusOK, map[string]any{
-		"id":         comment.Id,
-		"body":       comment.GetString("body"),
-		"created_by": comment.GetString("created_by"),
-		"created":    comment.GetString("created"),
+		"id":         cm.ID(),
+		"body":       cm.Body(),
+		"created_by": cm.CreatedBy(),
+		"created":    cm.Created(),
 	})
-}
-
-// ─── Helpers ───────────────────────────────────────────────────────────────
-
-func isTopicShareExpired(record *core.Record) (bool, string) {
-	raw := record.GetString("share_token")
-	if raw == "" {
-		return true, "share link has been revoked"
-	}
-	expiresRaw := record.GetString("share_expires_at")
-	if expiresRaw == "" {
-		return true, "share link has no expiry set"
-	}
-	expiresAt, err := time.Parse(time.RFC3339, expiresRaw)
-	if err != nil {
-		return true, "invalid share expiry"
-	}
-	if time.Now().UTC().After(expiresAt) {
-		return true, "share link has expired"
-	}
-	return false, ""
 }

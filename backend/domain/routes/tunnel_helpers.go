@@ -12,7 +12,8 @@ import (
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 
-	"github.com/websoft9/appos/backend/domain/resource/control/tunnel"
+	"github.com/websoft9/appos/backend/domain/groups"
+	"github.com/websoft9/appos/backend/domain/resource/tunnel"
 )
 
 // resolveApposHost returns the public host name of the appos instance.
@@ -646,64 +647,5 @@ func isTunnelWaitingForFirstConnect(server *core.Record) bool {
 }
 
 func loadTunnelGroupNames(app core.App, serverIDs []string) (map[string][]string, error) {
-	result := map[string][]string{}
-	if len(serverIDs) == 0 {
-		return result, nil
-	}
-
-	serverSet := make(map[string]struct{}, len(serverIDs))
-	for _, id := range serverIDs {
-		serverSet[id] = struct{}{}
-	}
-
-	items, err := app.FindRecordsByFilter(
-		"group_items",
-		"object_type = 'server'",
-		"", 0, 0,
-	)
-	if err != nil {
-		return result, err
-	}
-
-	membership := map[string][]string{}
-	groupSet := map[string]struct{}{}
-	for _, item := range items {
-		serverID := item.GetString("object_id")
-		if _, ok := serverSet[serverID]; !ok {
-			continue
-		}
-		groupID := item.GetString("group_id")
-		if groupID == "" {
-			continue
-		}
-		membership[serverID] = append(membership[serverID], groupID)
-		groupSet[groupID] = struct{}{}
-	}
-	if len(groupSet) == 0 {
-		return result, nil
-	}
-
-	groups, err := app.FindAllRecords("groups")
-	if err != nil {
-		return result, err
-	}
-	nameMap := map[string]string{}
-	for _, group := range groups {
-		if _, ok := groupSet[group.Id]; ok {
-			nameMap[group.Id] = group.GetString("name")
-		}
-	}
-
-	for serverID, groupIDs := range membership {
-		names := make([]string, 0, len(groupIDs))
-		for _, groupID := range groupIDs {
-			if name := nameMap[groupID]; name != "" {
-				names = append(names, name)
-			}
-		}
-		sort.Strings(names)
-		result[serverID] = names
-	}
-
-	return result, nil
+	return groups.LoadNamesForObjects(app, groups.ObjectTypeServer, serverIDs)
 }

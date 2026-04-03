@@ -14,14 +14,12 @@ import (
 //
 //	/api/ext/resources/databases/*
 //	/api/ext/resources/cloud-accounts/*
-//	/api/ext/resources/integrations/*
 //	/api/ext/resources/scripts/*
 func registerResourceRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	r := g.Group("/resources")
 
 	registerDatabasesCRUD(r)
 	registerCloudAccountsCRUD(r)
-	registerIntegrationsCRUD(r)
 	registerScriptsCRUD(r)
 }
 
@@ -190,43 +188,6 @@ func registerCloudAccountsCRUD(r *router.RouterGroup[*core.RequestEvent]) {
 	})
 	ca.DELETE("/{id}", func(e *core.RequestEvent) error {
 		return deleteRecord(e, "cloud_accounts")
-	})
-}
-
-// ═══════════════════════════════════════════════════════════
-// Integrations
-// ═══════════════════════════════════════════════════════════
-
-var integrationFields = []string{"name", "type", "url", "auth_type", "credential", "extra", "description"}
-
-func registerIntegrationsCRUD(r *router.RouterGroup[*core.RequestEvent]) {
-	ig := r.Group("/integrations")
-	ig.Bind(apis.RequireSuperuserAuth())
-
-	ig.GET("", func(e *core.RequestEvent) error {
-		return listRecords(e, "integrations")
-	})
-	ig.GET("/{id}", func(e *core.RequestEvent) error {
-		return getRecord(e, "integrations")
-	})
-	ig.POST("", func(e *core.RequestEvent) error {
-		col, err := e.App.FindCollectionByNameOrId("integrations")
-		if err != nil {
-			return resourceError(e, http.StatusInternalServerError, "collection not found", err)
-		}
-		record := core.NewRecord(col)
-		return bindAndSave(e, record, integrationFields)
-	})
-	ig.PUT("/{id}", func(e *core.RequestEvent) error {
-		id := e.Request.PathValue("id")
-		record, err := e.App.FindRecordById("integrations", id)
-		if err != nil {
-			return e.NotFoundError("Record not found", err)
-		}
-		return bindAndSave(e, record, integrationFields)
-	})
-	ig.DELETE("/{id}", func(e *core.RequestEvent) error {
-		return deleteRecord(e, "integrations")
 	})
 }
 

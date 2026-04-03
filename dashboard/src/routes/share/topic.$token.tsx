@@ -73,7 +73,7 @@ function SharedTopicPage() {
   const fetchTopic = useCallback(async () => {
     try {
       const res = await pb.send<SharedTopic>(
-        `/api/ext/topics/share/${encodeURIComponent(token)}`,
+        `/api/topics/share/${encodeURIComponent(token)}`,
         {},
       )
       setTopic(res)
@@ -97,7 +97,7 @@ function SharedTopicPage() {
     setPosting(true)
     setPostError('')
     try {
-      await pb.send(`/api/ext/topics/share/${encodeURIComponent(token)}/comments`, {
+      await pb.send(`/api/topics/share/${encodeURIComponent(token)}/comments`, {
         method: 'POST',
         body: { body: trimmed, guest_name: guestName.trim() || 'Guest' },
       })

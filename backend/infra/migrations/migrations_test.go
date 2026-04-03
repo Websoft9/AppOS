@@ -645,6 +645,7 @@ func TestGroupsCollectionFields(t *testing.T) {
 	assertFieldExists(t, col, "name", core.FieldTypeText, true)
 	assertFieldExists(t, col, "description", core.FieldTypeText, false)
 	assertFieldExists(t, col, "created_by", core.FieldTypeText, false)
+	assertFieldExists(t, col, "is_default", core.FieldTypeBool, false)
 
 	// Autodate fields
 	if col.Fields.GetByName("created") == nil {
@@ -768,7 +769,7 @@ func TestResourceCollectionsHaveNoGroupsField(t *testing.T) {
 	collections := []string{
 		"servers", "secrets", "env_sets",
 		"databases", "cloud_accounts", "certificates",
-		"integrations", "scripts",
+		"endpoints", "scripts",
 	}
 	for _, colName := range collections {
 		col, err := app.FindCollectionByNameOrId(colName)

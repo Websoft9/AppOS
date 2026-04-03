@@ -8,7 +8,7 @@ import (
 	"github.com/websoft9/appos/backend/platform/hooks"
 	"github.com/websoft9/appos/backend/domain/routes"
 	"github.com/websoft9/appos/backend/domain/secrets"
-	servers "github.com/websoft9/appos/backend/domain/resource/control/servers"
+	servers "github.com/websoft9/appos/backend/domain/resource/server"
 	"github.com/websoft9/appos/backend/domain/worker"
 
 	// Register custom PocketBase migrations (Epic 8: Resource Store)

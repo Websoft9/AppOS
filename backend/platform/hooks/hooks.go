@@ -4,7 +4,6 @@ package hooks
 import (
 	"fmt"
 	"path"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -15,19 +14,7 @@ import (
 	"github.com/websoft9/appos/backend/domain/audit"
 	"github.com/websoft9/appos/backend/domain/certs"
 	"github.com/websoft9/appos/backend/domain/secrets"
-	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
-)
-
-// ─── File quota defaults (Story 13.2: values now stored in custom_settings DB) ───────
-//
-// hookDefaultSpaceQuota is the code-level fallback used when the DB row is
-// missing or the DB is unavailable.
-var hookDefaultSpaceQuota = settingscatalog.DefaultGroup("space", "quota")
-
-const (
-	// Reserved root-level folder names used by the system.
-	hookReservedFolderNames = "deploy,artifact"
+	"github.com/websoft9/appos/backend/domain/space"
 )
 
 // Register binds all custom event hooks to the PocketBase app.
@@ -72,48 +59,35 @@ func registerSpaceHooks(app *pocketbase.PocketBase) {
 // validateFileUpload checks file extension and per-user file count.
 // For folder records (is_folder=true) format validation is skipped.
 func validateFileUpload(app core.App, record *core.Record, batchSizeRaw string) error {
-	// Load quota from settings DB (fallback to code defaults if unavailable).
-	quota, _ := sysconfig.GetGroup(app, "space", "quota", hookDefaultSpaceQuota)
-	maxPerUser := sysconfig.Int(quota, "maxPerUser", 100)
-	maxUploadFiles := sysconfig.Int(quota, "maxUploadFiles", 50)
-	if maxUploadFiles < 1 {
-		maxUploadFiles = 50
-	}
-	if maxUploadFiles > 200 {
-		maxUploadFiles = 200
-	}
+	quota := space.GetQuota(app)
 
 	// Folders don't have a file extension — skip format check.
 	if record.GetBool("is_folder") {
 		// Reject reserved root-level folder names.
 		parent := strings.TrimSpace(record.GetString("parent"))
 		if parent == "" {
-			name := strings.ToLower(strings.TrimSpace(record.GetString("name")))
-			for _, reserved := range strings.Split(hookReservedFolderNames, ",") {
-				if name == strings.TrimSpace(reserved) {
-					return fmt.Errorf(
-						"folder name %q is reserved by the system and cannot be used",
-						record.GetString("name"),
-					)
-				}
+			if space.IsReservedRootFolderName(record.GetString("name"), quota.DisallowedFolderNames) {
+				return fmt.Errorf(
+					"folder name %q is reserved by the system and cannot be used",
+					record.GetString("name"),
+				)
 			}
 		}
 		// Still enforce the count limit.
 		owner := record.GetString("owner")
 		if owner != "" {
-			existing, err := app.FindAllRecords("user_files", dbx.HashExp{"owner": owner})
-			if err == nil && len(existing) >= maxPerUser {
-				return fmt.Errorf(
-					"item limit reached (%d); delete some files or folders first",
-					maxPerUser,
-				)
+			existing, err := app.FindAllRecords(space.Collection, dbx.HashExp{"owner": owner})
+			if err == nil {
+				if countErr := space.ValidateItemCount(len(existing), quota.MaxPerUser); countErr != nil {
+					return countErr
+				}
 			}
 		}
 		return nil
 	}
 
 	name := record.GetString("name")
-	extToken := normalizeExtToken(strings.ToLower(path.Ext(name)))
+	extToken := space.NormalizeExt(path.Ext(name))
 	if extToken == "" {
 		return fmt.Errorf("file extension is missing")
 	}
@@ -126,69 +100,29 @@ func validateFileUpload(app core.App, record *core.Record, batchSizeRaw string) 
 	if err != nil || batchSize < 1 {
 		return fmt.Errorf("invalid X-Space-Batch-Size header")
 	}
-	if batchSize > maxUploadFiles {
+	if batchSize > quota.MaxUploadFiles {
 		return fmt.Errorf(
 			"upload batch size %d exceeds maxUploadFiles (%d)",
 			batchSize,
-			maxUploadFiles,
+			quota.MaxUploadFiles,
 		)
 	}
 
-	allowTokens := normalizeExtTokens(sysconfig.StringSlice(quota, "uploadAllowExts"))
-	denyTokens := normalizeExtTokens(sysconfig.StringSlice(quota, "uploadDenyExts"))
-
-	// Whitelist mode: when allow list is set, blacklist is ignored.
-	if len(allowTokens) > 0 {
-		if !slices.Contains(allowTokens, extToken) {
-			return fmt.Errorf(
-				"file extension %q is not in upload allowlist",
-				extToken,
-			)
-		}
-	} else {
-		if slices.Contains(denyTokens, extToken) {
-			return fmt.Errorf(
-				"file extension %q is blocked by upload denylist",
-				extToken,
-			)
-		}
+	if err := space.ValidateExt(quota, extToken); err != nil {
+		return err
 	}
 
 	// Check per-user file count.
 	owner := record.GetString("owner")
 	if owner != "" {
-		existing, err := app.FindAllRecords("user_files", dbx.HashExp{"owner": owner})
-		if err == nil && len(existing) >= maxPerUser {
-			return fmt.Errorf(
-				"file limit reached (%d); delete some files before uploading new ones",
-				maxPerUser,
-			)
+		existing, err := app.FindAllRecords(space.Collection, dbx.HashExp{"owner": owner})
+		if err == nil {
+			if countErr := space.ValidateItemCount(len(existing), quota.MaxPerUser); countErr != nil {
+				return countErr
+			}
 		}
 	}
 	return nil
-}
-
-func normalizeExtToken(v string) string {
-	v = strings.ToLower(strings.TrimSpace(v))
-	v = strings.TrimPrefix(v, ".")
-	if v == "python" {
-		return "py"
-	}
-	return v
-}
-
-func normalizeExtTokens(values []string) []string {
-	out := make([]string, 0, len(values))
-	seen := make(map[string]bool, len(values))
-	for _, v := range values {
-		token := normalizeExtToken(v)
-		if token == "" || seen[token] {
-			continue
-		}
-		seen[token] = true
-		out = append(out, token)
-	}
-	return out
 }
 
 // registerUserAuditHooks writes audit records when users are created, updated, or deleted

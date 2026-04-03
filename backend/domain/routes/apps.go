@@ -17,7 +17,7 @@ import (
 	"github.com/websoft9/appos/backend/domain/audit"
 	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
-	servers "github.com/websoft9/appos/backend/domain/resource/control/servers"
+	servers "github.com/websoft9/appos/backend/domain/resource/server"
 )
 
 const appComposeConfigMaxBytes int64 = 2 << 20

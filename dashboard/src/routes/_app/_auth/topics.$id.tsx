@@ -289,7 +289,7 @@ function TopicDetailPage() {
     setSharing(true)
     try {
       const res = await pb.send<{ share_token: string; expires_at: string }>(
-        `/api/ext/topics/share/${topic.id}`,
+        `/api/topics/share/${topic.id}`,
         { method: 'POST', body: { minutes: shareMinutes } },
       )
       setShareUrl(`${window.location.origin}/share/topic/${res.share_token}`)
@@ -307,7 +307,7 @@ function TopicDetailPage() {
     if (!topic) return
     setRevoking(true)
     try {
-      await pb.send(`/api/ext/topics/share/${topic.id}`, { method: 'DELETE' })
+      await pb.send(`/api/topics/share/${topic.id}`, { method: 'DELETE' })
       setShareUrl(null)
       setQrDataUrl(null)
       await fetchTopic()

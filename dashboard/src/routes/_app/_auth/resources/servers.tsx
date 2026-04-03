@@ -393,7 +393,7 @@ function ServersPage() {
           title: 'Servers',
           description: 'SSH deployment targets',
           apiPath: '/api/collections/servers/records',
-          resourceType: 'servers',
+          resourceType: 'server',
           listItems: async () => await pb.collection('servers').getFullList({ sort: 'name' }),
           createItem: async payload => await pb.collection('servers').create(payload),
           updateItem: async (id, payload) => {

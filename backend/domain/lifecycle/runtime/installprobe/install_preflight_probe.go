@@ -9,7 +9,7 @@ import (
 	"time"
 
 	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
-	servers "github.com/websoft9/appos/backend/domain/resource/control/servers"
+	servers "github.com/websoft9/appos/backend/domain/resource/server"
 )
 
 type Target struct {

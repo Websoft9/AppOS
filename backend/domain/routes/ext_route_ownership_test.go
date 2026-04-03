@@ -52,6 +52,9 @@ func TestExtRoutesOwnedByRoutesPackage(t *testing.T) {
 		if strings.HasPrefix(rel, "internal/routes/") {
 			return nil
 		}
+		if strings.HasPrefix(rel, "domain/routes/") {
+			return nil
+		}
 
 		file, err := os.Open(path)
 		if err != nil {

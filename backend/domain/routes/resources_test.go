@@ -72,6 +72,7 @@ func (te *testEnv) do(t *testing.T, method, url, body string, authenticated bool
 
 	g := r.Group("/api/ext")
 	registerResourceRoutes(g)
+	registerEndpointsRoutes(&core.ServeEvent{Router: r})
 
 	mux, err := r.BuildMux()
 	if err != nil {
@@ -92,6 +93,55 @@ func (te *testEnv) do(t *testing.T, method, url, body string, authenticated bool
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	return rec
+}
+
+func TestEndpointsCRUD(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.do(t, http.MethodPost, "/api/endpoints",
+		`{"name":"slack-webhook","type":"webhook","url":"https://example.com/hook","auth_type":"none"}`, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	created := parseJSON(t, rec)
+	id := created["id"].(string)
+
+	rec = te.do(t, http.MethodGet, "/api/endpoints/"+id, "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	got := parseJSON(t, rec)
+	if got["type"] != "webhook" {
+		t.Errorf("expected type 'webhook', got %v", got["type"])
+	}
+
+	rec = te.do(t, http.MethodPut, "/api/endpoints/"+id,
+		`{"name":"slack-api","type":"rest","url":"https://api.example.com/v1","auth_type":"bearer"}`, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("update: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	updated := parseJSON(t, rec)
+	if updated["type"] != "rest" {
+		t.Errorf("expected type 'rest', got %v", updated["type"])
+	}
+
+	rec = te.do(t, http.MethodGet, "/api/endpoints", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	list := parseJSONArray(t, rec)
+	if len(list) != 1 {
+		t.Fatalf("expected 1 endpoint, got %d", len(list))
+	}
+
+	rec = te.do(t, http.MethodDelete, "/api/endpoints/"+id, "", true)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("delete: expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
 }
 
 func parseJSON(t *testing.T, rec *httptest.ResponseRecorder) map[string]any {

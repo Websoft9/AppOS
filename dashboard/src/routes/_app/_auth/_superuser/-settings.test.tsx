@@ -160,13 +160,6 @@ describe('SettingsPage shared settings paths', () => {
               source: 'custom',
               fields: [],
             },
-            {
-              id: 'llm-providers',
-              title: 'LLM Providers',
-              section: 'workspace',
-              source: 'custom',
-              fields: [],
-            },
           ],
           actions: [],
         })
@@ -211,9 +204,11 @@ describe('SettingsPage shared settings paths', () => {
             { id: 'proxy-network', value: {} },
             { id: 'docker-mirror', value: {} },
             { id: 'docker-registries', value: { items: [] } },
-            { id: 'llm-providers', value: { items: [] } },
           ],
         })
+      }
+      if (path === '/api/llm/providers') {
+        return Promise.resolve({ items: [] })
       }
       return Promise.resolve({})
     })
@@ -331,6 +326,9 @@ describe('SettingsPage shared settings paths', () => {
           ],
         })
       }
+      if (path === '/api/llm/providers') {
+        return Promise.resolve({ items: [] })
+      }
       return Promise.resolve({})
     })
 
@@ -345,6 +343,7 @@ describe('SettingsPage shared settings paths', () => {
         'Secrets',
         'Logs',
         'Space Quota',
+        'LLM Providers',
       ])
     })
   })

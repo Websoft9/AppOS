@@ -64,12 +64,12 @@ const RESOURCES: ResourceDef[] = [
   },
 
   {
-    key: 'integrations',
-    title: 'Integrations',
-    description: 'APIs, webhooks & MCP',
+    key: 'endpoints',
+    title: 'Endpoints',
+    description: 'APIs, webhooks & MCP endpoints',
     icon: <Plug className="h-5 w-5" />,
-    href: '/resources/integrations',
-    apiPath: '/api/ext/resources/integrations',
+    href: '/resources/endpoints',
+    apiPath: '/api/endpoints',
   },
   {
     key: 'scripts',
@@ -130,7 +130,7 @@ export function ResourceHub() {
         {/* Hub actions */}
         <div className="flex items-center gap-2">
           <Button variant="outline" asChild>
-            <Link to="/resources/groups">
+            <Link to="/groups">
               <Layers className="h-4 w-4 mr-2" />
               Resource Groups
             </Link>

@@ -7,10 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
-	"github.com/websoft9/appos/backend/domain/resource/control/tunnel"
+	"github.com/websoft9/appos/backend/domain/resource/tunnel"
 )
 
 // sensitiveFields is the set of field names that are masked on GET and
@@ -414,30 +413,4 @@ func nonSensitiveFieldsMatch(incoming, existing map[string]any) bool {
 		matched++
 	}
 	return matched > 0
-}
-
-// ─── Secret-ref validation ─────────────────────────────────────────────────
-
-// validateLLMProvidersSecretRefs checks any provider item whose apiKey is a
-// secretRef pointer. Returns an error if the referenced secret is missing,
-// revoked, or the caller lacks access.
-func validateLLMProvidersSecretRefs(e *core.RequestEvent, v map[string]any) error {
-	userID := ""
-	if e.Auth != nil {
-		userID = e.Auth.Id
-	}
-	items, _ := v["items"].([]any)
-	for i, item := range items {
-		m, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-		apiKey, _ := m["apiKey"].(string)
-		if id, ok := secrets.ExtractSecretID(apiKey); ok {
-			if err := secrets.ValidateRef(e.App, id, userID); err != nil {
-				return fmt.Errorf("provider[%d].apiKey secretRef invalid: %v", i, err)
-			}
-		}
-	}
-	return nil
 }

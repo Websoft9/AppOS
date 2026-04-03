@@ -11,6 +11,7 @@ Introduce `Groups` as the object-organization submodule under `Collaboration`. I
 - `Groups` appears under `Collaboration > Groups`.
 - Groups are visual organization only; they are not a security boundary and do not affect runtime behavior.
 - Supported object types are `app`, `server`, `secret`, `env_group`, `database`, `cloud_account`, `certificate`, `integration`, and `script`.
+- Product-facing terminology should render `integration` as `Endpoint`; the physical object_type value remains `integration` while the backing collection is still named `integrations`.
 - Business tables do not store a `groups` field. Membership is owned by the Groups module.
 - MVP does not model any user-to-group relationship. `Groups` and `group_items` do not carry user membership fields.
 - A supported object may belong to multiple groups.

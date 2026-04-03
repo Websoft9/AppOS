@@ -22,6 +22,7 @@ import { AppIcon } from './AppIcon'
 import { ScreenshotCarousel } from './ScreenshotCarousel'
 import { NoteEditor } from './NoteEditor'
 import { getDocUrl, getGithubUrl } from '@/lib/store-api'
+import type { CatalogAppDetail } from '@/lib/catalog-api'
 import type { ProductWithCategories, PrimaryCategory, Locale, Screenshot } from '@/lib/store-types'
 import type { UserApp } from '@/lib/store-user-api'
 
@@ -39,6 +40,8 @@ interface AppDetailModalProps {
   showDeploy?: boolean
   onDeploy?: () => void
   fallbackScreenshots?: Screenshot[]
+  detail?: CatalogAppDetail | null
+  detailLoading?: boolean
   /** Custom app actions — show edit/delete in the action bar when provided */
   onEdit?: () => void
   onDelete?: () => void
@@ -60,6 +63,8 @@ export function AppDetailModal({
   showDeploy = true,
   onDeploy,
   fallbackScreenshots = [],
+  detail,
+  detailLoading = false,
   onEdit,
   onDelete,
   iacEditPath,
@@ -70,9 +75,27 @@ export function AppDetailModal({
   if (!product) return null
 
   const isFavorite = userApps.find(a => a.app_key === product.key)?.is_favorite ?? false
-  const primaryCat = primaryCategories.find(c => c.key === product.primaryCategoryKey)
-  const docUrl = getDocUrl(product.key, locale)
-  const githubUrl = getGithubUrl(product.key)
+  const primaryCat = detail?.categories.primary
+    ? { key: detail.categories.primary.key, title: detail.categories.primary.title }
+    : primaryCategories.find(c => c.key === product.primaryCategoryKey)
+  const docUrl = detail?.links.docs || getDocUrl(product.key, locale)
+  const githubUrl = detail?.links.github || getGithubUrl(product.key)
+  const websiteUrl = detail?.links.website || product.websiteurl
+  const title = detail?.title || product.trademark
+  const overview = detail?.overview || product.overview
+  const description = detail?.description || product.description
+  const iconUrl = detail?.iconUrl || product.logo?.imageurl
+  const screenshots = detail?.screenshots?.map(shot => ({
+    id: shot.key,
+    key: shot.key,
+    value: shot.url,
+  })) || product.screenshots
+  const requirementVCpu = detail?.requirements.vcpu || product.vcpu
+  const requirementMemory = detail?.requirements.memoryGb || product.memory
+  const requirementStorage = detail?.requirements.storageGb || product.storage
+  const secondaryCategories =
+    detail?.categories.secondary.map(item => ({ key: item.key, title: item.title })) ||
+    product.catalogCollection.items.map(item => ({ key: item.key, title: item.title }))
 
   const handleFavoriteClick = () => {
     if (!onToggleFavorite) return
@@ -98,19 +121,22 @@ export function AppDetailModal({
           <div className="flex items-start gap-4">
             <AppIcon
               appKey={product.key}
-              trademark={product.trademark}
-              logoUrl={product.logo?.imageurl}
+              trademark={title}
+              logoUrl={iconUrl}
               size="xl"
             />
             <div className="flex-1 min-w-0">
-              <DialogTitle className="text-xl font-bold">{product.trademark}</DialogTitle>
-              <p className="text-sm text-muted-foreground mt-1">{product.overview}</p>
+              <DialogTitle className="text-xl font-bold">{title}</DialogTitle>
+              <p className="text-sm text-muted-foreground mt-1">{overview}</p>
+              {detailLoading && (
+                <p className="text-xs text-muted-foreground mt-2">{t('loading')}</p>
+              )}
 
               {/* Links */}
               <div className="flex flex-wrap gap-2 mt-3">
-                {product.websiteurl && (
+                {websiteUrl && (
                   <a
-                    href={product.websiteurl}
+                    href={websiteUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
@@ -213,7 +239,7 @@ export function AppDetailModal({
 
         <div className="space-y-4 mt-2">
           {/* Categories */}
-          {(primaryCat || product.secondaryCategoryKeys.length > 0) && (
+          {(primaryCat || secondaryCategories.length > 0) && (
             <div>
               <h4 className="text-sm font-semibold mb-2">{t('detail.categories')}</h4>
               <div className="flex flex-wrap gap-2">
@@ -229,7 +255,7 @@ export function AppDetailModal({
                     {primaryCat.title}
                   </Badge>
                 )}
-                {product.catalogCollection.items.map(item => (
+                {secondaryCategories.map(item => (
                   <Badge
                     key={item.key}
                     variant="secondary"
@@ -247,34 +273,34 @@ export function AppDetailModal({
           )}
 
           {/* System Requirements */}
-          {(product.vcpu || product.memory || product.storage) && (
+          {(requirementVCpu || requirementMemory || requirementStorage) && (
             <div>
               <h4 className="text-sm font-semibold mb-2">{t('detail.systemRequirements')}</h4>
               <div className="grid grid-cols-3 gap-3">
-                {product.vcpu && (
+                {requirementVCpu && (
                   <div className="bg-muted rounded-md p-3 flex items-center gap-2">
                     <Cpu className="w-4 h-4 text-muted-foreground" />
                     <div>
                       <div className="text-xs text-muted-foreground">{t('detail.vcpu')}</div>
-                      <div className="text-sm font-medium">{product.vcpu}</div>
+                      <div className="text-sm font-medium">{requirementVCpu}</div>
                     </div>
                   </div>
                 )}
-                {product.memory && (
+                {requirementMemory && (
                   <div className="bg-muted rounded-md p-3 flex items-center gap-2">
                     <MemoryStick className="w-4 h-4 text-muted-foreground" />
                     <div>
                       <div className="text-xs text-muted-foreground">{t('detail.memory')}</div>
-                      <div className="text-sm font-medium">{product.memory} GB</div>
+                      <div className="text-sm font-medium">{requirementMemory} GB</div>
                     </div>
                   </div>
                 )}
-                {product.storage && (
+                {requirementStorage && (
                   <div className="bg-muted rounded-md p-3 flex items-center gap-2">
                     <HardDrive className="w-4 h-4 text-muted-foreground" />
                     <div>
                       <div className="text-xs text-muted-foreground">{t('detail.storage')}</div>
-                      <div className="text-sm font-medium">{product.storage} GB</div>
+                      <div className="text-sm font-medium">{requirementStorage} GB</div>
                     </div>
                   </div>
                 )}
@@ -283,22 +309,22 @@ export function AppDetailModal({
           )}
 
           {/* Screenshots Carousel */}
-          {product.screenshots && product.screenshots.length > 0 && (
+          {screenshots && screenshots.length > 0 && (
             <ScreenshotCarousel
-              screenshots={product.screenshots}
+              screenshots={screenshots}
               fallbackScreenshots={fallbackScreenshots}
               label={t('detail.screenshots')}
             />
           )}
 
           {/* Description (Markdown) */}
-          {product.description && (
+          {description && (
             <>
               <Separator />
               <div>
                 <h4 className="text-sm font-semibold mb-2">{t('detail.description')}</h4>
                 <div className="prose prose-sm dark:prose-invert max-w-none text-sm text-muted-foreground">
-                  <ReactMarkdown>{product.description}</ReactMarkdown>
+                  <ReactMarkdown>{description}</ReactMarkdown>
                 </div>
               </div>
             </>

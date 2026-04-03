@@ -8,7 +8,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	installprobe "github.com/websoft9/appos/backend/domain/lifecycle/runtime/installprobe"
 	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
-	servers "github.com/websoft9/appos/backend/domain/resource/control/servers"
+	servers "github.com/websoft9/appos/backend/domain/resource/server"
 )
 
 func newRouteInstallPreflightProbe(e *core.RequestEvent) lifecyclesvc.InstallPreflightProbe {

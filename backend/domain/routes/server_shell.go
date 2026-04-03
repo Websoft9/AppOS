@@ -14,7 +14,7 @@ import (
 	"github.com/pocketbase/pocketbase/tools/router"
 
 	"github.com/websoft9/appos/backend/domain/audit"
-	servers "github.com/websoft9/appos/backend/domain/resource/control/servers"
+	servers "github.com/websoft9/appos/backend/domain/resource/server"
 )
 
 func registerServerShellRoutes(g *router.RouterGroup[*core.RequestEvent]) {

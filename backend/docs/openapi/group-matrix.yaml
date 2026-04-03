@@ -163,13 +163,17 @@ groups:
       nativeRefs: []
 
   - group: Catalog
-    description: Canonical app catalog read APIs.
+    description: Canonical app catalog read and personalization APIs.
     apiType: Ext
     extSurface:
       - GET /api/catalog/categories
       - GET /api/catalog/apps
       - GET /api/catalog/apps/{key}
       - GET /api/catalog/apps/{key}/deploy-source
+      - GET /api/catalog/me/apps
+      - PUT /api/catalog/me/apps/{key}/favorite
+      - PUT /api/catalog/me/apps/{key}/note
+      - DELETE /api/catalog/me/apps/{key}/note
     nativeSurface: []
     sources:
       extRouteFiles:
@@ -250,17 +254,18 @@ groups:
     description: Resource catalog APIs excluding server registry.
     apiType: Ext
     extSurface:
+      - /api/endpoints*
       - /api/ext/resources/certificates*
       - /api/ext/resources/cloud-accounts*
       - /api/ext/resources/databases*
       - /api/ext/resources/env-groups*
       - /api/ext/resources/groups*
-      - /api/ext/resources/integrations*
       - /api/ext/resources/scripts*
       - /api/ext/resources/secrets*
     nativeSurface: []
     sources:
       extRouteFiles:
+        - endpoints.go
         - resources.go
       nativeRefs: []
 
@@ -403,7 +408,7 @@ groups:
     description: Workspace and storage-space related operations.
     apiType: Mixed
     extSurface:
-      - /api/ext/space/*
+      - /api/space/*
     nativeSurface:
       - GET /api/files/{collection}/{recordId}/{filename}
       - POST /api/files/token
@@ -452,7 +457,7 @@ groups:
     description: Topic discussion sharing — time-limited public share links for topics with anonymous comment support.
     apiType: Mixed
     extSurface:
-      - /api/ext/topics/*
+      - /api/topics/*
     nativeSurface:
       - GET /api/collections/topics/records
       - POST /api/collections/topics/records

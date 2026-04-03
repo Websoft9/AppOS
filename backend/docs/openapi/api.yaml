@@ -27,7 +27,7 @@ tags:
       name: Exposures
     - description: Installed app inventory and lifecycle APIs backed by compose projects.
       name: Apps
-    - description: Canonical app catalog read APIs.
+    - description: Canonical app catalog read and personalization APIs.
       name: Catalog
     - description: Native service health endpoint
       name: Health
@@ -1579,6 +1579,183 @@ paths:
             summary: Get catalog categories
             tags:
                 - Catalog
+    /api/catalog/me/apps:
+        get:
+            description: Returns the authenticated caller's catalog favorite and note state.
+            operationId: get_api_catalog_me_apps
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: List caller catalog personalization
+            tags:
+                - Catalog
+    /api/catalog/me/apps/{key}/favorite:
+        put:
+            description: Idempotently sets the authenticated caller's favorite state for one catalog app.
+            operationId: put_api_catalog_me_apps_key_favorite
+            parameters:
+                - in: path
+                  name: key
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Not Found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Set catalog favorite state
+            tags:
+                - Catalog
+    /api/catalog/me/apps/{key}/note:
+        delete:
+            description: Clears the authenticated caller's note for one catalog app.
+            operationId: delete_api_catalog_me_apps_key_note
+            parameters:
+                - in: path
+                  name: key
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Not Found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Clear catalog note
+            tags:
+                - Catalog
+        put:
+            description: Creates or updates the authenticated caller's note for one catalog app.
+            operationId: put_api_catalog_me_apps_key_note
+            parameters:
+                - in: path
+                  name: key
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Not Found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Create or update catalog note
+            tags:
+                - Catalog
     /api/certificates/templates:
         get:
             operationId: get_api_certificates_templates
@@ -2174,6 +2351,138 @@ paths:
             summary: Get cron job execution logs
             tags:
                 - System Cron
+    /api/endpoints:
+        get:
+            operationId: get_api_endpoints
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get endpoints
+            tags:
+                - Resource
+        post:
+            operationId: post_api_endpoints
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Create or execute endpoints
+            tags:
+                - Resource
+    /api/endpoints/{id}:
+        delete:
+            operationId: delete_api_endpoints_id
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Delete endpoints by id
+            tags:
+                - Resource
+        get:
+            operationId: get_api_endpoints_id
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get endpoints by id
+            tags:
+                - Resource
+        put:
+            operationId: put_api_endpoints_id
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Update endpoints by id
+            tags:
+                - Resource
     /api/exposures:
         get:
             operationId: get_api_exposures
@@ -4756,138 +5065,6 @@ paths:
             summary: Update resources databases by id
             tags:
                 - Resource
-    /api/ext/resources/integrations:
-        get:
-            operationId: get_api_ext_resources_integrations
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Get resources integrations
-            tags:
-                - Resource
-        post:
-            operationId: post_api_ext_resources_integrations
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: false
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Create or execute resources integrations
-            tags:
-                - Resource
-    /api/ext/resources/integrations/{id}:
-        delete:
-            operationId: delete_api_ext_resources_integrations_id
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Delete resources integrations by id
-            tags:
-                - Resource
-        get:
-            operationId: get_api_ext_resources_integrations_id
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Get resources integrations by id
-            tags:
-                - Resource
-        put:
-            operationId: put_api_ext_resources_integrations_id
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                    type: string
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: false
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Update resources integrations by id
-            tags:
-                - Resource
     /api/ext/resources/scripts:
         get:
             operationId: get_api_ext_resources_scripts
@@ -5054,267 +5231,6 @@ paths:
             summary: Get setup status
             tags:
                 - Setup
-    /api/ext/space/fetch:
-        post:
-            description: Downloads a remote URL and stores the result as a user_files record. Auth required.
-            operationId: post_api_ext_space_fetch
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: true
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Internal Server Error
-            security:
-                - bearerAuth: []
-            summary: Fetch remote file into space
-            tags:
-                - Space & User Files
-    /api/ext/space/preview/{id}:
-        get:
-            description: Streams a file for inline browser preview. Accepts auth via JWT Authorization header or ?token= query param. Public route (token validated internally).
-            operationId: get_api_ext_space_preview_id
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                    type: string
-                - in: query
-                  name: token
-                  required: false
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-                "403":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Forbidden
-                "404":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Not Found
-                "415":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unsupported Media Type
-            security: []
-            summary: Preview file inline
-            tags:
-                - Space & User Files
-    /api/ext/space/quota:
-        get:
-            description: Returns effective upload/share quota limits for the authenticated user. Auth required.
-            operationId: get_api_ext_space_quota
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Get space quota limits
-            tags:
-                - Space & User Files
-    /api/ext/space/share/{id}:
-        delete:
-            description: Deletes the share token for the file, immediately invalidating public share links. Auth required.
-            operationId: delete_api_ext_space_share_id
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-                "403":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Forbidden
-                "404":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Not Found
-            security: []
-            summary: Revoke file share token
-            tags:
-                - Space & User Files
-        post:
-            description: Creates or refreshes a share link for the file record (max 60 minutes). Auth required.
-            operationId: post_api_ext_space_share_id
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                    type: string
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: false
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-                "403":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Forbidden
-                "404":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Not Found
-            security: []
-            summary: Create file share token
-            tags:
-                - Space & User Files
-    /api/ext/space/share/{token}:
-        get:
-            description: Returns file metadata (name, size, mime type) for a valid share token. Public.
-            operationId: get_api_ext_space_share_token
-            parameters:
-                - in: path
-                  name: token
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "404":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Not Found
-            security: []
-            summary: Resolve share token
-            tags:
-                - Space & User Files
-    /api/ext/space/share/{token}/download:
-        get:
-            description: Streams the file content for a valid public share token. No authentication required.
-            operationId: get_api_ext_space_share_token_download
-            parameters:
-                - in: path
-                  name: token
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "404":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Not Found
-                "410":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Client Error
-            security: []
-            summary: Download shared file
-            tags:
-                - Space & User Files
     /api/ext/system/files:
         get:
             description: Returns a directory listing for the local server filesystem. Superuser only.
@@ -5399,125 +5315,6 @@ paths:
             summary: Local WebSocket terminal
             tags:
                 - System
-    /api/ext/topics/share/{id}:
-        delete:
-            operationId: delete_api_ext_topics_share_id
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Delete topics share by id
-            tags:
-                - Topics
-        post:
-            operationId: post_api_ext_topics_share_id
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                    type: string
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: false
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Create or execute topics share by id
-            tags:
-                - Topics
-    /api/ext/topics/share/{token}:
-        get:
-            operationId: get_api_ext_topics_share_token
-            parameters:
-                - in: path
-                  name: token
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Get topics share by token
-            tags:
-                - Topics
-    /api/ext/topics/share/{token}/comments:
-        post:
-            operationId: post_api_ext_topics_share_token_comments
-            parameters:
-                - in: path
-                  name: token
-                  required: true
-                  schema:
-                    type: string
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: false
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Create or execute topics share by token comments
-            tags:
-                - Topics
     /api/ext/users/{collection}/{id}/reset-password:
         post:
             description: Force-resets a user's password (no current password required). Invalidates all existing tokens. Superuser only.
@@ -7324,6 +7121,376 @@ paths:
             summary: Test S3 settings
             tags:
                 - Settings
+    /api/space/fetch:
+        post:
+            description: Downloads a remote URL and stores the result as a user_files record. Auth required.
+            operationId: post_api_space_fetch
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Fetch remote file into space
+            tags:
+                - Space & User Files
+    /api/space/preview/{id}:
+        get:
+            description: Streams a file for inline browser preview. Public route (token validated internally).
+            operationId: get_api_space_preview_id
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+                - in: query
+                  name: token
+                  required: false
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Forbidden
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Not Found
+                "415":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unsupported Media Type
+            security: []
+            summary: Preview file inline
+            tags:
+                - Space & User Files
+    /api/space/quota:
+        get:
+            description: Returns effective upload/share quota limits for the authenticated user. Auth required.
+            operationId: get_api_space_quota
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get space quota limits
+            tags:
+                - Space & User Files
+    /api/space/share/{id}:
+        delete:
+            description: Deletes the share token, immediately invalidating public share links. Auth required.
+            operationId: delete_api_space_share_id
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "204":
+                    description: No Content
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Forbidden
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Not Found
+            security: []
+            summary: Revoke file share token
+            tags:
+                - Space & User Files
+        post:
+            description: Creates or refreshes a share link (max shareMaxMinutes). Auth required.
+            operationId: post_api_space_share_id
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Forbidden
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Not Found
+            security: []
+            summary: Create file share token
+            tags:
+                - Space & User Files
+    /api/space/share/{token}:
+        get:
+            description: Returns file metadata for a valid share token. Public.
+            operationId: get_api_space_share_token
+            parameters:
+                - in: path
+                  name: token
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Forbidden
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Not Found
+            security: []
+            summary: Resolve share token
+            tags:
+                - Space & User Files
+    /api/space/share/{token}/download:
+        get:
+            description: Streams the file content for a valid public share token. No authentication required.
+            operationId: get_api_space_share_token_download
+            parameters:
+                - in: path
+                  name: token
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Forbidden
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Not Found
+            security: []
+            summary: Download shared file
+            tags:
+                - Space & User Files
+    /api/topics/share/{id}:
+        delete:
+            operationId: delete_api_topics_share_id
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Delete topics share by id
+            tags:
+                - Topics
+        post:
+            operationId: post_api_topics_share_id
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Create or execute topics share by id
+            tags:
+                - Topics
+    /api/topics/share/{token}:
+        get:
+            operationId: get_api_topics_share_token
+            parameters:
+                - in: path
+                  name: token
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get topics share by token
+            tags:
+                - Topics
+    /api/topics/share/{token}/comments:
+        post:
+            operationId: post_api_topics_share_token_comments
+            parameters:
+                - in: path
+                  name: token
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Create or execute topics share by token comments
+            tags:
+                - Topics
     /api/tunnel/overview:
         get:
             operationId: get_api_tunnel_overview

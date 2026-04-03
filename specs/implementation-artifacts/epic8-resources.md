@@ -2,7 +2,7 @@
 
 ## Overview
 
-**Platform-level shared resource management** — servers, secrets, env groups, databases, cloud accounts, certificates, integrations, and scripts that can be referenced by multiple applications. Resources are platform-defined (not user-extensible), each with its own PocketBase Collection and migration. Apps reference resources; they don't own them.
+**Platform-level shared resource management** — servers, secrets, env groups, databases, cloud accounts, certificates, endpoints, and scripts that can be referenced by multiple applications. Resources are platform-defined (not user-extensible), each with its own PocketBase Collection and migration. Apps reference resources; they don't own them.
 
 > Env Groups detail spec: see [Epic 24](epic24-shared-envs.md)
 
@@ -20,7 +20,7 @@ Resources (一级)
   ├── Databases
   ├── Cloud Accounts
   ├── Certificates
-  ├── Integrations
+  ├── Endpoints
   └── Scripts
 ```
 
@@ -63,7 +63,7 @@ Resource Store (independent collections)
   ├── databases     → External DB connections (password → secrets)
   ├── cloud_accounts → Cloud provider credentials (secret → secrets)
   ├── certificates   → TLS certs, private key → secrets
-  ├── integrations   → External integration endpoints (credential → secrets)
+  ├── integrations   → Endpoint resources for REST APIs, outbound webhooks, and MCP servers (credential → secrets)
   └── scripts        → Reusable scripts (`python3` / `bash`)
 
 Apps collection
@@ -161,7 +161,7 @@ TLS certificates. Private key stored as a secret; cert (public) stored as plain 
 | description | Text | |
 | groups | Relation[] | → resource_groups; auto-filled with `default` on create if empty |
 
-### `integrations`
+### `integrations` (product term: Endpoints)
 External endpoints: REST APIs, outbound webhooks, and MCP servers.
 
 | Field | Type | Notes |
@@ -234,11 +234,11 @@ All under `/api/ext/resources/`. All require authentication.
 | GET | `/certificates/:id` | Get certificate |
 | PUT | `/certificates/:id` | Update certificate |
 | DELETE | `/certificates/:id` | Delete certificate |
-| GET | `/integrations` | List integrations |
-| POST | `/integrations` | Create integration |
-| GET | `/integrations/:id` | Get integration |
-| PUT | `/integrations/:id` | Update integration |
-| DELETE | `/integrations/:id` | Delete integration |
+| GET | `/endpoints` | List endpoints |
+| POST | `/endpoints` | Create endpoint |
+| GET | `/endpoints/:id` | Get endpoint |
+| PUT | `/endpoints/:id` | Update endpoint |
+| DELETE | `/endpoints/:id` | Delete endpoint |
 | GET | `/scripts` | List scripts |
 | POST | `/scripts` | Create script |
 | GET | `/scripts/:id` | Get script |
@@ -260,14 +260,14 @@ New resource types → new collection + migration + route group. No changes to e
 ## Stories
 
 - [x] 8.1: Migrations — define all collections via PocketBase Go migrations (servers, secrets, env_groups, env_group_vars, databases, cloud_accounts, certificates)
-- [x] 8.1b: Migration — add `integrations` collection
+- [x] 8.1b: Migration — add `integrations` collection for endpoint resources
 - [x] 8.1c: Migration — add `scripts` collection
 - [x] 8.2: Backend routes — CRUD API for all resource types
-- [x] 8.2b: Backend routes — CRUD API for integrations
+- [x] 8.2b: Backend routes — CRUD API for endpoint resources
 - [x] 8.2c: Backend routes — CRUD API for scripts
 - [x] 8.3: Secret encryption — AES-256-GCM via `internal/crypto`, keyed by `APPOS_ENCRYPTION_KEY` env var
 - [x] 8.4: Dashboard UI — Resource Hub + list/form pages for all 6 types
-- [x] 8.4b: Dashboard UI — Integrations list/form page + Hub card
+- [x] 8.4b: Dashboard UI — Endpoints list/form page + Hub card
 - [x] 8.4c: Dashboard UI — Scripts list/form page + Hub card
 - [x] 8.5: App resource binding — `env_vars`, `credentials` (encrypted) JSON + relation fields on Apps collection (`1740100000_add_apps_resource_bindings.go`)
 - [x] 8.6: Resource Groups — Migration: `resource_groups` collection + seed `default` group + back-fill `groups` field on all 8 resource collections
@@ -304,7 +304,7 @@ Hub 页右上角有两个并排操作入口：
                     │  Database       │  → /resources/databases?create=1
                     │  Cloud Account  │  → /resources/cloud-accounts?create=1
                     │  Certificate    │  → /resources/certificates?create=1
-                    │  Integration    │  → /resources/integrations?create=1
+                    │  Endpoint       │  → /resources/endpoints?create=1
                     │  Script         │  → /resources/scripts?create=1
                     └─────────────────┘
 ```

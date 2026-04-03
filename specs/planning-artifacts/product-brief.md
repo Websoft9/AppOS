@@ -1,7 +1,7 @@
 ---
 stepsCompleted: [1, 2, 3]
 inputDocuments: []
-date: 2026-02-04
+date: 2026-04-03
 author: AppOS
 ---
 
@@ -90,12 +90,16 @@ Supporting Domains
 │   ├── Worker Scheduling
 │   ├── Projection Update
 │   └── Compensation Control
-├── Resource Operations Platform
-│   ├── Remote Access
-│   ├── Terminal Operations
-│   ├── File Operations
-│   ├── Service Operations
-│   └── Container Operations
+├── Resource
+│   ├── Server
+│   │   ├── Remote Access
+│   │   ├── Terminal Operations
+│   │   ├── File Operations
+│   │   ├── Service Operations
+│   │   └── Container Operations
+│   ├── Database
+│   ├── Endpoint
+│   └── Registry
 ├── Observability
 │   ├── Telemetry
 │   │   ├── Metrics
@@ -125,12 +129,12 @@ Supporting Domains
 │   ├── Runtime Execution
 │   ├── Recovery Assets
 │   └── Configuration Assets
-├── Integrations & Connectors
+├── Integrations
 │   ├── Source Integrations
-│   ├── Artifact & Registry Integrations
 │   ├── Notification Integrations
 │   ├── AI Provider Integrations
-│   └── External Secret / Identity Integrations
+│   ├── External Secret / Identity Integrations
+│   └── Workflow / Sync Integrations
 ├── AI Workflow / Agent Automation
 │   ├── Skills
 │   ├── Task Plans
@@ -166,14 +170,16 @@ Navigation / IA
 **Interpretation:**
 - `Application Lifecycle` is the only core domain and the product's main organizing concept.
 - The hierarchy shows domains and subdomains only; user-facing modules and model objects are documented separately.
-- `Operations Management` groups resource inventory, topology, operational knowledge, incident response, and deterministic operations automation.
+- `Resource` is the namespace for operator-managed external resources. `Server` is already a full business domain, while `Database`, `Endpoint`, and `Registry` start thinner and may grow independently.
+- `Operations Management` groups cross-resource grouping, operational knowledge, incident response, and deterministic operations automation.
 - `App Catalog` is currently managed through three subdomains: official catalog discovery, custom app authoring, and user personalization.
 - `Template` remains an important core object and supporting capability inside `App Catalog`, but it is not treated as a peer subdomain until it has its own lifecycle, rules, and management surface.
 - `Gateway Management` owns shared domain routing, upstream binding, and centralized gateway views across apps, servers, and containers.
-- `Integrations & Connectors` owns external provider connections rather than treating them as settings-only concerns.
+- `Endpoint` is the current thin resource type for externally callable service targets (`rest`, `webhook`, `mcp`). If provider-specific workflows grow thick later, they should become standalone `Integrations` domains that reference `Resource.Endpoint` rather than replacing it.
 - `Edition & Entitlement` controls which capabilities are available across open-source, standard, and enterprise offerings.
-- `Observability`, `Resource Operations Platform`, and `AI Workflow / Agent Automation` remain supporting domains around the lifecycle core.
+- `Observability`, `Resource`, and `AI Workflow / Agent Automation` remain supporting domains around the lifecycle core.
 - `Secrets Management` is a standalone generic domain; secret policy behavior is treated as governance inside secrets and settings rather than as a separate top-level subdomain.
+- `Groups`, `Topics`, and `Space` do not belong inside the `Resource` namespace; they stay in `Operations Management` because they organize work and knowledge rather than representing external connection targets.
 - `Workspace` and `Admin` are navigation groups, not business domains.
 
 ### Key Differentiators

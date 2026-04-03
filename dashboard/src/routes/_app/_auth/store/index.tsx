@@ -4,14 +4,16 @@ import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { getLocale } from '@/lib/i18n'
 import { pb } from '@/lib/pb'
+import { getApiErrorMessage } from '@/lib/api-error'
 import {
-  useCatalog,
+  toLegacyPrimaryCategories,
+  useCatalogAppDetail,
+  useCatalogApps,
+  useCatalogCategories,
+  useCatalogDeploySource,
+} from '@/lib/catalog-api'
+import {
   useProducts,
-  enrichProducts,
-  filterProducts,
-  countByPrimaryCategory,
-  countBySecondaryCategory,
-  syncLatestFromCdn,
 } from '@/lib/store-api'
 import { useUserApps, useToggleFavorite, useSaveNote } from '@/lib/store-user-api'
 import {
@@ -105,57 +107,111 @@ function StorePage() {
 
   // ─── Data fetching ────────────────────────────────────────────────────────────
   const {
-    data: catalogData,
-    isLoading: catalogLoading,
-    isError: catalogError,
-    refetch: refetchCatalog,
-  } = useCatalog(locale, queryClient)
-
-  const {
     data: productsData,
     isLoading: productsLoading,
     isError: productsError,
     refetch: refetchProducts,
   } = useProducts(locale, queryClient)
 
+  const {
+    data: categoryTree,
+    isLoading: catalogLoading,
+    isError: catalogError,
+    refetch: refetchCatalog,
+  } = useCatalogCategories(locale)
+
+  const catalogAppsQuery = useMemo(
+    () => ({
+      locale,
+      source: 'official' as const,
+      primaryCategory,
+      secondaryCategory,
+      q: search,
+      favorite: showFavoritesOnly ? true : undefined,
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+    }),
+    [locale, primaryCategory, secondaryCategory, search, showFavoritesOnly, pageSize, page]
+  )
+
+  const {
+    data: officialAppsPage,
+    isLoading: officialAppsLoading,
+    isError: officialAppsError,
+    refetch: refetchOfficialApps,
+  } = useCatalogApps(catalogAppsQuery)
+
   // Always fetch en products for screenshot URL fallback (cached, no extra network if locale === 'en')
   const { data: enProductsData } = useProducts('en', queryClient)
 
-  const isLoading = catalogLoading || productsLoading
-  const isError = catalogError || productsError
+  const isLoading = catalogLoading || productsLoading || officialAppsLoading
+  const isError = catalogError || productsError || officialAppsError
+
+  const selectedAppKey = selectedApp?.key ?? null
+  const {
+    data: selectedAppDetail,
+    isLoading: selectedAppDetailLoading,
+    error: selectedAppDetailError,
+  } = useCatalogAppDetail(locale, selectedAppKey, modalOpen)
+  const { data: selectedDeploySource, error: selectedDeploySourceError } = useCatalogDeploySource(
+    locale,
+    selectedAppKey,
+    modalOpen
+  )
+  const modalCatalogError = selectedAppDetailError || selectedDeploySourceError
 
   // Sort catalog by position
   const primaryCategories = useMemo(() => {
-    if (!catalogData) return []
-    return [...catalogData].sort((a, b) => (a.position ?? 999) - (b.position ?? 999))
-  }, [catalogData])
+    if (!categoryTree) return []
+    return toLegacyPrimaryCategories(categoryTree).sort((a, b) => (a.position ?? 999) - (b.position ?? 999))
+  }, [categoryTree])
 
-  // Enrich products with resolved category keys
-  const enrichedProducts = useMemo(() => {
-    if (!productsData) return []
-    return enrichProducts(productsData)
-  }, [productsData])
-
-  // Category counts (always from full product list)
-  const primaryCounts = useMemo(
-    () => countByPrimaryCategory(enrichedProducts, primaryCategories),
-    [enrichedProducts, primaryCategories]
-  )
-
-  const secondaryCounts = useMemo(
-    () => countBySecondaryCategory(enrichedProducts),
-    [enrichedProducts]
-  )
-
-  // Filtered products
-  const filteredProducts = useMemo(() => {
-    let products = filterProducts(enrichedProducts, primaryCategory, secondaryCategory, search)
-    if (showFavoritesOnly) {
-      const favKeys = new Set(userApps.filter(a => a.is_favorite).map(a => a.app_key))
-      products = products.filter(p => favKeys.has(p.key))
+  const primaryCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const item of categoryTree?.items ?? []) {
+      counts[item.key] = item.appCount
     }
-    return products
-  }, [enrichedProducts, primaryCategory, secondaryCategory, search, showFavoritesOnly, userApps])
+    return counts
+  }, [categoryTree])
+
+  const secondaryCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const item of categoryTree?.items ?? []) {
+      for (const child of item.children) {
+        counts[child.key] = child.appCount
+      }
+    }
+    return counts
+  }, [categoryTree])
+
+  const paginatedProducts = useMemo(
+    () => (officialAppsPage?.items ?? []).map(item => ({
+      sys: { id: item.key },
+      key: item.key,
+      trademark: item.title,
+      summary: item.overview,
+      overview: item.overview,
+      logo: item.iconUrl ? { imageurl: item.iconUrl } : undefined,
+      catalogCollection: {
+        items: item.secondaryCategories.map(category => ({
+          key: category.key,
+          title: category.title,
+          catalogCollection: item.primaryCategory
+            ? { items: [{ key: item.primaryCategory.key }] }
+            : undefined,
+        })),
+      },
+      primaryCategoryKey: item.primaryCategory?.key ?? null,
+      secondaryCategoryKeys: item.secondaryCategories.map(category => category.key),
+    })),
+    [officialAppsPage]
+  )
+
+  const officialTotal = officialAppsPage?.page.total ?? 0
+  const totalCount = useMemo(
+    () => categoryTree?.items.reduce((sum, item) => sum + item.appCount, 0) ?? officialTotal,
+    [categoryTree, officialTotal]
+  )
 
   // Filtered custom apps
   const visibleCustomApps = useMemo(() => {
@@ -172,12 +228,6 @@ function StorePage() {
     }
     return apps
   }, [customApps, currentUserId, search, showFavoritesOnly, userApps])
-
-  // Paginated products
-  const paginatedProducts = useMemo(() => {
-    const start = (page - 1) * pageSize
-    return filteredProducts.slice(start, start + pageSize)
-  }, [filteredProducts, page, pageSize])
 
   // Reset to page 1 when filters change
   const handleSetPrimary = (key: string | null) => {
@@ -243,9 +293,13 @@ function StorePage() {
   const handleSync = async () => {
     setSyncing(true)
     setSyncResult(null)
-    const ok = await syncLatestFromCdn(locale, queryClient)
+    try {
+      await Promise.all([refetchCatalog(), refetchOfficialApps(), refetchProducts()])
+      setSyncResult('success')
+    } catch {
+      setSyncResult('error')
+    }
     setSyncing(false)
-    setSyncResult(ok ? 'success' : 'error')
     setTimeout(() => setSyncResult(null), 3000)
   }
 
@@ -268,6 +322,7 @@ function StorePage() {
           variant="outline"
           onClick={() => {
             refetchCatalog()
+            refetchOfficialApps()
             refetchProducts()
           }}
         >
@@ -328,7 +383,7 @@ function StorePage() {
         secondaryCounts={secondaryCounts}
         selectedPrimary={primaryCategory}
         selectedSecondary={secondaryCategory}
-        totalCount={enrichedProducts.length}
+        totalCount={totalCount}
         onSelectPrimary={handleSetPrimary}
         onSelectSecondary={handleSetSecondary}
       />
@@ -439,7 +494,7 @@ function StorePage() {
         <StorePagination
           page={page}
           pageSize={pageSize}
-          total={filteredProducts.length}
+          total={officialTotal}
           onPageChange={setPage}
           onPageSizeChange={size => {
             setPageSize(size)
@@ -461,18 +516,26 @@ function StorePage() {
         onSaveNote={selectedAppIsCustom ? undefined : handleSaveNote}
         isSavingNote={selectedAppIsCustom ? undefined : saveNote.isPending}
         showDeploy
+        detail={selectedAppDetail ?? null}
+        detailLoading={selectedAppDetailLoading}
         onDeploy={
           selectedApp
             ? () => {
                 setModalOpen(false)
+
+                const install = selectedDeploySource?.install
                 void navigate({
                   to: '/deploy',
                   search: {
-                    prefillMode: 'target',
-                    prefillSource: selectedAppIsCustom ? 'template' : 'library',
+                    prefillMode: install?.prefillMode ?? 'target',
+                    prefillSource:
+                      install?.prefillSource ?? (selectedAppIsCustom ? 'template' : 'library'),
                     prefillAppId: undefined,
-                    prefillAppKey: selectedApp.key,
-                    prefillAppName: selectedApp.trademark,
+                    prefillAppKey: install?.prefillAppKey ?? selectedApp.key,
+                    prefillAppName:
+                      install?.prefillAppName ??
+                      selectedAppDetail?.deploy.defaultAppName ??
+                      selectedApp.trademark,
                     prefillServerId: undefined,
                   },
                 })
@@ -527,6 +590,12 @@ function StorePage() {
       {errorMsg && (
         <div className="fixed bottom-4 right-4 z-50 bg-destructive text-destructive-foreground text-sm px-4 py-2 rounded-md shadow-lg">
           {errorMsg}
+        </div>
+      )}
+
+      {modalOpen && selectedAppKey && !selectedAppDetailLoading && modalCatalogError && (
+        <div className="fixed bottom-16 right-4 z-50 bg-destructive text-destructive-foreground text-sm px-4 py-2 rounded-md shadow-lg">
+          {getApiErrorMessage(modalCatalogError, t('error.title'))}
         </div>
       )}
     </div>

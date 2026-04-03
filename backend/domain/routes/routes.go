@@ -6,7 +6,8 @@
 //   - /api/ext/system     — system metrics, terminal, file browser
 //   - /api/ext/backup     — backup/restore operations
 //   - /api/ext/resources  — Resource Store CRUD (Epic 8)
-//   - /api/ext/space      — User private space (Epic 9)
+//   - /api/endpoints      — Endpoint resource CRUD
+//   - /api/space         — User private space (Epic 9)
 //   - /api/components     — component inventory and runtime service diagnostics (Epic 6)
 //   - /api/catalog        — app catalog normalized read APIs
 //   - /api/apps           — installed app inventory and lifecycle operations
@@ -14,6 +15,7 @@
 //   - /api/releases       — release inventory and app-scoped release views
 //   - /api/exposures      — publication inventory and app-scoped exposure views
 //   - /api/pipelines      — pipeline run inventory and detail views
+//   - /api/topics         — Topic share management (authenticated + public share token)
 //   - /api/ext/iac        — IaC file management (Epic 14, superuser-only)
 //   - /api/tunnel         — tunnel setup and operations APIs (Epic 16)
 //   - /api/servers        — Server operations: shell, files, containers, ops (Epic 20)
@@ -23,6 +25,7 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/resource/llm"
 )
 
 // asynqClient is set by main via SetAsynqClient after creating the worker.
@@ -51,6 +54,12 @@ func Register(se *core.ServeEvent) {
 	// Public topic share routes (unauthenticated — view shared topic and post comments)
 	registerTopicPublicRoutes(se)
 
+	// Topic routes (authenticated share management + public share token)
+	registerTopicRoutes(se)
+
+	// Space routes (authenticated quota/fetch/share + public share/preview)
+	registerSpaceRoutes(se)
+
 	// Ext Settings API (superuser-only — registered directly on se.Router)
 	RegisterSettings(se)
 
@@ -74,7 +83,7 @@ func Register(se *core.ServeEvent) {
 	registerSystemRoutes(g)
 	registerBackupRoutes(g)
 	registerResourceRoutes(g)
-	registerSpaceRoutes(g)
+	registerEndpointsRoutes(se)
 	registerUserRoutes(g)
 	registerComponentsRoutes(components)
 	registerCatalogRoutes(deployments)
@@ -83,10 +92,12 @@ func Register(se *core.ServeEvent) {
 	registerReleaseRoutes(deployments)
 	registerExposureRoutes(deployments)
 	registerIaCRoutes(g)
-	registerTopicRoutes(g)
 	registerServerRoutes(servers)
 	registerTunnelRoutes(se)
 	registerSecretsRoutes(se)
 	registerCertificatesRoutes(se)
 	registerCronLogsRoute(se)
+
+	// LLM provider routes (superuser-only — registered by domain/resource/llm)
+	llm.RegisterRoutes(se)
 }

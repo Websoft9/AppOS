@@ -13,7 +13,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/websoft9/appos/backend/domain/audit"
-	"github.com/websoft9/appos/backend/domain/resource/control/tunnel"
+	"github.com/websoft9/appos/backend/domain/resource/tunnel"
 	appcrypto "github.com/websoft9/appos/backend/infra/crypto"
 )
 

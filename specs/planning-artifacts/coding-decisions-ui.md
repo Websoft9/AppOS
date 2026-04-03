@@ -3,33 +3,15 @@
 ## Link Back
 
 For global engineering conventions, see [coding-decisions.md](coding-decisions.md).
+For product IA, navigation grouping, and module ownership, see [architecture.md](architecture.md) and [prd.md](prd.md).
 
 ## UI{#ui}
 
-Design System Foundation (shadcn/ui, Tailwind, Dark/Light theme)
-
-### Primary Navigation Baseline{#primary-navigation}
-
-Top-level navigation should keep collaboration features grouped together instead of scattering them across resource modules.
-
-```text
-Collaboration
-  Groups
-  Topics
-
-Applications
-Resources
-Credentials
-```
-
-Rules:
-- `Groups` is for organizing platform objects.
-- `Topics` is for user-authored collaboration threads and discussion.
-- Do not place `Groups` back under `Resources`.
+Design system foundation: shadcn/ui + Tailwind with light/dark theme support.
 
 ### Dialog Size Tiers{#dialog-sizes}
 
-Standardized dialog widths based on content type. Override via `className` on `<DialogContent>`.
+Standardize dialog widths by content type. Override with `className` on `<DialogContent>` only when needed.
 
 | Tier | Tailwind Class | Width | Use Case |
 |------|---------------|-------|----------|
@@ -40,48 +22,20 @@ Standardized dialog widths based on content type. Override via `className` on `<
 | **xl** | `max-w-6xl` | 1152px | Complex editors, side-by-side layouts |
 | **full** | `max-w-[90vw] max-h-[85vh]` | ~90% viewport | Log viewers, full-screen editors |
 
-**Guidelines:**
 - Always pair large dialogs with `max-h-[85vh] flex flex-col` for scroll containment
 - Mobile fallback is handled by shadcn's `max-w-[calc(100%-2rem)]`
 - Prefer the smallest tier that avoids horizontal scrolling or cramped content
 
----
-
 ### Page Header{#page-header}
 
-All list/index pages must use a consistent header pattern (matching `/terminal`):
+All list and index pages use the same header pattern:
 
-```tsx
-<h1 className="text-2xl font-bold tracking-tight">{Page Title}</h1>
-<p className="text-muted-foreground mt-1">{Short description}</p>
-```
-
-Rules:
-- Title: `text-2xl font-bold tracking-tight` — never `text-xl font-semibold` or other variants
-- Subtitle/description: `text-muted-foreground mt-1` — no `text-sm` prefix needed (inherits from parent)
+- Title: `text-2xl font-bold tracking-tight`
+- Description: `text-muted-foreground mt-1`
 
 ### Empty State{#empty-state}
 
-When a list page has no records, **do not render the table header**. Show a dedicated empty state instead:
-
-```tsx
-{!loading && items.length === 0 ? (
-  <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
-    <p className="text-muted-foreground">No {items} found.</p>
-    <button
-      type="button"
-      className="mt-2 text-sm text-primary hover:underline"
-      onClick={openCreate}
-    >
-      Create your first one
-    </button>
-  </div>
-) : (
-  <Table>...</Table>
-)}
-```
-
----
+When a list page has no records, do not render the table header. Show a dedicated empty state with a clear create action.
 
 ### List Page Minimal Pattern{#list-page-minimal-pattern}
 
@@ -98,87 +52,56 @@ For standard list/index pages, use this minimal interaction pattern by default:
 
 Keep the page visually minimal: no extra chrome, no redundant columns, no duplicate actions.
 
----
-
 ## Tech Stack{#tech-stack}
 
-| Package | Version | Role |
-|---------|---------|------|
-| React | 19 | UI framework |
-| Vite | 7 | Build tool |
-| TypeScript | 5.9 | Language |
-| Tailwind CSS | 4 | Styling |
-| shadcn/ui | — | Component primitives (via Radix UI) |
-| TanStack Router | 1.x | File-based routing + code-gen |
-| TanStack Query | 5.x | Server state / data fetching |
-| PocketBase JS SDK | 0.26 | API client + auth store |
-| i18next / react-i18next | 25/16 | i18n |
-| lucide-react | 0.56x | Icons |
-| Monaco Editor | 4.x | Code editor widget |
-| react-markdown | 10 | Markdown rendering |
+Core UI stack:
+
+- React 19 + TypeScript 5.9
+- Vite 7
+- Tailwind CSS 4 + shadcn/ui
+- TanStack Router 1.x + TanStack Query 5.x
+- PocketBase JS SDK 0.26
+- i18next / react-i18next
+- lucide-react, Monaco Editor, react-markdown
 
 Path alias: `@` → `src/`
 
----
-
 ## Directory Conventions{#directories}
 
-```
-src/
-  components/<feature>/   # Feature-scoped components (docker/, store/, resources/, layout/, users/)
-  components/ui/          # shadcn primitives — DO NOT edit these files
-  contexts/               # React context providers (AuthContext, LayoutContext)
-  hooks/                  # Shared custom hooks
-  lib/                    # API clients and utilities (*-api.ts, *-types.ts, pb.ts, i18n.ts, utils.ts)
-  routes/                 # TanStack Router file routes (auto code-gen → routeTree.gen.ts)
-  locales/<lang>/<ns>.json  # i18n translation files
-```
-
----
+- `src/components/<feature>/`: feature-scoped components
+- `src/components/ui/`: shadcn primitives; do not edit directly
+- `src/contexts/`: React providers
+- `src/hooks/`: shared hooks
+- `src/lib/`: API clients and utilities
+- `src/routes/`: TanStack Router file routes; `routeTree.gen.ts` is generated
+- `src/locales/<lang>/<ns>.json`: translation files
 
 ## Routing{#routing}
 
-TanStack Router with **file-based routing**. `routeTree.gen.ts` is auto-generated — never edit by hand.
+TanStack Router uses file-based routing. `routeTree.gen.ts` is generated and must not be edited by hand.
 
-Route hierarchy and guards:
+- `__root.tsx`: theme and auth providers
+- `_app.tsx`: layout wrapper
+- `_auth.tsx`: redirects unauthenticated users to `/login`
+- `_superuser.tsx`: blocks non-superusers from admin-only pages
 
-```
-__root.tsx          ThemeProvider + AuthProvider
-  _app.tsx          (layout wrapper)
-    _auth.tsx       → redirect to /login if !pb.authStore.isValid
-      _superuser.tsx → redirect to / if collectionName !== '_superusers'
-    login / register / forgot-password / reset-password / setup
-```
-
-**Route guard pattern** — use `beforeLoad`:
-
-```tsx
-beforeLoad: async ({ location }) => {
-  if (!pb.authStore.isValid) throw redirect({ to: '/login', search: { redirect: location.href } })
-}
-```
-
----
+Use `beforeLoad` for route guards.
 
 ## Data Fetching{#data-fetching}
 
-**TanStack Query + PocketBase SDK.** All API logic lives in `src/lib/*-api.ts`.
+Use TanStack Query + PocketBase SDK. API logic lives in `src/lib/*-api.ts`.
 
-| File | Scope |
-|------|-------|
-| `pb.ts` | Singleton `pb` client (base URL `/`, proxied by Nginx) |
-| `store-api.ts` | App Store catalog/products (local-first + CDN background sync) |
-| `iac-api.ts` | IaC file read/write (`/api/iac`) |
-| `store-user-api.ts` | User favorites / notes |
-| `store-custom-api.ts` | Custom app management |
+- `pb.ts`: singleton PocketBase client
+- `store-api.ts`: store catalog and products
+- `iac-api.ts`: IaC file read and write
+- `store-user-api.ts`: user favorites and notes
+- `store-custom-api.ts`: custom app management
 
-**Rules:**
+Rules:
 - Use `pb.collection('name').getList(…)` for PocketBase collections
-- Use `pb.send('/api/<domain>/…', {})` for custom Go endpoints; domain examples: `iac`, `servers`, `proxy`, `deploy`
-- Do **not** use `/api/ext/` prefix — this pattern is deprecated and inconsistent with the route prefix convention in `architecture.md`
-- Wrap with `useQuery` / `useMutation`; keep `queryKey` arrays consistent
-
----
+- Use `pb.send('/api/<domain>/…', {})` for custom Go endpoints such as `iac`, `servers`, `proxy`, and `deploy`
+- Do not use `/api/ext/`; it is deprecated and inconsistent with the API naming baseline in [coding-decisions.md](coding-decisions.md)
+- Wrap requests with `useQuery` or `useMutation` and keep `queryKey` arrays consistent
 
 ## Authentication{#auth}
 
@@ -189,8 +112,6 @@ Two PocketBase collections: `users` (regular) and `_superusers` (admin).
 - Guard regular pages with `_auth.tsx`; guard admin pages with `_superuser.tsx`
 - Distinguish user type via `pb.authStore.record?.collectionName`
 
----
-
 ## i18n{#i18n}
 
 - Namespaces: `common`, `store` (add new namespaces in `src/lib/i18n.ts`)
@@ -198,11 +119,9 @@ Two PocketBase collections: `users` (regular) and `_superusers` (admin).
 - Default language: English; user selection persisted in `localStorage` key `ws9-locale`
 - Usage: `const { t } = useTranslation('namespace')`
 
----
-
 ## shadcn/ui Rules{#shadcn}
 
-- **Never modify** files under `src/components/ui/` — they are shadcn-managed primitives
-- Add new shadcn components via CLI: `npx shadcn@latest add <component>`
-- Custom variants go in the feature component, not in the primitive
+- Never modify files under `src/components/ui/`; they are shadcn-managed primitives.
+- Add new shadcn components via CLI: `npx shadcn@latest add <component>`.
+- Put custom variants in feature components, not in primitives.
 

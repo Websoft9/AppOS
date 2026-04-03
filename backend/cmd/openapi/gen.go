@@ -58,8 +58,8 @@ var (
 var publicPrefixes = []string{
 	"/api/ext/setup",
 	"/api/ext/auth",
-	"/api/ext/space/preview",
-	"/api/ext/space/share",
+	"/api/space/preview",
+	"/api/space/share",
 	"/tunnel/setup",
 	"/openapi",
 }
