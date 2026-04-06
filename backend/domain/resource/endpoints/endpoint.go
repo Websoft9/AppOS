@@ -30,3 +30,15 @@ func (e *Endpoint) URL() string          { return e.rec.GetString("url") }
 func (e *Endpoint) AuthType() string     { return e.rec.GetString("auth_type") }
 func (e *Endpoint) CredentialID() string { return e.rec.GetString("credential") }
 func (e *Endpoint) Description() string  { return e.rec.GetString("description") }
+
+func (e *Endpoint) Config() map[string]any {
+	raw := e.rec.Get("extra")
+	if config, ok := raw.(map[string]any); ok {
+		clone := make(map[string]any, len(config))
+		for key, value := range config {
+			clone[key] = value
+		}
+		return clone
+	}
+	return map[string]any{}
+}

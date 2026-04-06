@@ -5,6 +5,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
+	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	"github.com/websoft9/appos/backend/domain/secrets"
 )
 
@@ -25,6 +26,26 @@ func GetProvidersMasked(app core.App) (map[string]any, error) {
 // SetProviders writes the LLM providers list to custom_settings.
 func SetProviders(app core.App, value map[string]any) error {
 	return sysconfig.SetGroup(app, SettingsModule, ProvidersSettingsKey, value)
+}
+
+// ConnectorSpecs returns the current LLM providers expressed as canonical connector specs.
+func ConnectorSpecs(app core.App) ([]connectors.Spec, error) {
+	value, err := GetProviders(app)
+	items, _ := value["items"].([]any)
+	result := make([]connectors.Spec, 0, len(items))
+	for _, item := range items {
+		providerMap, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		provider := Provider{
+			Name:     toString(providerMap["name"]),
+			Endpoint: toString(providerMap["endpoint"]),
+			ApiKey:   toString(providerMap["apiKey"]),
+		}
+		result = append(result, connectors.SpecFromLLMProvider(provider.Name, provider.Endpoint, provider.ApiKey))
+	}
+	return result, err
 }
 
 // PatchProviders merges incoming data with existing (preserving "***" apiKey
@@ -164,3 +185,10 @@ type ValidationError struct {
 }
 
 func (e *ValidationError) Error() string { return e.Message }
+
+func toString(raw any) string {
+	if text, ok := raw.(string); ok {
+		return text
+	}
+	return ""
+}

@@ -1,4 +1,4 @@
-# Epic 8: Resource Store
+# Epic 8: Resources
 
 ## Overview
 
@@ -6,7 +6,131 @@
 
 > Env Groups detail spec: see [Epic 24](epic24-shared-envs.md)
 
-**Status**: Done | **Priority**: P1 | **Depends on**: Epic 1, Epic 3
+**Status**: Active | **Priority**: P1 | **Depends on**: Epic 1, Epic 3
+
+This epic now covers both:
+
+1. the delivered Phase 1 Resource Store foundation
+2. the next-stage resource taxonomy refactor that introduces canonical `Service Instances`, `Platform Accounts`, and `Connectors`
+
+Companion ADR for the next-stage taxonomy: [specs/adr/resource-taxonomy-instance-connector.md](specs/adr/resource-taxonomy-instance-connector.md)
+
+## Current Phase Split
+
+Epic 8 is now split conceptually into two phases.
+
+### Phase 1: Resource Store foundation
+
+Phase 1 delivered the original resource-store model with separate collections such as servers, secrets, databases, cloud accounts, certificates, endpoints, and scripts.
+
+### Phase 2: Resource taxonomy refactor
+
+Phase 2 evolves the original resource-store taxonomy into four canonical resource families:
+
+1. `Servers`
+2. `Service Instances`
+3. `Platform Accounts`
+4. `Connectors`
+
+This phase does not require full operational depth for every instance kind on day one. Its first goal is to stabilize ownership, naming, references, and migration direction.
+
+## Phase 2 Problem Statement
+
+The current model has three structural problems:
+
+1. some long-lived external dependencies are still stored under `settings`
+2. `endpoints` is too narrow as a long-term home for all connection-oriented resources
+3. there is no canonical home yet for service-like app dependencies such as RDS, object storage, model services, or managed registries
+
+Without the taxonomy refactor, future work on LLM, S3, registry, DNS, SMTP, backup targets, and managed runtime dependencies will continue to drift into inconsistent resource families.
+
+## Phase 2 Goals
+
+Phase 2 of Epic 8 is responsible for:
+
+1. establishing `instances` as a canonical resource family for concrete app dependencies
+2. evolving `endpoints` toward `connectors`
+3. defining when a dependency belongs to `instance` versus `connector`
+4. moving long-lived resource ownership out of `settings`
+5. defining how settings, apps, deploy, and workflows reference the new resource families
+
+## Phase 2 Non-Goals
+
+Phase 2 is not responsible for:
+
+1. delivering full health, backup, discovery, or lifecycle automation for all instance kinds
+2. fully modeling every possible provider account integration in one release
+3. rewriting all existing resource UIs in one iteration
+4. provisioning cloud services directly
+
+## Phase 2 Canonical Resource Families
+
+| Family | Product label | Typical examples |
+| --- | --- | --- |
+| `server` | `Servers` | server nodes, SSH targets, host compute environments |
+| `instance` | `Service Instances` | RDS, MySQL, Redis, Kafka, MinIO, object storage, model services |
+| `provider_account` | `Platform Accounts` | AWS account, GitHub installation, Cloudflare account |
+| `connector` | `Connectors` | OpenAI, SMTP, DNS, Webhook, MCP, registry login |
+
+Product/UI label uses `Platform Accounts`, while backend domain terminology remains `provider_account`.
+
+## Phase 2 Scope Split
+
+### Track A: Taxonomy and naming
+
+1. define route, collection, and frontend naming for `instances`, `provider accounts`, and `connectors`
+2. update resource hub taxonomy and future navigation labels
+3. document classification rules for ambiguous technology families such as `llm`, `s3`, and `registry`
+
+### Track B: LLM extraction from settings
+
+1. remove LLM provider ownership from `settings`
+2. expose dedicated LLM resource routes during the transition period
+3. migrate the current settings-owned LLM provider configuration into `connectors`
+4. reserve self-hosted or managed model-service inventory for future `instance` kinds rather than mixing both shapes in one resource type
+
+### Track C: Instance foundation
+
+1. introduce minimal `instances` backend domain and CRUD surface
+2. support registration-only instance objects with stable identity semantics
+3. enable apps and deploy workflows to reference an instance as a dependency
+
+### Track D: Connector evolution
+
+1. evolve current `endpoints` model toward `connectors`
+2. introduce template-aware connector modeling where needed
+3. preserve lightweight connection-testing semantics
+
+### Track E: Settings as reference layer
+
+1. convert settings entries that currently own business resources into reference settings where appropriate
+2. keep policy and default selection in `settings`
+3. stop using `settings` as canonical persistence for long-lived resource objects
+
+## Phase 2 Initial Classification Rules
+
+| Object | Canonical family |
+| --- | --- |
+| third-party RDS | `instance` |
+| self-hosted MySQL or Redis | `instance` |
+| object storage used as long-lived app dependency | `instance` |
+| self-hosted model service | `instance` |
+| current LLM provider configuration migrated from settings | `connector` |
+| OpenAI or Anthropic access | `connector` |
+| SMTP delivery target | `connector` |
+| DNS automation target | `connector` |
+| webhook target | `connector` |
+| cloud or source-control account | `provider_account` |
+
+## Phase 2 Migration Principles
+
+1. users should see stable product labels before deep backend refactors become visible
+2. existing resources must migrate incrementally instead of through one destructive rewrite
+3. each migrated object family must end with one canonical owner only
+4. backward-compatible transition routes are acceptable during the migration window
+5. settings should reference resources, not own them
+
+## Frontend Navigation
 
 ## Frontend Navigation
 
@@ -256,6 +380,47 @@ All under `/api/ext/resources/`. All require authentication.
 ## Extensibility
 
 New resource types → new collection + migration + route group. No changes to existing collections. Naming convention: plural snake_case (`registries`, `git_repos`).
+
+## Phase 2 Proposed Stories
+
+### [Story 8.1: Resource Taxonomy Contract](story8.1-resource-taxonomy-contract.md)
+
+Define canonical route names, resource family language, and classification rules for `instance`, `connector`, and `provider_account`.
+
+### [Story 8.2: LLM Ownership Extraction](story8.2-llm-ownership-extraction.md)
+
+Finish extraction of LLM provider ownership from `settings` and place it under the `connectors` resource family. Self-hosted model services remain future `instance` work and are not part of this migration story.
+
+### Story 8.3: Instance Backend Foundation
+
+Introduce `instances` collection, domain model, CRUD API, and minimal validation for registration-only instance objects.
+
+### Story 8.4: Resource Hub and Navigation Refactor
+
+Update dashboard resource navigation to expose `Service Instances`, `Connectors`, and `Platform Accounts` using the canonical product labels.
+
+### [Story 8.5: Endpoints to Connectors Refactor](story8.5-endpoints-to-connectors-refactor.md)
+
+Refactor `endpoints` into `connectors`, preserving existing generic target use cases while tightening connector semantics.
+
+### Story 8.6: Settings Reference Migration
+
+Replace settings-owned business resources with resource references where appropriate.
+
+### [Story 8.7: Connector Domain Foundation](story8.7-connector-domain-foundation.md)
+
+Introduce the minimal reusable connector domain model so current LLM resources and future endpoint migrations share one canonical backend shape.
+
+## Phase 2 Target Route Direction
+
+| Family | Expected backend path |
+| --- | --- |
+| `server` | `/api/servers` |
+| `instance` | `/api/instances` |
+| `provider_account` | `/api/provider-accounts` |
+| `connector` | `/api/connectors` |
+
+Phase 2 does not require all target routes to exist immediately, but new stories should align with this target naming.
 
 ## Stories
 
