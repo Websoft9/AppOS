@@ -1,0 +1,14 @@
+{
+  "id": "mailgun-smtp",
+  "title": "Mailgun SMTP",
+  "vendor": "Mailgun",
+  "description": "Mailgun SMTP relay profile.",
+  "defaultEndpoint": "smtp://smtp.mailgun.org:587",
+  "aliases": ["mailgun", "mailgun-smtp"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "placeholder": "smtp://smtp.mailgun.org:587"
+    }
+  ]
+}

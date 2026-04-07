@@ -1,0 +1,23 @@
+{
+  "kind": "mcp",
+  "category": "Integration",
+  "description": "Reusable remote MCP connector profile.",
+  "defaultAuthScheme": "none",
+  "capabilities": ["mcp", "tools"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "label": "Endpoint",
+      "type": "url",
+      "required": true,
+      "placeholder": "https://mcp.example.com"
+    },
+    {
+      "id": "credential",
+      "label": "Credential",
+      "type": "secret_ref",
+      "secretTemplate": "bearer_token",
+      "placeholder": "secretRef:..."
+    }
+  ]
+}

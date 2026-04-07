@@ -1,0 +1,23 @@
+{
+  "id": "generic-webhook",
+  "title": "Generic Webhook",
+  "vendor": "Generic",
+  "description": "Outbound webhook connector for callback destinations.",
+  "aliases": ["webhook", "generic-webhook"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "label": "Webhook URL"
+    },
+    {
+      "id": "credential",
+      "label": "Signing Secret"
+    },
+    {
+      "id": "event",
+      "label": "Event",
+      "type": "string",
+      "placeholder": "deploy.finished"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "generic-registry",
+  "title": "Generic OCI Registry",
+  "vendor": "Generic",
+  "description": "Reusable container or OCI registry connector.",
+  "defaultEndpoint": "https://registry.example.com",
+  "aliases": ["registry", "docker-registry", "oci-registry"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "label": "Registry URL"
+    },
+    {
+      "id": "namespace",
+      "label": "Default Namespace",
+      "type": "string",
+      "placeholder": "team/app"
+    },
+    {
+      "id": "insecure",
+      "label": "Allow Insecure TLS",
+      "type": "boolean",
+      "default": false
+    }
+  ]
+}

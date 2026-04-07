@@ -59,7 +59,7 @@ Minimum identity semantics:
 
 1. it represents a real dependency instance, not just a connection method
 2. it can be named and referenced as a stable object over time
-3. it has an instance kind such as `mysql`, `postgres`, `redis`, `kafka`, `object_storage`, `registry`, or `model_service`
+3. it has an instance kind such as `mysql`, `postgres`, `redis`, `kafka`, `s3`, `registry`, or `ollama`
 4. it may be self-hosted, external, or managed by a third party
 
 Examples that should be modeled as `instance`:

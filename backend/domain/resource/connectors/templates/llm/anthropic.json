@@ -1,0 +1,21 @@
+{
+  "id": "anthropic",
+  "title": "Anthropic",
+  "vendor": "Anthropic",
+  "description": "Anthropic hosted LLM access using an API key.",
+  "defaultEndpoint": "https://api.anthropic.com",
+  "capabilities": ["chat", "tools", "streaming"],
+  "aliases": ["anthropic", "claude"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "default": "https://api.anthropic.com"
+    },
+    {
+      "id": "version",
+      "label": "API Version",
+      "type": "string",
+      "placeholder": "2023-06-01"
+    }
+  ]
+}

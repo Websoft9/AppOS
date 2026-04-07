@@ -7,6 +7,9 @@ routerfilepath: backend/domain/routes
 # 1) Business Logic Routes -> matrix-driven generation from route code to the generated custom-route spec (ext-api.yaml)
 # 2) PB Native Web APIs -> manual maintenance in native-api.yaml
 # 3) Final Runtime Contract -> merged api.yaml (served at /openapi/spec)
+# Connector maintenance rule:
+# - /api/connectors* is generated from backend/domain/routes/connectors.go via openapi-gen.
+# - /api/collections/connectors/records* is Native Record CRUD and must be maintained here + native-api.yaml.
 
 groups:
   - group: Auth
@@ -251,10 +254,10 @@ groups:
         - https://pocketbase.io/docs/api-realtime/
 
   - group: Resource
-    description: Resource catalog APIs excluding server registry.
-    apiType: Ext
+    description: Resource catalog APIs excluding server registry, including connector business routes and connector native collection CRUD.
+    apiType: Mixed
     extSurface:
-      - /api/endpoints*
+      - /api/connectors*
       - /api/ext/resources/certificates*
       - /api/ext/resources/cloud-accounts*
       - /api/ext/resources/databases*
@@ -262,12 +265,18 @@ groups:
       - /api/ext/resources/groups*
       - /api/ext/resources/scripts*
       - /api/ext/resources/secrets*
-    nativeSurface: []
+    nativeSurface:
+      - GET /api/collections/connectors/records
+      - POST /api/collections/connectors/records
+      - GET /api/collections/connectors/records/{id}
+      - PATCH /api/collections/connectors/records/{id}
+      - DELETE /api/collections/connectors/records/{id}
     sources:
       extRouteFiles:
-        - endpoints.go
+        - connectors.go
         - resources.go
-      nativeRefs: []
+      nativeRefs:
+        - https://pocketbase.io/docs/api-records/#crud-actions
 
   - group: Groups
     description: Group registry and group-item membership CRUD via PocketBase native records API.

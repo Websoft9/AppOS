@@ -1,0 +1,20 @@
+{
+  "id": "ses-smtp",
+  "title": "Amazon SES SMTP",
+  "vendor": "Amazon Web Services",
+  "description": "Amazon SES SMTP relay profile.",
+  "defaultEndpoint": "smtp://email-smtp.us-east-1.amazonaws.com:587",
+  "aliases": ["ses", "amazon ses", "ses-smtp"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "placeholder": "smtp://email-smtp.us-east-1.amazonaws.com:587"
+    },
+    {
+      "id": "region",
+      "label": "AWS Region",
+      "type": "string",
+      "placeholder": "us-east-1"
+    }
+  ]
+}

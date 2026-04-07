@@ -187,7 +187,7 @@ export function AppDetailAccessTab({
   return (
     <TabsContent value="access" className="space-y-2.5">
       <Card>
-        <CardHeader className="pb-2.5"><CardTitle>Endpoints</CardTitle></CardHeader>
+        <CardHeader className="pb-2.5"><CardTitle>Access URLs</CardTitle></CardHeader>
         <CardContent className="grid gap-2 text-sm md:grid-cols-2">
           <div><span className="text-muted-foreground">Primary exposure:</span> {primaryExposure?.domain || primaryExposure?.path || '-'}</div>
           <div><span className="text-muted-foreground">Publication summary:</span> {app.publication_summary || '-'}</div>

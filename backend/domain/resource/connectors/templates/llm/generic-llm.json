@@ -1,0 +1,23 @@
+{
+  "id": "generic-llm",
+  "title": "Generic LLM",
+  "vendor": "Generic",
+  "description": "User-defined LLM endpoint for providers not covered by built-in templates.",
+  "defaultEndpoint": "",
+  "defaultAuthScheme": "none",
+  "aliases": ["generic", "generic-llm", "custom", "custom-llm"],
+  "fields": [
+    {
+      "id": "credential",
+      "label": "Credential",
+      "required": false,
+      "sensitive": false
+    },
+    {
+      "id": "notes",
+      "label": "Notes",
+      "type": "string",
+      "placeholder": "OpenAI-compatible, vendor-specific path, etc."
+    }
+  ]
+}

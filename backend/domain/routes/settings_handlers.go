@@ -7,10 +7,18 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/forms"
-	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
+	"github.com/websoft9/appos/backend/domain/secrets"
 )
+
+type connectorManagedSettingsError struct {
+	message string
+}
+
+func (e *connectorManagedSettingsError) Error() string {
+	return e.message
+}
 
 // ─── Route registration ────────────────────────────────────────────────────
 
@@ -47,7 +55,6 @@ func handleSettingsSchema(e *core.RequestEvent) error {
 		"actions": actions,
 	})
 }
-
 // handleSettingsEntriesList returns the current values for all settings entries.
 //
 // @Summary List settings entries
@@ -134,6 +141,9 @@ func handleSettingsEntryPatch(e *core.RequestEvent) error {
 		if fieldErr, ok := err.(*settingsValidationError); ok {
 			return e.JSON(http.StatusUnprocessableEntity, map[string]any{"errors": fieldErr.Fields})
 		}
+		if managedErr, ok := err.(*connectorManagedSettingsError); ok {
+			return e.BadRequestError(managedErr.Error(), nil)
+		}
 		return e.BadRequestError("failed to update settings entry "+entryID, err)
 	}
 
@@ -171,14 +181,11 @@ func handleSettingsAction(e *core.RequestEvent) error {
 		}
 		return e.NoContent(http.StatusNoContent)
 	case "test-email":
-		form := forms.NewTestEmailSend(e.App)
-		if err := e.BindBody(form); err != nil {
+		var body testEmailRequest
+		if err := e.BindBody(&body); err != nil {
 			return e.BadRequestError("An error occurred while loading the submitted data.", err)
 		}
-		if err := form.Submit(); err != nil {
-			if fieldErr, ok := err.(validation.Errors); ok {
-				return e.BadRequestError("Failed to send the test email.", fieldErr)
-			}
+		if err := sendTestEmail(e.App, body); err != nil {
 			return e.BadRequestError("Failed to send the test email. Raw error: \n"+err.Error(), nil)
 		}
 		return e.NoContent(http.StatusNoContent)
@@ -194,6 +201,13 @@ func getSettingsEntrySchema(entryID string) (settingscatalog.EntrySchema, bool) 
 }
 
 func loadSettingsEntryValue(app core.App, entry settingscatalog.EntrySchema) (map[string]any, error) {
+	if value, handled, err := loadConnectorBackedSettingsEntryValue(app, entry.ID); handled || err != nil {
+		if err != nil {
+			return nil, err
+		}
+		return maskValue(value), nil
+	}
+
 	if entry.Source == settingscatalog.SourceNative {
 		value, err := sysconfig.LoadPocketBaseEntry(app, entry)
 		if err != nil {
@@ -205,6 +219,10 @@ func loadSettingsEntryValue(app core.App, entry settingscatalog.EntrySchema) (ma
 }
 
 func patchSettingsEntryValue(e *core.RequestEvent, entry settingscatalog.EntrySchema, value map[string]any) (map[string]any, error) {
+	if entry.ID == "smtp" || entry.ID == "docker-registries" {
+		return nil, &connectorManagedSettingsError{message: "this settings entry is connector-managed; update it in Resources > Connectors"}
+	}
+
 	if entry.Source == settingscatalog.SourceNative {
 		// Load existing native values to preserve "***" sentinels on sensitive fields.
 		existing, err := sysconfig.LoadPocketBaseEntry(e.App, entry)

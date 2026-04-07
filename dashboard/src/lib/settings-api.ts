@@ -22,6 +22,7 @@ export interface SettingsActionMeta {
 
 export interface SettingsEntryMeta {
   title: string
+  description?: string
   section: SettingsSection
   source: SettingsSource
   fields: readonly SettingsFieldSchema[]
@@ -31,6 +32,7 @@ export interface SettingsEntryMeta {
 export interface SettingsSchemaEntry {
   id: SettingsEntryId
   title: string
+  description?: string
   section: SettingsSection
   source: SettingsSource
   fields: SettingsFieldSchema[]

@@ -34,7 +34,7 @@ tags:
   - name: Setup
     description: "Initial setup and login bootstrap workflows for AppOS."
   - name: Resource
-    description: "Resource catalog APIs excluding server registry."
+    description: "Resource catalog APIs excluding server registry, including connector business routes and connector native collection CRUD."
   - name: Server Shell
     description: "SSH interactive shell sessions."
   - name: Server Containers
@@ -1633,11 +1633,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-  /api/endpoints:
+  /api/connectors:
     get:
       tags: [Resource]
-      summary: Get endpoints
-      operationId: get_api_endpoints
+      summary: List connectors
+      description: "Returns connectors visible to the authenticated user. Use the optional kind query parameter to filter by one or more connector kinds."
+      operationId: get_api_connectors
+      parameters:
+        - name: kind
+          in: query
+          required: false
+          schema:
+            type: string
       security:
         - bearerAuth: []  # superuser required
       responses:
@@ -1649,20 +1656,72 @@ paths:
                 $ref: '#/components/schemas/SuccessEnvelope'
         "401":
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "500":
+          description: Internal Server Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
     post:
       tags: [Resource]
-      summary: Create or execute endpoints
-      operationId: post_api_endpoints
+      summary: Create connector
+      description: "Creates a connector. Superuser only."
+      operationId: post_api_connectors
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/connectors/templates:
+    get:
+      tags: [Resource]
+      summary: List connector templates
+      description: "Returns all built-in connector templates available for connector creation and editing."
+      operationId: get_api_connectors_templates
       security:
         - bearerAuth: []  # superuser required
       responses:
@@ -1678,11 +1737,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-  /api/endpoints/{id}:
-    delete:
+  /api/connectors/templates/{id}:
+    get:
       tags: [Resource]
-      summary: Delete endpoints by id
-      operationId: delete_api_endpoints_id
+      summary: Get connector template
+      description: "Returns a single built-in connector template."
+      operationId: get_api_connectors_templates_id
       parameters:
         - name: id
           in: path
@@ -1700,14 +1760,62 @@ paths:
                 $ref: '#/components/schemas/SuccessEnvelope'
         "401":
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/connectors/{id}:
+    delete:
+      tags: [Resource]
+      summary: Delete connector
+      description: "Deletes a connector. Superuser only."
+      operationId: delete_api_connectors_id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "500":
+          description: Internal Server Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
     get:
       tags: [Resource]
-      summary: Get endpoints by id
-      operationId: get_api_endpoints_id
+      summary: Get connector
+      description: "Returns a single connector by id."
+      operationId: get_api_connectors_id
       parameters:
         - name: id
           in: path
@@ -1729,10 +1837,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
     put:
       tags: [Resource]
-      summary: Update endpoints by id
-      operationId: put_api_endpoints_id
+      summary: Update connector
+      description: "Updates an existing connector. Superuser only."
+      operationId: put_api_connectors_id
       parameters:
         - name: id
           in: path
@@ -1740,7 +1855,7 @@ paths:
           schema:
             type: string
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
@@ -1756,6 +1871,30 @@ paths:
                 $ref: '#/components/schemas/SuccessEnvelope'
         "401":
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "500":
+          description: Internal Server Error
           content:
             application/json:
               schema:

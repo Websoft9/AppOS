@@ -1,0 +1,12 @@
+{
+  "kind": "registry",
+  "category": "artifact",
+  "fields": [
+    {
+      "id": "namespace",
+      "label": "Namespace",
+      "type": "text",
+      "placeholder": "library"
+    }
+  ]
+}

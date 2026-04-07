@@ -1,0 +1,21 @@
+{
+  "id": "mistral",
+  "title": "Mistral",
+  "vendor": "Mistral AI",
+  "description": "Mistral hosted LLM access using an API key.",
+  "defaultEndpoint": "https://api.mistral.ai/v1",
+  "capabilities": ["chat", "embeddings", "tools", "streaming"],
+  "aliases": ["mistral"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "default": "https://api.mistral.ai/v1"
+    },
+    {
+      "id": "defaultModel",
+      "label": "Default Model",
+      "type": "string",
+      "placeholder": "mistral-small-latest"
+    }
+  ]
+}

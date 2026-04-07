@@ -1,0 +1,14 @@
+{
+  "id": "sendgrid-smtp",
+  "title": "SendGrid SMTP",
+  "vendor": "Twilio SendGrid",
+  "description": "SendGrid SMTP relay profile.",
+  "defaultEndpoint": "smtp://smtp.sendgrid.net:587",
+  "aliases": ["sendgrid", "sendgrid-smtp"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "placeholder": "smtp://smtp.sendgrid.net:587"
+    }
+  ]
+}

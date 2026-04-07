@@ -1,0 +1,19 @@
+{
+  "kind": "postgres",
+  "category": "database",
+  "fields": [
+    {
+      "id": "database",
+      "label": "Database",
+      "type": "text",
+      "required": true,
+      "placeholder": "appdb"
+    },
+    {
+      "id": "username",
+      "label": "Username",
+      "type": "text",
+      "placeholder": "appuser"
+    }
+  ]
+}

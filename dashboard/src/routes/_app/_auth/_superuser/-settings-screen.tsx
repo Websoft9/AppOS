@@ -1,13 +1,8 @@
 import { Loader2 } from 'lucide-react'
 import { parseExtListInput } from '@/lib/ext-normalize'
 import { type SettingsSection } from '@/lib/settings-api'
-import { sectionLabel } from './-settings-sections/shared'
-import {
-  BasicSection,
-  LogsSection,
-  S3Section,
-  SmtpSection,
-} from './-settings-sections/system-sections'
+import { ConnectorReferenceSection, sectionLabel } from './-settings-sections/shared'
+import { BasicSection, LogsSection, S3Section } from './-settings-sections/system-sections'
 import {
   ConnectSftpSection,
   ConnectTerminalSection,
@@ -20,8 +15,6 @@ import {
 } from './-settings-sections/workspace-simple-sections'
 import {
   DockerMirrorsSection,
-  DockerRegistriesSection,
-  LlmSection,
 } from './-settings-sections/workspace-list-sections'
 import { type SettingsPageController } from './-settings-controller'
 
@@ -31,6 +24,14 @@ type SettingsScreenProps = {
 
 function findSchemaEntry(controller: SettingsPageController, entryId: string) {
   return controller.schemaEntries.find(entry => entry.id === entryId)
+}
+
+function connectorSectionDescription(
+  controller: SettingsPageController,
+  entryId: string,
+  fallback: string
+) {
+  return findSchemaEntry(controller, entryId)?.description ?? fallback
 }
 
 function renderSection(controller: SettingsPageController) {
@@ -48,29 +49,14 @@ function renderSection(controller: SettingsPageController) {
       )
     case 'smtp':
       return (
-        <SmtpSection
-          smtpEnabled={controller.smtpEnabled}
-          smtpHost={controller.smtpHost}
-          smtpPort={controller.smtpPort}
-          smtpUsername={controller.smtpUsername}
-          smtpPassword={controller.smtpPassword}
-          smtpAuthMethod={controller.smtpAuthMethod}
-          smtpTls={controller.smtpTls}
-          smtpLocalName={controller.smtpLocalName}
-          smtpSaving={controller.smtpSaving}
-          testEmailRecipient={controller.testEmailRecipient}
-          testEmailSending={controller.testEmailSending}
-          setSmtpEnabled={controller.setSmtpEnabled}
-          setSmtpHost={controller.setSmtpHost}
-          setSmtpPort={controller.setSmtpPort}
-          setSmtpUsername={controller.setSmtpUsername}
-          setSmtpPassword={controller.setSmtpPassword}
-          setSmtpAuthMethod={controller.setSmtpAuthMethod}
-          setSmtpTls={controller.setSmtpTls}
-          setSmtpLocalName={controller.setSmtpLocalName}
-          setTestEmailRecipient={controller.setTestEmailRecipient}
-          saveSmtp={controller.saveSmtp}
-          sendTestEmail={controller.sendTestEmail}
+        <ConnectorReferenceSection
+          title="SMTP"
+          description={connectorSectionDescription(
+            controller,
+            'smtp',
+            'Outgoing email delivery is managed as reusable connectors.'
+          )}
+          connectorKinds="SMTP connectors"
         />
       )
     case 's3':
@@ -216,32 +202,26 @@ function renderSection(controller: SettingsPageController) {
       )
     case 'docker-registries':
       return (
-        <DockerRegistriesSection
-          dockerRegistries={controller.dockerRegistries}
-          regsSaving={controller.regsSaving}
-          setDockerRegistries={controller.setDockerRegistries}
-          saveDockerRegistries={controller.saveDockerRegistries}
+        <ConnectorReferenceSection
+          title="Docker Registries"
+          description={connectorSectionDescription(
+            controller,
+            'docker-registries',
+            'Private registry access is managed as reusable connectors.'
+          )}
+          connectorKinds="registry connectors"
         />
       )
     case 'llm-providers':
       return (
-        <LlmSection
-          llmItems={controller.llmItems}
-          llmSaving={controller.llmSaving}
-          secretPickerItems={controller.secretPickerItems}
-          llmSecretCreateOpen={controller.llmSecretCreateOpen}
-          llmSecretCreateName={controller.llmSecretCreateName}
-          llmSecretCreateKey={controller.llmSecretCreateKey}
-          llmSecretCreateSaving={controller.llmSecretCreateSaving}
-          llmSecretCreateError={controller.llmSecretCreateError}
-          setLlmItems={controller.setLlmItems}
-          setLlmSecretCreateOpen={controller.setLlmSecretCreateOpen}
-          setLlmSecretCreateIdx={controller.setLlmSecretCreateIdx}
-          setLlmSecretCreateName={controller.setLlmSecretCreateName}
-          setLlmSecretCreateKey={controller.setLlmSecretCreateKey}
-          setLlmSecretCreateError={controller.setLlmSecretCreateError}
-          handleLlmSecretCreate={controller.handleLlmSecretCreate}
-          saveLlm={controller.saveLlm}
+        <ConnectorReferenceSection
+          title="LLM Providers"
+          description={connectorSectionDescription(
+            controller,
+            'llm-providers',
+            'LLM providers are managed as reusable connectors.'
+          )}
+          connectorKinds="LLM connectors"
         />
       )
     default:

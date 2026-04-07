@@ -1,0 +1,18 @@
+{
+  "kind": "s3",
+  "category": "storage",
+  "fields": [
+    {
+      "id": "bucket",
+      "label": "Default Bucket",
+      "type": "text",
+      "placeholder": "assets"
+    },
+    {
+      "id": "region",
+      "label": "Region",
+      "type": "text",
+      "placeholder": "us-east-1"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "id": "harbor",
+  "title": "Harbor",
+  "vendor": "Harbor",
+  "description": "Harbor registry profile.",
+  "aliases": ["harbor"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "placeholder": "https://harbor.example.com"
+    },
+    {
+      "id": "project",
+      "label": "Project",
+      "type": "string",
+      "placeholder": "library"
+    }
+  ]
+}

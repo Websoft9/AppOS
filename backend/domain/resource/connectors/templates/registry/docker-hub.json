@@ -1,0 +1,20 @@
+{
+  "id": "docker-hub",
+  "title": "Docker Hub",
+  "vendor": "Docker",
+  "description": "Docker Hub registry profile.",
+  "defaultEndpoint": "https://index.docker.io/v1/",
+  "aliases": ["dockerhub", "docker hub", "docker-hub"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "placeholder": "https://index.docker.io/v1/"
+    },
+    {
+      "id": "namespace",
+      "label": "Default Namespace",
+      "type": "string",
+      "placeholder": "library"
+    }
+  ]
+}

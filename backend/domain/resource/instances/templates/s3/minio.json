@@ -1,0 +1,22 @@
+{
+  "id": "minio",
+  "title": "MinIO",
+  "vendor": "MinIO",
+  "description": "MinIO S3 instance profile.",
+  "fields": [
+    {
+      "id": "provider",
+      "label": "Provider",
+      "type": "text",
+      "default": "minio"
+    },
+    {
+      "id": "bucket",
+      "placeholder": "app-assets"
+    },
+    {
+      "id": "region",
+      "default": "us-east-1"
+    }
+  ]
+}

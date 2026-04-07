@@ -1,0 +1,20 @@
+{
+  "id": "vercel-dns",
+  "title": "Vercel DNS",
+  "vendor": "Vercel",
+  "description": "Vercel DNS API profile.",
+  "defaultEndpoint": "https://api.vercel.com",
+  "aliases": ["vercel", "vercel-dns"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "placeholder": "https://api.vercel.com"
+    },
+    {
+      "id": "teamId",
+      "label": "Team ID",
+      "type": "string",
+      "placeholder": "team_xxx"
+    }
+  ]
+}

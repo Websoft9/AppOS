@@ -1,0 +1,19 @@
+{
+  "id": "generic-rest",
+  "title": "Generic REST API",
+  "vendor": "Generic",
+  "description": "Reusable HTTP API connector for external services.",
+  "aliases": ["rest", "generic-rest"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "label": "Base URL"
+    },
+    {
+      "id": "headers",
+      "label": "Headers",
+      "type": "json",
+      "placeholder": "{\"X-Custom\": \"value\"}"
+    }
+  ]
+}

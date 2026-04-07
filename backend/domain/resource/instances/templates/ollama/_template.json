@@ -1,0 +1,12 @@
+{
+  "kind": "ollama",
+  "category": "ai",
+  "fields": [
+    {
+      "id": "model",
+      "label": "Default Model",
+      "type": "text",
+      "placeholder": "llama3.1"
+    }
+  ]
+}

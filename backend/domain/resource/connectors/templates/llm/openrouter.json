@@ -1,0 +1,21 @@
+{
+  "id": "openrouter",
+  "title": "OpenRouter",
+  "vendor": "OpenRouter",
+  "description": "Unified hosted LLM routing across multiple model providers.",
+  "defaultEndpoint": "https://openrouter.ai/api/v1",
+  "capabilities": ["chat", "routing", "tools", "streaming"],
+  "aliases": ["openrouter"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "default": "https://openrouter.ai/api/v1"
+    },
+    {
+      "id": "httpReferer",
+      "label": "HTTP Referer",
+      "type": "string",
+      "placeholder": "https://your-app.example.com"
+    }
+  ]
+}

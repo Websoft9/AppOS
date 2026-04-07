@@ -16,7 +16,7 @@ editHistory:
   - date: '2026-02-28'
     changes: 'Restructured to BMAD minimal format and focused MVP on server resource operations and diagnostics.'
   - date: '2026-04-03'
-    changes: 'Refined resource domain modeling: Resource now centers on Server, Database, Endpoint, and Registry; Groups remain standalone in Operations Management; future heavy integrations should reference Endpoint rather than replace it.'
+    changes: 'Refined resource domain modeling: Resource now centers on Server, Database, Connector, and Registry; Groups remain standalone in Operations Management; future heavy integrations should reference Connector rather than replace it.'
 ---
 
 # Product Requirements Document - AppOS
@@ -60,7 +60,7 @@ This table is the baseline mapping of domain boundaries, product modules, and ca
 | Resource | Server Service Operations | Components, Services, Service Logs, Systemd Diagnostics | Current | `ServiceTarget` | `ServiceStatus`, `ServiceLogView`, `ServiceAction` |
 | Resource | Server Container Operations | Docker, Containers, Compose, Exec | Current | `RuntimeContainer` | `ContainerRef`, `ComposeProject`, `ContainerAction` |
 | Resource | Database Resources | Databases, Database Bindings | Current + Planned | `DatabaseResource` | `DatabaseResource`, `DatabaseCredentialRef`, `DatabaseEndpoint` |
-| Resource | Endpoint Resources | Integrations, Webhooks, MCP Endpoints | Current | `Endpoint` | `Endpoint`, `EndpointAuth`, `EndpointCredentialRef` |
+| Resource | Connector Resources | Connectors, Webhooks, MCP, SMTP, Registry, DNS | Current | `Connector` | `Connector`, `ConnectorCapability`, `ConnectorCredentialRef` |
 | Resource | Registry Resources | Registries, Artifact Sources, Registry Settings | Current + Planned | `Registry` | `Registry`, `ArtifactSource`, `RegistryCredentialRef` |
 | Observability | Telemetry | Metrics, Logs, Events, Container Stats | Current | `TelemetryStream` | `MetricSeries`, `LogEntry`, `PlatformEvent` |
 | Observability | Health & Diagnostics | Health, Diagnostic Views, App Health, Connectivity Checks | Current + Planned | `HealthCheckSet` | `HealthSummary`, `DiagnosticSignal`, `CheckResult` |
@@ -81,11 +81,11 @@ This table is the baseline mapping of domain boundaries, product modules, and ca
 | Gateway Management | Certificate Binding | SSL, TLS Bindings, Certificate Attachments | Current + Planned | `CertificateBinding` | `CertificateBinding`, `TlsPolicy`, `CertificateRef` |
 | Gateway Management | Gateway Policies | Publish Policies, Routing Policies, Access Rules | Planned | `GatewayPolicy` | `GatewayPolicy`, `RoutingPolicy`, `PublishConstraint` |
 | Gateway Management | Gateway Views | Gateway Overview, Domain View, Route Inventory | Planned | `TBD (view projection)` | `GatewayView`, `RouteInventoryItem`, `BindingSummary` |
-| Integrations | Source Integrations | Git Sources, Source Connectors | Planned | `SourceIntegration` | `SourceIntegration`, `RepositoryBinding`, `EndpointRef` |
-| Integrations | Notification Integrations | Email Channels, Webhooks, Chat Connectors | Planned | `NotificationIntegration` | `NotificationIntegration`, `DeliveryChannel`, `EndpointRef` |
-| Integrations | AI Provider Integrations | LLM Providers, Model Integrations | Current + Planned | `AIProviderIntegration` | `AIProviderIntegration`, `ModelEndpoint`, `EndpointRef` |
+| Integrations | Source Integrations | Git Sources, Source Connectors | Planned | `SourceIntegration` | `SourceIntegration`, `RepositoryBinding`, `ConnectorRef` |
+| Integrations | Notification Integrations | Email Channels, Webhooks, Chat Connectors | Planned | `NotificationIntegration` | `NotificationIntegration`, `DeliveryChannel`, `ConnectorRef` |
+| Integrations | AI Provider Integrations | LLM Providers, Model Integrations | Current + Planned | `AIProviderIntegration` | `AIProviderIntegration`, `ModelConnector`, `ConnectorRef` |
 | Integrations | External Secret / Identity Integrations | External Secret Backends, SSO, Identity Bridges | Planned | `IdentityIntegration` | `ExternalSecretProvider`, `IdentityIntegration`, `FederationBinding` |
-| Integrations | Workflow / Sync Integrations | Data Sync, CI/CD, Callback Automation | Planned | `WorkflowIntegration` | `WorkflowIntegration`, `SyncBinding`, `EndpointRef` |
+| Integrations | Workflow / Sync Integrations | Data Sync, CI/CD, Callback Automation | Planned | `WorkflowIntegration` | `WorkflowIntegration`, `SyncBinding`, `ConnectorRef` |
 | AI Workflow / Agent Automation | Skills | Skills Library | Planned | `Skill` | `Skill`, `SkillCapability`, `SkillInputSchema` |
 | AI Workflow / Agent Automation | Task Plans | Task Plan Builder, Planned Workflows | Planned | `TaskPlan` | `TaskPlan`, `TaskStep`, `TaskConstraint` |
 | AI Workflow / Agent Automation | Guided Automation | Guided Ops Flows, AI-Assisted Runbooks | Planned | `GuidedFlow` | `GuidedFlow`, `AutomationContext`, `FlowCheckpoint` |
@@ -115,11 +115,11 @@ Rules:
 
 Resource modeling note:
 
-- `Resource` is the namespace for operator-managed external resources. The current first-class resource types are `Server`, `Database`, `Endpoint`, and `Registry`.
-- `Server` is already a full business domain. `Database`, `Endpoint`, and `Registry` currently start thinner but should evolve independently rather than being collapsed into one generic connector domain.
+- `Resource` is the namespace for operator-managed external resources. The current first-class resource types are `Server`, `Database`, `Connector`, and `Registry`.
+- `Server` is already a full business domain. `Database`, `Connector`, and `Registry` currently start thinner but should evolve independently rather than being collapsed into one generic resource blob.
 - `Groups` is not a resource subtype. It is a standalone supporting domain for cross-resource visual grouping and membership.
 - `Secrets Management` remains outside `Resource`; resources may reference secrets, but a secret is a security capability, not an external connection target.
-- Future heavy third-party workflows should become standalone `Integrations` domains that reference `Resource.Endpoint` instead of overloading the endpoint resource itself.
+- Future heavy third-party workflows should become standalone `Integrations` domains that reference `Resource.Connector` instead of overloading the connector resource itself.
 
 ## Product Surface and Navigation Mapping
 
@@ -139,7 +139,7 @@ This table maps user-facing surfaces to the domains they project.
 | Terminal | Single-Domain Entry with cross-links | `Resource` | `/terminal`, `/terminal/server/$serverId` | Real control surface; can be launched from app or server context without becoming a lifecycle domain |
 | Collaboration | Navigation Bundle | `Operations Management` | `/groups`, `/topics` | Current grouping for collaboration and operational knowledge workflows |
 | Space | Single-Domain Entry | `Operations Management` | `/space` | User workspace / document surface for operational knowledge artifacts |
-| Resources | Cross-Domain Container | `Resource`, `Operations Management` | `/resources`, `/resources/servers`, `/resources/tunnels`, `/resources/scripts`, `/resources/integrations`, `/resources/groups`, `/resources/databases`, `/resources/cloud-accounts` | Inventory-style container for external resources plus cross-resource grouping views; the current `/resources/integrations` route is the transitional UI label for endpoint resources |
+| Resources | Cross-Domain Container | `Resource`, `Operations Management` | `/resources`, `/resources/servers`, `/resources/tunnels`, `/resources/scripts`, `/resources/connectors`, `/resources/groups`, `/resources/databases`, `/resources/cloud-accounts` | Inventory-style container for external resources plus cross-resource grouping views; connectors are the canonical surface for reusable external capability access |
 | System | Cross-Domain Container | `Observability`, `Runtime Infrastructure`, `Audit and Policy` | `/status`, `/tunnels`, `/logs`, `/audit`, `/iac` | Admin container for platform health, tunnel state, logs, audit, and IaC assets |
 | Users | Single-Domain Entry | `Identity and Access` | `/users`, `/profile` | Account and access administration surface |
 | Credentials | Navigation Bundle | `Secrets Management`, `Gateway Management`, `Runtime Infrastructure` | `/secrets`, `/certificates`, `/shared-envs` | Current admin grouping for secret-like assets with different domain ownership |

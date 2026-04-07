@@ -1,0 +1,21 @@
+{
+  "id": "groq",
+  "title": "Groq",
+  "vendor": "Groq",
+  "description": "Groq-hosted OpenAI-compatible inference endpoint.",
+  "defaultEndpoint": "https://api.groq.com/openai/v1",
+  "capabilities": ["chat", "tools", "streaming", "openai-compatible"],
+  "aliases": ["groq"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "default": "https://api.groq.com/openai/v1"
+    },
+    {
+      "id": "defaultModel",
+      "label": "Default Model",
+      "type": "string",
+      "placeholder": "llama-3.3-70b-versatile"
+    }
+  ]
+}

@@ -8,18 +8,6 @@ export function useSystemSettingsController(showToast: ShowToast) {
   const [appURL, setAppURL] = useState('')
   const [appSaving, setAppSaving] = useState(false)
 
-  const [smtpEnabled, setSmtpEnabled] = useState(false)
-  const [smtpHost, setSmtpHost] = useState('')
-  const [smtpPort, setSmtpPort] = useState(587)
-  const [smtpUsername, setSmtpUsername] = useState('')
-  const [smtpPassword, setSmtpPassword] = useState('')
-  const [smtpAuthMethod, setSmtpAuthMethod] = useState('')
-  const [smtpTls, setSmtpTls] = useState(false)
-  const [smtpLocalName, setSmtpLocalName] = useState('')
-  const [smtpSaving, setSmtpSaving] = useState(false)
-  const [testEmailRecipient, setTestEmailRecipient] = useState('')
-  const [testEmailSending, setTestEmailSending] = useState(false)
-
   const [s3Enabled, setS3Enabled] = useState(false)
   const [s3Bucket, setS3Bucket] = useState('')
   const [s3Region, setS3Region] = useState('')
@@ -40,26 +28,6 @@ export function useSystemSettingsController(showToast: ShowToast) {
     const basic = (entryMap.get('basic') as Partial<{ appName: string; appURL: string }>) ?? {}
     setAppName(basic.appName ?? '')
     setAppURL(basic.appURL ?? '')
-
-    const smtp =
-      (entryMap.get('smtp') as Partial<{
-        enabled: boolean
-        host: string
-        port: number
-        username: string
-        password: string
-        authMethod: string
-        tls: boolean
-        localName: string
-      }>) ?? {}
-    setSmtpEnabled(Boolean(smtp.enabled))
-    setSmtpHost(smtp.host ?? '')
-    setSmtpPort(Number(smtp.port ?? 587))
-    setSmtpUsername(smtp.username ?? '')
-    setSmtpPassword(smtp.password ?? '')
-    setSmtpAuthMethod(smtp.authMethod ?? '')
-    setSmtpTls(Boolean(smtp.tls))
-    setSmtpLocalName(smtp.localName ?? '')
 
     const s3 =
       (entryMap.get('s3') as Partial<{
@@ -104,52 +72,6 @@ export function useSystemSettingsController(showToast: ShowToast) {
       showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
     } finally {
       setAppSaving(false)
-    }
-  }
-
-  const saveSmtp = async () => {
-    setSmtpSaving(true)
-    try {
-      await pb.send(settingsEntryPath('smtp'), {
-        method: 'PATCH',
-        body: {
-          enabled: smtpEnabled,
-          host: smtpHost,
-          port: smtpPort,
-          username: smtpUsername,
-          password: smtpPassword,
-          authMethod: smtpAuthMethod,
-          tls: smtpTls,
-          localName: smtpLocalName,
-        },
-      })
-      showToast('SMTP settings saved')
-    } catch (err) {
-      showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
-    } finally {
-      setSmtpSaving(false)
-    }
-  }
-
-  const sendTestEmail = async () => {
-    if (!testEmailRecipient) {
-      showToast('Enter a recipient email first', false)
-      return
-    }
-    setTestEmailSending(true)
-    try {
-      await pb.send(settingsActionPath('test-email'), {
-        method: 'POST',
-        body: {
-          template: { subject: 'Test email from AppOS', actionUrl: '', actionName: '' },
-          to: [{ address: testEmailRecipient, name: '' }],
-        },
-      })
-      showToast('Test email sent successfully')
-    } catch (err) {
-      showToast('Failed: ' + (err instanceof Error ? err.message : String(err)), false)
-    } finally {
-      setTestEmailSending(false)
     }
   }
 
@@ -215,28 +137,6 @@ export function useSystemSettingsController(showToast: ShowToast) {
     setAppName,
     setAppURL,
     saveApp,
-    smtpEnabled,
-    smtpHost,
-    smtpPort,
-    smtpUsername,
-    smtpPassword,
-    smtpAuthMethod,
-    smtpTls,
-    smtpLocalName,
-    smtpSaving,
-    testEmailRecipient,
-    testEmailSending,
-    setSmtpEnabled,
-    setSmtpHost,
-    setSmtpPort,
-    setSmtpUsername,
-    setSmtpPassword,
-    setSmtpAuthMethod,
-    setSmtpTls,
-    setSmtpLocalName,
-    setTestEmailRecipient,
-    saveSmtp,
-    sendTestEmail,
     s3Enabled,
     s3Bucket,
     s3Region,

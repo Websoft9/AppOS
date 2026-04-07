@@ -1,0 +1,6 @@
+{
+  "id": "generic-ollama",
+  "title": "Generic Ollama",
+  "description": "Ollama instance profile.",
+  "defaultEndpoint": "http://localhost:11434"
+}

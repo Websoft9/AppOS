@@ -1,0 +1,23 @@
+{
+  "kind": "smtp",
+  "category": "Messaging",
+  "description": "Reusable SMTP connector profile.",
+  "defaultAuthScheme": "basic",
+  "capabilities": ["email", "smtp"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "label": "Endpoint",
+      "type": "string",
+      "required": true,
+      "placeholder": "smtp://smtp.example.com:587"
+    },
+    {
+      "id": "credential",
+      "label": "Credential",
+      "type": "secret_ref",
+      "secretTemplate": "basic_auth",
+      "placeholder": "secretRef:..."
+    }
+  ]
+}

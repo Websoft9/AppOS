@@ -1,0 +1,20 @@
+{
+  "id": "cloudflare-dns",
+  "title": "Cloudflare DNS",
+  "vendor": "Cloudflare",
+  "description": "Cloudflare DNS API profile.",
+  "defaultEndpoint": "https://api.cloudflare.com/client/v4",
+  "aliases": ["cloudflare", "cloudflare-dns"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "placeholder": "https://api.cloudflare.com/client/v4"
+    },
+    {
+      "id": "zone",
+      "label": "Default Zone",
+      "type": "string",
+      "placeholder": "example.com"
+    }
+  ]
+}

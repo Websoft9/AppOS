@@ -22,10 +22,10 @@ export function useSettingsPageController() {
   const [pbLoading, setPbLoading] = useState(true)
   const system = useSystemSettingsController(showToast)
   const workspaceSimple = useWorkspaceSimpleSettingsController(showToast)
-  const integrations = useIntegrationSettingsController(showToast, activeSection)
+  const integrations = useIntegrationSettingsController(showToast)
   const { hydrateSystemEntries } = system
   const { hydrateWorkspaceSimpleEntries } = workspaceSimple
-  const { hydrateIntegrationEntries, loadLlmProviders } = integrations
+  const { hydrateIntegrationEntries } = integrations
 
   const loadSettingsData = useCallback(async () => {
     setPbLoading(true)
@@ -35,12 +35,13 @@ export function useSettingsPageController() {
         pb.send<SettingsEntriesListResponse>(SETTINGS_ENTRIES_API_PATH, { method: 'GET' }),
       ])
 
-      // Inject LLM providers nav entry (served by its own API, not settings)
+      // Inject LLM providers nav entry (served by connectors API, not settings)
       const allEntries = [
         ...schemaResult.entries,
         {
           id: 'llm-providers' as const,
           title: 'LLM Providers',
+          description: 'Reference-only entry. Create and manage LLM connectors from Resources > Connectors.',
           section: 'workspace',
           source: 'custom' as const,
           fields: [{ id: 'items', label: 'Items', type: 'object-list' }],
@@ -57,9 +58,6 @@ export function useSettingsPageController() {
       hydrateSystemEntries(entryMap)
       hydrateWorkspaceSimpleEntries(entryMap)
       hydrateIntegrationEntries(entryMap)
-
-      // LLM providers are loaded from their own API
-      await integrations.loadLlmProviders()
     } catch (err) {
       showToast(
         'Failed to load settings: ' + (err instanceof Error ? err.message : String(err)),
@@ -68,7 +66,7 @@ export function useSettingsPageController() {
     } finally {
       setPbLoading(false)
     }
-  }, [showToast, hydrateIntegrationEntries, hydrateSystemEntries, hydrateWorkspaceSimpleEntries, loadLlmProviders])
+  }, [showToast, hydrateIntegrationEntries, hydrateSystemEntries, hydrateWorkspaceSimpleEntries])
 
   useEffect(() => {
     loadSettingsData()

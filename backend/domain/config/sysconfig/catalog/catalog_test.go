@@ -15,6 +15,9 @@ func TestFindEntry_Known(t *testing.T) {
 	if entry.Source != SourceNative {
 		t.Fatalf("expected source native, got %s", entry.Source)
 	}
+	if entry.Description == "" {
+		t.Fatal("expected smtp entry to include a description")
+	}
 	if entry.PocketBaseGroup != "smtp" {
 		t.Fatalf("expected PocketBaseGroup smtp, got %s", entry.PocketBaseGroup)
 	}

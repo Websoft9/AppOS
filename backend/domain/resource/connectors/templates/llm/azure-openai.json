@@ -1,0 +1,21 @@
+{
+  "id": "azure-openai",
+  "title": "Azure OpenAI",
+  "vendor": "Microsoft Azure",
+  "description": "Azure-hosted OpenAI deployment with resource- and deployment-scoped endpoint settings.",
+  "defaultEndpoint": "https://{resource}.openai.azure.com/openai/deployments/{deployment}",
+  "capabilities": ["chat", "embeddings", "tools", "streaming"],
+  "aliases": ["azure openai", "azure-openai"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "placeholder": "https://my-resource.openai.azure.com/openai/deployments/my-deployment"
+    },
+    {
+      "id": "apiVersion",
+      "label": "API Version",
+      "type": "string",
+      "placeholder": "2024-10-21"
+    }
+  ]
+}

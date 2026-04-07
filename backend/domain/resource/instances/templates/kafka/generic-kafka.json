@@ -1,0 +1,5 @@
+{
+  "id": "generic-kafka",
+  "title": "Generic Kafka",
+  "description": "Kafka-compatible message broker instance."
+}

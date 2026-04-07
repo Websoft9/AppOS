@@ -35,6 +35,13 @@ func ExtractSecretID(v string) (string, bool) {
 
 // ─── Error type ──────────────────────────────────────────────────────────────
 
+// Machine-readable reason strings for ResolveError.
+const (
+	ReasonNotFound     = "secret not found"
+	ReasonRevoked      = "secret has been revoked"
+	ReasonAccessDenied = "access denied: secret is private to another user"
+)
+
 // ResolveError is a structured error returned by Resolve and ValidateRef.
 // Callers receive a machine-readable SecretID alongside the human-readable Reason.
 type ResolveError struct {
@@ -57,9 +64,10 @@ func (e *ResolveError) Unwrap() error { return e.Cause }
 // ResolveResult carries the decrypted payload together with expiry metadata so
 // callers (e.g. the HTTP resolve handler) can surface expiry status.
 type ResolveResult struct {
-	Payload   map[string]any
-	ExpiresAt string // RFC 3339 or empty
-	IsExpired bool
+	TemplateID string
+	Payload    map[string]any
+	ExpiresAt  string // RFC 3339 or empty
+	IsExpired  bool
 }
 
 // ─── Resolve ─────────────────────────────────────────────────────────────────
@@ -78,13 +86,13 @@ type ResolveResult struct {
 func Resolve(app core.App, secretID, userID string) (*ResolveResult, error) {
 	rec, err := app.FindRecordById("secrets", secretID)
 	if err != nil {
-		return nil, &ResolveError{SecretID: secretID, Reason: "secret not found", Cause: err}
+		return nil, &ResolveError{SecretID: secretID, Reason: ReasonNotFound, Cause: err}
 	}
 
 	s := From(rec)
 
 	if s.IsRevoked() {
-		return nil, &ResolveError{SecretID: secretID, Reason: "secret has been revoked"}
+		return nil, &ResolveError{SecretID: secretID, Reason: ReasonRevoked}
 	}
 
 	var payload map[string]any
@@ -124,9 +132,10 @@ func Resolve(app core.App, secretID, userID string) (*ResolveResult, error) {
 	})
 
 	return &ResolveResult{
-		Payload:   payload,
-		ExpiresAt: rec.GetString("expires_at"),
-		IsExpired: s.IsExpired(),
+		TemplateID: rec.GetString("template_id"),
+		Payload:    payload,
+		ExpiresAt:  rec.GetString("expires_at"),
+		IsExpired:  s.IsExpired(),
 	}, nil
 }
 
@@ -142,17 +151,17 @@ func Resolve(app core.App, secretID, userID string) (*ResolveResult, error) {
 func ValidateRef(app core.App, secretID, userID string) error {
 	rec, err := app.FindRecordById("secrets", secretID)
 	if err != nil {
-		return &ResolveError{SecretID: secretID, Reason: "secret not found", Cause: err}
+		return &ResolveError{SecretID: secretID, Reason: ReasonNotFound, Cause: err}
 	}
 
 	s := From(rec)
 
 	if s.IsRevoked() {
-		return &ResolveError{SecretID: secretID, Reason: "secret has been revoked"}
+		return &ResolveError{SecretID: secretID, Reason: ReasonRevoked}
 	}
 
 	if s.Scope() == ScopeUserPrivate && s.CreatedBy() != userID {
-		return &ResolveError{SecretID: secretID, Reason: "access denied: secret is private to another user"}
+		return &ResolveError{SecretID: secretID, Reason: ReasonAccessDenied}
 	}
 
 	return nil

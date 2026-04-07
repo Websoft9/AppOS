@@ -1,0 +1,25 @@
+{
+  "kind": "llm",
+  "category": "AI",
+  "description": "Reusable LLM connector profile.",
+  "defaultAuthScheme": "api_key",
+  "capabilities": ["chat"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "label": "Endpoint",
+      "type": "url",
+      "required": true,
+      "placeholder": "https://api.example.com/v1"
+    },
+    {
+      "id": "credential",
+      "label": "API Key",
+      "type": "secret_ref",
+      "required": true,
+      "sensitive": true,
+      "secretTemplate": "api_key",
+      "placeholder": "secretRef:..."
+    }
+  ]
+}

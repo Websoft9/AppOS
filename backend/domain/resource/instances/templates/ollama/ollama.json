@@ -1,0 +1,19 @@
+{
+  "id": "ollama",
+  "title": "Ollama",
+  "vendor": "Ollama",
+  "description": "Ollama instance profile.",
+  "defaultEndpoint": "http://localhost:11434",
+  "fields": [
+    {
+      "id": "provider",
+      "label": "Provider",
+      "type": "text",
+      "default": "ollama"
+    },
+    {
+      "id": "model",
+      "placeholder": "llama3.1"
+    }
+  ]
+}

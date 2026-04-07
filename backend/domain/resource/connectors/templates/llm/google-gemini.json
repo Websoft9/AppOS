@@ -1,0 +1,21 @@
+{
+  "id": "google-gemini",
+  "title": "Google Gemini",
+  "vendor": "Google",
+  "description": "Google Gemini hosted LLM access through the Generative Language API.",
+  "defaultEndpoint": "https://generativelanguage.googleapis.com/v1beta",
+  "capabilities": ["chat", "multimodal", "tools", "streaming"],
+  "aliases": ["google gemini", "gemini", "google-gemini"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "default": "https://generativelanguage.googleapis.com/v1beta"
+    },
+    {
+      "id": "defaultModel",
+      "label": "Default Model",
+      "type": "string",
+      "placeholder": "gemini-2.5-flash"
+    }
+  ]
+}

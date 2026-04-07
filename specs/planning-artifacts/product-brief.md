@@ -98,7 +98,7 @@ Supporting Domains
 │   │   ├── Service Operations
 │   │   └── Container Operations
 │   ├── Database
-│   ├── Endpoint
+│   ├── Connector
 │   └── Registry
 ├── Observability
 │   ├── Telemetry
@@ -170,12 +170,12 @@ Navigation / IA
 **Interpretation:**
 - `Application Lifecycle` is the only core domain and the product's main organizing concept.
 - The hierarchy shows domains and subdomains only; user-facing modules and model objects are documented separately.
-- `Resource` is the namespace for operator-managed external resources. `Server` is already a full business domain, while `Database`, `Endpoint`, and `Registry` start thinner and may grow independently.
+- `Resource` is the namespace for operator-managed external resources. `Server` is already a full business domain, while `Database`, `Connector`, and `Registry` start thinner and may grow independently.
 - `Operations Management` groups cross-resource grouping, operational knowledge, incident response, and deterministic operations automation.
 - `App Catalog` is currently managed through three subdomains: official catalog discovery, custom app authoring, and user personalization.
 - `Template` remains an important core object and supporting capability inside `App Catalog`, but it is not treated as a peer subdomain until it has its own lifecycle, rules, and management surface.
 - `Gateway Management` owns shared domain routing, upstream binding, and centralized gateway views across apps, servers, and containers.
-- `Endpoint` is the current thin resource type for externally callable service targets (`rest`, `webhook`, `mcp`). If provider-specific workflows grow thick later, they should become standalone `Integrations` domains that reference `Resource.Endpoint` rather than replacing it.
+- `Connector` is the current thin resource type for reusable external capability access (`llm`, `rest_api`, `webhook`, `mcp`, `smtp`, `registry`, `dns`). If provider-specific workflows grow thick later, they should become standalone `Integrations` domains that reference `Resource.Connector` rather than replacing it.
 - `Edition & Entitlement` controls which capabilities are available across open-source, standard, and enterprise offerings.
 - `Observability`, `Resource`, and `AI Workflow / Agent Automation` remain supporting domains around the lifecycle core.
 - `Secrets Management` is a standalone generic domain; secret policy behavior is treated as governance inside secrets and settings rather than as a separate top-level subdomain.

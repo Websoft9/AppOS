@@ -1,0 +1,13 @@
+{
+  "id": "generic-mysql",
+  "title": "Generic MySQL",
+  "description": "Self-hosted or managed MySQL service instance.",
+  "fields": [
+    {
+      "id": "engine",
+      "label": "Engine",
+      "type": "text",
+      "default": "mysql"
+    }
+  ]
+}

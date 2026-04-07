@@ -1,0 +1,24 @@
+{
+  "id": "harbor",
+  "title": "Harbor",
+  "vendor": "Harbor",
+  "description": "Harbor registry service instance profile.",
+  "fields": [
+    {
+      "id": "provider",
+      "label": "Provider",
+      "type": "text",
+      "default": "harbor"
+    },
+    {
+      "id": "namespace",
+      "placeholder": "library"
+    },
+    {
+      "id": "project",
+      "label": "Project",
+      "type": "text",
+      "placeholder": "appos"
+    }
+  ]
+}

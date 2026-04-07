@@ -12,6 +12,8 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/domain/config/sharedenv"
+	"github.com/websoft9/appos/backend/domain/resource/connectors"
+	"github.com/websoft9/appos/backend/domain/resource/instances"
 
 	_ "github.com/websoft9/appos/backend/infra/migrations"
 )
@@ -72,7 +74,8 @@ func (te *testEnv) do(t *testing.T, method, url, body string, authenticated bool
 
 	g := r.Group("/api/ext")
 	registerResourceRoutes(g)
-	registerEndpointsRoutes(&core.ServeEvent{Router: r})
+	registerConnectorRoutes(&core.ServeEvent{Router: r})
+	registerInstanceRoutes(&core.ServeEvent{Router: r})
 
 	mux, err := r.BuildMux()
 	if err != nil {
@@ -95,52 +98,281 @@ func (te *testEnv) do(t *testing.T, method, url, body string, authenticated bool
 	return rec
 }
 
-func TestEndpointsCRUD(t *testing.T) {
+func TestConnectorTemplatesRequireAuthAndList(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	rec := te.do(t, http.MethodPost, "/api/endpoints",
-		`{"name":"slack-webhook","type":"webhook","url":"https://example.com/hook","auth_type":"none"}`, true)
+	rec := te.do(t, http.MethodGet, "/api/connectors/templates", "", false)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated list: expected 401, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = te.do(t, http.MethodGet, "/api/connectors/templates", "", true)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("create: expected 200, got %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("authenticated list: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	templates := parseJSONArray(t, rec)
+	if len(templates) == 0 {
+		t.Fatalf("expected at least one connector template")
+	}
+	if templates[0]["id"] == nil {
+		t.Fatalf("expected connector template to include id")
+	}
+}
+
+func TestConnectorTemplateGet(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.do(t, http.MethodGet, "/api/connectors/templates/openai", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get openai template: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	template := parseJSON(t, rec)
+	if template["id"] != "openai" {
+		t.Fatalf("expected template id openai, got %v", template["id"])
+	}
+	if template["kind"] != "llm" {
+		t.Fatalf("expected template kind llm, got %v", template["kind"])
+	}
+
+	rec = te.do(t, http.MethodGet, "/api/connectors/templates/not-found", "", true)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected missing template to return 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestConnectorsListByKindFilter(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.do(t, http.MethodPost, "/api/connectors",
+		`{"name":"ops-webhook","kind":"webhook","template_id":"generic-webhook","endpoint":"https://hooks.example.com/deploy","auth_scheme":"bearer"}`,
+		true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create webhook connector: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = te.do(t, http.MethodPost, "/api/connectors",
+		`{"name":"openai-prod","kind":"llm","template_id":"openai","endpoint":"https://api.openai.com/v1","auth_scheme":"api_key"}`,
+		true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create llm connector: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = te.do(t, http.MethodGet, "/api/connectors?kind=webhook,mcp", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("filter connectors: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	list := parseJSONArray(t, rec)
+	if len(list) != 1 {
+		t.Fatalf("expected 1 filtered connector, got %d", len(list))
+	}
+	if list[0]["kind"] != "webhook" {
+		t.Fatalf("expected webhook connector, got %v", list[0]["kind"])
+	}
+}
+
+func TestConnectorsCRUD(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.do(t, http.MethodPost, "/api/connectors",
+		`{"name":"workspace-openai","kind":"llm","is_default":true,"template_id":"openai","credential":"","config":{"defaultModel":"gpt-4.1-mini"}}`, true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create connector: expected 201, got %d: %s", rec.Code, rec.Body.String())
 	}
 
 	created := parseJSON(t, rec)
 	id := created["id"].(string)
+	if created["endpoint"] != "https://api.openai.com/v1" {
+		t.Fatalf("expected template default endpoint, got %v", created["endpoint"])
+	}
+	if created["auth_scheme"] != connectors.AuthSchemeAPIKey {
+		t.Fatalf("expected template default auth scheme %q, got %v", connectors.AuthSchemeAPIKey, created["auth_scheme"])
+	}
+	if created["is_default"] != true {
+		t.Fatalf("expected is_default true, got %v", created["is_default"])
+	}
 
-	rec = te.do(t, http.MethodGet, "/api/endpoints/"+id, "", true)
+	rec = te.do(t, http.MethodGet, "/api/connectors/"+id, "", true)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("get: expected 200, got %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("get connector: expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 
 	got := parseJSON(t, rec)
-	if got["type"] != "webhook" {
-		t.Errorf("expected type 'webhook', got %v", got["type"])
+	if got["template_id"] != "openai" {
+		t.Fatalf("expected template_id openai, got %v", got["template_id"])
 	}
 
-	rec = te.do(t, http.MethodPut, "/api/endpoints/"+id,
-		`{"name":"slack-api","type":"rest","url":"https://api.example.com/v1","auth_type":"bearer"}`, true)
+	rec = te.do(t, http.MethodPut, "/api/connectors/"+id,
+		`{"name":"workspace-anthropic","kind":"llm","is_default":false,"template_id":"anthropic","endpoint":"https://api.anthropic.com","auth_scheme":"api_key","config":{"version":"2023-06-01"}}`, true)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("update: expected 200, got %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("update connector: expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 
 	updated := parseJSON(t, rec)
-	if updated["type"] != "rest" {
-		t.Errorf("expected type 'rest', got %v", updated["type"])
+	if updated["template_id"] != "anthropic" {
+		t.Fatalf("expected template_id anthropic after update, got %v", updated["template_id"])
+	}
+	if updated["is_default"] != false {
+		t.Fatalf("expected is_default false after update, got %v", updated["is_default"])
 	}
 
-	rec = te.do(t, http.MethodGet, "/api/endpoints", "", true)
+	rec = te.do(t, http.MethodPost, "/api/connectors",
+		`{"name":"fallback-openai","kind":"llm","is_default":true,"template_id":"openai"}`, true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create second default connector: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	otherID := parseJSON(t, rec)["id"].(string)
+
+	rec = te.do(t, http.MethodGet, "/api/connectors/"+id, "", true)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("list: expected 200, got %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("get first connector after second default: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if parseJSON(t, rec)["is_default"] != false {
+		t.Fatalf("expected first connector default flag to be cleared")
+	}
+
+	rec = te.do(t, http.MethodGet, "/api/connectors", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list connectors: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	list := parseJSONArray(t, rec)
+	if len(list) != 2 {
+		t.Fatalf("expected 2 connectors, got %d", len(list))
+	}
+
+	rec = te.do(t, http.MethodPost, "/api/connectors",
+		`{"name":"bad-webhook","kind":"webhook","template_id":"openai"}`, true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("mismatched template kind: expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = te.do(t, http.MethodDelete, "/api/connectors/"+id, "", true)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("delete connector: expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	rec = te.do(t, http.MethodDelete, "/api/connectors/"+otherID, "", true)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("delete second connector: expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestInstanceTemplatesRequireAuthAndList(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.do(t, http.MethodGet, "/api/instances/templates", "", false)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated list: expected 401, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = te.do(t, http.MethodGet, "/api/instances/templates", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("authenticated list: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	templates := parseJSONArray(t, rec)
+	if len(templates) == 0 {
+		t.Fatalf("expected at least one instance template")
+	}
+	if templates[0]["id"] == nil {
+		t.Fatalf("expected instance template to include id")
+	}
+}
+
+func TestInstanceTemplateGet(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.do(t, http.MethodGet, "/api/instances/templates/generic-postgres", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get postgres template: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	template := parseJSON(t, rec)
+	if template["id"] != "generic-postgres" {
+		t.Fatalf("expected template id generic-postgres, got %v", template["id"])
+	}
+	if template["kind"] != instances.KindPostgres {
+		t.Fatalf("expected template kind %q, got %v", instances.KindPostgres, template["kind"])
+	}
+
+	rec = te.do(t, http.MethodGet, "/api/instances/templates/not-found", "", true)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected missing template to return 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestInstancesCRUD(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.do(t, http.MethodPost, "/api/instances",
+		`{"name":"local-ollama","kind":"ollama","template_id":"generic-ollama","config":{"model":"llama3.1"}}`, true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create instance: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	created := parseJSON(t, rec)
+	id := created["id"].(string)
+	if created["endpoint"] != "http://localhost:11434" {
+		t.Fatalf("expected template default endpoint, got %v", created["endpoint"])
+	}
+	if created["template_id"] != "generic-ollama" {
+		t.Fatalf("expected template_id generic-ollama, got %v", created["template_id"])
+	}
+
+	rec = te.do(t, http.MethodGet, "/api/instances/"+id, "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get instance: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = te.do(t, http.MethodPut, "/api/instances/"+id,
+		`{"name":"primary-postgres","kind":"postgres","template_id":"generic-postgres","endpoint":"postgres://db.internal:5432/app","config":{"database":"app","username":"appuser"}}`, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("update instance: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	updated := parseJSON(t, rec)
+	if updated["kind"] != instances.KindPostgres {
+		t.Fatalf("expected updated kind %q, got %v", instances.KindPostgres, updated["kind"])
+	}
+	if updated["template_id"] != "generic-postgres" {
+		t.Fatalf("expected updated template_id generic-postgres, got %v", updated["template_id"])
+	}
+
+	rec = te.do(t, http.MethodPost, "/api/instances",
+		`{"name":"primary-redis","kind":"redis","template_id":"generic-redis","endpoint":"redis://cache.internal:6379"}`, true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create second instance: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	otherID := parseJSON(t, rec)["id"].(string)
+
+	rec = te.do(t, http.MethodGet, "/api/instances?kind=postgres,kafka", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("filter instances: expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 	list := parseJSONArray(t, rec)
 	if len(list) != 1 {
-		t.Fatalf("expected 1 endpoint, got %d", len(list))
+		t.Fatalf("expected 1 filtered instance, got %d", len(list))
+	}
+	if list[0]["kind"] != instances.KindPostgres {
+		t.Fatalf("expected postgres instance, got %v", list[0]["kind"])
 	}
 
-	rec = te.do(t, http.MethodDelete, "/api/endpoints/"+id, "", true)
+	rec = te.do(t, http.MethodPost, "/api/instances",
+		`{"name":"bad-instance","kind":"redis","template_id":"generic-postgres"}`, true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("mismatched template kind: expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = te.do(t, http.MethodDelete, "/api/instances/"+id, "", true)
 	if rec.Code != http.StatusNoContent {
-		t.Fatalf("delete: expected 204, got %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("delete instance: expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	rec = te.do(t, http.MethodDelete, "/api/instances/"+otherID, "", true)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("delete second instance: expected 204, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 

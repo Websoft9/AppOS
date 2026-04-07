@@ -1,0 +1,13 @@
+{
+  "id": "generic-postgres",
+  "title": "Generic PostgreSQL",
+  "description": "Self-hosted or managed PostgreSQL service instance.",
+  "fields": [
+    {
+      "id": "engine",
+      "label": "Engine",
+      "type": "text",
+      "default": "postgres"
+    }
+  ]
+}

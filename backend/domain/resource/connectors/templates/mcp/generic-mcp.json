@@ -1,0 +1,20 @@
+{
+  "id": "generic-mcp",
+  "title": "Generic MCP",
+  "vendor": "Generic",
+  "description": "Model Context Protocol connector for reusable remote MCP servers.",
+  "aliases": ["mcp", "generic-mcp"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "label": "Server URL"
+    },
+    {
+      "id": "transport",
+      "label": "Transport",
+      "type": "string",
+      "default": "http",
+      "placeholder": "http"
+    }
+  ]
+}

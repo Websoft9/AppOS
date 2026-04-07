@@ -2,6 +2,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useMemo,
   useRef,
   type ReactNode,
   type FormEvent,
@@ -69,7 +70,7 @@ export interface RelCreateField {
   hidden?: boolean
   defaultValue?: unknown
   placeholder?: string
-  options?: { label: string; value: string }[]
+  options?: SelectOption[]
   fileAccept?: string
   /** Switch type based on another field's current value */
   dynamicType?: { field: string; values: string[]; as: 'textarea' | 'file-textarea' }
@@ -83,6 +84,12 @@ export interface Column {
   key: string
   label: string
   render?: (value: unknown, row: Record<string, unknown>) => ReactNode
+}
+
+export interface SelectOption {
+  label: string
+  value: string
+  group?: string
 }
 
 export interface FieldDef {
@@ -99,7 +106,7 @@ export interface FieldDef {
     | 'file-textarea'
   required?: boolean
   placeholder?: string
-  options?: { label: string; value: string }[]
+  options?: SelectOption[]
   defaultValue?: unknown
   hidden?: boolean
   /** Relation: load options from this API path */
@@ -146,6 +153,10 @@ export interface ResourcePageConfig {
   apiPath: string // e.g., "/api/collections/servers/records"
   columns: Column[]
   fields: FieldDef[]
+  resolveFields?: (ctx: {
+    formData: Record<string, unknown>
+    editingItem: Record<string, unknown> | null
+  }) => FieldDef[]
   nameField?: string // field used as display name (default: "name")
   autoCreate?: boolean // open Create dialog on mount (from ?create=1)
   parentNav?: { label: string; href: string } // breadcrumb back link
@@ -175,6 +186,42 @@ const GROUPS_API_PATH = '/api/collections/groups/records?perPage=500&sort=name'
 
 function buildOrFilter(field: string, values: string[]): string {
   return values.map(value => `${field}='${pbFilterValue(value)}'`).join('||')
+}
+
+function renderSelectOptions(options: SelectOption[] | undefined) {
+  if (!options || options.length === 0) {
+    return null
+  }
+
+  const hasGroups = options.some(option => option.group)
+  if (!hasGroups) {
+    return options.map(option => (
+      <option key={option.value} value={option.value}>
+        {option.label}
+      </option>
+    ))
+  }
+
+  const groups: { group: string; options: SelectOption[] }[] = []
+  for (const option of options) {
+    const groupName = option.group ?? 'Other'
+    const existing = groups.find(group => group.group === groupName)
+    if (existing) {
+      existing.options.push(option)
+      continue
+    }
+    groups.push({ group: groupName, options: [option] })
+  }
+
+  return groups.map(group => (
+    <optgroup key={group.group} label={group.group}>
+      {group.options.map(option => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </optgroup>
+  ))
 }
 
 // ─── ResourcePage ────────────────────────────────────────
@@ -213,8 +260,21 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   const [groupAssignDialogOpen, setGroupAssignDialogOpen] = useState(false)
   const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set())
 
+  const getFields = useCallback(
+    (nextFormData: Record<string, unknown>, nextEditingItem: Record<string, unknown> | null) =>
+      config.resolveFields
+        ? config.resolveFields({ formData: nextFormData, editingItem: nextEditingItem })
+        : config.fields,
+    [config.fields, config.resolveFields]
+  )
+
+  const activeFields = useMemo(
+    () => getFields(formData, editingItem),
+    [editingItem, formData, getFields]
+  )
+
   const nameField = config.nameField || 'name'
-  const groupField = config.fields.find(f => f.key === 'groups' && f.type === 'relation')
+  const groupField = activeFields.find(f => f.key === 'groups' && f.type === 'relation')
   const resourceObjectType = config.resourceType || ''
 
   const listGroupMemberships = useCallback(
@@ -340,7 +400,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   // Load relation options whenever dialog opens
   useEffect(() => {
     if (!dialogOpen) return
-    config.fields
+    activeFields
       .filter(f => f.type === 'relation' && f.relationApiPath)
       .forEach(f => {
         pb.send<Record<string, unknown>[] | Record<string, unknown>>(f.relationApiPath!, {})
@@ -381,14 +441,14 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
           })
           .catch(() => setRelOpts(prev => ({ ...prev, [f.key]: [] })))
       })
-  }, [dialogOpen, config.fields, editingItem])
+  }, [dialogOpen, activeFields, editingItem])
 
   // ─── Form helpers ────────────────────
 
   function openCreateDialog() {
     setEditingItem(null)
     const defaults: Record<string, unknown> = {}
-    for (const f of config.fields) {
+    for (const f of getFields({}, null)) {
       if (f.multiSelect) {
         defaults[f.key] = Array.isArray(f.defaultValue) ? f.defaultValue : []
       } else {
@@ -404,7 +464,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   function openEditDialog(item: Record<string, unknown>) {
     setEditingItem(item)
     const data: Record<string, unknown> = {}
-    for (const f of config.fields) {
+    for (const f of getFields(item, item)) {
       const val = item[f.key]
       if (f.multiSelect) {
         // Normalize to string array
@@ -897,7 +957,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {config.fields
+            {activeFields
               .filter(f => !f.hidden)
               .filter(f => {
                 if (!f.showWhen) return true
@@ -928,11 +988,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                         required={field.required}
                       >
                         <option value="">Select…</option>
-                        {field.options?.map(o => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
+                        {renderSelectOptions(field.options)}
                       </select>
                     ) : effectiveType === 'relation' && field.multiSelect ? (
                       <div className="border border-input rounded-md p-2 max-h-44 overflow-y-auto space-y-1 bg-background">
@@ -1137,11 +1193,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                         required={f.required}
                       >
                         <option value="">Select…</option>
-                        {f.options?.map(o => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
+                        {renderSelectOptions(f.options)}
                       </select>
                     ) : effectiveType === 'textarea' || effectiveType === 'file-textarea' ? (
                       <div className="space-y-1">

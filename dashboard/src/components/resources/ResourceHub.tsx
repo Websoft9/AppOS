@@ -64,12 +64,12 @@ const RESOURCES: ResourceDef[] = [
   },
 
   {
-    key: 'endpoints',
-    title: 'Endpoints',
-    description: 'APIs, webhooks & MCP endpoints',
+    key: 'connectors',
+    title: 'Connectors',
+    description: 'APIs, webhooks, MCP, SMTP, registry, DNS, and external integrations',
     icon: <Plug className="h-5 w-5" />,
-    href: '/resources/endpoints',
-    apiPath: '/api/endpoints',
+    href: '/resources/connectors',
+    apiPath: '/api/connectors?kind=rest_api,webhook,mcp,smtp,registry,dns',
   },
   {
     key: 'scripts',

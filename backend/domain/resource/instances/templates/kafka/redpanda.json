@@ -1,0 +1,18 @@
+{
+  "id": "redpanda",
+  "title": "Redpanda",
+  "vendor": "Redpanda",
+  "description": "Redpanda Kafka-compatible instance profile.",
+  "fields": [
+    {
+      "id": "provider",
+      "label": "Provider",
+      "type": "text",
+      "default": "redpanda"
+    },
+    {
+      "id": "clusterId",
+      "placeholder": "rp-prod"
+    }
+  ]
+}

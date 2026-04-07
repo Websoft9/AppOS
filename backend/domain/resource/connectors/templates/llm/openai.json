@@ -1,30 +1,15 @@
 {
   "id": "openai",
-  "kind": "llm",
   "title": "OpenAI",
   "vendor": "OpenAI",
-  "category": "AI",
   "description": "OpenAI-compatible hosted LLM access using an API key.",
   "defaultEndpoint": "https://api.openai.com/v1",
-  "defaultAuthScheme": "api_key",
   "capabilities": ["chat", "embeddings", "tools", "streaming"],
   "aliases": ["openai"],
   "fields": [
     {
       "id": "endpoint",
-      "label": "Endpoint",
-      "type": "url",
-      "required": true,
       "default": "https://api.openai.com/v1"
-    },
-    {
-      "id": "credential",
-      "label": "API Key",
-      "type": "secret_ref",
-      "required": true,
-      "sensitive": true,
-      "secretTemplate": "api_key",
-      "placeholder": "secretRef:..."
     },
     {
       "id": "organization",

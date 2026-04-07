@@ -1,0 +1,20 @@
+{
+  "id": "generic-dns",
+  "title": "Generic DNS Provider",
+  "vendor": "Generic",
+  "description": "Reusable DNS automation connector for zone and record management.",
+  "defaultEndpoint": "https://api.dns.example.com",
+  "aliases": ["dns", "dns-provider", "generic-dns"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "label": "API Endpoint"
+    },
+    {
+      "id": "zone",
+      "label": "Default Zone",
+      "type": "string",
+      "placeholder": "example.com"
+    }
+  ]
+}

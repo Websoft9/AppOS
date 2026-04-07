@@ -41,7 +41,7 @@ tags:
       name: Setup
     - description: Native realtime connect and subscribe APIs
       name: Realtime
-    - description: Resource catalog APIs excluding server registry.
+    - description: Resource catalog APIs excluding server registry, including connector business routes and connector native collection CRUD.
       name: Resource
     - description: SSH interactive shell sessions.
       name: Server Shell
@@ -1879,6 +1879,131 @@ paths:
             summary: Get audit log record by ID
             tags:
                 - Audit
+    /api/collections/connectors/records:
+        get:
+            description: Concrete connectors endpoint projected from Native Record CRUD list records.
+            operationId: pb_connectors_records_list
+            parameters:
+                - in: query
+                  name: page
+                  required: false
+                  schema:
+                    type: integer
+                - in: query
+                  name: perPage
+                  required: false
+                  schema:
+                    type: integer
+                - in: query
+                  name: sort
+                  required: false
+                  schema:
+                    type: string
+                - in: query
+                  name: filter
+                  required: false
+                  schema:
+                    type: string
+                - in: query
+                  name: expand
+                  required: false
+                  schema:
+                    type: string
+                - in: query
+                  name: fields
+                  required: false
+                  schema:
+                    type: string
+                - in: query
+                  name: skipTotal
+                  required: false
+                  schema:
+                    type: boolean
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PBRecordList'
+                    description: OK
+            security:
+                - bearerAuth: []
+            summary: List connector records
+            tags:
+                - Resource
+        post:
+            description: Concrete connectors endpoint projected from Native Record CRUD create record.
+            operationId: pb_connectors_records_create
+            responses:
+                "200":
+                    description: OK
+            security:
+                - bearerAuth: []
+            summary: Create connector record
+            tags:
+                - Resource
+    /api/collections/connectors/records/{id}:
+        delete:
+            description: Concrete connectors endpoint projected from Native Record CRUD delete record by id.
+            operationId: pb_connectors_records_delete
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "204":
+                    description: No Content
+            security:
+                - bearerAuth: []
+            summary: Delete connector record by id
+            tags:
+                - Resource
+        get:
+            description: Concrete connectors endpoint projected from Native Record CRUD get record by id.
+            operationId: pb_connectors_records_get
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+                - in: query
+                  name: expand
+                  required: false
+                  schema:
+                    type: string
+                - in: query
+                  name: fields
+                  required: false
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+            security:
+                - bearerAuth: []
+            summary: Get connector record by id
+            tags:
+                - Resource
+        patch:
+            description: Concrete connectors endpoint projected from Native Record CRUD update record by id.
+            operationId: pb_connectors_records_patch
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+            security:
+                - bearerAuth: []
+            summary: Update connector record by id
+            tags:
+                - Resource
     /api/collections/users/auth-refresh:
         post:
             operationId: pb_auth_refresh
@@ -2254,6 +2379,279 @@ paths:
             summary: Get component service logs
             tags:
                 - Services
+    /api/connectors:
+        get:
+            description: Returns connectors visible to the authenticated user. Use the optional kind query parameter to filter by one or more connector kinds.
+            operationId: get_api_connectors
+            parameters:
+                - in: query
+                  name: kind
+                  required: false
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: List connectors
+            tags:
+                - Resource
+        post:
+            description: Creates a connector. Superuser only.
+            operationId: post_api_connectors
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "201":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: Created
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Forbidden
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Create connector
+            tags:
+                - Resource
+    /api/connectors/{id}:
+        delete:
+            description: Deletes a connector. Superuser only.
+            operationId: delete_api_connectors_id
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "204":
+                    description: No Content
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Not Found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Delete connector
+            tags:
+                - Resource
+        get:
+            description: Returns a single connector by id.
+            operationId: get_api_connectors_id
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Not Found
+            security:
+                - bearerAuth: []
+            summary: Get connector
+            tags:
+                - Resource
+        put:
+            description: Updates an existing connector. Superuser only.
+            operationId: put_api_connectors_id
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "403":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Forbidden
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Not Found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Update connector
+            tags:
+                - Resource
+    /api/connectors/templates:
+        get:
+            description: Returns all built-in connector templates available for connector creation and editing.
+            operationId: get_api_connectors_templates
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: List connector templates
+            tags:
+                - Resource
+    /api/connectors/templates/{id}:
+        get:
+            description: Returns a single built-in connector template.
+            operationId: get_api_connectors_templates_id
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Not Found
+            security:
+                - bearerAuth: []
+            summary: Get connector template
+            tags:
+                - Resource
     /api/crons:
         get:
             operationId: pb_crons_list
@@ -2351,138 +2749,6 @@ paths:
             summary: Get cron job execution logs
             tags:
                 - System Cron
-    /api/endpoints:
-        get:
-            operationId: get_api_endpoints
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Get endpoints
-            tags:
-                - Resource
-        post:
-            operationId: post_api_endpoints
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: false
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Create or execute endpoints
-            tags:
-                - Resource
-    /api/endpoints/{id}:
-        delete:
-            operationId: delete_api_endpoints_id
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Delete endpoints by id
-            tags:
-                - Resource
-        get:
-            operationId: get_api_endpoints_id
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Get endpoints by id
-            tags:
-                - Resource
-        put:
-            operationId: put_api_endpoints_id
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                    type: string
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: false
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Update endpoints by id
-            tags:
-                - Resource
     /api/exposures:
         get:
             operationId: get_api_exposures

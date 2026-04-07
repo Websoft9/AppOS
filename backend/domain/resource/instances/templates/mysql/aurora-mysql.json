@@ -1,0 +1,32 @@
+{
+  "id": "aurora-mysql",
+  "title": "Amazon Aurora MySQL",
+  "vendor": "Amazon Web Services",
+  "description": "Aurora MySQL cluster instance profile.",
+  "fields": [
+    {
+      "id": "engine",
+      "label": "Engine",
+      "type": "text",
+      "default": "aurora-mysql"
+    },
+    {
+      "id": "provider",
+      "label": "Provider",
+      "type": "text",
+      "default": "aws-aurora"
+    },
+    {
+      "id": "region",
+      "label": "Region",
+      "type": "text",
+      "placeholder": "us-east-1"
+    },
+    {
+      "id": "clusterIdentifier",
+      "label": "Cluster Identifier",
+      "type": "text",
+      "placeholder": "appos-prod"
+    }
+  ]
+}

@@ -1,7 +1,9 @@
 import { useCallback, useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import { Loader2 } from 'lucide-react'
 import type { SettingsSection } from '@/lib/settings-api'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 export function useToast() {
   const [toasts, setToasts] = useState<{ id: number; msg: string; ok: boolean }[]>([])
@@ -75,4 +77,32 @@ export function sectionLabel(section: SettingsSection): string {
     .filter(Boolean)
     .map(part => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ')
+}
+
+export function ConnectorReferenceSection({
+  title,
+  description,
+  connectorKinds,
+}: {
+  title: string
+  description: string
+  connectorKinds: string
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          This section now references connectors. Create and edit {connectorKinds} from Resources so
+          all connector profiles stay in one place.
+        </p>
+        <Button asChild>
+          <Link to="/resources/connectors">Open Connectors</Link>
+        </Button>
+      </CardContent>
+    </Card>
+  )
 }

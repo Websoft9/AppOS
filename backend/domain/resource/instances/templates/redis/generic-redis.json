@@ -1,0 +1,5 @@
+{
+  "id": "generic-redis",
+  "title": "Generic Redis",
+  "description": "Redis cache or broker instance."
+}

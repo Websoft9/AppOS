@@ -1,0 +1,26 @@
+{
+  "id": "generic-smtp",
+  "title": "Generic SMTP",
+  "vendor": "Generic",
+  "description": "Reusable SMTP connector for outbound email delivery.",
+  "defaultEndpoint": "smtp://localhost:587",
+  "aliases": ["smtp", "mail", "generic-smtp"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "label": "SMTP Endpoint"
+    },
+    {
+      "id": "fromAddress",
+      "label": "Default From Address",
+      "type": "string",
+      "placeholder": "noreply@example.com"
+    },
+    {
+      "id": "tls",
+      "label": "Use TLS",
+      "type": "boolean",
+      "default": true
+    }
+  ]
+}

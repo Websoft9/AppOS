@@ -6,7 +6,6 @@
 //   - /api/ext/system     — system metrics, terminal, file browser
 //   - /api/ext/backup     — backup/restore operations
 //   - /api/ext/resources  — Resource Store CRUD (Epic 8)
-//   - /api/endpoints      — Endpoint resource CRUD
 //   - /api/space         — User private space (Epic 9)
 //   - /api/components     — component inventory and runtime service diagnostics (Epic 6)
 //   - /api/catalog        — app catalog normalized read APIs
@@ -25,7 +24,6 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/domain/resource/llm"
 )
 
 // asynqClient is set by main via SetAsynqClient after creating the worker.
@@ -83,7 +81,8 @@ func Register(se *core.ServeEvent) {
 	registerSystemRoutes(g)
 	registerBackupRoutes(g)
 	registerResourceRoutes(g)
-	registerEndpointsRoutes(se)
+	registerConnectorRoutes(se)
+	registerInstanceRoutes(se)
 	registerUserRoutes(g)
 	registerComponentsRoutes(components)
 	registerCatalogRoutes(deployments)
@@ -97,7 +96,4 @@ func Register(se *core.ServeEvent) {
 	registerSecretsRoutes(se)
 	registerCertificatesRoutes(se)
 	registerCronLogsRoute(se)
-
-	// LLM provider routes (superuser-only — registered by domain/resource/llm)
-	llm.RegisterRoutes(se)
 }

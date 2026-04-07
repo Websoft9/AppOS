@@ -1,0 +1,11 @@
+{
+  "kind": "kafka",
+  "category": "message-queue",
+  "fields": [
+    {
+      "id": "clusterId",
+      "label": "Cluster ID",
+      "type": "text"
+    }
+  ]
+}

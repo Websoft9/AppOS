@@ -1,0 +1,32 @@
+{
+  "id": "aws-rds-postgres",
+  "title": "AWS RDS PostgreSQL",
+  "vendor": "Amazon Web Services",
+  "description": "AWS RDS PostgreSQL instance profile.",
+  "fields": [
+    {
+      "id": "engine",
+      "label": "Engine",
+      "type": "text",
+      "default": "postgres"
+    },
+    {
+      "id": "provider",
+      "label": "Provider",
+      "type": "text",
+      "default": "aws-rds"
+    },
+    {
+      "id": "region",
+      "label": "Region",
+      "type": "text",
+      "placeholder": "us-east-1"
+    },
+    {
+      "id": "instanceClass",
+      "label": "Instance Class",
+      "type": "text",
+      "placeholder": "db.t4g.medium"
+    }
+  ]
+}

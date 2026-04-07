@@ -1,0 +1,14 @@
+{
+  "id": "ghcr",
+  "title": "GitHub Container Registry",
+  "vendor": "GitHub",
+  "description": "GitHub Container Registry profile.",
+  "defaultEndpoint": "https://ghcr.io",
+  "aliases": ["ghcr", "github container registry"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "placeholder": "https://ghcr.io"
+    }
+  ]
+}

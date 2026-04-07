@@ -1,0 +1,28 @@
+{
+  "id": "ollama",
+  "title": "Ollama",
+  "vendor": "Ollama",
+  "description": "Self-hosted Ollama server exposed through an OpenAI-compatible local endpoint.",
+  "defaultEndpoint": "http://localhost:11434/v1",
+  "defaultAuthScheme": "none",
+  "capabilities": ["chat", "embeddings", "local", "openai-compatible"],
+  "aliases": ["ollama"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "default": "http://localhost:11434/v1"
+    },
+    {
+      "id": "credential",
+      "label": "Credential",
+      "required": false,
+      "sensitive": false
+    },
+    {
+      "id": "defaultModel",
+      "label": "Default Model",
+      "type": "string",
+      "placeholder": "llama3.2"
+    }
+  ]
+}

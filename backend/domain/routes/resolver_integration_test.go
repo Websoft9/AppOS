@@ -109,6 +109,9 @@ func TestResolve_NewFormat(t *testing.T) {
 	if result.Payload["password"] != "correct-horse-battery-staple" {
 		t.Errorf("expected password in payload, got %v", result.Payload)
 	}
+	if result.TemplateID != "single_value" {
+		t.Errorf("expected template_id=single_value, got %q", result.TemplateID)
+	}
 }
 
 func TestResolve_NoPayload(t *testing.T) {

@@ -5,28 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"path"
 	"sort"
 	"strings"
 	"sync"
 )
 
-//go:embed templates/*.json
+//go:embed all:templates
 var embeddedTemplateFiles embed.FS
-
-var builtInTemplates = []Template{
-	{ID: TemplateAnthropic, Kind: KindLLM, Title: "Anthropic", DefaultEndpoint: "https://api.anthropic.com", DefaultAuth: AuthSchemeAPIKey, Aliases: []string{"anthropic"}},
-	{ID: TemplateGemini, Kind: KindLLM, Title: "Google Gemini", DefaultEndpoint: "https://generativelanguage.googleapis.com/v1beta", DefaultAuth: AuthSchemeAPIKey, Aliases: []string{"google gemini", "gemini", "google-gemini"}},
-	{ID: TemplateMistral, Kind: KindLLM, Title: "Mistral", DefaultEndpoint: "https://api.mistral.ai/v1", DefaultAuth: AuthSchemeAPIKey, Aliases: []string{"mistral"}},
-	{ID: TemplateDeepSeek, Kind: KindLLM, Title: "DeepSeek", DefaultEndpoint: "https://api.deepseek.com/v1", DefaultAuth: AuthSchemeAPIKey, Aliases: []string{"deepseek"}},
-	{ID: TemplateGroq, Kind: KindLLM, Title: "Groq", DefaultEndpoint: "https://api.groq.com/openai/v1", DefaultAuth: AuthSchemeAPIKey, Aliases: []string{"groq"}},
-	{ID: TemplateOpenRouter, Kind: KindLLM, Title: "OpenRouter", DefaultEndpoint: "https://openrouter.ai/api/v1", DefaultAuth: AuthSchemeAPIKey, Aliases: []string{"openrouter"}},
-	{ID: TemplateAzureOpenAI, Kind: KindLLM, Title: "Azure OpenAI", DefaultEndpoint: "https://{resource}.openai.azure.com/openai/deployments/{model}", DefaultAuth: AuthSchemeAPIKey, Aliases: []string{"azure openai", "azure-openai"}},
-	{ID: TemplateOllama, Kind: KindLLM, Title: "Ollama", DefaultEndpoint: "http://localhost:11434/v1", DefaultAuth: AuthSchemeNone, Aliases: []string{"ollama"}},
-	{ID: TemplateCustomLLM, Kind: KindLLM, Title: "Custom LLM", DefaultEndpoint: "", DefaultAuth: AuthSchemeNone, Aliases: []string{"custom", "custom-llm"}},
-	{ID: TemplateGenericREST, Kind: KindRESTAPI, Title: "Generic REST API", DefaultEndpoint: "", DefaultAuth: AuthSchemeNone, Aliases: []string{"rest", "generic-rest"}},
-	{ID: TemplateGenericWebhook, Kind: KindWebhook, Title: "Generic Webhook", DefaultEndpoint: "", DefaultAuth: AuthSchemeNone, Aliases: []string{"webhook", "generic-webhook"}},
-	{ID: TemplateGenericMCP, Kind: KindMCP, Title: "Generic MCP", DefaultEndpoint: "", DefaultAuth: AuthSchemeNone, Aliases: []string{"mcp", "generic-mcp"}},
-}
 
 var (
 	templatesOnce sync.Once
@@ -78,7 +64,7 @@ func ResolveLLMTemplate(name string) Template {
 			}
 		}
 	}
-	custom, _ := FindTemplate(TemplateCustomLLM)
+	custom, _ := FindTemplate(TemplateGenericLLM)
 	return custom
 }
 
@@ -92,10 +78,7 @@ func ensureTemplatesLoaded() {
 }
 
 func loadTemplates() error {
-	templateMap := make(map[string]Template, len(builtInTemplates))
-	for _, template := range builtInTemplates {
-		templateMap[template.ID] = template
-	}
+	templateMap := make(map[string]Template)
 
 	entries, err := fs.ReadDir(embeddedTemplateFiles, "templates")
 	if err != nil {
@@ -103,21 +86,41 @@ func loadTemplates() error {
 	}
 
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+		if !entry.IsDir() {
 			continue
 		}
-		content, err := embeddedTemplateFiles.ReadFile("templates/" + entry.Name())
+
+		kind := entry.Name()
+		base, err := loadKindBaseTemplate(kind)
 		if err != nil {
-			return fmt.Errorf("read connector template %s: %w", entry.Name(), err)
+			return err
 		}
-		var template Template
-		if err := json.Unmarshal(content, &template); err != nil {
-			return fmt.Errorf("parse connector template %s: %w", entry.Name(), err)
+
+		kindEntries, err := fs.ReadDir(embeddedTemplateFiles, path.Join("templates", kind))
+		if err != nil {
+			return fmt.Errorf("read connector kind templates %s: %w", kind, err)
 		}
-		if err := validateTemplate(template); err != nil {
-			return fmt.Errorf("invalid connector template %s: %w", entry.Name(), err)
+
+		for _, kindEntry := range kindEntries {
+			if kindEntry.IsDir() || !strings.HasSuffix(kindEntry.Name(), ".json") || kindEntry.Name() == "_template.json" {
+				continue
+			}
+
+			filePath := path.Join("templates", kind, kindEntry.Name())
+			overlay, err := readTemplateFile(filePath)
+			if err != nil {
+				return fmt.Errorf("read connector template %s: %w", filePath, err)
+			}
+
+			template, err := applyTemplateOverlay(base, overlay)
+			if err != nil {
+				return fmt.Errorf("merge connector template %s: %w", filePath, err)
+			}
+			if err := validateTemplate(template); err != nil {
+				return fmt.Errorf("invalid connector template %s: %w", filePath, err)
+			}
+			templateMap[template.ID] = template
 		}
-		templateMap[template.ID] = template
 	}
 
 	keys := make([]string, 0, len(templateMap))
@@ -133,6 +136,169 @@ func loadTemplates() error {
 	return nil
 }
 
+type templateFile struct {
+	ID              *string             `json:"id,omitempty"`
+	Kind            *string             `json:"kind,omitempty"`
+	Title           *string             `json:"title,omitempty"`
+	Vendor          *string             `json:"vendor,omitempty"`
+	Category        *string             `json:"category,omitempty"`
+	Description     *string             `json:"description,omitempty"`
+	DefaultEndpoint *string             `json:"defaultEndpoint,omitempty"`
+	DefaultAuth     *string             `json:"defaultAuthScheme,omitempty"`
+	Capabilities    []string            `json:"capabilities,omitempty"`
+	Aliases         []string            `json:"aliases,omitempty"`
+	Fields          []templateFieldFile `json:"fields,omitempty"`
+}
+
+type templateFieldFile struct {
+	ID             string           `json:"id,omitempty"`
+	Label          *string          `json:"label,omitempty"`
+	Type           *string          `json:"type,omitempty"`
+	Required       *bool            `json:"required,omitempty"`
+	Sensitive      *bool            `json:"sensitive,omitempty"`
+	SecretTemplate *string          `json:"secretTemplate,omitempty"`
+	Placeholder    *string          `json:"placeholder,omitempty"`
+	HelpText       *string          `json:"helpText,omitempty"`
+	Default        json.RawMessage  `json:"default,omitempty"`
+}
+
+func loadKindBaseTemplate(kind string) (Template, error) {
+	base := Template{Kind: kind}
+	filePath := path.Join("templates", kind, "_template.json")
+	file, err := readTemplateFile(filePath)
+	if err != nil {
+		return Template{}, fmt.Errorf("read connector base template %s: %w", filePath, err)
+	}
+	base, err = applyTemplateOverlay(base, file)
+	if err != nil {
+		return Template{}, fmt.Errorf("merge connector base template %s: %w", filePath, err)
+	}
+	if strings.TrimSpace(base.Kind) != kind {
+		return Template{}, fmt.Errorf("base template kind %q does not match directory %q", base.Kind, kind)
+	}
+	return base, nil
+}
+
+func readTemplateFile(filePath string) (templateFile, error) {
+	content, err := embeddedTemplateFiles.ReadFile(filePath)
+	if err != nil {
+		return templateFile{}, err
+	}
+	var file templateFile
+	if err := json.Unmarshal(content, &file); err != nil {
+		return templateFile{}, fmt.Errorf("parse JSON: %w", err)
+	}
+	return file, nil
+}
+
+func applyTemplateOverlay(base Template, file templateFile) (Template, error) {
+	result := base
+
+	if file.ID != nil {
+		result.ID = NormalizeTemplateID(*file.ID)
+	}
+	if file.Kind != nil {
+		result.Kind = strings.TrimSpace(*file.Kind)
+	}
+	if file.Title != nil {
+		result.Title = strings.TrimSpace(*file.Title)
+	}
+	if file.Vendor != nil {
+		result.Vendor = strings.TrimSpace(*file.Vendor)
+	}
+	if file.Category != nil {
+		result.Category = strings.TrimSpace(*file.Category)
+	}
+	if file.Description != nil {
+		result.Description = strings.TrimSpace(*file.Description)
+	}
+	if file.DefaultEndpoint != nil {
+		result.DefaultEndpoint = strings.TrimSpace(*file.DefaultEndpoint)
+	}
+	if file.DefaultAuth != nil {
+		result.DefaultAuth = strings.TrimSpace(*file.DefaultAuth)
+	}
+	if file.Capabilities != nil {
+		result.Capabilities = append([]string(nil), file.Capabilities...)
+	}
+	if file.Aliases != nil {
+		result.Aliases = append([]string(nil), file.Aliases...)
+	}
+	if file.Fields != nil {
+		fields, err := mergeTemplateFields(base.Fields, file.Fields)
+		if err != nil {
+			return Template{}, err
+		}
+		result.Fields = fields
+	}
+
+	return result, nil
+}
+
+func mergeTemplateFields(base []TemplateField, overrides []templateFieldFile) ([]TemplateField, error) {
+	result := append([]TemplateField(nil), base...)
+	indexByID := make(map[string]int, len(result))
+	for index, field := range result {
+		indexByID[field.ID] = index
+	}
+
+	for _, override := range overrides {
+		if strings.TrimSpace(override.ID) == "" {
+			return nil, fmt.Errorf("template field id is required")
+		}
+		if index, ok := indexByID[override.ID]; ok {
+			merged, err := applyFieldOverlay(result[index], override)
+			if err != nil {
+				return nil, err
+			}
+			result[index] = merged
+			continue
+		}
+		merged, err := applyFieldOverlay(TemplateField{ID: override.ID}, override)
+		if err != nil {
+			return nil, err
+		}
+		indexByID[override.ID] = len(result)
+		result = append(result, merged)
+	}
+
+	return result, nil
+}
+
+func applyFieldOverlay(base TemplateField, override templateFieldFile) (TemplateField, error) {
+	result := base
+	result.ID = override.ID
+	if override.Label != nil {
+		result.Label = strings.TrimSpace(*override.Label)
+	}
+	if override.Type != nil {
+		result.Type = strings.TrimSpace(*override.Type)
+	}
+	if override.Required != nil {
+		result.Required = *override.Required
+	}
+	if override.Sensitive != nil {
+		result.Sensitive = *override.Sensitive
+	}
+	if override.SecretTemplate != nil {
+		result.SecretTemplate = strings.TrimSpace(*override.SecretTemplate)
+	}
+	if override.Placeholder != nil {
+		result.Placeholder = strings.TrimSpace(*override.Placeholder)
+	}
+	if override.HelpText != nil {
+		result.HelpText = strings.TrimSpace(*override.HelpText)
+	}
+	if override.Default != nil {
+		var value any
+		if err := json.Unmarshal(override.Default, &value); err != nil {
+			return TemplateField{}, fmt.Errorf("parse field default for %q: %w", override.ID, err)
+		}
+		result.Default = value
+	}
+	return result, nil
+}
+
 func validateTemplate(template Template) error {
 	if strings.TrimSpace(template.ID) == "" {
 		return fmt.Errorf("template id is required")
@@ -142,6 +308,17 @@ func validateTemplate(template Template) error {
 	}
 	if strings.TrimSpace(template.Title) == "" {
 		return fmt.Errorf("template title is required")
+	}
+	for _, field := range template.Fields {
+		if strings.TrimSpace(field.ID) == "" {
+			return fmt.Errorf("template field id is required")
+		}
+		if strings.TrimSpace(field.Label) == "" {
+			return fmt.Errorf("template field %q label is required", field.ID)
+		}
+		if strings.TrimSpace(field.Type) == "" {
+			return fmt.Errorf("template field %q type is required", field.ID)
+		}
 	}
 	return nil
 }

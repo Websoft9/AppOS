@@ -1,0 +1,23 @@
+{
+  "kind": "dns",
+  "category": "Network",
+  "description": "Reusable DNS automation connector profile.",
+  "defaultAuthScheme": "api_key",
+  "capabilities": ["dns", "records", "zones"],
+  "fields": [
+    {
+      "id": "endpoint",
+      "label": "Endpoint",
+      "type": "url",
+      "required": true,
+      "placeholder": "https://api.provider.com"
+    },
+    {
+      "id": "credential",
+      "label": "Credential",
+      "type": "secret_ref",
+      "secretTemplate": "api_key",
+      "placeholder": "secretRef:..."
+    }
+  ]
+}

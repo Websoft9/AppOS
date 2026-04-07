@@ -42,8 +42,8 @@ import { Route as AppAuthTopicsIdRouteImport } from './routes/_app/_auth/topics.
 import { Route as AppAuthResourcesTunnelsRouteImport } from './routes/_app/_auth/resources/tunnels'
 import { Route as AppAuthResourcesServersRouteImport } from './routes/_app/_auth/resources/servers'
 import { Route as AppAuthResourcesScriptsRouteImport } from './routes/_app/_auth/resources/scripts'
-import { Route as AppAuthResourcesEndpointsRouteImport } from './routes/_app/_auth/resources/endpoints'
 import { Route as AppAuthResourcesDatabasesRouteImport } from './routes/_app/_auth/resources/databases'
+import { Route as AppAuthResourcesConnectorsRouteImport } from './routes/_app/_auth/resources/connectors'
 import { Route as AppAuthResourcesCloudAccountsRouteImport } from './routes/_app/_auth/resources/cloud-accounts'
 import { Route as AppAuthGroupsIdRouteImport } from './routes/_app/_auth/groups.$id'
 import { Route as AppAuthDeployCreateRouteImport } from './routes/_app/_auth/deploy.create'
@@ -222,16 +222,16 @@ const AppAuthResourcesScriptsRoute = AppAuthResourcesScriptsRouteImport.update({
   path: '/resources/scripts',
   getParentRoute: () => AppAuthRoute,
 } as any)
-const AppAuthResourcesEndpointsRoute =
-  AppAuthResourcesEndpointsRouteImport.update({
-    id: '/resources/endpoints',
-    path: '/resources/endpoints',
-    getParentRoute: () => AppAuthRoute,
-  } as any)
 const AppAuthResourcesDatabasesRoute =
   AppAuthResourcesDatabasesRouteImport.update({
     id: '/resources/databases',
     path: '/resources/databases',
+    getParentRoute: () => AppAuthRoute,
+  } as any)
+const AppAuthResourcesConnectorsRoute =
+  AppAuthResourcesConnectorsRouteImport.update({
+    id: '/resources/connectors',
+    path: '/resources/connectors',
     getParentRoute: () => AppAuthRoute,
   } as any)
 const AppAuthResourcesCloudAccountsRoute =
@@ -350,8 +350,8 @@ export interface FileRoutesByFullPath {
   '/deploy/create': typeof AppAuthDeployCreateRoute
   '/groups/$id': typeof AppAuthGroupsIdRoute
   '/resources/cloud-accounts': typeof AppAuthResourcesCloudAccountsRoute
+  '/resources/connectors': typeof AppAuthResourcesConnectorsRoute
   '/resources/databases': typeof AppAuthResourcesDatabasesRoute
-  '/resources/endpoints': typeof AppAuthResourcesEndpointsRoute
   '/resources/scripts': typeof AppAuthResourcesScriptsRoute
   '/resources/servers': typeof AppAuthResourcesServersRoute
   '/resources/tunnels': typeof AppAuthResourcesTunnelsRoute
@@ -396,8 +396,8 @@ export interface FileRoutesByTo {
   '/deploy/create': typeof AppAuthDeployCreateRoute
   '/groups/$id': typeof AppAuthGroupsIdRoute
   '/resources/cloud-accounts': typeof AppAuthResourcesCloudAccountsRoute
+  '/resources/connectors': typeof AppAuthResourcesConnectorsRoute
   '/resources/databases': typeof AppAuthResourcesDatabasesRoute
-  '/resources/endpoints': typeof AppAuthResourcesEndpointsRoute
   '/resources/scripts': typeof AppAuthResourcesScriptsRoute
   '/resources/servers': typeof AppAuthResourcesServersRoute
   '/resources/tunnels': typeof AppAuthResourcesTunnelsRoute
@@ -449,8 +449,8 @@ export interface FileRoutesById {
   '/_app/_auth/deploy/create': typeof AppAuthDeployCreateRoute
   '/_app/_auth/groups/$id': typeof AppAuthGroupsIdRoute
   '/_app/_auth/resources/cloud-accounts': typeof AppAuthResourcesCloudAccountsRoute
+  '/_app/_auth/resources/connectors': typeof AppAuthResourcesConnectorsRoute
   '/_app/_auth/resources/databases': typeof AppAuthResourcesDatabasesRoute
-  '/_app/_auth/resources/endpoints': typeof AppAuthResourcesEndpointsRoute
   '/_app/_auth/resources/scripts': typeof AppAuthResourcesScriptsRoute
   '/_app/_auth/resources/servers': typeof AppAuthResourcesServersRoute
   '/_app/_auth/resources/tunnels': typeof AppAuthResourcesTunnelsRoute
@@ -500,8 +500,8 @@ export interface FileRouteTypes {
     | '/deploy/create'
     | '/groups/$id'
     | '/resources/cloud-accounts'
+    | '/resources/connectors'
     | '/resources/databases'
-    | '/resources/endpoints'
     | '/resources/scripts'
     | '/resources/servers'
     | '/resources/tunnels'
@@ -546,8 +546,8 @@ export interface FileRouteTypes {
     | '/deploy/create'
     | '/groups/$id'
     | '/resources/cloud-accounts'
+    | '/resources/connectors'
     | '/resources/databases'
-    | '/resources/endpoints'
     | '/resources/scripts'
     | '/resources/servers'
     | '/resources/tunnels'
@@ -598,8 +598,8 @@ export interface FileRouteTypes {
     | '/_app/_auth/deploy/create'
     | '/_app/_auth/groups/$id'
     | '/_app/_auth/resources/cloud-accounts'
+    | '/_app/_auth/resources/connectors'
     | '/_app/_auth/resources/databases'
-    | '/_app/_auth/resources/endpoints'
     | '/_app/_auth/resources/scripts'
     | '/_app/_auth/resources/servers'
     | '/_app/_auth/resources/tunnels'
@@ -854,18 +854,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthResourcesScriptsRouteImport
       parentRoute: typeof AppAuthRoute
     }
-    '/_app/_auth/resources/endpoints': {
-      id: '/_app/_auth/resources/endpoints'
-      path: '/resources/endpoints'
-      fullPath: '/resources/endpoints'
-      preLoaderRoute: typeof AppAuthResourcesEndpointsRouteImport
-      parentRoute: typeof AppAuthRoute
-    }
     '/_app/_auth/resources/databases': {
       id: '/_app/_auth/resources/databases'
       path: '/resources/databases'
       fullPath: '/resources/databases'
       preLoaderRoute: typeof AppAuthResourcesDatabasesRouteImport
+      parentRoute: typeof AppAuthRoute
+    }
+    '/_app/_auth/resources/connectors': {
+      id: '/_app/_auth/resources/connectors'
+      path: '/resources/connectors'
+      fullPath: '/resources/connectors'
+      preLoaderRoute: typeof AppAuthResourcesConnectorsRouteImport
       parentRoute: typeof AppAuthRoute
     }
     '/_app/_auth/resources/cloud-accounts': {
@@ -1087,8 +1087,8 @@ interface AppAuthRouteChildren {
   AppAuthSpaceRoute: typeof AppAuthSpaceRoute
   AppAuthTopicsRoute: typeof AppAuthTopicsRouteWithChildren
   AppAuthResourcesCloudAccountsRoute: typeof AppAuthResourcesCloudAccountsRoute
+  AppAuthResourcesConnectorsRoute: typeof AppAuthResourcesConnectorsRoute
   AppAuthResourcesDatabasesRoute: typeof AppAuthResourcesDatabasesRoute
-  AppAuthResourcesEndpointsRoute: typeof AppAuthResourcesEndpointsRoute
   AppAuthResourcesScriptsRoute: typeof AppAuthResourcesScriptsRoute
   AppAuthResourcesServersRoute: typeof AppAuthResourcesServersRoute
   AppAuthResourcesTunnelsRoute: typeof AppAuthResourcesTunnelsRoute
@@ -1114,8 +1114,8 @@ const AppAuthRouteChildren: AppAuthRouteChildren = {
   AppAuthSpaceRoute: AppAuthSpaceRoute,
   AppAuthTopicsRoute: AppAuthTopicsRouteWithChildren,
   AppAuthResourcesCloudAccountsRoute: AppAuthResourcesCloudAccountsRoute,
+  AppAuthResourcesConnectorsRoute: AppAuthResourcesConnectorsRoute,
   AppAuthResourcesDatabasesRoute: AppAuthResourcesDatabasesRoute,
-  AppAuthResourcesEndpointsRoute: AppAuthResourcesEndpointsRoute,
   AppAuthResourcesScriptsRoute: AppAuthResourcesScriptsRoute,
   AppAuthResourcesServersRoute: AppAuthResourcesServersRoute,
   AppAuthResourcesTunnelsRoute: AppAuthResourcesTunnelsRoute,

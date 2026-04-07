@@ -21,7 +21,7 @@ const (
 	ObjectTypeDatabase     ObjectType = "database"
 	ObjectTypeCloudAccount ObjectType = "cloud_account"
 	ObjectTypeCertificate  ObjectType = "certificate"
-	ObjectTypeEndpoint     ObjectType = "endpoint"
+	ObjectTypeConnector    ObjectType = "connector"
 	ObjectTypeScript       ObjectType = "script"
 )
 

@@ -6,7 +6,7 @@ The actual domain boundaries are the child directories under it.
 
 - `server/`: managed server access and runtime control capabilities.
 - `tunnel/`: reverse-SSH tunnel runtime and server registration transport.
-- `endpoints/`: reusable externally callable service targets such as REST APIs, webhooks, and MCP servers.
+- `connectors/`: reusable external capability access such as LLM providers, REST APIs, webhooks, and MCP servers.
 
 Rules:
 

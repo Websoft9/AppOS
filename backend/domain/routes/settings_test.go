@@ -70,11 +70,19 @@ func TestSettingsSchemaIncludesUnifiedEntries(t *testing.T) {
 		id, _ := entry["id"].(string)
 		section, _ := entry["section"].(string)
 		source, _ := entry["source"].(string)
+		description, _ := entry["description"].(string)
 		switch id {
 		case "smtp":
 			foundSystem = section == "system" && source == "native"
+			if !strings.Contains(description, "Resources > Connectors") {
+				t.Fatalf("expected smtp schema entry description to reference connectors, got %q", description)
+			}
 		case "space-quota":
 			foundWorkspace = section == "workspace" && source == "custom"
+		case "docker-registries":
+			if !strings.Contains(description, "Resources > Connectors") {
+				t.Fatalf("expected docker-registries schema entry description to reference connectors, got %q", description)
+			}
 		case "iac-files":
 			if section != "workspace" || source != "custom" {
 				t.Fatalf("expected iac-files schema entry with workspace/custom metadata, got section=%s source=%s", section, source)
@@ -278,6 +286,21 @@ func TestSettingsEntryPatchPersistsUnifiedValues(t *testing.T) {
 	}
 	if got := sysconfig.String(storedIacFiles, "extensionBlacklist", ""); got != ".exe,.bin" {
 		t.Fatalf("expected extensionBlacklist .exe,.bin, got %q", got)
+	}
+}
+
+func TestConnectorManagedSettingsEntriesRejectPatch(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	for _, entryID := range []string{"smtp", "docker-registries"} {
+		rec := doSettingsRoute(t, te, http.MethodPatch, "/api/settings/entries/"+entryID, `{}`, true)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400 for %s patch, got %d: %s", entryID, rec.Code, rec.Body.String())
+		}
+		if !strings.Contains(rec.Body.String(), "connector-managed") {
+			t.Fatalf("expected connector-managed message for %s, got %s", entryID, rec.Body.String())
+		}
 	}
 }
 

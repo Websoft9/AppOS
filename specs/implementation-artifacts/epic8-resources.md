@@ -2,7 +2,7 @@
 
 ## Overview
 
-**Platform-level shared resource management** — servers, secrets, env groups, databases, cloud accounts, certificates, endpoints, and scripts that can be referenced by multiple applications. Resources are platform-defined (not user-extensible), each with its own PocketBase Collection and migration. Apps reference resources; they don't own them.
+**Platform-level shared resource management** — servers, secrets, env groups, databases, cloud accounts, certificates, connectors, and scripts that can be referenced by multiple applications. Resources are platform-defined (not user-extensible), each with its own PocketBase Collection and migration. Apps reference resources; they don't own them.
 
 > Env Groups detail spec: see [Epic 24](epic24-shared-envs.md)
 
@@ -21,7 +21,7 @@ Epic 8 is now split conceptually into two phases.
 
 ### Phase 1: Resource Store foundation
 
-Phase 1 delivered the original resource-store model with separate collections such as servers, secrets, databases, cloud accounts, certificates, endpoints, and scripts.
+Phase 1 delivered the original resource-store model with separate collections such as servers, secrets, databases, cloud accounts, certificates, legacy endpoints, and scripts.
 
 ### Phase 2: Resource taxonomy refactor
 
@@ -39,7 +39,7 @@ This phase does not require full operational depth for every instance kind on da
 The current model has three structural problems:
 
 1. some long-lived external dependencies are still stored under `settings`
-2. `endpoints` is too narrow as a long-term home for all connection-oriented resources
+2. the legacy `endpoints` concept is too narrow as a long-term home for all connection-oriented resources
 3. there is no canonical home yet for service-like app dependencies such as RDS, object storage, model services, or managed registries
 
 Without the taxonomy refactor, future work on LLM, S3, registry, DNS, SMTP, backup targets, and managed runtime dependencies will continue to drift into inconsistent resource families.
@@ -49,7 +49,7 @@ Without the taxonomy refactor, future work on LLM, S3, registry, DNS, SMTP, back
 Phase 2 of Epic 8 is responsible for:
 
 1. establishing `instances` as a canonical resource family for concrete app dependencies
-2. evolving `endpoints` toward `connectors`
+2. completing the evolution from legacy `endpoints` toward `connectors`
 3. defining when a dependency belongs to `instance` versus `connector`
 4. moving long-lived resource ownership out of `settings`
 5. defining how settings, apps, deploy, and workflows reference the new resource families
@@ -97,7 +97,7 @@ Product/UI label uses `Platform Accounts`, while backend domain terminology rema
 
 ### Track D: Connector evolution
 
-1. evolve current `endpoints` model toward `connectors`
+1. evolve the legacy `endpoints` model toward `connectors`
 2. introduce template-aware connector modeling where needed
 3. preserve lightweight connection-testing semantics
 
@@ -130,9 +130,13 @@ Product/UI label uses `Platform Accounts`, while backend domain terminology rema
 4. backward-compatible transition routes are acceptable during the migration window
 5. settings should reference resources, not own them
 
-## Frontend Navigation
+## Phase 1 Legacy Reference
 
-## Frontend Navigation
+The remaining sections in this part of the document preserve the original Phase 1 resource-store design for migration context.
+
+Current canonical naming for connection-oriented resources is `Connectors`, surfaced at `/resources/connectors` and `/api/connectors`.
+
+### Frontend Navigation
 
 Resource Store uses a **two-level sidebar menu**:
 
@@ -144,7 +148,7 @@ Resources (一级)
   ├── Databases
   ├── Cloud Accounts
   ├── Certificates
-  ├── Endpoints
+  ├── Connectors
   └── Scripts
 ```
 
@@ -176,7 +180,7 @@ This means the `apps` collection carries:
 - `secrets[]` Relation — references to Resource Store secrets
 - `env_groups[]` Relation — references to Resource Store env groups (see [Epic 24](epic24-shared-envs.md))
 
-## Architecture
+### Legacy Phase 1 Architecture
 
 ```
 Resource Store (independent collections)
@@ -187,13 +191,13 @@ Resource Store (independent collections)
   ├── databases     → External DB connections (password → secrets)
   ├── cloud_accounts → Cloud provider credentials (secret → secrets)
   ├── certificates   → TLS certs, private key → secrets
-  ├── integrations   → Endpoint resources for REST APIs, outbound webhooks, and MCP servers (credential → secrets)
+  ├── connectors     → Reusable external capability access such as REST APIs, outbound webhooks, MCP servers, SMTP, registry, and DNS (credential → secrets)
   └── scripts        → Reusable scripts (`python3` / `bash`)
 
 Apps collection
   ├── env_vars      → JSON (non-sensitive inline config)
   ├── credentials   → JSON encrypted (App-scoped deployment passwords)
-  └── references    → server, secrets[], env_groups[], databases[], cloud_accounts[], certificates[], integrations[], scripts[]
+  └── references    → server, secrets[], env_groups[], databases[], cloud_accounts[], certificates[], connectors[], scripts[]
 
 Resource Groups (many-to-many)
   └── each resource collection carries a `groups` Relation[] → resource_groups
@@ -202,7 +206,7 @@ Resource Groups (many-to-many)
 
 Resources are managed via PocketBase Collection API (Go migrations). Each resource type is a separate collection — no generic/EAV tables.
 
-## Collections
+### Legacy Phase 1 Collections
 
 ### `resource_groups`
 User-defined cross-type grouping labels (tag-like). One system-seeded `default` group.
@@ -285,21 +289,23 @@ TLS certificates. Private key stored as a secret; cert (public) stored as plain 
 | description | Text | |
 | groups | Relation[] | → resource_groups; auto-filled with `default` on create if empty |
 
-### `integrations` (product term: Endpoints)
-External endpoints: REST APIs, outbound webhooks, and MCP servers.
+### `connectors` (product term: Connectors)
+Reusable external capability access: REST APIs, outbound webhooks, MCP servers, SMTP delivery, registry login, and DNS automation.
 
 | Field | Type | Notes |
 |-------|------|-------|
 | name | Text | required |
-| type | Select | `rest` / `webhook` / `mcp` |
-| url | Text | required |
-| auth_type | Select | `none` / `api_key` / `bearer` / `basic` |
+| kind | Select | `llm` / `rest_api` / `webhook` / `mcp` / `smtp` / `registry` / `dns` |
+| is_default | Bool | explicit runtime default within a kind |
+| template_id | Text | built-in connector profile ID |
+| endpoint | Text | required for networked connector kinds |
+| auth_scheme | Select | `none` / `api_key` / `bearer` / `basic` |
 | credential | Relation | → secrets (optional) |
-| extra | JSON | headers, event types, MCP transport params, etc. |
+| config | JSON | template-specific fields such as headers, event, region, namespace, TLS, etc. |
 | description | Text | |
 | groups | Relation[] | → resource_groups; auto-filled with `default` on create if empty |
 
-`type` is UI/consumer hint only — storage schema is identical for all three.
+`template_id` is a profile identifier under a connector kind. Templates provide defaults and field metadata without changing the canonical connector model.
 
 ### `scripts`
 Reusable scripts for automation and operations.
@@ -312,9 +318,9 @@ Reusable scripts for automation and operations.
 | description | Text | |
 | groups | Relation[] | → resource_groups; auto-filled with `default` on create if empty |
 
-## API Routes
+### Legacy Phase 1 API Routes
 
-All under `/api/ext/resources/`. All require authentication.
+Phase 1 resource routes lived under `/api/ext/resources/`. Current connector routes are mounted at `/api/connectors`.
 
 ### Resource Groups
 
@@ -358,11 +364,11 @@ All under `/api/ext/resources/`. All require authentication.
 | GET | `/certificates/:id` | Get certificate |
 | PUT | `/certificates/:id` | Update certificate |
 | DELETE | `/certificates/:id` | Delete certificate |
-| GET | `/endpoints` | List endpoints |
-| POST | `/endpoints` | Create endpoint |
-| GET | `/endpoints/:id` | Get endpoint |
-| PUT | `/endpoints/:id` | Update endpoint |
-| DELETE | `/endpoints/:id` | Delete endpoint |
+| GET | `/connectors` | List connectors |
+| POST | `/connectors` | Create connector |
+| GET | `/connectors/:id` | Get connector |
+| PUT | `/connectors/:id` | Update connector |
+| DELETE | `/connectors/:id` | Delete connector |
 | GET | `/scripts` | List scripts |
 | POST | `/scripts` | Create script |
 | GET | `/scripts/:id` | Get script |
@@ -432,7 +438,7 @@ Phase 2 does not require all target routes to exist immediately, but new stories
 - [x] 8.2c: Backend routes — CRUD API for scripts
 - [x] 8.3: Secret encryption — AES-256-GCM via `internal/crypto`, keyed by `APPOS_ENCRYPTION_KEY` env var
 - [x] 8.4: Dashboard UI — Resource Hub + list/form pages for all 6 types
-- [x] 8.4b: Dashboard UI — Endpoints list/form page + Hub card
+- [x] 8.4b: Dashboard UI — legacy endpoint list/form page + Hub card
 - [x] 8.4c: Dashboard UI — Scripts list/form page + Hub card
 - [x] 8.5: App resource binding — `env_vars`, `credentials` (encrypted) JSON + relation fields on Apps collection (`1740100000_add_apps_resource_bindings.go`)
 - [x] 8.6: Resource Groups — Migration: `resource_groups` collection + seed `default` group + back-fill `groups` field on all 8 resource collections
@@ -469,7 +475,7 @@ Hub 页右上角有两个并排操作入口：
                     │  Database       │  → /resources/databases?create=1
                     │  Cloud Account  │  → /resources/cloud-accounts?create=1
                     │  Certificate    │  → /resources/certificates?create=1
-                    │  Endpoint       │  → /resources/endpoints?create=1
+                    │  Connector      │  → /resources/connectors?create=1
                     │  Script         │  → /resources/scripts?create=1
                     └─────────────────┘
 ```

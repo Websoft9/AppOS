@@ -6,9 +6,9 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
+	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	"github.com/websoft9/appos/backend/domain/secrets"
-	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 
 	// trigger init() registrations
 	_ "github.com/websoft9/appos/backend/infra/migrations"
@@ -769,7 +769,7 @@ func TestResourceCollectionsHaveNoGroupsField(t *testing.T) {
 	collections := []string{
 		"servers", "secrets", "env_sets",
 		"databases", "cloud_accounts", "certificates",
-		"endpoints", "scripts",
+		"connectors", "scripts",
 	}
 	for _, colName := range collections {
 		col, err := app.FindCollectionByNameOrId(colName)
@@ -797,6 +797,25 @@ func TestGroupsAndGroupItemsExistAfterMigration(t *testing.T) {
 	}
 	if _, err := app.FindCollectionByNameOrId("group_items"); err != nil {
 		t.Error("group_items collection not found after migration:", err)
+	}
+}
+
+func TestInstancesCollectionExistsAfterMigration(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Cleanup()
+
+	col, err := app.FindCollectionByNameOrId("instances")
+	if err != nil {
+		t.Fatal("instances collection not found after migration:", err)
+	}
+
+	for _, fieldName := range []string{"name", "kind", "template_id", "endpoint", "credential", "config", "description"} {
+		if col.Fields.GetByName(fieldName) == nil {
+			t.Fatalf("instances collection missing field %q", fieldName)
+		}
 	}
 }
 

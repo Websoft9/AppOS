@@ -2,9 +2,6 @@ package connectors
 
 import (
 	"testing"
-
-	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/domain/resource/endpoints"
 )
 
 func TestSpecFromLLMProvider(t *testing.T) {
@@ -41,46 +38,70 @@ func TestFindTemplateLoadsEmbeddedOpenAI(t *testing.T) {
 	if template.Fields[0].ID != "endpoint" {
 		t.Fatalf("expected first field to be endpoint, got %q", template.Fields[0].ID)
 	}
-}
-
-func TestSpecFromEndpoint(t *testing.T) {
-	col := core.NewBaseCollection(endpoints.Collection)
-	rec := core.NewRecord(col)
-	rec.Set("name", "Ops Webhook")
-	rec.Set("type", "webhook")
-	rec.Set("url", "https://hooks.example.com/deploy")
-	rec.Set("auth_type", "bearer")
-	rec.Set("credential", "secret_1")
-	rec.Set("extra", map[string]any{"event": "deploy.finished"})
-	rec.Set("description", "notify deploy finished")
-
-	spec := SpecFromEndpoint(endpoints.From(rec))
-
-	if spec.Kind != KindWebhook {
-		t.Fatalf("expected kind %q, got %q", KindWebhook, spec.Kind)
-	}
-	if spec.TemplateID != "generic-webhook" {
-		t.Fatalf("expected template_id generic-webhook, got %q", spec.TemplateID)
-	}
-	if spec.AuthScheme != AuthSchemeBearer {
-		t.Fatalf("expected auth_scheme %q, got %q", AuthSchemeBearer, spec.AuthScheme)
-	}
-	if spec.CredentialID != "secret_1" {
-		t.Fatalf("expected credential id secret_1, got %q", spec.CredentialID)
-	}
-	if spec.Config["event"] != "deploy.finished" {
-		t.Fatalf("expected config event to be preserved")
+	if template.Fields[1].ID != "credential" || !template.Fields[1].Required || !template.Fields[1].Sensitive {
+		t.Fatalf("expected openai credential field to inherit base auth requirements")
 	}
 }
 
 func TestResolveLLMTemplate(t *testing.T) {
 	template := ResolveLLMTemplate("Azure OpenAI")
-	if template.ID != TemplateAzureOpenAI {
+	if template.ID != "azure-openai" {
 		t.Fatalf("expected Azure OpenAI template, got %q", template.ID)
 	}
 
 	custom := ResolveLLMTemplate("Unknown Vendor")
-	if custom.ID != TemplateCustomLLM {
-		t.Fatalf("expected fallback template %q, got %q", TemplateCustomLLM, custom.ID)
+	if custom.ID != TemplateGenericLLM {
+		t.Fatalf("expected fallback template %q, got %q", TemplateGenericLLM, custom.ID)
+	}
+}
+
+func TestDeclaredConnectorKindsHaveTemplates(t *testing.T) {
+	declaredKinds := []string{KindLLM, KindRESTAPI, KindWebhook, KindMCP, KindSMTP, KindDNS, KindRegistry}
+	for _, kind := range declaredKinds {
+		t.Run(kind, func(t *testing.T) {
+			templates := TemplatesByKind(kind)
+			if len(templates) == 0 {
+				t.Fatalf("expected at least one template for kind %q", kind)
+			}
+		})
+	}
+}
+
+func TestFindTemplateLoadsGenericNonLLMTemplates(t *testing.T) {
+	testCases := []struct {
+		id   string
+		kind string
+	}{
+		{id: "generic-smtp", kind: KindSMTP},
+		{id: "generic-dns", kind: KindDNS},
+		{id: "generic-registry", kind: KindRegistry},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.id, func(t *testing.T) {
+			template, ok := FindTemplate(tc.id)
+			if !ok {
+				t.Fatalf("expected template %q to be loaded", tc.id)
+			}
+			if template.Kind != tc.kind {
+				t.Fatalf("expected kind %q, got %q", tc.kind, template.Kind)
+			}
+			if len(template.Fields) == 0 {
+				t.Fatalf("expected template %q to declare fields", tc.id)
+			}
+		})
+	}
+}
+
+func TestCustomLLMOverridesBaseAuthDefaults(t *testing.T) {
+	template, ok := FindTemplate("generic-llm")
+	if !ok {
+		t.Fatalf("expected generic llm template to be loaded")
+	}
+	if template.DefaultAuth != AuthSchemeNone {
+		t.Fatalf("expected custom llm auth scheme %q, got %q", AuthSchemeNone, template.DefaultAuth)
+	}
+	if len(template.Fields) < 2 || template.Fields[1].ID != "credential" || template.Fields[1].Required {
+		t.Fatalf("expected custom llm credential field to override base required flag")
 	}
 }

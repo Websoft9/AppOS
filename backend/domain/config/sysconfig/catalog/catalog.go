@@ -27,12 +27,13 @@ type ActionSchema struct {
 }
 
 type EntrySchema struct {
-	ID      string        `json:"id"`
-	Title   string        `json:"title"`
-	Section string        `json:"section"`
-	Source  string        `json:"source"`
-	Fields  []FieldSchema `json:"fields"`
-	Actions []string      `json:"actions,omitempty"`
+	ID          string        `json:"id"`
+	Title       string        `json:"title"`
+	Description string        `json:"description,omitempty"`
+	Section     string        `json:"section"`
+	Source      string        `json:"source"`
+	Fields      []FieldSchema `json:"fields"`
+	Actions     []string      `json:"actions,omitempty"`
 
 	PocketBaseGroup string `json:"-"`
 	Module          string `json:"-"`
@@ -63,11 +64,12 @@ var entryCatalog = []EntrySchema{
 		PocketBaseGroup: "meta",
 	},
 	{
-		ID:      "smtp",
-		Title:   "SMTP",
-		Section: SectionSystem,
-		Source:  SourceNative,
-		Actions: []string{"test-email"},
+		ID:          "smtp",
+		Title:       "SMTP",
+		Description: "Reference-only entry. Create and manage SMTP connectors from Resources > Connectors.",
+		Section:     SectionSystem,
+		Source:      SourceNative,
+		Actions:     []string{"test-email"},
 		Fields: []FieldSchema{
 			{ID: "enabled", Label: "Enable SMTP", Type: "boolean"},
 			{ID: "host", Label: "Host", Type: "string"},
@@ -230,13 +232,14 @@ var entryCatalog = []EntrySchema{
 		},
 	},
 	{
-		ID:      "docker-registries",
-		Title:   "Docker Registries",
-		Section: SectionWorkspace,
-		Source:  SourceCustom,
-		Module:  "docker",
-		Key:     "registries",
-		Fields:  []FieldSchema{{ID: "items", Label: "Items", Type: "object-list"}},
+		ID:          "docker-registries",
+		Title:       "Docker Registries",
+		Description: "Reference-only entry. Create and manage registry connectors from Resources > Connectors.",
+		Section:     SectionWorkspace,
+		Source:      SourceCustom,
+		Module:      "docker",
+		Key:         "registries",
+		Fields:      []FieldSchema{{ID: "items", Label: "Items", Type: "object-list"}},
 	},
 	{
 		ID:      "topic-share",
