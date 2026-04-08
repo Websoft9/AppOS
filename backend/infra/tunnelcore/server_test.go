@@ -1,4 +1,4 @@
-package tunnel
+package tunnelcore
 
 import (
 	"os"
@@ -70,12 +70,12 @@ func (noopForwardResolver) Resolve(string) []ForwardSpec { return DefaultForward
 
 func TestServer_InitRejectsNilValidator(t *testing.T) {
 	s := &Server{
-		DataDir:   t.TempDir(),
-		Validator: nil,
-		Hooks:     noopHooks{},
-		Pool:      NewPortPool(59200, 59299),
+		DataDir:         t.TempDir(),
+		Validator:       nil,
+		Hooks:           noopHooks{},
+		Pool:            NewPortPool(59200, 59299),
 		ForwardResolver: noopForwardResolver{},
-		Sessions:  NewRegistry(),
+		Sessions:        NewRegistry(),
 	}
 	if err := s.init(); err == nil {
 		t.Error("init() should return error when Validator is nil")
@@ -84,12 +84,12 @@ func TestServer_InitRejectsNilValidator(t *testing.T) {
 
 func TestServer_InitRejectsNilHooks(t *testing.T) {
 	s := &Server{
-		DataDir:   t.TempDir(),
-		Validator: noopValidator{},
-		Hooks:     nil,
-		Pool:      NewPortPool(59200, 59299),
+		DataDir:         t.TempDir(),
+		Validator:       noopValidator{},
+		Hooks:           nil,
+		Pool:            NewPortPool(59200, 59299),
 		ForwardResolver: noopForwardResolver{},
-		Sessions:  NewRegistry(),
+		Sessions:        NewRegistry(),
 	}
 	if err := s.init(); err == nil {
 		t.Error("init() should return error when Hooks is nil")
@@ -98,12 +98,12 @@ func TestServer_InitRejectsNilHooks(t *testing.T) {
 
 func TestServer_InitRejectsNilPool(t *testing.T) {
 	s := &Server{
-		DataDir:   t.TempDir(),
-		Validator: noopValidator{},
-		Hooks:     noopHooks{},
-		Pool:      nil,
+		DataDir:         t.TempDir(),
+		Validator:       noopValidator{},
+		Hooks:           noopHooks{},
+		Pool:            nil,
 		ForwardResolver: noopForwardResolver{},
-		Sessions:  NewRegistry(),
+		Sessions:        NewRegistry(),
 	}
 	if err := s.init(); err == nil {
 		t.Error("init() should return error when Pool is nil")
@@ -112,12 +112,12 @@ func TestServer_InitRejectsNilPool(t *testing.T) {
 
 func TestServer_InitRejectsNilSessions(t *testing.T) {
 	s := &Server{
-		DataDir:   t.TempDir(),
-		Validator: noopValidator{},
-		Hooks:     noopHooks{},
-		Pool:      NewPortPool(59200, 59299),
+		DataDir:         t.TempDir(),
+		Validator:       noopValidator{},
+		Hooks:           noopHooks{},
+		Pool:            NewPortPool(59200, 59299),
 		ForwardResolver: noopForwardResolver{},
-		Sessions:  nil,
+		Sessions:        nil,
 	}
 	if err := s.init(); err == nil {
 		t.Error("init() should return error when Sessions is nil")
@@ -126,12 +126,12 @@ func TestServer_InitRejectsNilSessions(t *testing.T) {
 
 func TestServer_InitSucceedsWithAllDeps(t *testing.T) {
 	s := &Server{
-		DataDir:   t.TempDir(),
-		Validator: noopValidator{},
-		Hooks:     noopHooks{},
-		Pool:      NewPortPool(59200, 59299),
+		DataDir:         t.TempDir(),
+		Validator:       noopValidator{},
+		Hooks:           noopHooks{},
+		Pool:            NewPortPool(59200, 59299),
 		ForwardResolver: noopForwardResolver{},
-		Sessions:  NewRegistry(),
+		Sessions:        NewRegistry(),
 	}
 	if err := s.init(); err != nil {
 		t.Errorf("init() unexpected error: %v", err)

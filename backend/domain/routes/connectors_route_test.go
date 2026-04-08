@@ -99,8 +99,12 @@ func TestConnectorRejectsMissingCredentialReference(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
-	if len(auditEntriesByAction(t, te, "connector.create")) != 0 {
-		t.Fatal("expected credential pre-validation failures to avoid mutation audit")
+	entries := auditEntriesByAction(t, te, "connector.create")
+	if len(entries) != 1 {
+		t.Fatalf("expected one failed create audit entry, got %d", len(entries))
+	}
+	if entries[0].GetString("status") != audit.StatusFailed {
+		t.Fatalf("expected failed create audit, got %q", entries[0].GetString("status"))
 	}
 }
 
@@ -295,5 +299,37 @@ func TestConnectorCreateDefaultClearsPreviousDefault(t *testing.T) {
 	}
 	if firstReloaded["is_default"] == true {
 		t.Fatal("expected first connector's is_default to be cleared after second default was created")
+	}
+}
+
+func TestConnectorRejectsDuplicateName(t *testing.T) {
+	ensureConnectorSecretRuntime(t)
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	first := te.do(t, http.MethodPost, "/api/connectors",
+		`{"name":"dup-llm","kind":"llm","template_id":"openai"}`,
+		true)
+	if first.Code != http.StatusCreated {
+		t.Fatalf("first create failed: %d %s", first.Code, first.Body.String())
+	}
+
+	second := te.do(t, http.MethodPost, "/api/connectors",
+		`{"name":"dup-llm","kind":"smtp","template_id":"generic-smtp","endpoint":"smtp://smtp.example.com:587"}`,
+		true)
+	if second.Code != http.StatusConflict {
+		t.Fatalf("expected 409 for duplicate name, got %d: %s", second.Code, second.Body.String())
+	}
+}
+
+func TestConnectorRejectsUnsupportedKind(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.do(t, http.MethodPost, "/api/connectors",
+		`{"name":"bad-kind","kind":"foobar","template_id":""}`,
+		true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for unsupported kind, got %d: %s", rec.Code, rec.Body.String())
 	}
 }

@@ -97,6 +97,89 @@ See [Epic 19](epic19-secrets.md) for full data model. Servers consume secrets vi
 
 ---
 
+## DDD Sketch
+
+Epic 20 should treat "server" as a managed node, not just a PocketBase record. The domain is small, but it still benefits from clear boundaries.
+
+### Bounded Contexts
+
+| Context | Responsibility | Notes |
+|---------|----------------|-------|
+| Server Catalog | Register and maintain managed servers | Low-frequency configuration changes |
+| Remote Access | Resolve a server into SSH/SFTP/Docker connection config | Uses `secrets` as an external dependency |
+| Tunnel Runtime | Track tunnel token, online/offline state, and forwarded services | High-frequency runtime state |
+
+### Aggregate Roots
+
+#### 1. `ManagedServer`
+
+Primary aggregate root for the catalog context.
+
+Owns:
+- identity: `id`, `name`
+- endpoint: `host`, `port`
+- login: `user`, `shell`
+- access mode: `connect_type`
+- secret reference: `credential`
+- metadata: `description`
+- desired tunnel plan: `tunnel_forwards`
+
+Business invariants:
+- `name` is unique
+- `host` and `user` are required
+- `port` must be valid when provided
+- `connect_type` must be one of the supported modes
+- `credential` stores only a reference, never secret payload
+
+#### 2. `TunnelRuntime`
+
+Separate runtime aggregate for tunnel-backed servers.
+
+Owns:
+- `tunnel_status`
+- `tunnel_last_seen`
+- `tunnel_connected_at`
+- `tunnel_remote_addr`
+- `tunnel_disconnect_at`
+- `tunnel_disconnect_reason`
+- `tunnel_pause_until`
+- `tunnel_services`
+
+Business invariants:
+- one active runtime session per server at a time
+- paused servers reject new tunnel connections
+- published tunnel services must come from the approved forward plan
+
+### Value Objects
+
+- `ServerEndpoint`: `host`, `port`
+- `LoginIdentity`: `user`, `shell`
+- `ConnectionMode`: `direct` or `tunnel`
+- `CredentialRef`: secret id only
+- `TunnelForwardPlan`: desired forwarded services
+
+### Domain Services
+
+These should stay outside the aggregate:
+
+- SSH / SFTP / Docker connectors
+- credential decryption and secret resolution
+- tunnel token validation and session registry
+
+Reason: these are integration-heavy behaviors, not persistent business identity.
+
+### DDD Direction
+
+The current implementation mixes catalog state and runtime state in the same `servers` collection. That is acceptable for MVP, but code should still separate them conceptually:
+
+1. `ManagedServer` governs configuration changes.
+2. `TunnelRuntime` governs live connectivity state.
+3. Routes and workers should depend on domain/application services, not read the `servers` record shape directly when avoidable.
+
+Architecture principle: `server` is a business concept in a supporting subdomain, while SSH, SFTP, Docker exec, and tunnel transport remain infrastructure concerns around that concept.
+
+---
+
 ## Backend API
 
 All custom routes require `RequireSuperuserAuth()`. Server Registry uses PocketBase native records API (standard auth).

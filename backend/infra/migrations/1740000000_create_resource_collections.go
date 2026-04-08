@@ -192,8 +192,8 @@ func init() {
 			Name: "domain",
 		})
 		certificates.Fields.Add(&core.TextField{
-			Name:   "template_id",
-			Max:    120,
+			Name: "template_id",
+			Max:  120,
 		})
 		certificates.Fields.Add(&core.SelectField{
 			Name:      "kind",

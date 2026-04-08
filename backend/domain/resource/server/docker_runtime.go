@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/pocketbase/pocketbase/core"
-	sec "github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/infra/docker"
 )
 
@@ -16,12 +15,12 @@ func NewDockerClient(app core.App, serverID string, localClient *docker.Client) 
 		return localClient, nil
 	}
 
-	serverRec, err := app.FindRecordById("servers", serverID)
+	server, err := LoadManagedServer(app, serverID)
 	if err != nil {
-		return nil, fmt.Errorf("server %s not found: %w", serverID, err)
+		return nil, err
 	}
 
-	sshConfig, err := ResolveDockerSSHConfig(app, serverRec, "")
+	sshConfig, err := server.DockerSSHConfig(app, "")
 	if err != nil {
 		return nil, err
 	}
@@ -30,44 +29,40 @@ func NewDockerClient(app core.App, serverID string, localClient *docker.Client) 
 
 // ResolveDockerSSHConfig builds the SSH config used for remote Docker operations.
 func ResolveDockerSSHConfig(app core.App, serverRec *core.Record, userID string) (docker.SSHConfig, error) {
-	if serverRec == nil {
+	server := ManagedServerFromRecord(serverRec)
+	if server == nil {
 		return docker.SSHConfig{}, fmt.Errorf("server record is required")
 	}
+	return server.DockerSSHConfig(app, userID)
+}
 
-	host, port, err := ResolveDockerSSHAddress(serverRec)
+func (s *ManagedServer) DockerSSHConfig(app core.App, userID string) (docker.SSHConfig, error) {
+	if s == nil {
+		return docker.SSHConfig{}, fmt.Errorf("server is required")
+	}
+
+	host, port, err := s.ResolveDockerSSHAddress()
 	if err != nil {
 		return docker.SSHConfig{}, err
 	}
 
-	user := serverRec.GetString("user")
-	credentialID := serverRec.GetString("credential")
-	authType := CredentialAuthType(app, credentialID)
-
-	secretValue := ""
-	if credentialID != "" {
-		payload, resolveErr := sec.Resolve(app, credentialID, userID)
-		if resolveErr != nil {
-			return docker.SSHConfig{}, fmt.Errorf("credential resolve: %w", resolveErr)
-		}
-		if authType == "password" {
-			secretValue = sec.FirstStringFromPayload(payload.Payload, "password", "value")
-		} else {
-			secretValue = sec.FirstStringFromPayload(payload.Payload, "private_key", "key", "value")
-		}
+	cfg, err := s.ConnectorConfig(app, userID)
+	if err != nil {
+		return docker.SSHConfig{}, err
 	}
 
-	sudoEnabled := user != "root"
+	sudoEnabled := cfg.User != "root"
 	sudoPassword := ""
-	if sudoEnabled && authType == "password" {
-		sudoPassword = secretValue
+	if sudoEnabled && cfg.AuthType == "password" {
+		sudoPassword = cfg.Secret
 	}
 
 	return docker.SSHConfig{
 		Host:         host,
 		Port:         port,
-		User:         user,
-		AuthType:     authType,
-		Secret:       secretValue,
+		User:         cfg.User,
+		AuthType:     cfg.AuthType,
+		Secret:       cfg.Secret,
 		SudoEnabled:  sudoEnabled,
 		SudoPassword: sudoPassword,
 	}, nil
@@ -75,26 +70,11 @@ func ResolveDockerSSHConfig(app core.App, serverRec *core.Record, userID string)
 
 // ResolveDockerSSHAddress rewrites tunnel-backed servers to their active local forwarding address.
 func ResolveDockerSSHAddress(serverRec *core.Record) (string, int, error) {
-	host := serverRec.GetString("host")
-	port := serverRec.GetInt("port")
-	if port == 0 {
-		port = 22
+	server := ManagedServerFromRecord(serverRec)
+	if server == nil {
+		return "", 0, fmt.Errorf("server record is required")
 	}
-
-	if serverRec.GetString("connect_type") != "tunnel" {
-		return host, port, nil
-	}
-
-	if serverRec.GetString("tunnel_status") != "online" {
-		return "", 0, fmt.Errorf("tunnel server %s is offline", serverRec.Id)
-	}
-
-	sshPort, err := TunnelSSHPortFromServices(serverRec.GetString("tunnel_services"))
-	if err != nil {
-		return "", 0, err
-	}
-
-	return "127.0.0.1", sshPort, nil
+	return server.ResolveDockerSSHAddress()
 }
 
 // TunnelSSHPortFromServices extracts the SSH forwarding port from tunnel_services JSON.

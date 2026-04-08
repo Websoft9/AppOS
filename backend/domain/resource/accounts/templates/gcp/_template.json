@@ -1,0 +1,21 @@
+{
+  "category": "cloud",
+  "kind": "gcp",
+  "title": "Google Cloud Project",
+  "vendor": "Google Cloud",
+  "description": "Google Cloud project scope used by provider-backed resources.",
+  "fields": [
+    {
+      "id": "identifier",
+      "label": "Project ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "my-gcp-project"
+    },
+    {
+      "id": "billingAccount",
+      "label": "Billing Account",
+      "type": "text"
+    }
+  ]
+}

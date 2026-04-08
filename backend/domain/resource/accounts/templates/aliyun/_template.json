@@ -1,0 +1,21 @@
+{
+  "category": "cloud",
+  "kind": "aliyun",
+  "title": "Alibaba Cloud Account",
+  "vendor": "Alibaba Cloud",
+  "description": "Alibaba Cloud account scope used by provider-backed resources.",
+  "fields": [
+    {
+      "id": "identifier",
+      "label": "Account ID",
+      "type": "text",
+      "required": true
+    },
+    {
+      "id": "region",
+      "label": "Default Region",
+      "type": "text",
+      "placeholder": "cn-hangzhou"
+    }
+  ]
+}

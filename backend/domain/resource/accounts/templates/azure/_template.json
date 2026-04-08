@@ -1,0 +1,21 @@
+{
+  "category": "cloud",
+  "kind": "azure",
+  "title": "Azure Subscription",
+  "vendor": "Microsoft Azure",
+  "description": "Azure tenant and subscription scope used by provider-backed resources.",
+  "fields": [
+    {
+      "id": "identifier",
+      "label": "Subscription ID",
+      "type": "text",
+      "required": true
+    },
+    {
+      "id": "tenantId",
+      "label": "Tenant ID",
+      "type": "text",
+      "required": true
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-package tunnel
+package tunnelcore
 
 import (
 	"sync"
@@ -6,9 +6,9 @@ import (
 	"time"
 )
 
-func newTestSession(serverID string) *Session {
+func newTestSession(clientID string) *Session {
 	return &Session{
-		ServerID:    serverID,
+		ClientID:    clientID,
 		ConnectedAt: time.Now().UTC(),
 	}
 }
@@ -22,8 +22,8 @@ func TestRegistry_RegisterAndGet(t *testing.T) {
 	if !ok {
 		t.Fatal("Get: expected true, got false")
 	}
-	if got.ServerID != "srv1" {
-		t.Errorf("Get: serverID = %q, want %q", got.ServerID, "srv1")
+	if got.ClientID != "srv1" {
+		t.Errorf("Get: clientID = %q, want %q", got.ClientID, "srv1")
 	}
 }
 

@@ -1,0 +1,20 @@
+{
+  "category": "edge",
+  "kind": "cloudflare",
+  "title": "Cloudflare Account",
+  "vendor": "Cloudflare",
+  "description": "Cloudflare account scope used by DNS and edge automation integrations.",
+  "fields": [
+    {
+      "id": "identifier",
+      "label": "Account ID",
+      "type": "text",
+      "required": true
+    },
+    {
+      "id": "zoneId",
+      "label": "Default Zone ID",
+      "type": "text"
+    }
+  ]
+}

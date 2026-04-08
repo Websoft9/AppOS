@@ -83,6 +83,7 @@ func Register(se *core.ServeEvent) {
 	registerResourceRoutes(g)
 	registerConnectorRoutes(se)
 	registerInstanceRoutes(se)
+	registerProviderAccountRoutes(se)
 	registerUserRoutes(g)
 	registerComponentsRoutes(components)
 	registerCatalogRoutes(deployments)

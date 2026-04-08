@@ -5,8 +5,6 @@ import (
 	"strings"
 )
 
-const Collection = "connectors"
-
 const (
 	KindLLM      = "llm"
 	KindRESTAPI  = "rest_api"
@@ -20,6 +18,31 @@ const (
 const (
 	TemplateGenericLLM = "generic-llm"
 )
+
+var declaredKinds = []string{
+	KindLLM,
+	KindRESTAPI,
+	KindWebhook,
+	KindMCP,
+	KindSMTP,
+	KindDNS,
+	KindRegistry,
+}
+
+func AllowedKinds() []string {
+	result := make([]string, len(declaredKinds))
+	copy(result, declaredKinds)
+	return result
+}
+
+func IsAllowedKind(kind string) bool {
+	for _, item := range declaredKinds {
+		if item == strings.TrimSpace(kind) {
+			return true
+		}
+	}
+	return false
+}
 
 const (
 	AuthSchemeNone   = "none"
@@ -35,6 +58,7 @@ var EditableFields = []string{
 	"template_id",
 	"endpoint",
 	"auth_scheme",
+	"provider_account",
 	"credential",
 	"config",
 	"description",
@@ -42,33 +66,35 @@ var EditableFields = []string{
 
 // Connector is the canonical resource shape for reusable external capability access.
 type Connector struct {
-	id           string
-	created      string
-	updated      string
-	name         string
-	kind         string
-	isDefault    bool
-	templateID   string
-	endpoint     string
-	authScheme   string
-	credentialID string
-	config       map[string]any
-	description  string
+	id                string
+	created           string
+	updated           string
+	name              string
+	kind              string
+	isDefault         bool
+	templateID        string
+	endpoint          string
+	authScheme        string
+	providerAccountID string
+	credentialID      string
+	config            map[string]any
+	description       string
 }
 
 type Snapshot struct {
-	ID           string
-	Created      string
-	Updated      string
-	Name         string
-	Kind         string
-	IsDefault    bool
-	TemplateID   string
-	Endpoint     string
-	AuthScheme   string
-	CredentialID string
-	Config       map[string]any
-	Description  string
+	ID                string
+	Created           string
+	Updated           string
+	Name              string
+	Kind              string
+	IsDefault         bool
+	TemplateID        string
+	Endpoint          string
+	AuthScheme        string
+	ProviderAccountID string
+	CredentialID      string
+	Config            map[string]any
+	Description       string
 }
 
 func NewConnector() *Connector {
@@ -77,32 +103,34 @@ func NewConnector() *Connector {
 
 func RestoreConnector(snapshot Snapshot) *Connector {
 	return &Connector{
-		id:           snapshot.ID,
-		created:      snapshot.Created,
-		updated:      snapshot.Updated,
-		name:         snapshot.Name,
-		kind:         snapshot.Kind,
-		isDefault:    snapshot.IsDefault,
-		templateID:   snapshot.TemplateID,
-		endpoint:     snapshot.Endpoint,
-		authScheme:   snapshot.AuthScheme,
-		credentialID: snapshot.CredentialID,
-		config:       cloneMap(snapshot.Config),
-		description:  snapshot.Description,
+		id:                snapshot.ID,
+		created:           snapshot.Created,
+		updated:           snapshot.Updated,
+		name:              snapshot.Name,
+		kind:              snapshot.Kind,
+		isDefault:         snapshot.IsDefault,
+		templateID:        snapshot.TemplateID,
+		endpoint:          snapshot.Endpoint,
+		authScheme:        snapshot.AuthScheme,
+		providerAccountID: snapshot.ProviderAccountID,
+		credentialID:      snapshot.CredentialID,
+		config:            cloneMap(snapshot.Config),
+		description:       snapshot.Description,
 	}
 }
 
-func (c *Connector) ID() string           { return c.id }
-func (c *Connector) Created() string      { return c.created }
-func (c *Connector) Updated() string      { return c.updated }
-func (c *Connector) Name() string         { return c.name }
-func (c *Connector) Kind() string         { return c.kind }
-func (c *Connector) IsDefault() bool      { return c.isDefault }
-func (c *Connector) TemplateID() string   { return c.templateID }
-func (c *Connector) Endpoint() string     { return c.endpoint }
-func (c *Connector) AuthScheme() string   { return c.authScheme }
-func (c *Connector) CredentialID() string { return c.credentialID }
-func (c *Connector) Description() string  { return c.description }
+func (c *Connector) ID() string                { return c.id }
+func (c *Connector) Created() string           { return c.created }
+func (c *Connector) Updated() string           { return c.updated }
+func (c *Connector) Name() string              { return c.name }
+func (c *Connector) Kind() string              { return c.kind }
+func (c *Connector) IsDefault() bool           { return c.isDefault }
+func (c *Connector) TemplateID() string        { return c.templateID }
+func (c *Connector) Endpoint() string          { return c.endpoint }
+func (c *Connector) AuthScheme() string        { return c.authScheme }
+func (c *Connector) ProviderAccountID() string { return c.providerAccountID }
+func (c *Connector) CredentialID() string      { return c.credentialID }
+func (c *Connector) Description() string       { return c.description }
 
 func (c *Connector) Config() map[string]any {
 	return cloneMap(c.config)
@@ -115,6 +143,7 @@ func (c *Connector) ApplySaveInput(input SaveInput) {
 	c.templateID = strings.TrimSpace(input.TemplateID)
 	c.endpoint = strings.TrimSpace(input.Endpoint)
 	c.authScheme = strings.TrimSpace(input.AuthScheme)
+	c.providerAccountID = strings.TrimSpace(input.ProviderAccountID)
 	c.credentialID = strings.TrimSpace(input.CredentialID)
 	c.config = cloneMap(input.Config)
 	c.description = strings.TrimSpace(input.Description)
@@ -144,50 +173,20 @@ func (c *Connector) EnsureConfig() {
 
 func (c *Connector) Snapshot() Snapshot {
 	return Snapshot{
-		ID:           c.ID(),
-		Created:      c.Created(),
-		Updated:      c.Updated(),
-		Name:         c.Name(),
-		Kind:         c.Kind(),
-		IsDefault:    c.IsDefault(),
-		TemplateID:   c.TemplateID(),
-		Endpoint:     c.Endpoint(),
-		AuthScheme:   c.AuthScheme(),
-		CredentialID: c.CredentialID(),
-		Config:       c.Config(),
-		Description:  c.Description(),
+		ID:                c.ID(),
+		Created:           c.Created(),
+		Updated:           c.Updated(),
+		Name:              c.Name(),
+		Kind:              c.Kind(),
+		IsDefault:         c.IsDefault(),
+		TemplateID:        c.TemplateID(),
+		Endpoint:          c.Endpoint(),
+		AuthScheme:        c.AuthScheme(),
+		ProviderAccountID: c.ProviderAccountID(),
+		CredentialID:      c.CredentialID(),
+		Config:            c.Config(),
+		Description:       c.Description(),
 	}
-}
-
-func (c *Connector) ResponseMap() map[string]any {
-	return map[string]any{
-		"id":          c.ID(),
-		"created":     c.Created(),
-		"updated":     c.Updated(),
-		"name":        c.Name(),
-		"kind":        c.Kind(),
-		"is_default":  c.IsDefault(),
-		"template_id": c.TemplateID(),
-		"endpoint":    c.Endpoint(),
-		"auth_scheme": c.AuthScheme(),
-		"credential":  c.CredentialID(),
-		"config":      c.Config(),
-		"description": c.Description(),
-	}
-}
-
-// Spec is the minimum transport-neutral connector shape used by migration and mapping code.
-// TemplateID stores a profile ID under a connector kind, not a separate top-level resource type.
-type Spec struct {
-	Name         string
-	Kind         string
-	IsDefault    bool
-	TemplateID   string
-	Endpoint     string
-	AuthScheme   string
-	CredentialID string
-	Config       map[string]any
-	Description  string
 }
 
 // TemplateField describes one form/config field exposed by a connector template.
@@ -233,9 +232,24 @@ func cloneMap(input map[string]any) map[string]any {
 	}
 	output := make(map[string]any, len(input))
 	for key, value := range input {
-		output[key] = value
+		output[key] = cloneValue(value)
 	}
 	return output
+}
+
+func cloneValue(v any) any {
+	switch val := v.(type) {
+	case map[string]any:
+		return cloneMap(val)
+	case []any:
+		clone := make([]any, len(val))
+		for i, item := range val {
+			clone[i] = cloneValue(item)
+		}
+		return clone
+	default:
+		return v
+	}
 }
 
 func DecodeConfig(raw any) map[string]any {

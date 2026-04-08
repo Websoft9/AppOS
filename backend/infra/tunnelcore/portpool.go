@@ -1,4 +1,4 @@
-package tunnel
+package tunnelcore
 
 import (
 	"fmt"
@@ -35,11 +35,11 @@ type ConflictResolution struct {
 	NewPort int
 }
 
-// PortRecord carries the persisted service assignments for one server.
+// PortRecord carries the persisted service assignments for one client.
 // It is populated from the DB tunnel_services field at startup.
 type PortRecord struct {
-	// ServerID is the PocketBase record ID of the server.
-	ServerID string
+	// ClientID identifies the remote node inside the caller's system.
+	ClientID string
 	// Services lists each forwarded service with its stored tunnel port.
 	Services []Service
 }
@@ -56,20 +56,20 @@ func DefaultForwardSpecs() []ForwardSpec {
 	return out
 }
 
-// PortPool manages persistent port assignments for tunnel servers.
+// PortPool manages persistent port assignments for tunnel clients.
 // It is concurrency-safe.
 //
 // Port lifecycle:
 //   - LoadExisting pre-reserves all previously-assigned ports at startup.
-//   - AcquireOrReuse hands out ports to a connecting server.
-//   - Release returns ports to the free pool when a server is deleted.
+//   - AcquireOrReuse hands out ports to a connecting client.
+//   - Release returns ports to the free pool when a client is deleted.
 type PortPool struct {
 	mu    sync.Mutex
 	start int
 	end   int
-	// byServer maps serverID → assigned services (preserved across reconnects).
-	byServer map[string][]Service
-	// byPort maps tunnel port → owning serverID (reverse index for conflict detection).
+	// byClient maps clientID → assigned services (preserved across reconnects).
+	byClient map[string][]Service
+	// byPort maps tunnel port → owning clientID (reverse index for conflict detection).
 	byPort map[int]string
 }
 
@@ -79,7 +79,7 @@ func NewPortPool(start, end int) *PortPool {
 	return &PortPool{
 		start:    start,
 		end:      end,
-		byServer: make(map[string][]Service),
+		byClient: make(map[string][]Service),
 		byPort:   make(map[int]string),
 	}
 }
@@ -102,47 +102,47 @@ func (p *PortPool) LoadExisting(records []PortRecord) {
 				_ = existing
 				continue
 			}
-			p.byPort[svc.TunnelPort] = rec.ServerID
+			p.byPort[svc.TunnelPort] = rec.ClientID
 		}
-		p.byServer[rec.ServerID] = rec.Services
+		p.byClient[rec.ClientID] = rec.Services
 	}
 }
 
-// AcquireOrReuse returns the service-to-port mapping for serverID.
+// AcquireOrReuse returns the service-to-port mapping for clientID.
 //
-//   - Known server: returns the stored services, checking each port for OS-level
+//   - Known client: returns the stored services, checking each port for OS-level
 //     conflicts. Conflicted ports are replaced from the free range; a
 //     ConflictResolution is returned for each replacement so the caller can
 //     update the DB and write an audit entry.
-//   - New server: allocates one port per desired forward and stores them.
+//   - New client: allocates one port per desired forward and stores them.
 //
 // Returns (nil, nil) only when the port range is exhausted — the caller must
 // reject the connection.
-func (p *PortPool) AcquireOrReuse(serverID string, desired []ForwardSpec) ([]Service, []ConflictResolution) {
+func (p *PortPool) AcquireOrReuse(clientID string, desired []ForwardSpec) ([]Service, []ConflictResolution) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	desired = normalizeForwardSpecs(desired)
 
-	if svcs, known := p.byServer[serverID]; known {
-		return p.reuseServices(serverID, svcs, desired)
+	if svcs, known := p.byClient[clientID]; known {
+		return p.reuseServices(clientID, svcs, desired)
 	}
-	return p.allocateNew(serverID, desired)
+	return p.allocateNew(clientID, desired)
 }
 
-// Release frees all ports assigned to serverID so they can be given to new servers.
-// It is a no-op when serverID has no reservation.
-func (p *PortPool) Release(serverID string) {
+// Release frees all ports assigned to clientID so they can be given to new clients.
+// It is a no-op when clientID has no reservation.
+func (p *PortPool) Release(clientID string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	svcs, ok := p.byServer[serverID]
+	svcs, ok := p.byClient[clientID]
 	if !ok {
 		return
 	}
 	for _, svc := range svcs {
 		delete(p.byPort, svc.TunnelPort)
 	}
-	delete(p.byServer, serverID)
+	delete(p.byClient, clientID)
 }
 
 // --- internal helpers (caller must hold p.mu) ----------------------------
@@ -150,7 +150,7 @@ func (p *PortPool) Release(serverID string) {
 // reuseServices reconciles previous effective services with the current desired
 // forwards, reusing prior tunnel ports when possible and allocating new ones only
 // for conflicts or newly-added forwards.
-func (p *PortPool) reuseServices(serverID string, prev []Service, desired []ForwardSpec) ([]Service, []ConflictResolution) {
+func (p *PortPool) reuseServices(clientID string, prev []Service, desired []ForwardSpec) ([]Service, []ConflictResolution) {
 	var (
 		updated   = make([]Service, 0, len(desired))
 		conflicts []ConflictResolution
@@ -194,7 +194,7 @@ func (p *PortPool) reuseServices(serverID string, prev []Service, desired []Forw
 			})
 
 			delete(workingByPort, existing.TunnelPort)
-			workingByPort[newPort] = serverID
+			workingByPort[newPort] = clientID
 			updated = append(updated, Service{
 				Name:       spec.Name,
 				LocalPort:  spec.LocalPort,
@@ -207,7 +207,7 @@ func (p *PortPool) reuseServices(serverID string, prev []Service, desired []Forw
 		if !ok {
 			return nil, nil
 		}
-		workingByPort[newPort] = serverID
+		workingByPort[newPort] = clientID
 		updated = append(updated, Service{
 			Name:       spec.Name,
 			LocalPort:  spec.LocalPort,
@@ -216,12 +216,12 @@ func (p *PortPool) reuseServices(serverID string, prev []Service, desired []Forw
 	}
 
 	p.byPort = workingByPort
-	p.byServer[serverID] = updated
+	p.byClient[clientID] = updated
 	return updated, conflicts
 }
 
-// allocateNew assigns ports for all desired forward specs to a first-time server.
-func (p *PortPool) allocateNew(serverID string, desired []ForwardSpec) ([]Service, []ConflictResolution) {
+// allocateNew assigns ports for all desired forward specs to a first-time client.
+func (p *PortPool) allocateNew(clientID string, desired []ForwardSpec) ([]Service, []ConflictResolution) {
 	workingByPort := clonePortOwners(p.byPort)
 	svcs := make([]Service, 0, len(desired))
 
@@ -230,7 +230,7 @@ func (p *PortPool) allocateNew(serverID string, desired []ForwardSpec) ([]Servic
 		if !ok {
 			return nil, nil
 		}
-		workingByPort[port] = serverID
+		workingByPort[port] = clientID
 		svcs = append(svcs, Service{
 			Name:       spec.Name,
 			LocalPort:  spec.LocalPort,
@@ -239,7 +239,7 @@ func (p *PortPool) allocateNew(serverID string, desired []ForwardSpec) ([]Servic
 	}
 
 	p.byPort = workingByPort
-	p.byServer[serverID] = svcs
+	p.byClient[clientID] = svcs
 	return svcs, nil
 }
 

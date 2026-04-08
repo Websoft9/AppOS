@@ -128,22 +128,22 @@ func handleDockerServers(e *core.RequestEvent) error {
 		Status: "online",
 	}}
 
-	serverRecords, err := e.App.FindAllRecords("servers")
-	if err != nil || len(serverRecords) == 0 {
+	managedServers, err := servers.ListManagedServers(e.App)
+	if err != nil || len(managedServers) == 0 {
 		return e.JSON(http.StatusOK, result)
 	}
 
-	entries := make([]serverEntry, len(serverRecords))
+	entries := make([]serverEntry, len(managedServers))
 	var wg sync.WaitGroup
-	for i, s := range serverRecords {
+	for i, s := range managedServers {
 		wg.Add(1)
 		s := s // capture loop variable
 		go func(idx int) {
 			defer wg.Done()
 			status := "offline"
 			reason := "server unreachable"
-			host := s.GetString("host")
-			sshConfig, resolveErr := servers.ResolveDockerSSHConfig(e.App, s, "")
+			host := s.Host
+			sshConfig, resolveErr := s.DockerSSHConfig(e.App, "")
 			if resolveErr == nil {
 				host = sshConfig.Host
 				execSSH := docker.NewSSHExecutor(sshConfig)
@@ -157,8 +157,8 @@ func handleDockerServers(e *core.RequestEvent) error {
 				reason = resolveErr.Error()
 			}
 			entries[idx] = serverEntry{
-				ID:     s.Id,
-				Label:  s.GetString("name"),
+				ID:     s.ID,
+				Label:  s.Name,
 				Host:   host,
 				Status: status,
 				Reason: reason,

@@ -5,6 +5,7 @@ import (
 	m "github.com/pocketbase/pocketbase/migrations"
 	"github.com/pocketbase/pocketbase/tools/types"
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
+	"github.com/websoft9/appos/backend/infra/collections"
 )
 
 func init() {
@@ -23,7 +24,7 @@ func init() {
 		if err := ensureLegacyEndpointsCollection(app); err != nil {
 			return err
 		}
-		col, err := app.FindCollectionByNameOrId(connectors.Collection)
+		col, err := app.FindCollectionByNameOrId(collections.Connectors)
 		if err != nil {
 			return nil
 		}
@@ -37,9 +38,9 @@ func ensureConnectorsCollection(app core.App) error {
 		return err
 	}
 
-	col, err := app.FindCollectionByNameOrId(connectors.Collection)
+	col, err := app.FindCollectionByNameOrId(collections.Connectors)
 	if err != nil {
-		col = core.NewBaseCollection(connectors.Collection)
+		col = core.NewBaseCollection(collections.Connectors)
 	}
 
 	col.ListRule = types.Pointer("@request.auth.id != ''")

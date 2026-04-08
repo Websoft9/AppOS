@@ -5,13 +5,14 @@ import (
 	m "github.com/pocketbase/pocketbase/migrations"
 	"github.com/pocketbase/pocketbase/tools/types"
 	"github.com/websoft9/appos/backend/domain/resource/instances"
+	"github.com/websoft9/appos/backend/infra/collections"
 )
 
 func init() {
 	m.Register(func(app core.App) error {
 		return ensureInstancesCollection(app)
 	}, func(app core.App) error {
-		col, err := app.FindCollectionByNameOrId(instances.Collection)
+		col, err := app.FindCollectionByNameOrId(collections.Instances)
 		if err != nil {
 			return nil
 		}
@@ -25,9 +26,9 @@ func ensureInstancesCollection(app core.App) error {
 		return err
 	}
 
-	col, err := app.FindCollectionByNameOrId(instances.Collection)
+	col, err := app.FindCollectionByNameOrId(collections.Instances)
 	if err != nil {
-		col = core.NewBaseCollection(instances.Collection)
+		col = core.NewBaseCollection(collections.Instances)
 	}
 
 	col.ListRule = types.Pointer("@request.auth.id != ''")
@@ -37,15 +38,7 @@ func ensureInstancesCollection(app core.App) error {
 	col.DeleteRule = nil
 
 	addFieldIfMissing(col, &core.TextField{Name: "name", Required: true, Max: 200})
-	addFieldIfMissing(col, &core.SelectField{Name: "kind", Required: true, MaxSelect: 1, Values: []string{
-		instances.KindMySQL,
-		instances.KindPostgres,
-		instances.KindRedis,
-		instances.KindKafka,
-		instances.KindS3,
-		instances.KindRegistry,
-		instances.KindOllama,
-	}})
+	addFieldIfMissing(col, &core.SelectField{Name: "kind", Required: true, MaxSelect: 1, Values: instances.AllowedKinds()})
 	addFieldIfMissing(col, &core.TextField{Name: "template_id", Max: 120})
 	addFieldIfMissing(col, &core.TextField{Name: "endpoint"})
 	addFieldIfMissing(col, &core.RelationField{Name: "credential", CollectionId: secretsCol.Id, MaxSelect: 1})

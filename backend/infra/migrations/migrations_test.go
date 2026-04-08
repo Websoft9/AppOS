@@ -31,6 +31,7 @@ func TestResourceCollectionsCreated(t *testing.T) {
 		"databases",
 		"cloud_accounts",
 		"certificates",
+		"provider_accounts",
 		"app_instances",
 		"app_operations",
 		"app_releases",
@@ -768,7 +769,7 @@ func TestResourceCollectionsHaveNoGroupsField(t *testing.T) {
 
 	collections := []string{
 		"servers", "secrets", "env_sets",
-		"databases", "cloud_accounts", "certificates",
+		"databases", "cloud_accounts", "certificates", "provider_accounts",
 		"connectors", "scripts",
 	}
 	for _, colName := range collections {
@@ -812,11 +813,50 @@ func TestInstancesCollectionExistsAfterMigration(t *testing.T) {
 		t.Fatal("instances collection not found after migration:", err)
 	}
 
-	for _, fieldName := range []string{"name", "kind", "template_id", "endpoint", "credential", "config", "description"} {
+	for _, fieldName := range []string{"name", "kind", "template_id", "endpoint", "provider_account", "credential", "config", "description"} {
 		if col.Fields.GetByName(fieldName) == nil {
 			t.Fatalf("instances collection missing field %q", fieldName)
 		}
 	}
+	assertRelationTarget(t, app, col, "provider_account", "provider_accounts")
+}
+
+func TestProviderAccountsCollectionExistsAfterMigration(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Cleanup()
+
+	col, err := app.FindCollectionByNameOrId("provider_accounts")
+	if err != nil {
+		t.Fatal("provider_accounts collection not found after migration:", err)
+	}
+
+	for _, fieldName := range []string{"name", "kind", "template_id", "identifier", "credential", "config", "description"} {
+		if col.Fields.GetByName(fieldName) == nil {
+			t.Fatalf("provider_accounts collection missing field %q", fieldName)
+		}
+	}
+	assertFieldExists(t, col, "identifier", core.FieldTypeText, true)
+	assertRelationTarget(t, app, col, "credential", "secrets")
+}
+
+func TestConnectorsCollectionHasProviderAccountRelation(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Cleanup()
+
+	col, err := app.FindCollectionByNameOrId("connectors")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if col.Fields.GetByName("provider_account") == nil {
+		t.Fatal("connectors collection missing field \"provider_account\"")
+	}
+	assertRelationTarget(t, app, col, "provider_account", "provider_accounts")
 }
 
 // ═══════════════════════════════════════════════════════════

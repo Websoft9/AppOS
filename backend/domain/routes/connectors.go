@@ -8,21 +8,23 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/audit"
+	"github.com/websoft9/appos/backend/domain/resource/accounts"
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	persistence "github.com/websoft9/appos/backend/infra/persistence"
 )
 
 type connectorUpsertRequest struct {
-	Name         string         `json:"name"`
-	Kind         string         `json:"kind"`
-	IsDefault    bool           `json:"is_default"`
-	TemplateID   string         `json:"template_id"`
-	Endpoint     string         `json:"endpoint"`
-	AuthScheme   string         `json:"auth_scheme"`
-	CredentialID string         `json:"credential"`
-	Config       map[string]any `json:"config"`
-	Description  string         `json:"description"`
+	Name              string         `json:"name"`
+	Kind              string         `json:"kind"`
+	IsDefault         bool           `json:"is_default"`
+	TemplateID        string         `json:"template_id"`
+	Endpoint          string         `json:"endpoint"`
+	AuthScheme        string         `json:"auth_scheme"`
+	ProviderAccountID string         `json:"provider_account"`
+	CredentialID      string         `json:"credential"`
+	Config            map[string]any `json:"config"`
+	Description       string         `json:"description"`
 }
 
 // registerConnectorRoutes registers authenticated read routes and superuser-only
@@ -54,7 +56,8 @@ func registerConnectorRoutes(se *core.ServeEvent) {
 // @Failure 401 {object} map[string]any
 // @Router /api/connectors/templates [get]
 func handleConnectorTemplateList(e *core.RequestEvent) error {
-	return e.JSON(http.StatusOK, connectors.Templates())
+	templates := connectors.Templates()
+	return e.JSON(http.StatusOK, templates)
 }
 
 // handleConnectorTemplateGet returns one built-in connector template by id.
@@ -139,10 +142,12 @@ func handleConnectorCreate(e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
-	if err := validateConnectorCredentialRef(e, input); err != nil {
-		return err
-	}
-	item, saveErr := connectors.Create(persistence.NewConnectorRepository(e.App), input)
+	userID, _ := authInfo(e)
+	item, saveErr := connectors.CreateWithDeps(persistence.NewConnectorRepository(e.App), input, connectors.SaveDeps{
+		ActorID:                     userID,
+		CredentialRefValidator:      connectorCredentialValidator{app: e.App},
+		ProviderAccountRefValidator: connectorAccountValidator{app: e.App},
+	})
 	if saveErr != nil {
 		writeConnectorAudit(e, "connector.create", nil, input, nil, saveErr)
 		return connectorSaveError(e, saveErr)
@@ -172,9 +177,6 @@ func handleConnectorUpdate(e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
-	if err := validateConnectorCredentialRef(e, input); err != nil {
-		return err
-	}
 	repo := persistence.NewConnectorRepository(e.App)
 	before, getErr := repo.Get(e.Request.PathValue("id"))
 	if getErr != nil {
@@ -184,7 +186,12 @@ func handleConnectorUpdate(e *core.RequestEvent) error {
 		return e.InternalServerError("failed to load connector", getErr)
 	}
 	beforeSnap := before.Snapshot()
-	item, saveErr := connectors.UpdateExisting(repo, before, input)
+	userID, _ := authInfo(e)
+	item, saveErr := connectors.UpdateExistingWithDeps(repo, before, input, connectors.SaveDeps{
+		ActorID:                     userID,
+		CredentialRefValidator:      connectorCredentialValidator{app: e.App},
+		ProviderAccountRefValidator: connectorAccountValidator{app: e.App},
+	})
 	if saveErr != nil {
 		writeConnectorAudit(e, "connector.update", &beforeSnap, input, nil, saveErr)
 		return connectorSaveError(e, saveErr)
@@ -230,15 +237,16 @@ func bindConnectorUpsertRequest(e *core.RequestEvent) (connectors.SaveInput, err
 		return connectors.SaveInput{}, e.BadRequestError("invalid JSON body", err)
 	}
 	return connectors.SaveInput{
-		Name:         body.Name,
-		Kind:         body.Kind,
-		IsDefault:    body.IsDefault,
-		TemplateID:   body.TemplateID,
-		Endpoint:     body.Endpoint,
-		AuthScheme:   body.AuthScheme,
-		CredentialID: body.CredentialID,
-		Config:       body.Config,
-		Description:  body.Description,
+		Name:              body.Name,
+		Kind:              body.Kind,
+		IsDefault:         body.IsDefault,
+		TemplateID:        body.TemplateID,
+		Endpoint:          body.Endpoint,
+		AuthScheme:        body.AuthScheme,
+		ProviderAccountID: body.ProviderAccountID,
+		CredentialID:      body.CredentialID,
+		Config:            body.Config,
+		Description:       body.Description,
 	}, nil
 }
 
@@ -247,11 +255,37 @@ func connectorSaveError(e *core.RequestEvent, err error) error {
 	if errors.As(err, &validationErr) {
 		return e.BadRequestError("invalid connector payload", err)
 	}
+	var accessDeniedErr *connectors.AccessDeniedError
+	if errors.As(err, &accessDeniedErr) {
+		return apis.NewForbiddenError(accessDeniedErr.Error(), err)
+	}
+	var conflictErr *connectors.ConflictError
+	if errors.As(err, &conflictErr) {
+		return apis.NewApiError(http.StatusConflict, conflictErr.Error(), err)
+	}
+	var notFoundErr *connectors.NotFoundError
+	if errors.As(err, &notFoundErr) {
+		return e.NotFoundError(notFoundErr.Error(), err)
+	}
 	return e.InternalServerError("failed to save connector", err)
 }
 
 func connectorResponse(item *connectors.Connector) map[string]any {
-	return item.ResponseMap()
+	return map[string]any{
+		"id":               item.ID(),
+		"created":          item.Created(),
+		"updated":          item.Updated(),
+		"name":             item.Name(),
+		"kind":             item.Kind(),
+		"is_default":       item.IsDefault(),
+		"template_id":      item.TemplateID(),
+		"endpoint":         item.Endpoint(),
+		"auth_scheme":      item.AuthScheme(),
+		"provider_account": item.ProviderAccountID(),
+		"credential":       item.CredentialID(),
+		"config":           item.Config(),
+		"description":      item.Description(),
+	}
 }
 
 func parseConnectorKindFilter(raw string) []string {
@@ -275,27 +309,42 @@ func isConnectorNotFound(err error) bool {
 	return errors.As(err, &notFoundErr)
 }
 
-func validateConnectorCredentialRef(e *core.RequestEvent, input connectors.SaveInput) error {
-	credentialID := strings.TrimSpace(input.CredentialID)
-	if credentialID == "" {
-		return nil
-	}
-	userID, _ := authInfo(e)
-	if err := secrets.ValidateRef(e.App, credentialID, userID); err != nil {
+type connectorCredentialValidator struct {
+	app core.App
+}
+
+type connectorAccountValidator struct {
+	app core.App
+}
+
+func (v connectorCredentialValidator) ValidateCredentialRef(credentialID string, actorID string) error {
+	if err := secrets.ValidateRef(v.app, credentialID, actorID); err != nil {
 		var resolveErr *secrets.ResolveError
 		if errors.As(err, &resolveErr) {
 			switch resolveErr.Reason {
 			case secrets.ReasonAccessDenied:
-				return apis.NewForbiddenError("credential is not accessible", err)
+				return &connectors.AccessDeniedError{Message: "credential is not accessible", Cause: err}
 			case secrets.ReasonNotFound, secrets.ReasonRevoked:
-				return e.BadRequestError("invalid connector credential", err)
+				return &connectors.ValidationError{Message: "invalid connector credential", Cause: err}
 			default:
-				return e.BadRequestError("invalid connector credential", err)
+				return &connectors.ValidationError{Message: "invalid connector credential", Cause: err}
 			}
 		}
-		return e.InternalServerError("failed to validate connector credential", err)
+		return err
 	}
 	return nil
+}
+
+func (v connectorAccountValidator) ValidateProviderAccountRef(providerAccountID string, actorID string) error {
+	_, err := persistence.NewProviderAccountRepository(v.app).Get(providerAccountID)
+	if err == nil {
+		return nil
+	}
+	var notFoundErr *accounts.NotFoundError
+	if errors.As(err, &notFoundErr) {
+		return &connectors.ValidationError{Message: "invalid connector provider_account", Cause: err}
+	}
+	return err
 }
 
 func writeConnectorAudit(e *core.RequestEvent, action string, beforeSnap *connectors.Snapshot, input connectors.SaveInput, after *connectors.Connector, opErr error) {
@@ -313,12 +362,12 @@ func writeConnectorAudit(e *core.RequestEvent, action string, beforeSnap *connec
 	if beforeSnap != nil {
 		entry.ResourceID = beforeSnap.ID
 		entry.ResourceName = beforeSnap.Name
-		entry.Detail["before"] = snapshotMap(beforeSnap)
+		entry.Detail["before"] = connectorSnapshotMap(beforeSnap)
 	}
 	if after != nil {
 		entry.ResourceID = after.ID()
 		entry.ResourceName = after.Name()
-		entry.Detail["after"] = after.ResponseMap()
+		entry.Detail["after"] = connectorResponse(after)
 	}
 	if beforeSnap == nil && after == nil {
 		entry.Detail["input"] = connectorInputMap(input)
@@ -335,29 +384,31 @@ func writeConnectorAudit(e *core.RequestEvent, action string, beforeSnap *connec
 
 func connectorInputMap(input connectors.SaveInput) map[string]any {
 	return map[string]any{
-		"name":        input.Name,
-		"kind":        input.Kind,
-		"is_default":  input.IsDefault,
-		"template_id": input.TemplateID,
-		"endpoint":    input.Endpoint,
-		"auth_scheme": input.AuthScheme,
-		"credential":  input.CredentialID,
-		"config":      input.Config,
-		"description": input.Description,
+		"name":             input.Name,
+		"kind":             input.Kind,
+		"is_default":       input.IsDefault,
+		"template_id":      input.TemplateID,
+		"endpoint":         input.Endpoint,
+		"auth_scheme":      input.AuthScheme,
+		"provider_account": input.ProviderAccountID,
+		"credential":       input.CredentialID,
+		"config":           input.Config,
+		"description":      input.Description,
 	}
 }
 
-func snapshotMap(snap *connectors.Snapshot) map[string]any {
+func connectorSnapshotMap(snap *connectors.Snapshot) map[string]any {
 	return map[string]any{
-		"id":          snap.ID,
-		"name":        snap.Name,
-		"kind":        snap.Kind,
-		"is_default":  snap.IsDefault,
-		"template_id": snap.TemplateID,
-		"endpoint":    snap.Endpoint,
-		"auth_scheme": snap.AuthScheme,
-		"credential":  snap.CredentialID,
-		"config":      snap.Config,
-		"description": snap.Description,
+		"id":               snap.ID,
+		"name":             snap.Name,
+		"kind":             snap.Kind,
+		"is_default":       snap.IsDefault,
+		"template_id":      snap.TemplateID,
+		"endpoint":         snap.Endpoint,
+		"auth_scheme":      snap.AuthScheme,
+		"provider_account": snap.ProviderAccountID,
+		"credential":       snap.CredentialID,
+		"config":           snap.Config,
+		"description":      snap.Description,
 	}
 }

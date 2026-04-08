@@ -20,30 +20,32 @@ var (
 	templates     []Template
 )
 
-func Templates() []Template {
-	ensureTemplatesLoaded()
+func Templates() ([]Template, error) {
+	if err := ensureTemplatesLoaded(); err != nil {
+		return nil, err
+	}
 	result := make([]Template, len(templates))
 	copy(result, templates)
-	return result
+	return result, nil
 }
 
-func FindTemplate(id string) (Template, bool) {
-	ensureTemplatesLoaded()
+func FindTemplate(id string) (Template, bool, error) {
+	if err := ensureTemplatesLoaded(); err != nil {
+		return Template{}, false, err
+	}
 	for _, template := range templates {
 		if template.ID == id {
-			return template, true
+			return template, true, nil
 		}
 	}
-	return Template{}, false
+	return Template{}, false, nil
 }
 
-func ensureTemplatesLoaded() {
+func ensureTemplatesLoaded() error {
 	templatesOnce.Do(func() {
 		templatesErr = loadTemplates()
-		if templatesErr != nil {
-			panic(templatesErr)
-		}
 	})
+	return templatesErr
 }
 
 func loadTemplates() error {

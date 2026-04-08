@@ -1,4 +1,4 @@
-package tunnel
+package tunnelcore
 
 import (
 	"regexp"

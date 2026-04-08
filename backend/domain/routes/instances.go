@@ -8,19 +8,21 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/audit"
+	"github.com/websoft9/appos/backend/domain/resource/accounts"
 	"github.com/websoft9/appos/backend/domain/resource/instances"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	persistence "github.com/websoft9/appos/backend/infra/persistence"
 )
 
 type instanceUpsertRequest struct {
-	Name         string         `json:"name"`
-	Kind         string         `json:"kind"`
-	TemplateID   string         `json:"template_id"`
-	Endpoint     string         `json:"endpoint"`
-	CredentialID string         `json:"credential"`
-	Config       map[string]any `json:"config"`
-	Description  string         `json:"description"`
+	Name              string         `json:"name"`
+	Kind              string         `json:"kind"`
+	TemplateID        string         `json:"template_id"`
+	Endpoint          string         `json:"endpoint"`
+	ProviderAccountID string         `json:"provider_account"`
+	CredentialID      string         `json:"credential"`
+	Config            map[string]any `json:"config"`
+	Description       string         `json:"description"`
 }
 
 func registerInstanceRoutes(se *core.ServeEvent) {
@@ -47,7 +49,11 @@ func registerInstanceRoutes(se *core.ServeEvent) {
 // @Failure 401 {object} map[string]any
 // @Router /api/instances/templates [get]
 func handleInstanceTemplateList(e *core.RequestEvent) error {
-	return e.JSON(http.StatusOK, instances.Templates())
+	templates, err := instances.Templates()
+	if err != nil {
+		return e.InternalServerError("failed to load instance templates", err)
+	}
+	return e.JSON(http.StatusOK, templates)
 }
 
 // @Summary Get instance template
@@ -60,7 +66,10 @@ func handleInstanceTemplateList(e *core.RequestEvent) error {
 // @Failure 404 {object} map[string]any
 // @Router /api/instances/templates/{id} [get]
 func handleInstanceTemplateGet(e *core.RequestEvent) error {
-	template, ok := instances.FindTemplate(e.Request.PathValue("id"))
+	template, ok, err := instances.FindTemplate(e.Request.PathValue("id"))
+	if err != nil {
+		return e.InternalServerError("failed to load instance template", err)
+	}
 	if !ok {
 		return e.NotFoundError("instance template not found", nil)
 	}
@@ -83,7 +92,7 @@ func handleInstanceList(e *core.RequestEvent) error {
 	}
 	result := make([]map[string]any, 0, len(items))
 	for _, item := range items {
-		result = append(result, item.ResponseMap())
+		result = append(result, instanceResponse(item))
 	}
 	return e.JSON(http.StatusOK, result)
 }
@@ -105,7 +114,7 @@ func handleInstanceGet(e *core.RequestEvent) error {
 		}
 		return e.InternalServerError("failed to load instance", err)
 	}
-	return e.JSON(http.StatusOK, item.ResponseMap())
+	return e.JSON(http.StatusOK, instanceResponse(item))
 }
 
 // @Summary Create instance
@@ -124,16 +133,18 @@ func handleInstanceCreate(e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
-	if err := validateInstanceCredentialRef(e, input); err != nil {
-		return err
-	}
-	item, saveErr := instances.Create(persistence.NewInstanceRepository(e.App), input)
+	userID, _ := authInfo(e)
+	item, saveErr := instances.CreateWithDeps(persistence.NewInstanceRepository(e.App), input, instances.SaveDeps{
+		ActorID:                     userID,
+		CredentialRefValidator:      instanceCredentialValidator{app: e.App},
+		ProviderAccountRefValidator: instanceAccountValidator{app: e.App},
+	})
 	if saveErr != nil {
 		writeInstanceAudit(e, "instance.create", nil, input, nil, saveErr)
 		return instanceSaveError(e, saveErr)
 	}
 	writeInstanceAudit(e, "instance.create", nil, input, item, nil)
-	return e.JSON(http.StatusCreated, item.ResponseMap())
+	return e.JSON(http.StatusCreated, instanceResponse(item))
 }
 
 // @Summary Update instance
@@ -154,9 +165,6 @@ func handleInstanceUpdate(e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
-	if err := validateInstanceCredentialRef(e, input); err != nil {
-		return err
-	}
 	repo := persistence.NewInstanceRepository(e.App)
 	before, getErr := repo.Get(e.Request.PathValue("id"))
 	if getErr != nil {
@@ -166,13 +174,18 @@ func handleInstanceUpdate(e *core.RequestEvent) error {
 		return e.InternalServerError("failed to load instance", getErr)
 	}
 	beforeSnap := before.Snapshot()
-	item, saveErr := instances.UpdateExisting(repo, before, input)
+	userID, _ := authInfo(e)
+	item, saveErr := instances.UpdateExistingWithDeps(repo, before, input, instances.SaveDeps{
+		ActorID:                     userID,
+		CredentialRefValidator:      instanceCredentialValidator{app: e.App},
+		ProviderAccountRefValidator: instanceAccountValidator{app: e.App},
+	})
 	if saveErr != nil {
 		writeInstanceAudit(e, "instance.update", &beforeSnap, input, nil, saveErr)
 		return instanceSaveError(e, saveErr)
 	}
 	writeInstanceAudit(e, "instance.update", &beforeSnap, input, item, nil)
-	return e.JSON(http.StatusOK, item.ResponseMap())
+	return e.JSON(http.StatusOK, instanceResponse(item))
 }
 
 // @Summary Delete instance
@@ -210,13 +223,14 @@ func bindInstanceUpsertRequest(e *core.RequestEvent) (instances.SaveInput, error
 		return instances.SaveInput{}, e.BadRequestError("invalid JSON body", err)
 	}
 	return instances.SaveInput{
-		Name:         body.Name,
-		Kind:         body.Kind,
-		TemplateID:   body.TemplateID,
-		Endpoint:     body.Endpoint,
-		CredentialID: body.CredentialID,
-		Config:       body.Config,
-		Description:  body.Description,
+		Name:              body.Name,
+		Kind:              body.Kind,
+		TemplateID:        body.TemplateID,
+		Endpoint:          body.Endpoint,
+		ProviderAccountID: body.ProviderAccountID,
+		CredentialID:      body.CredentialID,
+		Config:            body.Config,
+		Description:       body.Description,
 	}, nil
 }
 
@@ -224,6 +238,18 @@ func instanceSaveError(e *core.RequestEvent, err error) error {
 	var validationErr *instances.ValidationError
 	if errors.As(err, &validationErr) {
 		return e.BadRequestError("invalid instance payload", err)
+	}
+	var accessDeniedErr *instances.AccessDeniedError
+	if errors.As(err, &accessDeniedErr) {
+		return apis.NewForbiddenError(accessDeniedErr.Error(), err)
+	}
+	var conflictErr *instances.ConflictError
+	if errors.As(err, &conflictErr) {
+		return apis.NewApiError(http.StatusConflict, conflictErr.Error(), err)
+	}
+	var notFoundErr *instances.NotFoundError
+	if errors.As(err, &notFoundErr) {
+		return e.NotFoundError(notFoundErr.Error(), err)
 	}
 	return e.InternalServerError("failed to save instance", err)
 }
@@ -249,27 +275,42 @@ func isInstanceNotFound(err error) bool {
 	return errors.As(err, &notFoundErr)
 }
 
-func validateInstanceCredentialRef(e *core.RequestEvent, input instances.SaveInput) error {
-	credentialID := strings.TrimSpace(input.CredentialID)
-	if credentialID == "" {
-		return nil
-	}
-	userID, _ := authInfo(e)
-	if err := secrets.ValidateRef(e.App, credentialID, userID); err != nil {
+type instanceCredentialValidator struct {
+	app core.App
+}
+
+type instanceAccountValidator struct {
+	app core.App
+}
+
+func (v instanceCredentialValidator) ValidateCredentialRef(credentialID string, actorID string) error {
+	if err := secrets.ValidateRef(v.app, credentialID, actorID); err != nil {
 		var resolveErr *secrets.ResolveError
 		if errors.As(err, &resolveErr) {
 			switch resolveErr.Reason {
 			case secrets.ReasonAccessDenied:
-				return apis.NewForbiddenError("credential is not accessible", err)
+				return &instances.AccessDeniedError{Message: "credential is not accessible", Cause: err}
 			case secrets.ReasonNotFound, secrets.ReasonRevoked:
-				return e.BadRequestError("invalid instance credential", err)
+				return &instances.ValidationError{Message: "invalid instance credential", Cause: err}
 			default:
-				return e.BadRequestError("invalid instance credential", err)
+				return &instances.ValidationError{Message: "invalid instance credential", Cause: err}
 			}
 		}
-		return e.InternalServerError("failed to validate instance credential", err)
+		return err
 	}
 	return nil
+}
+
+func (v instanceAccountValidator) ValidateProviderAccountRef(providerAccountID string, actorID string) error {
+	_, err := persistence.NewProviderAccountRepository(v.app).Get(providerAccountID)
+	if err == nil {
+		return nil
+	}
+	var notFoundErr *accounts.NotFoundError
+	if errors.As(err, &notFoundErr) {
+		return &instances.ValidationError{Message: "invalid instance provider_account", Cause: err}
+	}
+	return err
 }
 
 func writeInstanceAudit(e *core.RequestEvent, action string, beforeSnap *instances.Snapshot, input instances.SaveInput, after *instances.Instance, opErr error) {
@@ -292,7 +333,7 @@ func writeInstanceAudit(e *core.RequestEvent, action string, beforeSnap *instanc
 	if after != nil {
 		entry.ResourceID = after.ID()
 		entry.ResourceName = after.Name()
-		entry.Detail["after"] = after.ResponseMap()
+		entry.Detail["after"] = instanceResponse(after)
 	}
 	if beforeSnap == nil && after == nil {
 		entry.Detail["input"] = instanceInputMap(input)
@@ -307,27 +348,45 @@ func writeInstanceAudit(e *core.RequestEvent, action string, beforeSnap *instanc
 	audit.Write(e.App, entry)
 }
 
+func instanceResponse(item *instances.Instance) map[string]any {
+	return map[string]any{
+		"id":               item.ID(),
+		"created":          item.Created(),
+		"updated":          item.Updated(),
+		"name":             item.Name(),
+		"kind":             item.Kind(),
+		"template_id":      item.TemplateID(),
+		"endpoint":         item.Endpoint(),
+		"provider_account": item.ProviderAccountID(),
+		"credential":       item.CredentialID(),
+		"config":           item.Config(),
+		"description":      item.Description(),
+	}
+}
+
 func instanceInputMap(input instances.SaveInput) map[string]any {
 	return map[string]any{
-		"name":        input.Name,
-		"kind":        input.Kind,
-		"template_id": input.TemplateID,
-		"endpoint":    input.Endpoint,
-		"credential":  input.CredentialID,
-		"config":      input.Config,
-		"description": input.Description,
+		"name":             input.Name,
+		"kind":             input.Kind,
+		"template_id":      input.TemplateID,
+		"endpoint":         input.Endpoint,
+		"provider_account": input.ProviderAccountID,
+		"credential":       input.CredentialID,
+		"config":           input.Config,
+		"description":      input.Description,
 	}
 }
 
 func instanceSnapshotMap(snap *instances.Snapshot) map[string]any {
 	return map[string]any{
-		"id":          snap.ID,
-		"name":        snap.Name,
-		"kind":        snap.Kind,
-		"template_id": snap.TemplateID,
-		"endpoint":    snap.Endpoint,
-		"credential":  snap.CredentialID,
-		"config":      snap.Config,
-		"description": snap.Description,
+		"id":               snap.ID,
+		"name":             snap.Name,
+		"kind":             snap.Kind,
+		"template_id":      snap.TemplateID,
+		"endpoint":         snap.Endpoint,
+		"provider_account": snap.ProviderAccountID,
+		"credential":       snap.CredentialID,
+		"config":           snap.Config,
+		"description":      snap.Description,
 	}
 }

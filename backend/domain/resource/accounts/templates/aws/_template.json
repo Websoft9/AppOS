@@ -1,0 +1,22 @@
+{
+  "category": "cloud",
+  "kind": "aws",
+  "title": "AWS Account",
+  "vendor": "AWS",
+  "description": "AWS account, organization account, or project scope used by AppOS resources.",
+  "fields": [
+    {
+      "id": "identifier",
+      "label": "Account ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "123456789012"
+    },
+    {
+      "id": "region",
+      "label": "Default Region",
+      "type": "text",
+      "placeholder": "us-east-1"
+    }
+  ]
+}

@@ -7,7 +7,9 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 
-	"github.com/websoft9/appos/backend/domain/resource/tunnel"
+	servers "github.com/websoft9/appos/backend/domain/resource/server"
+	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
+	tunnelpb "github.com/websoft9/appos/backend/infra/tunnelpb"
 )
 
 // tunnelSessions holds the in-memory registry of active SSH tunnel connections.
@@ -18,7 +20,7 @@ import (
 // Design note: While package-level state is generally avoided, tunnelSessions
 // is set exactly once during startup and is inherently shared singleton state
 // (one SSH server per process).  Tests reinitialize it as needed.
-var tunnelSessions *tunnel.Registry
+var tunnelSessions *tunnelcore.Registry
 
 // tunnelTokenCache maps raw token → serverID for O(1) lookup (SEC-3).
 // Populated lazily on first Validate call and kept in sync by handleTunnelToken
@@ -55,10 +57,34 @@ func tunnelSSHPort() string {
 // registerTunnelRoutes wires the tunnel SSH server and exposes the tunnel API.
 // Called from routes.Register.
 func registerTunnelRoutes(se *core.ServeEvent) {
-	tunnelSessions = tunnel.NewRegistry()
-	tunnel.StartWithPocketBase(se.App, tunnelSessions, &tunnelTokenCache, tunnelPauseUntil, tunnelDisconnectReasonLabel)
+	startTunnelRuntime(se)
+	registerAuthenticatedTunnelRoutes(se)
+	registerPublicTunnelRoutes(se)
+}
 
-	// 2. Authenticated API routes.
+func startTunnelRuntime(se *core.ServeEvent) {
+	tunnelSessions = tunnelcore.NewRegistry()
+	tunnelpb.Start(
+		se.App,
+		tunnelSessions,
+		&tunnelTokenCache,
+		tunnelPauseUntil,
+		servers.TunnelDisconnectReasonLabel,
+		tunnelForwardLoader(se.App),
+	)
+}
+
+func tunnelForwardLoader(app core.App) func(string) ([]tunnelcore.ForwardSpec, error) {
+	return func(managedServerID string) ([]tunnelcore.ForwardSpec, error) {
+		server, err := servers.LoadManagedServer(app, managedServerID)
+		if err != nil {
+			return nil, err
+		}
+		return server.TunnelForwardSpecs()
+	}
+}
+
+func registerAuthenticatedTunnelRoutes(se *core.ServeEvent) {
 	t := se.Router.Group("/api/tunnel")
 	t.Bind(apis.RequireSuperuserAuth())
 
@@ -95,8 +121,9 @@ func registerTunnelRoutes(se *core.ServeEvent) {
 	t.POST("/servers/{id}/resume", func(e *core.RequestEvent) error {
 		return handleTunnelResume(e)
 	})
+}
 
-	// 3. Unauthenticated setup-script route (rate-limited via handler).
+func registerPublicTunnelRoutes(se *core.ServeEvent) {
 	se.Router.GET("/tunnel/setup/{token}", func(e *core.RequestEvent) error {
 		return handleTunnelSetupScript(e)
 	})

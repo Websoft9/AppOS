@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/websoft9/appos/backend/domain/secrets"
 	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
-	"github.com/websoft9/appos/backend/domain/resource/tunnel"
+	"github.com/websoft9/appos/backend/domain/secrets"
+	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
 )
 
 // sensitiveFields is the set of field names that are masked on GET and
@@ -161,7 +161,7 @@ func validateConnectTerminal(v map[string]any) map[string]string {
 func validateTunnelPortRange(v map[string]any) map[string]string {
 	errors := map[string]string{}
 
-	start, err := parseIntWithDefault(v["start"], tunnel.DefaultPortRangeStart)
+	start, err := parseIntWithDefault(v["start"], tunnelcore.DefaultPortRangeStart)
 	if err != nil {
 		errors["start"] = "must be an integer"
 	} else if start < 1 || start > 65535 {
@@ -170,7 +170,7 @@ func validateTunnelPortRange(v map[string]any) map[string]string {
 		v["start"] = start
 	}
 
-	end, err := parseIntWithDefault(v["end"], tunnel.DefaultPortRangeEnd)
+	end, err := parseIntWithDefault(v["end"], tunnelcore.DefaultPortRangeEnd)
 	if err != nil {
 		errors["end"] = "must be an integer"
 	} else if end < 1 || end > 65535 {

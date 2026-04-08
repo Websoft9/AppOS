@@ -13,7 +13,8 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/websoft9/appos/backend/domain/groups"
-	"github.com/websoft9/appos/backend/domain/resource/tunnel"
+	servers "github.com/websoft9/appos/backend/domain/resource/server"
+	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
 )
 
 // resolveApposHost returns the public host name of the appos instance.
@@ -37,26 +38,11 @@ func resolveApposHost(e *core.RequestEvent) string {
 	return host
 }
 
-func loadTunnelForwardSpecs(server *core.Record) ([]tunnel.ForwardSpec, error) {
-	raw := server.GetString("tunnel_forwards")
-	if raw == "" || raw == "null" {
-		return tunnel.DefaultForwardSpecs(), nil
-	}
-	var forwards []tunnel.ForwardSpec
-	if err := json.Unmarshal([]byte(raw), &forwards); err != nil {
-		return nil, err
-	}
-	if len(forwards) == 0 {
-		return tunnel.DefaultForwardSpecs(), nil
-	}
-	return forwards, nil
-}
-
-func validateTunnelForwardBody(body []tunnelForwardBody) ([]tunnel.ForwardSpec, error) {
+func validateTunnelForwardBody(body []tunnelForwardBody) ([]tunnelcore.ForwardSpec, error) {
 	if len(body) == 0 {
 		return nil, fmt.Errorf("at least one forward is required")
 	}
-	forwards := make([]tunnel.ForwardSpec, 0, len(body))
+	forwards := make([]tunnelcore.ForwardSpec, 0, len(body))
 	seenNames := make(map[string]struct{}, len(body))
 	seenPorts := make(map[int]struct{}, len(body))
 	hasSSH := false
@@ -80,7 +66,7 @@ func validateTunnelForwardBody(body []tunnelForwardBody) ([]tunnel.ForwardSpec, 
 		}
 		seenNames[name] = struct{}{}
 		seenPorts[item.LocalPort] = struct{}{}
-		forwards = append(forwards, tunnel.ForwardSpec{Name: name, LocalPort: item.LocalPort})
+		forwards = append(forwards, tunnelcore.ForwardSpec{Name: name, LocalPort: item.LocalPort})
 	}
 
 	if !hasSSH {
@@ -90,7 +76,7 @@ func validateTunnelForwardBody(body []tunnelForwardBody) ([]tunnel.ForwardSpec, 
 	return forwards, nil
 }
 
-func forwardSpecsToResponse(forwards []tunnel.ForwardSpec) []map[string]any {
+func forwardSpecsToResponse(forwards []tunnelcore.ForwardSpec) []map[string]any {
 	out := make([]map[string]any, 0, len(forwards))
 	for _, forward := range forwards {
 		out = append(out, map[string]any{
@@ -101,7 +87,7 @@ func forwardSpecsToResponse(forwards []tunnel.ForwardSpec) []map[string]any {
 	return out
 }
 
-func buildTunnelExecArgs(forwards []tunnel.ForwardSpec, sshPort, token, apposHost string) string {
+func buildTunnelExecArgs(forwards []tunnelcore.ForwardSpec, sshPort, token, apposHost string) string {
 	parts := []string{"-M 0", "-N"}
 	for _, forward := range forwards {
 		parts = append(parts, fmt.Sprintf("-R 0:localhost:%d", forward.LocalPort))
@@ -118,7 +104,7 @@ func buildTunnelExecArgs(forwards []tunnel.ForwardSpec, sshPort, token, apposHos
 	return strings.Join(parts, " ")
 }
 
-func buildTunnelAutosshCommand(forwards []tunnel.ForwardSpec, sshPort, token, apposHost string) string {
+func buildTunnelAutosshCommand(forwards []tunnelcore.ForwardSpec, sshPort, token, apposHost string) string {
 	cont := " " + string('\\')
 	lines := []string{"autossh -M 0 -N" + cont}
 	for _, forward := range forwards {
@@ -135,7 +121,7 @@ func buildTunnelAutosshCommand(forwards []tunnel.ForwardSpec, sshPort, token, ap
 	return strings.Join(lines, "\n")
 }
 
-func buildTunnelSystemdUnit(forwards []tunnel.ForwardSpec, sshPort, token, apposHost string) string {
+func buildTunnelSystemdUnit(forwards []tunnelcore.ForwardSpec, sshPort, token, apposHost string) string {
 	args := strings.ReplaceAll(buildTunnelAutosshCommand(forwards, sshPort, token, apposHost), "autossh ", "")
 	return fmt.Sprintf(`[Unit]
 Description=appos reverse SSH tunnel
@@ -154,64 +140,8 @@ RestartSec=5
 WantedBy=multi-user.target`, args)
 }
 
-func buildTunnelOverviewItem(server *core.Record, groupNames []string, sessions *tunnel.Registry) map[string]any {
-	status := server.GetString("tunnel_status")
-	connectedAtTime := tunnelRecordTime(server, "tunnel_connected_at")
-	lastSeenTime := tunnelRecordTime(server, "tunnel_last_seen")
-	disconnectAtTime := tunnelRecordTime(server, "tunnel_disconnect_at")
-	pauseUntilTime := tunnelPauseUntil(server)
-	remoteAddr := server.GetString("tunnel_remote_addr")
-	services := parseTunnelServices(server.GetString("tunnel_services"))
-	disconnectReason := server.GetString("tunnel_disconnect_reason")
-	if len(groupNames) == 0 {
-		groupNames = []string{}
-	}
-
-	if sessions != nil {
-		if sess, ok := sessions.Get(server.Id); ok {
-			status = "online"
-			connectedAtTime = sess.ConnectedAt.UTC()
-			lastSeenTime = connectedAtTime
-			services = sess.Services
-			disconnectReason = ""
-			if sess.Conn != nil && sess.Conn.RemoteAddr() != nil {
-				remoteAddr = sess.Conn.RemoteAddr().String()
-			}
-		}
-	}
-	if pauseUntilTime.After(time.Now().UTC()) && status != "online" {
-		status = "paused"
-	}
-
-	connectionDurationSeconds, connectionDurationLabel := tunnelConnectionDuration(status, connectedAtTime, disconnectAtTime, lastSeenTime)
-	sessionDurationHours := tunnelSessionDurationHours(status, connectedAtTime, disconnectAtTime, lastSeenTime)
-
-	return map[string]any{
-		"id":                          server.Id,
-		"name":                        server.GetString("name"),
-		"description":                 server.GetString("description"),
-		"status":                      status,
-		"created":                     formatTunnelTime(connectedAtTime),
-		"connected_at":                formatTunnelTime(connectedAtTime),
-		"last_seen":                   formatTunnelTime(lastSeenTime),
-		"remote_addr":                 remoteAddr,
-		"disconnect_at":               formatTunnelTime(disconnectAtTime),
-		"disconnect_reason":           disconnectReason,
-		"disconnect_reason_label":     tunnelDisconnectReasonLabel(disconnectReason),
-		"pause_until":                 formatTunnelTime(pauseUntilTime),
-		"is_paused":                   pauseUntilTime.After(time.Now().UTC()),
-		"connection_duration_seconds": connectionDurationSeconds,
-		"connection_duration_label":   connectionDurationLabel,
-		"session_duration_hours":      sessionDurationHours,
-		"session_duration_label":      formatTunnelHours(sessionDurationHours),
-		"services":                    services,
-		"group_names":                 groupNames,
-		"waiting_for_first_connect":   isTunnelWaitingForFirstConnect(server),
-	}
-}
-
 func tunnelPauseUntil(server *core.Record) time.Time {
-	return tunnelRecordTime(server, "tunnel_pause_until")
+	return servers.TunnelRuntimeFromRecord(server).PauseUntil
 }
 
 func formatTunnelTime(value time.Time) string {
@@ -227,95 +157,6 @@ func tunnelRecordTime(server *core.Record, field string) time.Time {
 		return time.Time{}
 	}
 	return value.Time().UTC()
-}
-
-func tunnelConnectionDuration(status string, connectedAt time.Time, disconnectAt time.Time, lastSeen time.Time) (int64, string) {
-	if connectedAt.IsZero() {
-		return 0, ""
-	}
-
-	endedAt := time.Now().UTC()
-	if status != "online" {
-		switch {
-		case !disconnectAt.IsZero() && disconnectAt.After(connectedAt):
-			endedAt = disconnectAt
-		case !lastSeen.IsZero() && lastSeen.After(connectedAt):
-			endedAt = lastSeen
-		default:
-			endedAt = connectedAt
-		}
-	}
-
-	if endedAt.Before(connectedAt) {
-		return 0, ""
-	}
-
-	duration := endedAt.Sub(connectedAt)
-	seconds := int64(duration / time.Second)
-	return seconds, humanizeTunnelDuration(duration)
-}
-
-func tunnelSessionDurationHours(status string, connectedAt time.Time, disconnectAt time.Time, lastSeen time.Time) float64 {
-	if connectedAt.IsZero() {
-		return 0
-	}
-	endedAt := time.Now().UTC()
-	if status != "online" {
-		switch {
-		case !disconnectAt.IsZero() && disconnectAt.After(connectedAt):
-			endedAt = disconnectAt
-		case !lastSeen.IsZero() && lastSeen.After(connectedAt):
-			endedAt = lastSeen
-		default:
-			endedAt = connectedAt
-		}
-	}
-	if endedAt.Before(connectedAt) {
-		return 0
-	}
-	hours := endedAt.Sub(connectedAt).Hours()
-	if hours < 0 {
-		return 0
-	}
-	return math.Round(hours*10) / 10
-}
-
-func formatTunnelHours(value float64) string {
-	if value <= 0 {
-		return "0.0h"
-	}
-	return fmt.Sprintf("%.1fh", value)
-}
-
-func humanizeTunnelDuration(duration time.Duration) string {
-	if duration <= 0 {
-		return "0m"
-	}
-
-	totalMinutes := int(duration.Round(time.Minute) / time.Minute)
-	if totalMinutes < 1 {
-		return "<1m"
-	}
-
-	days := totalMinutes / (24 * 60)
-	totalMinutes -= days * 24 * 60
-	hours := totalMinutes / 60
-	minutes := totalMinutes % 60
-
-	parts := make([]string, 0, 3)
-	if days > 0 {
-		parts = append(parts, fmt.Sprintf("%dd", days))
-	}
-	if hours > 0 {
-		parts = append(parts, fmt.Sprintf("%dh", hours))
-	}
-	if minutes > 0 && len(parts) < 2 {
-		parts = append(parts, fmt.Sprintf("%dm", minutes))
-	}
-	if len(parts) == 0 {
-		return "0m"
-	}
-	return strings.Join(parts, " ")
 }
 
 func loadRecentTunnelReconnectInfo(app core.App, serverID string) (map[string]any, error) {
@@ -344,7 +185,7 @@ func loadRecentTunnelReconnectInfo(app core.App, serverID string) (map[string]an
 		detail := normalizeTunnelAuditDetail(record.Get("detail"))
 		remoteAddr, _ := detail["remote_addr"].(string)
 		recentReconnects = append(recentReconnects, map[string]any{
-			"at":             formatTunnelTime(created),
+			"at":             servers.FormatTunnelTime(created),
 			"remote_addr":    remoteAddr,
 			"services_count": intFromAny(detail["services_count"]),
 		})
@@ -438,11 +279,11 @@ func loadTunnelConnectionLogs(app core.App, serverID string) ([]map[string]any, 
 		}
 		item := map[string]any{
 			"id":           entry.record.Id,
-			"at":           formatTunnelTime(createdAt),
+			"at":           servers.FormatTunnelTime(createdAt),
 			"action":       action,
 			"label":        label,
 			"reason":       stringFromAny(detail["reason"]),
-			"reason_label": firstNonEmpty(stringFromAny(detail["reason_label"]), tunnelDisconnectReasonLabel(stringFromAny(detail["reason"]))),
+			"reason_label": firstNonEmpty(stringFromAny(detail["reason_label"]), servers.TunnelDisconnectReasonLabel(stringFromAny(detail["reason"]))),
 			"remote_addr":  stringFromAny(detail["remote_addr"]),
 			"pause_until":  pauseUntil,
 			"minutes":      minutes,
@@ -469,7 +310,7 @@ func loadTunnelConnectionLogs(app core.App, serverID string) ([]map[string]any, 
 			}
 			items = append(items, map[string]any{
 				"id":           entry.record.Id + "-pause-expired",
-				"at":           formatTunnelTime(pauseUntilTime),
+				"at":           servers.FormatTunnelTime(pauseUntilTime),
 				"action":       "tunnel.pause_expired",
 				"label":        "Pause expired",
 				"reason":       "pause_expired",
@@ -594,56 +435,12 @@ func intFromAny(value any) int {
 	}
 }
 
-func parseTunnelServices(raw string) []tunnel.Service {
-	if raw == "" || raw == "null" {
-		return []tunnel.Service{}
-	}
-	var services []tunnel.Service
-	if err := json.Unmarshal([]byte(raw), &services); err != nil {
-		return []tunnel.Service{}
-	}
-	if len(services) == 0 {
-		return []tunnel.Service{}
-	}
-	return services
-}
-
-func tunnelDisconnectReasonLabel(reason string) string {
-	switch tunnel.DisconnectReason(reason) {
-	case tunnel.DisconnectReasonOperatorDisconnect:
-		return "Disconnected by operator"
-	case tunnel.DisconnectReasonPausedByOperator:
-		return "Paused by operator"
-	case tunnel.DisconnectReasonTokenRotated:
-		return "Token rotated"
-	case tunnel.DisconnectReasonSessionReplaced:
-		return "Replaced by newer session"
-	case tunnel.DisconnectReasonKeepaliveTimeout:
-		return "Keepalive timeout"
-	case tunnel.DisconnectReasonConnectionError:
-		return "Connection error"
-	case tunnel.DisconnectReasonConnectionClosed:
-		return "Connection closed"
-	// Legacy string-format reasons from pre-enum era. Safe to remove once
-	// all existing audit_logs rows with these values have aged out.
-	case "token rotated":
-		return "Token rotated"
-	case "disconnected by operator":
-		return "Disconnected by operator"
-	case "connection closed":
-		return "Connection closed"
-	case "":
-		return ""
-	default:
-		return strings.ReplaceAll(reason, "_", " ")
-	}
+func parseTunnelServices(raw string) []tunnelcore.Service {
+	return servers.TunnelRuntime{ServicesRaw: raw}.Services()
 }
 
 func isTunnelWaitingForFirstConnect(server *core.Record) bool {
-	return server.GetString("tunnel_status") != "online" &&
-		server.GetDateTime("tunnel_connected_at").IsZero() &&
-		server.GetDateTime("tunnel_last_seen").IsZero() &&
-		server.GetDateTime("tunnel_disconnect_at").IsZero()
+	return servers.TunnelRuntimeFromRecord(server).WaitingForFirstConnect()
 }
 
 func loadTunnelGroupNames(app core.App, serverIDs []string) (map[string][]string, error) {

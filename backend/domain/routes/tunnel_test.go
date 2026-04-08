@@ -13,8 +13,10 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/websoft9/appos/backend/domain/audit"
-	"github.com/websoft9/appos/backend/domain/resource/tunnel"
+	servers "github.com/websoft9/appos/backend/domain/resource/server"
 	appcrypto "github.com/websoft9/appos/backend/infra/crypto"
+	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
+	tunnelpb "github.com/websoft9/appos/backend/infra/tunnelpb"
 )
 
 func (te *testEnv) doTunnel(t *testing.T, method, url, body string, authenticated bool) *httptest.ResponseRecorder {
@@ -65,7 +67,7 @@ func createTunnelTokenSecret(t *testing.T, te *testEnv, serverID, token string) 
 		t.Fatal(err)
 	}
 	rec := core.NewRecord(secretCol)
-	rec.Set("name", tunnel.TokenSecretName(serverID))
+	rec.Set("name", servers.TunnelTokenSecretName(serverID))
 	rec.Set("type", "tunnel_token")
 	rec.Set("template_id", "single_value")
 	rec.Set("created_source", "system")
@@ -102,7 +104,7 @@ func TestTunnelOverviewReturnsEmptyCollections(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	tunnelSessions = tunnel.NewRegistry()
+	tunnelSessions = tunnelcore.NewRegistry()
 	createTunnelServerRecord(t, te, "edge-1")
 
 	rec := te.doTunnel(t, http.MethodGet, "/api/tunnel/overview", "", true)
@@ -146,9 +148,9 @@ func TestTunnelSessionReturnsDisconnectReasonLabel(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	tunnelSessions = tunnel.NewRegistry()
+	tunnelSessions = tunnelcore.NewRegistry()
 	server := createTunnelServerRecord(t, te, "edge-2")
-	server.Set("tunnel_disconnect_reason", string(tunnel.DisconnectReasonKeepaliveTimeout))
+	server.Set("tunnel_disconnect_reason", string(tunnelcore.DisconnectReasonKeepaliveTimeout))
 	server.Set("tunnel_status", "offline")
 	if err := te.app.Save(server); err != nil {
 		t.Fatal(err)
@@ -163,7 +165,7 @@ func TestTunnelSessionReturnsDisconnectReasonLabel(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
 		t.Fatalf("failed to decode payload: %v", err)
 	}
-	if payload["disconnect_reason"] != string(tunnel.DisconnectReasonKeepaliveTimeout) {
+	if payload["disconnect_reason"] != string(tunnelcore.DisconnectReasonKeepaliveTimeout) {
 		t.Fatalf("unexpected disconnect_reason: %#v", payload["disconnect_reason"])
 	}
 	if payload["disconnect_reason_label"] != "Keepalive timeout" {
@@ -178,7 +180,7 @@ func TestTunnelSessionReturnsReconnectSummary(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	tunnelSessions = tunnel.NewRegistry()
+	tunnelSessions = tunnelcore.NewRegistry()
 	server := createTunnelServerRecord(t, te, "edge-3")
 	connectedAt := time.Now().UTC().Add(-95 * time.Minute)
 	disconnectAt := connectedAt.Add(90 * time.Minute)
@@ -312,7 +314,7 @@ func TestTunnelPauseAndResumePersistPauseUntil(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	tunnelSessions = tunnel.NewRegistry()
+	tunnelSessions = tunnelcore.NewRegistry()
 	server := createTunnelServerRecord(t, te, "edge-7")
 
 	pauseRec := te.doTunnel(t, http.MethodPost, "/api/tunnel/servers/"+server.Id+"/pause", `{"minutes":0.1}`, true)
@@ -358,9 +360,9 @@ func TestTunnelTokenValidatorRejectsPausedServer(t *testing.T) {
 	}
 	createTunnelTokenSecret(t, te, server.Id, "paused-token")
 
-	validator := &tunnel.PBTokenValidator{App: te.app, TokenCache: &tunnelTokenCache, PauseUntil: tunnelPauseUntil}
-	if serverID, ok := validator.Validate("paused-token"); ok || serverID != "" {
-		t.Fatalf("expected paused token validation to fail, got ok=%v serverID=%q", ok, serverID)
+	validator := &tunnelpb.TokenValidator{App: te.app, TokenCache: &tunnelTokenCache, PauseUntil: tunnelPauseUntil}
+	if managedServerID, ok := validator.Validate("paused-token"); ok || managedServerID != "" {
+		t.Fatalf("expected paused token validation to fail, got ok=%v managedServerID=%q", ok, managedServerID)
 	}
 }
 
@@ -386,7 +388,7 @@ func TestTunnelLogsReturnConnectionLifecycle(t *testing.T) {
 		ResourceID:   server.Id,
 		Status:       audit.StatusSuccess,
 		Detail: map[string]any{
-			"reason":       string(tunnel.DisconnectReasonPausedByOperator),
+			"reason":       string(tunnelcore.DisconnectReasonPausedByOperator),
 			"reason_label": "Paused by operator",
 		},
 	})
@@ -440,7 +442,7 @@ func TestTunnelEndpointsRejectUnauthenticated(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	tunnelSessions = tunnel.NewRegistry()
+	tunnelSessions = tunnelcore.NewRegistry()
 	server := createTunnelServerRecord(t, te, "authtest-1")
 
 	endpoints := []struct {
@@ -469,7 +471,7 @@ func TestTunnelDisconnectOfflineServer(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	tunnelSessions = tunnel.NewRegistry()
+	tunnelSessions = tunnelcore.NewRegistry()
 	server := createTunnelServerRecord(t, te, "disc-1")
 	server.Set("tunnel_status", "offline")
 	if err := te.app.Save(server); err != nil {
@@ -529,10 +531,10 @@ func TestTunnelTokenCachePopulatedOnValidate(t *testing.T) {
 	server := createTunnelServerRecord(t, te, "cache-1")
 	createTunnelTokenSecret(t, te, server.Id, "cache-test-token")
 
-	validator := &tunnel.PBTokenValidator{App: te.app, TokenCache: &tunnelTokenCache, PauseUntil: tunnelPauseUntil}
-	serverID, ok := validator.Validate("cache-test-token")
-	if !ok || serverID != server.Id {
-		t.Fatalf("expected valid token, got ok=%v serverID=%q", ok, serverID)
+	validator := &tunnelpb.TokenValidator{App: te.app, TokenCache: &tunnelTokenCache, PauseUntil: tunnelPauseUntil}
+	managedServerID, ok := validator.Validate("cache-test-token")
+	if !ok || managedServerID != server.Id {
+		t.Fatalf("expected valid token, got ok=%v managedServerID=%q", ok, managedServerID)
 	}
 
 	// After validation the cache should contain the token.
@@ -553,7 +555,7 @@ func TestTunnelTokenRotationInvalidatesOldCache(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	tunnelSessions = tunnel.NewRegistry()
+	tunnelSessions = tunnelcore.NewRegistry()
 	tunnelTokenCache = sync.Map{}
 
 	server := createTunnelServerRecord(t, te, "rotate-1")
@@ -594,7 +596,7 @@ func TestTunnelTokenIdempotentWithoutRotate(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	tunnelSessions = tunnel.NewRegistry()
+	tunnelSessions = tunnelcore.NewRegistry()
 	server := createTunnelServerRecord(t, te, "idem-1")
 	createTunnelTokenSecret(t, te, server.Id, "stable-token")
 
@@ -624,9 +626,9 @@ func TestTunnelTokenValidatorRejectsInvalidToken(t *testing.T) {
 	tunnelTokenCache = sync.Map{}
 
 	createTunnelServerRecord(t, te, "reject-1")
-	validator := &tunnel.PBTokenValidator{App: te.app, TokenCache: &tunnelTokenCache, PauseUntil: tunnelPauseUntil}
-	if serverID, ok := validator.Validate("totally-invalid-token"); ok || serverID != "" {
-		t.Fatalf("expected invalid token to be rejected, got ok=%v serverID=%q", ok, serverID)
+	validator := &tunnelpb.TokenValidator{App: te.app, TokenCache: &tunnelTokenCache, PauseUntil: tunnelPauseUntil}
+	if managedServerID, ok := validator.Validate("totally-invalid-token"); ok || managedServerID != "" {
+		t.Fatalf("expected invalid token to be rejected, got ok=%v managedServerID=%q", ok, managedServerID)
 	}
 }
 
@@ -638,7 +640,7 @@ func TestTunnelPauseRejectsInvalidMinutes(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	tunnelSessions = tunnel.NewRegistry()
+	tunnelSessions = tunnelcore.NewRegistry()
 	server := createTunnelServerRecord(t, te, "pause-bad-1")
 
 	// Zero minutes should not be accepted (or result in near-instant unpause).
@@ -658,7 +660,7 @@ func TestTunnelResumeAlreadyResumedIsIdempotent(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	tunnelSessions = tunnel.NewRegistry()
+	tunnelSessions = tunnelcore.NewRegistry()
 	server := createTunnelServerRecord(t, te, "resume-idem-1")
 
 	// Server has no pause set — resume should still return 200.
@@ -673,7 +675,7 @@ func TestTunnelPauseThenValidateRejects(t *testing.T) {
 	defer te.cleanup()
 
 	tunnelTokenCache = sync.Map{}
-	tunnelSessions = tunnel.NewRegistry()
+	tunnelSessions = tunnelcore.NewRegistry()
 
 	server := createTunnelServerRecord(t, te, "pause-validate-1")
 	createTunnelTokenSecret(t, te, server.Id, "paused-val-token")
@@ -685,7 +687,7 @@ func TestTunnelPauseThenValidateRejects(t *testing.T) {
 	}
 
 	// Token validation should fail while paused (both cold and warm paths).
-	validator := &tunnel.PBTokenValidator{App: te.app, TokenCache: &tunnelTokenCache, PauseUntil: tunnelPauseUntil}
+	validator := &tunnelpb.TokenValidator{App: te.app, TokenCache: &tunnelTokenCache, PauseUntil: tunnelPauseUntil}
 
 	// Cold path (cache miss → full scan):
 	if sid, ok := validator.Validate("paused-val-token"); ok || sid != "" {

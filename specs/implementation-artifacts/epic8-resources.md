@@ -417,6 +417,14 @@ Replace settings-owned business resources with resource references where appropr
 
 Introduce the minimal reusable connector domain model so current LLM resources and future endpoint migrations share one canonical backend shape.
 
+### [Story 8.8: Provider Account Backend Foundation](story8.8-provider-account-backend-foundation.md)
+
+Introduce the minimal clean-slate `provider_accounts` backend domain so AppOS can model platform identity scopes without depending on legacy `cloud_accounts`.
+
+### [Story 8.9: Resource Hub Information Architecture Alignment](story8.9-resource-hub-information-architecture-alignment.md)
+
+Define the unified resource-entry information architecture so `Servers` remain part of the canonical resource center while being positioned as host infrastructure rather than just another dependency card.
+
 ## Phase 2 Target Route Direction
 
 | Family | Expected backend path |
@@ -454,6 +462,8 @@ Phase 2 does not require all target routes to exist immediately, but new stories
 
 ### Navigation structure
 Resources is a single sidebar entry (no sub-items). Clicking it opens the **Resource Hub** at `/resources` — a card grid showing all 8 resource types with live counts. Each card is fully clickable and navigates to the resource list page (`/resources/servers`, etc.). No action buttons on the Hub; `[+ Create]` lives only on the list page.
+
+This describes the delivered legacy hub baseline. Phase 2 taxonomy-aware IA changes should follow [story8.9-resource-hub-information-architecture-alignment.md](story8.9-resource-hub-information-architecture-alignment.md), which may replace the flat card grouping and raw type-picker create affordance with a canonical-family and intent-led entry model.
 
 ```
 Sidebar: Resources  →  /resources (Hub: 8 cards with counts)

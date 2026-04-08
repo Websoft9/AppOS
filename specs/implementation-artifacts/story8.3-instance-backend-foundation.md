@@ -146,6 +146,7 @@ Naming rules:
 - Clarified template metadata layering: `category` is the product directory layer, `kind` is canonical identity, and `template_id` is a kind-local profile; category-level custom profiles such as `custom_database` are explicitly excluded.
 - Renamed abstract capability-style kinds to product-family kinds by replacing `object_storage` with `s3` and `model_service` with `ollama` across templates, code, and tests.
 - Added minimal template README plus product-level instance profiles for AWS RDS PostgreSQL, Aurora MySQL, MinIO, Harbor, Ollama, and Redpanda.
+- Tightened the DDD boundary by moving allowed-kind checks, credential-reference validation entry points, and explicit name uniqueness enforcement into the `instances` service layer instead of leaving them implicit in routes or PocketBase schema alone.
 - Verified targeted backend suites pass with: `go test ./domain/resource/instances ./domain/routes ./infra/persistence ./infra/migrations -count=1`.
 
 ### Change Log
@@ -154,3 +155,4 @@ Naming rules:
 - 2026-04-07: Implemented clean-slate Epic 8 service-instance backend foundation with template-driven profiles, PocketBase migration, `/api/instances` routes, and passing targeted backend tests.
 - 2026-04-07: Restored template metadata name to `category`, kept category/kind/template_id layering, and added initial product-level instance profiles plus a minimal template README.
 - 2026-04-07: Renamed abstract capability-style instance kinds to product-family kinds, simplifying template directories to `s3` and `ollama`.
+- 2026-04-07: Moved core instance invariants into the service layer by making allowed kinds explicit, adding service-level credential-reference validation hooks, and surfacing duplicate names as an explicit conflict rule.

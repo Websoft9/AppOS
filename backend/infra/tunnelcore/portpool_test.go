@@ -1,4 +1,4 @@
-package tunnel
+package tunnelcore
 
 import (
 	"fmt"
@@ -26,7 +26,7 @@ func testDesiredForwards() []ForwardSpec {
 func TestPortPool_LoadExisting_ReservesKnownPorts(t *testing.T) {
 	p := newTestPool()
 	p.LoadExisting([]PortRecord{
-		{ServerID: "srv1", Services: []Service{
+		{ClientID: "srv1", Services: []Service{
 			{Name: "ssh", LocalPort: 22, TunnelPort: testStart},
 			{Name: "http", LocalPort: 80, TunnelPort: testStart + 1},
 		}},
@@ -51,7 +51,7 @@ func TestPortPool_LoadExisting_ReservesKnownPorts(t *testing.T) {
 func TestPortPool_LoadExisting_PreventReassignment(t *testing.T) {
 	p := newTestPool()
 	p.LoadExisting([]PortRecord{
-		{ServerID: "srv1", Services: []Service{
+		{ClientID: "srv1", Services: []Service{
 			{Name: "ssh", LocalPort: 22, TunnelPort: testStart},
 			{Name: "http", LocalPort: 80, TunnelPort: testStart + 1},
 		}},
@@ -153,7 +153,7 @@ func TestPortPool_Release_FreedPortsReassignable(t *testing.T) {
 }
 
 func TestPortPool_Release_Noop(t *testing.T) {
-	// Release on unknown serverID must not panic.
+	// Release on unknown clientID must not panic.
 	p := newTestPool()
 	p.Release("nobody")
 }
@@ -172,7 +172,7 @@ func TestPortPool_Conflict_OSPortInUse(t *testing.T) {
 
 	p := newTestPool()
 	p.LoadExisting([]PortRecord{
-		{ServerID: "srv1", Services: []Service{
+		{ClientID: "srv1", Services: []Service{
 			{Name: "ssh", LocalPort: 22, TunnelPort: testStart + 50}, // ← occupied
 			{Name: "http", LocalPort: 80, TunnelPort: testStart + 51},
 		}},

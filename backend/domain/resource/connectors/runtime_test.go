@@ -8,6 +8,7 @@ import (
 	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	"github.com/websoft9/appos/backend/domain/secrets"
+	"github.com/websoft9/appos/backend/infra/collections"
 	persistence "github.com/websoft9/appos/backend/infra/persistence"
 
 	_ "github.com/websoft9/appos/backend/infra/migrations"
@@ -56,9 +57,9 @@ func createSecretRecord(t *testing.T, app core.App, templateID string, payload m
 	return rec
 }
 
-func createConnectorRecord(t *testing.T, app core.App, spec connectors.Spec) *core.Record {
+func createConnectorRecord(t *testing.T, app core.App, spec connectors.SaveInput) *core.Record {
 	t.Helper()
-	col, err := app.FindCollectionByNameOrId(connectors.Collection)
+	col, err := app.FindCollectionByNameOrId(collections.Connectors)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +88,7 @@ func TestLoadSMTPUsesDefaultNamedConnector(t *testing.T) {
 		"password": "s3cr3t",
 	})
 
-	createConnectorRecord(t, app, connectors.Spec{
+	createConnectorRecord(t, app, connectors.SaveInput{
 		Name:         "Marketing SMTP",
 		Kind:         connectors.KindSMTP,
 		IsDefault:    false,
@@ -97,7 +98,7 @@ func TestLoadSMTPUsesDefaultNamedConnector(t *testing.T) {
 		CredentialID: secret.Id,
 		Config:       map[string]any{"fromAddress": "alt@example.com", "tls": false},
 	})
-	createConnectorRecord(t, app, connectors.Spec{
+	createConnectorRecord(t, app, connectors.SaveInput{
 		Name:         "default",
 		Kind:         connectors.KindSMTP,
 		IsDefault:    true,
@@ -139,8 +140,8 @@ func TestLoadSMTPFailsForAmbiguousConnectors(t *testing.T) {
 	app := newRuntimeTestApp(t)
 	defer app.Cleanup()
 
-	createConnectorRecord(t, app, connectors.Spec{Name: "One", Kind: connectors.KindSMTP, IsDefault: false, TemplateID: "generic-smtp", Endpoint: "smtp://one.example.com:587"})
-	createConnectorRecord(t, app, connectors.Spec{Name: "Two", Kind: connectors.KindSMTP, IsDefault: false, TemplateID: "generic-smtp", Endpoint: "smtp://two.example.com:587"})
+	createConnectorRecord(t, app, connectors.SaveInput{Name: "One", Kind: connectors.KindSMTP, IsDefault: false, TemplateID: "generic-smtp", Endpoint: "smtp://one.example.com:587"})
+	createConnectorRecord(t, app, connectors.SaveInput{Name: "Two", Kind: connectors.KindSMTP, IsDefault: false, TemplateID: "generic-smtp", Endpoint: "smtp://two.example.com:587"})
 
 	_, err := connectors.LoadSMTPWith(persistence.NewConnectorRepository(app), connectors.NewSecretResolver(app))
 	if err == nil {
@@ -157,7 +158,7 @@ func TestListRegistryResolvesBasicAuthAndFlags(t *testing.T) {
 		"password": "oci-pass",
 	})
 
-	createConnectorRecord(t, app, connectors.Spec{
+	createConnectorRecord(t, app, connectors.SaveInput{
 		Name:         "GHCR",
 		Kind:         connectors.KindRegistry,
 		IsDefault:    true,
@@ -193,7 +194,7 @@ func TestLoadSMTPRejectsUnsupportedScheme(t *testing.T) {
 	app := newRuntimeTestApp(t)
 	defer app.Cleanup()
 
-	createConnectorRecord(t, app, connectors.Spec{
+	createConnectorRecord(t, app, connectors.SaveInput{
 		Name:       "Broken SMTP",
 		Kind:       connectors.KindSMTP,
 		IsDefault:  true,
@@ -228,7 +229,7 @@ func TestLoadSMTPFailsForRevokedSecret(t *testing.T) {
 		"username": "mailer",
 		"password": "s3cr3t",
 	})
-	createConnectorRecord(t, app, connectors.Spec{
+	createConnectorRecord(t, app, connectors.SaveInput{
 		Name:         "SMTP",
 		Kind:         connectors.KindSMTP,
 		IsDefault:    true,
@@ -257,7 +258,7 @@ func TestLoadSMTPFailsForDeletedSecret(t *testing.T) {
 		"username": "mailer",
 		"password": "s3cr3t",
 	})
-	createConnectorRecord(t, app, connectors.Spec{
+	createConnectorRecord(t, app, connectors.SaveInput{
 		Name:         "SMTP",
 		Kind:         connectors.KindSMTP,
 		IsDefault:    true,

@@ -1,0 +1,21 @@
+{
+  "category": "developer-platform",
+  "kind": "github",
+  "title": "GitHub Installation",
+  "vendor": "GitHub",
+  "description": "GitHub organization or repository installation scope used by AppOS integrations.",
+  "fields": [
+    {
+      "id": "identifier",
+      "label": "Installation ID",
+      "type": "text",
+      "required": true
+    },
+    {
+      "id": "organization",
+      "label": "Organization",
+      "type": "text",
+      "required": true
+    }
+  ]
+}

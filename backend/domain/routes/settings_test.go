@@ -10,8 +10,8 @@ import (
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
+	"github.com/websoft9/appos/backend/domain/secrets"
 )
 
 func doSettingsRoute(t *testing.T, te *testEnv, method, url, body string, authenticated bool) *httptest.ResponseRecorder {

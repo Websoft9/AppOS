@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	comp "github.com/websoft9/appos/backend/platform/components"
 	"github.com/pocketbase/pocketbase/apis"
+	comp "github.com/websoft9/appos/backend/platform/components"
 )
 
 func (te *testEnv) doComponents(t *testing.T, method, url, body string, authenticated bool) *httptest.ResponseRecorder {

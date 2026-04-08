@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"strings"
 
-	appcatalog "github.com/websoft9/appos/backend/domain/catalog"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
+	appcatalog "github.com/websoft9/appos/backend/domain/catalog"
 )
 
 // registerCatalogRoutes registers canonical App Catalog read routes under /api/catalog.

@@ -1,4 +1,4 @@
-package tunnel
+package tunnelcore
 
 import (
 	"log"
@@ -20,11 +20,11 @@ const (
 	DisconnectReasonSessionReplaced    DisconnectReason = "session_replaced"
 )
 
-// Session represents an active reverse-SSH tunnel connection from one local server.
+// Session represents an active reverse-SSH tunnel connection from one remote client.
 type Session struct {
 	mu sync.RWMutex
-	// ServerID is the PocketBase record ID of the connected server.
-	ServerID string
+	// ClientID identifies the connected remote node inside the caller's system.
+	ClientID string
 	// Conn is the live SSH server-side connection.
 	Conn *ssh.ServerConn
 	// Services describes the forwarded port pairs established for this session.
@@ -58,8 +58,8 @@ func (s *Session) DisconnectReason() DisconnectReason {
 }
 
 // Registry is a thread-safe, in-memory store of active tunnel sessions.
-// It is keyed by serverID; at most one active session per server is tracked
-// (a reconnecting server replaces its previous entry).
+// It is keyed by clientID; at most one active session per client is tracked
+// (a reconnecting client replaces its previous entry).
 type Registry struct {
 	mu       sync.RWMutex
 	sessions map[string]*Session
@@ -70,57 +70,57 @@ func NewRegistry() *Registry {
 	return &Registry{sessions: make(map[string]*Session)}
 }
 
-// Register adds or replaces the session for serverID.
-// If an existing session is present for the same serverID, its SSH connection
+// Register adds or replaces the session for clientID.
+// If an existing session is present for the same clientID, its SSH connection
 // is closed first (last-writer-wins). This is safe for concurrent use.
-func (r *Registry) Register(serverID string, sess *Session) {
+func (r *Registry) Register(clientID string, sess *Session) {
 	r.mu.Lock()
-	if old, ok := r.sessions[serverID]; ok {
+	if old, ok := r.sessions[clientID]; ok {
 		old.SetDisconnectReason(DisconnectReasonSessionReplaced)
 		if old.Conn != nil {
 			_ = old.Conn.Close()
 		}
-		log.Printf("[tunnel] kicked old session for server %s (replaced by new connection)", serverID)
+		log.Printf("[tunnel] kicked old session for client %s (replaced by new connection)", clientID)
 	}
-	r.sessions[serverID] = sess
+	r.sessions[clientID] = sess
 	r.mu.Unlock()
 }
 
-// Unregister removes the session entry for serverID.
-// It is safe to call when no session exists for serverID.
-func (r *Registry) Unregister(serverID string) {
+// Unregister removes the session entry for clientID.
+// It is safe to call when no session exists for clientID.
+func (r *Registry) Unregister(clientID string) {
 	r.mu.Lock()
-	delete(r.sessions, serverID)
+	delete(r.sessions, clientID)
 	r.mu.Unlock()
 }
 
-// UnregisterConn removes the session entry for serverID only if the stored
+// UnregisterConn removes the session entry for clientID only if the stored
 // session's Conn matches the provided connection. This prevents a closing old
 // connection from accidentally removing a newer replacement session.
-func (r *Registry) UnregisterConn(serverID string, conn *ssh.ServerConn) {
+func (r *Registry) UnregisterConn(clientID string, conn *ssh.ServerConn) {
 	r.mu.Lock()
-	if s, ok := r.sessions[serverID]; ok && s.Conn == conn {
-		delete(r.sessions, serverID)
+	if s, ok := r.sessions[clientID]; ok && s.Conn == conn {
+		delete(r.sessions, clientID)
 	}
 	r.mu.Unlock()
 }
 
-// Get returns the Session for serverID, or (nil, false) when not found.
+// Get returns the Session for clientID, or (nil, false) when not found.
 // It is safe for concurrent use.
-func (r *Registry) Get(serverID string) (*Session, bool) {
+func (r *Registry) Get(clientID string) (*Session, bool) {
 	r.mu.RLock()
-	sess, ok := r.sessions[serverID]
+	sess, ok := r.sessions[clientID]
 	r.mu.RUnlock()
 	return sess, ok
 }
 
-// Disconnect closes the active SSH connection for serverID.
-// It is a no-op when serverID has no active session. The closure triggers the
+// Disconnect closes the active SSH connection for clientID.
+// It is a no-op when clientID has no active session. The closure triggers the
 // handleConn defer in server.go, which calls OnDisconnect and unregisters the
 // session — callers need no additional cleanup.
-func (r *Registry) Disconnect(serverID string, reason DisconnectReason) {
+func (r *Registry) Disconnect(clientID string, reason DisconnectReason) {
 	r.mu.RLock()
-	sess, ok := r.sessions[serverID]
+	sess, ok := r.sessions[clientID]
 	r.mu.RUnlock()
 	if ok && sess.Conn != nil {
 		sess.SetDisconnectReason(reason)

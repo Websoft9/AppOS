@@ -12,6 +12,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/domain/config/sharedenv"
+	"github.com/websoft9/appos/backend/domain/resource/accounts"
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	"github.com/websoft9/appos/backend/domain/resource/instances"
 
@@ -76,6 +77,7 @@ func (te *testEnv) do(t *testing.T, method, url, body string, authenticated bool
 	registerResourceRoutes(g)
 	registerConnectorRoutes(&core.ServeEvent{Router: r})
 	registerInstanceRoutes(&core.ServeEvent{Router: r})
+	registerProviderAccountRoutes(&core.ServeEvent{Router: r})
 
 	mux, err := r.BuildMux()
 	if err != nil {
@@ -366,6 +368,12 @@ func TestInstancesCRUD(t *testing.T) {
 		t.Fatalf("mismatched template kind: expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
 
+	rec = te.do(t, http.MethodPost, "/api/instances",
+		`{"name":"primary-postgres","kind":"redis","template_id":"generic-redis"}`, true)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("duplicate instance name: expected 409, got %d: %s", rec.Code, rec.Body.String())
+	}
+
 	rec = te.do(t, http.MethodDelete, "/api/instances/"+id, "", true)
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("delete instance: expected 204, got %d: %s", rec.Code, rec.Body.String())
@@ -373,6 +381,184 @@ func TestInstancesCRUD(t *testing.T) {
 	rec = te.do(t, http.MethodDelete, "/api/instances/"+otherID, "", true)
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("delete second instance: expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestProviderAccountTemplatesRequireAuthAndList(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.do(t, http.MethodGet, "/api/provider-accounts/templates", "", false)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated list: expected 401, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = te.do(t, http.MethodGet, "/api/provider-accounts/templates", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("authenticated list: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	templates := parseJSONArray(t, rec)
+	if len(templates) == 0 {
+		t.Fatalf("expected at least one provider account template")
+	}
+	if templates[0]["id"] == nil {
+		t.Fatalf("expected provider account template to include id")
+	}
+}
+
+func TestProviderAccountTemplateGet(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.do(t, http.MethodGet, "/api/provider-accounts/templates/generic-aws-account", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get provider account template: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	template := parseJSON(t, rec)
+	if template["id"] != "generic-aws-account" {
+		t.Fatalf("expected template id generic-aws-account, got %v", template["id"])
+	}
+	if template["kind"] != accounts.KindAWS {
+		t.Fatalf("expected template kind %q, got %v", accounts.KindAWS, template["kind"])
+	}
+
+	rec = te.do(t, http.MethodGet, "/api/provider-accounts/templates/not-found", "", true)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected missing template to return 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestProviderAccountsCRUD(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.do(t, http.MethodPost, "/api/provider-accounts",
+		`{"name":"primary-aws","kind":"aws","template_id":"generic-aws-account","identifier":"123456789012","config":{"region":"us-east-1"}}`, true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create provider account: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	created := parseJSON(t, rec)
+	accountID := created["id"].(string)
+	id := created["id"].(string)
+	if created["template_id"] != "generic-aws-account" {
+		t.Fatalf("expected template_id generic-aws-account, got %v", created["template_id"])
+	}
+	if created["identifier"] != "123456789012" {
+		t.Fatalf("expected identifier 123456789012, got %v", created["identifier"])
+	}
+
+	rec = te.do(t, http.MethodGet, "/api/provider-accounts/"+id, "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get provider account: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = te.do(t, http.MethodPut, "/api/provider-accounts/"+id,
+		`{"name":"github-installation","kind":"github","template_id":"github-app-installation","identifier":"987654","config":{"organization":"websoft9"}}`, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("update provider account: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	updated := parseJSON(t, rec)
+	if updated["kind"] != accounts.KindGitHub {
+		t.Fatalf("expected updated kind %q, got %v", accounts.KindGitHub, updated["kind"])
+	}
+	if updated["template_id"] != "github-app-installation" {
+		t.Fatalf("expected updated template_id github-app-installation, got %v", updated["template_id"])
+	}
+
+	rec = te.do(t, http.MethodPost, "/api/provider-accounts",
+		`{"name":"cf-account","kind":"cloudflare","template_id":"cloudflare-account","identifier":"cf-123"}`, true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create second provider account: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	otherID := parseJSON(t, rec)["id"].(string)
+
+	rec = te.do(t, http.MethodPost, "/api/provider-accounts",
+		`{"name":"missing-identifier","kind":"aws","template_id":"generic-aws-account"}`, true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("missing identifier: expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = te.do(t, http.MethodGet, "/api/provider-accounts?kind=github,gcp", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("filter provider accounts: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	list := parseJSONArray(t, rec)
+	if len(list) != 1 {
+		t.Fatalf("expected 1 filtered provider account, got %d", len(list))
+	}
+	if list[0]["kind"] != accounts.KindGitHub {
+		t.Fatalf("expected github provider account, got %v", list[0]["kind"])
+	}
+
+	rec = te.do(t, http.MethodPost, "/api/instances",
+		`{"name":"redis-with-account","kind":"redis","template_id":"generic-redis","provider_account":"`+accountID+`"}`, true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create instance with provider account: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	instanceCreated := parseJSON(t, rec)
+	instanceID := instanceCreated["id"].(string)
+	if instanceCreated["provider_account"] != accountID {
+		t.Fatalf("expected instance provider_account %q", accountID)
+	}
+
+	rec = te.do(t, http.MethodPost, "/api/connectors",
+		`{"name":"smtp-with-account","kind":"smtp","template_id":"generic-smtp","provider_account":"`+accountID+`"}`, true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create connector with provider account: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	connectorCreated := parseJSON(t, rec)
+	connectorID := connectorCreated["id"].(string)
+	if connectorCreated["provider_account"] != accountID {
+		t.Fatalf("expected connector provider_account %q", accountID)
+	}
+
+	rec = te.do(t, http.MethodPost, "/api/provider-accounts",
+		`{"name":"bad-provider-account","kind":"aws","template_id":"github-app-installation"}`, true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("mismatched template kind: expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = te.do(t, http.MethodPost, "/api/provider-accounts",
+		`{"name":"github-installation","kind":"aws","template_id":"generic-aws-account","identifier":"acct-dup"}`, true)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("duplicate provider account name: expected 409, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = te.do(t, http.MethodDelete, "/api/provider-accounts/"+id, "", true)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("delete referenced provider account: expected 409, got %d: %s", rec.Code, rec.Body.String())
+	}
+	deleteConflict := parseJSON(t, rec)
+	if deleteConflict["message"] != "provider account is still referenced; remove related instances or connectors first" {
+		t.Fatalf("unexpected delete conflict message: %v", deleteConflict["message"])
+	}
+	deleteConflictData, ok := deleteConflict["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected delete conflict data object, got %T", deleteConflict["data"])
+	}
+	if deleteConflictData["reason_code"] != "provider_account_referenced" {
+		t.Fatalf("unexpected delete conflict reason_code: %v", deleteConflictData["reason_code"])
+	}
+
+	rec = te.do(t, http.MethodDelete, "/api/connectors/"+connectorID, "", true)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("delete referencing connector: expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = te.do(t, http.MethodDelete, "/api/instances/"+instanceID, "", true)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("delete referencing instance: expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = te.do(t, http.MethodDelete, "/api/provider-accounts/"+id, "", true)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("delete provider account: expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	rec = te.do(t, http.MethodDelete, "/api/provider-accounts/"+otherID, "", true)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("delete second provider account: expected 204, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 

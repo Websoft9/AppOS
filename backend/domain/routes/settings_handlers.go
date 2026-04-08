@@ -55,6 +55,7 @@ func handleSettingsSchema(e *core.RequestEvent) error {
 		"actions": actions,
 	})
 }
+
 // handleSettingsEntriesList returns the current values for all settings entries.
 //
 // @Summary List settings entries

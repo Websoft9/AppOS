@@ -18,9 +18,9 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
-	"github.com/websoft9/appos/backend/infra/fileutil"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
+	"github.com/websoft9/appos/backend/infra/fileutil"
 )
 
 const (

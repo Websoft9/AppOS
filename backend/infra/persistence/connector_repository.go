@@ -7,6 +7,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	domainconnectors "github.com/websoft9/appos/backend/domain/resource/connectors"
+	"github.com/websoft9/appos/backend/infra/collections"
 )
 
 type pocketBaseConnectorRepository struct {
@@ -18,7 +19,7 @@ func NewConnectorRepository(app core.App) domainconnectors.Repository {
 }
 
 func (r *pocketBaseConnectorRepository) List() ([]*domainconnectors.Connector, error) {
-	records, err := r.app.FindAllRecords(domainconnectors.Collection)
+	records, err := r.app.FindAllRecords(collections.Connectors)
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +32,7 @@ func (r *pocketBaseConnectorRepository) List() ([]*domainconnectors.Connector, e
 }
 
 func (r *pocketBaseConnectorRepository) Get(id string) (*domainconnectors.Connector, error) {
-	record, err := r.app.FindRecordById(domainconnectors.Collection, id)
+	record, err := r.app.FindRecordById(collections.Connectors, id)
 	if err != nil {
 		return nil, wrapConnectorLookupError(id, err)
 	}
@@ -42,20 +43,34 @@ func (r *pocketBaseConnectorRepository) New() (*domainconnectors.Connector, erro
 	return domainconnectors.NewConnector(), nil
 }
 
+func (r *pocketBaseConnectorRepository) ExistsByName(name string, excludeID string) (bool, error) {
+	filter := "name = {:name}"
+	params := map[string]any{"name": strings.TrimSpace(name)}
+	if strings.TrimSpace(excludeID) != "" {
+		filter += " && id != {:excludeId}"
+		params["excludeId"] = strings.TrimSpace(excludeID)
+	}
+	records, err := r.app.FindRecordsByFilter(collections.Connectors, filter, "", 1, 0, params)
+	if err != nil {
+		return false, err
+	}
+	return len(records) > 0, nil
+}
+
 func (r *pocketBaseConnectorRepository) Save(connector *domainconnectors.Connector) error {
 	record, err := r.recordForSave(connector)
 	if err != nil {
 		return err
 	}
 	if err := r.app.Save(record); err != nil {
-		return err
+		return wrapConnectorSaveError(connector, err)
 	}
 	copyConnectorState(connector, connectorFromRecord(record))
 	return nil
 }
 
 func (r *pocketBaseConnectorRepository) Delete(connector *domainconnectors.Connector) error {
-	record, err := r.app.FindRecordById(domainconnectors.Collection, connector.ID())
+	record, err := r.app.FindRecordById(collections.Connectors, connector.ID())
 	if err != nil {
 		return wrapConnectorLookupError(connector.ID(), err)
 	}
@@ -63,7 +78,7 @@ func (r *pocketBaseConnectorRepository) Delete(connector *domainconnectors.Conne
 }
 
 func (r *pocketBaseConnectorRepository) ListByKind(kind string) ([]*domainconnectors.Connector, error) {
-	records, err := r.app.FindRecordsByFilter(domainconnectors.Collection, "kind = {:kind}", "", 0, 0, map[string]any{"kind": kind})
+	records, err := r.app.FindRecordsByFilter(collections.Connectors, "kind = {:kind}", "", 0, 0, map[string]any{"kind": kind})
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +95,7 @@ func (r *pocketBaseConnectorRepository) ClearDefaultsByKind(kind string, exclude
 	if kind == "" {
 		return nil
 	}
-	query := "UPDATE " + domainconnectors.Collection + " SET is_default = false WHERE kind = {:kind} AND is_default = true"
+	query := "UPDATE " + collections.Connectors + " SET is_default = false WHERE kind = {:kind} AND is_default = true"
 	params := map[string]any{"kind": kind}
 	if strings.TrimSpace(excludeID) != "" {
 		query += " AND id != {:excludeId}"
@@ -98,7 +113,7 @@ func (r *pocketBaseConnectorRepository) RunInTransaction(run func(domainconnecto
 
 func (r *pocketBaseConnectorRepository) recordForSave(connector *domainconnectors.Connector) (*core.Record, error) {
 	if connector.ID() != "" {
-		record, err := r.app.FindRecordById(domainconnectors.Collection, connector.ID())
+		record, err := r.app.FindRecordById(collections.Connectors, connector.ID())
 		if err != nil {
 			return nil, wrapConnectorLookupError(connector.ID(), err)
 		}
@@ -106,7 +121,7 @@ func (r *pocketBaseConnectorRepository) recordForSave(connector *domainconnector
 		return record, nil
 	}
 
-	collection, err := r.app.FindCollectionByNameOrId(domainconnectors.Collection)
+	collection, err := r.app.FindCollectionByNameOrId(collections.Connectors)
 	if err != nil {
 		return nil, err
 	}
@@ -117,18 +132,19 @@ func (r *pocketBaseConnectorRepository) recordForSave(connector *domainconnector
 
 func connectorFromRecord(record *core.Record) *domainconnectors.Connector {
 	return domainconnectors.RestoreConnector(domainconnectors.Snapshot{
-		ID:           record.Id,
-		Created:      record.GetString("created"),
-		Updated:      record.GetString("updated"),
-		Name:         record.GetString("name"),
-		Kind:         record.GetString("kind"),
-		IsDefault:    record.GetBool("is_default"),
-		TemplateID:   record.GetString("template_id"),
-		Endpoint:     record.GetString("endpoint"),
-		AuthScheme:   record.GetString("auth_scheme"),
-		CredentialID: record.GetString("credential"),
-		Config:       domainconnectors.DecodeConfig(record.Get("config")),
-		Description:  record.GetString("description"),
+		ID:                record.Id,
+		Created:           record.GetString("created"),
+		Updated:           record.GetString("updated"),
+		Name:              record.GetString("name"),
+		Kind:              record.GetString("kind"),
+		IsDefault:         record.GetBool("is_default"),
+		TemplateID:        record.GetString("template_id"),
+		Endpoint:          record.GetString("endpoint"),
+		AuthScheme:        record.GetString("auth_scheme"),
+		ProviderAccountID: record.GetString("provider_account"),
+		CredentialID:      record.GetString("credential"),
+		Config:            domainconnectors.DecodeConfig(record.Get("config")),
+		Description:       record.GetString("description"),
 	})
 }
 
@@ -140,6 +156,7 @@ func applyConnectorToRecord(record *core.Record, connector *domainconnectors.Con
 	record.Set("template_id", snapshot.TemplateID)
 	record.Set("endpoint", snapshot.Endpoint)
 	record.Set("auth_scheme", snapshot.AuthScheme)
+	record.Set("provider_account", snapshot.ProviderAccountID)
 	record.Set("credential", snapshot.CredentialID)
 	record.Set("config", snapshot.Config)
 	record.Set("description", snapshot.Description)
@@ -155,6 +172,30 @@ func wrapConnectorLookupError(id string, err error) error {
 		return &domainconnectors.NotFoundError{ID: id, Cause: err}
 	}
 	return err
+}
+
+func wrapConnectorSaveError(connector *domainconnectors.Connector, err error) error {
+	if isConnectorNameConflict(err) {
+		return &domainconnectors.ConflictError{Message: "connector name already exists", Cause: err}
+	}
+	return err
+}
+
+func isConnectorNameConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	if strings.Contains(message, "idx_connectors_name") {
+		return true
+	}
+	if strings.Contains(message, "unique") && strings.Contains(message, "name") {
+		return true
+	}
+	if strings.Contains(message, "duplicate") && strings.Contains(message, "name") {
+		return true
+	}
+	return false
 }
 
 func isPocketBaseNotFound(err error) bool {

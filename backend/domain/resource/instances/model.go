@@ -5,8 +5,6 @@ import (
 	"strings"
 )
 
-const Collection = "instances"
-
 const (
 	KindMySQL    = "mysql"
 	KindPostgres = "postgres"
@@ -17,31 +15,58 @@ const (
 	KindOllama   = "ollama"
 )
 
+var declaredKinds = []string{
+	KindMySQL,
+	KindPostgres,
+	KindRedis,
+	KindKafka,
+	KindS3,
+	KindRegistry,
+	KindOllama,
+}
+
+func AllowedKinds() []string {
+	result := make([]string, len(declaredKinds))
+	copy(result, declaredKinds)
+	return result
+}
+
+func IsAllowedKind(kind string) bool {
+	for _, item := range declaredKinds {
+		if item == strings.TrimSpace(kind) {
+			return true
+		}
+	}
+	return false
+}
+
 // Instance is the canonical registration-only service dependency shape.
 type Instance struct {
-	id           string
-	created      string
-	updated      string
-	name         string
-	kind         string
-	templateID   string
-	endpoint     string
-	credentialID string
-	config       map[string]any
-	description  string
+	id                string
+	created           string
+	updated           string
+	name              string
+	kind              string
+	templateID        string
+	endpoint          string
+	providerAccountID string
+	credentialID      string
+	config            map[string]any
+	description       string
 }
 
 type Snapshot struct {
-	ID           string
-	Created      string
-	Updated      string
-	Name         string
-	Kind         string
-	TemplateID   string
-	Endpoint     string
-	CredentialID string
-	Config       map[string]any
-	Description  string
+	ID                string
+	Created           string
+	Updated           string
+	Name              string
+	Kind              string
+	TemplateID        string
+	Endpoint          string
+	ProviderAccountID string
+	CredentialID      string
+	Config            map[string]any
+	Description       string
 }
 
 func NewInstance() *Instance {
@@ -50,28 +75,30 @@ func NewInstance() *Instance {
 
 func RestoreInstance(snapshot Snapshot) *Instance {
 	return &Instance{
-		id:           snapshot.ID,
-		created:      snapshot.Created,
-		updated:      snapshot.Updated,
-		name:         snapshot.Name,
-		kind:         snapshot.Kind,
-		templateID:   snapshot.TemplateID,
-		endpoint:     snapshot.Endpoint,
-		credentialID: snapshot.CredentialID,
-		config:       cloneMap(snapshot.Config),
-		description:  snapshot.Description,
+		id:                snapshot.ID,
+		created:           snapshot.Created,
+		updated:           snapshot.Updated,
+		name:              snapshot.Name,
+		kind:              snapshot.Kind,
+		templateID:        snapshot.TemplateID,
+		endpoint:          snapshot.Endpoint,
+		providerAccountID: snapshot.ProviderAccountID,
+		credentialID:      snapshot.CredentialID,
+		config:            cloneMap(snapshot.Config),
+		description:       snapshot.Description,
 	}
 }
 
-func (i *Instance) ID() string           { return i.id }
-func (i *Instance) Created() string      { return i.created }
-func (i *Instance) Updated() string      { return i.updated }
-func (i *Instance) Name() string         { return i.name }
-func (i *Instance) Kind() string         { return i.kind }
-func (i *Instance) TemplateID() string   { return i.templateID }
-func (i *Instance) Endpoint() string     { return i.endpoint }
-func (i *Instance) CredentialID() string { return i.credentialID }
-func (i *Instance) Description() string  { return i.description }
+func (i *Instance) ID() string                { return i.id }
+func (i *Instance) Created() string           { return i.created }
+func (i *Instance) Updated() string           { return i.updated }
+func (i *Instance) Name() string              { return i.name }
+func (i *Instance) Kind() string              { return i.kind }
+func (i *Instance) TemplateID() string        { return i.templateID }
+func (i *Instance) Endpoint() string          { return i.endpoint }
+func (i *Instance) ProviderAccountID() string { return i.providerAccountID }
+func (i *Instance) CredentialID() string      { return i.credentialID }
+func (i *Instance) Description() string       { return i.description }
 
 func (i *Instance) Config() map[string]any {
 	return cloneMap(i.config)
@@ -82,6 +109,7 @@ func (i *Instance) ApplySaveInput(input SaveInput) {
 	i.kind = strings.TrimSpace(input.Kind)
 	i.templateID = strings.TrimSpace(input.TemplateID)
 	i.endpoint = strings.TrimSpace(input.Endpoint)
+	i.providerAccountID = strings.TrimSpace(input.ProviderAccountID)
 	i.credentialID = strings.TrimSpace(input.CredentialID)
 	i.config = cloneMap(input.Config)
 	i.description = strings.TrimSpace(input.Description)
@@ -103,31 +131,17 @@ func (i *Instance) EnsureConfig() {
 
 func (i *Instance) Snapshot() Snapshot {
 	return Snapshot{
-		ID:           i.ID(),
-		Created:      i.Created(),
-		Updated:      i.Updated(),
-		Name:         i.Name(),
-		Kind:         i.Kind(),
-		TemplateID:   i.TemplateID(),
-		Endpoint:     i.Endpoint(),
-		CredentialID: i.CredentialID(),
-		Config:       i.Config(),
-		Description:  i.Description(),
-	}
-}
-
-func (i *Instance) ResponseMap() map[string]any {
-	return map[string]any{
-		"id":          i.ID(),
-		"created":     i.Created(),
-		"updated":     i.Updated(),
-		"name":        i.Name(),
-		"kind":        i.Kind(),
-		"template_id": i.TemplateID(),
-		"endpoint":    i.Endpoint(),
-		"credential":  i.CredentialID(),
-		"config":      i.Config(),
-		"description": i.Description(),
+		ID:                i.ID(),
+		Created:           i.Created(),
+		Updated:           i.Updated(),
+		Name:              i.Name(),
+		Kind:              i.Kind(),
+		TemplateID:        i.TemplateID(),
+		Endpoint:          i.Endpoint(),
+		ProviderAccountID: i.ProviderAccountID(),
+		CredentialID:      i.CredentialID(),
+		Config:            i.Config(),
+		Description:       i.Description(),
 	}
 }
 
@@ -169,9 +183,24 @@ func cloneMap(input map[string]any) map[string]any {
 	}
 	output := make(map[string]any, len(input))
 	for key, value := range input {
-		output[key] = value
+		output[key] = cloneValue(value)
 	}
 	return output
+}
+
+func cloneValue(v any) any {
+	switch val := v.(type) {
+	case map[string]any:
+		return cloneMap(val)
+	case []any:
+		clone := make([]any, len(val))
+		for i, item := range val {
+			clone[i] = cloneValue(item)
+		}
+		return clone
+	default:
+		return v
+	}
 }
 
 func DecodeConfig(raw any) map[string]any {

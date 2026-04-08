@@ -2,7 +2,7 @@
 // behind NAT. It is pure infrastructure with zero PocketBase coupling; all
 // business-layer integration (token validation, status persistence, audit) is
 // injected by the caller via the [TokenValidator] and [SessionHooks] interfaces.
-package tunnel
+package tunnelcore
 
 import (
 	"crypto/rand"

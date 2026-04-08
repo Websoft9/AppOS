@@ -3,8 +3,11 @@ package secrets
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"sync"
 )
@@ -14,6 +17,8 @@ import (
 // TODO(story-19.4): remove this file once all legacy records are migrated.
 
 const envLegacyKey = "APPOS_ENCRYPTION_KEY"
+
+const devLegacyKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
 var (
 	legacyKeyOnce sync.Once
@@ -25,8 +30,8 @@ func legacyKey() ([]byte, error) {
 	legacyKeyOnce.Do(func() {
 		hexKey := os.Getenv(envLegacyKey)
 		if hexKey == "" {
-			legacyKeyErr = fmt.Errorf("%s is not set", envLegacyKey)
-			return
+			log.Printf("WARNING: %s is not set — using insecure dev-only key. Do NOT use this in production.", envLegacyKey)
+			hexKey = devLegacyKey
 		}
 		legacyKeyRaw, legacyKeyErr = hex.DecodeString(hexKey)
 		if legacyKeyErr != nil {
@@ -73,6 +78,33 @@ func DecryptLegacyValue(ciphertextHex string) (string, error) {
 		return "", fmt.Errorf("decryption failed: %w", err)
 	}
 	return string(plain), nil
+}
+
+// EncryptLegacyValue encrypts plaintext using the legacy hex-encoded AES-256-GCM
+// format stored in the `value` field by pre-Epic-19 system-managed secrets.
+func EncryptLegacyValue(plaintext string) (string, error) {
+	k, err := legacyKey()
+	if err != nil {
+		return "", err
+	}
+
+	block, err := aes.NewCipher(k)
+	if err != nil {
+		return "", err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return "", err
+	}
+
+	sealed := gcm.Seal(nil, nonce, []byte(plaintext), nil)
+	out := append(nonce, sealed...)
+	return hex.EncodeToString(out), nil
 }
 
 func resetLegacyKeyForTest() {

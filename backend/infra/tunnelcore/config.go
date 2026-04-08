@@ -1,18 +1,12 @@
-package tunnel
+package tunnelcore
 
 import (
-	"time"
-
-	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
 	"golang.org/x/time/rate"
+	"strconv"
+	"time"
 )
 
 const (
-	SettingsModule = "tunnel"
-	PortRangeKey   = "port_range"
-
 	DefaultPortRangeStart = 40000
 	DefaultPortRangeEnd   = 49999
 	DefaultSSHPort        = 2222
@@ -52,8 +46,8 @@ func NormalizePortRange(raw map[string]any) PortRange {
 		return portRange
 	}
 
-	start := sysconfig.Int(raw, "start", DefaultPortRangeStart)
-	end := sysconfig.Int(raw, "end", DefaultPortRangeEnd)
+	start := intFromMap(raw, "start", DefaultPortRangeStart)
+	end := intFromMap(raw, "end", DefaultPortRangeEnd)
 	if start < 1 || start > 65535 || end < 1 || end > 65535 || start >= end {
 		return portRange
 	}
@@ -66,11 +60,34 @@ func NormalizePortRange(raw map[string]any) PortRange {
 	return portRange
 }
 
-func LoadPortRange(app core.App) PortRange {
-	if app == nil {
-		return DefaultPortRange()
+func intFromMap(raw map[string]any, key string, fallback int) int {
+	value, ok := raw[key]
+	if !ok || value == nil {
+		return fallback
 	}
 
-	raw, _ := sysconfig.GetGroup(app, SettingsModule, PortRangeKey, settingscatalog.DefaultGroup(SettingsModule, PortRangeKey))
-	return NormalizePortRange(raw)
+	switch typed := value.(type) {
+	case int:
+		return typed
+	case int8:
+		return int(typed)
+	case int16:
+		return int(typed)
+	case int32:
+		return int(typed)
+	case int64:
+		return int(typed)
+	case float32:
+		return int(typed)
+	case float64:
+		return int(typed)
+	case string:
+		parsed, err := strconv.Atoi(typed)
+		if err != nil {
+			return fallback
+		}
+		return parsed
+	default:
+		return fallback
+	}
 }

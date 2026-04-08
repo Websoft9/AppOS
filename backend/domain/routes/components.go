@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	comp "github.com/websoft9/appos/backend/platform/components"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
+	comp "github.com/websoft9/appos/backend/platform/components"
 	"github.com/websoft9/appos/backend/platform/supervisor"
 )
 

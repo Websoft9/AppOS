@@ -2,16 +2,12 @@ package runtime
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/infra/docker"
-	sec "github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/domain/resource/server"
+	"github.com/websoft9/appos/backend/infra/docker"
 )
 
 type SFTPClient interface {
@@ -151,102 +147,9 @@ func newSSHExecutor(app core.App, serverID string) sshExecutor {
 }
 
 func resolveServerConfig(app core.App, serverID string) (servers.ConnectorConfig, error) {
-	var cfg servers.ConnectorConfig
-
-	server, err := app.FindRecordById("servers", serverID)
-	if err != nil {
-		return cfg, fmt.Errorf("server not found: %w", err)
-	}
-
-	cfg.Host = server.GetString("host")
-	cfg.Port = server.GetInt("port")
-	if cfg.Port == 0 {
-		cfg.Port = 22
-	}
-	cfg.User = server.GetString("user")
-	cfg.Shell = server.GetString("shell")
-
-	if err := applyCredentialConfig(app, server, &cfg); err != nil {
-		return cfg, err
-	}
-	if err := applyTunnelConfig(server, &cfg); err != nil {
-		return cfg, err
-	}
-
-	return cfg, nil
-}
-
-func applyCredentialConfig(app core.App, server *core.Record, cfg *servers.ConnectorConfig) error {
-	credID := server.GetString("credential")
-	if credID == "" {
-		return nil
-	}
-
-	cfg.AuthType = credentialAuthType(app, credID)
-	result, err := sec.Resolve(app, credID, "")
-	if err != nil {
-		return fmt.Errorf("credential resolve failed: %w", err)
-	}
-
-	switch cfg.AuthType {
-	case "password":
-		cfg.Secret = sec.FirstStringFromPayload(result.Payload, "password", "value")
-	default:
-		cfg.Secret = sec.FirstStringFromPayload(result.Payload, "private_key", "key", "value")
-	}
-	if cfg.Secret == "" {
-		return fmt.Errorf("credential resolve: no usable value for auth_type %q", cfg.AuthType)
-	}
-
-	return nil
-}
-
-func applyTunnelConfig(server *core.Record, cfg *servers.ConnectorConfig) error {
-	if !strings.EqualFold(server.GetString("connect_type"), "tunnel") {
-		return nil
-	}
-
-	sshPort, err := tunnelSSHPort(server.GetString("tunnel_services"))
-	if err != nil {
-		return err
-	}
-	cfg.Host = "127.0.0.1"
-	cfg.Port = sshPort
-	return nil
-}
-
-func credentialAuthType(app core.App, credID string) string {
-	if credID == "" {
-		return ""
-	}
-	rec, err := app.FindRecordById("secrets", credID)
-	if err != nil {
-		return ""
-	}
-	if rec.GetString("template_id") == "ssh_key" {
-		return "private_key"
-	}
-	return "password"
+	return servers.ResolveConfigForUserID(app, serverID, "")
 }
 
 func tunnelSSHPort(raw string) (int, error) {
-	if raw == "" || raw == "null" {
-		return 0, fmt.Errorf("tunnel_services is empty")
-	}
-
-	var services []struct {
-		Name       string `json:"service_name"`
-		TunnelPort int    `json:"tunnel_port"`
-	}
-	if err := json.Unmarshal([]byte(raw), &services); err != nil {
-		return 0, fmt.Errorf("invalid tunnel_services: %w", err)
-	}
-
-	for _, svc := range services {
-		if svc.Name == "ssh" && svc.TunnelPort > 0 {
-			return svc.TunnelPort, nil
-		}
-	}
-
-	return 0, fmt.Errorf("ssh tunnel service not found")
+	return servers.TunnelSSHPortFromServices(raw)
 }

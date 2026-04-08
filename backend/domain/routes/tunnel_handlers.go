@@ -12,8 +12,9 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/websoft9/appos/backend/domain/audit"
-	"github.com/websoft9/appos/backend/domain/resource/tunnel"
-	"github.com/websoft9/appos/backend/infra/crypto"
+	servers "github.com/websoft9/appos/backend/domain/resource/server"
+	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
+	tunnelpb "github.com/websoft9/appos/backend/infra/tunnelpb"
 )
 
 // setupScriptLimiters is an IP-based rate limiter for the unauthenticated
@@ -24,6 +25,20 @@ var setupScriptLimiters sync.Map // remoteIP → *rate.Limiter
 func setupScriptLimiter(ip string) *rate.Limiter {
 	val, _ := setupScriptLimiters.LoadOrStore(ip, rate.NewLimiter(rate.Limit(1), 3))
 	return val.(*rate.Limiter)
+}
+
+func requireTunnelServer(e *core.RequestEvent, serverID string) (*core.Record, *servers.ManagedServer, error) {
+	record, err := e.App.FindRecordById("servers", serverID)
+	if err != nil {
+		return nil, nil, e.NotFoundError("server not found", err)
+	}
+
+	server := servers.ManagedServerFromRecord(record)
+	if server == nil || !server.IsTunnel() {
+		return nil, nil, e.BadRequestError("server is not a tunnel server", nil)
+	}
+
+	return record, server, nil
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -56,79 +71,23 @@ func handleTunnelToken(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 	wantRotate := e.Request.URL.Query().Get("rotate") == "true"
 
-	server, err := e.App.FindRecordById("servers", id)
+	_, _, err := requireTunnelServer(e, id)
 	if err != nil {
-		return e.NotFoundError("server not found", err)
-	}
-	if server.GetString("connect_type") != "tunnel" {
-		return e.BadRequestError("server is not a tunnel server", nil)
+		return err
 	}
 
-	secret, err := tunnel.FindTokenSecret(e.App, id)
+	result, err := (&tunnelpb.TokenService{App: e.App, TokenCache: &tunnelTokenCache, Sessions: tunnelSessions}).GetOrIssue(id, wantRotate)
 	if err != nil {
-		return e.InternalServerError("failed to load token secret", err)
+		return e.InternalServerError("failed to issue tunnel token", err)
 	}
 
-	// Idempotent path: token already exists and caller did not request rotation.
-	if secret != nil && !wantRotate {
-		rawToken, err := crypto.Decrypt(secret.GetString("value"))
-		if err != nil {
-			return e.InternalServerError("token decryption failed", err)
-		}
-		return e.JSON(http.StatusOK, map[string]any{"token": rawToken})
+	if !result.Changed {
+		return e.JSON(http.StatusOK, map[string]any{"token": result.Token})
 	}
-
-	// Generate a fresh token (first-time or explicit rotation).
-	rawToken := tunnel.Generate()
-	encToken, err := crypto.Encrypt(rawToken)
-	if err != nil {
-		return e.InternalServerError("token encryption failed", err)
-	}
-
-	rotating := secret != nil
-
-	if secret != nil {
-		// Invalidate old token in cache before overwriting.
-		oldRaw, decErr := crypto.Decrypt(secret.GetString("value"))
-		if decErr == nil && oldRaw != "" {
-			tunnelTokenCache.Delete(oldRaw)
-		}
-
-		secret.Set("name", tunnel.TokenSecretName(id))
-		secret.Set("type", "tunnel_token")
-		secret.Set("template_id", "single_value")
-		secret.Set("created_source", "system")
-		secret.Set("value", encToken)
-		if err := e.App.Save(secret); err != nil {
-			return e.InternalServerError("failed to save rotated token", err)
-		}
-
-		if wantRotate && tunnelSessions != nil {
-			tunnelSessions.Disconnect(id, tunnel.DisconnectReasonTokenRotated)
-		}
-	} else {
-		// First time: create dedicated tunnel token secret (do not reuse SSH credential).
-		secretCol, err := e.App.FindCollectionByNameOrId("secrets")
-		if err != nil {
-			return e.InternalServerError("secrets collection not found", err)
-		}
-		secret := core.NewRecord(secretCol)
-		secret.Set("name", tunnel.TokenSecretName(id))
-		secret.Set("type", "tunnel_token")
-		secret.Set("template_id", "single_value")
-		secret.Set("created_source", "system")
-		secret.Set("value", encToken)
-		if err := e.App.Save(secret); err != nil {
-			return e.InternalServerError("failed to save token", err)
-		}
-	}
-
-	// Populate cache with new token.
-	tunnelTokenCache.Store(rawToken, id)
 
 	userID, _, ip, _ := clientInfo(e)
 	action := "tunnel.token_generated"
-	if rotating {
+	if result.Rotated {
 		action = "tunnel.token_rotated"
 	}
 	audit.Write(e.App, audit.Entry{
@@ -140,7 +99,7 @@ func handleTunnelToken(e *core.RequestEvent) error {
 		IP:           ip,
 	})
 
-	return e.JSON(http.StatusOK, map[string]any{"token": rawToken})
+	return e.JSON(http.StatusOK, map[string]any{"token": result.Token})
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -166,29 +125,22 @@ func handleTunnelToken(e *core.RequestEvent) error {
 func handleTunnelSetup(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 
-	server, err := e.App.FindRecordById("servers", id)
+	_, managedServer, err := requireTunnelServer(e, id)
 	if err != nil {
-		return e.NotFoundError("server not found", err)
-	}
-	if server.GetString("connect_type") != "tunnel" {
-		return e.BadRequestError("server is not a tunnel server", nil)
+		return err
 	}
 
-	secret, err := tunnel.FindTokenSecret(e.App, id)
+	rawToken, found, err := (&tunnelpb.TokenService{App: e.App, TokenCache: &tunnelTokenCache, Sessions: tunnelSessions}).Get(id)
 	if err != nil {
 		return e.InternalServerError("failed to load token secret", err)
 	}
-	if secret == nil {
+	if !found {
 		return e.BadRequestError("no token generated yet — call POST /token first", nil)
-	}
-	rawToken, err := crypto.Decrypt(secret.GetString("value"))
-	if err != nil {
-		return e.InternalServerError("token decryption failed", err)
 	}
 
 	apposHost := resolveApposHost(e)
 	sshPort := tunnelSSHPort()
-	forwards, err := loadTunnelForwardSpecs(server)
+	forwards, err := managedServer.TunnelForwardSpecs()
 	if err != nil {
 		return e.InternalServerError("failed to load tunnel forwards", err)
 	}
@@ -213,15 +165,12 @@ func handleTunnelSetup(e *core.RequestEvent) error {
 // handleTunnelForwards returns desired forward mappings for a tunnel server.
 func handleTunnelForwards(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
-	server, err := e.App.FindRecordById("servers", id)
+	_, managedServer, err := requireTunnelServer(e, id)
 	if err != nil {
-		return e.NotFoundError("server not found", err)
-	}
-	if server.GetString("connect_type") != "tunnel" {
-		return e.BadRequestError("server is not a tunnel server", nil)
+		return err
 	}
 
-	forwards, err := loadTunnelForwardSpecs(server)
+	forwards, err := managedServer.TunnelForwardSpecs()
 	if err != nil {
 		return e.InternalServerError("failed to load tunnel forwards", err)
 	}
@@ -238,12 +187,9 @@ func handleTunnelForwards(e *core.RequestEvent) error {
 // handleTunnelForwardsPut replaces desired forward mappings for a tunnel server.
 func handleTunnelForwardsPut(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
-	server, err := e.App.FindRecordById("servers", id)
+	server, _, err := requireTunnelServer(e, id)
 	if err != nil {
-		return e.NotFoundError("server not found", err)
-	}
-	if server.GetString("connect_type") != "tunnel" {
-		return e.BadRequestError("server is not a tunnel server", nil)
+		return err
 	}
 
 	var body tunnelForwardsRequest
@@ -290,12 +236,9 @@ func handleTunnelForwardsPut(e *core.RequestEvent) error {
 
 func handleTunnelLogs(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
-	server, err := e.App.FindRecordById("servers", id)
+	_, _, err := requireTunnelServer(e, id)
 	if err != nil {
-		return e.NotFoundError("server not found", err)
-	}
-	if server.GetString("connect_type") != "tunnel" {
-		return e.BadRequestError("server is not a tunnel server", nil)
+		return err
 	}
 
 	logs, err := loadTunnelConnectionLogs(e.App, id)
@@ -314,12 +257,9 @@ func handleTunnelLogs(e *core.RequestEvent) error {
 
 func handleTunnelPause(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
-	server, err := e.App.FindRecordById("servers", id)
+	server, _, err := requireTunnelServer(e, id)
 	if err != nil {
-		return e.NotFoundError("server not found", err)
-	}
-	if server.GetString("connect_type") != "tunnel" {
-		return e.BadRequestError("server is not a tunnel server", nil)
+		return err
 	}
 
 	var body tunnelPauseRequest
@@ -334,7 +274,7 @@ func handleTunnelPause(e *core.RequestEvent) error {
 	// via OnConnect before the DB save completes.
 	if tunnelSessions != nil {
 		if _, ok := tunnelSessions.Get(id); ok {
-			tunnelSessions.Disconnect(id, tunnel.DisconnectReasonPausedByOperator)
+			tunnelSessions.Disconnect(id, tunnelcore.DisconnectReasonPausedByOperator)
 		}
 	}
 
@@ -372,12 +312,9 @@ func handleTunnelPause(e *core.RequestEvent) error {
 
 func handleTunnelResume(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
-	server, err := e.App.FindRecordById("servers", id)
+	server, _, err := requireTunnelServer(e, id)
 	if err != nil {
-		return e.NotFoundError("server not found", err)
-	}
-	if server.GetString("connect_type") != "tunnel" {
-		return e.BadRequestError("server is not a tunnel server", nil)
+		return err
 	}
 
 	server.Set("tunnel_pause_until", nil)
@@ -432,24 +369,25 @@ func handleTunnelStatus(e *core.RequestEvent) error {
 	}
 
 	// Not in registry — read persisted state from DB.
-	server, err := e.App.FindRecordById("servers", id)
+	server, _, err := requireTunnelServer(e, id)
 	if err != nil {
-		return e.NotFoundError("server not found", err)
+		return err
 	}
-	status := server.GetString("tunnel_status")
-	if tunnelPauseUntil(server).After(time.Now().UTC()) && status != "online" {
+	runtime := servers.TunnelRuntimeFromRecord(server)
+	status := runtime.Status
+	if runtime.IsPausedAt(time.Now().UTC()) && status != "online" {
 		status = "paused"
 	}
 
 	var services any
-	raw := server.GetString("tunnel_services")
+	raw := runtime.ServicesRaw
 	if raw != "" && raw != "null" {
 		_ = json.Unmarshal([]byte(raw), &services)
 	}
 
 	return e.JSON(http.StatusOK, map[string]any{
 		"status":    status,
-		"last_seen": server.GetString("tunnel_last_seen"),
+		"last_seen": formatTunnelTime(runtime.LastSeen),
 		"services":  services,
 	})
 }
@@ -468,7 +406,7 @@ func handleTunnelStatus(e *core.RequestEvent) error {
 // @Failure 401 {object} map[string]any
 // @Router /api/tunnel/overview [get]
 func handleTunnelOverview(e *core.RequestEvent) error {
-	servers, err := e.App.FindRecordsByFilter(
+	serverRecords, err := e.App.FindRecordsByFilter(
 		"servers",
 		"connect_type = 'tunnel'",
 		"name", 0, 0,
@@ -477,21 +415,21 @@ func handleTunnelOverview(e *core.RequestEvent) error {
 		return e.InternalServerError("failed to load tunnel servers", err)
 	}
 
-	serverIDs := make([]string, 0, len(servers))
-	for _, rec := range servers {
+	serverIDs := make([]string, 0, len(serverRecords))
+	for _, rec := range serverRecords {
 		serverIDs = append(serverIDs, rec.Id)
 	}
 	groupNames, _ := loadTunnelGroupNames(e.App, serverIDs)
 
 	summary := map[string]int{
-		"total":                     len(servers),
+		"total":                     len(serverRecords),
 		"online":                    0,
 		"offline":                   0,
 		"waiting_for_first_connect": 0,
 	}
-	items := make([]map[string]any, 0, len(servers))
-	for _, rec := range servers {
-		item := buildTunnelOverviewItem(rec, groupNames[rec.Id], tunnelSessions)
+	items := make([]map[string]any, 0, len(serverRecords))
+	for _, rec := range serverRecords {
+		item := servers.BuildTunnelOverviewItem(rec, groupNames[rec.Id], tunnelSessions)
 		reconnectInfo, err := loadRecentTunnelReconnectInfo(e.App, rec.Id)
 		if err == nil {
 			for key, value := range reconnectInfo {
@@ -533,16 +471,13 @@ func handleTunnelOverview(e *core.RequestEvent) error {
 // @Router /api/tunnel/servers/{id}/session [get]
 func handleTunnelSession(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
-	server, err := e.App.FindRecordById("servers", id)
+	server, _, err := requireTunnelServer(e, id)
 	if err != nil {
-		return e.NotFoundError("server not found", err)
-	}
-	if server.GetString("connect_type") != "tunnel" {
-		return e.BadRequestError("server is not a tunnel server", nil)
+		return err
 	}
 
 	groupNames, _ := loadTunnelGroupNames(e.App, []string{id})
-	item := buildTunnelOverviewItem(server, groupNames[id], tunnelSessions)
+	item := servers.BuildTunnelOverviewItem(server, groupNames[id], tunnelSessions)
 	reconnectInfo, err := loadRecentTunnelReconnectInfo(e.App, id)
 	if err == nil {
 		for key, value := range reconnectInfo {
@@ -569,19 +504,16 @@ func handleTunnelSession(e *core.RequestEvent) error {
 // @Router /api/tunnel/servers/{id}/disconnect [post]
 func handleTunnelDisconnect(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
-	server, err := e.App.FindRecordById("servers", id)
+	_, _, err := requireTunnelServer(e, id)
 	if err != nil {
-		return e.NotFoundError("server not found", err)
-	}
-	if server.GetString("connect_type") != "tunnel" {
-		return e.BadRequestError("server is not a tunnel server", nil)
+		return err
 	}
 
 	active := false
 	if tunnelSessions != nil {
 		if _, ok := tunnelSessions.Get(id); ok {
 			active = true
-			tunnelSessions.Disconnect(id, tunnel.DisconnectReasonOperatorDisconnect)
+			tunnelSessions.Disconnect(id, tunnelcore.DisconnectReasonOperatorDisconnect)
 		}
 	}
 
@@ -599,7 +531,7 @@ func handleTunnelDisconnect(e *core.RequestEvent) error {
 		Status:       audit.StatusSuccess,
 		IP:           ip,
 		Detail: map[string]any{
-			"reason":       string(tunnel.DisconnectReasonOperatorDisconnect),
+			"reason":       string(tunnelcore.DisconnectReasonOperatorDisconnect),
 			"reason_label": "Disconnected by operator",
 			"was_active":   active,
 		},
@@ -648,15 +580,15 @@ func handleTunnelSetupScript(e *core.RequestEvent) error {
 	if token == "" {
 		return e.BadRequestError("missing token", nil)
 	}
-	serverID, ok := (&tunnel.PBTokenValidator{App: e.App, TokenCache: &tunnelTokenCache, PauseUntil: tunnelPauseUntil}).Validate(token)
+	managedServerID, ok := (&tunnelpb.TokenValidator{App: e.App, TokenCache: &tunnelTokenCache, PauseUntil: tunnelPauseUntil}).Validate(token)
 	if !ok {
 		return e.BadRequestError("invalid tunnel token", nil)
 	}
-	server, err := e.App.FindRecordById("servers", serverID)
+	_, managedServer, err := requireTunnelServer(e, managedServerID)
 	if err != nil {
 		return e.BadRequestError("invalid tunnel token", err)
 	}
-	forwards, err := loadTunnelForwardSpecs(server)
+	forwards, err := managedServer.TunnelForwardSpecs()
 	if err != nil {
 		return e.InternalServerError("failed to load tunnel forwards", err)
 	}

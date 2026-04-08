@@ -6,9 +6,8 @@ import (
 	"github.com/websoft9/appos/backend/domain/secrets"
 )
 
-
-// SpecFromLLMProvider maps the current provider-style LLM shape into canonical connector semantics.
-func SpecFromLLMProvider(name, endpoint, apiKey string) Spec {
+// SpecFromLLMProvider maps the current provider-style LLM shape into canonical connector save input.
+func SpecFromLLMProvider(name, endpoint, apiKey string) SaveInput {
 	template := ResolveLLMTemplate(name)
 	authScheme := AuthSchemeNone
 	credentialID := ""
@@ -29,7 +28,7 @@ func SpecFromLLMProvider(name, endpoint, apiKey string) Spec {
 		resolvedEndpoint = template.DefaultEndpoint
 	}
 
-	return Spec{
+	return SaveInput{
 		Name:         name,
 		Kind:         KindLLM,
 		TemplateID:   template.ID,

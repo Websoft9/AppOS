@@ -2,20 +2,34 @@ package connectors
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 )
 
 type SaveInput struct {
-	Name         string
-	Kind         string
-	IsDefault    bool
-	TemplateID   string
-	Endpoint     string
-	AuthScheme   string
-	CredentialID string
-	Config       map[string]any
-	Description  string
+	Name              string
+	Kind              string
+	IsDefault         bool
+	TemplateID        string
+	Endpoint          string
+	AuthScheme        string
+	ProviderAccountID string
+	CredentialID      string
+	Config            map[string]any
+	Description       string
+}
+
+type CredentialRefValidator interface {
+	ValidateCredentialRef(credentialID string, actorID string) error
+}
+
+type ProviderAccountRefValidator interface {
+	ValidateProviderAccountRef(providerAccountID string, actorID string) error
+}
+
+type SaveDeps struct {
+	ActorID                     string
+	CredentialRefValidator      CredentialRefValidator
+	ProviderAccountRefValidator ProviderAccountRefValidator
 }
 
 func List(repo Repository, kinds []string) ([]*Connector, error) {
@@ -23,13 +37,24 @@ func List(repo Repository, kinds []string) ([]*Connector, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(kinds) == 0 {
+		return items, nil
+	}
+
+	allowed := make(map[string]struct{}, len(kinds))
+	for _, kind := range kinds {
+		trimmed := strings.TrimSpace(kind)
+		if trimmed == "" {
+			continue
+		}
+		allowed[trimmed] = struct{}{}
+	}
 
 	result := make([]*Connector, 0, len(items))
 	for _, item := range items {
-		if len(kinds) > 0 && !slices.Contains(kinds, item.Kind()) {
-			continue
+		if _, ok := allowed[item.Kind()]; ok {
+			result = append(result, item)
 		}
-		result = append(result, item)
 	}
 	return result, nil
 }
@@ -39,11 +64,15 @@ func Get(repo Repository, id string) (*Connector, error) {
 }
 
 func Create(repo Repository, input SaveInput) (*Connector, error) {
+	return CreateWithDeps(repo, input, SaveDeps{})
+}
+
+func CreateWithDeps(repo Repository, input SaveInput, deps SaveDeps) (*Connector, error) {
 	item, err := repo.New()
 	if err != nil {
 		return nil, err
 	}
-	if err := saveRecord(repo, item, input); err != nil {
+	if err := saveRecord(repo, item, input, deps); err != nil {
 		return nil, err
 	}
 	return item, nil
@@ -54,16 +83,17 @@ func Update(repo Repository, id string, input SaveInput) (*Connector, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := saveRecord(repo, item, input); err != nil {
-		return nil, err
-	}
-	return item, nil
+	return UpdateExistingWithDeps(repo, item, input, SaveDeps{})
 }
 
 // UpdateExisting applies input to a pre-fetched connector, avoiding a redundant
 // Get when the caller already holds the record (e.g. for audit snapshots).
 func UpdateExisting(repo Repository, existing *Connector, input SaveInput) (*Connector, error) {
-	if err := saveRecord(repo, existing, input); err != nil {
+	return UpdateExistingWithDeps(repo, existing, input, SaveDeps{})
+}
+
+func UpdateExistingWithDeps(repo Repository, existing *Connector, input SaveInput, deps SaveDeps) (*Connector, error) {
+	if err := saveRecord(repo, existing, input, deps); err != nil {
 		return nil, err
 	}
 	return existing, nil
@@ -83,7 +113,7 @@ func DeleteExisting(repo Repository, existing *Connector) error {
 	return repo.Delete(existing)
 }
 
-func saveRecord(repo Repository, connector *Connector, input SaveInput) error {
+func saveRecord(repo Repository, connector *Connector, input SaveInput, deps SaveDeps) error {
 	connector.ApplySaveInput(input)
 
 	if err := applyTemplateConstraints(connector); err != nil {
@@ -91,6 +121,19 @@ func saveRecord(repo Repository, connector *Connector, input SaveInput) error {
 	}
 
 	return repo.RunInTransaction(func(txRepo Repository) error {
+		if err := validateProviderAccountRef(deps, connector.ProviderAccountID()); err != nil {
+			return err
+		}
+		if err := validateCredentialRef(deps, connector.CredentialID()); err != nil {
+			return err
+		}
+		exists, err := txRepo.ExistsByName(connector.Name(), connector.ID())
+		if err != nil {
+			return err
+		}
+		if exists {
+			return newConflictError("connector name already exists", nil)
+		}
 		if err := txRepo.Save(connector); err != nil {
 			return err
 		}
@@ -117,6 +160,10 @@ func applyTemplateConstraints(connector *Connector) error {
 		return newValidationError("kind is required", nil)
 	}
 
+	if !IsAllowedKind(kind) {
+		return newValidationError(fmt.Sprintf("unsupported kind %q", kind), nil)
+	}
+
 	if templateID != "" {
 		template, ok := FindTemplate(templateID)
 		if !ok {
@@ -140,5 +187,33 @@ func applyTemplateConstraints(connector *Connector) error {
 
 	connector.EnsureConfig()
 
+	return nil
+}
+
+func validateCredentialRef(deps SaveDeps, credentialID string) error {
+	trimmed := strings.TrimSpace(credentialID)
+	if trimmed == "" {
+		return nil
+	}
+	if deps.CredentialRefValidator == nil {
+		return newValidationError("credential validation dependency is required when credential is set", nil)
+	}
+	if err := deps.CredentialRefValidator.ValidateCredentialRef(trimmed, strings.TrimSpace(deps.ActorID)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateProviderAccountRef(deps SaveDeps, providerAccountID string) error {
+	trimmed := strings.TrimSpace(providerAccountID)
+	if trimmed == "" {
+		return nil
+	}
+	if deps.ProviderAccountRefValidator == nil {
+		return newValidationError("provider account validation dependency is required when provider_account is set", nil)
+	}
+	if err := deps.ProviderAccountRefValidator.ValidateProviderAccountRef(trimmed, strings.TrimSpace(deps.ActorID)); err != nil {
+		return err
+	}
 	return nil
 }

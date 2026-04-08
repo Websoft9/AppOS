@@ -1,4 +1,4 @@
-package tunnel
+package tunnelcore
 
 import (
 	"context"
@@ -20,11 +20,11 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// TokenValidator resolves a raw token string (the SSH username) to a serverID.
+// TokenValidator resolves a raw token string (the SSH username) to a clientID.
 // The implementation lives in routes/tunnel.go and queries PocketBase.
 // Returns ("", false) when the token is unknown or revoked.
 type TokenValidator interface {
-	Validate(token string) (serverID string, ok bool)
+	Validate(token string) (clientID string, ok bool)
 }
 
 // SessionHooks receives lifecycle events so the business layer can persist
@@ -33,15 +33,15 @@ type TokenValidator interface {
 type SessionHooks interface {
 	// OnConnect is called immediately after the session is registered.
 	// conflicts contains any port reassignments made due to OS conflicts.
-	OnConnect(serverID string, services []Service, conflicts []ConflictResolution)
+	OnConnect(clientID string, services []Service, conflicts []ConflictResolution)
 	// OnDisconnect is called when the SSH connection is closed.
-	OnDisconnect(serverID string, reason DisconnectReason)
+	OnDisconnect(clientID string, reason DisconnectReason)
 }
 
-// ForwardResolver returns the desired forwards for a tunnel server.
+// ForwardResolver returns the desired forwards for a tunnel client.
 // The implementation lives in routes/tunnel.go and may read PocketBase state.
 type ForwardResolver interface {
-	Resolve(serverID string) []ForwardSpec
+	Resolve(clientID string) []ForwardSpec
 }
 
 // handshakeTimeout is the deadline for the initial SSH handshake + token validation.
@@ -76,7 +76,7 @@ type Server struct {
 	sshCfg  *ssh.ServerConfig
 	limiter *rate.Limiter
 	sem     chan struct{} // semaphore: slot acquired before handshake
-	// validatedUsers maps SSH username (token) → serverID for sessions that
+	// validatedUsers maps SSH username (token) → clientID for sessions that
 	// passed NoClientAuthCallback. Consumed once by handleConn.
 	validatedUsers sync.Map
 }
@@ -149,42 +149,42 @@ func (s *Server) handleConn(conn net.Conn) {
 		return // handshake failed; conn already closed by ssh pkg
 	}
 
-	// Retrieve the pre-validated serverID set by NoClientAuthCallback.
+	// Retrieve the pre-validated clientID set by NoClientAuthCallback.
 	val, ok := s.validatedUsers.LoadAndDelete(sshConn.User())
 	if !ok {
 		log.Printf("[tunnel] no validated server for %s (user=%q)", conn.RemoteAddr(), sshConn.User())
 		_ = sshConn.Close()
 		return
 	}
-	serverID := val.(string)
+	clientID := val.(string)
 
-	log.Printf("[tunnel] authenticated server %s from %s", serverID, conn.RemoteAddr())
+	log.Printf("[tunnel] authenticated client %s from %s", clientID, conn.RemoteAddr())
 
 	// Clear the handshake deadline; the connection may live indefinitely.
 	// Liveness is maintained by the keepalive goroutine below.
 	_ = conn.SetDeadline(time.Time{})
 
 	// Port allocation.
-	desiredForwards := s.ForwardResolver.Resolve(serverID)
-	services, conflicts := s.Pool.AcquireOrReuse(serverID, desiredForwards)
+	desiredForwards := s.ForwardResolver.Resolve(clientID)
+	services, conflicts := s.Pool.AcquireOrReuse(clientID, desiredForwards)
 	if services == nil {
-		log.Printf("[tunnel] port range exhausted for server %s", serverID)
+		log.Printf("[tunnel] port range exhausted for client %s", clientID)
 		_ = sshConn.Close()
 		return
 	}
 
 	sess := &Session{
-		ServerID:    serverID,
+		ClientID:    clientID,
 		Conn:        sshConn,
 		Services:    services,
 		ConnectedAt: time.Now().UTC(),
 	}
-	s.Sessions.Register(serverID, sess)
-	s.Hooks.OnConnect(serverID, services, conflicts)
+	s.Sessions.Register(clientID, sess)
+	s.Hooks.OnConnect(clientID, services, conflicts)
 
 	defer func() {
-		s.Sessions.UnregisterConn(serverID, sshConn)
-		s.Hooks.OnDisconnect(serverID, sess.DisconnectReason())
+		s.Sessions.UnregisterConn(clientID, sshConn)
+		s.Hooks.OnDisconnect(clientID, sess.DisconnectReason())
 		_ = sshConn.Close()
 	}()
 
@@ -433,12 +433,12 @@ func (s *Server) init() error {
 		// "none" auth while we still gate on a valid token.
 		NoClientAuth: true,
 		NoClientAuthCallback: func(meta ssh.ConnMetadata) (*ssh.Permissions, error) {
-			serverID, ok := s.Validator.Validate(meta.User())
+			clientID, ok := s.Validator.Validate(meta.User())
 			if !ok {
 				log.Printf("[tunnel] auth rejected from %s (user=%q)", meta.RemoteAddr(), meta.User())
 				return nil, fmt.Errorf("invalid tunnel token")
 			}
-			s.validatedUsers.Store(meta.User(), serverID)
+			s.validatedUsers.Store(meta.User(), clientID)
 			return nil, nil
 		},
 		// ServerVersion must be a valid SSH banner string.

@@ -1,4 +1,4 @@
-package tunnel
+package tunnelpb
 
 import (
 	"testing"
@@ -6,6 +6,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
+	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
 )
 
 func newTunnelApp(t *testing.T) *tests.TestApp {
@@ -39,29 +40,8 @@ func ensureTunnelCustomSettingsCollection(t *testing.T, app *tests.TestApp) {
 	}
 }
 
-func TestDefaultPortRange(t *testing.T) {
-	portRange := DefaultPortRange()
-	if portRange.Start != DefaultPortRangeStart {
-		t.Fatalf("expected default start %d, got %d", DefaultPortRangeStart, portRange.Start)
-	}
-	if portRange.End != DefaultPortRangeEnd {
-		t.Fatalf("expected default end %d, got %d", DefaultPortRangeEnd, portRange.End)
-	}
-}
-
-func TestNormalizePortRangeRejectsInvalidRange(t *testing.T) {
-	portRange := NormalizePortRange(map[string]any{
-		"start": 2200,
-		"end":   2300,
-	})
-
-	if portRange != DefaultPortRange() {
-		t.Fatalf("expected invalid range to fall back to defaults, got %#v", portRange)
-	}
-}
-
 func TestLoadPortRangeNilReturnsDefault(t *testing.T) {
-	if got := LoadPortRange(nil); got != DefaultPortRange() {
+	if got := LoadPortRange(nil); got != tunnelcore.DefaultPortRange() {
 		t.Fatalf("expected default port range, got %#v", got)
 	}
 }
