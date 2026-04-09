@@ -21,11 +21,11 @@ func (v *TokenValidator) Validate(rawToken string) (managedServerID string, ok b
 	if v == nil || v.App == nil {
 		return "", false
 	}
-	store := serverStore{app: v.App}
+	repo := tunnelRepository{app: v.App}
 	if v.TokenCache != nil {
 		if sid, cached := v.TokenCache.Load(rawToken); cached {
 			managedServerID = sid.(string)
-			server, err := store.findManagedServerRecord(managedServerID)
+			server, err := repo.findManagedServerRecord(managedServerID)
 			if err != nil {
 				v.TokenCache.Delete(rawToken)
 				return "", false
@@ -45,8 +45,8 @@ func (v *TokenValidator) Validate(rawToken string) (managedServerID string, ok b
 
 func (v *TokenValidator) validateAndPopulateCache(rawToken string) (string, bool) {
 	now := time.Now().UTC()
-	store := serverStore{app: v.App}
-	secrets, err := store.findTunnelTokenSecrets()
+	repo := tunnelRepository{app: v.App}
+	secrets, err := repo.findTunnelTokenSecrets()
 	if err != nil {
 		return "", false
 	}
@@ -60,7 +60,7 @@ func (v *TokenValidator) validateAndPopulateCache(rawToken string) (string, bool
 			continue
 		}
 
-		managedServerID, err := store.resolveManagedServerID(secret)
+		managedServerID, err := repo.resolveManagedServerID(secret)
 		if err != nil || managedServerID == "" {
 			continue
 		}
@@ -78,7 +78,7 @@ func (v *TokenValidator) validateAndPopulateCache(rawToken string) (string, bool
 		return "", false
 	}
 
-	server, err := store.findManagedServerRecord(matchedManagedServerID)
+	server, err := repo.findManagedServerRecord(matchedManagedServerID)
 	if err != nil {
 		if v.TokenCache != nil {
 			v.TokenCache.Delete(rawToken)

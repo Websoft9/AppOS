@@ -6,27 +6,28 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pocketbase/pocketbase/core"
 	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
 )
 
-func BuildTunnelOverviewItem(server *core.Record, groupNames []string, sessions *tunnelcore.Registry) map[string]any {
-	runtime := TunnelRuntimeFromRecord(server)
-	status := runtime.Status
-	connectedAtTime := runtime.ConnectedAt
-	lastSeenTime := runtime.LastSeen
-	disconnectAtTime := runtime.DisconnectAt
-	pauseUntilTime := runtime.PauseUntil
-	remoteAddr := runtime.RemoteAddr
-	services := runtime.Services()
-	disconnectReason := runtime.DisconnectReason
+// BuildTunnelOverviewItem assembles the JSON summary map for one tunnel server.
+// server carries catalog identity; rt carries the persisted runtime state.
+// sessions overlays live in-memory state when the tunnel is actively connected.
+func BuildTunnelOverviewItem(server *ManagedServer, rt TunnelRuntime, groupNames []string, sessions *tunnelcore.Registry) map[string]any {
+	status := rt.Status
+	connectedAtTime := rt.ConnectedAt
+	lastSeenTime := rt.LastSeen
+	disconnectAtTime := rt.DisconnectAt
+	pauseUntilTime := rt.PauseUntil
+	remoteAddr := rt.RemoteAddr
+	services := rt.Services()
+	disconnectReason := rt.DisconnectReason
 	if len(groupNames) == 0 {
 		groupNames = []string{}
 	}
 
 	if sessions != nil {
-		if sess, ok := sessions.Get(server.Id); ok {
-			status = "online"
+		if sess, ok := sessions.Get(server.ID); ok {
+			status = TunnelStatusOnline
 			connectedAtTime = sess.ConnectedAt.UTC()
 			lastSeenTime = connectedAtTime
 			services = sess.Services
@@ -36,18 +37,18 @@ func BuildTunnelOverviewItem(server *core.Record, groupNames []string, sessions 
 			}
 		}
 	}
-	if pauseUntilTime.After(time.Now().UTC()) && status != "online" {
-		status = "paused"
+	if pauseUntilTime.After(time.Now().UTC()) && status != TunnelStatusOnline {
+		status = TunnelStatusPaused
 	}
 
-	connectionDurationSeconds, connectionDurationLabel := tunnelConnectionDuration(status, connectedAtTime, disconnectAtTime, lastSeenTime)
-	sessionDurationHours := tunnelSessionDurationHours(status, connectedAtTime, disconnectAtTime, lastSeenTime)
+	connectionDurationSeconds, connectionDurationLabel := tunnelConnectionDuration(string(status), connectedAtTime, disconnectAtTime, lastSeenTime)
+	sessionDurationHours := tunnelSessionDurationHours(string(status), connectedAtTime, disconnectAtTime, lastSeenTime)
 
 	return map[string]any{
-		"id":                          server.Id,
-		"name":                        server.GetString("name"),
-		"description":                 server.GetString("description"),
-		"status":                      status,
+		"id":                          server.ID,
+		"name":                        server.Name,
+		"description":                 server.Description,
+		"status":                      string(status),
 		"created":                     FormatTunnelTime(connectedAtTime),
 		"connected_at":                FormatTunnelTime(connectedAtTime),
 		"last_seen":                   FormatTunnelTime(lastSeenTime),
@@ -63,7 +64,7 @@ func BuildTunnelOverviewItem(server *core.Record, groupNames []string, sessions 
 		"session_duration_label":      formatTunnelHours(sessionDurationHours),
 		"services":                    services,
 		"group_names":                 groupNames,
-		"waiting_for_first_connect":   runtime.WaitingForFirstConnect(),
+		"waiting_for_first_connect":   rt.WaitingForFirstConnect(),
 	}
 }
 

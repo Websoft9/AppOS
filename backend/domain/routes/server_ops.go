@@ -6,19 +6,16 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
-	cryptossh "golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/knownhosts"
 
 	"github.com/websoft9/appos/backend/domain/audit"
-	servers "github.com/websoft9/appos/backend/domain/resource/server"
+	servers "github.com/websoft9/appos/backend/domain/resource/servers"
+	"github.com/websoft9/appos/backend/domain/terminal"
 )
 
 func registerServerOpsRoutes(g *router.RouterGroup[*core.RequestEvent]) {
@@ -121,9 +118,10 @@ func handleServerConnectivity(e *core.RequestEvent) error {
 	if err != nil {
 		return e.NotFoundError("server not found", err)
 	}
+	ms := servers.ManagedServerFromRecord(server)
 
 	defaultMode := "tcp"
-	if strings.EqualFold(server.GetString("connect_type"), "tunnel") {
+	if ms.ConnectType == servers.ConnectionModeTunnel {
 		defaultMode = "tunnel"
 	}
 
@@ -143,7 +141,7 @@ func handleServerConnectivity(e *core.RequestEvent) error {
 		}
 		return e.JSON(http.StatusOK, response)
 	case "ssh":
-		cfg, cfgErr := servers.ResolveConfig(e.App, e.Auth, serverID)
+		cfg, cfgErr := resolveTerminalConfig(e.App, e.Auth, serverID)
 		if cfgErr != nil {
 			response["reason"] = cfgErr.Error()
 			return e.JSON(http.StatusOK, response)
@@ -152,10 +150,10 @@ func handleServerConnectivity(e *core.RequestEvent) error {
 		defer cancel()
 
 		start := time.Now()
-		sess, connErr := (&servers.SSHConnector{}).Connect(ctx, cfg)
+		sess, connErr := (&terminal.SSHConnector{}).Connect(ctx, cfg)
 		if connErr != nil {
 			response["reason"] = connErr.Error()
-			var ce *servers.ConnectError
+			var ce *terminal.ConnectError
 			if errors.As(connErr, &ce) {
 				response["category"] = string(ce.Category)
 				response["reason"] = ce.Message
@@ -167,11 +165,8 @@ func handleServerConnectivity(e *core.RequestEvent) error {
 		response["latency_ms"] = time.Since(start).Milliseconds()
 		return e.JSON(http.StatusOK, response)
 	default:
-		host := server.GetString("host")
-		port := server.GetInt("port")
-		if port == 0 {
-			port = 22
-		}
+		host := ms.Host
+		port := ms.Port
 		if strings.TrimSpace(host) == "" {
 			response["reason"] = "server host is empty"
 			return e.JSON(http.StatusOK, response)
@@ -214,12 +209,12 @@ func handleServerPower(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": "action must be restart or shutdown"})
 	}
 
-	cfg, err := servers.ResolveConfig(e.App, e.Auth, serverID)
+	cfg, err := resolveTerminalConfig(e.App, e.Auth, serverID)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	output, runErr := executeSSHCommand(e.Request.Context(), cfg, command, 20*time.Second)
+	output, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, command, 20*time.Second)
 	expectedDisconnect := runErr != nil && isExpectedPowerDisconnect(runErr)
 	userID, _, ip, _ := clientInfo(e)
 	status := audit.StatusSuccess
@@ -228,7 +223,7 @@ func handleServerPower(e *core.RequestEvent) error {
 	}
 	audit.Write(e.App, audit.Entry{
 		UserID:       userID,
-		Action:       "terminal.server.power",
+		Action:       "server.ops.power",
 		ResourceType: "server",
 		ResourceID:   serverID,
 		Status:       status,
@@ -255,154 +250,4 @@ func isExpectedPowerDisconnect(err error) bool {
 		strings.Contains(message, "broken pipe") ||
 		strings.Contains(message, "use of closed network connection") ||
 		strings.Contains(message, "unexpected eof")
-}
-
-// ════════════════════════════════════════════════════════════
-// SSH command execution infrastructure
-// ════════════════════════════════════════════════════════════
-
-func shellQuote(value string) string {
-	if value == "" {
-		return "''"
-	}
-	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
-}
-
-var (
-	cachedHostKeyCB   cryptossh.HostKeyCallback
-	cachedHostKeyCBOK bool
-)
-
-func sshHostKeyCallback() (cryptossh.HostKeyCallback, error) {
-	if cachedHostKeyCBOK {
-		return cachedHostKeyCB, nil
-	}
-
-	cb, err := resolveHostKeyCallback()
-	if err != nil {
-		return nil, err
-	}
-	cachedHostKeyCB = cb
-	cachedHostKeyCBOK = true
-	return cb, nil
-}
-
-func resolveHostKeyCallback() (cryptossh.HostKeyCallback, error) {
-	knownHostsPath := strings.TrimSpace(os.Getenv("APPOS_SSH_KNOWN_HOSTS"))
-	candidates := make([]string, 0, 3)
-	if knownHostsPath != "" {
-		candidates = append(candidates, knownHostsPath)
-	}
-	if homeDir, err := os.UserHomeDir(); err == nil && homeDir != "" {
-		candidates = append(candidates, filepath.Join(homeDir, ".ssh", "known_hosts"))
-	}
-	candidates = append(candidates, "/etc/ssh/ssh_known_hosts")
-
-	existing := make([]string, 0, len(candidates))
-	seen := make(map[string]struct{}, len(candidates))
-	for _, candidate := range candidates {
-		if candidate == "" {
-			continue
-		}
-		if _, ok := seen[candidate]; ok {
-			continue
-		}
-		seen[candidate] = struct{}{}
-		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
-			existing = append(existing, candidate)
-		}
-	}
-
-	if len(existing) > 0 {
-		callback, err := knownhosts.New(existing...)
-		if err != nil {
-			return nil, fmt.Errorf("load known_hosts: %w", err)
-		}
-		return callback, nil
-	}
-
-	requireStrict := strings.ToLower(strings.TrimSpace(os.Getenv("APPOS_REQUIRE_SSH_HOST_KEY")))
-	if requireStrict == "1" || requireStrict == "true" || requireStrict == "yes" {
-		return nil, fmt.Errorf("ssh host key verification required: no known_hosts file found (set by APPOS_REQUIRE_SSH_HOST_KEY)")
-	}
-
-	return cryptossh.InsecureIgnoreHostKey(), nil
-}
-
-func executeSSHCommand(ctx context.Context, cfg servers.ConnectorConfig, command string, timeout time.Duration) (string, error) {
-	if timeout <= 0 {
-		timeout = 20 * time.Second
-	}
-	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	authMethod, err := servers.AuthMethodFromConfig(cfg)
-	if err != nil {
-		return "", err
-	}
-	hostKeyCallback, err := sshHostKeyCallback()
-	if err != nil {
-		return "", err
-	}
-
-	clientCfg := &cryptossh.ClientConfig{
-		User:            cfg.User,
-		Auth:            []cryptossh.AuthMethod{authMethod},
-		HostKeyCallback: hostKeyCallback,
-		Timeout:         10 * time.Second,
-	}
-
-	addr := net.JoinHostPort(cfg.Host, fmt.Sprintf("%d", cfg.Port))
-	type dialResult struct {
-		client *cryptossh.Client
-		err    error
-	}
-	dialCh := make(chan dialResult, 1)
-	go func() {
-		client, dialErr := cryptossh.Dial("tcp", addr, clientCfg)
-		dialCh <- dialResult{client: client, err: dialErr}
-	}()
-
-	var client *cryptossh.Client
-	select {
-	case <-cmdCtx.Done():
-		return "", cmdCtx.Err()
-	case result := <-dialCh:
-		if result.err != nil {
-			return "", fmt.Errorf("ssh dial failed: %w", result.err)
-		}
-		client = result.client
-	}
-	defer client.Close()
-
-	session, err := client.NewSession()
-	if err != nil {
-		return "", fmt.Errorf("ssh new session failed: %w", err)
-	}
-	defer session.Close()
-
-	type commandResult struct {
-		output []byte
-		err    error
-	}
-	cmdCh := make(chan commandResult, 1)
-	go func() {
-		out, cmdErr := session.CombinedOutput(command)
-		cmdCh <- commandResult{output: out, err: cmdErr}
-	}()
-
-	select {
-	case <-cmdCtx.Done():
-		_ = session.Close()
-		return "", cmdCtx.Err()
-	case result := <-cmdCh:
-		output := strings.TrimSpace(string(result.output))
-		if result.err != nil {
-			if output == "" {
-				return output, result.err
-			}
-			return output, fmt.Errorf("%w: %s", result.err, output)
-		}
-		return output, nil
-	}
 }

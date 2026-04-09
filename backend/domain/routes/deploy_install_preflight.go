@@ -8,7 +8,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	installprobe "github.com/websoft9/appos/backend/domain/lifecycle/runtime/installprobe"
 	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
-	servers "github.com/websoft9/appos/backend/domain/resource/server"
+	"github.com/websoft9/appos/backend/domain/terminal"
 )
 
 func newRouteInstallPreflightProbe(e *core.RequestEvent) lifecyclesvc.InstallPreflightProbe {
@@ -22,7 +22,7 @@ func newRouteInstallPreflightProbe(e *core.RequestEvent) lifecyclesvc.InstallPre
 			targets[serverID] = target
 			return target, nil
 		}
-		cfg, err := servers.ResolveConfig(e.App, e.Auth, serverID)
+		cfg, err := resolveTerminalConfig(e.App, e.Auth, serverID)
 		if err != nil {
 			return installprobe.Target{}, err
 		}
@@ -33,15 +33,15 @@ func newRouteInstallPreflightProbe(e *core.RequestEvent) lifecyclesvc.InstallPre
 
 	return installprobe.NewAdapter(installprobe.Dependencies{
 		ResolveTarget: resolveTarget,
-		DetectProtocolPorts: func(ctx context.Context, cfg servers.ConnectorConfig, ports []int, protocol string) (map[int]map[string]any, map[int]map[string]any, map[string]any, error) {
+		DetectProtocolPorts: func(ctx context.Context, cfg terminal.ConnectorConfig, ports []int, protocol string) (map[int]map[string]any, map[int]map[string]any, map[string]any, error) {
 			return detectComposeProtocolPorts(ctx, cfg, ports, protocol)
 		},
-		ExecuteSSHCommand: executeSSHCommand,
-		ShellQuote:        shellQuote,
+		ExecuteSSHCommand: terminal.ExecuteSSHCommand,
+		ShellQuote:        terminal.ShellQuote,
 	})
 }
 
-func detectComposeProtocolPorts(ctx context.Context, cfg servers.ConnectorConfig, ports []int, protocol string) (map[int]map[string]any, map[int]map[string]any, map[string]any, error) {
+func detectComposeProtocolPorts(ctx context.Context, cfg terminal.ConnectorConfig, ports []int, protocol string) (map[int]map[string]any, map[int]map[string]any, map[string]any, error) {
 	if len(ports) == 0 {
 		return map[int]map[string]any{}, map[int]map[string]any{}, map[string]any{"available": true, "status": "ok"}, nil
 	}

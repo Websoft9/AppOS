@@ -1,5 +1,5 @@
-// Connect API client — helpers for SFTP file operations on remote servers
-// Backend: /api/servers/:serverId/files/*
+// Connect API client — helpers for terminal-backed file operations on remote servers
+// Backend: /api/terminal/sftp/:serverId/* and /api/terminal/ssh/:serverId
 // Requires superuser auth; callers should handle 401/403 gracefully.
 
 import { pb } from '@/lib/pb'
@@ -183,15 +183,19 @@ export interface ReleaseServerPortResponse {
 
 // ─── SFTP operations ──────────────────────────────────────────────────────────
 
+function terminalSftpBasePath(serverId: string): string {
+  return `/api/terminal/sftp/${serverId}`
+}
+
 export async function sftpList(serverId: string, path: string): Promise<SFTPListResponse> {
   return pb.send<SFTPListResponse>(
-    `/api/servers/${serverId}/files/list?path=${encodeURIComponent(path)}`,
+    `${terminalSftpBasePath(serverId)}/list?path=${encodeURIComponent(path)}`,
     {}
   )
 }
 
 export function sftpDownloadUrl(serverId: string, path: string): string {
-  return `/api/servers/${serverId}/files/download?path=${encodeURIComponent(path)}`
+  return `${terminalSftpBasePath(serverId)}/download?path=${encodeURIComponent(path)}`
 }
 
 // sftpUpload uploads a single file to the given remote DIRECTORY.
@@ -199,14 +203,14 @@ export function sftpDownloadUrl(serverId: string, path: string): string {
 export async function sftpUpload(serverId: string, remoteDir: string, file: File): Promise<void> {
   const formData = new FormData()
   formData.append('file', file)
-  await pb.send(`/api/servers/${serverId}/files/upload?path=${encodeURIComponent(remoteDir)}`, {
+  await pb.send(`${terminalSftpBasePath(serverId)}/upload?path=${encodeURIComponent(remoteDir)}`, {
     method: 'POST',
     body: formData,
   })
 }
 
 export async function sftpMkdir(serverId: string, path: string): Promise<void> {
-  await pb.send(`/api/servers/${serverId}/files/mkdir`, {
+  await pb.send(`${terminalSftpBasePath(serverId)}/mkdir`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path }),
@@ -218,7 +222,7 @@ export async function sftpRename(
   oldPath: string,
   newPath: string
 ): Promise<void> {
-  await pb.send(`/api/servers/${serverId}/files/rename`, {
+  await pb.send(`${terminalSftpBasePath(serverId)}/rename`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     // Backend expects { from, to } — matches routes/terminal.go handleSFTPRename
@@ -227,7 +231,7 @@ export async function sftpRename(
 }
 
 export async function sftpDelete(serverId: string, path: string): Promise<void> {
-  await pb.send(`/api/servers/${serverId}/files/delete?path=${encodeURIComponent(path)}`, {
+  await pb.send(`${terminalSftpBasePath(serverId)}/delete?path=${encodeURIComponent(path)}`, {
     method: 'DELETE',
   })
 }
@@ -237,7 +241,7 @@ export async function sftpReadFile(
   path: string
 ): Promise<{ path: string; content: string }> {
   return pb.send<{ path: string; content: string }>(
-    `/api/servers/${serverId}/files/read?path=${encodeURIComponent(path)}`,
+    `${terminalSftpBasePath(serverId)}/read?path=${encodeURIComponent(path)}`,
     {}
   )
 }
@@ -247,7 +251,7 @@ export async function sftpWriteFile(
   path: string,
   content: string
 ): Promise<void> {
-  await pb.send(`/api/servers/${serverId}/files/write`, {
+  await pb.send(`${terminalSftpBasePath(serverId)}/write`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path, content }),
@@ -260,18 +264,18 @@ export async function sftpSearch(
   query: string
 ): Promise<SFTPSearchResponse> {
   return pb.send<SFTPSearchResponse>(
-    `/api/servers/${serverId}/files/search?path=${encodeURIComponent(basePath)}&query=${encodeURIComponent(query)}`,
+    `${terminalSftpBasePath(serverId)}/search?path=${encodeURIComponent(basePath)}&query=${encodeURIComponent(query)}`,
     {}
   )
 }
 
 export async function sftpConstraints(serverId: string): Promise<{ max_upload_files: number }> {
-  return pb.send<{ max_upload_files: number }>(`/api/servers/${serverId}/files/constraints`, {})
+  return pb.send<{ max_upload_files: number }>(`${terminalSftpBasePath(serverId)}/constraints`, {})
 }
 
 export async function sftpStat(serverId: string, path: string): Promise<{ attrs: FileAttrs }> {
   return pb.send<{ attrs: FileAttrs }>(
-    `/api/servers/${serverId}/files/stat?path=${encodeURIComponent(path)}`,
+    `${terminalSftpBasePath(serverId)}/stat?path=${encodeURIComponent(path)}`,
     {}
   )
 }
@@ -282,7 +286,7 @@ export async function sftpChmod(
   mode: string,
   recursive = false
 ): Promise<void> {
-  await pb.send(`/api/servers/${serverId}/files/chmod`, {
+  await pb.send(`${terminalSftpBasePath(serverId)}/chmod`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path, mode, recursive }),
@@ -295,7 +299,7 @@ export async function sftpChown(
   owner: string,
   group: string
 ): Promise<void> {
-  await pb.send(`/api/servers/${serverId}/files/chown`, {
+  await pb.send(`${terminalSftpBasePath(serverId)}/chown`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path, owner, group }),
@@ -307,7 +311,7 @@ export async function sftpSymlink(
   target: string,
   linkPath: string
 ): Promise<void> {
-  await pb.send(`/api/servers/${serverId}/files/symlink`, {
+  await pb.send(`${terminalSftpBasePath(serverId)}/symlink`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ target, link_path: linkPath }),
@@ -315,7 +319,7 @@ export async function sftpSymlink(
 }
 
 export async function sftpCopy(serverId: string, from: string, to: string): Promise<void> {
-  await pb.send(`/api/servers/${serverId}/files/copy`, {
+  await pb.send(`${terminalSftpBasePath(serverId)}/copy`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ from, to }),
@@ -323,11 +327,15 @@ export async function sftpCopy(serverId: string, from: string, to: string): Prom
 }
 
 export async function sftpMove(serverId: string, from: string, to: string): Promise<void> {
-  await pb.send(`/api/servers/${serverId}/files/move`, {
+  await pb.send(`${terminalSftpBasePath(serverId)}/move`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ from, to }),
   })
+}
+
+export function sftpCopyStreamUrl(serverId: string, from: string, to: string): string {
+  return `${terminalSftpBasePath(serverId)}/copy-stream?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
 }
 
 // ─── Server list ──────────────────────────────────────────────────────────────
@@ -587,7 +595,12 @@ export async function getConnectTerminalSettings(): Promise<ConnectTerminalSetti
 
 export function sshWebSocketUrl(serverId: string): string {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${proto}//${window.location.host}/api/servers/${serverId}/shell`
+  return `${proto}//${window.location.host}/api/terminal/ssh/${serverId}`
+}
+
+export function dockerWebSocketUrl(containerId: string): string {
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${proto}//${window.location.host}/api/terminal/docker/${containerId}`
 }
 
 // ─── Preferences ──────────────────────────────────────────────────────────────

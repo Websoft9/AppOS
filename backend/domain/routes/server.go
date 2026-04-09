@@ -39,13 +39,19 @@ func wsTokenAuth() *hook.Handler[*core.RequestEvent] {
 	}
 }
 
-// registerServerRoutes registers server shell/files/ops/container routes.
+// registerServerRoutes registers server catalog/ops routes (non-terminal).
+// These handle connectivity checks, power, ports, and systemd operations.
 func registerServerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
-	g.Bind(wsTokenAuth())
 	g.Bind(apis.RequireSuperuserAuth())
 
+	registerServerOpsRoutes(g)
+}
+
+// registerTerminalRoutes registers all interactive terminal session routes.
+// Mounted at /api/terminal; uses wsTokenAuth for WebSocket handshake support.
+func registerTerminalRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	registerServerShellRoutes(g)
 	registerServerFileRoutes(g)
 	registerServerContainerRoutes(g)
-	registerServerOpsRoutes(g)
+	registerLocalTerminalRoutes(g)
 }

@@ -324,42 +324,52 @@ groups:
         - resources.go
       nativeRefs: []
 
-  - group: Server Shell
-    description: SSH interactive shell sessions.
+  - group: Terminal SSH
+    description: SSH interactive PTY sessions to managed servers.
     apiType: Ext
     extSurface:
-      - GET /api/servers/{serverId}/shell
+      - GET /api/terminal/ssh/{serverId}
     nativeSurface: []
     sources:
       extRouteFiles:
-        - server_shell.go
+        - terminal_shell.go
       nativeRefs: []
 
-  - group: Server Containers
-    description: Container operations on managed servers.
+  - group: Terminal Docker
+    description: Docker exec PTY sessions to containers on managed servers.
     apiType: Ext
     extSurface:
-      - GET /api/servers/containers/{containerId}/shell
+      - GET /api/terminal/docker/{containerId}
     nativeSurface: []
     sources:
       extRouteFiles:
-        - server_containers.go
+        - terminal_containers.go
       nativeRefs: []
 
-  - group: Server Files
-    description: Server file management over SSH/SFTP.
+  - group: Terminal SFTP
+    description: Remote file management over SFTP (SSH transport).
     apiType: Ext
     extSurface:
-      - /api/servers/{serverId}/files*
+      - /api/terminal/sftp/{serverId}/*
     nativeSurface: []
     sources:
       extRouteFiles:
-        - server.go
-        - server_files.go
+        - terminal_files.go
+      nativeRefs: []
+
+  - group: Terminal Local
+    description: WebSocket PTY session on the local host.
+    apiType: Ext
+    extSurface:
+      - GET /api/terminal/local
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - terminal_shell.go
       nativeRefs: []
 
   - group: Server Ops
-    description: Server operations for connectivity, power, ports, and systemd.
+    description: "Server catalog operations: connectivity, power control, port inspection, and systemd management."
     apiType: Ext
     extSurface:
       - /api/servers/{serverId}/ops*
@@ -428,10 +438,11 @@ groups:
         - https://pocketbase.io/docs/api-files/
 
   - group: System
-    description: Host metrics, file browser and system shell utility endpoints.
+    description: Host metrics and file browser endpoints.
     apiType: Ext
     extSurface:
-      - /api/ext/system/*
+      - GET /api/ext/system/metrics
+      - GET /api/ext/system/files
     nativeSurface: []
     sources:
       extRouteFiles:

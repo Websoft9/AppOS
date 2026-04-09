@@ -7,7 +7,8 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 
-	servers "github.com/websoft9/appos/backend/domain/resource/server"
+	servers "github.com/websoft9/appos/backend/domain/resource/servers"
+	serversvc "github.com/websoft9/appos/backend/domain/resource/servers/service"
 	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
 	tunnelpb "github.com/websoft9/appos/backend/infra/tunnelpb"
 )
@@ -38,6 +39,25 @@ type tunnelPauseRequest struct {
 type tunnelForwardBody struct {
 	ServiceName string `json:"service_name"`
 	LocalPort   int    `json:"local_port"`
+}
+
+// tokenProviderAdapter wraps tunnelpb.TokenService to satisfy the
+// serversvc.TunnelTokenProvider interface without coupling the service
+// layer to the PocketBase adapter.
+type tokenProviderAdapter struct {
+	inner *tunnelpb.TokenService
+}
+
+func (a *tokenProviderAdapter) Get(managedServerID string) (string, bool, error) {
+	return a.inner.Get(managedServerID)
+}
+
+func (a *tokenProviderAdapter) GetOrIssue(managedServerID string, wantRotate bool) (string, bool, bool, error) {
+	r, err := a.inner.GetOrIssue(managedServerID, wantRotate)
+	if err != nil {
+		return "", false, false, err
+	}
+	return r.Token, r.Changed, r.Rotated, nil
 }
 
 // tunnelSSHPort returns the publicly reachable SSH port for the tunnel.
@@ -72,6 +92,19 @@ func startTunnelRuntime(se *core.ServeEvent) {
 		servers.TunnelDisconnectReasonLabel,
 		tunnelForwardLoader(se.App),
 	)
+}
+
+func tunnelService(app core.App) serversvc.TunnelService {
+	tokens := &tokenProviderAdapter{
+		inner: &tunnelpb.TokenService{App: app, TokenCache: &tunnelTokenCache, Sessions: tunnelSessions},
+	}
+	validator := &tunnelpb.TokenValidator{App: app, TokenCache: &tunnelTokenCache, PauseUntil: tunnelPauseUntil}
+	return serversvc.TunnelService{
+		App:       app,
+		Sessions:  tunnelSessions,
+		Tokens:    tokens,
+		Validator: validator,
+	}
 }
 
 func tunnelForwardLoader(app core.App) func(string) ([]tunnelcore.ForwardSpec, error) {

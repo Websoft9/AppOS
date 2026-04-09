@@ -1,4 +1,4 @@
-package servers
+package terminal
 
 import (
 	"context"
@@ -34,11 +34,16 @@ func NewSFTPClient(ctx context.Context, cfg ConnectorConfig) (*SFTPClient, error
 	}
 
 	clientCfg := &cryptossh.ClientConfig{
-		User:            cfg.User,
-		Auth:            []cryptossh.AuthMethod{authMethod},
-		HostKeyCallback: cryptossh.InsecureIgnoreHostKey(), //nolint:gosec
-		Timeout:         sshDialTimeout,
+		User:    cfg.User,
+		Auth:    []cryptossh.AuthMethod{authMethod},
+		Timeout: sshDialTimeout,
 	}
+
+	hostKeyCallback, err := HostKeyCallback()
+	if err != nil {
+		return nil, NewConnectError(ErrCatCredentialInvalid, fmt.Sprintf("ssh host key verification setup failed for %q", cfg.Host), err)
+	}
+	clientCfg.HostKeyCallback = hostKeyCallback
 
 	addr := net.JoinHostPort(cfg.Host, fmt.Sprintf("%d", cfg.Port))
 
@@ -58,7 +63,7 @@ func NewSFTPClient(ctx context.Context, cfg ConnectorConfig) (*SFTPClient, error
 		return nil, NewConnectError(ErrCatNetworkUnreachable, fmt.Sprintf("SFTP connection to %s timed out or cancelled", addr), ctx.Err())
 	case r := <-ch:
 		if r.err != nil {
-			return nil, classifyDialError(r.err, addr, cfg.User)
+			return nil, classifySSHDialError(r.err, addr, cfg.User)
 		}
 		sshClient = r.client
 	}
@@ -243,9 +248,9 @@ func (c *SFTPClient) Upload(remotePath string, src io.Reader) error {
 }
 
 // Mkdir creates the directory at path (does not create intermediate directories).
-func (c *SFTPClient) Mkdir(path string) error {
-	if err := c.sftpClient.Mkdir(path); err != nil {
-		return fmt.Errorf("sftp: mkdir %q: %w", path, err)
+func (c *SFTPClient) Mkdir(dirPath string) error {
+	if err := c.sftpClient.Mkdir(dirPath); err != nil {
+		return fmt.Errorf("sftp: mkdir %q: %w", dirPath, err)
 	}
 	return nil
 }
@@ -258,47 +263,45 @@ func (c *SFTPClient) Rename(from, to string) error {
 	return nil
 }
 
-// Delete removes a file or an empty directory. For recursive removal, callers
-// must walk the tree themselves (not exposed in MVP).
-func (c *SFTPClient) Delete(path string) error {
-	fi, err := c.sftpClient.Lstat(path)
+// Delete removes a file or an empty directory.
+func (c *SFTPClient) Delete(filePath string) error {
+	fi, err := c.sftpClient.Lstat(filePath)
 	if err != nil {
-		return fmt.Errorf("sftp: stat %q: %w", path, err)
+		return fmt.Errorf("sftp: stat %q: %w", filePath, err)
 	}
 	if fi.Mode()&os.ModeSymlink != 0 {
-		if err := c.sftpClient.Remove(path); err != nil {
-			return fmt.Errorf("sftp: remove symlink %q: %w", path, err)
+		if err := c.sftpClient.Remove(filePath); err != nil {
+			return fmt.Errorf("sftp: remove symlink %q: %w", filePath, err)
 		}
 		return nil
 	}
 	if fi.IsDir() {
-		if err := c.sftpClient.RemoveDirectory(path); err != nil {
-			return fmt.Errorf("sftp: rmdir %q: %w", path, err)
+		if err := c.sftpClient.RemoveDirectory(filePath); err != nil {
+			return fmt.Errorf("sftp: rmdir %q: %w", filePath, err)
 		}
 		return nil
 	}
-	if err := c.sftpClient.Remove(path); err != nil {
-		return fmt.Errorf("sftp: remove %q: %w", path, err)
+	if err := c.sftpClient.Remove(filePath); err != nil {
+		return fmt.Errorf("sftp: remove %q: %w", filePath, err)
 	}
 	return nil
 }
 
 // ReadFile reads up to maxBytes of a remote file and returns it as a string.
-// Returns an error if the file exceeds maxBytes.
-func (c *SFTPClient) ReadFile(path string, maxBytes int64) (string, error) {
-	f, err := c.sftpClient.Open(path)
+func (c *SFTPClient) ReadFile(filePath string, maxBytes int64) (string, error) {
+	f, err := c.sftpClient.Open(filePath)
 	if err != nil {
-		return "", fmt.Errorf("sftp: open %q: %w", path, err)
+		return "", fmt.Errorf("sftp: open %q: %w", filePath, err)
 	}
 	defer f.Close()
 
 	limited := io.LimitReader(f, maxBytes+1)
 	data, err := io.ReadAll(limited)
 	if err != nil {
-		return "", fmt.Errorf("sftp: read %q: %w", path, err)
+		return "", fmt.Errorf("sftp: read %q: %w", filePath, err)
 	}
 	if int64(len(data)) > maxBytes {
-		return "", fmt.Errorf("sftp: file %q exceeds %d bytes limit", path, maxBytes)
+		return "", fmt.Errorf("sftp: file %q exceeds %d bytes limit", filePath, maxBytes)
 	}
 	return string(data), nil
 }
@@ -357,20 +360,18 @@ func (c *SFTPClient) SearchFiles(basePath, query string) ([]SearchResult, error)
 }
 
 // WriteFile writes content to a remote file, creating or truncating it.
-// Returns an error if content exceeds sftpMaxWriteBytes (2 MB) to match the
-// read limit and prevent accidental large writes via the text editor API.
-func (c *SFTPClient) WriteFile(path string, content string) error {
+func (c *SFTPClient) WriteFile(filePath string, content string) error {
 	if int64(len(content)) > sftpMaxWriteBytes {
 		return fmt.Errorf("sftp: content exceeds %d bytes limit", sftpMaxWriteBytes)
 	}
-	f, err := c.sftpClient.Create(path)
+	f, err := c.sftpClient.Create(filePath)
 	if err != nil {
-		return fmt.Errorf("sftp: create %q: %w", path, err)
+		return fmt.Errorf("sftp: create %q: %w", filePath, err)
 	}
 	defer f.Close()
 
 	if _, err := f.Write([]byte(content)); err != nil {
-		return fmt.Errorf("sftp: write %q: %w", path, err)
+		return fmt.Errorf("sftp: write %q: %w", filePath, err)
 	}
 	return nil
 }
@@ -406,8 +407,6 @@ func (c *SFTPClient) Stat(filePath string) (FileAttrs, error) {
 		Mode:       fi.Mode().String(),
 		Size:       fi.Size(),
 		ModifiedAt: fi.ModTime().UTC(),
-		// Remote servers frequently don't provide atime/ctime over SFTP v3.
-		// Fallback to mtime for stable UI rendering.
 		AccessedAt: fi.ModTime().UTC(),
 		CreatedAt:  fi.ModTime().UTC(),
 	}

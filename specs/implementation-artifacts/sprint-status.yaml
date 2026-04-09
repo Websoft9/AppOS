@@ -193,3 +193,10 @@ development_status:
   25.2-cron-frontend: done
   25.3-cron-consume: done
   epic25-retrospective: optional
+
+  # Epic 27: Feeds
+  epic27: backlog
+  27.1-feed-source-registry: backlog
+  27.2-feed-item-ingestion-and-query: backlog
+  27.3-judgment-and-binding: backlog
+  epic27-retrospective: optional

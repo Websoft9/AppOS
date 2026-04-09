@@ -12,7 +12,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/websoft9/appos/backend/domain/audit"
-	servers "github.com/websoft9/appos/backend/domain/resource/server"
+	"github.com/websoft9/appos/backend/domain/terminal"
 )
 
 // ════════════════════════════════════════════════════════════
@@ -30,7 +30,7 @@ func handleServerPortsList(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": paramErr.Error()})
 	}
 
-	cfg, err := servers.ResolveConfig(e.App, e.Auth, serverID)
+	cfg, err := resolveTerminalConfig(e.App, e.Auth, serverID)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
@@ -104,7 +104,7 @@ func handleServerPortsList(e *core.RequestEvent) error {
 	userID, _, ip, _ := clientInfo(e)
 	audit.Write(e.App, audit.Entry{
 		UserID:       userID,
-		Action:       "terminal.server.ports.list",
+		Action:       "server.ops.ports.list",
 		ResourceType: "server",
 		ResourceID:   serverID,
 		Status:       audit.StatusSuccess,
@@ -136,7 +136,7 @@ func handleServerPortInspect(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": paramErr.Error()})
 	}
 
-	cfg, err := servers.ResolveConfig(e.App, e.Auth, serverID)
+	cfg, err := resolveTerminalConfig(e.App, e.Auth, serverID)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
@@ -168,7 +168,7 @@ func handleServerPortInspect(e *core.RequestEvent) error {
 	userID, _, ip, _ := clientInfo(e)
 	audit.Write(e.App, audit.Entry{
 		UserID:       userID,
-		Action:       "terminal.server.port.inspect",
+		Action:       "server.ops.port.inspect",
 		ResourceType: "server",
 		ResourceID:   serverID,
 		Status:       audit.StatusSuccess,
@@ -216,7 +216,7 @@ func handleServerPortRelease(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": modeErr.Error()})
 	}
 
-	cfg, err := servers.ResolveConfig(e.App, e.Auth, serverID)
+	cfg, err := resolveTerminalConfig(e.App, e.Auth, serverID)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
@@ -252,12 +252,12 @@ func handleServerPortRelease(e *core.RequestEvent) error {
 		var releaseCmd string
 		if mode == "force" {
 			actionTaken = "docker kill"
-			releaseCmd = fmt.Sprintf("(sudo -n docker kill %s || docker kill %s)", shellQuote(containerID), shellQuote(containerID))
+			releaseCmd = fmt.Sprintf("(sudo -n docker kill %s || docker kill %s)", terminal.ShellQuote(containerID), terminal.ShellQuote(containerID))
 		} else {
 			actionTaken = "docker stop"
-			releaseCmd = fmt.Sprintf("(sudo -n docker stop %s || docker stop %s)", shellQuote(containerID), shellQuote(containerID))
+			releaseCmd = fmt.Sprintf("(sudo -n docker stop %s || docker stop %s)", terminal.ShellQuote(containerID), terminal.ShellQuote(containerID))
 		}
-		output, runErr := executeSSHCommand(e.Request.Context(), cfg, releaseCmd, 30*time.Second)
+		output, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, releaseCmd, 30*time.Second)
 		if runErr != nil {
 			return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error(), "output": output})
 		}
@@ -277,13 +277,13 @@ func handleServerPortRelease(e *core.RequestEvent) error {
 			pidParts = append(pidParts, strconv.Itoa(pid))
 		}
 		termCmd := fmt.Sprintf("for p in %s; do (sudo -n kill -TERM \"$p\" || kill -TERM \"$p\") 2>/dev/null || true; done", strings.Join(pidParts, " "))
-		if _, runErr := executeSSHCommand(e.Request.Context(), cfg, termCmd, 20*time.Second); runErr != nil {
+		if _, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, termCmd, 20*time.Second); runErr != nil {
 			return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error()})
 		}
 		if mode == "force" {
 			actionTaken = "kill -TERM then kill -KILL"
 			killCmd := fmt.Sprintf("sleep 1; for p in %s; do (sudo -n kill -KILL \"$p\" || kill -KILL \"$p\") 2>/dev/null || true; done", strings.Join(pidParts, " "))
-			if _, runErr := executeSSHCommand(e.Request.Context(), cfg, killCmd, 20*time.Second); runErr != nil {
+			if _, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, killCmd, 20*time.Second); runErr != nil {
 				return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error()})
 			}
 		}
@@ -305,7 +305,7 @@ func handleServerPortRelease(e *core.RequestEvent) error {
 	}
 	audit.Write(e.App, audit.Entry{
 		UserID:       userID,
-		Action:       "terminal.server.port.release",
+		Action:       "server.ops.port.release",
 		ResourceType: "server",
 		ResourceID:   serverID,
 		Status:       status,
@@ -346,7 +346,7 @@ func handleServerPortRelease(e *core.RequestEvent) error {
 // Port detection helpers
 // ════════════════════════════════════════════════════════════
 
-func detectPortOccupancy(ctx context.Context, cfg servers.ConnectorConfig, port int, protocol string) (map[string]any, error) {
+func detectPortOccupancy(ctx context.Context, cfg terminal.ConnectorConfig, port int, protocol string) (map[string]any, error) {
 	all, err := detectAllPortOccupancy(ctx, cfg, protocol)
 	if err != nil {
 		return nil, err
@@ -360,13 +360,13 @@ func detectPortOccupancy(ctx context.Context, cfg servers.ConnectorConfig, port 
 	}, nil
 }
 
-func detectAllPortOccupancy(ctx context.Context, cfg servers.ConnectorConfig, protocol string) (map[int]map[string]any, error) {
+func detectAllPortOccupancy(ctx context.Context, cfg terminal.ConnectorConfig, protocol string) (map[int]map[string]any, error) {
 	command := "ss -lntpH 2>/dev/null || true"
 	if protocol == "udp" {
 		command = "ss -lnupH 2>/dev/null || true"
 	}
 
-	raw, err := executeSSHCommand(ctx, cfg, command, 20*time.Second)
+	raw, err := terminal.ExecuteSSHCommand(ctx, cfg, command, 20*time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -478,7 +478,7 @@ func parseSSPortListeners(raw string) []map[string]any {
 	return listeners
 }
 
-func detectPortReservation(ctx context.Context, cfg servers.ConnectorConfig, port int, protocol string) (map[string]any, error) {
+func detectPortReservation(ctx context.Context, cfg terminal.ConnectorConfig, port int, protocol string) (map[string]any, error) {
 	all, containerProbe, err := detectAllPortReservations(ctx, cfg, protocol)
 	if err != nil {
 		return nil, err
@@ -491,7 +491,7 @@ func detectPortReservation(ctx context.Context, cfg servers.ConnectorConfig, por
 	}, nil
 }
 
-func detectAllPortReservations(ctx context.Context, cfg servers.ConnectorConfig, protocol string) (map[int][]map[string]any, map[string]any, error) {
+func detectAllPortReservations(ctx context.Context, cfg terminal.ConnectorConfig, protocol string) (map[int][]map[string]any, map[string]any, error) {
 	byPort := make(map[int][]map[string]any)
 
 	systemdByPort, err := detectSystemdSocketReservationsAll(ctx, cfg)
@@ -535,8 +535,8 @@ func detectAllPortReservations(ctx context.Context, cfg servers.ConnectorConfig,
 	return byPort, containerProbe, nil
 }
 
-func detectSystemdSocketReservationsAll(ctx context.Context, cfg servers.ConnectorConfig) (map[int][]map[string]any, error) {
-	raw, err := executeSSHCommand(ctx, cfg, "systemctl list-sockets --all --no-legend --no-pager 2>/dev/null || true", 20*time.Second)
+func detectSystemdSocketReservationsAll(ctx context.Context, cfg terminal.ConnectorConfig) (map[int][]map[string]any, error) {
+	raw, err := terminal.ExecuteSSHCommand(ctx, cfg, "systemctl list-sockets --all --no-legend --no-pager 2>/dev/null || true", 20*time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -567,8 +567,8 @@ func detectSystemdSocketReservationsAll(ctx context.Context, cfg servers.Connect
 	return byPort, nil
 }
 
-func detectKernelReservedPorts(ctx context.Context, cfg servers.ConnectorConfig) ([]int, string, error) {
-	raw, err := executeSSHCommand(ctx, cfg, "cat /proc/sys/net/ipv4/ip_local_reserved_ports 2>/dev/null || true", 20*time.Second)
+func detectKernelReservedPorts(ctx context.Context, cfg terminal.ConnectorConfig) ([]int, string, error) {
+	raw, err := terminal.ExecuteSSHCommand(ctx, cfg, "cat /proc/sys/net/ipv4/ip_local_reserved_ports 2>/dev/null || true", 20*time.Second)
 	if err != nil {
 		return nil, "", err
 	}
@@ -627,9 +627,9 @@ func parseRangePorts(ranges string) []int {
 	return ports
 }
 
-func detectContainerDeclaredReservationsAll(ctx context.Context, cfg servers.ConnectorConfig, protocol string) (map[int][]map[string]any, map[string]any, error) {
+func detectContainerDeclaredReservationsAll(ctx context.Context, cfg terminal.ConnectorConfig, protocol string) (map[int][]map[string]any, map[string]any, error) {
 	command := "if command -v docker >/dev/null 2>&1; then (docker ps -a --format '{{.ID}}\\t{{.Names}}\\t{{.Status}}\\t{{.Ports}}' 2>/dev/null || echo '__DOCKER_CLI_ERROR__'); else echo '__DOCKER_NOT_AVAILABLE__'; fi"
-	raw, err := executeSSHCommand(ctx, cfg, command, 20*time.Second)
+	raw, err := terminal.ExecuteSSHCommand(ctx, cfg, command, 20*time.Second)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -637,9 +637,9 @@ func detectContainerDeclaredReservationsAll(ctx context.Context, cfg servers.Con
 	return matchesByPort, probe, nil
 }
 
-func detectRunningContainerByPort(ctx context.Context, cfg servers.ConnectorConfig, port int, protocol string) (map[string]string, map[string]any, error) {
+func detectRunningContainerByPort(ctx context.Context, cfg terminal.ConnectorConfig, port int, protocol string) (map[string]string, map[string]any, error) {
 	command := "if command -v docker >/dev/null 2>&1; then (docker ps --format '{{.ID}}\\t{{.Names}}\\t{{.Status}}\\t{{.Ports}}' 2>/dev/null || echo '__DOCKER_CLI_ERROR__'); else echo '__DOCKER_NOT_AVAILABLE__'; fi"
-	raw, err := executeSSHCommand(ctx, cfg, command, 20*time.Second)
+	raw, err := terminal.ExecuteSSHCommand(ctx, cfg, command, 20*time.Second)
 	if err != nil {
 		return nil, nil, err
 	}

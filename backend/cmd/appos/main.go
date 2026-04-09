@@ -5,11 +5,11 @@ import (
 	"log"
 
 	"github.com/websoft9/appos/backend/domain/certs"
-	"github.com/websoft9/appos/backend/platform/hooks"
 	"github.com/websoft9/appos/backend/domain/routes"
 	"github.com/websoft9/appos/backend/domain/secrets"
-	servers "github.com/websoft9/appos/backend/domain/resource/server"
+	"github.com/websoft9/appos/backend/domain/terminal"
 	"github.com/websoft9/appos/backend/domain/worker"
+	"github.com/websoft9/appos/backend/platform/hooks"
 
 	// Register custom PocketBase migrations (Epic 8: Resource Store)
 	_ "github.com/websoft9/appos/backend/infra/migrations"
@@ -46,14 +46,14 @@ func main() {
 
 	// Start Asynq worker when PocketBase starts serving
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
-		servers.StartIdleMonitor()
+		terminal.StartIdleMonitor()
 		w.Start()
 		return se.Next()
 	})
 
 	// Graceful shutdown: stop worker and session monitor when PocketBase terminates
 	app.OnTerminate().BindFunc(func(e *core.TerminateEvent) error {
-		servers.StopIdleMonitor()
+		terminal.StopIdleMonitor()
 		w.Shutdown()
 		return e.Next()
 	})

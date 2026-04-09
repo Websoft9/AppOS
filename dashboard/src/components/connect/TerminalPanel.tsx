@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback, useState, useImperativeHandle, forwardR
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
-import { sshWebSocketUrl, loadPreferences } from '@/lib/connect-api'
+import { sshWebSocketUrl, dockerWebSocketUrl, loadPreferences } from '@/lib/connect-api'
 import { pb } from '@/lib/pb'
 import { Button } from '@/components/ui/button'
 import { AlertCircle, KeyRound, WifiOff, ShieldX, Settings, ServerCrash, Unplug, RefreshCw } from 'lucide-react'
@@ -80,6 +80,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     const [connecting, setConnecting] = useState(false)
     const fitTimersRef = useRef<number[]>([])
     const isActiveRef = useRef(!!isActive)
+    const structuredErrorRef = useRef(false)
 
     useEffect(() => {
       isActiveRef.current = !!isActive
@@ -153,15 +154,14 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       setError(null)
       setErrorCategory(null)
       setConnecting(true)
+      structuredErrorRef.current = false
 
       // Determine WebSocket URL
       let wsUrl: string
       if (serverId) {
         wsUrl = sshWebSocketUrl(serverId)
       } else if (containerId) {
-        // Story 15.3: Docker exec path
-        const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-        wsUrl = `${proto}//${window.location.host}/api/servers/containers/${containerId}/shell`
+        wsUrl = dockerWebSocketUrl(containerId)
       } else {
         setError('No server or container specified')
         setConnecting(false)
@@ -242,6 +242,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
                 message?: string
               }
               if (ctrl.type === 'error' || ctrl.type === 'close') {
+                structuredErrorRef.current = true
                 setError(ctrl.message ?? `Connection ${ctrl.type}`)
                 if (ctrl.category && ctrl.category in categoryMeta) {
                   setErrorCategory(ctrl.category as ConnectErrorCategory)
@@ -265,6 +266,9 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
 
       ws.onclose = event => {
         setConnecting(false)
+        if (structuredErrorRef.current) {
+          return
+        }
         if (event.code !== 1000) {
           const detail = event.reason ? `: ${event.reason}` : ''
           setError(`Connection closed (code ${event.code}${detail})`)

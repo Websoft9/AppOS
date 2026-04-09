@@ -43,13 +43,15 @@ tags:
       name: Realtime
     - description: Resource catalog APIs excluding server registry, including connector business routes and connector native collection CRUD.
       name: Resource
-    - description: SSH interactive shell sessions.
-      name: Server Shell
-    - description: Container operations on managed servers.
-      name: Server Containers
-    - description: Server file management over SSH/SFTP.
-      name: Server Files
-    - description: Server operations for connectivity, power, ports, and systemd.
+    - description: SSH interactive PTY sessions to managed servers.
+      name: Terminal SSH
+    - description: Docker exec PTY sessions to containers on managed servers.
+      name: Terminal Docker
+    - description: Remote file management over SFTP (SSH transport).
+      name: Terminal SFTP
+    - description: WebSocket PTY session on the local host.
+      name: Terminal Local
+    - description: '"Server catalog operations connectivity, power control, port inspection, and systemd management."'
       name: Server Ops
     - description: Service lifecycle operations exposed via supervisord integration.
       name: Services
@@ -59,7 +61,7 @@ tags:
       name: Settings
     - description: Workspace and storage-space related operations.
       name: Space & User Files
-    - description: Host metrics, file browser and system shell utility endpoints.
+    - description: Host metrics and file browser endpoints.
       name: System
     - description: Native cron jobs API
       name: System Cron
@@ -5559,28 +5561,6 @@ paths:
             summary: Get system metrics
             tags:
                 - System
-    /api/ext/system/terminal:
-        get:
-            description: Upgrades to a WebSocket PTY session on the local server. Superuser only.
-            operationId: get_api_ext_system_terminal
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Local WebSocket terminal
-            tags:
-                - System
     /api/ext/users/{collection}/{id}/reset-password:
         post:
             description: Force-resets a user's password (no current password required). Invalidates all existing tokens. Superuser only.
@@ -5815,792 +5795,6 @@ paths:
             summary: Get releases by id
             tags:
                 - Releases
-    /api/servers/{serverId}/files/chmod:
-        post:
-            description: Sets file permissions (octal mode) on a remote path. Superuser only.
-            operationId: post_api_servers_serverid_files_chmod
-            parameters:
-                - in: path
-                  name: serverId
-                  required: true
-                  schema:
-                    type: string
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: true
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Internal Server Error
-            security:
-                - bearerAuth: []
-            summary: Change permissions
-            tags:
-                - Server Files
-    /api/servers/{serverId}/files/chown:
-        post:
-            description: Sets owner and group for a remote path by name. Superuser only.
-            operationId: post_api_servers_serverid_files_chown
-            parameters:
-                - in: path
-                  name: serverId
-                  required: true
-                  schema:
-                    type: string
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: true
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Internal Server Error
-            security:
-                - bearerAuth: []
-            summary: Change owner
-            tags:
-                - Server Files
-    /api/servers/{serverId}/files/constraints:
-        get:
-            description: Returns effective upload limits (max_upload_files) from sysconfig. Superuser only.
-            operationId: get_api_servers_serverid_files_constraints
-            parameters:
-                - in: path
-                  name: serverId
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: File constraints
-            tags:
-                - Server Files
-    /api/servers/{serverId}/files/copy:
-        post:
-            description: Copies a remote file or directory to the destination path. Returns final progress. Superuser only.
-            operationId: post_api_servers_serverid_files_copy
-            parameters:
-                - in: path
-                  name: serverId
-                  required: true
-                  schema:
-                    type: string
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: true
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Internal Server Error
-            security:
-                - bearerAuth: []
-            summary: Copy
-            tags:
-                - Server Files
-    /api/servers/{serverId}/files/copy-stream:
-        get:
-            description: Copies a remote file/directory and streams Server-Sent Events with progress updates. Superuser only.
-            operationId: get_api_servers_serverid_files_copy-stream
-            parameters:
-                - in: path
-                  name: serverId
-                  required: true
-                  schema:
-                    type: string
-                - in: query
-                  name: from
-                  required: true
-                  schema:
-                    type: string
-                - in: query
-                  name: to
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Copy with progress
-            tags:
-                - Server Files
-    /api/servers/{serverId}/files/delete:
-        delete:
-            description: Deletes the file or directory at the given remote path. Writes an audit entry. Superuser only.
-            operationId: delete_api_servers_serverid_files_delete
-            parameters:
-                - in: path
-                  name: serverId
-                  required: true
-                  schema:
-                    type: string
-                - in: query
-                  name: path
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "204":
-                    description: No Content
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Internal Server Error
-            security:
-                - bearerAuth: []
-            summary: Delete
-            tags:
-                - Server Files
-    /api/servers/{serverId}/files/download:
-        get:
-            description: Streams a remote file as Content-Disposition attachment. Writes an audit entry. Superuser only.
-            operationId: get_api_servers_serverid_files_download
-            parameters:
-                - in: path
-                  name: serverId
-                  required: true
-                  schema:
-                    type: string
-                - in: query
-                  name: path
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Internal Server Error
-            security:
-                - bearerAuth: []
-            summary: Download file
-            tags:
-                - Server Files
-    /api/servers/{serverId}/files/list:
-        get:
-            description: Returns a directory listing for the given path on the remote server. Superuser only.
-            operationId: get_api_servers_serverid_files_list
-            parameters:
-                - in: path
-                  name: serverId
-                  required: true
-                  schema:
-                    type: string
-                - in: query
-                  name: path
-                  required: false
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Internal Server Error
-            security:
-                - bearerAuth: []
-            summary: List directory
-            tags:
-                - Server Files
-    /api/servers/{serverId}/files/mkdir:
-        post:
-            description: Creates the given directory (and parents) on the remote server. Superuser only.
-            operationId: post_api_servers_serverid_files_mkdir
-            parameters:
-                - in: path
-                  name: serverId
-                  required: true
-                  schema:
-                    type: string
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: true
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Internal Server Error
-            security:
-                - bearerAuth: []
-            summary: Create directory
-            tags:
-                - Server Files
-    /api/servers/{serverId}/files/move:
-        post:
-            description: Moves (renames) a remote file or directory. Superuser only.
-            operationId: post_api_servers_serverid_files_move
-            parameters:
-                - in: path
-                  name: serverId
-                  required: true
-                  schema:
-                    type: string
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: true
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Internal Server Error
-            security:
-                - bearerAuth: []
-            summary: Move
-            tags:
-                - Server Files
-    /api/servers/{serverId}/files/read:
-        get:
-            description: Returns UTF-8 text content of a remote file via SFTP (max 2 MB). Superuser only.
-            operationId: get_api_servers_serverid_files_read
-            parameters:
-                - in: path
-                  name: serverId
-                  required: true
-                  schema:
-                    type: string
-                - in: query
-                  name: path
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-                "413":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Payload Too Large
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Internal Server Error
-            security:
-                - bearerAuth: []
-            summary: Read file
-            tags:
-                - Server Files
-    /api/servers/{serverId}/files/rename:
-        post:
-            description: Renames a file or directory from one path to another on the remote server. Superuser only.
-            operationId: post_api_servers_serverid_files_rename
-            parameters:
-                - in: path
-                  name: serverId
-                  required: true
-                  schema:
-                    type: string
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: true
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Internal Server Error
-            security:
-                - bearerAuth: []
-            summary: Rename
-            tags:
-                - Server Files
-    /api/servers/{serverId}/files/search:
-        get:
-            description: Recursively searches for files matching the query under the base path. Superuser only.
-            operationId: get_api_servers_serverid_files_search
-            parameters:
-                - in: path
-                  name: serverId
-                  required: true
-                  schema:
-                    type: string
-                - in: query
-                  name: path
-                  required: false
-                  schema:
-                    type: string
-                - in: query
-                  name: query
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Internal Server Error
-            security:
-                - bearerAuth: []
-            summary: Search files
-            tags:
-                - Server Files
-    /api/servers/{serverId}/files/stat:
-        get:
-            description: Returns stat attributes (size, permissions, mtime, etc.) for the given remote path. Superuser only.
-            operationId: get_api_servers_serverid_files_stat
-            parameters:
-                - in: path
-                  name: serverId
-                  required: true
-                  schema:
-                    type: string
-                - in: query
-                  name: path
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Internal Server Error
-            security:
-                - bearerAuth: []
-            summary: Stat path
-            tags:
-                - Server Files
-    /api/servers/{serverId}/files/symlink:
-        post:
-            description: Creates a symbolic link on the remote server. Superuser only.
-            operationId: post_api_servers_serverid_files_symlink
-            parameters:
-                - in: path
-                  name: serverId
-                  required: true
-                  schema:
-                    type: string
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: true
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Internal Server Error
-            security:
-                - bearerAuth: []
-            summary: Create symlink
-            tags:
-                - Server Files
-    /api/servers/{serverId}/files/upload:
-        post:
-            description: Accepts a multipart upload and saves the file to the given remote directory. Writes an audit entry. Superuser only.
-            operationId: post_api_servers_serverid_files_upload
-            parameters:
-                - in: path
-                  name: serverId
-                  required: true
-                  schema:
-                    type: string
-                - in: query
-                  name: path
-                  required: true
-                  schema:
-                    type: string
-            requestBody:
-                content:
-                    multipart/form-data:
-                        schema:
-                            properties:
-                                file:
-                                    format: binary
-                                    type: string
-                            required:
-                                - file
-                            type: object
-                required: true
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-                "413":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Payload Too Large
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Internal Server Error
-            security:
-                - bearerAuth: []
-            summary: Upload file
-            tags:
-                - Server Files
-    /api/servers/{serverId}/files/write:
-        post:
-            description: Overwrites the content of a remote file with the provided text. Writes audit entry. Superuser only.
-            operationId: post_api_servers_serverid_files_write
-            parameters:
-                - in: path
-                  name: serverId
-                  required: true
-                  schema:
-                    type: string
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: true
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-                "500":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Internal Server Error
-            security:
-                - bearerAuth: []
-            summary: Write file
-            tags:
-                - Server Files
     /api/servers/{serverId}/ops/connectivity:
         get:
             operationId: get_api_servers_serverid_ops_connectivity
@@ -7069,89 +6263,6 @@ paths:
             summary: Get servers by serverId ops systemd services
             tags:
                 - Server Ops
-    /api/servers/{serverId}/shell:
-        get:
-            description: Upgrades to a WebSocket PTY session for the given server via SSH. Auth via ?token= or Authorization header. Superuser only.
-            operationId: get_api_servers_serverid_shell
-            parameters:
-                - in: path
-                  name: serverId
-                  required: true
-                  schema:
-                    type: string
-                - in: query
-                  name: token
-                  required: false
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: SSH WebSocket terminal
-            tags:
-                - Server Shell
-    /api/servers/containers/{containerId}/shell:
-        get:
-            description: Upgrades to a WebSocket PTY session inside the given container via docker exec. Supports remote servers via server_id. Superuser only.
-            operationId: get_api_servers_containers_containerid_shell
-            parameters:
-                - in: path
-                  name: containerId
-                  required: true
-                  schema:
-                    type: string
-                - in: query
-                  name: server_id
-                  required: false
-                  schema:
-                    type: string
-                - in: query
-                  name: shell
-                  required: false
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "400":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Bad Request
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Docker exec WebSocket terminal
-            tags:
-                - Server Containers
     /api/settings:
         get:
             operationId: pb_settings_get
@@ -7638,6 +6749,897 @@ paths:
             summary: Download shared file
             tags:
                 - Space & User Files
+    /api/terminal/docker/{containerId}:
+        get:
+            description: Upgrades to a WebSocket PTY session inside the given container via docker exec. Supports remote servers via server_id. Superuser only.
+            operationId: get_api_terminal_docker_containerid
+            parameters:
+                - in: path
+                  name: containerId
+                  required: true
+                  schema:
+                    type: string
+                - in: query
+                  name: server_id
+                  required: false
+                  schema:
+                    type: string
+                - in: query
+                  name: shell
+                  required: false
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Docker exec WebSocket terminal
+            tags:
+                - Terminal Docker
+    /api/terminal/local:
+        get:
+            description: Upgrades to a WebSocket PTY session on the local server. Auth via ?token= or Authorization header. Superuser only.
+            operationId: get_api_terminal_local
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Local WebSocket terminal
+            tags:
+                - Terminal Local
+    /api/terminal/sftp/{serverId}/chmod:
+        post:
+            description: Sets file permissions (octal mode) on a remote path. Superuser only.
+            operationId: post_api_terminal_sftp_serverid_chmod
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Change permissions
+            tags:
+                - Terminal SFTP
+    /api/terminal/sftp/{serverId}/chown:
+        post:
+            description: Sets owner and group for a remote path by name. Superuser only.
+            operationId: post_api_terminal_sftp_serverid_chown
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Change owner
+            tags:
+                - Terminal SFTP
+    /api/terminal/sftp/{serverId}/constraints:
+        get:
+            description: Returns effective upload limits (max_upload_files) from sysconfig. Superuser only.
+            operationId: get_api_terminal_sftp_serverid_constraints
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: File constraints
+            tags:
+                - Terminal SFTP
+    /api/terminal/sftp/{serverId}/copy:
+        post:
+            description: Copies a remote file or directory to the destination path. Returns final progress. Superuser only.
+            operationId: post_api_terminal_sftp_serverid_copy
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Copy
+            tags:
+                - Terminal SFTP
+    /api/terminal/sftp/{serverId}/copy-stream:
+        get:
+            description: Copies a remote file/directory and streams Server-Sent Events with progress updates. Superuser only.
+            operationId: get_api_terminal_sftp_serverid_copy-stream
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+                - in: query
+                  name: from
+                  required: true
+                  schema:
+                    type: string
+                - in: query
+                  name: to
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Copy with progress
+            tags:
+                - Terminal SFTP
+    /api/terminal/sftp/{serverId}/delete:
+        delete:
+            description: Deletes the file or directory at the given remote path. Writes an audit entry. Superuser only.
+            operationId: delete_api_terminal_sftp_serverid_delete
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+                - in: query
+                  name: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "204":
+                    description: No Content
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Delete
+            tags:
+                - Terminal SFTP
+    /api/terminal/sftp/{serverId}/download:
+        get:
+            description: Streams a remote file as Content-Disposition attachment. Writes an audit entry. Superuser only.
+            operationId: get_api_terminal_sftp_serverid_download
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+                - in: query
+                  name: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Download file
+            tags:
+                - Terminal SFTP
+    /api/terminal/sftp/{serverId}/list:
+        get:
+            description: Returns a directory listing for the given path on the remote server. Superuser only.
+            operationId: get_api_terminal_sftp_serverid_list
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+                - in: query
+                  name: path
+                  required: false
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: List directory
+            tags:
+                - Terminal SFTP
+    /api/terminal/sftp/{serverId}/mkdir:
+        post:
+            description: Creates the given directory (and parents) on the remote server. Superuser only.
+            operationId: post_api_terminal_sftp_serverid_mkdir
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Create directory
+            tags:
+                - Terminal SFTP
+    /api/terminal/sftp/{serverId}/move:
+        post:
+            description: Moves (renames) a remote file or directory. Superuser only.
+            operationId: post_api_terminal_sftp_serverid_move
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Move
+            tags:
+                - Terminal SFTP
+    /api/terminal/sftp/{serverId}/read:
+        get:
+            description: Returns UTF-8 text content of a remote file via SFTP (max 2 MB). Superuser only.
+            operationId: get_api_terminal_sftp_serverid_read
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+                - in: query
+                  name: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "413":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Payload Too Large
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Read file
+            tags:
+                - Terminal SFTP
+    /api/terminal/sftp/{serverId}/rename:
+        post:
+            description: Renames a file or directory from one path to another on the remote server. Superuser only.
+            operationId: post_api_terminal_sftp_serverid_rename
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Rename
+            tags:
+                - Terminal SFTP
+    /api/terminal/sftp/{serverId}/search:
+        get:
+            description: Recursively searches for files matching the query under the base path. Superuser only.
+            operationId: get_api_terminal_sftp_serverid_search
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+                - in: query
+                  name: path
+                  required: false
+                  schema:
+                    type: string
+                - in: query
+                  name: query
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Search files
+            tags:
+                - Terminal SFTP
+    /api/terminal/sftp/{serverId}/stat:
+        get:
+            description: Returns stat attributes (size, permissions, mtime, etc.) for the given remote path. Superuser only.
+            operationId: get_api_terminal_sftp_serverid_stat
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+                - in: query
+                  name: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Stat path
+            tags:
+                - Terminal SFTP
+    /api/terminal/sftp/{serverId}/symlink:
+        post:
+            description: Creates a symbolic link on the remote server. Superuser only.
+            operationId: post_api_terminal_sftp_serverid_symlink
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Create symlink
+            tags:
+                - Terminal SFTP
+    /api/terminal/sftp/{serverId}/upload:
+        post:
+            description: Accepts a multipart upload and saves the file to the given remote directory. Writes an audit entry. Superuser only.
+            operationId: post_api_terminal_sftp_serverid_upload
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+                - in: query
+                  name: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    multipart/form-data:
+                        schema:
+                            properties:
+                                file:
+                                    format: binary
+                                    type: string
+                            required:
+                                - file
+                            type: object
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "413":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Payload Too Large
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Upload file
+            tags:
+                - Terminal SFTP
+    /api/terminal/sftp/{serverId}/write:
+        post:
+            description: Overwrites the content of a remote file with the provided text. Writes audit entry. Superuser only.
+            operationId: post_api_terminal_sftp_serverid_write
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Write file
+            tags:
+                - Terminal SFTP
+    /api/terminal/ssh/{serverId}:
+        get:
+            description: Upgrades to a WebSocket PTY session for the given server via SSH. Auth via ?token= or Authorization header. Superuser only.
+            operationId: get_api_terminal_ssh_serverid
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+                - in: query
+                  name: token
+                  required: false
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: SSH WebSocket terminal
+            tags:
+                - Terminal SSH
     /api/topics/share/{id}:
         delete:
             operationId: delete_api_topics_share_id

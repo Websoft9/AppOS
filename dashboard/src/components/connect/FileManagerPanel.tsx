@@ -60,6 +60,7 @@ import {
   sftpList,
   sftpSearch,
   sftpConstraints,
+  sftpCopyStreamUrl,
   sftpStat,
   sftpChmod,
   sftpChown,
@@ -545,7 +546,7 @@ export function FileManagerPanel({
       if (copyMoveMode === 'move') {
         await sftpMove(serverId, from, to)
       } else {
-        const url = `/api/servers/${serverId}/files/copy-stream?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+        const url = sftpCopyStreamUrl(serverId, from, to)
         const res = await fetch(url, {
           headers: { Authorization: pb.authStore.token },
         })

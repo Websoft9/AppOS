@@ -13,7 +13,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/websoft9/appos/backend/domain/audit"
-	servers "github.com/websoft9/appos/backend/domain/resource/server"
+	servers "github.com/websoft9/appos/backend/domain/resource/servers"
 	appcrypto "github.com/websoft9/appos/backend/infra/crypto"
 	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
 	tunnelpb "github.com/websoft9/appos/backend/infra/tunnelpb"

@@ -21,7 +21,7 @@ This ADR is intentionally domain-centered.
 | Lifecycle Execution | Supporting | Execute lifecycle intent through pipelines, workers, dispatch, compensation, and projections | `PipelineRun`, `CompensationPlan` |
 | Resource Control | Supporting | Provide connection, access, and control capabilities across managed resources | `Server`, `TerminalSession`, `RemoteFileSession`, `ServiceTarget`, `RuntimeContainer` |
 | Observability | Supporting | Provide telemetry, health, diagnostics, and platform self-observation | `TelemetryStream`, `HealthCheckSet`, `PlatformStatusSnapshot` |
-| Resource Organization | Supporting | Organize resource references, operational knowledge, incidents, and procedures | `ResourceGroup`, `Topic`, `KnowledgeDocument`, `Incident`, `Procedure` |
+| Resource Organization | Supporting | Organize resource references, operational knowledge, external signals, incidents, and procedures | `ResourceGroup`, `Topic`, `Feed`, `KnowledgeDocument`, `Incident`, `Procedure` |
 | App Catalog | Supporting | Provide catalog apps, custom apps, templates, favorites, and notes | `CatalogApp`, `CustomApp`, `Template`, `UserCatalogState` |
 | Gateway Management | Supporting | Manage shared domain binding, routing, certificates, and gateway policy | `DomainBinding`, `GatewayRoute`, `CertificateBinding`, `GatewayPolicy` |
 | Runtime Infrastructure | Supporting | Provide runtime projects, recovery artifacts, and configuration assets | `RuntimeProject`, `BackupSnapshot`, `IaCWorkspace` |
@@ -73,6 +73,7 @@ flowchart LR
     Lifecycle -->|requests publication intent| Gateway
     Gateway -->|uses certificates / secret refs| Secrets
     Runtime -->|uses connectors / registries| Integrations
+    Integrations -->|supplies external signal sources| OpsMgmt
     Lifecycle -->|reads settings / policies| Platform
     Lifecycle -->|reads actor / permissions| IAM
     Lifecycle -->|writes auditable outcomes| Audit
@@ -93,7 +94,7 @@ flowchart LR
 | Lifecycle Execution | pipeline progression, node execution, dispatch, compensation, projection update triggers | long-lived app business meaning, product-facing navigation |
 | Resource Control | remote connection, shell, file, service, container action targets | lifecycle release meaning, incident semantics, gateway policy |
 | Observability | telemetry streams, health summaries, diagnostics, platform self-observation views | lifecycle ownership, operational procedures |
-| Resource Organization | grouping, inventory references, knowledge artifacts, incident coordination, procedures | server shell semantics, runtime mutation primitives |
+| Resource Organization | grouping, inventory references, knowledge artifacts, external signal intake and judgment, incident coordination, procedures | server shell semantics, runtime mutation primitives |
 | App Catalog | install source metadata, templates, custom app definitions, favorites, notes | installed app lifecycle state |
 | Gateway Management | domain binding, route policy, upstream mapping, certificate attachment, gateway views | app runtime lifecycle state, generic secret storage |
 | Runtime Infrastructure | runtime workspace, compose/runtime assets, backup artifacts, configuration assets | product-facing lifecycle decisions, shared gateway policy |
@@ -175,8 +176,9 @@ Boundary rules:
 
 | Aggregate | Root | Boundary | Invariants |
 | --- | --- | --- | --- |
-| Resource Group | `ResourceGroup` | One grouping / ownership boundary over referenced resources | membership and ownership bindings must be internally consistent |
+| ResourceGroup | `ResourceGroup` | One grouping / ownership boundary over referenced resources | membership and ownership bindings must be internally consistent |
 | Topic | `Topic` | One operational discussion thread | comments and references belong to one topic identity |
+| Feed | `Feed` | One external signal intake and operator-judgment boundary | source identity, item identity, and judgment records must remain coherent inside one feed management boundary |
 | Knowledge Document | `KnowledgeDocument` | One managed operational document | folder placement and attachments belong to one document identity |
 | Incident | `Incident` | One incident coordination boundary | status, alert linkage, and escalation path belong to one incident |
 | Procedure | `Procedure` | One deterministic operational procedure definition | procedure steps must define one coherent automation or runbook boundary |
@@ -184,7 +186,9 @@ Boundary rules:
 Boundary rules:
 
 1. `ResourceGroup` references resources owned by other domains; it does not replace their domain ownership.
-2. Operational knowledge and incidents are first-class business objects, not merely UI tabs.
+2. `Feed` owns external signal meaning after ingestion; connector transport or fetch mechanics remain outside this context.
+3. `Feed` may bind to `Topic` or lifecycle objects, but it does not replace discussion threads or lifecycle actions.
+4. Operational knowledge and incidents are first-class business objects, not merely UI tabs.
 
 ## 3.6 App Catalog Context
 
@@ -245,7 +249,7 @@ Boundary rules:
 2. Execution state lives in `Lifecycle Execution`.
 3. Shared publication infrastructure belongs to `Gateway Management`, not to generic runtime tooling.
 4. Remote operational capability comes from `Resource Control`.
-5. Inventory, grouping, knowledge, incidents, and procedures belong to `Resource Organization`.
+5. Inventory, grouping, knowledge, external signals, incidents, and procedures belong to `Resource Organization`.
 6. Runtime and recovery primitives belong to `Runtime Infrastructure`.
 7. External providers belong to `Integrations & Connectors`.
 8. Platform settings, IAM, secrets, audit, and entitlements remain generic or cross-cutting support contexts.

@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -14,18 +13,18 @@ import (
 	"github.com/pocketbase/pocketbase/tools/router"
 
 	"github.com/websoft9/appos/backend/domain/audit"
-	servers "github.com/websoft9/appos/backend/domain/resource/server"
+	"github.com/websoft9/appos/backend/domain/terminal"
 )
 
 func registerServerContainerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
-	g.GET("/containers/{containerId}/shell", handleDockerExecTerminal)
+	g.GET("/docker/{containerId}", handleDockerExecTerminal)
 }
 
 // handleDockerExecTerminal upgrades to a WebSocket PTY for docker exec on a container.
 //
 // @Summary Docker exec WebSocket terminal
 // @Description Upgrades to a WebSocket PTY session inside the given container via docker exec. Supports remote servers via server_id. Superuser only.
-// @Tags Server Containers
+// @Tags Terminal Docker
 // @Security BearerAuth
 // @Param containerId path string true "container ID or name"
 // @Param server_id query string false "server ID (omit for local)"
@@ -33,7 +32,7 @@ func registerServerContainerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 // @Success 101 {string} string "WebSocket upgrade"
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
-// @Router /api/servers/containers/{containerId}/shell [get]
+// @Router /api/terminal/docker/{containerId} [get]
 func handleDockerExecTerminal(e *core.RequestEvent) error {
 	containerID := e.Request.PathValue("containerId")
 	if containerID == "" {
@@ -63,30 +62,24 @@ func handleDockerExecTerminal(e *core.RequestEvent) error {
 	}
 	defer conn.Close()
 
-	var cfg servers.ConnectorConfig
-	var connector servers.Connector
+	var cfg terminal.ConnectorConfig
+	var connector terminal.Connector
 	if serverID == "local" {
-		cfg = servers.ConnectorConfig{Host: containerID, Shell: shell}
-		connector = &servers.DockerExecConnector{}
+		cfg = terminal.ConnectorConfig{Host: containerID, Shell: shell}
+		connector = &terminal.DockerExecConnector{}
 	} else {
-		resolvedCfg, resolveErr := servers.ResolveConfig(e.App, e.Auth, serverID)
+		resolvedCfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
 		if resolveErr != nil {
 			return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 		}
 		resolvedCfg.Shell = fmt.Sprintf("docker exec -it %s %s", containerID, shell)
 		cfg = resolvedCfg
-		connector = &servers.SSHConnector{}
+		connector = &terminal.SSHConnector{}
 	}
 
 	sess, err := connector.Connect(e.Request.Context(), cfg)
 	if err != nil {
-		var ce *servers.ConnectError
-		if errors.As(err, &ce) {
-			_ = writeWSConnectError(conn, ce)
-		} else {
-			_ = writeWSControl(conn, "error", err.Error())
-		}
-		_ = conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.ClosePolicyViolation, truncateCloseReason(err.Error())), time.Now().Add(2*time.Second))
+		closeWSWithError(conn, err)
 		return nil
 	}
 
@@ -95,9 +88,9 @@ func handleDockerExecTerminal(e *core.RequestEvent) error {
 	startedAt := time.Now().UTC()
 	var bytesOut, bytesIn atomic.Int64
 
-	servers.Register(sessionID, sess)
+	terminal.Register(sessionID, sess)
 	defer func() {
-		servers.Unregister(sessionID)
+		terminal.Unregister(sessionID)
 		_ = sess.Close()
 		audit.Write(e.App, audit.Entry{
 			UserID:       userID,
@@ -149,7 +142,7 @@ func handleDockerExecTerminal(e *core.RequestEvent) error {
 			if err != nil {
 				break
 			}
-			servers.Touch(sessionID)
+			terminal.Touch(sessionID)
 			if mt == websocket.TextMessage || (len(msg) > 0 && msg[0] == 0x00) {
 				handleControlFrame(sess, msg)
 				continue

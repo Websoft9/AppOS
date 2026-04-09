@@ -72,7 +72,8 @@ vi.mock('@xterm/addon-fit', () => ({
 }))
 
 vi.mock('@/lib/connect-api', () => ({
-  sshWebSocketUrl: vi.fn(() => 'ws://localhost:8090/api/servers/s1/shell'),
+  sshWebSocketUrl: vi.fn(() => 'ws://localhost:8090/api/terminal/ssh/s1'),
+  dockerWebSocketUrl: vi.fn(() => 'ws://localhost:8090/api/terminal/docker/c1'),
   loadPreferences: vi.fn(() => ({
     terminal_font_size: 14,
     terminal_scrollback: 1000,

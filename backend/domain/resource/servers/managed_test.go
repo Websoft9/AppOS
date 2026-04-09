@@ -1,15 +1,17 @@
 package servers
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestManagedServerApplyBestEffortTunnel(t *testing.T) {
 	server := &ManagedServer{
-		ConnectType:    "tunnel",
-		TunnelServices: `[{"service_name":"ssh","tunnel_port":22022}]`,
+		ConnectType: ConnectionModeTunnel,
 	}
-	cfg := ConnectorConfig{Host: "remote.example.com", Port: 22}
+	rt := TunnelRuntime{ServicesRaw: `[{"service_name":"ssh","tunnel_port":22022}]`}
+	cfg := AccessConfig{Host: "remote.example.com", Port: 22}
 
-	server.ApplyBestEffortTunnel(&cfg)
+	server.ApplyBestEffortTunnel(&cfg, rt)
 
 	if cfg.Host != "127.0.0.1" {
 		t.Fatalf("expected tunnel host rewrite, got %q", cfg.Host)
@@ -21,15 +23,17 @@ func TestManagedServerApplyBestEffortTunnel(t *testing.T) {
 
 func TestManagedServerResolveDockerSSHAddressRequiresOnlineTunnel(t *testing.T) {
 	server := &ManagedServer{
-		ID:             "server-1",
-		Host:           "remote.example.com",
-		Port:           22,
-		ConnectType:    "tunnel",
-		TunnelStatus:   "offline",
-		TunnelServices: `[{"service_name":"ssh","tunnel_port":22022}]`,
+		ID:          "server-1",
+		Host:        "remote.example.com",
+		Port:        22,
+		ConnectType: ConnectionModeTunnel,
+	}
+	rt := TunnelRuntime{
+		Status:      "offline",
+		ServicesRaw: `[{"service_name":"ssh","tunnel_port":22022}]`,
 	}
 
-	_, _, err := server.ResolveDockerSSHAddress()
+	_, _, err := server.ResolveDockerSSHAddress(rt)
 	if err == nil {
 		t.Fatal("expected offline tunnel docker address resolution to fail")
 	}
@@ -48,7 +52,7 @@ func TestManagedServerTunnelForwardSpecsFallsBackToDefault(t *testing.T) {
 }
 
 func TestManagedServerIsTunnel(t *testing.T) {
-	server := &ManagedServer{ConnectType: "tunnel"}
+	server := &ManagedServer{ConnectType: ConnectionModeTunnel}
 	if !server.IsTunnel() {
 		t.Fatal("expected tunnel server")
 	}

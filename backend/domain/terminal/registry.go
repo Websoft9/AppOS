@@ -1,4 +1,4 @@
-package servers
+package terminal
 
 import (
 	"sync"
@@ -8,7 +8,7 @@ import (
 const sessionIdleTimeout = 30 * time.Minute
 const idleMonitorInterval = time.Minute
 
-// sessionRegistry tracks active SSH/Docker sessions and enforces idle timeouts.
+// sessionRegistry tracks active terminal sessions and enforces idle timeouts.
 // The WebSocket route handler calls Touch on each message received; the
 // background janitor calls Close on sessions that have been idle too long.
 type sessionRegistry struct {
@@ -111,8 +111,8 @@ func (r *sessionRegistry) closeAllSessions() {
 	}
 }
 
-// Register adds a session to the registry and starts idle monitoring.
-// The session is automatically closed after sessionIdleTimeout of inactivity.
+// Register adds a session to the registry. The session is automatically closed
+// after sessionIdleTimeout of inactivity.
 func Register(id string, sess Session) {
 	registry.mu.Lock()
 	registry.sessions[id] = &registeredSession{
@@ -123,8 +123,8 @@ func Register(id string, sess Session) {
 	registry.mu.Unlock()
 }
 
-// Touch updates the last-activity timestamp for the session, resetting the
-// idle timer. Should be called for every message received on the WebSocket.
+// Touch updates the last-activity timestamp, resetting the idle timer.
+// Should be called for every message received on the WebSocket.
 func Touch(id string) {
 	registry.mu.Lock()
 	if rs, ok := registry.sessions[id]; ok {

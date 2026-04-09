@@ -8,7 +8,8 @@ import (
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/domain/resource/server"
+	"github.com/websoft9/appos/backend/domain/resource/servers"
+	"github.com/websoft9/appos/backend/domain/terminal"
 )
 
 type mockSFTPClient struct {
@@ -113,14 +114,14 @@ func TestSSHExecutorPrepareWorkspaceUsesInjectedDependencies(t *testing.T) {
 	exec := sshExecutor{
 		app:      nil,
 		serverID: "srv-1",
-		resolveConfig: func(app core.App, serverID string) (servers.ConnectorConfig, error) {
+		resolveConfig: func(app core.App, serverID string) (servers.AccessConfig, error) {
 			resolverCalled = true
 			if serverID != "srv-1" {
 				t.Fatalf("unexpected serverID: %s", serverID)
 			}
-			return servers.ConnectorConfig{Host: "example.com", Port: 22, User: "root"}, nil
+			return servers.AccessConfig{Host: "example.com", Port: 22, User: "root"}, nil
 		},
-		sftpFactory: func(ctx context.Context, cfg servers.ConnectorConfig) (SFTPClient, error) {
+		sftpFactory: func(ctx context.Context, cfg terminal.ConnectorConfig) (SFTPClient, error) {
 			factoryCalled = true
 			if cfg.Host != "example.com" {
 				t.Fatalf("unexpected host in cfg: %s", cfg.Host)
@@ -159,8 +160,8 @@ func TestSSHExecutorPrepareWorkspaceResolverError(t *testing.T) {
 	exec := sshExecutor{
 		app:      nil,
 		serverID: "srv-1",
-		resolveConfig: func(app core.App, serverID string) (servers.ConnectorConfig, error) {
-			return servers.ConnectorConfig{}, wantErr
+		resolveConfig: func(app core.App, serverID string) (servers.AccessConfig, error) {
+			return servers.AccessConfig{}, wantErr
 		},
 	}
 

@@ -16,7 +16,7 @@ type SSHConfig struct {
 	Host     string
 	Port     int
 	User     string
-	AuthType string // "password" or "key"
+	AuthType string // "password" or "private_key" (also accepts "key", "ssh_key")
 	Secret   string // decrypted: password string or PEM private key
 
 	// SudoEnabled wraps every command with `sudo` when the remote user is not root.
@@ -44,7 +44,7 @@ func (e *SSHExecutor) clientConfig() (*ssh.ClientConfig, error) {
 	var authMethods []ssh.AuthMethod
 
 	switch e.cfg.AuthType {
-	case "key", "ssh_key":
+	case "key", "ssh_key", "private_key":
 		signer, err := ssh.ParsePrivateKey([]byte(e.cfg.Secret))
 		if err != nil {
 			return nil, fmt.Errorf("parse private key: %w", err)

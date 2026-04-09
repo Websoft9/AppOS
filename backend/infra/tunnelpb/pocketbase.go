@@ -7,8 +7,24 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/config/sysconfig"
+	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
 	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
 )
+
+const (
+	SettingsModule = "tunnel"
+	PortRangeKey   = "port_range"
+)
+
+func LoadPortRange(app core.App) tunnelcore.PortRange {
+	if app == nil {
+		return tunnelcore.DefaultPortRange()
+	}
+
+	raw, _ := sysconfig.GetGroup(app, SettingsModule, PortRangeKey, settingscatalog.DefaultGroup(SettingsModule, PortRangeKey))
+	return tunnelcore.NormalizePortRange(raw)
+}
 
 type pbForwardResolver struct {
 	load func(serverID string) ([]tunnelcore.ForwardSpec, error)
@@ -31,8 +47,8 @@ func Start(app core.App, sessions *tunnelcore.Registry, tokenCache *sync.Map, pa
 	portRange := LoadPortRange(app)
 	pool := tunnelcore.NewPortPool(portRange.Start, portRange.End)
 
-	store := serverStore{app: app}
-	portRecords, err := store.loadExistingPortRecords()
+	repo := tunnelRepository{app: app}
+	portRecords, err := repo.loadExistingPortRecords()
 	if err != nil {
 		log.Printf("[tunnel] load existing port records: %v", err)
 	}

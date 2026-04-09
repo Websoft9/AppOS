@@ -17,7 +17,7 @@ type SessionHooks struct {
 }
 
 func (h *SessionHooks) OnConnect(managedServerID string, services []tunnelcore.Service, conflicts []tunnelcore.ConflictResolution) {
-	store := tunnelStateStore{app: h.App}
+	repo := tunnelRepository{app: h.App}
 	now := time.Now().UTC()
 	remoteAddr := ""
 	connectedAt := now
@@ -29,7 +29,7 @@ func (h *SessionHooks) OnConnect(managedServerID string, services []tunnelcore.S
 			}
 		}
 	}
-	if err := store.saveConnectedState(managedServerID, connectedAt, remoteAddr, services); err != nil {
+	if err := repo.saveConnectedState(managedServerID, connectedAt, remoteAddr, services); err != nil {
 		log.Printf("[tunnel] OnConnect: save server %s: %v", managedServerID, err)
 	}
 
@@ -68,9 +68,9 @@ func (h *SessionHooks) OnDisconnect(managedServerID string, reason tunnelcore.Di
 		}
 	}
 
-	store := tunnelStateStore{app: h.App}
+	repo := tunnelRepository{app: h.App}
 	disconnectAt := time.Now().UTC()
-	_ = store.saveDisconnectedState(managedServerID, reason, disconnectAt)
+	_ = repo.saveDisconnectedState(managedServerID, reason, disconnectAt)
 
 	reasonLabel := string(reason)
 	if h.DisconnectReasonLabel != nil {

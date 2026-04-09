@@ -8,8 +8,20 @@ import (
 	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
 )
 
+// TunnelStatus represents the connectivity state of a managed tunnel server.
+type TunnelStatus string
+
+const (
+	// TunnelStatusOnline indicates the tunnel is actively connected.
+	TunnelStatusOnline TunnelStatus = "online"
+	// TunnelStatusOffline indicates the tunnel is disconnected.
+	TunnelStatusOffline TunnelStatus = "offline"
+	// TunnelStatusPaused indicates the tunnel reconnect is temporarily suspended.
+	TunnelStatusPaused TunnelStatus = "paused"
+)
+
 type TunnelRuntime struct {
-	Status           string
+	Status           TunnelStatus
 	LastSeen         time.Time
 	ConnectedAt      time.Time
 	RemoteAddr       string
@@ -25,7 +37,7 @@ func TunnelRuntimeFromRecord(record *core.Record) TunnelRuntime {
 	}
 
 	return TunnelRuntime{
-		Status:           record.GetString("tunnel_status"),
+		Status:           TunnelStatus(record.GetString("tunnel_status")),
 		LastSeen:         recordDateTime(record, "tunnel_last_seen"),
 		ConnectedAt:      recordDateTime(record, "tunnel_connected_at"),
 		RemoteAddr:       record.GetString("tunnel_remote_addr"),
@@ -59,7 +71,7 @@ func (r TunnelRuntime) IsPausedAt(now time.Time) bool {
 }
 
 func (r TunnelRuntime) WaitingForFirstConnect() bool {
-	return r.Status != "online" &&
+	return r.Status != TunnelStatusOnline &&
 		r.ConnectedAt.IsZero() &&
 		r.LastSeen.IsZero() &&
 		r.DisconnectAt.IsZero()

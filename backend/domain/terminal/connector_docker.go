@@ -1,4 +1,4 @@
-package servers
+package terminal
 
 import (
 	"bufio"
@@ -22,7 +22,7 @@ var autoDockerShellCandidates = []string{"/bin/bash", "/bin/sh", "/bin/zsh"}
 var dockerCreateExecFn = dockerCreateExec
 var dockerStartExecFn = dockerStartExec
 
-// DockerExecConnector implements Session by creating a Docker exec
+// DockerExecConnector implements Connector by creating a Docker exec
 // instance with a TTY and hijacking the connection for bidirectional I/O.
 type DockerExecConnector struct{}
 
@@ -137,13 +137,13 @@ func dockerDial() (net.Conn, error) {
 
 // dockerAPIRequest sends an HTTP request to the Docker daemon via unix socket
 // and returns the parsed response. Caller must close resp.Body.
-func dockerAPIRequest(method, path string, body string) (*http.Response, error) {
+func dockerAPIRequest(method, urlPath string, body string) (*http.Response, error) {
 	conn, err := dockerDial()
 	if err != nil {
 		return nil, err
 	}
 
-	req, err := http.NewRequest(method, "http://localhost"+path, strings.NewReader(body))
+	req, err := http.NewRequest(method, "http://localhost"+urlPath, strings.NewReader(body))
 	if err != nil {
 		conn.Close()
 		return nil, err
@@ -245,8 +245,8 @@ func dockerStartExec(execID string) (net.Conn, error) {
 
 // dockerResizeExec resizes the TTY of a running exec instance.
 func dockerResizeExec(execID string, rows, cols uint16) error {
-	path := fmt.Sprintf("/exec/%s/resize?h=%d&w=%d", execID, rows, cols)
-	resp, err := dockerAPIRequest("POST", path, "")
+	urlPath := fmt.Sprintf("/exec/%s/resize?h=%d&w=%d", execID, rows, cols)
+	resp, err := dockerAPIRequest("POST", urlPath, "")
 	if err != nil {
 		return err
 	}
@@ -257,3 +257,7 @@ func dockerResizeExec(execID string, rows, cols uint16) error {
 	}
 	return nil
 }
+
+// ensure interface compliance
+var _ Session = (*dockerExecSession)(nil)
+var _ Connector = (*DockerExecConnector)(nil)

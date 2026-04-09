@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/domain/resource/server"
+	"github.com/websoft9/appos/backend/domain/resource/servers"
 	sec "github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/infra/crypto"
 )
@@ -111,7 +111,7 @@ func TestTokenServiceGetOrIssueCreatesTokenAndCachesIt(t *testing.T) {
 		t.Fatal("expected first issue to not be a rotation")
 	}
 
-	stored, err := (&serverStore{app: app}).findTunnelTokenSecret("server-create")
+	stored, err := (&tunnelRepository{app: app}).findTunnelTokenSecret("server-create")
 	if err != nil {
 		t.Fatalf("expected stored secret, got %v", err)
 	}

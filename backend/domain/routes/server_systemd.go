@@ -12,7 +12,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/websoft9/appos/backend/domain/audit"
-	servers "github.com/websoft9/appos/backend/domain/resource/server"
+	"github.com/websoft9/appos/backend/domain/terminal"
 )
 
 // ════════════════════════════════════════════════════════════
@@ -25,12 +25,12 @@ func handleSystemdServices(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": "serverId required"})
 	}
 
-	cfg, err := servers.ResolveConfig(e.App, e.Auth, serverID)
+	cfg, err := resolveTerminalConfig(e.App, e.Auth, serverID)
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	raw, runErr := executeSSHCommand(e.Request.Context(), cfg, "systemctl list-units --type=service --all --no-legend --no-pager", 20*time.Second)
+	raw, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, "systemctl list-units --type=service --all --no-legend --no-pager", 20*time.Second)
 	if runErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error()})
 	}
@@ -63,7 +63,7 @@ func handleSystemdServices(e *core.RequestEvent) error {
 	userID, _, ip, _ := clientInfo(e)
 	audit.Write(e.App, audit.Entry{
 		UserID:       userID,
-		Action:       "terminal.systemd.services",
+		Action:       "server.ops.systemd.services",
 		ResourceType: "server",
 		ResourceID:   serverID,
 		Status:       audit.StatusSuccess,
@@ -81,19 +81,19 @@ func handleSystemdServiceStatus(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, resolveErr := servers.ResolveConfig(e.App, e.Auth, serverID)
+	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
 
 	showCmd := fmt.Sprintf("systemctl show %s --no-pager --property=Id,Description,LoadState,ActiveState,SubState,UnitFileState,MainPID,ExecMainStatus,ExecMainCode,StateChangeTimestamp", service)
-	showRaw, runErr := executeSSHCommand(e.Request.Context(), cfg, showCmd, 20*time.Second)
+	showRaw, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, showCmd, 20*time.Second)
 	if runErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error()})
 	}
 
 	statusCmd := fmt.Sprintf("systemctl status %s --no-pager --full --lines=40", service)
-	statusRaw, _ := executeSSHCommand(e.Request.Context(), cfg, statusCmd, 20*time.Second)
+	statusRaw, _ := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, statusCmd, 20*time.Second)
 
 	details := make(map[string]string)
 	for _, line := range strings.Split(showRaw, "\n") {
@@ -111,7 +111,7 @@ func handleSystemdServiceStatus(e *core.RequestEvent) error {
 	userID, _, ip, _ := clientInfo(e)
 	audit.Write(e.App, audit.Entry{
 		UserID:       userID,
-		Action:       "terminal.systemd.status",
+		Action:       "server.ops.systemd.status",
 		ResourceType: "server",
 		ResourceID:   serverID,
 		Status:       audit.StatusSuccess,
@@ -147,13 +147,13 @@ func handleSystemdServiceLogs(e *core.RequestEvent) error {
 		}
 	}
 
-	cfg, resolveErr := servers.ResolveConfig(e.App, e.Auth, serverID)
+	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
 
 	cmd := fmt.Sprintf("journalctl -u %s -n %d --no-pager --output=short-iso", service, lines)
-	raw, runErr := executeSSHCommand(e.Request.Context(), cfg, cmd, 25*time.Second)
+	raw, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, cmd, 25*time.Second)
 	if runErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error()})
 	}
@@ -170,7 +170,7 @@ func handleSystemdServiceLogs(e *core.RequestEvent) error {
 	userID, _, ip, _ := clientInfo(e)
 	audit.Write(e.App, audit.Entry{
 		UserID:       userID,
-		Action:       "terminal.systemd.logs",
+		Action:       "server.ops.systemd.logs",
 		ResourceType: "server",
 		ResourceID:   serverID,
 		Status:       audit.StatusSuccess,
@@ -194,13 +194,13 @@ func handleSystemdServiceContent(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, resolveErr := servers.ResolveConfig(e.App, e.Auth, serverID)
+	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
 
 	cmd := fmt.Sprintf("systemctl cat %s --no-pager", service)
-	raw, runErr := executeSSHCommand(e.Request.Context(), cfg, cmd, 20*time.Second)
+	raw, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, cmd, 20*time.Second)
 	if runErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error()})
 	}
@@ -208,7 +208,7 @@ func handleSystemdServiceContent(e *core.RequestEvent) error {
 	userID, _, ip, _ := clientInfo(e)
 	audit.Write(e.App, audit.Entry{
 		UserID:       userID,
-		Action:       "terminal.systemd.content",
+		Action:       "server.ops.systemd.content",
 		ResourceType: "server",
 		ResourceID:   serverID,
 		Status:       audit.StatusSuccess,
@@ -249,13 +249,13 @@ func handleSystemdServiceAction(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": "action must be start, stop, restart, enable, or disable"})
 	}
 
-	cfg, resolveErr := servers.ResolveConfig(e.App, e.Auth, serverID)
+	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
 
 	cmd := fmt.Sprintf("(sudo -n systemctl %s %s || systemctl %s %s)", action, service, action, service)
-	output, runErr := executeSSHCommand(e.Request.Context(), cfg, cmd, 25*time.Second)
+	output, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, cmd, 25*time.Second)
 
 	userID, _, ip, _ := clientInfo(e)
 	status := audit.StatusSuccess
@@ -264,7 +264,7 @@ func handleSystemdServiceAction(e *core.RequestEvent) error {
 	}
 	audit.Write(e.App, audit.Entry{
 		UserID:       userID,
-		Action:       "terminal.systemd.action",
+		Action:       "server.ops.systemd.action",
 		ResourceType: "server",
 		ResourceID:   serverID,
 		Status:       status,
@@ -292,7 +292,7 @@ func handleSystemdServiceUnitRead(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, resolveErr := servers.ResolveConfig(e.App, e.Auth, serverID)
+	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
@@ -302,7 +302,7 @@ func handleSystemdServiceUnitRead(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": pathErr.Error()})
 	}
 
-	raw, runErr := executeSSHCommand(e.Request.Context(), cfg, fmt.Sprintf("cat %s", shellQuote(unitPath)), 20*time.Second)
+	raw, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, fmt.Sprintf("cat %s", terminal.ShellQuote(unitPath)), 20*time.Second)
 	if runErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error()})
 	}
@@ -336,7 +336,7 @@ func handleSystemdServiceUnitWrite(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": "content too large (max 64KB)"})
 	}
 
-	cfg, resolveErr := servers.ResolveConfig(e.App, e.Auth, serverID)
+	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
@@ -347,8 +347,8 @@ func handleSystemdServiceUnitWrite(e *core.RequestEvent) error {
 	}
 
 	encoded := base64.StdEncoding.EncodeToString([]byte(body.Content))
-	writeCmd := fmt.Sprintf("printf '%%s' '%s' | base64 -d | (sudo -n tee %s >/dev/null || tee %s >/dev/null)", encoded, shellQuote(unitPath), shellQuote(unitPath))
-	writeOutput, writeErr := executeSSHCommand(e.Request.Context(), cfg, writeCmd, 25*time.Second)
+	writeCmd := fmt.Sprintf("printf '%%s' '%s' | base64 -d | (sudo -n tee %s >/dev/null || tee %s >/dev/null)", encoded, terminal.ShellQuote(unitPath), terminal.ShellQuote(unitPath))
+	writeOutput, writeErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, writeCmd, 25*time.Second)
 	if writeErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": writeErr.Error(), "output": writeOutput})
 	}
@@ -356,7 +356,7 @@ func handleSystemdServiceUnitWrite(e *core.RequestEvent) error {
 	userID, _, ip, _ := clientInfo(e)
 	audit.Write(e.App, audit.Entry{
 		UserID:       userID,
-		Action:       "terminal.systemd.unit.write",
+		Action:       "server.ops.systemd.unit.write",
 		ResourceType: "server",
 		ResourceID:   serverID,
 		Status:       audit.StatusSuccess,
@@ -384,7 +384,7 @@ func handleSystemdServiceUnitVerify(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, resolveErr := servers.ResolveConfig(e.App, e.Auth, serverID)
+	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
@@ -394,8 +394,8 @@ func handleSystemdServiceUnitVerify(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": pathErr.Error()})
 	}
 
-	verifyCmd := fmt.Sprintf("(sudo -n systemd-analyze verify %s || systemd-analyze verify %s)", shellQuote(unitPath), shellQuote(unitPath))
-	verifyOutput, verifyErr := executeSSHCommand(e.Request.Context(), cfg, verifyCmd, 25*time.Second)
+	verifyCmd := fmt.Sprintf("(sudo -n systemd-analyze verify %s || systemd-analyze verify %s)", terminal.ShellQuote(unitPath), terminal.ShellQuote(unitPath))
+	verifyOutput, verifyErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, verifyCmd, 25*time.Second)
 
 	userID, _, ip, _ := clientInfo(e)
 	status := audit.StatusSuccess
@@ -404,7 +404,7 @@ func handleSystemdServiceUnitVerify(e *core.RequestEvent) error {
 	}
 	audit.Write(e.App, audit.Entry{
 		UserID:       userID,
-		Action:       "terminal.systemd.unit.verify",
+		Action:       "server.ops.systemd.unit.verify",
 		ResourceType: "server",
 		ResourceID:   serverID,
 		Status:       status,
@@ -436,19 +436,19 @@ func handleSystemdServiceUnitApply(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	cfg, resolveErr := servers.ResolveConfig(e.App, e.Auth, serverID)
+	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
 
 	reloadCmd := "(sudo -n systemctl daemon-reload || systemctl daemon-reload)"
-	reloadOutput, reloadErr := executeSSHCommand(e.Request.Context(), cfg, reloadCmd, 20*time.Second)
+	reloadOutput, reloadErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, reloadCmd, 20*time.Second)
 	if reloadErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": reloadErr.Error(), "reload_output": reloadOutput})
 	}
 
 	applyCmd := fmt.Sprintf("(sudo -n systemctl try-restart %s || systemctl try-restart %s)", service, service)
-	applyOutput, applyErr := executeSSHCommand(e.Request.Context(), cfg, applyCmd, 25*time.Second)
+	applyOutput, applyErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, applyCmd, 25*time.Second)
 
 	userID, _, ip, _ := clientInfo(e)
 	status := audit.StatusSuccess
@@ -457,7 +457,7 @@ func handleSystemdServiceUnitApply(e *core.RequestEvent) error {
 	}
 	audit.Write(e.App, audit.Entry{
 		UserID:       userID,
-		Action:       "terminal.systemd.unit.apply",
+		Action:       "server.ops.systemd.unit.apply",
 		ResourceType: "server",
 		ResourceID:   serverID,
 		Status:       status,
@@ -482,9 +482,9 @@ func handleSystemdServiceUnitApply(e *core.RequestEvent) error {
 	})
 }
 
-func resolveSystemdUnitPath(ctx context.Context, cfg servers.ConnectorConfig, service string) (string, error) {
+func resolveSystemdUnitPath(ctx context.Context, cfg terminal.ConnectorConfig, service string) (string, error) {
 	cmd := fmt.Sprintf("systemctl show %s --property=FragmentPath --value --no-pager", service)
-	raw, err := executeSSHCommand(ctx, cfg, cmd, 20*time.Second)
+	raw, err := terminal.ExecuteSSHCommand(ctx, cfg, cmd, 20*time.Second)
 	if err != nil {
 		return "", err
 	}

@@ -27,33 +27,47 @@ func NewDockerClient(app core.App, serverID string, localClient *docker.Client) 
 	return docker.New(docker.NewSSHExecutor(sshConfig)), nil
 }
 
-// ResolveDockerSSHConfig builds the SSH config used for remote Docker operations.
+// ResolveDockerSSHConfig builds the SSH config from an already-loaded record,
+// avoiding an extra DB call compared to DockerSSHConfig.
 func ResolveDockerSSHConfig(app core.App, serverRec *core.Record, userID string) (docker.SSHConfig, error) {
 	server := ManagedServerFromRecord(serverRec)
 	if server == nil {
 		return docker.SSHConfig{}, fmt.Errorf("server record is required")
 	}
-	return server.DockerSSHConfig(app, userID)
+	rt := TunnelRuntimeFromRecord(serverRec)
+	return server.buildDockerSSHConfig(app, rt, userID)
 }
 
+// DockerSSHConfig builds the SSH configuration needed for Docker operations.
+// It loads the current TunnelRuntime from the DB so that tunnel-backed servers
+// resolve to their live forwarding address.
 func (s *ManagedServer) DockerSSHConfig(app core.App, userID string) (docker.SSHConfig, error) {
 	if s == nil {
 		return docker.SSHConfig{}, fmt.Errorf("server is required")
 	}
 
-	host, port, err := s.ResolveDockerSSHAddress()
+	record, err := app.FindRecordById("servers", s.ID)
+	if err != nil {
+		return docker.SSHConfig{}, fmt.Errorf("server not found: %w", err)
+	}
+	rt := TunnelRuntimeFromRecord(record)
+	return s.buildDockerSSHConfig(app, rt, userID)
+}
+
+func (s *ManagedServer) buildDockerSSHConfig(app core.App, rt TunnelRuntime, userID string) (docker.SSHConfig, error) {
+	host, port, err := s.ResolveDockerSSHAddress(rt)
 	if err != nil {
 		return docker.SSHConfig{}, err
 	}
 
-	cfg, err := s.ConnectorConfig(app, userID)
+	cfg, err := s.AccessConfig(app, userID)
 	if err != nil {
 		return docker.SSHConfig{}, err
 	}
 
 	sudoEnabled := cfg.User != "root"
 	sudoPassword := ""
-	if sudoEnabled && cfg.AuthType == "password" {
+	if sudoEnabled && cfg.AuthType == AuthMethodPassword {
 		sudoPassword = cfg.Secret
 	}
 
@@ -61,7 +75,7 @@ func (s *ManagedServer) DockerSSHConfig(app core.App, userID string) (docker.SSH
 		Host:         host,
 		Port:         port,
 		User:         cfg.User,
-		AuthType:     cfg.AuthType,
+		AuthType:     string(cfg.AuthType),
 		Secret:       cfg.Secret,
 		SudoEnabled:  sudoEnabled,
 		SudoPassword: sudoPassword,
@@ -74,7 +88,8 @@ func ResolveDockerSSHAddress(serverRec *core.Record) (string, int, error) {
 	if server == nil {
 		return "", 0, fmt.Errorf("server record is required")
 	}
-	return server.ResolveDockerSSHAddress()
+	rt := TunnelRuntimeFromRecord(serverRec)
+	return server.ResolveDockerSSHAddress(rt)
 }
 
 // TunnelSSHPortFromServices extracts the SSH forwarding port from tunnel_services JSON.

@@ -6,7 +6,8 @@ import (
 	"path/filepath"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/domain/resource/server"
+	"github.com/websoft9/appos/backend/domain/resource/servers"
+	"github.com/websoft9/appos/backend/domain/terminal"
 	"github.com/websoft9/appos/backend/infra/docker"
 )
 
@@ -16,14 +17,14 @@ type SFTPClient interface {
 	Close() error
 }
 
-type serverConfigResolver func(app core.App, serverID string) (servers.ConnectorConfig, error)
+type serverConfigResolver func(app core.App, serverID string) (servers.AccessConfig, error)
 
-type sftpClientFactory func(ctx context.Context, cfg servers.ConnectorConfig) (SFTPClient, error)
+type sftpClientFactory func(ctx context.Context, cfg terminal.ConnectorConfig) (SFTPClient, error)
 
-var defaultServerConfigResolver serverConfigResolver = resolveServerConfig
+var defaultServerConfigResolver serverConfigResolver = resolveServerAccessConfig
 
-var defaultSFTPClientFactory sftpClientFactory = func(ctx context.Context, cfg servers.ConnectorConfig) (SFTPClient, error) {
-	return servers.NewSFTPClient(ctx, cfg)
+var defaultSFTPClientFactory sftpClientFactory = func(ctx context.Context, cfg terminal.ConnectorConfig) (SFTPClient, error) {
+	return terminal.NewSFTPClient(ctx, cfg)
 }
 
 type Executor interface {
@@ -65,8 +66,9 @@ func (e sshExecutor) PrepareWorkspace(projectDir string, compose string) error {
 	if err != nil {
 		return err
 	}
+	terminalCfg := terminalConfigFromServerAccess(cfg)
 
-	client, err := e.factory()(context.Background(), cfg)
+	client, err := e.factory()(context.Background(), terminalCfg)
 	if err != nil {
 		return err
 	}
@@ -89,7 +91,7 @@ func (e sshExecutor) DockerClient() (*docker.Client, error) {
 
 	sudoEnabled := cfg.User != "root"
 	sudoPassword := ""
-	if sudoEnabled && cfg.AuthType == "password" {
+	if sudoEnabled && cfg.AuthType == servers.AuthMethodPassword {
 		sudoPassword = cfg.Secret
 	}
 
@@ -97,7 +99,7 @@ func (e sshExecutor) DockerClient() (*docker.Client, error) {
 		Host:         cfg.Host,
 		Port:         cfg.Port,
 		User:         cfg.User,
-		AuthType:     cfg.AuthType,
+		AuthType:     string(cfg.AuthType),
 		Secret:       cfg.Secret,
 		SudoEnabled:  sudoEnabled,
 		SudoPassword: sudoPassword,
@@ -146,8 +148,19 @@ func newSSHExecutor(app core.App, serverID string) sshExecutor {
 	}
 }
 
-func resolveServerConfig(app core.App, serverID string) (servers.ConnectorConfig, error) {
+func resolveServerAccessConfig(app core.App, serverID string) (servers.AccessConfig, error) {
 	return servers.ResolveConfigForUserID(app, serverID, "")
+}
+
+func terminalConfigFromServerAccess(cfg servers.AccessConfig) terminal.ConnectorConfig {
+	return terminal.ConnectorConfig{
+		Host:     cfg.Host,
+		Port:     cfg.Port,
+		User:     cfg.User,
+		AuthType: terminal.CredAuthType(cfg.AuthType),
+		Secret:   cfg.Secret,
+		Shell:    cfg.Shell,
+	}
 }
 
 func tunnelSSHPort(raw string) (int, error) {

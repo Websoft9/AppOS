@@ -137,6 +137,9 @@ func scanFile(filePath string) ([]route, map[string]bool) {
 	if strings.HasPrefix(filepath.Base(filePath), "server") {
 		defaultG = "/api/servers"
 	}
+	if strings.HasPrefix(filepath.Base(filePath), "terminal") {
+		defaultG = "/api/terminal"
+	}
 	if filepath.Base(filePath) == "components.go" {
 		defaultG = "/api/components"
 	}

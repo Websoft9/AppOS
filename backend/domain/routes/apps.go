@@ -17,7 +17,8 @@ import (
 	"github.com/websoft9/appos/backend/domain/audit"
 	"github.com/websoft9/appos/backend/domain/deploy"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
-	servers "github.com/websoft9/appos/backend/domain/resource/server"
+	servers "github.com/websoft9/appos/backend/domain/resource/servers"
+	"github.com/websoft9/appos/backend/domain/terminal"
 )
 
 const appComposeConfigMaxBytes int64 = 2 << 20
@@ -897,12 +898,12 @@ func slugifyAppName(name string) string {
 	return strings.Trim(builder.String(), "-")
 }
 
-func openAppSFTPClient(e *core.RequestEvent, serverID string) (*servers.SFTPClient, error) {
-	cfg, err := servers.ResolveConfig(e.App, e.Auth, serverID)
+func openAppSFTPClient(e *core.RequestEvent, serverID string) (*terminal.SFTPClient, error) {
+	cfg, err := resolveTerminalConfig(e.App, e.Auth, serverID)
 	if err != nil {
 		return nil, err
 	}
-	return servers.NewSFTPClient(e.Request.Context(), cfg)
+	return terminal.NewSFTPClient(e.Request.Context(), cfg)
 }
 
 type appConfigRollbackSnapshot struct {

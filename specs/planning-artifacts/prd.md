@@ -66,6 +66,7 @@ This table is the baseline mapping of domain boundaries, product modules, and ca
 | Observability | Health & Diagnostics | Health, Diagnostic Views, App Health, Connectivity Checks | Current + Planned | `HealthCheckSet` | `HealthSummary`, `DiagnosticSignal`, `CheckResult` |
 | Observability | Platform Self-Observation | AppOS Status, Active Services, System Crons | Current + Planned | `PlatformStatusSnapshot` | `ComponentStatus`, `ServiceStatus`, `CronStatus` |
 | Operations Management | Groups & Inventory Views | Groups, Resource Inventory, Resource Graph | Current + Planned | `Group` | `Group`, `GroupItem`, `ResourceReference`, `ResourceEdge`, `OwnershipBinding` |
+| Operations Management | External Signals | Feeds | Planned | `Feed` | `FeedSource`, `FeedItem`, `FeedJudgment`, `FeedBinding` |
 | Operations Management | Operational Knowledge | Topics | Current | `Topic` | `Topic`, `TopicPost`, `TopicReference` |
 | Operations Management | Operational Knowledge | Space | Current | `KnowledgeDocument` | `KnowledgeDocument`, `KnowledgeFolder`, `Attachment` |
 | Operations Management | Incident Response | Alerts, Incidents, Notification Rules, Incident Timeline | Planned | `Incident` | `Incident`, `AlertRule`, `EscalationPolicy` |
@@ -118,6 +119,7 @@ Resource modeling note:
 - `Resource` is the namespace for operator-managed external resources. The current first-class resource types are `Server`, `Database`, `Connector`, and `Registry`.
 - `Server` is already a full business domain. `Database`, `Connector`, and `Registry` currently start thinner but should evolve independently rather than being collapsed into one generic resource blob.
 - `Groups` is not a resource subtype. It is a standalone supporting domain for cross-resource visual grouping and membership.
+- `Feeds` is not an integration transport subtype. Connector or fetch mechanics may supply external data, but feed judgment and binding belong to `Operations Management`.
 - `Secrets Management` remains outside `Resource`; resources may reference secrets, but a secret is a security capability, not an external connection target.
 - Future heavy third-party workflows should become standalone `Integrations` domains that reference `Resource.Connector` instead of overloading the connector resource itself.
 
@@ -127,7 +129,7 @@ This table maps user-facing surfaces to the domains they project.
 
 | Surface / Entry | Type | Owned Domains | Primary Routes / Entrypoints | Current Reality |
 | --- | --- | --- | --- | --- |
-| Workspace | Navigation Group | Multiple | `/dashboard`, `/store`, `/deploy`, `/actions`, `/apps`, `/terminal`, `/groups`, `/topics`, `/space` | Current sidebar grouping for day-to-day operator work; not a domain |
+| Workspace | Navigation Group | Multiple | `/dashboard`, `/store`, `/deploy`, `/actions`, `/apps`, `/terminal`, `/groups`, `/feeds`, `/topics`, `/space` | Current sidebar grouping for day-to-day operator work; not a domain |
 | Admin | Navigation Group | Multiple | `/status`, `/tunnels`, `/logs`, `/audit`, `/iac`, `/resources`, `/secrets`, `/certificates`, `/shared-envs`, `/users`, `/settings` | Current sidebar grouping for platform administration; not a domain |
 | Dashboard | Overview Surface | `Application Lifecycle`, `Observability`, `Platform Self-Observation` | `/dashboard` | Cross-domain summary and entry page; should stay an overview, not become its own domain |
 | Applications | Navigation Bundle | `Application Lifecycle`, `App Catalog` | `/store`, `/deploy`, `/actions`, `/apps` | Current collapsible navigation bucket that groups the app journey |
@@ -137,7 +139,8 @@ This table maps user-facing surfaces to the domains they project.
 | Installed Apps | Single-Domain Entry | `Application Lifecycle` | `/apps`, `/apps/$appId` | Current installed app list and app detail entry |
 | App Detail | Cross-Domain Container | `Application Lifecycle`, `Observability`, `Resource`, `Gateway Management` | `/apps/$appId` | App-centric work surface that can aggregate status, actions, exposures, diagnostics, and control surfaces |
 | Terminal | Single-Domain Entry with cross-links | `Resource` | `/terminal`, `/terminal/server/$serverId` | Real control surface; can be launched from app or server context without becoming a lifecycle domain |
-| Collaboration | Navigation Bundle | `Operations Management` | `/groups`, `/topics` | Current grouping for collaboration and operational knowledge workflows |
+| Collaboration | Navigation Bundle | `Operations Management` | `/groups`, `/feeds`, `/topics` | Current grouping for collaboration and operational knowledge workflows |
+| Feeds | Single-Domain Entry | `Operations Management` | `/feeds` | Dedicated external signal workbench for source monitoring, filtering, judgment, and binding |
 | Space | Single-Domain Entry | `Operations Management` | `/space` | User workspace / document surface for operational knowledge artifacts |
 | Resources | Cross-Domain Container | `Resource`, `Operations Management` | `/resources`, `/resources/servers`, `/resources/tunnels`, `/resources/scripts`, `/resources/connectors`, `/resources/groups`, `/resources/databases`, `/resources/cloud-accounts` | Inventory-style container for external resources plus cross-resource grouping views; connectors are the canonical surface for reusable external capability access |
 | System | Cross-Domain Container | `Observability`, `Runtime Infrastructure`, `Audit and Policy` | `/status`, `/tunnels`, `/logs`, `/audit`, `/iac` | Admin container for platform health, tunnel state, logs, audit, and IaC assets |

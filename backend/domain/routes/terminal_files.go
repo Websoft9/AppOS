@@ -15,11 +15,11 @@ import (
 	"github.com/websoft9/appos/backend/domain/audit"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
-	servers "github.com/websoft9/appos/backend/domain/resource/server"
+	"github.com/websoft9/appos/backend/domain/terminal"
 )
 
 func registerServerFileRoutes(g *router.RouterGroup[*core.RequestEvent]) {
-	sftp := g.Group("/{serverId}/files")
+	sftp := g.Group("/sftp/{serverId}")
 	sftp.GET("/list", handleSFTPList)
 	sftp.GET("/search", handleSFTPSearch)
 	sftp.GET("/constraints", handleSFTPConstraints)
@@ -47,7 +47,7 @@ func registerServerFileRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 //
 // @Summary List directory
 // @Description Returns a directory listing for the given path on the remote server. Superuser only.
-// @Tags Server Files
+// @Tags Terminal SFTP
 // @Security BearerAuth
 // @Param serverId path string true "server record ID"
 // @Param path query string false "directory path (default /)"
@@ -55,7 +55,7 @@ func registerServerFileRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]any
-// @Router /api/servers/{serverId}/files/list [get]
+// @Router /api/terminal/sftp/{serverId}/list [get]
 func handleSFTPList(e *core.RequestEvent) error {
 	client, serverID, err := openSFTPClient(e)
 	if err != nil {
@@ -84,7 +84,7 @@ func handleSFTPList(e *core.RequestEvent) error {
 //
 // @Summary Search files
 // @Description Recursively searches for files matching the query under the base path. Superuser only.
-// @Tags Server Files
+// @Tags Terminal SFTP
 // @Security BearerAuth
 // @Param serverId path string true "server record ID"
 // @Param path query string false "base path (default /)"
@@ -93,7 +93,7 @@ func handleSFTPList(e *core.RequestEvent) error {
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]any
-// @Router /api/servers/{serverId}/files/search [get]
+// @Router /api/terminal/sftp/{serverId}/search [get]
 func handleSFTPSearch(e *core.RequestEvent) error {
 	client, serverID, err := openSFTPClient(e)
 	if err != nil {
@@ -127,12 +127,12 @@ func handleSFTPSearch(e *core.RequestEvent) error {
 //
 // @Summary File constraints
 // @Description Returns effective upload limits (max_upload_files) from sysconfig. Superuser only.
-// @Tags Server Files
+// @Tags Terminal SFTP
 // @Security BearerAuth
 // @Param serverId path string true "server record ID"
 // @Success 200 {object} map[string]any
 // @Failure 401 {object} map[string]any
-// @Router /api/servers/{serverId}/files/constraints [get]
+// @Router /api/terminal/sftp/{serverId}/constraints [get]
 func handleSFTPConstraints(e *core.RequestEvent) error {
 	cfg, _ := sysconfig.GetGroup(e.App, "connect", "sftp", settingscatalog.DefaultGroup("connect", "sftp"))
 	return e.JSON(http.StatusOK, map[string]any{
@@ -144,7 +144,7 @@ func handleSFTPConstraints(e *core.RequestEvent) error {
 //
 // @Summary Stat path
 // @Description Returns stat attributes (size, permissions, mtime, etc.) for the given remote path. Superuser only.
-// @Tags Server Files
+// @Tags Terminal SFTP
 // @Security BearerAuth
 // @Param serverId path string true "server record ID"
 // @Param path query string true "remote path"
@@ -152,7 +152,7 @@ func handleSFTPConstraints(e *core.RequestEvent) error {
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]any
-// @Router /api/servers/{serverId}/files/stat [get]
+// @Router /api/terminal/sftp/{serverId}/stat [get]
 func handleSFTPStat(e *core.RequestEvent) error {
 	client, serverID, err := openSFTPClient(e)
 	if err != nil {
@@ -180,7 +180,7 @@ func handleSFTPStat(e *core.RequestEvent) error {
 //
 // @Summary Download file
 // @Description Streams a remote file as Content-Disposition: attachment. Writes an audit entry. Superuser only.
-// @Tags Server Files
+// @Tags Terminal SFTP
 // @Security BearerAuth
 // @Param serverId path string true "server record ID"
 // @Param path query string true "remote file path"
@@ -188,7 +188,7 @@ func handleSFTPStat(e *core.RequestEvent) error {
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]any
-// @Router /api/servers/{serverId}/files/download [get]
+// @Router /api/terminal/sftp/{serverId}/download [get]
 func handleSFTPDownload(e *core.RequestEvent) error {
 	client, serverID, err := openSFTPClient(e)
 	if err != nil {
@@ -230,7 +230,7 @@ func handleSFTPDownload(e *core.RequestEvent) error {
 //
 // @Summary Upload file
 // @Description Accepts a multipart upload and saves the file to the given remote directory. Writes an audit entry. Superuser only.
-// @Tags Server Files
+// @Tags Terminal SFTP
 // @Security BearerAuth
 // @Param serverId path string true "server record ID"
 // @Param path query string true "remote destination directory"
@@ -240,7 +240,7 @@ func handleSFTPDownload(e *core.RequestEvent) error {
 // @Failure 401 {object} map[string]any
 // @Failure 413 {object} map[string]any
 // @Failure 500 {object} map[string]any
-// @Router /api/servers/{serverId}/files/upload [post]
+// @Router /api/terminal/sftp/{serverId}/upload [post]
 func handleSFTPUpload(e *core.RequestEvent) error {
 	client, serverID, err := openSFTPClient(e)
 	if err != nil {
@@ -288,7 +288,7 @@ func handleSFTPUpload(e *core.RequestEvent) error {
 //
 // @Summary Create directory
 // @Description Creates the given directory (and parents) on the remote server. Superuser only.
-// @Tags Server Files
+// @Tags Terminal SFTP
 // @Security BearerAuth
 // @Param serverId path string true "server record ID"
 // @Param body body object true "path: directory to create"
@@ -296,7 +296,7 @@ func handleSFTPUpload(e *core.RequestEvent) error {
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]any
-// @Router /api/servers/{serverId}/files/mkdir [post]
+// @Router /api/terminal/sftp/{serverId}/mkdir [post]
 func handleSFTPMkdir(e *core.RequestEvent) error {
 	client, _, err := openSFTPClient(e)
 	if err != nil {
@@ -321,7 +321,7 @@ func handleSFTPMkdir(e *core.RequestEvent) error {
 //
 // @Summary Rename
 // @Description Renames a file or directory from one path to another on the remote server. Superuser only.
-// @Tags Server Files
+// @Tags Terminal SFTP
 // @Security BearerAuth
 // @Param serverId path string true "server record ID"
 // @Param body body object true "from, to (remote paths)"
@@ -329,7 +329,7 @@ func handleSFTPMkdir(e *core.RequestEvent) error {
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]any
-// @Router /api/servers/{serverId}/files/rename [post]
+// @Router /api/terminal/sftp/{serverId}/rename [post]
 func handleSFTPRename(e *core.RequestEvent) error {
 	client, _, err := openSFTPClient(e)
 	if err != nil {
@@ -355,7 +355,7 @@ func handleSFTPRename(e *core.RequestEvent) error {
 //
 // @Summary Change permissions
 // @Description Sets file permissions (octal mode) on a remote path. Superuser only.
-// @Tags Server Files
+// @Tags Terminal SFTP
 // @Security BearerAuth
 // @Param serverId path string true "server record ID"
 // @Param body body object true "path, mode (octal string, e.g. \"755\"), recursive (bool)"
@@ -363,7 +363,7 @@ func handleSFTPRename(e *core.RequestEvent) error {
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]any
-// @Router /api/servers/{serverId}/files/chmod [post]
+// @Router /api/terminal/sftp/{serverId}/chmod [post]
 func handleSFTPChmod(e *core.RequestEvent) error {
 	client, _, err := openSFTPClient(e)
 	if err != nil {
@@ -400,7 +400,7 @@ func handleSFTPChmod(e *core.RequestEvent) error {
 //
 // @Summary Change owner
 // @Description Sets owner and group for a remote path by name. Superuser only.
-// @Tags Server Files
+// @Tags Terminal SFTP
 // @Security BearerAuth
 // @Param serverId path string true "server record ID"
 // @Param body body object true "path, owner (username string), group (group name string)"
@@ -408,7 +408,7 @@ func handleSFTPChmod(e *core.RequestEvent) error {
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]any
-// @Router /api/servers/{serverId}/files/chown [post]
+// @Router /api/terminal/sftp/{serverId}/chown [post]
 func handleSFTPChown(e *core.RequestEvent) error {
 	client, _, err := openSFTPClient(e)
 	if err != nil {
@@ -446,7 +446,7 @@ func handleSFTPChown(e *core.RequestEvent) error {
 //
 // @Summary Create symlink
 // @Description Creates a symbolic link on the remote server. Superuser only.
-// @Tags Server Files
+// @Tags Terminal SFTP
 // @Security BearerAuth
 // @Param serverId path string true "server record ID"
 // @Param body body object true "target (link destination), link_path (new symlink path)"
@@ -454,7 +454,7 @@ func handleSFTPChown(e *core.RequestEvent) error {
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]any
-// @Router /api/servers/{serverId}/files/symlink [post]
+// @Router /api/terminal/sftp/{serverId}/symlink [post]
 func handleSFTPSymlink(e *core.RequestEvent) error {
 	client, _, err := openSFTPClient(e)
 	if err != nil {
@@ -480,7 +480,7 @@ func handleSFTPSymlink(e *core.RequestEvent) error {
 //
 // @Summary Copy
 // @Description Copies a remote file or directory to the destination path. Returns final progress. Superuser only.
-// @Tags Server Files
+// @Tags Terminal SFTP
 // @Security BearerAuth
 // @Param serverId path string true "server record ID"
 // @Param body body object true "from, to (remote paths)"
@@ -488,7 +488,7 @@ func handleSFTPSymlink(e *core.RequestEvent) error {
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]any
-// @Router /api/servers/{serverId}/files/copy [post]
+// @Router /api/terminal/sftp/{serverId}/copy [post]
 func handleSFTPCopy(e *core.RequestEvent) error {
 	client, _, err := openSFTPClient(e)
 	if err != nil {
@@ -520,7 +520,7 @@ func handleSFTPCopy(e *core.RequestEvent) error {
 //
 // @Summary Copy with progress
 // @Description Copies a remote file/directory and streams Server-Sent Events with progress updates. Superuser only.
-// @Tags Server Files
+// @Tags Terminal SFTP
 // @Security BearerAuth
 // @Param serverId path string true "server record ID"
 // @Param from query string true "source remote path"
@@ -528,7 +528,7 @@ func handleSFTPCopy(e *core.RequestEvent) error {
 // @Success 200 {string} string "SSE stream (text/event-stream)"
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
-// @Router /api/servers/{serverId}/files/copy-stream [get]
+// @Router /api/terminal/sftp/{serverId}/copy-stream [get]
 func handleSFTPCopyStream(e *core.RequestEvent) error {
 	client, _, err := openSFTPClient(e)
 	if err != nil {
@@ -575,7 +575,7 @@ func handleSFTPCopyStream(e *core.RequestEvent) error {
 //
 // @Summary Move
 // @Description Moves (renames) a remote file or directory. Superuser only.
-// @Tags Server Files
+// @Tags Terminal SFTP
 // @Security BearerAuth
 // @Param serverId path string true "server record ID"
 // @Param body body object true "from, to (remote paths)"
@@ -583,7 +583,7 @@ func handleSFTPCopyStream(e *core.RequestEvent) error {
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]any
-// @Router /api/servers/{serverId}/files/move [post]
+// @Router /api/terminal/sftp/{serverId}/move [post]
 func handleSFTPMove(e *core.RequestEvent) error {
 	client, _, err := openSFTPClient(e)
 	if err != nil {
@@ -609,7 +609,7 @@ func handleSFTPMove(e *core.RequestEvent) error {
 //
 // @Summary Delete
 // @Description Deletes the file or directory at the given remote path. Writes an audit entry. Superuser only.
-// @Tags Server Files
+// @Tags Terminal SFTP
 // @Security BearerAuth
 // @Param serverId path string true "server record ID"
 // @Param path query string true "remote path to delete"
@@ -617,7 +617,7 @@ func handleSFTPMove(e *core.RequestEvent) error {
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]any
-// @Router /api/servers/{serverId}/files/delete [delete]
+// @Router /api/terminal/sftp/{serverId}/delete [delete]
 func handleSFTPDelete(e *core.RequestEvent) error {
 	client, serverID, err := openSFTPClient(e)
 	if err != nil {
@@ -657,7 +657,7 @@ const sftpMaxReadBytes = 2 << 20 // 2 MB — reasonable limit for text editing
 //
 // @Summary Read file
 // @Description Returns UTF-8 text content of a remote file via SFTP (max 2 MB). Superuser only.
-// @Tags Server Files
+// @Tags Terminal SFTP
 // @Security BearerAuth
 // @Param serverId path string true "server record ID"
 // @Param path query string true "remote file path"
@@ -666,7 +666,7 @@ const sftpMaxReadBytes = 2 << 20 // 2 MB — reasonable limit for text editing
 // @Failure 401 {object} map[string]any
 // @Failure 413 {object} map[string]any
 // @Failure 500 {object} map[string]any
-// @Router /api/servers/{serverId}/files/read [get]
+// @Router /api/terminal/sftp/{serverId}/read [get]
 func handleSFTPRead(e *core.RequestEvent) error {
 	client, _, err := openSFTPClient(e)
 	if err != nil {
@@ -694,7 +694,7 @@ func handleSFTPRead(e *core.RequestEvent) error {
 //
 // @Summary Write file
 // @Description Overwrites the content of a remote file with the provided text. Writes audit entry. Superuser only.
-// @Tags Server Files
+// @Tags Terminal SFTP
 // @Security BearerAuth
 // @Param serverId path string true "server record ID"
 // @Param body body object true "path, content"
@@ -702,7 +702,7 @@ func handleSFTPRead(e *core.RequestEvent) error {
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]any
-// @Router /api/servers/{serverId}/files/write [post]
+// @Router /api/terminal/sftp/{serverId}/write [post]
 func handleSFTPWrite(e *core.RequestEvent) error {
 	client, serverID, err := openSFTPClient(e)
 	if err != nil {
@@ -739,13 +739,13 @@ func handleSFTPWrite(e *core.RequestEvent) error {
 
 // openSFTPClient resolves server config and opens an SFTP session.
 // Returns the client, serverID, and any error.
-func openSFTPClient(e *core.RequestEvent) (*servers.SFTPClient, string, error) {
+func openSFTPClient(e *core.RequestEvent) (*terminal.SFTPClient, string, error) {
 	serverID := e.Request.PathValue("serverId")
-	cfg, err := servers.ResolveConfig(e.App, e.Auth, serverID)
+	cfg, err := resolveTerminalConfig(e.App, e.Auth, serverID)
 	if err != nil {
 		return nil, serverID, err
 	}
-	client, err := servers.NewSFTPClient(e.Request.Context(), cfg)
+	client, err := terminal.NewSFTPClient(e.Request.Context(), cfg)
 	if err != nil {
 		return nil, serverID, err
 	}

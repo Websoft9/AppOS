@@ -3,7 +3,7 @@
 // Route groups:
 //   - /api/ext/docker     — Docker operations (compose, images, containers, networks, volumes)
 //   - /api/ext/proxy      — reverse proxy domain/SSL management
-//   - /api/ext/system     — system metrics, terminal, file browser
+//   - /api/ext/system     — system metrics, file browser
 //   - /api/ext/backup     — backup/restore operations
 //   - /api/ext/resources  — Resource Store CRUD (Epic 8)
 //   - /api/space         — User private space (Epic 9)
@@ -17,7 +17,8 @@
 //   - /api/topics         — Topic share management (authenticated + public share token)
 //   - /api/ext/iac        — IaC file management (Epic 14, superuser-only)
 //   - /api/tunnel         — tunnel setup and operations APIs (Epic 16)
-//   - /api/servers        — Server operations: shell, files, containers, ops (Epic 20)
+//   - /api/servers        — Server catalog: ops, ports, systemd (Epic 20)
+//   - /api/terminal       — Interactive terminal sessions: SSH, Docker, SFTP, local (Epic 20)
 package routes
 
 import (
@@ -72,9 +73,14 @@ func Register(se *core.ServeEvent) {
 	deployments.Bind(wsTokenAuth())
 	deployments.Bind(apis.RequireAuth())
 
-	// Server operation routes use /api/servers prefix
+	// Server catalog routes (ops, ports, systemd) — no terminal sessions
 	servers := se.Router.Group("/api/servers")
 	servers.Bind(apis.RequireAuth())
+
+	// Terminal session routes (SSH PTY, Docker exec, SFTP, local)
+	terminalGroup := se.Router.Group("/api/terminal")
+	terminalGroup.Bind(wsTokenAuth())
+	terminalGroup.Bind(apis.RequireSuperuserAuth())
 
 	registerDockerRoutes(g)
 	registerProxyRoutes(g)
@@ -93,6 +99,7 @@ func Register(se *core.ServeEvent) {
 	registerExposureRoutes(deployments)
 	registerIaCRoutes(g)
 	registerServerRoutes(servers)
+	registerTerminalRoutes(terminalGroup)
 	registerTunnelRoutes(se)
 	registerSecretsRoutes(se)
 	registerCertificatesRoutes(se)

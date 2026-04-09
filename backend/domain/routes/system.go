@@ -13,14 +13,12 @@ import (
 // Endpoints:
 //
 //	GET  /api/ext/system/metrics   — CPU, memory, disk usage
-//	GET  /api/ext/system/terminal  — WebSocket terminal (PTY)
 //	GET  /api/ext/system/files     — file browser listing
 func registerSystemRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	sys := g.Group("/system")
 	sys.Bind(apis.RequireSuperuserAuth())
 
 	sys.GET("/metrics", handleSystemMetrics)
-	sys.GET("/terminal", handleTerminal)
 	sys.GET("/files", handleFileBrowser)
 }
 
@@ -36,22 +34,6 @@ func registerSystemRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 // @Router /api/ext/system/metrics [get]
 func handleSystemMetrics(e *core.RequestEvent) error {
 	// TODO: collect and return CPU, memory, disk metrics
-	return e.JSON(http.StatusOK, map[string]any{
-		"message": "not implemented",
-	})
-}
-
-// handleTerminal upgrades the connection to a WebSocket PTY session on the local host.
-//
-// @Summary Local WebSocket terminal
-// @Description Upgrades to a WebSocket PTY session on the local server. Superuser only.
-// @Tags Runtime Operations
-// @Security BearerAuth
-// @Success 101 {string} string "WebSocket upgrade"
-// @Failure 401 {object} map[string]any
-// @Router /api/ext/system/terminal [get]
-func handleTerminal(e *core.RequestEvent) error {
-	// TODO: upgrade to WebSocket, create PTY session via creack/pty
 	return e.JSON(http.StatusOK, map[string]any{
 		"message": "not implemented",
 	})

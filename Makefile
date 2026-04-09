@@ -182,6 +182,8 @@ run:
 	@echo "Hot reload: copying pre-built artifacts..."
 	@docker cp backend/appos $(CONTAINER):/usr/local/bin/appos
 	@docker cp dashboard/dist/. $(CONTAINER):/usr/share/nginx/html/dashboard/
+	@docker cp build/nginx.conf $(CONTAINER):/etc/nginx/nginx.conf
+	@docker exec $(CONTAINER) nginx -t
 	@docker exec $(CONTAINER) supervisorctl -c /etc/supervisor/supervisord.conf restart appos nginx
 	@echo "✓ Hot reload complete"
 	@echo "  → http://127.0.0.1:$(PORT_EFFECTIVE)/"

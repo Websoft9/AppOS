@@ -23,8 +23,8 @@ type TokenService struct {
 
 // Get returns the current tunnel token for a managed server if one exists.
 func (s *TokenService) Get(managedServerID string) (string, bool, error) {
-	store := serverStore{app: s.App}
-	secret, err := store.findTunnelTokenSecret(managedServerID)
+	repo := tunnelRepository{app: s.App}
+	secret, err := repo.findTunnelTokenSecret(managedServerID)
 	if err != nil {
 		return "", false, err
 	}
@@ -41,8 +41,8 @@ func (s *TokenService) Get(managedServerID string) (string, bool, error) {
 
 // GetOrIssue returns the current token unless rotation is requested, in which case it issues a fresh token.
 func (s *TokenService) GetOrIssue(managedServerID string, wantRotate bool) (*TokenIssueResult, error) {
-	store := serverStore{app: s.App}
-	secret, err := store.findTunnelTokenSecret(managedServerID)
+	repo := tunnelRepository{app: s.App}
+	secret, err := repo.findTunnelTokenSecret(managedServerID)
 	if err != nil {
 		return nil, err
 	}
@@ -60,14 +60,14 @@ func (s *TokenService) GetOrIssue(managedServerID string, wantRotate bool) (*Tok
 	rotating := secret != nil
 	if rotating {
 		s.invalidateCachedToken(secret)
-		if err := store.updateTunnelTokenSecret(secret, managedServerID, rawToken); err != nil {
+		if err := repo.updateTunnelTokenSecret(secret, managedServerID, rawToken); err != nil {
 			return nil, err
 		}
 		if wantRotate && s.Sessions != nil {
 			s.Sessions.Disconnect(managedServerID, tunnelcore.DisconnectReasonTokenRotated)
 		}
 	} else {
-		if err := store.createTunnelTokenSecret(managedServerID, rawToken); err != nil {
+		if err := repo.createTunnelTokenSecret(managedServerID, rawToken); err != nil {
 			return nil, err
 		}
 	}

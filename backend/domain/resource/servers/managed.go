@@ -3,25 +3,40 @@ package servers
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
 	sec "github.com/websoft9/appos/backend/domain/secrets"
 	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
 )
 
+// ConnectionMode identifies how a managed server is accessed.
+type ConnectionMode string
+
+const (
+	// ConnectionModeDirect connects to the server host directly over TCP.
+	ConnectionModeDirect ConnectionMode = "direct"
+	// ConnectionModeTunnel connects via a relay tunnel established by the agent.
+	ConnectionModeTunnel ConnectionMode = "tunnel"
+)
+
+// IsValid reports whether the connection mode is a recognised supported value.
+func (m ConnectionMode) IsValid() bool {
+	return m == ConnectionModeDirect || m == ConnectionModeTunnel
+}
+
+// ManagedServer is the catalog aggregate root for a registered managed node.
+// It holds only configuration state; runtime connectivity state (tunnel
+// status, active services) lives in TunnelRuntime.
 type ManagedServer struct {
 	ID             string
 	Name           string
 	Host           string
 	Port           int
 	User           string
-	ConnectType    string
+	ConnectType    ConnectionMode
 	CredentialID   string
 	Shell          string
 	TunnelForwards string
-	TunnelStatus   string
-	TunnelServices string
 	Description    string
 }
 
@@ -56,24 +71,27 @@ func ManagedServerFromRecord(record *core.Record) *ManagedServer {
 		port = 22
 	}
 
+	ct := ConnectionMode(record.GetString("connect_type"))
+	if !ct.IsValid() {
+		ct = ConnectionModeDirect
+	}
+
 	return &ManagedServer{
 		ID:             record.Id,
 		Name:           record.GetString("name"),
 		Host:           record.GetString("host"),
 		Port:           port,
 		User:           record.GetString("user"),
-		ConnectType:    record.GetString("connect_type"),
+		ConnectType:    ct,
 		CredentialID:   record.GetString("credential"),
 		Shell:          record.GetString("shell"),
 		TunnelForwards: record.GetString("tunnel_forwards"),
-		TunnelStatus:   record.GetString("tunnel_status"),
-		TunnelServices: record.GetString("tunnel_services"),
 		Description:    record.GetString("description"),
 	}
 }
 
 func (s *ManagedServer) IsTunnel() bool {
-	return s != nil && strings.EqualFold(s.ConnectType, "tunnel")
+	return s != nil && s.ConnectType == ConnectionModeTunnel
 }
 
 func (s *ManagedServer) TunnelForwardSpecs() ([]tunnelcore.ForwardSpec, error) {
@@ -91,26 +109,28 @@ func (s *ManagedServer) TunnelForwardSpecs() ([]tunnelcore.ForwardSpec, error) {
 	return forwards, nil
 }
 
-func ResolveConfigForUserID(app core.App, serverID string, userID string) (ConnectorConfig, error) {
-	server, err := LoadManagedServer(app, serverID)
+func ResolveConfigForUserID(app core.App, serverID string, userID string) (AccessConfig, error) {
+	record, err := app.FindRecordById("servers", serverID)
 	if err != nil {
-		return ConnectorConfig{}, err
+		return AccessConfig{}, fmt.Errorf("server not found: %w", err)
 	}
+	server := ManagedServerFromRecord(record)
+	rt := TunnelRuntimeFromRecord(record)
 
-	cfg, err := server.ConnectorConfig(app, userID)
+	cfg, err := server.AccessConfig(app, userID)
 	if err != nil {
-		return ConnectorConfig{}, err
+		return AccessConfig{}, err
 	}
-	server.ApplyBestEffortTunnel(&cfg)
+	server.ApplyBestEffortTunnel(&cfg, rt)
 	return cfg, nil
 }
 
-func (s *ManagedServer) ConnectorConfig(app core.App, userID string) (ConnectorConfig, error) {
+func (s *ManagedServer) AccessConfig(app core.App, userID string) (AccessConfig, error) {
 	if s == nil {
-		return ConnectorConfig{}, fmt.Errorf("server is required")
+		return AccessConfig{}, fmt.Errorf("server is required")
 	}
 
-	cfg := ConnectorConfig{
+	cfg := AccessConfig{
 		Host:  s.Host,
 		Port:  s.Port,
 		User:  s.User,
@@ -118,21 +138,24 @@ func (s *ManagedServer) ConnectorConfig(app core.App, userID string) (ConnectorC
 	}
 
 	if err := s.applyCredential(app, userID, &cfg); err != nil {
-		return ConnectorConfig{}, err
+		return AccessConfig{}, err
 	}
 
 	return cfg, nil
 }
 
-func (s *ManagedServer) ApplyBestEffortTunnel(cfg *ConnectorConfig) {
+// ApplyBestEffortTunnel rewrites Host/Port in cfg to the locally-forwarded tunnel
+// address when this server uses ConnectionModeTunnel. rt provides the runtime
+// services map; if the ssh service is not yet advertised the cfg is left unchanged.
+func (s *ManagedServer) ApplyBestEffortTunnel(cfg *AccessConfig, rt TunnelRuntime) {
 	if s == nil || cfg == nil {
 		return
 	}
-	if !strings.EqualFold(s.ConnectType, "tunnel") {
+	if s.ConnectType != ConnectionModeTunnel {
 		return
 	}
 
-	sshPort, err := TunnelSSHPortFromServices(s.TunnelServices)
+	sshPort, err := TunnelSSHPortFromServices(rt.ServicesRaw)
 	if err != nil {
 		return
 	}
@@ -144,26 +167,28 @@ func (s *ManagedServer) ApplyBestEffortTunnel(cfg *ConnectorConfig) {
 	cfg.Port = sshPort
 }
 
-func (s *ManagedServer) ResolveDockerSSHAddress() (string, int, error) {
+// ResolveDockerSSHAddress returns the effective SSH host/port for Docker API access.
+// For tunnel servers, rt provides the live runtime state; the tunnel must be online.
+func (s *ManagedServer) ResolveDockerSSHAddress(rt TunnelRuntime) (string, int, error) {
 	if s == nil {
 		return "", 0, fmt.Errorf("server is required")
 	}
 
-	if !strings.EqualFold(s.ConnectType, "tunnel") {
+	if s.ConnectType != ConnectionModeTunnel {
 		return s.Host, s.Port, nil
 	}
-	if s.TunnelStatus != "online" {
+	if rt.Status != TunnelStatusOnline {
 		return "", 0, fmt.Errorf("tunnel server %s is offline", s.ID)
 	}
 
-	sshPort, err := TunnelSSHPortFromServices(s.TunnelServices)
+	sshPort, err := TunnelSSHPortFromServices(rt.ServicesRaw)
 	if err != nil {
 		return "", 0, err
 	}
 	return "127.0.0.1", sshPort, nil
 }
 
-func (s *ManagedServer) applyCredential(app core.App, userID string, cfg *ConnectorConfig) error {
+func (s *ManagedServer) applyCredential(app core.App, userID string, cfg *AccessConfig) error {
 	if s == nil || cfg == nil {
 		return fmt.Errorf("server config target is required")
 	}
@@ -178,7 +203,7 @@ func (s *ManagedServer) applyCredential(app core.App, userID string, cfg *Connec
 	}
 
 	switch cfg.AuthType {
-	case "password":
+	case AuthMethodPassword:
 		cfg.Secret = sec.FirstStringFromPayload(result.Payload, "password", "value")
 	default:
 		cfg.Secret = sec.FirstStringFromPayload(result.Payload, "private_key", "key", "value")

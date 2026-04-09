@@ -3,7 +3,7 @@ package routes
 import (
 	"testing"
 
-	servers "github.com/websoft9/appos/backend/domain/resource/server"
+	servers "github.com/websoft9/appos/backend/domain/resource/servers"
 )
 
 func TestTunnelSSHPortFromServices(t *testing.T) {

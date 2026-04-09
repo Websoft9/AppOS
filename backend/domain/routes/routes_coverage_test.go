@@ -16,7 +16,7 @@ var (
 	reGroupAssign       = regexp.MustCompile(`(\w+)\s*:?=\s*(\w+)\.Group\("([^"]*)"\)`)
 	reRouterGroupAssign = regexp.MustCompile(`(\w+)\s*:?=\s*(\w+)\.Router\.Group\("([^"]*)"\)`)
 	reRouteMethod       = regexp.MustCompile(`(\w+)\.(GET|POST|PUT|DELETE|PATCH|HEAD)\("([^"]*)"`)
-	reSpecPathKey       = regexp.MustCompile(`^  (/(?:api/ext|api/servers|api/actions|api/pipelines|api/releases|api/exposures|api/apps|api/components|api/catalog)[^\s:]*):\s*$`)
+	reSpecPathKey       = regexp.MustCompile(`^  (/(?:api/ext|api/servers|api/terminal|api/actions|api/pipelines|api/releases|api/exposures|api/apps|api/components|api/catalog)[^\s:]*):\s*$`)
 )
 
 func TestAllCustomRoutesCoveredByOpenAPISpec(t *testing.T) {
@@ -91,6 +91,9 @@ func extractRoutesFromFile(path string) ([]string, error) {
 	if strings.HasPrefix(filepath.Base(path), "server") {
 		defaultG = "/api/servers"
 	}
+	if strings.HasPrefix(filepath.Base(path), "terminal") {
+		defaultG = "/api/terminal"
+	}
 	if filepath.Base(path) == "components.go" {
 		defaultG = "/api/components"
 	}
@@ -125,7 +128,7 @@ func extractRoutesFromFile(path string) ([]string, error) {
 
 		if m := reRouteMethod.FindStringSubmatch(line); m != nil {
 			varName, method, suffix := m[1], m[2], m[3]
-			if base, ok := vars[varName]; ok && (strings.HasPrefix(base, "/api/ext") || strings.HasPrefix(base, "/api/servers") || strings.HasPrefix(base, "/api/actions") || strings.HasPrefix(base, "/api/pipelines") || strings.HasPrefix(base, "/api/releases") || strings.HasPrefix(base, "/api/exposures") || strings.HasPrefix(base, "/api/apps") || strings.HasPrefix(base, "/api/components") || strings.HasPrefix(base, "/api/catalog")) {
+			if base, ok := vars[varName]; ok && (strings.HasPrefix(base, "/api/ext") || strings.HasPrefix(base, "/api/servers") || strings.HasPrefix(base, "/api/terminal") || strings.HasPrefix(base, "/api/actions") || strings.HasPrefix(base, "/api/pipelines") || strings.HasPrefix(base, "/api/releases") || strings.HasPrefix(base, "/api/exposures") || strings.HasPrefix(base, "/api/apps") || strings.HasPrefix(base, "/api/components") || strings.HasPrefix(base, "/api/catalog")) {
 				routes = append(routes, method+" "+base+suffix)
 			}
 		}

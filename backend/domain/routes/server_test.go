@@ -38,12 +38,43 @@ func (te *testEnv) doServer(t *testing.T, method, url, body string, authenticate
 	return rec
 }
 
+// doTerminal performs a terminal route request using the testEnv helper from resources_test.go.
+func (te *testEnv) doTerminal(t *testing.T, method, url, body string, authenticated bool) *httptest.ResponseRecorder {
+	t.Helper()
+
+	r, err := apis.NewRouter(te.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	g := r.Group("/api/terminal")
+	g.Bind(wsTokenAuth())
+	g.Bind(apis.RequireSuperuserAuth())
+	registerTerminalRoutes(g)
+
+	mux, err := r.BuildMux()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var bodyReader = strings.NewReader(body)
+	req := httptest.NewRequest(method, url, bodyReader)
+	req.Header.Set("Content-Type", "application/json")
+	if authenticated {
+		req.Header.Set("Authorization", te.token)
+	}
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	return rec
+}
+
 // TestSFTPListRequiresAuth verifies that SFTP list endpoint rejects unauthenticated requests.
 func TestSFTPListRequiresAuth(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	rec := te.doServer(t, http.MethodGet, "/api/servers/nonexistent/files/list?path=/", "", false)
+	rec := te.doTerminal(t, http.MethodGet, "/api/terminal/sftp/nonexistent/list?path=/", "", false)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -54,7 +85,7 @@ func TestSFTPListInvalidServer(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	rec := te.doServer(t, http.MethodGet, "/api/servers/nonexistent/files/list?path=/", "", true)
+	rec := te.doTerminal(t, http.MethodGet, "/api/terminal/sftp/nonexistent/list?path=/", "", true)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -67,7 +98,7 @@ func TestSFTPDownloadRequiresPath(t *testing.T) {
 
 	// First, we need a server to test against — but since the server doesn't exist in DB,
 	// we'll get a 400 for "server not found" first. That's OK for this test.
-	rec := te.doServer(t, http.MethodGet, "/api/servers/nonexistent/files/download", "", true)
+	rec := te.doTerminal(t, http.MethodGet, "/api/terminal/sftp/nonexistent/download", "", true)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -78,7 +109,7 @@ func TestSFTPMkdirRequiresPath(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	rec := te.doServer(t, http.MethodPost, "/api/servers/nonexistent/files/mkdir", "{}", true)
+	rec := te.doTerminal(t, http.MethodPost, "/api/terminal/sftp/nonexistent/mkdir", "{}", true)
 	// Either 400 (bad path) because server_not_found is also 400
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
@@ -90,7 +121,7 @@ func TestSFTPDeleteRequiresPath(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	rec := te.doServer(t, http.MethodDelete, "/api/servers/nonexistent/files/delete", "", true)
+	rec := te.doTerminal(t, http.MethodDelete, "/api/terminal/sftp/nonexistent/delete", "", true)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -101,7 +132,7 @@ func TestSFTPRenameRequiresFields(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	rec := te.doServer(t, http.MethodPost, "/api/servers/nonexistent/files/rename", `{"from":""}`, true)
+	rec := te.doTerminal(t, http.MethodPost, "/api/terminal/sftp/nonexistent/rename", `{"from":""}`, true)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -114,7 +145,7 @@ func TestDockerExecRequiresAuth(t *testing.T) {
 
 	// Docker exec is a WebSocket endpoint, but without proper WS handshake,
 	// it should return 401 for unauthenticated requests.
-	rec := te.doServer(t, http.MethodGet, "/api/servers/containers/testcontainer/shell", "", false)
+	rec := te.doTerminal(t, http.MethodGet, "/api/terminal/docker/testcontainer", "", false)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -125,7 +156,7 @@ func TestSFTPStatRequiresPath(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	rec := te.doServer(t, http.MethodGet, "/api/servers/nonexistent/files/stat", "", true)
+	rec := te.doTerminal(t, http.MethodGet, "/api/terminal/sftp/nonexistent/stat", "", true)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -136,7 +167,7 @@ func TestSFTPCopyRequiresFields(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	rec := te.doServer(t, http.MethodPost, "/api/servers/nonexistent/files/copy", `{}`, true)
+	rec := te.doTerminal(t, http.MethodPost, "/api/terminal/sftp/nonexistent/copy", `{}`, true)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -147,7 +178,7 @@ func TestSFTPSymlinkRequiresFields(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	rec := te.doServer(t, http.MethodPost, "/api/servers/nonexistent/files/symlink", `{}`, true)
+	rec := te.doTerminal(t, http.MethodPost, "/api/terminal/sftp/nonexistent/symlink", `{}`, true)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -158,7 +189,7 @@ func TestSFTPCopyStreamRequiresFields(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	rec := te.doServer(t, http.MethodGet, "/api/servers/nonexistent/files/copy-stream", "", true)
+	rec := te.doTerminal(t, http.MethodGet, "/api/terminal/sftp/nonexistent/copy-stream", "", true)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}

@@ -9,20 +9,20 @@ import (
 	"time"
 
 	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
-	servers "github.com/websoft9/appos/backend/domain/resource/server"
+	"github.com/websoft9/appos/backend/domain/terminal"
 )
 
 type Target struct {
-	Config     servers.ConnectorConfig
+	Config     terminal.ConnectorConfig
 	Available  bool
 	WarnReason string
 }
 
 type Dependencies struct {
-	ResolveTarget        func(serverID string) (Target, error)
-	DetectProtocolPorts  func(ctx context.Context, cfg servers.ConnectorConfig, ports []int, protocol string) (map[int]map[string]any, map[int]map[string]any, map[string]any, error)
-	ExecuteSSHCommand    func(ctx context.Context, cfg servers.ConnectorConfig, command string, timeout time.Duration) (string, error)
-	ShellQuote           func(value string) string
+	ResolveTarget       func(serverID string) (Target, error)
+	DetectProtocolPorts func(ctx context.Context, cfg terminal.ConnectorConfig, ports []int, protocol string) (map[int]map[string]any, map[int]map[string]any, map[string]any, error)
+	ExecuteSSHCommand   func(ctx context.Context, cfg terminal.ConnectorConfig, command string, timeout time.Duration) (string, error)
+	ShellQuote          func(value string) string
 }
 
 type Adapter struct {
