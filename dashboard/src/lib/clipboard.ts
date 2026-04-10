@@ -11,7 +11,7 @@
  */
 export async function copyToClipboard(
   text: string,
-  inputRef?: React.RefObject<HTMLInputElement | null>,
+  inputRef?: React.RefObject<HTMLInputElement | null>
 ): Promise<boolean> {
   // 1. Modern API (requires secure context — HTTPS or localhost).
   try {

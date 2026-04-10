@@ -182,9 +182,15 @@ function AuditPage() {
     try {
       const [total, success, failed, pending] = await Promise.all([
         pb.collection('audit_logs').getList(1, 1, { requestKey: 'audit-summary-total' }),
-        pb.collection('audit_logs').getList(1, 1, { filter: 'status = "success"', requestKey: 'audit-summary-success' }),
-        pb.collection('audit_logs').getList(1, 1, { filter: 'status = "failed"', requestKey: 'audit-summary-failed' }),
-        pb.collection('audit_logs').getList(1, 1, { filter: 'status = "pending"', requestKey: 'audit-summary-pending' }),
+        pb
+          .collection('audit_logs')
+          .getList(1, 1, { filter: 'status = "success"', requestKey: 'audit-summary-success' }),
+        pb
+          .collection('audit_logs')
+          .getList(1, 1, { filter: 'status = "failed"', requestKey: 'audit-summary-failed' }),
+        pb
+          .collection('audit_logs')
+          .getList(1, 1, { filter: 'status = "pending"', requestKey: 'audit-summary-pending' }),
       ])
       setSummary({
         total: total.totalItems,

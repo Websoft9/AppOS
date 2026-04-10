@@ -193,9 +193,9 @@ export function ConnectServerPage({
   const [serverMenuOpen, setServerMenuOpen] = useState(false)
   const [connectingOpen, setConnectingOpen] = useState(false)
   const [connectingTarget, setConnectingTarget] = useState('')
-  const [connectingPhase, setConnectingPhase] = useState<'checking' | 'offline' | 'limit' | 'safe-exit'>(
-    'checking'
-  )
+  const [connectingPhase, setConnectingPhase] = useState<
+    'checking' | 'offline' | 'limit' | 'safe-exit'
+  >('checking')
   const [connectingDetail, setConnectingDetail] = useState('')
   const [connectSettings, setConnectSettings] =
     useState<ConnectTerminalSettings>(DEFAULT_CONNECT_SETTINGS)
@@ -357,9 +357,11 @@ export function ConnectServerPage({
           [serverId]: {
             path: initialFilePath,
             lockedRoot: initialLockedRootPath || null,
-            nonce: current.path === initialFilePath && current.lockedRoot === (initialLockedRootPath || null)
-              ? current.nonce
-              : current.nonce + 1,
+            nonce:
+              current.path === initialFilePath &&
+              current.lockedRoot === (initialLockedRootPath || null)
+                ? current.nonce
+                : current.nonce + 1,
           },
         }
       })

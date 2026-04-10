@@ -34,7 +34,12 @@ type LatestOperationItem = {
   updated: string
 }
 
-type ManualEntryMode = 'compose' | 'docker-command' | 'install-script' | 'store-prefill' | 'installed-prefill'
+type ManualEntryMode =
+  | 'compose'
+  | 'docker-command'
+  | 'install-script'
+  | 'store-prefill'
+  | 'installed-prefill'
 
 type CustomEntry = {
   key: ManualEntryMode | 'git-compose'
@@ -88,7 +93,13 @@ function TitleHelp({ text }: { text: string }) {
   )
 }
 
-function AppLauncherIcon({ app, onOpen }: { app: StoreShortcut; onOpen: (app: StoreShortcut) => void }) {
+function AppLauncherIcon({
+  app,
+  onOpen,
+}: {
+  app: StoreShortcut
+  onOpen: (app: StoreShortcut) => void
+}) {
   const primarySrc = app.logo?.imageurl?.trim() || getIconUrl(app.key)
   const fallbackSrc = getIconUrl(app.key)
   const [src, setSrc] = useState(primarySrc)
@@ -126,21 +137,30 @@ function AppLauncherIcon({ app, onOpen }: { app: StoreShortcut; onOpen: (app: St
             }}
           />
         ) : (
-          <span className="text-sm font-semibold tracking-wide text-slate-600 dark:text-slate-300">{initials}</span>
+          <span className="text-sm font-semibold tracking-wide text-slate-600 dark:text-slate-300">
+            {initials}
+          </span>
         )}
       </div>
-      <span className="line-clamp-2 min-h-[2rem] text-[11px] font-medium leading-4 text-slate-700 dark:text-slate-200">{app.trademark}</span>
+      <span className="line-clamp-2 min-h-[2rem] text-[11px] font-medium leading-4 text-slate-700 dark:text-slate-200">
+        {app.trademark}
+      </span>
     </button>
   )
 }
 
 function MoreAppsTile() {
   return (
-    <Link to="/store" className="group flex min-w-0 flex-col items-center gap-2 rounded-xl px-1 py-2 text-center transition-colors hover:bg-sky-100/60 dark:hover:bg-sky-500/10">
+    <Link
+      to="/store"
+      className="group flex min-w-0 flex-col items-center gap-2 rounded-xl px-1 py-2 text-center transition-colors hover:bg-sky-100/60 dark:hover:bg-sky-500/10"
+    >
       <span className="flex h-12 w-12 items-center justify-center text-slate-500 transition-colors group-hover:text-sky-700 dark:text-slate-400 dark:group-hover:text-sky-300">
         <Ellipsis className="h-8 w-8" />
       </span>
-      <span className="line-clamp-2 min-h-[2rem] text-[11px] font-medium leading-4 text-slate-700 dark:text-slate-200">More Apps</span>
+      <span className="line-clamp-2 min-h-[2rem] text-[11px] font-medium leading-4 text-slate-700 dark:text-slate-200">
+        More Apps
+      </span>
     </Link>
   )
 }
@@ -200,7 +220,10 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
             <div className="grid grid-cols-4 gap-x-2 gap-y-3 sm:grid-cols-8">
               {storeShortcuts.length === 0
                 ? Array.from({ length: STORE_GRID_SLOTS }).map((_, index) => (
-                    <div key={`store-placeholder-${index}`} className="h-[76px] rounded-xl bg-white/30 dark:bg-white/5" />
+                    <div
+                      key={`store-placeholder-${index}`}
+                      className="h-[76px] rounded-xl bg-white/30 dark:bg-white/5"
+                    />
                   ))
                 : storeShortcuts.map(app => (
                     <AppLauncherIcon key={app.key} app={app} onOpen={onOpenStoreShortcut} />
@@ -209,8 +232,12 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
             </div>
             <div className="flex flex-col gap-3 rounded-2xl border border-sky-100 bg-white/70 px-4 py-3 dark:border-sky-900/50 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <div className="text-sm font-medium text-slate-900 dark:text-slate-100">Need more templates?</div>
-                <div className="text-xs text-muted-foreground">Browse 300+ installable app templates, then hand off directly into deployment.</div>
+                <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                  Need more templates?
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Browse 300+ installable app templates, then hand off directly into deployment.
+                </div>
               </div>
               <Button asChild className="justify-between sm:min-w-[180px]">
                 <Link to="/store">
@@ -245,15 +272,43 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
                   onClick={item.action}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <span className={cn('inline-flex h-9 w-9 items-center justify-center rounded-xl', item.variant === 'default' ? 'bg-white/15 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-200 dark:bg-slate-950 dark:text-slate-200 dark:ring-slate-700')}>
+                    <span
+                      className={cn(
+                        'inline-flex h-9 w-9 items-center justify-center rounded-xl',
+                        item.variant === 'default'
+                          ? 'bg-white/15 text-white'
+                          : 'bg-white text-slate-700 ring-1 ring-slate-200 dark:bg-slate-950 dark:text-slate-200 dark:ring-slate-700'
+                      )}
+                    >
                       {item.icon}
                     </span>
-                    <ArrowRight className={cn('h-4 w-4', item.variant === 'default' ? 'text-white/80' : 'text-slate-400 dark:text-slate-500')} />
+                    <ArrowRight
+                      className={cn(
+                        'h-4 w-4',
+                        item.variant === 'default'
+                          ? 'text-white/80'
+                          : 'text-slate-400 dark:text-slate-500'
+                      )}
+                    />
                   </div>
-                  <div className={cn('mt-4 text-sm font-semibold', item.variant === 'default' ? 'text-white' : 'text-slate-950 dark:text-slate-100')}>
+                  <div
+                    className={cn(
+                      'mt-4 text-sm font-semibold',
+                      item.variant === 'default'
+                        ? 'text-white'
+                        : 'text-slate-950 dark:text-slate-100'
+                    )}
+                  >
                     {item.title}
                   </div>
-                  <div className={cn('mt-1 text-xs leading-5', item.variant === 'default' ? 'text-white/80' : 'text-muted-foreground dark:text-slate-400')}>
+                  <div
+                    className={cn(
+                      'mt-1 text-xs leading-5',
+                      item.variant === 'default'
+                        ? 'text-white/80'
+                        : 'text-muted-foreground dark:text-slate-400'
+                    )}
+                  >
                     {item.description}
                   </div>
                 </button>
@@ -272,9 +327,13 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground">Loading actions...</div>
+            <div className="rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground">
+              Loading actions...
+            </div>
           ) : latestOperations.length === 0 ? (
-            <div className="rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground">No action records yet.</div>
+            <div className="rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground">
+              No action records yet.
+            </div>
           ) : (
             <div className="overflow-hidden rounded-xl border">
               <Table>
@@ -301,7 +360,9 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
                           >
                             {item.compose_project_name || item.id}
                           </button>
-                          <div className="mt-1 font-mono text-xs text-muted-foreground">{item.id}</div>
+                          <div className="mt-1 font-mono text-xs text-muted-foreground">
+                            {item.id}
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>{getUserLabel(item)}</TableCell>
@@ -310,7 +371,9 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
                         <div className="font-medium">{getServerLabel(item)}</div>
                         <div className="text-xs text-muted-foreground">{getServerHost(item)}</div>
                       </TableCell>
-                      <TableCell><Badge variant={statusVariant(item.status)}>{item.status}</Badge></TableCell>
+                      <TableCell>
+                        <Badge variant={statusVariant(item.status)}>{item.status}</Badge>
+                      </TableCell>
                       <TableCell>{formatTime(item.updated)}</TableCell>
                       <TableCell className="text-right">{renderActionMenu(item)}</TableCell>
                     </TableRow>

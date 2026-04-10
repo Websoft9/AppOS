@@ -2,6 +2,7 @@ package routes
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/filesystem"
+	sharedshare "github.com/websoft9/appos/backend/domain/share"
 	"github.com/websoft9/appos/backend/domain/space"
 	"github.com/websoft9/appos/backend/infra/safefetch"
 )
@@ -177,7 +179,8 @@ func handleFileShareCreate(e *core.RequestEvent) error {
 		return e.NotFoundError("File not found", err)
 	}
 
-	if !space.From(record).IsOwnedBy(e.Auth) {
+	uf := space.From(record)
+	if !uf.IsOwnedBy(e.Auth) {
 		return e.ForbiddenError("Access denied", nil)
 	}
 
@@ -186,23 +189,27 @@ func handleFileShareCreate(e *core.RequestEvent) error {
 	var body struct {
 		Minutes int `json:"minutes"`
 	}
-	_ = e.BindBody(&body)
-
-	sh, err := space.NewShareToken(body.Minutes, quota.ShareMaxMinutes, quota.ShareDefaultMinutes)
-	if err != nil {
-		return e.BadRequestError(err.Error(), nil)
+	if err := e.BindBody(&body); err != nil {
+		return e.BadRequestError("Invalid request body", err)
 	}
 
-	record.Set("share_token", sh.Token)
-	record.Set("share_expires_at", sh.ExpiresAt.Format(time.RFC3339))
-	if err := e.App.Save(record); err != nil {
+	issuedShare, err := sharedshare.NewToken(body.Minutes, quota.ShareMaxMinutes, quota.ShareDefaultMinutes)
+	if err != nil {
+		if errors.Is(err, sharedshare.ErrDurationTooLong) {
+			return e.BadRequestError(sharedshare.MessageForError(err), nil)
+		}
+		return e.JSON(http.StatusInternalServerError, fileError("failed to generate share token"))
+	}
+
+	uf.ApplyShare(issuedShare)
+	if err := uf.Save(e.App); err != nil {
 		return e.JSON(http.StatusInternalServerError, fileError("failed to save share token"))
 	}
 
 	return e.JSON(http.StatusOK, map[string]any{
-		"share_token": sh.Token,
-		"share_url":   "/api/space/share/" + sh.Token + "/download",
-		"expires_at":  sh.ExpiresAt.Format(time.RFC3339),
+		"share_token": issuedShare.Value(),
+		"share_url":   "/api/space/share/" + issuedShare.Value() + "/download",
+		"expires_at":  issuedShare.ExpiresAt().Format(time.RFC3339),
 	})
 }
 
@@ -225,13 +232,13 @@ func handleFileShareRevoke(e *core.RequestEvent) error {
 		return e.NotFoundError("File not found", err)
 	}
 
-	if !space.From(record).IsOwnedBy(e.Auth) {
+	uf := space.From(record)
+	if !uf.IsOwnedBy(e.Auth) {
 		return e.ForbiddenError("Access denied", nil)
 	}
 
-	record.Set("share_token", "")
-	record.Set("share_expires_at", "")
-	if err := e.App.Save(record); err != nil {
+	uf.RevokeShare()
+	if err := uf.Save(e.App); err != nil {
 		return e.JSON(http.StatusInternalServerError, fileError("failed to revoke share"))
 	}
 
@@ -257,8 +264,8 @@ func handleFileShareResolve(e *core.RequestEvent) error {
 	}
 
 	uf := space.From(record)
-	if active, reason := uf.ShareIsActive(); !active {
-		return e.JSON(http.StatusForbidden, fileError(reason))
+	if err := uf.ValidateShareActive(); err != nil {
+		return e.JSON(http.StatusForbidden, fileError(sharedshare.MessageForError(err)))
 	}
 
 	return e.JSON(http.StatusOK, map[string]any{
@@ -289,8 +296,8 @@ func handleFileShareDownload(e *core.RequestEvent) error {
 	}
 
 	uf := space.From(record)
-	if active, reason := uf.ShareIsActive(); !active {
-		return e.JSON(http.StatusForbidden, fileError(reason))
+	if err := uf.ValidateShareActive(); err != nil {
+		return e.JSON(http.StatusForbidden, fileError(sharedshare.MessageForError(err)))
 	}
 
 	storedFilename := uf.StoredFilename()

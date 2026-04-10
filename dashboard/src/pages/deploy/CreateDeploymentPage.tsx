@@ -20,7 +20,11 @@ import { pb } from '@/lib/pb'
 import { buildActionListHref } from '@/pages/deploy/actions/action-utils'
 import type { CreateDeploymentEntryMode } from '@/pages/deploy/actions/action-types'
 import { useActionsController } from '@/pages/deploy/actions/useActionsController'
-import type { RuntimeEnvInputPayload, RuntimeInputsPayload, SourceBuildPayload } from '@/pages/deploy/actions/useActionsController'
+import type {
+  RuntimeEnvInputPayload,
+  RuntimeInputsPayload,
+  SourceBuildPayload,
+} from '@/pages/deploy/actions/useActionsController'
 import { OrchestrationSection } from '@/pages/deploy/OrchestrationSection'
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -53,7 +57,7 @@ function buildRuntimeInputsPayload(
   runtimeEnvInputs: RuntimeEnvInputPayload[],
   srcFiles: File[],
   srcUploaded: string[],
-  uploadedFileNames: string[] = [],
+  uploadedFileNames: string[] = []
 ): RuntimeInputsPayload | undefined {
   if (isGit) return undefined
 
@@ -61,14 +65,20 @@ function buildRuntimeInputsPayload(
   const files = [
     ...srcUploaded.map(name => ({
       name,
-      kind: createEntryMode === 'install-script' ? 'source-package' as const : 'mount-file' as const,
+      kind:
+        createEntryMode === 'install-script'
+          ? ('source-package' as const)
+          : ('mount-file' as const),
       source_path: `./src/${name}`,
       mount_path: createEntryMode === 'install-script' ? undefined : `./src/${name}`,
       uploaded: true,
     })),
     ...srcFiles.map(file => ({
       name: file.name,
-      kind: createEntryMode === 'install-script' ? 'source-package' as const : 'mount-file' as const,
+      kind:
+        createEntryMode === 'install-script'
+          ? ('source-package' as const)
+          : ('mount-file' as const),
       source_path: `./src/${file.name}`,
       mount_path: createEntryMode === 'install-script' ? undefined : `./src/${file.name}`,
       uploaded: uploadedNameSet.has(file.name),
@@ -86,7 +96,7 @@ function buildRuntimeInputsPayload(
 function buildSourceBuildPayload(
   createEntryMode: CreateDeploymentEntryMode,
   projectName: string,
-  targetServiceName?: string,
+  targetServiceName?: string
 ): SourceBuildPayload | undefined {
   if (createEntryMode !== 'install-script') return undefined
 
@@ -98,7 +108,9 @@ function buildSourceBuildPayload(
     source_ref: `apps/${trimmedName}/src`,
     workspace_ref: `apps/${trimmedName}/src`,
     builder_strategy: 'buildpacks',
-    ...(targetServiceName?.trim() ? { deploy_inputs: { service_name: targetServiceName.trim() } } : {}),
+    ...(targetServiceName?.trim()
+      ? { deploy_inputs: { service_name: targetServiceName.trim() } }
+      : {}),
     artifact_publication: {
       mode: 'local',
       image_name: `apps/${trimmedName}`,
@@ -115,7 +127,9 @@ function extractComposeServiceNames(compose: string): string[] {
     if (!doc || typeof doc !== 'object') return []
     const services = (doc as { services?: unknown }).services
     if (!services || typeof services !== 'object' || Array.isArray(services)) return []
-    return Object.keys(services as Record<string, unknown>).map(name => name.trim()).filter(Boolean)
+    return Object.keys(services as Record<string, unknown>)
+      .map(name => name.trim())
+      .filter(Boolean)
   } catch {
     return []
   }
@@ -128,7 +142,9 @@ function HelpTip({ text }: { text: string }) {
         <TooltipTrigger asChild>
           <CircleHelp className="ml-1 inline h-3.5 w-3.5 cursor-help text-muted-foreground/60 hover:text-muted-foreground" />
         </TooltipTrigger>
-        <TooltipContent side="top" className="max-w-xs text-xs">{text}</TooltipContent>
+        <TooltipContent side="top" className="max-w-xs text-xs">
+          {text}
+        </TooltipContent>
       </Tooltip>
     </TooltipProvider>
   )
@@ -212,25 +228,41 @@ export function CreateDeploymentPage({
     return extractComposeServiceNames(compose)
   }, [compose, composeYamlError, createEntryMode])
 
-  const sourceBuildTargetServiceRequired = createEntryMode === 'install-script' && composeServiceNames.length > 1
+  const sourceBuildTargetServiceRequired =
+    createEntryMode === 'install-script' && composeServiceNames.length > 1
 
   const runtimeInputs = useMemo<RuntimeInputsPayload | undefined>(() => {
-    return buildRuntimeInputsPayload(createEntryMode, isGit, runtimeEnvInputs, srcFiles, srcUploaded)
+    return buildRuntimeInputsPayload(
+      createEntryMode,
+      isGit,
+      runtimeEnvInputs,
+      srcFiles,
+      srcUploaded
+    )
   }, [createEntryMode, isGit, runtimeEnvInputs, srcFiles, srcUploaded])
   const sourceBuild = useMemo<SourceBuildPayload | undefined>(() => {
     return buildSourceBuildPayload(createEntryMode, projectName, targetServiceName)
   }, [createEntryMode, projectName, targetServiceName])
 
-  const sourceBuildTargetServiceError = sourceBuildTargetServiceRequired && !targetServiceName.trim()
-    ? 'Select which service should use the locally built application image.'
-    : null
+  const sourceBuildTargetServiceError =
+    sourceBuildTargetServiceRequired && !targetServiceName.trim()
+      ? 'Select which service should use the locally built application image.'
+      : null
 
   const createDisabled = isGit
     ? !gitRepositoryUrl.trim() || !gitComposePath.trim() || !serverId || activeSubmitting
-    : !compose.trim() || !serverId || activeSubmitting || Boolean(composeYamlError) || Boolean(sourceBuildTargetServiceError)
+    : !compose.trim() ||
+      !serverId ||
+      activeSubmitting ||
+      Boolean(composeYamlError) ||
+      Boolean(sourceBuildTargetServiceError)
   const checkDisabled = isGit
     ? !gitRepositoryUrl.trim() || !gitComposePath.trim() || !serverId || activeChecking
-    : !compose.trim() || !serverId || activeChecking || Boolean(composeYamlError) || Boolean(sourceBuildTargetServiceError)
+    : !compose.trim() ||
+      !serverId ||
+      activeChecking ||
+      Boolean(composeYamlError) ||
+      Boolean(sourceBuildTargetServiceError)
 
   useEffect(() => {
     if (createEntryMode !== 'install-script') {
@@ -245,7 +277,7 @@ export function CreateDeploymentPage({
       setTargetServiceName('')
       return
     }
-    setTargetServiceName(current => composeServiceNames.includes(current) ? current : '')
+    setTargetServiceName(current => (composeServiceNames.includes(current) ? current : ''))
   }, [composeServiceNames, createEntryMode])
 
   // ── Submit with src uploads ──
@@ -287,10 +319,17 @@ export function CreateDeploymentPage({
     if (isGit) {
       await submitGitOperation()
     } else {
-	  await submitManualOperation(
-		buildRuntimeInputsPayload(createEntryMode, isGit, runtimeEnvInputs, srcFiles, srcUploaded, uploadedFileNames),
-		sourceBuild,
-	  )
+      await submitManualOperation(
+        buildRuntimeInputsPayload(
+          createEntryMode,
+          isGit,
+          runtimeEnvInputs,
+          srcFiles,
+          srcUploaded,
+          uploadedFileNames
+        ),
+        sourceBuild
+      )
     }
   }, [
     createEntryMode,
@@ -325,9 +364,16 @@ export function CreateDeploymentPage({
   const composeLineCount = compose.split('\n').length
   const validationItems = [
     { label: 'Target server', passed: serverId.length > 0 },
-    { label: isGit ? 'Repository inputs' : 'Compose content', passed: isGit ? gitRepositoryUrl.trim().length > 0 && gitComposePath.trim().length > 0 : compose.trim().length > 0 },
+    {
+      label: isGit ? 'Repository inputs' : 'Compose content',
+      passed: isGit
+        ? gitRepositoryUrl.trim().length > 0 && gitComposePath.trim().length > 0
+        : compose.trim().length > 0,
+    },
     ...(!isGit && compose.trim() ? [{ label: 'YAML syntax', passed: !composeYamlError }] : []),
-    ...(createEntryMode === 'install-script' && sourceBuildTargetServiceRequired ? [{ label: 'Target service selected', passed: !!targetServiceName.trim() }] : []),
+    ...(createEntryMode === 'install-script' && sourceBuildTargetServiceRequired
+      ? [{ label: 'Target service selected', passed: !!targetServiceName.trim() }]
+      : []),
   ]
 
   const srcRelativePath = './src/'
@@ -376,11 +422,17 @@ export function CreateDeploymentPage({
     pushMessage(nameResult?.message, nameResult?.ok === false)
     pushMessage(
       preflightSummary?.message,
-      Boolean(preflightSummary?.conflict || (preflightSummary?.ok === false && preflightSummary?.status !== 'unavailable')),
+      Boolean(
+        preflightSummary?.conflict ||
+        (preflightSummary?.ok === false && preflightSummary?.status !== 'unavailable')
+      )
     )
     pushMessage(
       diskSummary?.message,
-      Boolean(diskSummary?.conflict || (diskSummary?.ok === false && diskSummary?.status !== 'unavailable')),
+      Boolean(
+        diskSummary?.conflict ||
+        (diskSummary?.ok === false && diskSummary?.status !== 'unavailable')
+      )
     )
 
     for (const warning of checkResult?.warnings || []) {
@@ -400,10 +452,11 @@ export function CreateDeploymentPage({
     let cancelled = false
     const timer = window.setTimeout(() => {
       setNameChecking(true)
-      void pb.send<NameAvailabilityResult>('/api/actions/install/name-availability', {
-        method: 'POST',
-        body: { project_name: activeName },
-      })
+      void pb
+        .send<NameAvailabilityResult>('/api/actions/install/name-availability', {
+          method: 'POST',
+          body: { project_name: activeName },
+        })
         .then(result => {
           if (!cancelled) {
             setNameResult(result)
@@ -433,14 +486,22 @@ export function CreateDeploymentPage({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Create Deployment</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Define and launch a new application deployment on a target server.</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Define and launch a new application deployment on a target server.
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" asChild>
-            <a href="/deploy"><ArrowLeft className="mr-1 h-4 w-4" />Back</a>
+            <a href="/deploy">
+              <ArrowLeft className="mr-1 h-4 w-4" />
+              Back
+            </a>
           </Button>
           <Button variant="ghost" size="sm" asChild>
-            <a href={buildActionListHref()}><List className="mr-1 h-4 w-4" />History</a>
+            <a href={buildActionListHref()}>
+              <List className="mr-1 h-4 w-4" />
+              History
+            </a>
           </Button>
         </div>
       </div>
@@ -449,14 +510,24 @@ export function CreateDeploymentPage({
       {notice ? (
         <Alert variant={notice.variant} className="flex items-center justify-between py-2">
           <AlertDescription>{notice.message}</AlertDescription>
-          <Button variant="ghost" size="sm" onClick={() => setNotice(null)}><X className="h-3 w-3" /></Button>
+          <Button variant="ghost" size="sm" onClick={() => setNotice(null)}>
+            <X className="h-3 w-3" />
+          </Button>
         </Alert>
       ) : null}
       {prefillLoading ? (
-        <Alert><AlertDescription>Loading template for {prefillAppName || prefillAppKey || prefillAppId}...</AlertDescription></Alert>
+        <Alert>
+          <AlertDescription>
+            Loading template for {prefillAppName || prefillAppKey || prefillAppId}...
+          </AlertDescription>
+        </Alert>
       ) : null}
       {prefillReady ? (
-        <Alert><AlertDescription>Template loaded for {prefillReady}. Review inputs below.</AlertDescription></Alert>
+        <Alert>
+          <AlertDescription>
+            Template loaded for {prefillReady}. Review inputs below.
+          </AlertDescription>
+        </Alert>
       ) : null}
 
       {/* ════ Two-column: Form workspace │ Review panel ════ */}
@@ -470,28 +541,36 @@ export function CreateDeploymentPage({
                 <span className="text-base font-semibold">Info</span>
                 <HelpTip text="Identify the deployment target. The app name becomes the compose project name and data directory. Leave empty to auto-generate." />
               </div>
-              <div className="text-xs text-muted-foreground">Application identity and target server</div>
+              <div className="text-xs text-muted-foreground">
+                Application identity and target server
+              </div>
             </div>
             <div className="grid gap-4 pt-4 md:grid-cols-3">
               <div className="space-y-1.5">
                 <Label htmlFor="deploy-name" className="text-xs">
-                  App Name <HelpTip text="Must be unique across the server. Used as compose_project_name and the root of the app data path. Leave empty to auto-generate." />
+                  App Name{' '}
+                  <HelpTip text="Must be unique across the server. Used as compose_project_name and the root of the app data path. Leave empty to auto-generate." />
                 </Label>
                 <Input
                   id="deploy-name"
                   value={activeName}
-                  onChange={e => isGit ? setGitProjectName(e.target.value) : setProjectName(e.target.value)}
+                  onChange={e =>
+                    isGit ? setGitProjectName(e.target.value) : setProjectName(e.target.value)
+                  }
                   placeholder={isGit ? 'Auto-generated from repo name' : 'Auto-generated if empty'}
                 />
                 {nameHint ? (
-                  <div className={`text-[11px] ${nameResult?.ok ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
+                  <div
+                    className={`text-[11px] ${nameResult?.ok ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}
+                  >
                     {nameHint}
                   </div>
                 ) : null}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="deploy-server" className="text-xs">
-                  Target Location <HelpTip text="The target server where containers will be created and managed." />
+                  Target Location{' '}
+                  <HelpTip text="The target server where containers will be created and managed." />
                 </Label>
                 <select
                   id="deploy-server"
@@ -499,13 +578,20 @@ export function CreateDeploymentPage({
                   value={serverId}
                   onChange={e => setServerId(e.target.value)}
                 >
-                  <option value="" disabled>Select a server…</option>
-                  {servers.map(s => <option key={s.id} value={s.id}>{s.label} ({s.host})</option>)}
+                  <option value="" disabled>
+                    Select a server…
+                  </option>
+                  {servers.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.label} ({s.host})
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="required-disk" className="text-xs">
-                  Estimated App Disk (GiB) <HelpTip text="Optional. If provided, preflight blocks creation when estimated requirement exceeds currently available disk space." />
+                  Estimated App Disk (GiB){' '}
+                  <HelpTip text="Optional. If provided, preflight blocks creation when estimated requirement exceeds currently available disk space." />
                 </Label>
                 <Input
                   id="required-disk"
@@ -526,33 +612,73 @@ export function CreateDeploymentPage({
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm">Repository</CardTitle>
-                <CardDescription>Provide the Git repository coordinates. The backend clones, extracts the compose file, and resolves it into an install payload.</CardDescription>
+                <CardDescription>
+                  Provide the Git repository coordinates. The backend clones, extracts the compose
+                  file, and resolves it into an install payload.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="git-url" className="text-xs">Repository URL</Label>
-                  <Input id="git-url" value={gitRepositoryUrl} onChange={e => setGitRepositoryUrl(e.target.value)} placeholder="https://github.com/org/repo" />
+                  <Label htmlFor="git-url" className="text-xs">
+                    Repository URL
+                  </Label>
+                  <Input
+                    id="git-url"
+                    value={gitRepositoryUrl}
+                    onChange={e => setGitRepositoryUrl(e.target.value)}
+                    placeholder="https://github.com/org/repo"
+                  />
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-1.5">
-                    <Label htmlFor="git-ref" className="text-xs">Ref</Label>
-                    <Input id="git-ref" value={gitRef} onChange={e => setGitRef(e.target.value)} placeholder="main" />
+                    <Label htmlFor="git-ref" className="text-xs">
+                      Ref
+                    </Label>
+                    <Input
+                      id="git-ref"
+                      value={gitRef}
+                      onChange={e => setGitRef(e.target.value)}
+                      placeholder="main"
+                    />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="git-path" className="text-xs">Compose Path</Label>
-                    <Input id="git-path" value={gitComposePath} onChange={e => setGitComposePath(e.target.value)} placeholder="docker-compose.yml" />
+                    <Label htmlFor="git-path" className="text-xs">
+                      Compose Path
+                    </Label>
+                    <Input
+                      id="git-path"
+                      value={gitComposePath}
+                      onChange={e => setGitComposePath(e.target.value)}
+                      placeholder="docker-compose.yml"
+                    />
                   </div>
                 </div>
                 <details className="rounded-md border p-3">
-                  <summary className="cursor-pointer text-xs font-medium">Private Repository Access</summary>
+                  <summary className="cursor-pointer text-xs font-medium">
+                    Private Repository Access
+                  </summary>
                   <div className="mt-3 grid gap-3 md:grid-cols-[180px_1fr]">
                     <div className="space-y-1.5">
-                      <Label htmlFor="git-auth-name" className="text-xs">Header Name</Label>
-                      <Input id="git-auth-name" value={gitAuthHeaderName} onChange={e => setGitAuthHeaderName(e.target.value)} placeholder="Authorization" />
+                      <Label htmlFor="git-auth-name" className="text-xs">
+                        Header Name
+                      </Label>
+                      <Input
+                        id="git-auth-name"
+                        value={gitAuthHeaderName}
+                        onChange={e => setGitAuthHeaderName(e.target.value)}
+                        placeholder="Authorization"
+                      />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="git-auth-value" className="text-xs">Header Value</Label>
-                      <Input id="git-auth-value" value={gitAuthHeaderValue} onChange={e => setGitAuthHeaderValue(e.target.value)} placeholder="Bearer <token>" />
+                      <Label htmlFor="git-auth-value" className="text-xs">
+                        Header Value
+                      </Label>
+                      <Input
+                        id="git-auth-value"
+                        value={gitAuthHeaderValue}
+                        onChange={e => setGitAuthHeaderValue(e.target.value)}
+                        placeholder="Bearer <token>"
+                      />
                     </div>
                   </div>
                 </details>
@@ -581,11 +707,15 @@ export function CreateDeploymentPage({
                       <span className="text-base font-semibold">Build Target</span>
                       <HelpTip text="Choose which compose service should use the image built from the uploaded source package. Single-service compose files are selected automatically." />
                     </div>
-                    <div className="text-xs text-muted-foreground">Activation target for the local application image</div>
+                    <div className="text-xs text-muted-foreground">
+                      Activation target for the local application image
+                    </div>
                   </div>
                   <div className="pt-4">
                     <div className="space-y-1.5">
-                      <Label htmlFor="source-build-target-service" className="text-xs">Target Service</Label>
+                      <Label htmlFor="source-build-target-service" className="text-xs">
+                        Target Service
+                      </Label>
                       <select
                         id="source-build-target-service"
                         className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
@@ -593,13 +723,24 @@ export function CreateDeploymentPage({
                         onChange={e => setTargetServiceName(e.target.value)}
                         disabled={composeServiceNames.length === 1}
                       >
-                        {composeServiceNames.length > 1 ? <option value="" disabled>Select a service…</option> : null}
-                        {composeServiceNames.map(name => <option key={name} value={name}>{name}</option>)}
+                        {composeServiceNames.length > 1 ? (
+                          <option value="" disabled>
+                            Select a service…
+                          </option>
+                        ) : null}
+                        {composeServiceNames.map(name => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
                       </select>
-                      <div className={`text-[11px] ${sourceBuildTargetServiceError ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground'}`}>
-                        {sourceBuildTargetServiceError || (composeServiceNames.length > 1
-                          ? 'The selected service image will be replaced by the locally built application image.'
-                          : 'Single-service compose detected. The application image target is selected automatically.')}
+                      <div
+                        className={`text-[11px] ${sourceBuildTargetServiceError ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground'}`}
+                      >
+                        {sourceBuildTargetServiceError ||
+                          (composeServiceNames.length > 1
+                            ? 'The selected service image will be replaced by the locally built application image.'
+                            : 'Single-service compose detected. The application image target is selected automatically.')}
                       </div>
                     </div>
                   </div>
@@ -617,16 +758,24 @@ export function CreateDeploymentPage({
                   <span className="text-base font-semibold">Advanced Options</span>
                   <HelpTip text="Additional deployment parameters resolved and normalized by the backend before execution." />
                 </div>
-                <div className="text-xs text-muted-foreground">Exposure, secret-backed inputs, and more</div>
+                <div className="text-xs text-muted-foreground">
+                  Exposure, secret-backed inputs, and more
+                </div>
               </div>
             </summary>
             <div className="grid gap-3 px-4 pb-4 pl-10 md:grid-cols-2">
               <div className="rounded-lg border bg-muted/10 p-3">
-                <div className="text-xs font-medium">Exposure Intent <HelpTip text="Domain, path, or port publication intent for reverse-proxy configuration." /></div>
+                <div className="text-xs font-medium">
+                  Exposure Intent{' '}
+                  <HelpTip text="Domain, path, or port publication intent for reverse-proxy configuration." />
+                </div>
                 <div className="mt-1 text-xs text-muted-foreground">Coming soon</div>
               </div>
               <div className="rounded-lg border bg-muted/10 p-3">
-                <div className="text-xs font-medium">Secret-backed Inputs <HelpTip text="Sensitive values managed through the backend secret store, never exposed in plain text." /></div>
+                <div className="text-xs font-medium">
+                  Secret-backed Inputs{' '}
+                  <HelpTip text="Sensitive values managed through the backend secret store, never exposed in plain text." />
+                </div>
                 <div className="mt-1 text-xs text-muted-foreground">Coming soon</div>
               </div>
             </div>
@@ -639,12 +788,17 @@ export function CreateDeploymentPage({
             <Card className="border-slate-200 dark:border-slate-800">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm">Review</CardTitle>
-                <CardDescription>Verify the deployment summary before submitting. The backend performs final validation and normalization.</CardDescription>
+                <CardDescription>
+                  Verify the deployment summary before submitting. The backend performs final
+                  validation and normalization.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
                 {/* ── Identity ── */}
                 <div className="space-y-2">
-                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Identity</div>
+                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Identity
+                  </div>
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Source</span>
@@ -652,11 +806,15 @@ export function CreateDeploymentPage({
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">App Name</span>
-                      <span className="max-w-[200px] truncate">{activeName || 'Auto-generated'}</span>
+                      <span className="max-w-[200px] truncate">
+                        {activeName || 'Auto-generated'}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Server</span>
-                      <span className="max-w-[200px] truncate">{activeServer ? `${activeServer.label} (${activeServer.host})` : '—'}</span>
+                      <span className="max-w-[200px] truncate">
+                        {activeServer ? `${activeServer.label} (${activeServer.host})` : '—'}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -665,7 +823,9 @@ export function CreateDeploymentPage({
 
                 {/* ── Resolution ── */}
                 <div className="space-y-2">
-                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Resolution</div>
+                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Resolution
+                  </div>
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Lifecycle source</span>
@@ -690,7 +850,9 @@ export function CreateDeploymentPage({
                     {createEntryMode === 'install-script' ? (
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground">Build target service</span>
-                        <span className="max-w-[200px] truncate">{targetServiceName || 'Auto / not selected'}</span>
+                        <span className="max-w-[200px] truncate">
+                          {targetServiceName || 'Auto / not selected'}
+                        </span>
                       </div>
                     ) : null}
                   </div>
@@ -700,7 +862,9 @@ export function CreateDeploymentPage({
 
                 {/* ── Inputs ── */}
                 <div className="space-y-2">
-                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Inputs</div>
+                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Inputs
+                  </div>
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Env variables</span>
@@ -708,26 +872,42 @@ export function CreateDeploymentPage({
                     </div>
                     {envCount > 0 ? (
                       <div className="max-h-24 overflow-y-auto rounded-md bg-muted/30 px-2 py-1.5">
-                        {envVars.filter(e => e.key.trim()).map((e, i) => (
-                          <div key={i} className="truncate font-mono text-xs text-muted-foreground">
-                            {e.key}={e.value.length > 20 ? `${e.value.slice(0, 20)}…` : e.value}
-                          </div>
-                        ))}
+                        {envVars
+                          .filter(e => e.key.trim())
+                          .map((e, i) => (
+                            <div
+                              key={i}
+                              className="truncate font-mono text-xs text-muted-foreground"
+                            >
+                              {e.key}={e.value.length > 20 ? `${e.value.slice(0, 20)}…` : e.value}
+                            </div>
+                          ))}
                       </div>
                     ) : null}
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Mount files</span>
-                      <span>{srcFiles.length + srcUploaded.length > 0 ? `${srcFiles.length + srcUploaded.length} file(s)` : 'None'}</span>
+                      <span>
+                        {srcFiles.length + srcUploaded.length > 0
+                          ? `${srcFiles.length + srcUploaded.length} file(s)`
+                          : 'None'}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Estimated app disk</span>
-                      <span>{appRequiredDiskGiB.trim() ? `${appRequiredDiskGiB.trim()} GiB` : 'Not set'}</span>
+                      <span>
+                        {appRequiredDiskGiB.trim() ? `${appRequiredDiskGiB.trim()} GiB` : 'Not set'}
+                      </span>
                     </div>
                     {srcFiles.length > 0 || srcUploaded.length > 0 ? (
                       <div className="rounded-md bg-muted/30 px-2 py-1.5">
-                        {[...srcUploaded.map(n => ({ name: n, done: true })), ...srcFiles.map(f => ({ name: f.name, done: false }))].map((f, i) => (
+                        {[
+                          ...srcUploaded.map(n => ({ name: n, done: true })),
+                          ...srcFiles.map(f => ({ name: f.name, done: false })),
+                        ].map((f, i) => (
                           <div key={i} className="truncate font-mono text-xs text-muted-foreground">
-                            {f.done ? <span className="text-emerald-600">✓ </span> : null}{srcRelativePath}{f.name}
+                            {f.done ? <span className="text-emerald-600">✓ </span> : null}
+                            {srcRelativePath}
+                            {f.name}
                           </div>
                         ))}
                       </div>
@@ -739,11 +919,19 @@ export function CreateDeploymentPage({
 
                 {/* ── Validation ── */}
                 <div className="rounded-lg border bg-slate-50/80 p-3 dark:bg-slate-900/60">
-                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Pre-flight checks</div>
+                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Pre-flight checks
+                  </div>
                   <div className="mt-2 space-y-1.5">
                     {validationItems.map(item => (
                       <div key={item.label} className="flex items-center gap-2 text-xs">
-                        <CheckCircle2 className={item.passed ? 'h-3.5 w-3.5 text-emerald-600' : 'h-3.5 w-3.5 text-slate-400'} />
+                        <CheckCircle2
+                          className={
+                            item.passed
+                              ? 'h-3.5 w-3.5 text-emerald-600'
+                              : 'h-3.5 w-3.5 text-slate-400'
+                          }
+                        />
                         <span>{item.label}</span>
                       </div>
                     ))}
@@ -759,16 +947,23 @@ export function CreateDeploymentPage({
                         <div className="min-w-0">
                           <div className="font-medium">{checkResult.message}</div>
                           {checkResult.compose_project_name ? (
-                            <div className="text-xs text-muted-foreground">Resolved app name: {checkResult.compose_project_name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              Resolved app name: {checkResult.compose_project_name}
+                            </div>
                           ) : null}
                         </div>
                       </div>
                       {reviewMessages.length > 0 ? (
                         <div className="space-y-2">
-                          <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Warnings</div>
+                          <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                            Warnings
+                          </div>
                           <div className="space-y-1.5">
                             {reviewMessages.map(message => (
-                              <div key={message} className="rounded-md border border-amber-200/70 bg-amber-50/60 px-2.5 py-2 text-xs leading-5 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">
+                              <div
+                                key={message}
+                                className="rounded-md border border-amber-200/70 bg-amber-50/60 px-2.5 py-2 text-xs leading-5 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200"
+                              >
                                 {message}
                               </div>
                             ))}
@@ -778,10 +973,23 @@ export function CreateDeploymentPage({
                       {portItems.length > 0 ? (
                         <div className="space-y-1 rounded-md bg-muted/30 p-2">
                           {portItems.map(item => (
-                            <div key={`${item.protocol}-${item.port}`} className="flex items-center justify-between gap-3 text-xs">
-                              <span className="font-mono">{item.port}/{item.protocol}</span>
-                              <span className={item.conflict ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-700 dark:text-emerald-400'}>
-                                {item.conflict ? `${item.occupied ? 'occupied' : 'reserved'}${item.occupied && item.reserved ? ' and reserved' : ''}` : 'available'}
+                            <div
+                              key={`${item.protocol}-${item.port}`}
+                              className="flex items-center justify-between gap-3 text-xs"
+                            >
+                              <span className="font-mono">
+                                {item.port}/{item.protocol}
+                              </span>
+                              <span
+                                className={
+                                  item.conflict
+                                    ? 'text-amber-700 dark:text-amber-400'
+                                    : 'text-emerald-700 dark:text-emerald-400'
+                                }
+                              >
+                                {item.conflict
+                                  ? `${item.occupied ? 'occupied' : 'reserved'}${item.occupied && item.reserved ? ' and reserved' : ''}`
+                                  : 'available'}
                               </span>
                             </div>
                           ))}
@@ -789,16 +997,32 @@ export function CreateDeploymentPage({
                       ) : null}
                     </div>
                   ) : (
-                    <div className="mt-2 text-[10px] text-muted-foreground">Final validation is performed server-side. Use Check to preview compose validity, duplicate names, and host-port conflicts before creating the action.</div>
+                    <div className="mt-2 text-[10px] text-muted-foreground">
+                      Final validation is performed server-side. Use Check to preview compose
+                      validity, duplicate names, and host-port conflicts before creating the action.
+                    </div>
                   )}
                 </div>
 
                 {/* ── Actions ── */}
                 <div className="flex flex-col gap-2 pt-1">
-                  <Button variant="outline" onClick={() => void (isGit ? checkGitOperation() : checkManualOperation({ runtimeInputs, sourceBuild }))} disabled={checkDisabled} className="h-10">
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      void (isGit
+                        ? checkGitOperation()
+                        : checkManualOperation({ runtimeInputs, sourceBuild }))
+                    }
+                    disabled={checkDisabled}
+                    className="h-10"
+                  >
                     {activeChecking ? 'Checking...' : 'Check'}
                   </Button>
-                  <Button onClick={() => void handleSubmit()} disabled={createDisabled || srcUploading} className="h-10">
+                  <Button
+                    onClick={() => void handleSubmit()}
+                    disabled={createDisabled || srcUploading}
+                    className="h-10"
+                  >
                     {activeSubmitting || srcUploading ? 'Creating...' : 'Create Deployment'}
                   </Button>
                 </div>

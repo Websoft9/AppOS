@@ -216,3 +216,8 @@ artifact/：如果你未来不只管镜像，还管 Helm Chart、包仓库、插
 
 resource/  server/  database/  integration/  registry/  ...
 这里的 resource/ 是“外部资源命名空间”，而不是“只有这四类”。
+
+
+1. secret 文本框右侧应该有一个眼睛图标，可以让文本框显示密文
+2. 把 connectors 和 servers 里还保留的旧版 “新建 Secret” 对话框也完全切到 SecretCreateDialog.tsx。
+3. Editable 这个文字去掉

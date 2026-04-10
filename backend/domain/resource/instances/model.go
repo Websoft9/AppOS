@@ -161,13 +161,14 @@ type Template struct {
 	ID string `json:"id"`
 	// Category is the product-facing directory group used for navigation and discovery.
 	// It is not the resource identity axis; kind remains the canonical instance identity.
-	Category        string          `json:"category,omitempty"`
-	Kind            string          `json:"kind"`
-	Title           string          `json:"title"`
-	Vendor          string          `json:"vendor,omitempty"`
-	Description     string          `json:"description,omitempty"`
-	DefaultEndpoint string          `json:"defaultEndpoint,omitempty"`
-	Fields          []TemplateField `json:"fields,omitempty"`
+	Category         string          `json:"category,omitempty"`
+	Kind             string          `json:"kind"`
+	Title            string          `json:"title"`
+	Vendor           string          `json:"vendor,omitempty"`
+	Description      string          `json:"description,omitempty"`
+	DefaultEndpoint  string          `json:"defaultEndpoint,omitempty"`
+	OmitCommonFields []string        `json:"omitCommonFields,omitempty"`
+	Fields           []TemplateField `json:"fields,omitempty"`
 }
 
 func NormalizeTemplateID(raw string) string {

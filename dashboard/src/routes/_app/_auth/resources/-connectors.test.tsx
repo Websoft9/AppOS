@@ -7,8 +7,19 @@ const getOneMock = vi.fn()
 const createMock = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
-  createFileRoute: () => ({ component }: { component: unknown }) => component,
-  Link: ({ children, to, className }: { children: React.ReactNode; to: string; className?: string }) => (
+  createFileRoute:
+    () =>
+    ({ component }: { component: unknown }) =>
+      component,
+  Link: ({
+    children,
+    to,
+    className,
+  }: {
+    children: React.ReactNode
+    to: string
+    className?: string
+  }) => (
     <a href={to} className={className}>
       {children}
     </a>
@@ -139,7 +150,9 @@ describe('ConnectorsPage', () => {
 
     const groups = Array.from(select.querySelectorAll('optgroup')).map(group => ({
       label: group.label,
-      options: Array.from(group.querySelectorAll('option')).map(option => option.textContent?.trim()),
+      options: Array.from(group.querySelectorAll('option')).map(option =>
+        option.textContent?.trim()
+      ),
     }))
 
     expect(groups).toEqual([

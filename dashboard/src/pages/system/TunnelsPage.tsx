@@ -133,7 +133,11 @@ function SortableHeader({
     >
       <span>{label}</span>
       {isActive ? (
-        dir === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+        dir === 'asc' ? (
+          <ArrowUp className="h-3.5 w-3.5" />
+        ) : (
+          <ArrowDown className="h-3.5 w-3.5" />
+        )
       ) : (
         <ArrowUpDown className="h-3.5 w-3.5 opacity-45" />
       )}
@@ -154,7 +158,9 @@ function DetailItem({
 }) {
   return (
     <div className={`rounded-md border bg-background px-3 py-2 ${className}`.trim()}>
-      <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">{label}</div>
+      <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+        {label}
+      </div>
       <div className="mt-1 break-words leading-6 text-foreground">{children ?? value ?? '—'}</div>
     </div>
   )
@@ -244,7 +250,10 @@ export function TunnelsPage({
             delete next[serverId]
             continue
           }
-          if (pendingStatus === 'reconnecting' && (item.status === 'online' || item.is_paused || item.status === 'paused')) {
+          if (
+            pendingStatus === 'reconnecting' &&
+            (item.status === 'online' || item.is_paused || item.status === 'paused')
+          ) {
             delete next[serverId]
           }
         }
@@ -264,9 +273,12 @@ export function TunnelsPage({
     setForwardsLoading(true)
     setForwardsError('')
     try {
-      const res = await pb.send<{ forwards?: TunnelForward[] }>(`/api/tunnel/servers/${serverId}/forwards`, {
-        method: 'GET',
-      })
+      const res = await pb.send<{ forwards?: TunnelForward[] }>(
+        `/api/tunnel/servers/${serverId}/forwards`,
+        {
+          method: 'GET',
+        }
+      )
       setForwardDraft(normalizeTunnelForwardsResponse(res))
     } catch (err) {
       setForwardsError(err instanceof Error ? err.message : 'Failed to load desired forwards')
@@ -285,9 +297,12 @@ export function TunnelsPage({
       },
     }))
     try {
-      const res = await pb.send<{ items?: TunnelLogItem[] }>(`/api/tunnel/servers/${serverId}/logs`, {
-        method: 'GET',
-      })
+      const res = await pb.send<{ items?: TunnelLogItem[] }>(
+        `/api/tunnel/servers/${serverId}/logs`,
+        {
+          method: 'GET',
+        }
+      )
       setLogsById(current => ({
         ...current,
         [serverId]: {
@@ -385,7 +400,9 @@ export function TunnelsPage({
         clearTimeout(refreshTimerRef.current)
       }
       unsubscribe?.()
-      pb.collection('servers').unsubscribe('*').catch(() => {})
+      pb.collection('servers')
+        .unsubscribe('*')
+        .catch(() => {})
     }
   }, [])
 
@@ -515,7 +532,10 @@ export function TunnelsPage({
       if (statusFilter === 'online' && item.status !== 'online') {
         return false
       }
-      if (statusFilter === 'offline' && (item.status === 'online' || item.waiting_for_first_connect || item.is_paused)) {
+      if (
+        statusFilter === 'offline' &&
+        (item.status === 'online' || item.waiting_for_first_connect || item.is_paused)
+      ) {
         return false
       }
       if (statusFilter === 'paused' && !item.is_paused && item.status !== 'paused') {
@@ -618,7 +638,9 @@ export function TunnelsPage({
   }
 
   function updateForward(index: number, patch: Partial<TunnelForward>) {
-    setForwardDraft(current => current.map((forward, i) => (i === index ? { ...forward, ...patch } : forward)))
+    setForwardDraft(current =>
+      current.map((forward, i) => (i === index ? { ...forward, ...patch } : forward))
+    )
   }
 
   function addForward() {
@@ -629,7 +651,9 @@ export function TunnelsPage({
     setForwardDraft(current => current.filter((_, i) => i !== index))
   }
 
-  const logsState = logsTarget ? logsById[logsTarget.id] ?? { loading: false, error: '', items: [] } : null
+  const logsState = logsTarget
+    ? (logsById[logsTarget.id] ?? { loading: false, error: '', items: [] })
+    : null
 
   return (
     <div className="space-y-6">
@@ -637,7 +661,8 @@ export function TunnelsPage({
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Tunnels</h1>
           <p className="text-muted-foreground mt-1">
-            Inspect active tunnel connectivity, review connection logs, and operate recovery actions.
+            Inspect active tunnel connectivity, review connection logs, and operate recovery
+            actions.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -652,7 +677,9 @@ export function TunnelsPage({
         </div>
       </div>
 
-      {error ? <DismissibleAlert message={error} variant="destructive" onDismiss={() => setError('')} /> : null}
+      {error ? (
+        <DismissibleAlert message={error} variant="destructive" onDismiss={() => setError('')} />
+      ) : null}
 
       {notice ? <DismissibleAlert message={notice} onDismiss={() => setNotice('')} /> : null}
 
@@ -795,14 +822,24 @@ export function TunnelsPage({
                               ) : null}
                             </TableCell>
                             <TableCell className="text-sm">
-                              <div className={`inline-flex items-center gap-2 ${statusTone(item, pendingStatus)}`}>
+                              <div
+                                className={`inline-flex items-center gap-2 ${statusTone(item, pendingStatus)}`}
+                              >
                                 {statusBadge(item, pendingStatus)}
                               </div>
                             </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">{formatLastConnected(item)}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground">{formatCreated(item)}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground">{formatSessionDuration(item)}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground">{item.remote_addr || '—'}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {formatLastConnected(item)}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {formatCreated(item)}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {formatSessionDuration(item)}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {item.remote_addr || '—'}
+                            </TableCell>
                             <TableCell className="text-right">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -824,13 +861,18 @@ export function TunnelsPage({
                                     <Wrench className="mr-2 h-4 w-4" />
                                     Setup
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem disabled={actionBusy} onClick={() => void handleCheckStatus(item)}>
+                                  <DropdownMenuItem
+                                    disabled={actionBusy}
+                                    onClick={() => void handleCheckStatus(item)}
+                                  >
                                     {!actionBusy && <RefreshCw className="mr-2 h-4 w-4" />}
                                     {actionBusy ? 'Checking...' : 'Check'}
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                   {item.is_paused || item.status === 'paused' ? (
-                                    <DropdownMenuItem onClick={() => setConfirmTarget({ action: 'resume', item })}>
+                                    <DropdownMenuItem
+                                      onClick={() => setConfirmTarget({ action: 'resume', item })}
+                                    >
                                       <RefreshCw className="mr-2 h-4 w-4" />
                                       Resume Connect
                                     </DropdownMenuItem>
@@ -852,7 +894,9 @@ export function TunnelsPage({
                                     <Trash2 className="mr-2 h-4 w-4" />
                                     Restart Connection
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => setConfirmTarget({ action: 'rotate', item })}>
+                                  <DropdownMenuItem
+                                    onClick={() => setConfirmTarget({ action: 'rotate', item })}
+                                  >
                                     <KeyRound className="mr-2 h-4 w-4" />
                                     Rotate token
                                   </DropdownMenuItem>
@@ -865,8 +909,14 @@ export function TunnelsPage({
                               <TableCell colSpan={7} className="py-3">
                                 <div className="space-y-3 rounded-lg border bg-muted/10 px-4 py-3 text-sm">
                                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b pb-2">
-                                    <span className="font-medium text-foreground">Tunnel Details</span>
-                                    {item.description ? <span className="text-muted-foreground">{item.description}</span> : null}
+                                    <span className="font-medium text-foreground">
+                                      Tunnel Details
+                                    </span>
+                                    {item.description ? (
+                                      <span className="text-muted-foreground">
+                                        {item.description}
+                                      </span>
+                                    ) : null}
                                   </div>
                                   <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                                     <DetailItem label="Server Name">
@@ -883,22 +933,44 @@ export function TunnelsPage({
                                         <span>{item.name}</span>
                                       )}
                                     </DetailItem>
-                                    <DetailItem label="Status" value={item.is_paused ? 'Paused' : item.status} />
-                                    <DetailItem label="Last Connected" value={formatLastConnected(item)} />
+                                    <DetailItem
+                                      label="Status"
+                                      value={item.is_paused ? 'Paused' : item.status}
+                                    />
+                                    <DetailItem
+                                      label="Last Connected"
+                                      value={formatLastConnected(item)}
+                                    />
                                     <DetailItem label="Created" value={formatCreated(item)} />
-                                    <DetailItem label="Session Duration" value={formatSessionDuration(item)} />
-                                    <DetailItem label="Remote" value={infoValue(item.remote_addr || '—')} />
+                                    <DetailItem
+                                      label="Session Duration"
+                                      value={formatSessionDuration(item)}
+                                    />
+                                    <DetailItem
+                                      label="Remote"
+                                      value={infoValue(item.remote_addr || '—')}
+                                    />
                                     <DetailItem
                                       label="Reconnects 24h"
                                       value={String(item.recent_reconnect_count_24h ?? 0)}
                                     />
-                                    <DetailItem label="Pause Until" value={formatDateTime(item.pause_until)} />
-                                    <DetailItem label="Last Disconnect" value={formatDisconnectReason(item)} />
+                                    <DetailItem
+                                      label="Pause Until"
+                                      value={formatDateTime(item.pause_until)}
+                                    />
+                                    <DetailItem
+                                      label="Last Disconnect"
+                                      value={formatDisconnectReason(item)}
+                                    />
                                     <DetailItem
                                       label="Waiting First Connect"
                                       value={item.waiting_for_first_connect ? 'Yes' : 'No'}
                                     />
-                                    <DetailItem label="Effective Mappings" value={effectiveMappings} className="md:col-span-2 xl:col-span-3" />
+                                    <DetailItem
+                                      label="Effective Mappings"
+                                      value={effectiveMappings}
+                                      className="md:col-span-2 xl:col-span-3"
+                                    />
                                   </div>
                                 </div>
                               </TableCell>
@@ -980,7 +1052,9 @@ export function TunnelsPage({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void handleConfirmAction()}>Confirm</AlertDialogAction>
+            <AlertDialogAction onClick={() => void handleConfirmAction()}>
+              Confirm
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1009,7 +1083,9 @@ export function TunnelsPage({
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void handlePauseSubmit()}>Pause Connect</AlertDialogAction>
+            <AlertDialogAction onClick={() => void handlePauseSubmit()}>
+              Pause Connect
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1030,7 +1106,9 @@ export function TunnelsPage({
             <SheetTitle>
               {portForwardTarget ? `Port Forward · ${portForwardTarget.name}` : 'Port Forward'}
             </SheetTitle>
-            <SheetDescription>Saved intent on the left, current live mappings on the right.</SheetDescription>
+            <SheetDescription>
+              Saved intent on the left, current live mappings on the right.
+            </SheetDescription>
           </SheetHeader>
 
           <div className="flex-1 space-y-4 overflow-y-auto p-4">
@@ -1077,7 +1155,9 @@ export function TunnelsPage({
                           <Input
                             value={forward.service_name}
                             placeholder="service name"
-                            onChange={event => updateForward(index, { service_name: event.target.value })}
+                            onChange={event =>
+                              updateForward(index, { service_name: event.target.value })
+                            }
                           />
                           <div className="flex items-center gap-2 sm:justify-end">
                             <Input
@@ -1087,7 +1167,9 @@ export function TunnelsPage({
                               min="1"
                               max="65535"
                               onChange={event =>
-                                updateForward(index, { local_port: Number(event.target.value || 0) })
+                                updateForward(index, {
+                                  local_port: Number(event.target.value || 0),
+                                })
                               }
                             />
                           </div>
@@ -1126,7 +1208,9 @@ export function TunnelsPage({
                           className="rounded-md border px-3 py-2 text-sm"
                         >
                           <div className="font-medium text-foreground">{service.service_name}</div>
-                          <div className="text-muted-foreground">{formatEffectiveMapping(service)}</div>
+                          <div className="text-muted-foreground">
+                            {formatEffectiveMapping(service)}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1201,19 +1285,26 @@ export function TunnelsPage({
                   const metaItems = [
                     reason ? { label: 'Reason', value: reason } : null,
                     log.remote_addr ? { label: 'Remote', value: log.remote_addr } : null,
-                    log.pause_until ? { label: 'Pause until', value: formatDateTime(log.pause_until) } : null,
+                    log.pause_until
+                      ? { label: 'Pause until', value: formatDateTime(log.pause_until) }
+                      : null,
                   ].filter(Boolean) as Array<{ label: string; value: string }>
 
                   return (
                     <div key={log.id} className="rounded-md border px-3 py-3 text-sm">
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="font-medium text-foreground">{log.label || log.action || 'Event'}</div>
+                        <div className="font-medium text-foreground">
+                          {log.label || log.action || 'Event'}
+                        </div>
                         <div className="text-muted-foreground">{formatDateTime(log.at)}</div>
                       </div>
                       {metaItems.length ? (
                         <div className="mt-3 grid gap-2 sm:grid-cols-2">
                           {metaItems.map(item => (
-                            <div key={`${log.id}-${item.label}`} className="rounded-md bg-muted/40 px-3 py-2">
+                            <div
+                              key={`${log.id}-${item.label}`}
+                              className="rounded-md bg-muted/40 px-3 py-2"
+                            >
                               <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                                 {item.label}
                               </div>

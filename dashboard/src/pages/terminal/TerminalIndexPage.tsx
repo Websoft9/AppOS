@@ -224,9 +224,7 @@ function OverviewPanel({
   const connectedServers = servers.filter(s => sessionServerIds.has(s.id))
 
   const sessionMinAgo =
-    sessionUpdatedAt != null
-      ? Math.max(1, Math.floor((nowTs - sessionUpdatedAt) / 60000))
-      : null
+    sessionUpdatedAt != null ? Math.max(1, Math.floor((nowTs - sessionUpdatedAt) / 60000)) : null
 
   return (
     <div className="h-full overflow-y-auto p-6 space-y-6">
@@ -357,9 +355,7 @@ function ServersPanel({
   const availableServers = servers.filter(s => !sessionServerIds.has(s.id))
 
   const sessionMinAgo =
-    sessionUpdatedAt != null
-      ? Math.max(1, Math.floor((nowTs - sessionUpdatedAt) / 60000))
-      : null
+    sessionUpdatedAt != null ? Math.max(1, Math.floor((nowTs - sessionUpdatedAt) / 60000)) : null
 
   if (loading) {
     return (
@@ -556,9 +552,7 @@ export function TerminalIndexPage() {
       {/* ── Top: page header ── */}
       <div className="shrink-0 px-6 py-4 border-b">
         <h1 className="text-2xl font-bold tracking-tight">Terminal</h1>
-        <p className="text-muted-foreground mt-1">
-          Connecting your remote resources at one place
-        </p>
+        <p className="text-muted-foreground mt-1">Connecting your remote resources at one place</p>
       </div>
 
       {/* ── Bottom: left tabs + right content ── */}
@@ -573,10 +567,7 @@ export function TerminalIndexPage() {
         >
           {/* Toggle button */}
           <div
-            className={cn(
-              'flex py-2 shrink-0',
-              navOpen ? 'justify-end px-2' : 'justify-center'
-            )}
+            className={cn('flex py-2 shrink-0', navOpen ? 'justify-end px-2' : 'justify-center')}
           >
             <Button
               variant="ghost"
@@ -587,9 +578,7 @@ export function TerminalIndexPage() {
                 setNavOpen(v => !v)
               }}
             >
-              {navOpen
-                ? <PanelLeftClose className="h-4 w-4" />
-                : <PanelLeft className="h-4 w-4" />}
+              {navOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
             </Button>
           </div>
 
@@ -602,7 +591,10 @@ export function TerminalIndexPage() {
                   disabled={!tab.available}
                   onClick={e => {
                     e.stopPropagation()
-                    if (!navOpen) { setNavOpen(true); return }
+                    if (!navOpen) {
+                      setNavOpen(true)
+                      return
+                    }
                     if (tab.available) setActiveTab(tab.id)
                   }}
                   className={cn(

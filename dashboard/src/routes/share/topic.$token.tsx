@@ -35,7 +35,11 @@ interface SharedComment {
 function formatDate(iso: string) {
   if (!iso) return ''
   return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   })
 }
 
@@ -72,14 +76,14 @@ function SharedTopicPage() {
 
   const fetchTopic = useCallback(async () => {
     try {
-      const res = await pb.send<SharedTopic>(
-        `/api/topics/share/${encodeURIComponent(token)}`,
-        {},
-      )
+      const res = await pb.send<SharedTopic>(`/api/topics/share/${encodeURIComponent(token)}`, {})
       setTopic(res)
       setError('')
     } catch (err: any) {
-      const msg = err?.response?.data?.message || err?.data?.message || 'This share link is invalid or has expired.'
+      const msg =
+        err?.response?.data?.message ||
+        err?.data?.message ||
+        'This share link is invalid or has expired.'
       setError(msg)
     } finally {
       setLoading(false)
@@ -190,7 +194,9 @@ function SharedTopicPage() {
                   <Label>Add a comment</Label>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="sm:col-span-1 space-y-1">
-                      <Label htmlFor="guest-name" className="text-xs text-muted-foreground">Your name (optional)</Label>
+                      <Label htmlFor="guest-name" className="text-xs text-muted-foreground">
+                        Your name (optional)
+                      </Label>
                       <Input
                         id="guest-name"
                         value={guestName}
@@ -218,7 +224,9 @@ function SharedTopicPage() {
                   </div>
                 </form>
               ) : (
-                <p className="text-sm text-muted-foreground">This topic is closed. No new comments can be added.</p>
+                <p className="text-sm text-muted-foreground">
+                  This topic is closed. No new comments can be added.
+                </p>
               )}
             </div>
           </>

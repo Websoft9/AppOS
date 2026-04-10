@@ -12,14 +12,10 @@ import (
 //
 // Route groups:
 //
-//	/api/ext/resources/databases/*
-//	/api/ext/resources/cloud-accounts/*
 //	/api/ext/resources/scripts/*
 func registerResourceRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	r := g.Group("/resources")
 
-	registerDatabasesCRUD(r)
-	registerCloudAccountsCRUD(r)
 	registerScriptsCRUD(r)
 }
 
@@ -115,80 +111,6 @@ func bindAndSave(e *core.RequestEvent, record *core.Record, fields []string) err
 		return e.BadRequestError("Validation failed", err)
 	}
 	return e.JSON(http.StatusOK, recordToMap(record))
-}
-
-// ═══════════════════════════════════════════════════════════
-// Databases
-// ═══════════════════════════════════════════════════════════
-
-var databaseFields = []string{"name", "type", "host", "port", "db_name", "user", "password", "description"}
-
-func registerDatabasesCRUD(r *router.RouterGroup[*core.RequestEvent]) {
-	d := r.Group("/databases")
-	d.Bind(apis.RequireSuperuserAuth())
-
-	d.GET("", func(e *core.RequestEvent) error {
-		return listRecords(e, "databases")
-	})
-	d.GET("/{id}", func(e *core.RequestEvent) error {
-		return getRecord(e, "databases")
-	})
-	d.POST("", func(e *core.RequestEvent) error {
-		col, err := e.App.FindCollectionByNameOrId("databases")
-		if err != nil {
-			return resourceError(e, http.StatusInternalServerError, "collection not found", err)
-		}
-		record := core.NewRecord(col)
-		return bindAndSave(e, record, databaseFields)
-	})
-	d.PUT("/{id}", func(e *core.RequestEvent) error {
-		id := e.Request.PathValue("id")
-		record, err := e.App.FindRecordById("databases", id)
-		if err != nil {
-			return e.NotFoundError("Record not found", err)
-		}
-		return bindAndSave(e, record, databaseFields)
-	})
-	d.DELETE("/{id}", func(e *core.RequestEvent) error {
-		return deleteRecord(e, "databases")
-	})
-}
-
-// ═══════════════════════════════════════════════════════════
-// Cloud Accounts
-// ═══════════════════════════════════════════════════════════
-
-var cloudAccountFields = []string{"name", "provider", "access_key_id", "secret", "region", "extra", "description"}
-
-func registerCloudAccountsCRUD(r *router.RouterGroup[*core.RequestEvent]) {
-	ca := r.Group("/cloud-accounts")
-	ca.Bind(apis.RequireSuperuserAuth())
-
-	ca.GET("", func(e *core.RequestEvent) error {
-		return listRecords(e, "cloud_accounts")
-	})
-	ca.GET("/{id}", func(e *core.RequestEvent) error {
-		return getRecord(e, "cloud_accounts")
-	})
-	ca.POST("", func(e *core.RequestEvent) error {
-		col, err := e.App.FindCollectionByNameOrId("cloud_accounts")
-		if err != nil {
-			return resourceError(e, http.StatusInternalServerError, "collection not found", err)
-		}
-		record := core.NewRecord(col)
-		return bindAndSave(e, record, cloudAccountFields)
-	})
-	ca.PUT("/{id}", func(e *core.RequestEvent) error {
-		id := e.Request.PathValue("id")
-		record, err := e.App.FindRecordById("cloud_accounts", id)
-		if err != nil {
-			return e.NotFoundError("Record not found", err)
-		}
-		return bindAndSave(e, record, cloudAccountFields)
-	})
-	ca.DELETE("/{id}", func(e *core.RequestEvent) error {
-		return deleteRecord(e, "cloud_accounts")
-	})
 }
 
 // ═══════════════════════════════════════════════════════════

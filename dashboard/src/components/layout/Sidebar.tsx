@@ -14,11 +14,18 @@ import {
   TerminalSquare,
   KeyRound,
   MessageSquare,
+  FileCode,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Separator } from '@/components/ui/separator'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useLayout } from '@/contexts/LayoutContext'
 import { useAuth } from '@/contexts/AuthContext'
@@ -81,6 +88,12 @@ const workspaceGroup: NavGroup = {
       children: [
         { id: 'groups', label: 'Groups', href: '/groups' },
         { id: 'topics', label: 'Topics', href: '/topics' },
+        {
+          id: 'scripts',
+          label: 'Scripts',
+          href: '/resources/scripts',
+          icon: <FileCode className="h-4 w-4" />,
+        },
       ],
     },
     { id: 'space', label: 'Space', icon: <FolderOpen className="h-5 w-5" />, href: '/space' },
@@ -175,8 +188,6 @@ interface SidebarProps {
   groups?: NavGroup[]
 }
 
-
-
 // ─── NavLink ─────────────────────────────────────────────
 
 function NavLink({
@@ -192,9 +203,12 @@ function NavLink({
 }) {
   const router = useRouterState()
   const hasChildren = !!(item.children && item.children.length > 0)
-  const isChildActive = hasChildren && item.children!.some(
-    child => router.location.pathname === child.href || router.location.pathname.startsWith(child.href)
-  )
+  const isChildActive =
+    hasChildren &&
+    item.children!.some(
+      child =>
+        router.location.pathname === child.href || router.location.pathname.startsWith(child.href)
+    )
   const [childrenOpen, setChildrenOpen] = useState(isChildActive)
   const isActive =
     router.location.pathname === item.href ||
@@ -226,7 +240,9 @@ function NavLink({
         >
           {item.icon}
           <span className="truncate flex-1 text-left">{item.label}</span>
-          <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', !childrenOpen && '-rotate-90')} />
+          <ChevronDown
+            className={cn('h-3.5 w-3.5 transition-transform', !childrenOpen && '-rotate-90')}
+          />
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="mt-1 flex flex-col gap-1">
@@ -306,9 +322,7 @@ function NavGroupSection({
 
   return (
     <div>
-      <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground">
-        {group.label}
-      </div>
+      <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground">{group.label}</div>
       <nav className="flex flex-col gap-1 px-2 pb-1" aria-label={`${group.label} navigation`}>
         {group.items.map(item => (
           <NavLink key={item.id} item={item} collapsed={false} onNavigate={onNavigate} />

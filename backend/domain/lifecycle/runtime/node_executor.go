@@ -11,9 +11,9 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/deploy"
+	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	"github.com/websoft9/appos/backend/infra/docker"
 	"github.com/websoft9/appos/backend/infra/fileutil"
-	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 )
 
 var sourceWorkspaceBasePath = "/appos/data"

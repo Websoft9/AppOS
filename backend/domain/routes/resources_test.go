@@ -2,7 +2,9 @@ package routes
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -384,6 +386,68 @@ func TestInstancesCRUD(t *testing.T) {
 	}
 }
 
+func TestInstanceReachability(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen probe target: %v", err)
+	}
+	defer listener.Close()
+
+	closedListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve closed probe target: %v", err)
+	}
+	closedAddr := closedListener.Addr().String()
+	_ = closedListener.Close()
+
+	rec := te.do(t, http.MethodPost, "/api/instances",
+		fmt.Sprintf(`{"name":"reachable-redis","kind":"redis","template_id":"generic-redis","endpoint":"%s"}`,
+			listener.Addr().String(),
+		), true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create reachable instance: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	reachableID := parseJSON(t, rec)["id"].(string)
+
+	rec = te.do(t, http.MethodPost, "/api/instances",
+		fmt.Sprintf(`{"name":"offline-redis","kind":"redis","template_id":"generic-redis","endpoint":"%s"}`,
+			closedAddr,
+		), true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create offline instance: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	offlineID := parseJSON(t, rec)["id"].(string)
+
+	rec = te.do(t, http.MethodPost, "/api/instances/reachability",
+		fmt.Sprintf(`{"ids":["%s","%s"]}`, reachableID, offlineID), true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("probe instance reachability: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rows := parseJSONArray(t, rec)
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 reachability rows, got %d", len(rows))
+	}
+
+	byID := map[string]map[string]any{}
+	for _, row := range rows {
+		byID[row["id"].(string)] = row
+	}
+
+	if byID[reachableID]["status"] != "online" {
+		t.Fatalf("expected reachable instance online, got %v", byID[reachableID]["status"])
+	}
+	if byID[offlineID]["status"] != "offline" {
+		t.Fatalf("expected offline instance offline, got %v", byID[offlineID]["status"])
+	}
+	if _, ok := byID[offlineID]["reason"]; !ok {
+		t.Fatal("expected offline instance to include reason")
+	}
+}
+
 func TestProviderAccountTemplatesRequireAuthAndList(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
@@ -641,85 +705,23 @@ func TestServersRouteRemovedFromExt(t *testing.T) {
 	}
 }
 
-// ═══════════════════════════════════════════════════════════
-// Databases
-// ═══════════════════════════════════════════════════════════
-
-func TestDatabasesCRUD(t *testing.T) {
+func TestDatabasesRouteRemovedFromExt(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	// Create
-	rec := te.do(t, http.MethodPost, "/api/ext/resources/databases",
-		`{"name":"prod-mysql","type":"mysql","host":"db.example.com","port":3306,"db_name":"myapp","user":"admin"}`, true)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("create: expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	created := parseJSON(t, rec)
-	id := created["id"].(string)
-
-	// Get
-	rec = te.do(t, http.MethodGet, "/api/ext/resources/databases/"+id, "", true)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("get: expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	got := parseJSON(t, rec)
-	if got["type"] != "mysql" {
-		t.Errorf("expected type 'mysql', got %v", got["type"])
-	}
-
-	// Update
-	rec = te.do(t, http.MethodPut, "/api/ext/resources/databases/"+id,
-		`{"name":"prod-mysql-updated","type":"mysql","host":"db2.example.com","port":3307,"db_name":"myapp","user":"admin"}`, true)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("update: expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	updated := parseJSON(t, rec)
-	if updated["host"] != "db2.example.com" {
-		t.Errorf("expected host 'db2.example.com', got %v", updated["host"])
-	}
-
-	// Delete
-	rec = te.do(t, http.MethodDelete, "/api/ext/resources/databases/"+id, "", true)
-	if rec.Code != http.StatusNoContent {
-		t.Fatalf("delete: expected 204, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	// Verify deleted
-	rec = te.do(t, http.MethodGet, "/api/ext/resources/databases/"+id, "", true)
-	if rec.Code == http.StatusOK {
-		t.Fatal("expected non-200 for deleted record")
+	rec := te.do(t, http.MethodGet, "/api/ext/resources/databases", "", true)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 after ext database route removal, got %d", rec.Code)
 	}
 }
 
-// ═══════════════════════════════════════════════════════════
-// Cloud Accounts
-// ═══════════════════════════════════════════════════════════
-
-func TestCloudAccountsCreateAndList(t *testing.T) {
+func TestCloudAccountsRouteRemovedFromExt(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	rec := te.do(t, http.MethodPost, "/api/ext/resources/cloud-accounts",
-		`{"name":"aws-prod","provider":"aws","access_key_id":"AKIAIOSFODNN7EXAMPLE","region":"us-east-1"}`, true)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("create: expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	rec = te.do(t, http.MethodGet, "/api/ext/resources/cloud-accounts", "", true)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("list: expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	list := parseJSONArray(t, rec)
-	if len(list) != 1 {
-		t.Fatalf("expected 1 cloud account, got %d", len(list))
+	rec := te.do(t, http.MethodGet, "/api/ext/resources/cloud-accounts", "", true)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 after ext cloud accounts route removal, got %d", rec.Code)
 	}
 }
 

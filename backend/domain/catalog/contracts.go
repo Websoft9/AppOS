@@ -94,8 +94,8 @@ type LinkSet struct {
 }
 
 type Requirements struct {
-	VCpu     int `json:"vcpu,omitempty"`
-	MemoryGB int `json:"memoryGb,omitempty"`
+	VCpu      int `json:"vcpu,omitempty"`
+	MemoryGB  int `json:"memoryGb,omitempty"`
 	StorageGB int `json:"storageGb,omitempty"`
 }
 
@@ -154,16 +154,16 @@ type InstallPrefill struct {
 }
 
 type DeployCapabilities struct {
-	HasComposeTemplate bool `json:"hasComposeTemplate"`
-	HasEnvTemplate     bool `json:"hasEnvTemplate"`
+	HasComposeTemplate   bool `json:"hasComposeTemplate"`
+	HasEnvTemplate       bool `json:"hasEnvTemplate"`
 	SupportsDirectDeploy bool `json:"supportsDirectDeploy"`
 }
 
 type DeploySourceResponse struct {
-	App          DeploySourceApp     `json:"app"`
-	Template     TemplateSummary     `json:"template"`
-	Install      InstallPrefill      `json:"install"`
-	Capabilities DeployCapabilities  `json:"capabilities"`
+	App          DeploySourceApp    `json:"app"`
+	Template     TemplateSummary    `json:"template"`
+	Install      InstallPrefill     `json:"install"`
+	Capabilities DeployCapabilities `json:"capabilities"`
 }
 
 type PersonalizationRecord struct {

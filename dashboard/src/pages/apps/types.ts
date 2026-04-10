@@ -107,7 +107,9 @@ export function formatTime(value?: string): string {
   return date.toLocaleString()
 }
 
-export function runtimeVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
+export function runtimeVariant(
+  status: string
+): 'default' | 'secondary' | 'destructive' | 'outline' {
   switch (status) {
     case 'running':
       return 'default'
@@ -142,7 +144,10 @@ export function appIconClass(name: string): string {
 }
 
 export function appInitials(name: string): string {
-  const parts = name.split(/[^a-zA-Z0-9]+/).filter(Boolean).slice(0, 2)
+  const parts = name
+    .split(/[^a-zA-Z0-9]+/)
+    .filter(Boolean)
+    .slice(0, 2)
   if (parts.length === 0) return 'AP'
   return parts.map(part => part[0]?.toUpperCase() || '').join('')
 }

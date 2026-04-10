@@ -11,6 +11,7 @@ Provide a stable, generated OpenAPI contract for AppOS and serve Swagger UI dire
 - Ext spec is generated: `backend/docs/openapi/ext-api.yaml`
 - Native spec is manually maintained: `backend/docs/openapi/native-api.yaml`
 - Final merged spec is generated: `backend/docs/openapi/api.yaml`
+- Ext generator now parses typed `@Param body`, `@Success`, `@Failure` annotations and emits component schemas from named Go structs in scanned route directories
 - Runtime serves docs at:
   - `GET /openapi` (Swagger UI)
   - `GET /openapi/spec` (embedded merged YAML)
@@ -28,8 +29,9 @@ Provide a stable, generated OpenAPI contract for AppOS and serve Swagger UI dire
 ## Documentation Types (Critical)
 1) Business Logic Routes (named handlers)
 - Scope: custom handlers in `backend/domain/routes/*.go` (for example audit, docker, terminal, iac, settings).
-- Authoring: handler comment annotations (`@Summary`, `@Description`) are parsed and written to spec; `@swagger summary/auth` markers provide additional overrides.
+- Authoring: handler comment annotations (`@Summary`, `@Description`, typed `@Param body`, typed `@Success/@Failure`) are parsed and written to spec; `@swagger summary/auth` markers provide additional overrides.
 - Output: generated into `backend/docs/openapi/ext-api.yaml` by matrix-driven generator.
+- Schema rule: use named request/response structs when you want generated component refs; anonymous structs and `map[string]any` remain generic.
 
 2) PB Collection CRUD / Native Web APIs
 - Scope: PocketBase native endpoints (records, auth actions, collections, settings, files, realtime, backups, health, crons).
@@ -62,6 +64,8 @@ Provide a stable, generated OpenAPI contract for AppOS and serve Swagger UI dire
   - [x] 3.1 Use `backend/docs/openapi/group-matrix.yaml` as single source of truth for Ext generation
   - [x] 3.2 Scan route files from `groups[*].sources.extRouteFiles`
   - [x] 3.3 Filter generated Ext routes by `groups[*].extSurface`
+  - [x] 3.4 Generate typed request/response refs from swagger annotations
+  - [x] 3.5 Generate component schemas from named Go structs in scanned route directories
 
 - [x] Task 4: Build and quality gates
   - [x] 4.1 Provide unified command entry `backend/cmd/openapi` (`gen|merge|sync`)
@@ -79,6 +83,7 @@ Provide a stable, generated OpenAPI contract for AppOS and serve Swagger UI dire
 ## Maintenance Rules (Minimal)
 - Change Ext grouping/tag/surface/file ownership: edit `group-matrix.yaml` first.
 - Change Native endpoints: edit `native-api.yaml`.
+- Change typed Ext request/response docs: update named Go structs plus swagger annotations in the route source, then run `make openapi-sync`.
 - Do not manually edit generated files: `ext-api.yaml`, `api.yaml`.
 
 ## Native Update Governance (Mandatory)

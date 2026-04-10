@@ -38,4 +38,3 @@ function StatusPage() {
 export const Route = createFileRoute('/_app/_auth/_superuser/status')({
   component: StatusPage,
 })
-

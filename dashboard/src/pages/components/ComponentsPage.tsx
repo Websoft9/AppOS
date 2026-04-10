@@ -104,7 +104,8 @@ export function ComponentsPage() {
   const [componentsError, setComponentsError] = useState('')
   const [servicesError, setServicesError] = useState('')
   const [servicesInterval, setServicesInterval] = useState(5000)
-  const [logDialog, setLogDialog] = useState<{    name: string
+  const [logDialog, setLogDialog] = useState<{
+    name: string
     stream: 'stdout' | 'stderr'
     content: string
     loading: boolean
@@ -266,10 +267,7 @@ export function ComponentsPage() {
             <div className="rounded-2xl border border-dashed bg-gradient-to-br from-muted/40 via-background to-muted/20 p-3">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
                 {components.map(component => (
-                  <article
-                    key={component.id}
-                    className="rounded-xl border bg-background/80 p-4"
-                  >
+                  <article key={component.id} className="rounded-xl border bg-background/80 p-4">
                     <p className="text-base font-medium leading-6">{component.name}</p>
                     <p className="mt-1 text-sm text-muted-foreground">
                       Version {component.version || 'unknown'}
@@ -417,8 +415,18 @@ export function ComponentsPage() {
 // ─── Split-out exports for embedding in the Status page tabs ─────────────────
 
 function SortBtn<K extends string>({
-  label, field, sort, dir, onSort,
-}: { label: string; field: K; sort: K; dir: 'asc' | 'desc'; onSort: (f: K) => void }) {
+  label,
+  field,
+  sort,
+  dir,
+  onSort,
+}: {
+  label: string
+  field: K
+  sort: K
+  dir: 'asc' | 'desc'
+  onSort: (f: K) => void
+}) {
   const active = sort === field
   return (
     <button
@@ -427,9 +435,15 @@ function SortBtn<K extends string>({
       onClick={() => onSort(field)}
     >
       {label}
-      {active
-        ? dir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-        : <ArrowUpDown className="h-3 w-3 opacity-40" />}
+      {active ? (
+        dir === 'asc' ? (
+          <ArrowUp className="h-3 w-3" />
+        ) : (
+          <ArrowDown className="h-3 w-3" />
+        )
+      ) : (
+        <ArrowUpDown className="h-3 w-3 opacity-40" />
+      )}
     </button>
   )
 }
@@ -461,16 +475,32 @@ export function InstalledComponentsContent() {
     }
   }, [])
 
-  useEffect(() => { void fetchComponents() }, [fetchComponents])
+  useEffect(() => {
+    void fetchComponents()
+  }, [fetchComponents])
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-end">
-        <Button variant="outline" size="icon" title="Force refresh" disabled={loading} onClick={() => void fetchComponents(true)}>
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+        <Button
+          variant="outline"
+          size="icon"
+          title="Force refresh"
+          disabled={loading}
+          onClick={() => void fetchComponents(true)}
+        >
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
         </Button>
       </div>
-      {error ? <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert> : null}
+      {error ? (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
       {loading ? (
         <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
           <p className="text-muted-foreground">Loading installed components...</p>
@@ -485,8 +515,12 @@ export function InstalledComponentsContent() {
             {sorted.map(component => (
               <article key={component.id} className="rounded-xl border bg-background/80 p-4">
                 <p className="text-base font-medium leading-6">{component.name}</p>
-                <p className="mt-1 text-sm text-muted-foreground">Version {component.version || 'unknown'}</p>
-                <p className="mt-2 text-xs text-muted-foreground">Updated {formatTime(component.updated_at)}</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Version {component.version || 'unknown'}
+                </p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Updated {formatTime(component.updated_at)}
+                </p>
               </article>
             ))}
           </div>
@@ -514,7 +548,10 @@ export function ActiveServicesContent() {
 
   const handleSort = (key: typeof sortKey) => {
     if (sortKey === key) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
-    else { setSortKey(key); setSortDir('asc') }
+    else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
   }
 
   const sorted = useMemo(() => {
@@ -547,24 +584,45 @@ export function ActiveServicesContent() {
         `/api/components/services/${encodeURIComponent(name)}/logs?stream=${stream}&tail=200`,
         { method: 'GET' }
       )
-      setLogDialog({ name, stream, content: data.content, loading: false, truncated: data.truncated, lastDetectedAt: data.last_detected_at })
+      setLogDialog({
+        name,
+        stream,
+        content: data.content,
+        loading: false,
+        truncated: data.truncated,
+        lastDetectedAt: data.last_detected_at,
+      })
     } catch (err) {
-      setLogDialog({ name, stream, content: err instanceof Error ? err.message : 'Failed to load logs', loading: false, truncated: false, lastDetectedAt: '' })
+      setLogDialog({
+        name,
+        stream,
+        content: err instanceof Error ? err.message : 'Failed to load logs',
+        loading: false,
+        truncated: false,
+        lastDetectedAt: '',
+      })
     }
   }, [])
 
-  useEffect(() => { void fetchServices() }, [fetchServices])
+  useEffect(() => {
+    void fetchServices()
+  }, [fetchServices])
 
   useEffect(() => {
     if (servicesInterval === 0) return
-    const timer = window.setInterval(() => { void fetchServices() }, servicesInterval)
+    const timer = window.setInterval(() => {
+      void fetchServices()
+    }, servicesInterval)
     return () => window.clearInterval(timer)
   }, [fetchServices, servicesInterval])
 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-end gap-2">
-        <Select value={String(servicesInterval)} onValueChange={v => setServicesInterval(Number(v))}>
+        <Select
+          value={String(servicesInterval)}
+          onValueChange={v => setServicesInterval(Number(v))}
+        >
           <SelectTrigger className="h-8 w-[90px] text-xs">
             <SelectValue placeholder="Auto-refresh" />
           </SelectTrigger>
@@ -579,7 +637,11 @@ export function ActiveServicesContent() {
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
-      {error ? <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert> : null}
+      {error ? (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
       {loading ? (
         <div className="flex flex-col items-center justify-center rounded-md border py-12 text-center">
           <p className="text-muted-foreground">Loading active services...</p>
@@ -592,12 +654,46 @@ export function ActiveServicesContent() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead><SortBtn label="Name" field="name" sort={sortKey} dir={sortDir} onSort={handleSort} /></TableHead>
-              <TableHead><SortBtn label="State" field="state" sort={sortKey} dir={sortDir} onSort={handleSort} /></TableHead>
+              <TableHead>
+                <SortBtn
+                  label="Name"
+                  field="name"
+                  sort={sortKey}
+                  dir={sortDir}
+                  onSort={handleSort}
+                />
+              </TableHead>
+              <TableHead>
+                <SortBtn
+                  label="State"
+                  field="state"
+                  sort={sortKey}
+                  dir={sortDir}
+                  onSort={handleSort}
+                />
+              </TableHead>
               <TableHead className="hidden sm:table-cell">PID</TableHead>
-              <TableHead className="hidden md:table-cell"><SortBtn label="CPU" field="cpu" sort={sortKey} dir={sortDir} onSort={handleSort} /></TableHead>
-              <TableHead className="hidden md:table-cell"><SortBtn label="Memory" field="memory" sort={sortKey} dir={sortDir} onSort={handleSort} /></TableHead>
-              <TableHead className="hidden lg:table-cell"><SortBtn label="Uptime" field="uptime" sort={sortKey} dir={sortDir} onSort={handleSort} /></TableHead>
+              <TableHead className="hidden md:table-cell">
+                <SortBtn label="CPU" field="cpu" sort={sortKey} dir={sortDir} onSort={handleSort} />
+              </TableHead>
+              <TableHead className="hidden md:table-cell">
+                <SortBtn
+                  label="Memory"
+                  field="memory"
+                  sort={sortKey}
+                  dir={sortDir}
+                  onSort={handleSort}
+                />
+              </TableHead>
+              <TableHead className="hidden lg:table-cell">
+                <SortBtn
+                  label="Uptime"
+                  field="uptime"
+                  sort={sortKey}
+                  dir={sortDir}
+                  onSort={handleSort}
+                />
+              </TableHead>
               <TableHead className="hidden lg:table-cell">Last Detected</TableHead>
               <TableHead className="text-right">Action</TableHead>
             </TableRow>
@@ -609,13 +705,23 @@ export function ActiveServicesContent() {
                 <TableCell>
                   <Badge variant={serviceVariant(service.state)}>{service.state}</Badge>
                 </TableCell>
-                <TableCell className="hidden sm:table-cell">{service.pid > 0 ? service.pid : '-'}</TableCell>
-                <TableCell className="hidden md:table-cell">
-                  {service.state === 'running' || service.cpu > 0 ? `${service.cpu.toFixed(1)}%` : '-'}
+                <TableCell className="hidden sm:table-cell">
+                  {service.pid > 0 ? service.pid : '-'}
                 </TableCell>
-                <TableCell className="hidden md:table-cell">{formatMemory(service.memory)}</TableCell>
-                <TableCell className="hidden lg:table-cell">{formatUptime(service.uptime)}</TableCell>
-                <TableCell className="hidden lg:table-cell">{formatTime(service.last_detected_at)}</TableCell>
+                <TableCell className="hidden md:table-cell">
+                  {service.state === 'running' || service.cpu > 0
+                    ? `${service.cpu.toFixed(1)}%`
+                    : '-'}
+                </TableCell>
+                <TableCell className="hidden md:table-cell">
+                  {formatMemory(service.memory)}
+                </TableCell>
+                <TableCell className="hidden lg:table-cell">
+                  {formatUptime(service.uptime)}
+                </TableCell>
+                <TableCell className="hidden lg:table-cell">
+                  {formatTime(service.last_detected_at)}
+                </TableCell>
                 <TableCell className="text-right">
                   <Button
                     variant="ghost"
@@ -644,25 +750,46 @@ export function ActiveServicesContent() {
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-2 mb-2">
-            <Button variant={logDialog?.stream === 'stdout' ? 'default' : 'outline'} size="sm"
-              onClick={() => logDialog && void openLogs(logDialog.name, 'stdout')}>stdout</Button>
-            <Button variant={logDialog?.stream === 'stderr' ? 'default' : 'outline'} size="sm"
-              onClick={() => logDialog && void openLogs(logDialog.name, 'stderr')}>stderr</Button>
-            <Button variant="outline" size="sm"
-              onClick={() => logDialog && void openLogs(logDialog.name, logDialog.stream)}>Refresh</Button>
+            <Button
+              variant={logDialog?.stream === 'stdout' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => logDialog && void openLogs(logDialog.name, 'stdout')}
+            >
+              stdout
+            </Button>
+            <Button
+              variant={logDialog?.stream === 'stderr' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => logDialog && void openLogs(logDialog.name, 'stderr')}
+            >
+              stderr
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => logDialog && void openLogs(logDialog.name, logDialog.stream)}
+            >
+              Refresh
+            </Button>
           </div>
           <div className="flex-1 overflow-auto min-h-0">
             {logDialog?.loading ? (
-              <div className="rounded-lg border p-6 text-sm text-muted-foreground">Loading service logs...</div>
+              <div className="rounded-lg border p-6 text-sm text-muted-foreground">
+                Loading service logs...
+              </div>
             ) : (
               <pre className="bg-muted p-4 rounded-lg text-xs font-mono whitespace-pre-wrap break-all overflow-auto max-h-[65vh]">
                 {logDialog?.content || 'No log content'}
               </pre>
             )}
           </div>
-          {logDialog?.truncated ? <p className="text-xs text-muted-foreground">Showing a truncated log tail.</p> : null}
+          {logDialog?.truncated ? (
+            <p className="text-xs text-muted-foreground">Showing a truncated log tail.</p>
+          ) : null}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setLogDialog(null)}>Close</Button>
+            <Button variant="outline" onClick={() => setLogDialog(null)}>
+              Close
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

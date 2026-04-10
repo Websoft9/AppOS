@@ -25,6 +25,11 @@ servers:
     description: Local development
 
 tags:
+  - name: Audit
+    description: Audit log query APIs — native collection record endpoints
+    externalDocs:
+      description: Native record CRUD actions
+      url: https://pocketbase.io/docs/api-records/#crud-actions
   - name: Auth
     description: Native record auth actions
     externalDocs:
@@ -35,6 +40,16 @@ tags:
     externalDocs:
       description: Native backups API
       url: https://pocketbase.io/docs/api-backups/
+  - name: Certificates
+    description: Native certificate collection CRUD APIs
+    externalDocs:
+      description: Native record CRUD actions
+      url: https://pocketbase.io/docs/api-records/#crud-actions
+  - name: Connectors
+    description: Native connector collection CRUD APIs
+    externalDocs:
+      description: Native record CRUD actions
+      url: https://pocketbase.io/docs/api-records/#crud-actions
   - name: Health
     description: Native service health endpoint
     externalDocs:
@@ -45,8 +60,13 @@ tags:
     externalDocs:
       description: Native realtime API
       url: https://pocketbase.io/docs/api-realtime/
-  - name: Users
-    description: Concrete users collection APIs derived from Native Record CRUD actions
+  - name: Secrets
+    description: Native secret record storage APIs
+    externalDocs:
+      description: Native record CRUD actions
+      url: https://pocketbase.io/docs/api-records/#crud-actions
+  - name: Servers
+    description: Native server registry record APIs
     externalDocs:
       description: Native record CRUD actions
       url: https://pocketbase.io/docs/api-records/#crud-actions
@@ -60,21 +80,21 @@ tags:
     externalDocs:
       description: Native files API
       url: https://pocketbase.io/docs/api-files/
-  - name: Audit
-    description: Audit log query APIs — native collection record endpoints
-    externalDocs:
-      description: Native record CRUD actions
-      url: https://pocketbase.io/docs/api-records/#crud-actions
-  - name: Resource
-    description: Native resource collection APIs, including connector collection CRUD endpoints
-    externalDocs:
-      description: Native record CRUD actions
-      url: https://pocketbase.io/docs/api-records/#crud-actions
   - name: System Cron
     description: Native cron jobs API
     externalDocs:
       description: Native cron API
       url: https://pocketbase.io/docs/api-crons/
+  - name: Topics
+    description: Native topic and topic comment collection CRUD APIs
+    externalDocs:
+      description: Native record CRUD actions
+      url: https://pocketbase.io/docs/api-records/#crud-actions
+  - name: Users
+    description: Concrete users collection APIs derived from Native Record CRUD actions
+    externalDocs:
+      description: Native record CRUD actions
+      url: https://pocketbase.io/docs/api-records/#crud-actions
 
 components:
   schemas:
@@ -532,7 +552,7 @@ paths:
 
   /api/collections/connectors/records:
     get:
-      tags: [Resource]
+      tags: [Connectors]
       summary: List connector records
       description: Concrete connectors endpoint projected from Native Record CRUD list records.
       operationId: pb_connectors_records_list
@@ -582,7 +602,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/PBRecordList'
     post:
-      tags: [Resource]
+      tags: [Connectors]
       summary: Create connector record
       description: Concrete connectors endpoint projected from Native Record CRUD create record.
       operationId: pb_connectors_records_create
@@ -594,7 +614,7 @@ paths:
 
   /api/collections/connectors/records/{id}:
     get:
-      tags: [Resource]
+      tags: [Connectors]
       summary: Get connector record by id
       description: Concrete connectors endpoint projected from Native Record CRUD get record by id.
       operationId: pb_connectors_records_get
@@ -620,7 +640,7 @@ paths:
         "200":
           description: OK
     patch:
-      tags: [Resource]
+      tags: [Connectors]
       summary: Update connector record by id
       description: Concrete connectors endpoint projected from Native Record CRUD update record by id.
       operationId: pb_connectors_records_patch
@@ -636,10 +656,620 @@ paths:
         "200":
           description: OK
     delete:
-      tags: [Resource]
+      tags: [Connectors]
       summary: Delete connector record by id
       description: Concrete connectors endpoint projected from Native Record CRUD delete record by id.
       operationId: pb_connectors_records_delete
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: No Content
+
+  /api/collections/certificates/records:
+    get:
+      tags: [Certificates]
+      summary: List certificate records
+      description: Concrete certificates endpoint projected from Native Record CRUD list records.
+      operationId: pb_certificates_records_list
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: perPage
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: filter
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: expand
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: fields
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: skipTotal
+          in: query
+          required: false
+          schema:
+            type: boolean
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PBRecordList'
+    post:
+      tags: [Certificates]
+      summary: Create certificate record
+      description: Concrete certificates endpoint projected from Native Record CRUD create record.
+      operationId: pb_certificates_records_create
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  /api/collections/certificates/records/{id}:
+    get:
+      tags: [Certificates]
+      summary: Get certificate record by id
+      description: Concrete certificates endpoint projected from Native Record CRUD get record by id.
+      operationId: pb_certificates_records_get
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: expand
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: fields
+          in: query
+          required: false
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    patch:
+      tags: [Certificates]
+      summary: Update certificate record by id
+      description: Concrete certificates endpoint projected from Native Record CRUD update record by id.
+      operationId: pb_certificates_records_patch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [Certificates]
+      summary: Delete certificate record by id
+      description: Concrete certificates endpoint projected from Native Record CRUD delete record by id.
+      operationId: pb_certificates_records_delete
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: No Content
+
+  /api/collections/servers/records:
+    get:
+      tags: [Servers]
+      summary: List server records
+      description: Concrete servers endpoint projected from Native Record CRUD list records.
+      operationId: pb_servers_records_list
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: perPage
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: filter
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: expand
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: fields
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: skipTotal
+          in: query
+          required: false
+          schema:
+            type: boolean
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PBRecordList'
+    post:
+      tags: [Servers]
+      summary: Create server record
+      description: Concrete servers endpoint projected from Native Record CRUD create record.
+      operationId: pb_servers_records_create
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  /api/collections/servers/records/{id}:
+    get:
+      tags: [Servers]
+      summary: Get server record by id
+      description: Concrete servers endpoint projected from Native Record CRUD get record by id.
+      operationId: pb_servers_records_get
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: expand
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: fields
+          in: query
+          required: false
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    patch:
+      tags: [Servers]
+      summary: Update server record by id
+      description: Concrete servers endpoint projected from Native Record CRUD update record by id.
+      operationId: pb_servers_records_patch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [Servers]
+      summary: Delete server record by id
+      description: Concrete servers endpoint projected from Native Record CRUD delete record by id.
+      operationId: pb_servers_records_delete
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: No Content
+
+  /api/collections/secrets/records:
+    get:
+      tags: [Secrets]
+      summary: List secret records
+      description: Concrete secrets endpoint projected from Native Record CRUD list records.
+      operationId: pb_secrets_records_list
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: perPage
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: filter
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: expand
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: fields
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: skipTotal
+          in: query
+          required: false
+          schema:
+            type: boolean
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PBRecordList'
+    post:
+      tags: [Secrets]
+      summary: Create secret record
+      description: Concrete secrets endpoint projected from Native Record CRUD create record.
+      operationId: pb_secrets_records_create
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  /api/collections/secrets/records/{id}:
+    get:
+      tags: [Secrets]
+      summary: Get secret record by id
+      description: Concrete secrets endpoint projected from Native Record CRUD get record by id.
+      operationId: pb_secrets_records_get
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: expand
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: fields
+          in: query
+          required: false
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    patch:
+      tags: [Secrets]
+      summary: Update secret record by id
+      description: Concrete secrets endpoint projected from Native Record CRUD update record by id.
+      operationId: pb_secrets_records_patch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [Secrets]
+      summary: Delete secret record by id
+      description: Concrete secrets endpoint projected from Native Record CRUD delete record by id.
+      operationId: pb_secrets_records_delete
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: No Content
+
+  /api/collections/topics/records:
+    get:
+      tags: [Topics]
+      summary: List topic records
+      description: Concrete topics endpoint projected from Native Record CRUD list records.
+      operationId: pb_topics_records_list
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: perPage
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: filter
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: expand
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: fields
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: skipTotal
+          in: query
+          required: false
+          schema:
+            type: boolean
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PBRecordList'
+    post:
+      tags: [Topics]
+      summary: Create topic record
+      description: Concrete topics endpoint projected from Native Record CRUD create record.
+      operationId: pb_topics_records_create
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  /api/collections/topics/records/{id}:
+    get:
+      tags: [Topics]
+      summary: Get topic record by id
+      description: Concrete topics endpoint projected from Native Record CRUD get record by id.
+      operationId: pb_topics_records_get
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: expand
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: fields
+          in: query
+          required: false
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    patch:
+      tags: [Topics]
+      summary: Update topic record by id
+      description: Concrete topics endpoint projected from Native Record CRUD update record by id.
+      operationId: pb_topics_records_patch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [Topics]
+      summary: Delete topic record by id
+      description: Concrete topics endpoint projected from Native Record CRUD delete record by id.
+      operationId: pb_topics_records_delete
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: No Content
+
+  /api/collections/topic_comments/records:
+    get:
+      tags: [Topics]
+      summary: List topic comment records
+      description: Concrete topic_comments endpoint projected from Native Record CRUD list records.
+      operationId: pb_topic_comments_records_list
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: perPage
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: filter
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: expand
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: fields
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: skipTotal
+          in: query
+          required: false
+          schema:
+            type: boolean
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PBRecordList'
+    post:
+      tags: [Topics]
+      summary: Create topic comment record
+      description: Concrete topic_comments endpoint projected from Native Record CRUD create record.
+      operationId: pb_topic_comments_records_create
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  /api/collections/topic_comments/records/{id}:
+    get:
+      tags: [Topics]
+      summary: Get topic comment record by id
+      description: Concrete topic_comments endpoint projected from Native Record CRUD get record by id.
+      operationId: pb_topic_comments_records_get
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: expand
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: fields
+          in: query
+          required: false
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    patch:
+      tags: [Topics]
+      summary: Update topic comment record by id
+      description: Concrete topic_comments endpoint projected from Native Record CRUD update record by id.
+      operationId: pb_topic_comments_records_patch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [Topics]
+      summary: Delete topic comment record by id
+      description: Concrete topic_comments endpoint projected from Native Record CRUD delete record by id.
+      operationId: pb_topic_comments_records_delete
       parameters:
         - name: id
           in: path

@@ -46,7 +46,11 @@ describe('ActionDetailContent', () => {
             pipeline_family_internal: 'ProvisionPipeline',
             pipeline_definition_key: 'provision.install.manual_compose',
             pipeline_version: 'v1',
-            pipeline_selector: { operation_type: 'install', source: 'manualops', adapter: 'manual' },
+            pipeline_selector: {
+              operation_type: 'install',
+              source: 'manualops',
+              adapter: 'manual',
+            },
             lifecycle: [],
             steps: [
               {
@@ -68,7 +72,9 @@ describe('ActionDetailContent', () => {
           }}
           loading={false}
           streamStatus="closed"
-          logText={'2026-03-26T08:02:00Z step started: Prepare Workspace\n2026-03-26T08:02:02Z workspace ready\n2026-03-26T08:03:00Z step completed: Prepare Workspace\n2026-03-26T08:06:00Z step started: Verify Runtime Health\n2026-03-26T08:07:00Z error: probe failed\n2026-03-26T08:08:00Z step completed: Verify Runtime Health'}
+          logText={
+            '2026-03-26T08:02:00Z step started: Prepare Workspace\n2026-03-26T08:02:02Z workspace ready\n2026-03-26T08:03:00Z step completed: Prepare Workspace\n2026-03-26T08:06:00Z step started: Verify Runtime Health\n2026-03-26T08:07:00Z error: probe failed\n2026-03-26T08:08:00Z step completed: Verify Runtime Health'
+          }
           logUpdatedAt="2026-03-26T08:08:00Z"
           logTruncated={false}
           logViewportRef={{ current: null }}
@@ -165,7 +171,11 @@ describe('ActionDetailContent', () => {
             },
             pipeline_family: 'provision',
             pipeline_definition_key: 'provision.install.source_build',
-            pipeline_selector: { operation_type: 'install', source: 'manualops', adapter: 'source_build' },
+            pipeline_selector: {
+              operation_type: 'install',
+              source: 'manualops',
+              adapter: 'source_build',
+            },
             lifecycle: [],
             steps: [],
           }}

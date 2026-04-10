@@ -107,8 +107,17 @@ export type Notice = {
 
 export type SortField = 'compose_project_name' | 'created' | 'started_at' | 'finished_at'
 export type SortDir = 'asc' | 'desc'
-export type ManualEntryMode = 'compose' | 'docker-command' | 'install-script' | 'store-prefill' | 'installed-prefill'
-export type CreateDeploymentEntryMode = 'compose' | 'git-compose' | 'docker-command' | 'install-script'
+export type ManualEntryMode =
+  | 'compose'
+  | 'docker-command'
+  | 'install-script'
+  | 'store-prefill'
+  | 'installed-prefill'
+export type CreateDeploymentEntryMode =
+  | 'compose'
+  | 'git-compose'
+  | 'docker-command'
+  | 'install-script'
 export type StoreShortcut = Pick<Product, 'key' | 'trademark' | 'logo'>
 
 export type ActionListSearch = {

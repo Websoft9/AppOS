@@ -5,7 +5,16 @@ import '@xterm/xterm/css/xterm.css'
 import { sshWebSocketUrl, dockerWebSocketUrl, loadPreferences } from '@/lib/connect-api'
 import { pb } from '@/lib/pb'
 import { Button } from '@/components/ui/button'
-import { AlertCircle, KeyRound, WifiOff, ShieldX, Settings, ServerCrash, Unplug, RefreshCw } from 'lucide-react'
+import {
+  AlertCircle,
+  KeyRound,
+  WifiOff,
+  ShieldX,
+  Settings,
+  ServerCrash,
+  Unplug,
+  RefreshCw,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -38,12 +47,12 @@ type ConnectErrorCategory =
   | 'server_disconnected'
 
 const categoryMeta: Record<ConnectErrorCategory, { icon: typeof AlertCircle; label: string }> = {
-  auth_failed:         { icon: KeyRound,    label: 'Authentication Failed' },
-  network_unreachable: { icon: WifiOff,     label: 'Network Unreachable' },
-  connection_refused:  { icon: ShieldX,     label: 'Connection Refused' },
-  credential_invalid:  { icon: Settings,    label: 'Credential Config Error' },
-  session_failed:      { icon: ServerCrash, label: 'Session Setup Failed' },
-  server_disconnected: { icon: Unplug,      label: 'Server Disconnected' },
+  auth_failed: { icon: KeyRound, label: 'Authentication Failed' },
+  network_unreachable: { icon: WifiOff, label: 'Network Unreachable' },
+  connection_refused: { icon: ShieldX, label: 'Connection Refused' },
+  credential_invalid: { icon: Settings, label: 'Credential Config Error' },
+  session_failed: { icon: ServerCrash, label: 'Session Setup Failed' },
+  server_disconnected: { icon: Unplug, label: 'Server Disconnected' },
 }
 
 function makeResizeFrame(cols: number, rows: number): Uint8Array {
@@ -370,7 +379,9 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
                       <>
                         <div className="flex items-center justify-center gap-2 text-destructive">
                           <Icon className="h-5 w-5 shrink-0" />
-                          <span className="text-sm font-medium">{meta?.label ?? 'Connection Error'}</span>
+                          <span className="text-sm font-medium">
+                            {meta?.label ?? 'Connection Error'}
+                          </span>
                         </div>
                         <p className="text-muted-foreground text-xs leading-relaxed">{error}</p>
                       </>

@@ -12,9 +12,7 @@ import {
   useCatalogCategories,
   useCatalogDeploySource,
 } from '@/lib/catalog-api'
-import {
-  useProducts,
-} from '@/lib/store-api'
+import { useProducts } from '@/lib/store-api'
 import { useUserApps, useToggleFavorite, useSaveNote } from '@/lib/store-user-api'
 import {
   useCustomApps,
@@ -163,7 +161,9 @@ function StorePage() {
   // Sort catalog by position
   const primaryCategories = useMemo(() => {
     if (!categoryTree) return []
-    return toLegacyPrimaryCategories(categoryTree).sort((a, b) => (a.position ?? 999) - (b.position ?? 999))
+    return toLegacyPrimaryCategories(categoryTree).sort(
+      (a, b) => (a.position ?? 999) - (b.position ?? 999)
+    )
   }, [categoryTree])
 
   const primaryCounts = useMemo(() => {
@@ -185,25 +185,26 @@ function StorePage() {
   }, [categoryTree])
 
   const paginatedProducts = useMemo(
-    () => (officialAppsPage?.items ?? []).map(item => ({
-      sys: { id: item.key },
-      key: item.key,
-      trademark: item.title,
-      summary: item.overview,
-      overview: item.overview,
-      logo: item.iconUrl ? { imageurl: item.iconUrl } : undefined,
-      catalogCollection: {
-        items: item.secondaryCategories.map(category => ({
-          key: category.key,
-          title: category.title,
-          catalogCollection: item.primaryCategory
-            ? { items: [{ key: item.primaryCategory.key }] }
-            : undefined,
-        })),
-      },
-      primaryCategoryKey: item.primaryCategory?.key ?? null,
-      secondaryCategoryKeys: item.secondaryCategories.map(category => category.key),
-    })),
+    () =>
+      (officialAppsPage?.items ?? []).map(item => ({
+        sys: { id: item.key },
+        key: item.key,
+        trademark: item.title,
+        summary: item.overview,
+        overview: item.overview,
+        logo: item.iconUrl ? { imageurl: item.iconUrl } : undefined,
+        catalogCollection: {
+          items: item.secondaryCategories.map(category => ({
+            key: category.key,
+            title: category.title,
+            catalogCollection: item.primaryCategory
+              ? { items: [{ key: item.primaryCategory.key }] }
+              : undefined,
+          })),
+        },
+        primaryCategoryKey: item.primaryCategory?.key ?? null,
+        secondaryCategoryKeys: item.secondaryCategories.map(category => category.key),
+      })),
     [officialAppsPage]
   )
 

@@ -46,7 +46,7 @@ func TestBuildManualComposeInstallResolutionRequestHonorsExplicitCandidateKind(t
 		Metadata: map[string]any{
 			"candidate_kind": string(InstallCandidateKindStorePrefill),
 			"prefill_context": map[string]any{
-				"mode":   "target",
+				"mode":    "target",
 				"app_key": "wordpress",
 			},
 		},
@@ -305,12 +305,12 @@ func TestNormalizedInstallSpecOperationSpecIncludesSourceBuild(t *testing.T) {
 
 func TestResolveInstallFromComposeRewritesSingleServiceSourceBuildCompose(t *testing.T) {
 	spec, err := ResolveInstallFromCompose(nil, InstallResolutionRequest{
-		ServerID:    "local",
-		ProjectName: "demo",
-		Compose:     "services:\n  web:\n    image: nginx:alpine\n",
+		ServerID:      "local",
+		ProjectName:   "demo",
+		Compose:       "services:\n  web:\n    image: nginx:alpine\n",
 		OperationType: string(model.OperationTypeInstall),
-		Source:      "manualops",
-		Adapter:     "source-build",
+		Source:        "manualops",
+		Adapter:       "source-build",
 		SourceBuild: &InstallSourceBuildInput{
 			SourceKind:      "uploaded-package",
 			SourceRef:       "upload://app.tar.gz",
@@ -335,12 +335,12 @@ func TestResolveInstallFromComposeRewritesSingleServiceSourceBuildCompose(t *tes
 
 func TestResolveInstallFromComposeRejectsMultiServiceSourceBuildWithoutTargetService(t *testing.T) {
 	_, err := ResolveInstallFromCompose(nil, InstallResolutionRequest{
-		ServerID:    "local",
-		ProjectName: "demo",
-		Compose:     "services:\n  web:\n    image: nginx:alpine\n  db:\n    image: postgres:16\n",
+		ServerID:      "local",
+		ProjectName:   "demo",
+		Compose:       "services:\n  web:\n    image: nginx:alpine\n  db:\n    image: postgres:16\n",
 		OperationType: string(model.OperationTypeInstall),
-		Source:      "manualops",
-		Adapter:     "source-build",
+		Source:        "manualops",
+		Adapter:       "source-build",
 		SourceBuild: &InstallSourceBuildInput{
 			SourceKind:      "uploaded-package",
 			SourceRef:       "upload://app.tar.gz",
@@ -362,12 +362,12 @@ func TestResolveInstallFromComposeRejectsMultiServiceSourceBuildWithoutTargetSer
 
 func TestResolveInstallFromComposeUsesExplicitTargetServiceForMultiServiceSourceBuild(t *testing.T) {
 	spec, err := ResolveInstallFromCompose(nil, InstallResolutionRequest{
-		ServerID:    "local",
-		ProjectName: "demo",
-		Compose:     "services:\n  web:\n    image: nginx:alpine\n  db:\n    image: postgres:16\n",
+		ServerID:      "local",
+		ProjectName:   "demo",
+		Compose:       "services:\n  web:\n    image: nginx:alpine\n  db:\n    image: postgres:16\n",
 		OperationType: string(model.OperationTypeInstall),
-		Source:      "manualops",
-		Adapter:     "source-build",
+		Source:        "manualops",
+		Adapter:       "source-build",
 		SourceBuild: &InstallSourceBuildInput{
 			SourceKind:      "uploaded-package",
 			SourceRef:       "upload://app.tar.gz",

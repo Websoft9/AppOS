@@ -18,7 +18,9 @@ export function DismissibleAlert({
       variant={variant}
       className="grid-cols-[1fr_auto] items-start gap-3 border px-4 py-3 [&>[data-slot=alert-description]]:col-start-1"
     >
-      <AlertDescription className={variant === 'destructive' ? 'text-destructive/90' : 'text-foreground/80'}>
+      <AlertDescription
+        className={variant === 'destructive' ? 'text-destructive/90' : 'text-foreground/80'}
+      >
         <p>{message}</p>
       </AlertDescription>
       <button

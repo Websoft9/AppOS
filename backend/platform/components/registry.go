@@ -55,11 +55,11 @@ type Component struct {
 }
 
 type Service struct {
-	Name       string     `yaml:"name"`
-	ComponentID string    `yaml:"component_id"`
-	Enabled    bool       `yaml:"enabled"`
-	LogAccess  LogAccess  `yaml:"log_access"`
-	Operations Operations `yaml:"operations"`
+	Name        string     `yaml:"name"`
+	ComponentID string     `yaml:"component_id"`
+	Enabled     bool       `yaml:"enabled"`
+	LogAccess   LogAccess  `yaml:"log_access"`
+	Operations  Operations `yaml:"operations"`
 }
 
 type Registry struct {

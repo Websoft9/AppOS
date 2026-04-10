@@ -3,7 +3,7 @@ import type { ActionRecord } from '@/pages/deploy/actions/action-types'
 import type {
   BackupProjection,
   DockerVolume,
-  ResourceDatabase,
+  ResourceInstance,
   RuntimeContainer,
   RuntimeContainerStats,
 } from '@/pages/apps/app-detail-utils'
@@ -89,7 +89,11 @@ export type RuntimeTabProps = {
   runtimeStats: Record<string, RuntimeContainerStats>
   canOpenServerWorkspace: boolean
   openRuntimeContainerLogs: (container: RuntimeContainer) => void
-  openServerWorkspace: (options?: { panel?: 'none' | 'files' | 'docker'; path?: string; lockedRoot?: string }) => void
+  openServerWorkspace: (options?: {
+    panel?: 'none' | 'files' | 'docker'
+    path?: string
+    lockedRoot?: string
+  }) => void
   projectNameCandidates: string[]
   setTab: (value: string) => void
 }
@@ -151,11 +155,15 @@ export type DataTabProps = {
   dataError: string
   dataLoading: boolean
   dataLoaded: boolean
-  matchedDatabaseResources: ResourceDatabase[]
+  matchedInstanceResources: ResourceInstance[]
   matchedDataVolumes: DockerVolume[]
   backupProjection: BackupProjection
   mountProjectionLoading: boolean
   containerMountRows: ContainerMountRow[]
   canOpenServerWorkspace: boolean
-  openServerWorkspace: (options?: { panel?: 'none' | 'files' | 'docker'; path?: string; lockedRoot?: string }) => void
+  openServerWorkspace: (options?: {
+    panel?: 'none' | 'files' | 'docker'
+    path?: string
+    lockedRoot?: string
+  }) => void
 }

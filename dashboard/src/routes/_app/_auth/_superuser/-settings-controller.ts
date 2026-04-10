@@ -41,7 +41,8 @@ export function useSettingsPageController() {
         {
           id: 'llm-providers' as const,
           title: 'LLM Providers',
-          description: 'Reference-only entry. Create and manage LLM connectors from Resources > Connectors.',
+          description:
+            'Reference-only entry. Create and manage LLM connectors from Resources > Connectors.',
           section: 'workspace',
           source: 'custom' as const,
           fields: [{ id: 'items', label: 'Items', type: 'object-list' }],

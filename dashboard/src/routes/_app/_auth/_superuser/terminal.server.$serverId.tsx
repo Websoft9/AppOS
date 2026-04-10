@@ -17,7 +17,10 @@ export const Route = createFileRoute('/_app/_auth/_superuser/terminal/server/$se
   validateSearch: (search: Record<string, unknown>): TerminalServerSearch => ({
     panel: search.panel === 'files' || search.panel === 'docker' ? search.panel : undefined,
     path: typeof search.path === 'string' && search.path.trim() ? search.path : undefined,
-    lockedRoot: typeof search.lockedRoot === 'string' && search.lockedRoot.trim() ? search.lockedRoot : undefined,
+    lockedRoot:
+      typeof search.lockedRoot === 'string' && search.lockedRoot.trim()
+        ? search.lockedRoot
+        : undefined,
   }),
   component: ConnectServerRoute,
 })

@@ -28,7 +28,9 @@ function TunnelsRoutePage() {
   const navigate = Route.useNavigate()
 
   return (
-    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading tunnels...</div>}>
+    <Suspense
+      fallback={<div className="p-6 text-sm text-muted-foreground">Loading tunnels...</div>}
+    >
       <LazyTunnelsPage
         queryState={{
           q: search.q,

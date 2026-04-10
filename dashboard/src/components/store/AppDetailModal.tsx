@@ -85,11 +85,12 @@ export function AppDetailModal({
   const overview = detail?.overview || product.overview
   const description = detail?.description || product.description
   const iconUrl = detail?.iconUrl || product.logo?.imageurl
-  const screenshots = detail?.screenshots?.map(shot => ({
-    id: shot.key,
-    key: shot.key,
-    value: shot.url,
-  })) || product.screenshots
+  const screenshots =
+    detail?.screenshots?.map(shot => ({
+      id: shot.key,
+      key: shot.key,
+      value: shot.url,
+    })) || product.screenshots
   const requirementVCpu = detail?.requirements.vcpu || product.vcpu
   const requirementMemory = detail?.requirements.memoryGb || product.memory
   const requirementStorage = detail?.requirements.storageGb || product.storage
@@ -119,12 +120,7 @@ export function AppDetailModal({
       <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-start gap-4">
-            <AppIcon
-              appKey={product.key}
-              trademark={title}
-              logoUrl={iconUrl}
-              size="xl"
-            />
+            <AppIcon appKey={product.key} trademark={title} logoUrl={iconUrl} size="xl" />
             <div className="flex-1 min-w-0">
               <DialogTitle className="text-xl font-bold">{title}</DialogTitle>
               <p className="text-sm text-muted-foreground mt-1">{overview}</p>

@@ -3,23 +3,29 @@ import type { ActionDetailSearch, ActionListSearch } from '@/pages/deploy/action
 
 export function statusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
   switch (status) {
-    case 'success': return 'default'
+    case 'success':
+      return 'default'
     case 'failed':
     case 'timeout':
     case 'cancelled':
     case 'manual_intervention_required':
-    case 'rolled_back': return 'destructive'
+    case 'rolled_back':
+      return 'destructive'
     case 'running':
     case 'validating':
     case 'preparing':
     case 'verifying':
-    case 'rolling_back': return 'secondary'
-    default: return 'outline'
+    case 'rolling_back':
+      return 'secondary'
+    default:
+      return 'outline'
   }
 }
 
 export function isActiveStatus(status: string): boolean {
-  return ['queued', 'validating', 'preparing', 'running', 'verifying', 'rolling_back'].includes(status)
+  return ['queued', 'validating', 'preparing', 'running', 'verifying', 'rolling_back'].includes(
+    status
+  )
 }
 
 export function formatTime(value?: string): string {
@@ -55,7 +61,7 @@ export function actionDurationLabel(action: {
 }): string {
   return formatDurationCompact(
     action.pipeline?.started_at || action.started_at,
-    action.pipeline?.finished_at || action.finished_at,
+    action.pipeline?.finished_at || action.finished_at
   )
 }
 
@@ -66,7 +72,9 @@ export function buildActionWebSocketUrl(id: string): string {
   return url.toString()
 }
 
-export function stripActionDetailReturnTo(search?: ActionDetailSearch): ActionListSearch | undefined {
+export function stripActionDetailReturnTo(
+  search?: ActionDetailSearch
+): ActionListSearch | undefined {
   if (!search) return undefined
   const next: ActionListSearch = {}
   if (search.appId) next.appId = search.appId
@@ -81,7 +89,10 @@ export function stripActionDetailReturnTo(search?: ActionDetailSearch): ActionLi
   return Object.keys(next).length > 0 ? next : undefined
 }
 
-export function buildActionDetailSearch(search?: ActionListSearch, returnToList = false): ActionDetailSearch | undefined {
+export function buildActionDetailSearch(
+  search?: ActionListSearch,
+  returnToList = false
+): ActionDetailSearch | undefined {
   const next: ActionDetailSearch = {
     ...(search || {}),
     ...(returnToList ? { returnTo: 'list' as const } : {}),

@@ -2,8 +2,13 @@ package routes
 
 import (
 	"errors"
+	"fmt"
+	"net"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -25,12 +30,38 @@ type instanceUpsertRequest struct {
 	Description       string         `json:"description"`
 }
 
+type instanceResponseDocument struct {
+	ID                string         `json:"id"`
+	Created           string         `json:"created"`
+	Updated           string         `json:"updated"`
+	Name              string         `json:"name"`
+	Kind              string         `json:"kind"`
+	TemplateID        string         `json:"template_id"`
+	Endpoint          string         `json:"endpoint"`
+	ProviderAccountID string         `json:"provider_account"`
+	CredentialID      string         `json:"credential"`
+	Config            map[string]any `json:"config"`
+	Description       string         `json:"description"`
+}
+
+type instanceReachabilityRequest struct {
+	IDs []string `json:"ids"`
+}
+
+type instanceReachabilityResponseDocument struct {
+	ID        string `json:"id"`
+	Status    string `json:"status"`
+	LatencyMS int64  `json:"latency_ms,omitempty"`
+	Reason    string `json:"reason,omitempty"`
+}
+
 func registerInstanceRoutes(se *core.ServeEvent) {
 	group := se.Router.Group("/api/instances")
 	group.Bind(apis.RequireAuth())
 	group.GET("/templates", handleInstanceTemplateList)
 	group.GET("/templates/{id}", handleInstanceTemplateGet)
 	group.GET("", handleInstanceList)
+	group.POST("/reachability", handleInstanceReachability)
 	group.GET("/{id}", handleInstanceGet)
 
 	mutations := se.Router.Group("/api/instances")
@@ -81,7 +112,7 @@ func handleInstanceTemplateGet(e *core.RequestEvent) error {
 // @Tags Resource
 // @Security BearerAuth
 // @Param kind query string false "comma-separated instance kinds"
-// @Success 200 {array} map[string]any
+// @Success 200 {array} instanceResponseDocument
 // @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]any
 // @Router /api/instances [get]
@@ -97,12 +128,54 @@ func handleInstanceList(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, result)
 }
 
+// @Summary Probe instance reachability
+// @Description Probes TCP reachability for one or more service instances visible to the authenticated user.
+// @Tags Resource
+// @Security BearerAuth
+// @Param body body instanceReachabilityRequest true "instance id filter"
+// @Success 200 {array} instanceReachabilityResponseDocument
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/instances/reachability [post]
+func handleInstanceReachability(e *core.RequestEvent) error {
+	var body instanceReachabilityRequest
+	if err := e.BindBody(&body); err != nil {
+		return e.BadRequestError("invalid JSON body", err)
+	}
+
+	filterIDs := make(map[string]struct{}, len(body.IDs))
+	for _, id := range body.IDs {
+		normalized := strings.TrimSpace(id)
+		if normalized == "" {
+			continue
+		}
+		filterIDs[normalized] = struct{}{}
+	}
+
+	items, err := instances.List(persistence.NewInstanceRepository(e.App), nil)
+	if err != nil {
+		return e.InternalServerError("failed to list instances", err)
+	}
+
+	result := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		if len(filterIDs) > 0 {
+			if _, ok := filterIDs[item.ID()]; !ok {
+				continue
+			}
+		}
+		result = append(result, instanceReachabilityResponse(item))
+	}
+	return e.JSON(http.StatusOK, result)
+}
+
 // @Summary Get instance
 // @Description Returns a single service instance by id.
 // @Tags Resource
 // @Security BearerAuth
 // @Param id path string true "instance id"
-// @Success 200 {object} map[string]any
+// @Success 200 {object} instanceResponseDocument
 // @Failure 401 {object} map[string]any
 // @Failure 404 {object} map[string]any
 // @Router /api/instances/{id} [get]
@@ -122,7 +195,7 @@ func handleInstanceGet(e *core.RequestEvent) error {
 // @Tags Resource
 // @Security BearerAuth
 // @Param body body instanceUpsertRequest true "instance payload"
-// @Success 201 {object} map[string]any
+// @Success 201 {object} instanceResponseDocument
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 403 {object} map[string]any
@@ -153,7 +226,7 @@ func handleInstanceCreate(e *core.RequestEvent) error {
 // @Security BearerAuth
 // @Param id path string true "instance id"
 // @Param body body instanceUpsertRequest true "instance payload"
-// @Success 200 {object} map[string]any
+// @Success 200 {object} instanceResponseDocument
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 403 {object} map[string]any
@@ -389,4 +462,103 @@ func instanceSnapshotMap(snap *instances.Snapshot) map[string]any {
 		"config":           snap.Config,
 		"description":      snap.Description,
 	}
+}
+
+func instanceReachabilityResponse(item *instances.Instance) map[string]any {
+	status, latencyMS, reason := probeInstanceReachability(item)
+	response := map[string]any{
+		"id":     item.ID(),
+		"status": status,
+	}
+	if latencyMS > 0 {
+		response["latency_ms"] = latencyMS
+	}
+	if strings.TrimSpace(reason) != "" {
+		response["reason"] = reason
+	}
+	return response
+}
+
+func probeInstanceReachability(item *instances.Instance) (string, int64, string) {
+	host, port, err := instanceProbeTarget(item.Endpoint(), item.Kind())
+	if err != nil {
+		return "unknown", 0, err.Error()
+	}
+
+	addr := net.JoinHostPort(host, strconv.Itoa(port))
+	start := time.Now()
+	conn, dialErr := net.DialTimeout("tcp", addr, 3*time.Second)
+	if dialErr != nil {
+		return "offline", 0, dialErr.Error()
+	}
+	_ = conn.Close()
+	return "online", time.Since(start).Milliseconds(), ""
+}
+
+func instanceProbeTarget(endpoint string, kind string) (string, int, error) {
+	raw := strings.TrimSpace(endpoint)
+	if raw == "" {
+		return "", 0, errors.New("instance endpoint is empty")
+	}
+
+	if strings.Contains(raw, "://") {
+		parsed, err := url.Parse(raw)
+		if err != nil {
+			return "", 0, fmt.Errorf("invalid instance endpoint: %w", err)
+		}
+		host := strings.TrimSpace(parsed.Hostname())
+		if host == "" {
+			return "", 0, errors.New("instance endpoint host is empty")
+		}
+		if parsed.Port() != "" {
+			port, err := strconv.Atoi(parsed.Port())
+			if err != nil {
+				return "", 0, errors.New("instance endpoint port is invalid")
+			}
+			return host, port, nil
+		}
+		if port := defaultInstanceProbePort(kind, parsed.Scheme); port > 0 {
+			return host, port, nil
+		}
+		return "", 0, errors.New("instance endpoint port is empty")
+	}
+
+	host, portText, err := net.SplitHostPort(raw)
+	if err == nil {
+		port, convErr := strconv.Atoi(portText)
+		if convErr != nil {
+			return "", 0, errors.New("instance endpoint port is invalid")
+		}
+		return host, port, nil
+	}
+
+	if port := defaultInstanceProbePort(kind, ""); port > 0 {
+		return raw, port, nil
+	}
+
+	return "", 0, errors.New("instance endpoint port is empty")
+}
+
+func defaultInstanceProbePort(kind string, scheme string) int {
+	switch strings.ToLower(strings.TrimSpace(kind)) {
+	case instances.KindMySQL:
+		return 3306
+	case instances.KindPostgres:
+		return 5432
+	case instances.KindRedis:
+		return 6379
+	case instances.KindKafka:
+		return 9092
+	case instances.KindOllama:
+		return 11434
+	}
+
+	switch strings.ToLower(strings.TrimSpace(scheme)) {
+	case "https":
+		return 443
+	case "http":
+		return 80
+	}
+
+	return 0
 }

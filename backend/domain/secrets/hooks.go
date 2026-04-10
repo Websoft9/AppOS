@@ -157,5 +157,3 @@ func RegisterHooks(app *pocketbase.PocketBase) {
 		return err
 	})
 }
-
-

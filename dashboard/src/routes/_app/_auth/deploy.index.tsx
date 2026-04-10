@@ -29,6 +29,7 @@ export const Route = createFileRoute('/_app/_auth/deploy/')({
     prefillAppId: typeof search.prefillAppId === 'string' ? search.prefillAppId : undefined,
     prefillAppKey: typeof search.prefillAppKey === 'string' ? search.prefillAppKey : undefined,
     prefillAppName: typeof search.prefillAppName === 'string' ? search.prefillAppName : undefined,
-    prefillServerId: typeof search.prefillServerId === 'string' ? search.prefillServerId : undefined,
+    prefillServerId:
+      typeof search.prefillServerId === 'string' ? search.prefillServerId : undefined,
   }),
 })

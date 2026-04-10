@@ -9,7 +9,9 @@ const iacSaveFileMock = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
-  Link: ({ children, to }: { children: React.ReactNode; to: string }) => <a href={to}>{children}</a>,
+  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
+    <a href={to}>{children}</a>
+  ),
 }))
 
 vi.mock('@/lib/pb', () => ({
@@ -63,174 +65,203 @@ describe('AppDetailPage', () => {
       configurable: true,
       value: { writeText: clipboardWriteTextMock },
     })
-    windowOpenMock = vi.spyOn(window, 'open').mockImplementation(() => ({ closed: false } as Window))
+    windowOpenMock = vi
+      .spyOn(window, 'open')
+      .mockImplementation(() => ({ closed: false }) as Window)
     iacReadMock.mockResolvedValue({ content: 'APP_ENV=demo\n' })
     iacSaveFileMock.mockResolvedValue(undefined)
-    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, string> }) => {
-      if (path === '/api/apps/app-1' && options?.method === 'GET') {
-        return Promise.resolve(appDetailResponse)
-      }
-      if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
-        return Promise.resolve([])
-      }
-      if (path === '/api/apps/app-1/exposures' && options?.method === 'GET') {
-        return Promise.resolve([])
-      }
-      if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
-        return Promise.resolve({
-          id: 'app-1',
-          name: 'Demo App',
-          server_id: 'local',
-          project_dir: '/tmp/demo-app',
-          runtime_status: 'running',
-          output: 'app log line 1\napp log line 2',
-        })
-      }
-      if (path === '/api/actions' && options?.method === 'GET') {
-        return Promise.resolve([
-          {
-            id: 'op-last',
-            app_id: 'app-1',
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, string> }) => {
+        if (path === '/api/apps/app-1' && options?.method === 'GET') {
+          return Promise.resolve(appDetailResponse)
+        }
+        if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/apps/app-1/exposures' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
+          return Promise.resolve({
+            id: 'app-1',
+            name: 'Demo App',
             server_id: 'local',
-            source: 'manualops',
-            status: 'success',
-            adapter: 'docker',
-            compose_project_name: 'demo-app',
             project_dir: '/tmp/demo-app',
-            rendered_compose: '',
-            error_summary: '',
-            created: '2026-03-30T10:09:00Z',
-            updated: '2026-03-30T10:10:00Z',
-            started_at: '2026-03-30T10:09:00Z',
-            finished_at: '2026-03-30T10:10:00Z',
-            pipeline: {
-              id: 'pipe-1',
-              operation_id: 'op-last',
+            runtime_status: 'running',
+            output: 'app log line 1\napp log line 2',
+          })
+        }
+        if (path === '/api/actions' && options?.method === 'GET') {
+          return Promise.resolve([
+            {
+              id: 'op-last',
               app_id: 'app-1',
               server_id: 'local',
-              family: 'change',
+              source: 'manualops',
               status: 'success',
-              current_phase: 'completed',
-              selector: { operation_type: 'restart', source: 'manualops', adapter: 'docker' },
-            },
-            pipeline_selector: { operation_type: 'restart', source: 'manualops', adapter: 'docker' },
-          },
-          {
-            id: 'op-other',
-            app_id: 'app-2',
-            server_id: 'local',
-            source: 'manualops',
-            status: 'success',
-            adapter: 'docker',
-            compose_project_name: 'other-app',
-            project_dir: '/tmp/other-app',
-            rendered_compose: '',
-            error_summary: '',
-            created: '2026-03-30T11:09:00Z',
-            updated: '2026-03-30T11:10:00Z',
-          },
-        ])
-      }
-      if (path === '/api/ext/resources/databases' && options?.method === 'GET') {
-        return Promise.resolve([
-          {
-            id: 'db-1',
-            name: 'demo-app-db',
-            type: 'postgres',
-            host: 'db.internal',
-            port: 5432,
-            db_name: 'demo_app',
-            user: 'demo_user',
-            description: 'Primary database for demo app',
-          },
-          {
-            id: 'db-2',
-            name: 'shared-platform-db',
-            type: 'mysql',
-            host: 'shared.internal',
-            port: 3306,
-            db_name: 'platform',
-            user: 'platform_user',
-            description: 'Shared infra database',
-          },
-        ])
-      }
-      if (path === '/api/ext/docker/containers' && options?.method === 'GET') {
-        return Promise.resolve({
-          output: [
-            JSON.stringify({
-              ID: 'container-1',
-              Names: 'demo-app-web-1',
-              Image: 'nginx:stable',
-              State: 'running',
-              Status: 'Up 4 minutes',
-              Ports: '0.0.0.0:8080->80/tcp',
-            }),
-            JSON.stringify({
-              ID: 'container-2',
-              Names: 'other-app-web-1',
-              Image: 'redis:7',
-              State: 'running',
-              Status: 'Up 10 minutes',
-              Ports: '6379/tcp',
-            }),
-          ].join('\n'),
-        })
-      }
-      if (path === '/api/ext/docker/volumes' && options?.method === 'GET') {
-        return Promise.resolve({
-          output: [
-            JSON.stringify({ Name: 'demo-app-data', Driver: 'local', Mountpoint: '/var/lib/docker/volumes/demo-app-data/_data' }),
-            JSON.stringify({ Name: 'shared-cache', Driver: 'local', Mountpoint: '/var/lib/docker/volumes/shared-cache/_data' }),
-          ].join('\n'),
-        })
-      }
-      if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET') {
-        return Promise.resolve({
-          output: [
-            JSON.stringify({ ID: 'container-1', Name: 'demo-app-web-1', CPUPerc: '12.5%', MemUsage: '256MiB / 1GiB' }),
-            JSON.stringify({ ID: 'container-2', Name: 'other-app-web-1', CPUPerc: '5.0%', MemUsage: '128MiB / 1GiB' }),
-          ].join('\n'),
-        })
-      }
-      if (path === '/api/ext/docker/containers/container-1/logs?tail=200' && options?.method === 'GET') {
-        return Promise.resolve({
-          output: 'demo log line 1\ndemo log line 2',
-        })
-      }
-      if (path === '/api/ext/docker/containers/container-1' && options?.method === 'GET') {
-        return Promise.resolve({
-          output: JSON.stringify([{
-            Mounts: [
-              {
-                Type: 'bind',
-                Source: '/srv/demo-app/storage',
-                Destination: '/app/storage',
-                RW: true,
+              adapter: 'docker',
+              compose_project_name: 'demo-app',
+              project_dir: '/tmp/demo-app',
+              rendered_compose: '',
+              error_summary: '',
+              created: '2026-03-30T10:09:00Z',
+              updated: '2026-03-30T10:10:00Z',
+              started_at: '2026-03-30T10:09:00Z',
+              finished_at: '2026-03-30T10:10:00Z',
+              pipeline: {
+                id: 'pipe-1',
+                operation_id: 'op-last',
+                app_id: 'app-1',
+                server_id: 'local',
+                family: 'change',
+                status: 'success',
+                current_phase: 'completed',
+                selector: { operation_type: 'restart', source: 'manualops', adapter: 'docker' },
               },
-            ],
-          }]),
-        })
+              pipeline_selector: {
+                operation_type: 'restart',
+                source: 'manualops',
+                adapter: 'docker',
+              },
+            },
+            {
+              id: 'op-other',
+              app_id: 'app-2',
+              server_id: 'local',
+              source: 'manualops',
+              status: 'success',
+              adapter: 'docker',
+              compose_project_name: 'other-app',
+              project_dir: '/tmp/other-app',
+              rendered_compose: '',
+              error_summary: '',
+              created: '2026-03-30T11:09:00Z',
+              updated: '2026-03-30T11:10:00Z',
+            },
+          ])
+        }
+        if (path === '/api/instances' && options?.method === 'GET') {
+          return Promise.resolve([
+            {
+              id: 'db-1',
+              name: 'demo-app-db',
+              kind: 'postgres',
+              template_id: 'generic-postgres',
+              endpoint: 'db.internal:5432',
+              config: { database: 'demo_app', username: 'demo_user' },
+              description: 'Primary database for demo app',
+            },
+            {
+              id: 'db-2',
+              name: 'shared-platform-db',
+              kind: 'mysql',
+              template_id: 'generic-mysql',
+              endpoint: 'shared.internal:3306',
+              config: { database: 'platform', username: 'platform_user' },
+              description: 'Shared infra database',
+            },
+          ])
+        }
+        if (path === '/api/ext/docker/containers' && options?.method === 'GET') {
+          return Promise.resolve({
+            output: [
+              JSON.stringify({
+                ID: 'container-1',
+                Names: 'demo-app-web-1',
+                Image: 'nginx:stable',
+                State: 'running',
+                Status: 'Up 4 minutes',
+                Ports: '0.0.0.0:8080->80/tcp',
+              }),
+              JSON.stringify({
+                ID: 'container-2',
+                Names: 'other-app-web-1',
+                Image: 'redis:7',
+                State: 'running',
+                Status: 'Up 10 minutes',
+                Ports: '6379/tcp',
+              }),
+            ].join('\n'),
+          })
+        }
+        if (path === '/api/ext/docker/volumes' && options?.method === 'GET') {
+          return Promise.resolve({
+            output: [
+              JSON.stringify({
+                Name: 'demo-app-data',
+                Driver: 'local',
+                Mountpoint: '/var/lib/docker/volumes/demo-app-data/_data',
+              }),
+              JSON.stringify({
+                Name: 'shared-cache',
+                Driver: 'local',
+                Mountpoint: '/var/lib/docker/volumes/shared-cache/_data',
+              }),
+            ].join('\n'),
+          })
+        }
+        if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET') {
+          return Promise.resolve({
+            output: [
+              JSON.stringify({
+                ID: 'container-1',
+                Name: 'demo-app-web-1',
+                CPUPerc: '12.5%',
+                MemUsage: '256MiB / 1GiB',
+              }),
+              JSON.stringify({
+                ID: 'container-2',
+                Name: 'other-app-web-1',
+                CPUPerc: '5.0%',
+                MemUsage: '128MiB / 1GiB',
+              }),
+            ].join('\n'),
+          })
+        }
+        if (
+          path === '/api/ext/docker/containers/container-1/logs?tail=200' &&
+          options?.method === 'GET'
+        ) {
+          return Promise.resolve({
+            output: 'demo log line 1\ndemo log line 2',
+          })
+        }
+        if (path === '/api/ext/docker/containers/container-1' && options?.method === 'GET') {
+          return Promise.resolve({
+            output: JSON.stringify([
+              {
+                Mounts: [
+                  {
+                    Type: 'bind',
+                    Source: '/srv/demo-app/storage',
+                    Destination: '/app/storage',
+                    RW: true,
+                  },
+                ],
+              },
+            ]),
+          })
+        }
+        if (path === '/api/ext/backup/list' && options?.method === 'GET') {
+          return Promise.resolve({ message: 'not implemented' })
+        }
+        if (path === '/api/apps/app-1/start' && options?.method === 'POST') {
+          return Promise.resolve({ id: 'op-start-1' })
+        }
+        if (path === '/api/apps/app-1' && options?.method === 'DELETE') {
+          return Promise.resolve({ id: 'op-uninstall-1' })
+        }
+        if (path === '/api/apps/app-1/access' && options?.method === 'PUT') {
+          return Promise.resolve({
+            access_username: options?.body?.access_username || '',
+            access_secret_hint: options?.body?.access_secret_hint || '',
+            access_retrieval_method: options?.body?.access_retrieval_method || '',
+            access_notes: options?.body?.access_notes || '',
+          })
+        }
+        return Promise.resolve({})
       }
-      if (path === '/api/ext/backup/list' && options?.method === 'GET') {
-        return Promise.resolve({ message: 'not implemented' })
-      }
-      if (path === '/api/apps/app-1/start' && options?.method === 'POST') {
-        return Promise.resolve({ id: 'op-start-1' })
-      }
-      if (path === '/api/apps/app-1' && options?.method === 'DELETE') {
-        return Promise.resolve({ id: 'op-uninstall-1' })
-      }
-      if (path === '/api/apps/app-1/access' && options?.method === 'PUT') {
-        return Promise.resolve({
-          access_username: options?.body?.access_username || '',
-          access_secret_hint: options?.body?.access_secret_hint || '',
-          access_retrieval_method: options?.body?.access_retrieval_method || '',
-          access_notes: options?.body?.access_notes || '',
-        })
-      }
-      return Promise.resolve({})
-    })
+    )
   })
 
   it('navigates to action detail after start creates an operation', async () => {
@@ -260,72 +291,75 @@ describe('AppDetailPage', () => {
   })
 
   it('shows current source-build release artifact and source details in overview', async () => {
-    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, string> }) => {
-      if (path === '/api/apps/app-1' && options?.method === 'GET') {
-        return Promise.resolve(appDetailResponse)
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, string> }) => {
+        if (path === '/api/apps/app-1' && options?.method === 'GET') {
+          return Promise.resolve(appDetailResponse)
+        }
+        if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
+          return Promise.resolve([
+            {
+              id: 'rel-1',
+              app_id: 'app-1',
+              release_role: 'active',
+              version_label: 'source-build-demo-20260401',
+              source_type: 'file',
+              source_ref: 'apps/source-build-demo/src',
+              artifact_digest: 'apps/source-build-demo@sha256:abc123',
+              notes:
+                'uploaded source package | Source build promoted | image=apps/source-build-demo:candidate | service=web',
+              is_active: true,
+              is_last_known_good: true,
+              updated: '2026-04-01T06:00:00Z',
+            },
+            {
+              id: 'rel-2',
+              app_id: 'app-1',
+              release_role: 'candidate',
+              version_label: 'source-build-demo-20260401-candidate',
+              source_type: 'file',
+              source_ref: 'apps/source-build-demo/src',
+              artifact_digest: 'apps/source-build-demo:candidate',
+              is_active: false,
+              is_last_known_good: false,
+              updated: '2026-04-01T05:58:00Z',
+            },
+          ])
+        }
+        if (path === '/api/apps/app-1/exposures' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/actions' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/instances' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/ext/docker/containers' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/ext/docker/volumes' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
+          return Promise.resolve({
+            id: 'app-1',
+            name: 'Demo App',
+            server_id: 'local',
+            project_dir: '/tmp/demo-app',
+            runtime_status: 'running',
+            output: '',
+          })
+        }
+        if (path === '/api/ext/backup/list' && options?.method === 'GET') {
+          return Promise.resolve({ message: 'not implemented' })
+        }
+        return Promise.resolve({})
       }
-      if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
-        return Promise.resolve([
-          {
-            id: 'rel-1',
-            app_id: 'app-1',
-            release_role: 'active',
-            version_label: 'source-build-demo-20260401',
-            source_type: 'file',
-            source_ref: 'apps/source-build-demo/src',
-            artifact_digest: 'apps/source-build-demo@sha256:abc123',
-            notes: 'uploaded source package | Source build promoted | image=apps/source-build-demo:candidate | service=web',
-            is_active: true,
-            is_last_known_good: true,
-            updated: '2026-04-01T06:00:00Z',
-          },
-          {
-            id: 'rel-2',
-            app_id: 'app-1',
-            release_role: 'candidate',
-            version_label: 'source-build-demo-20260401-candidate',
-            source_type: 'file',
-            source_ref: 'apps/source-build-demo/src',
-            artifact_digest: 'apps/source-build-demo:candidate',
-            is_active: false,
-            is_last_known_good: false,
-            updated: '2026-04-01T05:58:00Z',
-          },
-        ])
-      }
-      if (path === '/api/apps/app-1/exposures' && options?.method === 'GET') {
-        return Promise.resolve([])
-      }
-      if (path === '/api/actions' && options?.method === 'GET') {
-        return Promise.resolve([])
-      }
-      if (path === '/api/ext/resources/databases' && options?.method === 'GET') {
-        return Promise.resolve([])
-      }
-      if (path === '/api/ext/docker/containers' && options?.method === 'GET') {
-        return Promise.resolve({ output: '' })
-      }
-      if (path === '/api/ext/docker/volumes' && options?.method === 'GET') {
-        return Promise.resolve({ output: '' })
-      }
-      if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET') {
-        return Promise.resolve({ output: '' })
-      }
-      if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
-        return Promise.resolve({
-          id: 'app-1',
-          name: 'Demo App',
-          server_id: 'local',
-          project_dir: '/tmp/demo-app',
-          runtime_status: 'running',
-          output: '',
-        })
-      }
-      if (path === '/api/ext/backup/list' && options?.method === 'GET') {
-        return Promise.resolve({ message: 'not implemented' })
-      }
-      return Promise.resolve({})
-    })
+    )
 
     render(<AppDetailPage appId="app-1" />)
 
@@ -344,39 +378,54 @@ describe('AppDetailPage', () => {
   })
 
   it('opens a release detail dialog from the lineage section', async () => {
-    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, string> }) => {
-      if (path === '/api/apps/app-1' && options?.method === 'GET') {
-        return Promise.resolve(appDetailResponse)
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, string> }) => {
+        if (path === '/api/apps/app-1' && options?.method === 'GET') {
+          return Promise.resolve(appDetailResponse)
+        }
+        if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
+          return Promise.resolve([
+            {
+              id: 'rel-1',
+              app_id: 'app-1',
+              release_role: 'active',
+              version_label: 'source-build-demo-20260401',
+              source_type: 'file',
+              source_ref: 'apps/source-build-demo/src',
+              artifact_digest: 'apps/source-build-demo@sha256:abc123',
+              notes:
+                'uploaded source package | Source build promoted | image=apps/source-build-demo:candidate | service=web',
+              is_active: true,
+              is_last_known_good: true,
+              updated: '2026-04-01T06:00:00Z',
+            },
+          ])
+        }
+        if (path === '/api/apps/app-1/exposures' && options?.method === 'GET')
+          return Promise.resolve([])
+        if (path === '/api/actions' && options?.method === 'GET') return Promise.resolve([])
+        if (path === '/api/instances' && options?.method === 'GET') return Promise.resolve([])
+        if (path === '/api/ext/docker/containers' && options?.method === 'GET')
+          return Promise.resolve({ output: '' })
+        if (path === '/api/ext/docker/volumes' && options?.method === 'GET')
+          return Promise.resolve({ output: '' })
+        if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET')
+          return Promise.resolve({ output: '' })
+        if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
+          return Promise.resolve({
+            id: 'app-1',
+            name: 'Demo App',
+            server_id: 'local',
+            project_dir: '/tmp/demo-app',
+            runtime_status: 'running',
+            output: '',
+          })
+        }
+        if (path === '/api/ext/backup/list' && options?.method === 'GET')
+          return Promise.resolve({ message: 'not implemented' })
+        return Promise.resolve({})
       }
-      if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
-        return Promise.resolve([
-          {
-            id: 'rel-1',
-            app_id: 'app-1',
-            release_role: 'active',
-            version_label: 'source-build-demo-20260401',
-            source_type: 'file',
-            source_ref: 'apps/source-build-demo/src',
-            artifact_digest: 'apps/source-build-demo@sha256:abc123',
-            notes: 'uploaded source package | Source build promoted | image=apps/source-build-demo:candidate | service=web',
-            is_active: true,
-            is_last_known_good: true,
-            updated: '2026-04-01T06:00:00Z',
-          },
-        ])
-      }
-      if (path === '/api/apps/app-1/exposures' && options?.method === 'GET') return Promise.resolve([])
-      if (path === '/api/actions' && options?.method === 'GET') return Promise.resolve([])
-      if (path === '/api/ext/resources/databases' && options?.method === 'GET') return Promise.resolve([])
-      if (path === '/api/ext/docker/containers' && options?.method === 'GET') return Promise.resolve({ output: '' })
-      if (path === '/api/ext/docker/volumes' && options?.method === 'GET') return Promise.resolve({ output: '' })
-      if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET') return Promise.resolve({ output: '' })
-      if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
-        return Promise.resolve({ id: 'app-1', name: 'Demo App', server_id: 'local', project_dir: '/tmp/demo-app', runtime_status: 'running', output: '' })
-      }
-      if (path === '/api/ext/backup/list' && options?.method === 'GET') return Promise.resolve({ message: 'not implemented' })
-      return Promise.resolve({})
-    })
+    )
 
     render(<AppDetailPage appId="app-1" />)
 
@@ -386,7 +435,9 @@ describe('AppDetailPage', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Open detail' })[0])
 
-    const dialog = await screen.findByRole('dialog', { name: 'Release Detail: source-build-demo-20260401' })
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Release Detail: source-build-demo-20260401',
+    })
     expect(dialog).toHaveTextContent('apps/source-build-demo@sha256:abc123')
     expect(dialog).toHaveTextContent('apps/source-build-demo:candidate')
     expect(dialog).toHaveTextContent('apps/source-build-demo/src')
@@ -395,40 +446,55 @@ describe('AppDetailPage', () => {
   })
 
   it('navigates to the related action from the release detail dialog', async () => {
-    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, string> }) => {
-      if (path === '/api/apps/app-1' && options?.method === 'GET') {
-        return Promise.resolve(appDetailResponse)
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, string> }) => {
+        if (path === '/api/apps/app-1' && options?.method === 'GET') {
+          return Promise.resolve(appDetailResponse)
+        }
+        if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
+          return Promise.resolve([
+            {
+              id: 'rel-1',
+              app_id: 'app-1',
+              created_by_operation: 'op-source-build-1',
+              release_role: 'active',
+              version_label: 'source-build-demo-20260401',
+              source_type: 'file',
+              source_ref: 'apps/source-build-demo/src',
+              artifact_digest: 'apps/source-build-demo@sha256:abc123',
+              notes:
+                'uploaded source package | Source build promoted | image=apps/source-build-demo:candidate | service=web',
+              is_active: true,
+              is_last_known_good: true,
+              updated: '2026-04-01T06:00:00Z',
+            },
+          ])
+        }
+        if (path === '/api/apps/app-1/exposures' && options?.method === 'GET')
+          return Promise.resolve([])
+        if (path === '/api/actions' && options?.method === 'GET') return Promise.resolve([])
+        if (path === '/api/instances' && options?.method === 'GET') return Promise.resolve([])
+        if (path === '/api/ext/docker/containers' && options?.method === 'GET')
+          return Promise.resolve({ output: '' })
+        if (path === '/api/ext/docker/volumes' && options?.method === 'GET')
+          return Promise.resolve({ output: '' })
+        if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET')
+          return Promise.resolve({ output: '' })
+        if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
+          return Promise.resolve({
+            id: 'app-1',
+            name: 'Demo App',
+            server_id: 'local',
+            project_dir: '/tmp/demo-app',
+            runtime_status: 'running',
+            output: '',
+          })
+        }
+        if (path === '/api/ext/backup/list' && options?.method === 'GET')
+          return Promise.resolve({ message: 'not implemented' })
+        return Promise.resolve({})
       }
-      if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
-        return Promise.resolve([
-          {
-            id: 'rel-1',
-            app_id: 'app-1',
-            created_by_operation: 'op-source-build-1',
-            release_role: 'active',
-            version_label: 'source-build-demo-20260401',
-            source_type: 'file',
-            source_ref: 'apps/source-build-demo/src',
-            artifact_digest: 'apps/source-build-demo@sha256:abc123',
-            notes: 'uploaded source package | Source build promoted | image=apps/source-build-demo:candidate | service=web',
-            is_active: true,
-            is_last_known_good: true,
-            updated: '2026-04-01T06:00:00Z',
-          },
-        ])
-      }
-      if (path === '/api/apps/app-1/exposures' && options?.method === 'GET') return Promise.resolve([])
-      if (path === '/api/actions' && options?.method === 'GET') return Promise.resolve([])
-      if (path === '/api/ext/resources/databases' && options?.method === 'GET') return Promise.resolve([])
-      if (path === '/api/ext/docker/containers' && options?.method === 'GET') return Promise.resolve({ output: '' })
-      if (path === '/api/ext/docker/volumes' && options?.method === 'GET') return Promise.resolve({ output: '' })
-      if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET') return Promise.resolve({ output: '' })
-      if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
-        return Promise.resolve({ id: 'app-1', name: 'Demo App', server_id: 'local', project_dir: '/tmp/demo-app', runtime_status: 'running', output: '' })
-      }
-      if (path === '/api/ext/backup/list' && options?.method === 'GET') return Promise.resolve({ message: 'not implemented' })
-      return Promise.resolve({})
-    })
+    )
 
     render(<AppDetailPage appId="app-1" />)
 
@@ -438,7 +504,9 @@ describe('AppDetailPage', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Open detail' })[0])
 
-    const dialog = await screen.findByRole('dialog', { name: 'Release Detail: source-build-demo-20260401' })
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Release Detail: source-build-demo-20260401',
+    })
     expect(dialog).toHaveTextContent('op-source-build-1')
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Open Related Action' }))
@@ -453,40 +521,55 @@ describe('AppDetailPage', () => {
   })
 
   it('copies artifact and source values from the release detail dialog', async () => {
-    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, string> }) => {
-      if (path === '/api/apps/app-1' && options?.method === 'GET') {
-        return Promise.resolve(appDetailResponse)
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, string> }) => {
+        if (path === '/api/apps/app-1' && options?.method === 'GET') {
+          return Promise.resolve(appDetailResponse)
+        }
+        if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
+          return Promise.resolve([
+            {
+              id: 'rel-1',
+              app_id: 'app-1',
+              created_by_operation: 'op-source-build-1',
+              release_role: 'active',
+              version_label: 'source-build-demo-20260401',
+              source_type: 'file',
+              source_ref: 'apps/source-build-demo/src',
+              artifact_digest: 'apps/source-build-demo@sha256:abc123',
+              notes:
+                'uploaded source package | Source build promoted | image=apps/source-build-demo:candidate | service=web',
+              is_active: true,
+              is_last_known_good: true,
+              updated: '2026-04-01T06:00:00Z',
+            },
+          ])
+        }
+        if (path === '/api/apps/app-1/exposures' && options?.method === 'GET')
+          return Promise.resolve([])
+        if (path === '/api/actions' && options?.method === 'GET') return Promise.resolve([])
+        if (path === '/api/instances' && options?.method === 'GET') return Promise.resolve([])
+        if (path === '/api/ext/docker/containers' && options?.method === 'GET')
+          return Promise.resolve({ output: '' })
+        if (path === '/api/ext/docker/volumes' && options?.method === 'GET')
+          return Promise.resolve({ output: '' })
+        if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET')
+          return Promise.resolve({ output: '' })
+        if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
+          return Promise.resolve({
+            id: 'app-1',
+            name: 'Demo App',
+            server_id: 'local',
+            project_dir: '/tmp/demo-app',
+            runtime_status: 'running',
+            output: '',
+          })
+        }
+        if (path === '/api/ext/backup/list' && options?.method === 'GET')
+          return Promise.resolve({ message: 'not implemented' })
+        return Promise.resolve({})
       }
-      if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
-        return Promise.resolve([
-          {
-            id: 'rel-1',
-            app_id: 'app-1',
-            created_by_operation: 'op-source-build-1',
-            release_role: 'active',
-            version_label: 'source-build-demo-20260401',
-            source_type: 'file',
-            source_ref: 'apps/source-build-demo/src',
-            artifact_digest: 'apps/source-build-demo@sha256:abc123',
-            notes: 'uploaded source package | Source build promoted | image=apps/source-build-demo:candidate | service=web',
-            is_active: true,
-            is_last_known_good: true,
-            updated: '2026-04-01T06:00:00Z',
-          },
-        ])
-      }
-      if (path === '/api/apps/app-1/exposures' && options?.method === 'GET') return Promise.resolve([])
-      if (path === '/api/actions' && options?.method === 'GET') return Promise.resolve([])
-      if (path === '/api/ext/resources/databases' && options?.method === 'GET') return Promise.resolve([])
-      if (path === '/api/ext/docker/containers' && options?.method === 'GET') return Promise.resolve({ output: '' })
-      if (path === '/api/ext/docker/volumes' && options?.method === 'GET') return Promise.resolve({ output: '' })
-      if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET') return Promise.resolve({ output: '' })
-      if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
-        return Promise.resolve({ id: 'app-1', name: 'Demo App', server_id: 'local', project_dir: '/tmp/demo-app', runtime_status: 'running', output: '' })
-      }
-      if (path === '/api/ext/backup/list' && options?.method === 'GET') return Promise.resolve({ message: 'not implemented' })
-      return Promise.resolve({})
-    })
+    )
 
     render(<AppDetailPage appId="app-1" />)
 
@@ -496,7 +579,9 @@ describe('AppDetailPage', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Open detail' })[0])
 
-    const dialog = await screen.findByRole('dialog', { name: 'Release Detail: source-build-demo-20260401' })
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Release Detail: source-build-demo-20260401',
+    })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Copy Artifact' }))
 
     await waitFor(() => {
@@ -685,7 +770,10 @@ describe('AppDetailPage', () => {
     fireEvent.click(logsButton)
 
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith('/api/ext/docker/containers/container-1/logs?tail=200', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith(
+        '/api/ext/docker/containers/container-1/logs?tail=200',
+        { method: 'GET' }
+      )
     })
 
     const logsDialog = await screen.findByRole('dialog', { name: 'Container Logs: demo-app-web-1' })
@@ -719,10 +807,12 @@ describe('AppDetailPage', () => {
 
     const metricsHeading = screen.getByText('Metrics')
     const logsHeading = screen.getByText('Logs')
-    expect(metricsHeading.compareDocumentPosition(logsHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(
+      metricsHeading.compareDocumentPosition(logsHeading) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
   })
 
-  it('shows app-matched databases and volumes in the Data tab', async () => {
+  it('shows app-matched service instances and volumes in the Data tab', async () => {
     render(<AppDetailPage appId="app-1" />)
 
     await waitFor(() => {
@@ -734,7 +824,7 @@ describe('AppDetailPage', () => {
     fireEvent.click(dataTab)
 
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith('/api/ext/resources/databases', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith('/api/instances', { method: 'GET' })
       expect(sendMock).toHaveBeenCalledWith('/api/ext/docker/volumes', { method: 'GET' })
       expect(sendMock).toHaveBeenCalledWith('/api/ext/backup/list', { method: 'GET' })
     })
@@ -745,7 +835,9 @@ describe('AppDetailPage', () => {
     expect(screen.queryByText('shared-cache')).not.toBeInTheDocument()
     expect(screen.getByText('Platform backup inventory is not connected yet.')).toBeInTheDocument()
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith('/api/ext/docker/containers/container-1', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith('/api/ext/docker/containers/container-1', {
+        method: 'GET',
+      })
     })
     expect(await screen.findByText('/srv/demo-app/storage')).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Files' }).length).toBeGreaterThan(0)
@@ -769,7 +861,9 @@ describe('AppDetailPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open in IaC' }))
 
     expect(windowOpenMock).toHaveBeenCalledTimes(1)
-    expect(windowOpenMock.mock.calls[0]?.[0]).toContain('/iac?path=apps%2Finstalled%2Fdemo-app%2Fdocker-compose.yml')
+    expect(windowOpenMock.mock.calls[0]?.[0]).toContain(
+      '/iac?path=apps%2Finstalled%2Fdemo-app%2Fdocker-compose.yml'
+    )
     await waitFor(() => {
       expect(screen.getByPlaceholderText('KEY=value')).toHaveValue('APP_ENV=demo\n')
     })

@@ -119,11 +119,20 @@ const DEFAULT_PAGE_SIZE: 15 | 30 | 60 | 90 = 15
 
 function parseExcludedSet(value?: string): Set<string> {
   if (!value) return new Set()
-  return new Set(value.split(',').map(item => item.trim()).filter(Boolean))
+  return new Set(
+    value
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean)
+  )
 }
 
 function serializeExcludedSet(values: Set<string>): string | undefined {
-  const normalized = Array.from(values).map(item => item.trim()).filter(Boolean).sort().join(',')
+  const normalized = Array.from(values)
+    .map(item => item.trim())
+    .filter(Boolean)
+    .sort()
+    .join(',')
   return normalized || undefined
 }
 
@@ -177,15 +186,17 @@ function buildListSearchState({
 }
 
 function areListSearchEqual(left: ActionListSearch, right: ActionListSearch): boolean {
-  return left.appId === right.appId
-    && left.q === right.q
-    && left.sortField === right.sortField
-    && left.sortDir === right.sortDir
-    && left.page === right.page
-    && left.pageSize === right.pageSize
-    && left.excludeStatus === right.excludeStatus
-    && left.excludeSource === right.excludeSource
-    && left.excludeServer === right.excludeServer
+  return (
+    left.appId === right.appId &&
+    left.q === right.q &&
+    left.sortField === right.sortField &&
+    left.sortDir === right.sortDir &&
+    left.page === right.page &&
+    left.pageSize === right.pageSize &&
+    left.excludeStatus === right.excludeStatus &&
+    left.excludeSource === right.excludeSource &&
+    left.excludeServer === right.excludeServer
+  )
 }
 
 function buildManualCandidateMetadata({
@@ -243,19 +254,27 @@ export function useActionsController({
   const navigate = useNavigate()
   const locale = getLocale()
   const { data: userApps = [] } = useUserApps()
-  const [servers, setServers] = useState<ServerEntry[]>([{ id: 'local', label: 'local', host: 'local', status: 'online' }])
+  const [servers, setServers] = useState<ServerEntry[]>([
+    { id: 'local', label: 'local', host: 'local', status: 'online' },
+  ])
   const [storeShortcuts, setStoreShortcuts] = useState<StoreShortcut[]>([])
   const [storeProducts, setStoreProducts] = useState<ProductWithCategories[]>([])
   const [storePrimaryCategories, setStorePrimaryCategories] = useState<PrimaryCategory[]>([])
-  const [selectedStoreProduct, setSelectedStoreProduct] = useState<ProductWithCategories | null>(null)
+  const [selectedStoreProduct, setSelectedStoreProduct] = useState<ProductWithCategories | null>(
+    null
+  )
   const [storeDetailOpen, setStoreDetailOpen] = useState(false)
   const [operations, setOperations] = useState<ActionRecord[]>([])
-  const [createEntryMode, setCreateEntryMode] = useState<CreateDeploymentEntryMode>(entryMode || 'compose')
+  const [createEntryMode, setCreateEntryMode] = useState<CreateDeploymentEntryMode>(
+    entryMode || 'compose'
+  )
   const [manualEntryMode, setManualEntryMode] = useState<ManualEntryMode>('compose')
   const [serverId, setServerId] = useState('')
   const [projectName, setProjectName] = useState('')
   const [compose, setCompose] = useState('')
-  const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>([{ key: '', value: '' }])
+  const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>([
+    { key: '', value: '' },
+  ])
   const [gitProjectName, setGitProjectName] = useState('')
   const [gitRepositoryUrl, setGitRepositoryUrl] = useState('')
   const [gitRef, setGitRef] = useState('main')
@@ -270,13 +289,23 @@ export function useActionsController({
   const [submitting, setSubmitting] = useState(false)
   const [gitSubmitting, setGitSubmitting] = useState(false)
   const [search, setSearch] = useState(() => listSearch?.q || '')
-  const [sortField, setSortField] = useState<SortField | null>(() => listSearch?.sortField || DEFAULT_SORT_FIELD)
+  const [sortField, setSortField] = useState<SortField | null>(
+    () => listSearch?.sortField || DEFAULT_SORT_FIELD
+  )
   const [sortDir, setSortDir] = useState<SortDir>(() => listSearch?.sortDir || DEFAULT_SORT_DIR)
-  const [excludeStatus, setExcludeStatus] = useState<Set<string>>(() => parseExcludedSet(listSearch?.excludeStatus))
-  const [excludeSource, setExcludeSource] = useState<Set<string>>(() => parseExcludedSet(listSearch?.excludeSource))
-  const [excludeServer, setExcludeServer] = useState<Set<string>>(() => parseExcludedSet(listSearch?.excludeServer))
+  const [excludeStatus, setExcludeStatus] = useState<Set<string>>(() =>
+    parseExcludedSet(listSearch?.excludeStatus)
+  )
+  const [excludeSource, setExcludeSource] = useState<Set<string>>(() =>
+    parseExcludedSet(listSearch?.excludeSource)
+  )
+  const [excludeServer, setExcludeServer] = useState<Set<string>>(() =>
+    parseExcludedSet(listSearch?.excludeServer)
+  )
   const [page, setPage] = useState(() => listSearch?.page || DEFAULT_PAGE)
-  const [pageSize, setPageSize] = useState<15 | 30 | 60 | 90>(() => listSearch?.pageSize || DEFAULT_PAGE_SIZE)
+  const [pageSize, setPageSize] = useState<15 | 30 | 60 | 90>(
+    () => listSearch?.pageSize || DEFAULT_PAGE_SIZE
+  )
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [notice, setNotice] = useState<Notice | null>(null)
   const [prefillLoading, setPrefillLoading] = useState(false)
@@ -284,15 +313,27 @@ export function useActionsController({
   const [pendingDelete, setPendingDelete] = useState<ActionRecord[]>([])
   const appFilterId = listSearch?.appId?.trim() || undefined
 
-  const manualCandidateMetadata = useMemo(() => buildManualCandidateMetadata({
-    manualEntryMode,
-    prefillMode,
-    prefillSource,
-    prefillAppId,
-    prefillAppKey,
-    prefillAppName,
-    prefillServerId,
-  }), [manualEntryMode, prefillAppId, prefillAppKey, prefillAppName, prefillMode, prefillServerId, prefillSource])
+  const manualCandidateMetadata = useMemo(
+    () =>
+      buildManualCandidateMetadata({
+        manualEntryMode,
+        prefillMode,
+        prefillSource,
+        prefillAppId,
+        prefillAppKey,
+        prefillAppName,
+        prefillServerId,
+      }),
+    [
+      manualEntryMode,
+      prefillAppId,
+      prefillAppKey,
+      prefillAppName,
+      prefillMode,
+      prefillServerId,
+      prefillSource,
+    ]
+  )
 
   const serverMap = useMemo(() => new Map(servers.map(item => [item.id, item])), [servers])
 
@@ -321,7 +362,17 @@ export function useActionsController({
         replace: true,
       })
     }
-  }, [entryMode, navigate, prefillAppId, prefillAppKey, prefillAppName, prefillMode, prefillServerId, prefillSource, view])
+  }, [
+    entryMode,
+    navigate,
+    prefillAppId,
+    prefillAppKey,
+    prefillAppName,
+    prefillMode,
+    prefillServerId,
+    prefillSource,
+    view,
+  ])
 
   function showNotice(variant: Notice['variant'], message: string) {
     setNotice({ variant, message })
@@ -358,16 +409,21 @@ export function useActionsController({
 
         if (prefillMode === 'installed') {
           if (!prefillAppId) return
-          const response = await pb.send<AppConfigResponse>(`/api/apps/${prefillAppId}/config`, { method: 'GET' })
+          const response = await pb.send<AppConfigResponse>(`/api/apps/${prefillAppId}/config`, {
+            method: 'GET',
+          })
           loadedCompose = response.content
           resolvedServerId = response.server_id || resolvedServerId
         }
 
         if (cancelled) return
         if (!loadedCompose || !loadedCompose.trim()) {
-          showNotice('destructive', prefillMode === 'installed'
-            ? 'No docker-compose config was found for the selected installed application'
-            : 'No docker-compose template was found for the selected application')
+          showNotice(
+            'destructive',
+            prefillMode === 'installed'
+              ? 'No docker-compose config was found for the selected installed application'
+              : 'No docker-compose template was found for the selected application'
+          )
           return
         }
 
@@ -379,9 +435,12 @@ export function useActionsController({
         setManualEntryMode(prefillMode === 'installed' ? 'installed-prefill' : 'store-prefill')
       } catch {
         if (!cancelled) {
-          showNotice('destructive', prefillMode === 'installed'
-            ? 'Failed to load deployment config for the selected installed application'
-            : 'Failed to load deployment template for the selected application')
+          showNotice(
+            'destructive',
+            prefillMode === 'installed'
+              ? 'Failed to load deployment config for the selected installed application'
+              : 'Failed to load deployment template for the selected application'
+          )
         }
       } finally {
         if (!cancelled) setPrefillLoading(false)
@@ -406,25 +465,39 @@ export function useActionsController({
     const nextExcludeSource = parseExcludedSet(listSearch?.excludeSource)
     const nextExcludeServer = parseExcludedSet(listSearch?.excludeServer)
 
-    setSearch(current => current === nextSearch ? current : nextSearch)
-    setSortField(current => current === nextSortField ? current : nextSortField)
-    setSortDir(current => current === nextSortDir ? current : nextSortDir)
-    setPage(current => current === nextPage ? current : nextPage)
-    setPageSize(current => current === nextPageSize ? current : nextPageSize)
-    setExcludeStatus(current => areSetsEqual(current, nextExcludeStatus) ? current : nextExcludeStatus)
-    setExcludeSource(current => areSetsEqual(current, nextExcludeSource) ? current : nextExcludeSource)
-    setExcludeServer(current => areSetsEqual(current, nextExcludeServer) ? current : nextExcludeServer)
+    setSearch(current => (current === nextSearch ? current : nextSearch))
+    setSortField(current => (current === nextSortField ? current : nextSortField))
+    setSortDir(current => (current === nextSortDir ? current : nextSortDir))
+    setPage(current => (current === nextPage ? current : nextPage))
+    setPageSize(current => (current === nextPageSize ? current : nextPageSize))
+    setExcludeStatus(current =>
+      areSetsEqual(current, nextExcludeStatus) ? current : nextExcludeStatus
+    )
+    setExcludeSource(current =>
+      areSetsEqual(current, nextExcludeSource) ? current : nextExcludeSource
+    )
+    setExcludeServer(current =>
+      areSetsEqual(current, nextExcludeServer) ? current : nextExcludeServer
+    )
   }, [listSearch, view])
 
-  const summary = useMemo(() => ({
-    total: operations.length,
-    active: operations.filter(item => isActiveStatus(item.status)).length,
-    completed: operations.filter(item => item.status === 'success').length,
-    failed: operations.filter(item => item.status === 'failed').length,
-  }), [operations])
+  const summary = useMemo(
+    () => ({
+      total: operations.length,
+      active: operations.filter(item => isActiveStatus(item.status)).length,
+      completed: operations.filter(item => item.status === 'success').length,
+      failed: operations.filter(item => item.status === 'failed').length,
+    }),
+    [operations]
+  )
 
   const latestOperations = useMemo(
-    () => [...operations].sort((left, right) => String(right.updated || '').localeCompare(String(left.updated || ''))).slice(0, 5),
+    () =>
+      [...operations]
+        .sort((left, right) =>
+          String(right.updated || '').localeCompare(String(left.updated || ''))
+        )
+        .slice(0, 5),
     [operations]
   )
 
@@ -433,54 +506,83 @@ export function useActionsController({
       case 'docker-command':
         return {
           title: 'Convert Docker Command to Deployment',
-          description: 'Use the shared compose deployment path. Translate the docker run command into docker-compose content before submission.',
-          helper: 'Docker command deployment is surfaced as a guided manual compose flow in this MVP.',
+          description:
+            'Use the shared compose deployment path. Translate the docker run command into docker-compose content before submission.',
+          helper:
+            'Docker command deployment is surfaced as a guided manual compose flow in this MVP.',
         }
       case 'install-script':
         return {
           title: 'Review Source Packages as Deployment Input',
-          description: 'Use user-provided compressed source packages as the deployment input for the shared flow.',
-          helper: 'Supported source package formats include zip and tar.gz. Review the package and prepare deployable content before submission.',
+          description:
+            'Use user-provided compressed source packages as the deployment input for the shared flow.',
+          helper:
+            'Supported source package formats include zip and tar.gz. Review the package and prepare deployable content before submission.',
         }
       case 'store-prefill':
         return {
           title: 'Create Deployment Task',
-          description: 'App Store inputs have been prefilled. Review the target server, deployment name, and compose content before starting.',
-          helper: 'This deployment uses the same shared manual compose pipeline as custom deployments.',
+          description:
+            'App Store inputs have been prefilled. Review the target server, deployment name, and compose content before starting.',
+          helper:
+            'This deployment uses the same shared manual compose pipeline as custom deployments.',
         }
       case 'installed-prefill':
         return {
           title: 'Create Deployment Task',
-          description: 'The current installed compose config has been prefilled. Review and submit the redeploy or upgrade task.',
-          helper: 'This entry reuses the same deployment path so history, logs, and detail views stay consistent.',
+          description:
+            'The current installed compose config has been prefilled. Review and submit the redeploy or upgrade task.',
+          helper:
+            'This entry reuses the same deployment path so history, logs, and detail views stay consistent.',
         }
       default:
         return {
           title: 'Create Deployment Task',
-          description: 'Minimal input set: target server, deployment name, and docker-compose content.',
-          helper: 'Compose deployment is the recommended custom path for external files and one-off stacks.',
+          description:
+            'Minimal input set: target server, deployment name, and docker-compose content.',
+          helper:
+            'Compose deployment is the recommended custom path for external files and one-off stacks.',
         }
     }
   }, [manualEntryMode])
 
-  const filterOptions = useMemo(() => ({
-    status: Array.from(new Set(operations.map(item => item.status))).sort().map(value => ({ value, label: value })),
-    source: Array.from(new Set(operations.map(item => item.source))).sort().map(value => ({ value, label: value })),
-    server: Array.from(new Set(operations.map(item => item.server_id || 'local'))).sort().map(value => {
-      const matched = operations.find(item => (item.server_id || 'local') === value)
-      return { value, label: matched ? getServerLabel(matched) : value }
+  const filterOptions = useMemo(
+    () => ({
+      status: Array.from(new Set(operations.map(item => item.status)))
+        .sort()
+        .map(value => ({ value, label: value })),
+      source: Array.from(new Set(operations.map(item => item.source)))
+        .sort()
+        .map(value => ({ value, label: value })),
+      server: Array.from(new Set(operations.map(item => item.server_id || 'local')))
+        .sort()
+        .map(value => {
+          const matched = operations.find(item => (item.server_id || 'local') === value)
+          return { value, label: matched ? getServerLabel(matched) : value }
+        }),
     }),
-  }), [operations, serverMap])
+    [operations, serverMap]
+  )
 
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase()
     return operations.filter(item => {
-      if (appFilterId && item.app_id !== appFilterId && item.pipeline?.app_id !== appFilterId) return false
+      if (appFilterId && item.app_id !== appFilterId && item.pipeline?.app_id !== appFilterId)
+        return false
       if (excludeStatus.has(item.status)) return false
       if (excludeSource.has(item.source)) return false
       if (excludeServer.has(item.server_id || 'local')) return false
       if (!query) return true
-      return [item.id, item.compose_project_name, item.source, item.server_id, item.server_label, item.server_host, item.user_id, item.user_email]
+      return [
+        item.id,
+        item.compose_project_name,
+        item.source,
+        item.server_id,
+        item.server_label,
+        item.server_host,
+        item.user_id,
+        item.user_email,
+      ]
         .filter(Boolean)
         .some(value => String(value).toLowerCase().includes(query))
     })
@@ -489,11 +591,17 @@ export function useActionsController({
   const sortedItems = useMemo(() => {
     if (!sortField) return filteredItems
     const factor = sortDir === 'asc' ? 1 : -1
-    return [...filteredItems].sort((left, right) => String(left[sortField] || '').localeCompare(String(right[sortField] || '')) * factor)
+    return [...filteredItems].sort(
+      (left, right) =>
+        String(left[sortField] || '').localeCompare(String(right[sortField] || '')) * factor
+    )
   }, [filteredItems, sortDir, sortField])
 
   const totalPages = Math.max(1, Math.ceil(sortedItems.length / pageSize))
-  const pagedItems = useMemo(() => sortedItems.slice((page - 1) * pageSize, page * pageSize), [page, pageSize, sortedItems])
+  const pagedItems = useMemo(
+    () => sortedItems.slice((page - 1) * pageSize, page * pageSize),
+    [page, pageSize, sortedItems]
+  )
 
   useEffect(() => {
     setPage(1)
@@ -528,12 +636,28 @@ export function useActionsController({
     if (areListSearchEqual(nextSearch, currentSearch)) return
 
     void navigate({ to: '/actions' as never, search: nextSearch as never, replace: true })
-  }, [appFilterId, excludeServer, excludeSource, excludeStatus, listSearch, navigate, page, pageSize, search, sortDir, sortField, view])
+  }, [
+    appFilterId,
+    excludeServer,
+    excludeSource,
+    excludeStatus,
+    listSearch,
+    navigate,
+    page,
+    pageSize,
+    search,
+    sortDir,
+    sortField,
+    view,
+  ])
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      void fetchOperations()
-    }, summary.active > 0 ? 3000 : 6000)
+    const timer = window.setInterval(
+      () => {
+        void fetchOperations()
+      },
+      summary.active > 0 ? 3000 : 6000
+    )
     return () => window.clearInterval(timer)
   }, [summary.active])
 
@@ -550,7 +674,9 @@ export function useActionsController({
       const response = await pb.send<ServerEntry[]>('/api/ext/docker/servers', { method: 'GET' })
       if (Array.isArray(response) && response.length > 0) {
         setServers(response)
-        setServerId(current => current && response.some(item => item.id === current) ? current : '')
+        setServerId(current =>
+          current && response.some(item => item.id === current) ? current : ''
+        )
       }
     } catch {
       // Keep local fallback.
@@ -567,12 +693,16 @@ export function useActionsController({
       const favoriteOrder = new Map(
         userApps
           .filter(item => item.is_favorite)
-          .sort((left, right) => String(right.updated || '').localeCompare(String(left.updated || '')))
+          .sort((left, right) =>
+            String(right.updated || '').localeCompare(String(left.updated || ''))
+          )
           .map((item, index) => [item.app_key, index])
       )
       const favorites = uniqueProducts
         .filter(item => favoriteOrder.has(item.key))
-        .sort((left, right) => (favoriteOrder.get(left.key) ?? 0) - (favoriteOrder.get(right.key) ?? 0))
+        .sort(
+          (left, right) => (favoriteOrder.get(left.key) ?? 0) - (favoriteOrder.get(right.key) ?? 0)
+        )
       const nonFavorites = uniqueProducts
         .filter(item => !favoriteOrder.has(item.key))
         .sort(() => Math.random() - 0.5)
@@ -677,20 +807,22 @@ export function useActionsController({
   }
 
   function openOperationDetail(id: string) {
-    const nextListSearch = view === 'list'
-      ? buildListSearchState({
-          appId: appFilterId,
-          search,
-          sortField,
-          sortDir,
-          page,
-          pageSize,
-          excludeStatus,
-          excludeSource,
-          excludeServer,
-        })
-      : undefined
-    const currentListSearch = nextListSearch && Object.keys(nextListSearch).length > 0 ? nextListSearch : undefined
+    const nextListSearch =
+      view === 'list'
+        ? buildListSearchState({
+            appId: appFilterId,
+            search,
+            sortField,
+            sortDir,
+            page,
+            pageSize,
+            excludeStatus,
+            excludeSource,
+            excludeServer,
+          })
+        : undefined
+    const currentListSearch =
+      nextListSearch && Object.keys(nextListSearch).length > 0 ? nextListSearch : undefined
     const detailSearch = buildActionDetailSearch(currentListSearch, true)
     void navigate({
       to: '/actions/$actionId' as never,
@@ -709,13 +841,15 @@ export function useActionsController({
 
   function getServerLabel(item: ActionRecord): string {
     if (item.server_label) return item.server_label
-    if (item.server_id && serverMap.has(item.server_id)) return serverMap.get(item.server_id)?.label || item.server_id
+    if (item.server_id && serverMap.has(item.server_id))
+      return serverMap.get(item.server_id)?.label || item.server_id
     return item.server_id || 'local'
   }
 
   function getServerHost(item: ActionRecord): string {
     if (item.server_host) return item.server_host
-    if (item.server_id && serverMap.has(item.server_id)) return serverMap.get(item.server_id)?.host || '-'
+    if (item.server_id && serverMap.has(item.server_id))
+      return serverMap.get(item.server_id)?.host || '-'
     return item.server_id === 'local' || !item.server_id ? 'local' : '-'
   }
 
@@ -723,7 +857,10 @@ export function useActionsController({
     return item.user_email || item.user_id || '-'
   }
 
-  async function submitManualOperation(runtimeInputs?: RuntimeInputsPayload, sourceBuild?: SourceBuildPayload) {
+  async function submitManualOperation(
+    runtimeInputs?: RuntimeInputsPayload,
+    sourceBuild?: SourceBuildPayload
+  ) {
     setSubmitting(true)
     setNotice(null)
     try {
@@ -733,7 +870,9 @@ export function useActionsController({
           server_id: serverId,
           project_name: projectName,
           compose,
-          env: Object.fromEntries(envVars.filter(e => e.key.trim()).map(e => [e.key.trim(), e.value])),
+          env: Object.fromEntries(
+            envVars.filter(e => e.key.trim()).map(e => [e.key.trim(), e.value])
+          ),
           metadata: manualCandidateMetadata,
           runtime_inputs: runtimeInputs,
           source_build: sourceBuild,
@@ -750,23 +889,32 @@ export function useActionsController({
     }
   }
 
-  async function checkManualOperation(options?: { silentNotice?: boolean; runtimeInputs?: RuntimeInputsPayload; sourceBuild?: SourceBuildPayload }): Promise<InstallPreflightResult | null> {
+  async function checkManualOperation(options?: {
+    silentNotice?: boolean
+    runtimeInputs?: RuntimeInputsPayload
+    sourceBuild?: SourceBuildPayload
+  }): Promise<InstallPreflightResult | null> {
     setChecking(true)
     setNotice(null)
     try {
-      const result = await pb.send<InstallPreflightResult>('/api/actions/install/manual-compose/check', {
-        method: 'POST',
-        body: {
-          server_id: serverId,
-          project_name: projectName,
-          compose,
-          env: Object.fromEntries(envVars.filter(e => e.key.trim()).map(e => [e.key.trim(), e.value])),
-          metadata: manualCandidateMetadata,
-          runtime_inputs: options?.runtimeInputs,
-          source_build: options?.sourceBuild,
-          app_required_disk_gib: appRequiredDiskGiB,
-        },
-      })
+      const result = await pb.send<InstallPreflightResult>(
+        '/api/actions/install/manual-compose/check',
+        {
+          method: 'POST',
+          body: {
+            server_id: serverId,
+            project_name: projectName,
+            compose,
+            env: Object.fromEntries(
+              envVars.filter(e => e.key.trim()).map(e => [e.key.trim(), e.value])
+            ),
+            metadata: manualCandidateMetadata,
+            runtime_inputs: options?.runtimeInputs,
+            source_build: options?.sourceBuild,
+            app_required_disk_gib: appRequiredDiskGiB,
+          },
+        }
+      )
       setCheckResult(result)
       if (!options?.silentNotice) {
         showNotice(result.ok ? 'default' : 'destructive', result.message)
@@ -799,7 +947,10 @@ export function useActionsController({
           app_required_disk_gib: appRequiredDiskGiB,
         },
       })
-      showNotice('default', `Action ${created.compose_project_name || created.id} created from Git repository`)
+      showNotice(
+        'default',
+        `Action ${created.compose_project_name || created.id} created from Git repository`
+      )
       await fetchOperations()
       openOperationDetail(created.id)
     } catch (err) {
@@ -809,23 +960,28 @@ export function useActionsController({
     }
   }
 
-  async function checkGitOperation(options?: { silentNotice?: boolean }): Promise<InstallPreflightResult | null> {
+  async function checkGitOperation(options?: {
+    silentNotice?: boolean
+  }): Promise<InstallPreflightResult | null> {
     setGitChecking(true)
     setNotice(null)
     try {
-      const result = await pb.send<InstallPreflightResult>('/api/actions/install/git-compose/check', {
-        method: 'POST',
-        body: {
-          server_id: serverId,
-          project_name: gitProjectName,
-          repository_url: gitRepositoryUrl,
-          ref: gitRef,
-          compose_path: gitComposePath,
-          auth_header_name: gitAuthHeaderValue.trim() ? gitAuthHeaderName : '',
-          auth_header_value: gitAuthHeaderValue,
-          app_required_disk_gib: appRequiredDiskGiB,
-        },
-      })
+      const result = await pb.send<InstallPreflightResult>(
+        '/api/actions/install/git-compose/check',
+        {
+          method: 'POST',
+          body: {
+            server_id: serverId,
+            project_name: gitProjectName,
+            repository_url: gitRepositoryUrl,
+            ref: gitRef,
+            compose_path: gitComposePath,
+            auth_header_name: gitAuthHeaderValue.trim() ? gitAuthHeaderName : '',
+            auth_header_value: gitAuthHeaderValue,
+            app_required_disk_gib: appRequiredDiskGiB,
+          },
+        }
+      )
       setCheckResult(result)
       if (!options?.silentNotice) {
         showNotice(result.ok ? 'default' : 'destructive', result.message)
@@ -852,9 +1008,12 @@ export function useActionsController({
         ids.forEach(id => next.delete(id))
         return next
       })
-      showNotice('default', ids.length === 1
-        ? `Action ${targets[0]?.compose_project_name || ids[0]} deleted`
-        : `${ids.length} actions deleted`)
+      showNotice(
+        'default',
+        ids.length === 1
+          ? `Action ${targets[0]?.compose_project_name || ids[0]} deleted`
+          : `${ids.length} actions deleted`
+      )
       setPendingDelete([])
     } catch (err) {
       showNotice('destructive', err instanceof Error ? err.message : 'Failed to delete actions')
@@ -880,12 +1039,42 @@ export function useActionsController({
     const sourceMap = new Map(filterOptions.source.map(option => [option.value, option.label]))
     const serverLabelMap = new Map(filterOptions.server.map(option => [option.value, option.label]))
 
-    Array.from(excludeStatus).sort().forEach(value => chips.push({ key: `status:${value}`, label: `Excluded status: ${statusMap.get(value) || value}` }))
-    Array.from(excludeSource).sort().forEach(value => chips.push({ key: `source:${value}`, label: `Excluded source: ${sourceMap.get(value) || value}` }))
-    Array.from(excludeServer).sort().forEach(value => chips.push({ key: `server:${value}`, label: `Excluded server: ${serverLabelMap.get(value) || value}` }))
+    Array.from(excludeStatus)
+      .sort()
+      .forEach(value =>
+        chips.push({
+          key: `status:${value}`,
+          label: `Excluded status: ${statusMap.get(value) || value}`,
+        })
+      )
+    Array.from(excludeSource)
+      .sort()
+      .forEach(value =>
+        chips.push({
+          key: `source:${value}`,
+          label: `Excluded source: ${sourceMap.get(value) || value}`,
+        })
+      )
+    Array.from(excludeServer)
+      .sort()
+      .forEach(value =>
+        chips.push({
+          key: `server:${value}`,
+          label: `Excluded server: ${serverLabelMap.get(value) || value}`,
+        })
+      )
 
     return chips
-  }, [appFilterId, excludeServer, excludeSource, excludeStatus, filterOptions.server, filterOptions.source, filterOptions.status, search])
+  }, [
+    appFilterId,
+    excludeServer,
+    excludeSource,
+    excludeStatus,
+    filterOptions.server,
+    filterOptions.source,
+    filterOptions.status,
+    search,
+  ])
 
   function removeFilterChip(chipKey: string) {
     if (chipKey === 'app') {
@@ -957,7 +1146,8 @@ export function useActionsController({
     setPendingDelete(targets)
   }
 
-  const allPageSelected = pagedItems.length > 0 && pagedItems.every(item => selectedIds.has(item.id))
+  const allPageSelected =
+    pagedItems.length > 0 && pagedItems.every(item => selectedIds.has(item.id))
   const somePageSelected = pagedItems.some(item => selectedIds.has(item.id)) && !allPageSelected
 
   return {
@@ -1033,7 +1223,11 @@ export function useActionsController({
     setPendingDelete,
     handleSort,
     toggleOperationSelection,
-    togglePageSelection: (checked: boolean) => setPageSelection(pagedItems.map(item => item.id), checked),
+    togglePageSelection: (checked: boolean) =>
+      setPageSelection(
+        pagedItems.map(item => item.id),
+        checked
+      ),
     allPageSelected,
     somePageSelected,
     removeFilterChip,

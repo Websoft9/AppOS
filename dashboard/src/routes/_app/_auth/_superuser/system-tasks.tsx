@@ -33,13 +33,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
+import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { cn } from '@/lib/utils'
 
@@ -140,8 +134,18 @@ const cronDrawerGutter = 'px-4 sm:px-6'
 // ─── Sortable header helper ───────────────────────────────
 
 function SortBtn<K extends string>({
-  label, field, sort, dir, onSort,
-}: { label: string; field: K; sort: K; dir: 'asc' | 'desc'; onSort: (f: K) => void }) {
+  label,
+  field,
+  sort,
+  dir,
+  onSort,
+}: {
+  label: string
+  field: K
+  sort: K
+  dir: 'asc' | 'desc'
+  onSort: (f: K) => void
+}) {
   const active = sort === field
   return (
     <button
@@ -150,9 +154,15 @@ function SortBtn<K extends string>({
       onClick={() => onSort(field)}
     >
       {label}
-      {active
-        ? dir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-        : <ArrowUpDown className="h-3 w-3 opacity-40" />}
+      {active ? (
+        dir === 'asc' ? (
+          <ArrowUp className="h-3 w-3" />
+        ) : (
+          <ArrowDown className="h-3 w-3" />
+        )
+      ) : (
+        <ArrowUpDown className="h-3 w-3 opacity-40" />
+      )}
     </button>
   )
 }
@@ -163,7 +173,10 @@ interface CronLogDrawerProps {
   jobId: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSummaryLoaded?: (jobId: string, summary: { lastStatus: 'success' | 'error' | null; lastRun: string | null }) => void
+  onSummaryLoaded?: (
+    jobId: string,
+    summary: { lastStatus: 'success' | 'error' | null; lastRun: string | null }
+  ) => void
 }
 
 function CronLogDrawer({ jobId, open, onOpenChange, onSummaryLoaded }: CronLogDrawerProps) {
@@ -240,17 +253,28 @@ function CronLogDrawer({ jobId, open, onOpenChange, onSummaryLoaded }: CronLogDr
 
         {/* Summary bar */}
         {data && (
-          <div className={cn('grid grid-cols-[minmax(0,1.15fr)_minmax(0,1.5fr)_minmax(0,0.85fr)] gap-4 py-3 border-b bg-muted/40 shrink-0 text-sm', cronDrawerGutter)}>
+          <div
+            className={cn(
+              'grid grid-cols-[minmax(0,1.15fr)_minmax(0,1.5fr)_minmax(0,0.85fr)] gap-4 py-3 border-b bg-muted/40 shrink-0 text-sm',
+              cronDrawerGutter
+            )}
+          >
             <div>
-              <p className="text-muted-foreground text-xs uppercase tracking-wide mb-0.5">Last Status</p>
+              <p className="text-muted-foreground text-xs uppercase tracking-wide mb-0.5">
+                Last Status
+              </p>
               <div>{lastStatusBadge(data.lastStatus)}</div>
             </div>
             <div>
-              <p className="text-muted-foreground text-xs uppercase tracking-wide mb-0.5">Last Run</p>
+              <p className="text-muted-foreground text-xs uppercase tracking-wide mb-0.5">
+                Last Run
+              </p>
               <p className="font-medium break-words">{formatDate(data.lastRun)}</p>
             </div>
             <div>
-              <p className="text-muted-foreground text-xs uppercase tracking-wide mb-0.5">Duration</p>
+              <p className="text-muted-foreground text-xs uppercase tracking-wide mb-0.5">
+                Duration
+              </p>
               <p className="font-medium whitespace-nowrap">
                 {data.lastDurationMs != null ? `${data.lastDurationMs} ms` : '—'}
               </p>
@@ -274,7 +298,12 @@ function CronLogDrawer({ jobId, open, onOpenChange, onSummaryLoaded }: CronLogDr
           )}
 
           {!loading && !error && data && items.length === 0 && (
-            <div className={cn('my-6 flex flex-col items-center justify-center rounded-md border py-12 text-center', cronDrawerGutter)}>
+            <div
+              className={cn(
+                'my-6 flex flex-col items-center justify-center rounded-md border py-12 text-center',
+                cronDrawerGutter
+              )}
+            >
               <p className="text-muted-foreground">No execution logs found for this job.</p>
               <p className="text-xs text-muted-foreground mt-1">
                 Logs are only available for cron handlers registered with
@@ -306,12 +335,10 @@ function CronLogDrawer({ jobId, open, onOpenChange, onSummaryLoaded }: CronLogDr
                         <TableRow
                           className={cn(
                             'cursor-pointer',
-                            item.phase === 'error' && 'bg-destructive/5 hover:bg-destructive/10',
+                            item.phase === 'error' && 'bg-destructive/5 hover:bg-destructive/10'
                           )}
                           onClick={() =>
-                            hasDetail
-                              ? setExpandedRunId(isExpanded ? null : rowKey)
-                              : undefined
+                            hasDetail ? setExpandedRunId(isExpanded ? null : rowKey) : undefined
                           }
                         >
                           <TableCell className="text-xs text-muted-foreground font-mono whitespace-nowrap">
@@ -328,7 +355,7 @@ function CronLogDrawer({ jobId, open, onOpenChange, onSummaryLoaded }: CronLogDr
                                 <ChevronRight
                                   className={cn(
                                     'h-3 w-3 shrink-0 text-muted-foreground transition-transform',
-                                    isExpanded && 'rotate-90',
+                                    isExpanded && 'rotate-90'
                                   )}
                                 />
                               )}
@@ -351,9 +378,7 @@ function CronLogDrawer({ jobId, open, onOpenChange, onSummaryLoaded }: CronLogDr
                                 {item.error != null && (
                                   <p>
                                     <span className="text-muted-foreground">error: </span>
-                                    <span className="text-destructive">
-                                      {String(item.error)}
-                                    </span>
+                                    <span className="text-destructive">{String(item.error)}</span>
                                   </p>
                                 )}
                               </div>
@@ -385,18 +410,29 @@ export function SystemCronsContent() {
   const [drawerJobId, setDrawerJobId] = useState<string | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [runningJobs, setRunningJobs] = useState<Set<string>>(new Set())
-  const [logSummaries, setLogSummaries] = useState<Map<string, { lastStatus: 'success' | 'error' | null; lastRun: string | null }>>(new Map())
+  const [logSummaries, setLogSummaries] = useState<
+    Map<string, { lastStatus: 'success' | 'error' | null; lastRun: string | null }>
+  >(new Map())
   const [sortKey, setSortKey] = useState<CronSortKey>('id')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const runningJobsRef = useRef<Set<string>>(new Set())
 
-  const handleSummaryLoaded = useCallback((jobId: string, summary: { lastStatus: 'success' | 'error' | null; lastRun: string | null }) => {
-    setLogSummaries(prev => new Map(prev).set(jobId, summary))
-  }, [])
+  const handleSummaryLoaded = useCallback(
+    (
+      jobId: string,
+      summary: { lastStatus: 'success' | 'error' | null; lastRun: string | null }
+    ) => {
+      setLogSummaries(prev => new Map(prev).set(jobId, summary))
+    },
+    []
+  )
 
   const handleSort = (key: CronSortKey) => {
     if (sortKey === key) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
-    else { setSortKey(key); setSortDir('asc') }
+    else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
   }
 
   const sortedJobs = useMemo(() => {
@@ -441,9 +477,13 @@ export function SystemCronsContent() {
       await pb.send(`/api/crons/${encodeURIComponent(jobId)}`, { method: 'POST' })
       // Fetch updated log summary for this job after run
       try {
-        const result = (await pb.send(`/api/crons/${encodeURIComponent(jobId)}/logs`, { method: 'GET' })) as CronLogsResponse
+        const result = (await pb.send(`/api/crons/${encodeURIComponent(jobId)}/logs`, {
+          method: 'GET',
+        })) as CronLogsResponse
         handleSummaryLoaded(jobId, { lastStatus: result.lastStatus, lastRun: result.lastRun })
-      } catch { /* ignore summary refresh failure */ }
+      } catch {
+        /* ignore summary refresh failure */
+      }
       setSuccess(`Job ${jobId} triggered.`)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err))
@@ -459,7 +499,13 @@ export function SystemCronsContent() {
     <div>
       {/* Toolbar */}
       <div className="flex items-center justify-end gap-2 mb-3">
-        <Button variant="outline" size="icon" title="Refresh" onClick={fetchJobs} disabled={loading}>
+        <Button
+          variant="outline"
+          size="icon"
+          title="Refresh"
+          onClick={fetchJobs}
+          disabled={loading}
+        >
           {loading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
@@ -515,8 +561,24 @@ export function SystemCronsContent() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead><SortBtn label="Job ID" field="id" sort={sortKey} dir={sortDir} onSort={handleSort} /></TableHead>
-              <TableHead><SortBtn label="Schedule" field="expression" sort={sortKey} dir={sortDir} onSort={handleSort} /></TableHead>
+              <TableHead>
+                <SortBtn
+                  label="Job ID"
+                  field="id"
+                  sort={sortKey}
+                  dir={sortDir}
+                  onSort={handleSort}
+                />
+              </TableHead>
+              <TableHead>
+                <SortBtn
+                  label="Schedule"
+                  field="expression"
+                  sort={sortKey}
+                  dir={sortDir}
+                  onSort={handleSort}
+                />
+              </TableHead>
               <TableHead className="w-[100px]">Last Status</TableHead>
               <TableHead className="w-[150px] hidden md:table-cell">Last Run</TableHead>
               <TableHead className="w-[60px]">Action</TableHead>
@@ -524,53 +586,53 @@ export function SystemCronsContent() {
           </TableHeader>
           <TableBody>
             {sortedJobs.map(job => (
-                <TableRow key={job.id}>
-                    <TableCell>
-                      <span className="font-mono text-sm font-medium">{job.id}</span>
-                    </TableCell>
-                    <TableCell className="font-mono text-sm text-muted-foreground">
-                      {job.expression}
-                    </TableCell>
-                    <TableCell>
-                      {(() => {
-                        const s = logSummaries.get(job.id)
-                        if (!s) return <span className="text-xs text-muted-foreground">—</span>
-                        return lastStatusBadge(s.lastStatus)
-                      })()}
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
-                      {logSummaries.get(job.id)?.lastRun
-                        ? formatDate(logSummaries.get(job.id)!.lastRun)
-                        : '—'}
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-7 w-7">
-                            <MoreVertical className="h-4 w-4" />
-                            <span className="sr-only">Actions</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => runJob(job.id)}
-                            disabled={runningJobs.has(job.id)}
-                          >
-                            {runningJobs.has(job.id) ? (
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            ) : (
-                              <Play className="h-4 w-4 mr-2" />
-                            )}
-                            Run
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => openLogs(job.id)}>
-                            <FileText className="h-4 w-4 mr-2" />
-                            View Logs
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                </TableRow>
+              <TableRow key={job.id}>
+                <TableCell>
+                  <span className="font-mono text-sm font-medium">{job.id}</span>
+                </TableCell>
+                <TableCell className="font-mono text-sm text-muted-foreground">
+                  {job.expression}
+                </TableCell>
+                <TableCell>
+                  {(() => {
+                    const s = logSummaries.get(job.id)
+                    if (!s) return <span className="text-xs text-muted-foreground">—</span>
+                    return lastStatusBadge(s.lastStatus)
+                  })()}
+                </TableCell>
+                <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                  {logSummaries.get(job.id)?.lastRun
+                    ? formatDate(logSummaries.get(job.id)!.lastRun)
+                    : '—'}
+                </TableCell>
+                <TableCell>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-7 w-7">
+                        <MoreVertical className="h-4 w-4" />
+                        <span className="sr-only">Actions</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={() => runJob(job.id)}
+                        disabled={runningJobs.has(job.id)}
+                      >
+                        {runningJobs.has(job.id) ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Play className="h-4 w-4 mr-2" />
+                        )}
+                        Run
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => openLogs(job.id)}>
+                        <FileText className="h-4 w-4 mr-2" />
+                        View Logs
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
             ))}
           </TableBody>
         </Table>

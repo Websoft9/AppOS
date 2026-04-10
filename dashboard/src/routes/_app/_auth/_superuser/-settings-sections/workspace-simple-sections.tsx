@@ -696,8 +696,8 @@ export function SecretsSection({
             }
           />
           <p className="text-xs text-muted-foreground">
-            0 means secrets never expire. When set, new secrets will automatically receive an
-            expiry date.
+            0 means secrets never expire. When set, new secrets will automatically receive an expiry
+            date.
           </p>
           {secretPolicyErrors.maxAgeDays && (
             <p className="text-xs text-destructive">{secretPolicyErrors.maxAgeDays}</p>

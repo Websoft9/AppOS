@@ -76,7 +76,7 @@ func (s *Service) Categories(app core.App, auth *core.Record, locale string) (*C
 
 	return &CategoryTreeResponse{
 		Items: items,
-		Meta: ResponseMeta{Locale: bundle.Locale, SourceVersion: bundle.SourceVersion},
+		Meta:  ResponseMeta{Locale: bundle.Locale, SourceVersion: bundle.SourceVersion},
 	}, nil
 }
 
@@ -145,7 +145,7 @@ func (s *Service) DeploySource(app core.App, auth *core.Record, locale, key stri
 	} else if ok {
 		available := customTemplateAvailable(key, customRecord.GetString("compose_yaml"))
 		return &DeploySourceResponse{
-			App: DeploySourceApp{Key: key, Title: customRecord.GetString("trademark"), Source: "custom"},
+			App:      DeploySourceApp{Key: key, Title: customRecord.GetString("trademark"), Source: "custom"},
 			Template: TemplateSummary{Key: key, Source: "template", Available: available},
 			Install: InstallPrefill{
 				PrefillMode:    "target",
@@ -154,8 +154,8 @@ func (s *Service) DeploySource(app core.App, auth *core.Record, locale, key stri
 				PrefillAppName: customRecord.GetString("trademark"),
 			},
 			Capabilities: DeployCapabilities{
-				HasComposeTemplate: available,
-				HasEnvTemplate:     fileExists(filepath.Join("/appos/data/templates/apps", key, ".env")),
+				HasComposeTemplate:   available,
+				HasEnvTemplate:       fileExists(filepath.Join("/appos/data/templates/apps", key, ".env")),
 				SupportsDirectDeploy: available,
 			},
 		}, nil
@@ -166,7 +166,7 @@ func (s *Service) DeploySource(app core.App, auth *core.Record, locale, key stri
 			continue
 		}
 		return &DeploySourceResponse{
-			App: DeploySourceApp{Key: key, Title: product.Trademark, Source: "official"},
+			App:      DeploySourceApp{Key: key, Title: product.Trademark, Source: "official"},
 			Template: TemplateSummary{Key: key, Source: "library", Available: true},
 			Install: InstallPrefill{
 				PrefillMode:    "target",
@@ -175,8 +175,8 @@ func (s *Service) DeploySource(app core.App, auth *core.Record, locale, key stri
 				PrefillAppName: product.Trademark,
 			},
 			Capabilities: DeployCapabilities{
-				HasComposeTemplate: true,
-				HasEnvTemplate:     fileExists(filepath.Join("/appos/library/apps", key, ".env")),
+				HasComposeTemplate:   true,
+				HasEnvTemplate:       fileExists(filepath.Join("/appos/library/apps", key, ".env")),
 				SupportsDirectDeploy: true,
 			},
 		}, nil
@@ -486,7 +486,7 @@ func loadVisibleCustomAppDetail(app core.App, auth *core.Record, key string, sec
 			DefaultAppName: record.GetString("trademark"),
 		},
 		Personalization: PersonalizationDetail{IsFavorite: state.IsFavorite, Note: note},
-		Audit: AuditDetail{CreatedAt: stringPtr(record.GetString("created")), UpdatedAt: stringPtr(record.GetString("updated"))},
+		Audit:           AuditDetail{CreatedAt: stringPtr(record.GetString("created")), UpdatedAt: stringPtr(record.GetString("updated"))},
 	}, true, nil
 }
 
@@ -532,18 +532,18 @@ func officialDetail(product SourceProduct, state PersonalizationState, sourceVer
 		Description: product.Description,
 		IconURL:     product.Logo.ImageURL,
 		Screenshots: screenshots,
-		Source: SourceDetail{Kind: "official", Visibility: "public"},
-		Categories: CategoryDetail{Primary: primary, Secondary: secondary},
+		Source:      SourceDetail{Kind: "official", Visibility: "public"},
+		Categories:  CategoryDetail{Primary: primary, Secondary: secondary},
 		Links: LinkSet{
 			Website: product.WebsiteURL,
 			Docs:    buildDocURL(product.Key, locale),
 			Github:  buildGithubURL(product.Key),
 		},
-		Requirements: Requirements{VCpu: product.VCpu, MemoryGB: product.Memory, StorageGB: product.Storage},
-		Template: TemplateDetail{Key: product.Key, Source: "library", Available: true, PathHint: filepath.Join("library/apps", product.Key)},
-		Deploy: DeployDetail{Supported: true, Mode: "template", SourceKind: "library", DefaultAppName: product.Trademark},
+		Requirements:    Requirements{VCpu: product.VCpu, MemoryGB: product.Memory, StorageGB: product.Storage},
+		Template:        TemplateDetail{Key: product.Key, Source: "library", Available: true, PathHint: filepath.Join("library/apps", product.Key)},
+		Deploy:          DeployDetail{Supported: true, Mode: "template", SourceKind: "library", DefaultAppName: product.Trademark},
 		Personalization: PersonalizationDetail{IsFavorite: state.IsFavorite, Note: note},
-		Audit: AuditDetail{UpdatedAt: stringPtr(sourceVersion)},
+		Audit:           AuditDetail{UpdatedAt: stringPtr(sourceVersion)},
 	}
 }
 

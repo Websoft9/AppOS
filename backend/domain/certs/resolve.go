@@ -44,7 +44,6 @@ func ResolveCertificate(app core.App, certID string, callerID string) (*CertMate
 	if certPEM == "" {
 		return nil, ErrCertNotReady
 	}
-	
 
 	keyPEM := ""
 	secretID := record.GetString("key")

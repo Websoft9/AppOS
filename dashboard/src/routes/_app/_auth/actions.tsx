@@ -10,7 +10,10 @@ const PAGE_SIZE_OPTIONS = new Set([15, 30, 60, 90])
 
 function parseSortField(value: unknown): SortField | undefined {
   if (value === 'updated') return 'started_at'
-  return value === 'compose_project_name' || value === 'created' || value === 'started_at' || value === 'finished_at'
+  return value === 'compose_project_name' ||
+    value === 'created' ||
+    value === 'started_at' ||
+    value === 'finished_at'
     ? value
     : undefined
 }
@@ -47,7 +50,9 @@ function ActionsRoutePage() {
   const isListRoute = location.pathname === '/actions' || location.pathname === '/actions/'
 
   return (
-    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading Actions...</div>}>
+    <Suspense
+      fallback={<div className="p-6 text-sm text-muted-foreground">Loading Actions...</div>}
+    >
       {isListRoute ? <LazyDeployPage view="list" listSearch={search} /> : <Outlet />}
     </Suspense>
   )

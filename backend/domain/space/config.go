@@ -15,13 +15,13 @@ var defaultQuota = settingscatalog.DefaultGroup(SettingsModule, SettingsKey)
 
 // Quota holds all effective quota values for the space domain.
 type Quota struct {
-	MaxSizeMB           int
-	MaxPerUser          int
-	MaxUploadFiles      int
-	ShareMaxMinutes     int
-	ShareDefaultMinutes int
-	UploadAllowExts     []string
-	UploadDenyExts      []string
+	MaxSizeMB             int
+	MaxPerUser            int
+	MaxUploadFiles        int
+	ShareMaxMinutes       int
+	ShareDefaultMinutes   int
+	UploadAllowExts       []string
+	UploadDenyExts        []string
 	DisallowedFolderNames []string
 }
 

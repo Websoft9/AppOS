@@ -10,9 +10,9 @@ import (
 )
 
 type SourceCategory struct {
-	Key       string `json:"key"`
-	Position  *float64   `json:"position"`
-	Title     string `json:"title"`
+	Key        string   `json:"key"`
+	Position   *float64 `json:"position"`
+	Title      string   `json:"title"`
 	LinkedFrom struct {
 		CatalogCollection struct {
 			Items []SourceSecondaryCategory `json:"items"`
@@ -21,9 +21,9 @@ type SourceCategory struct {
 }
 
 type SourceSecondaryCategory struct {
-	Key      string `json:"key"`
-	Title    string `json:"title"`
-	Position *float64   `json:"position"`
+	Key      string   `json:"key"`
+	Title    string   `json:"title"`
+	Position *float64 `json:"position"`
 }
 
 type SourceProduct struct {
@@ -44,7 +44,7 @@ type SourceProduct struct {
 		Key   string `json:"key"`
 		Value string `json:"value"`
 	} `json:"screenshots"`
-	Logo        struct {
+	Logo struct {
 		ImageURL string `json:"imageurl"`
 	} `json:"logo"`
 	CatalogCollection struct {

@@ -45,9 +45,9 @@ export function useUserApps() {
   return useQuery({
     queryKey: USER_APPS_KEY,
     queryFn: async () => {
-      const response = await pb.send('/api/catalog/me/apps', {
+      const response = (await pb.send('/api/catalog/me/apps', {
         method: 'GET',
-      }) as CatalogPersonalizationListResponse
+      })) as CatalogPersonalizationListResponse
       return response.items.map(toUserApp)
     },
     staleTime: Infinity, // loaded once; invalidated on mutations
@@ -62,12 +62,15 @@ export function useToggleFavorite(onError?: (msg: string) => void) {
   return useMutation({
     mutationFn: async ({ appKey, userApps }: { appKey: string; userApps: UserApp[] }) => {
       const existing = userApps.find(a => a.app_key === appKey)
-      const response = await pb.send(`/api/catalog/me/apps/${encodeURIComponent(appKey)}/favorite`, {
-        method: 'PUT',
-        body: {
-          isFavorite: existing ? !existing.is_favorite : true,
-        },
-      }) as CatalogPersonalizationItem
+      const response = (await pb.send(
+        `/api/catalog/me/apps/${encodeURIComponent(appKey)}/favorite`,
+        {
+          method: 'PUT',
+          body: {
+            isFavorite: existing ? !existing.is_favorite : true,
+          },
+        }
+      )) as CatalogPersonalizationItem
       return toUserApp(response)
     },
     // Optimistic update
@@ -119,15 +122,15 @@ export function useSaveNote(onError?: (msg: string) => void) {
       userApps: UserApp[]
     }) => {
       if (note === null || note.trim() === '') {
-        const response = await pb.send(`/api/catalog/me/apps/${encodeURIComponent(appKey)}/note`, {
+        const response = (await pb.send(`/api/catalog/me/apps/${encodeURIComponent(appKey)}/note`, {
           method: 'DELETE',
-        }) as CatalogPersonalizationItem
+        })) as CatalogPersonalizationItem
         return toUserApp(response)
       }
-      const response = await pb.send(`/api/catalog/me/apps/${encodeURIComponent(appKey)}/note`, {
+      const response = (await pb.send(`/api/catalog/me/apps/${encodeURIComponent(appKey)}/note`, {
         method: 'PUT',
         body: { note },
-      }) as CatalogPersonalizationItem
+      })) as CatalogPersonalizationItem
       return toUserApp(response)
     },
     onError: () => onError?.('Failed to save note. Please try again.'),

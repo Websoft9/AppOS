@@ -372,8 +372,8 @@ The UI does not need to implement all relationship widgets in this story, but fu
   - [ ] 3b.3 Define how transitional cards may remain without outranking canonical families
 
 - [ ] Task 4: Prepare dashboard follow-up
-  - [ ] 4.1 Identify the Resource Hub sections or card groups needed for implementation
-  - [ ] 4.2 Identify which existing list pages can remain while labels and entry framing change first
+  - [x] 4.1 Identify the Resource Hub sections or card groups needed for implementation
+  - [x] 4.2 Identify which existing list pages can remain while labels and entry framing change first
   - [ ] 4.3 Identify which detail-page relationship modules should be introduced incrementally
 
 ## Notes
@@ -382,3 +382,68 @@ The UI does not need to implement all relationship widgets in this story, but fu
 - The goal is not to make all resource families look identical. The goal is to make them feel coherent while preserving their different roles in the operator mental model.
 - `Servers` remain a canonical resource family, but they must be framed as host infrastructure rather than treated as just another reusable dependency.
 - Transitional routes may remain temporarily, but transitional labels should not drive the top-level IA once the taxonomy-aware hub work begins.
+
+## Dev Agent Record
+
+### File List
+
+- dashboard/src/components/resources/ResourceHub.tsx
+- dashboard/src/components/resources/ResourceHub.test.tsx
+- dashboard/src/components/layout/Sidebar.tsx
+- dashboard/src/components/layout/Sidebar.test.tsx
+- dashboard/src/components/resources/ResourcePage.tsx
+- dashboard/src/routes/_app/_auth/resources/service-instances.tsx
+- dashboard/src/routes/_app/_auth/resources/-service-instances.test.tsx
+- dashboard/src/routes/_app/_auth/resources/platform-accounts.tsx
+- dashboard/src/routes/_app/_auth/resources/-platform-accounts.test.tsx
+- dashboard/src/pages/apps/AppDetailPage.tsx
+- dashboard/src/pages/apps/AppDetailPage.test.tsx
+- dashboard/src/pages/apps/AppDetailSecondaryTabs.tsx
+- dashboard/src/pages/apps/AppDetailTabPanelTypes.ts
+- dashboard/src/pages/apps/app-detail-utils.ts
+- dashboard/src/lib/object-types.ts
+- dashboard/src/routeTree.gen.ts
+- backend/domain/routes/resources.go
+- backend/domain/routes/resources_test.go
+- specs/implementation-artifacts/story8.9-resource-hub-information-architecture-alignment.md
+
+### Completion Notes
+
+- Implemented the first dashboard pass for Story 8.9 in `ResourceHub` by splitting the hub into `Host Infrastructure`, `Dependency Infrastructure`, and a temporary supporting-resources section.
+- Reframed the canonical hub cards to `Servers`, `Service Instances`, `Connectors`, and `Platform Accounts` while keeping transitional navigation targets to the existing `Databases` and `Cloud Accounts` pages.
+- Replaced the raw resource-type create menu with an intent-first `Add Resource` menu that routes to the currently available creation surfaces.
+- Refined hub and create-entry copy to include concrete product and platform examples such as `MySQL`, `PostgreSQL`, `Redis`, `AWS`, `Azure`, and `Google Cloud`.
+- Updated the transitional `Databases` and `Cloud Accounts` pages to use canonical page titles `Service Instances` and `Platform Accounts` with explicit transitional descriptions.
+- Removed `Scripts` from the Resource Hub and moved its primary navigation entry under `Collaboration`, reflecting the decision that it no longer belongs to the long-term `Resources` family.
+- Replaced the legacy `Databases` resource page with a new template-aware `Service Instances` page backed by `/api/instances` and `/api/instances/templates`.
+- Exposed backend instance profiles in the frontend create flow, including grouped service kinds and profile-specific dynamic fields.
+- Refined `Service Instances` create UX into a product-first flow: the user now chooses from a searchable product list before the connection form opens.
+- Normalized product labels so standard templates surface the product name directly, while product-specific templates keep their real names such as `Amazon Aurora MySQL`.
+- Expanded the service-instance connection form dialog to the `lg` 896px width tier for multi-field connection setup.
+- Replaced the legacy `Cloud Accounts` resource page with a new template-aware `Platform Accounts` page backed by `/api/provider-accounts` and `/api/provider-accounts/templates`.
+- Exposed backend provider-account profiles in the frontend create flow, including grouped platform kinds and profile-specific dynamic fields.
+- Refined `Platform Accounts` create UX into a product-first flow: the user now chooses from a searchable product list before the account form opens.
+- Expanded the platform-account form dialog to the `lg` 896px width tier for multi-field account setup.
+- Migrated the App Detail `Data` tab from legacy database projections to canonical service instance projections and updated its navigation target to `/resources/service-instances`.
+- Removed the legacy `/api/ext/resources/databases` route registration and replaced its CRUD test with a route-removal test.
+- Removed the legacy `/api/ext/resources/cloud-accounts` route registration and replaced its CRUD test with a route-removal test.
+- Updated generated route metadata and object-type registration so the canonical route is `/resources/service-instances` across the dashboard.
+- Updated generated route metadata and object-type registration so the canonical route is `/resources/platform-accounts` across the dashboard.
+- Preserved the existing count-loading behavior and Resource Groups header action.
+- Added component tests covering canonical section rendering, canonical copy, and intent-first create navigation.
+- Added a service-instances page test covering the product picker, search filtering, and selected-template field rendering.
+- Added a platform-accounts page test covering the product picker, search filtering, and selected-template field rendering.
+- Added sidebar coverage for the new `Scripts` placement under `Collaboration`.
+- Verified `dashboard` with targeted Vitest coverage, full `npm test`, and `npm run typecheck`.
+- Verified the updated dashboard bundle with `npm run build`.
+- Verified backend route migration with `go test ./domain/routes/...`.
+- Verified full project build with `make build`.
+
+### Change Log
+
+- 2026-04-10: Implemented the first taxonomy-aware Resource Hub pass with sectioned canonical families, intent-first create actions, and passing dashboard tests.
+- 2026-04-10: Refined Resource Hub and create-flow copy with concrete examples, renamed transitional list-page chrome to canonical labels, moved Scripts under Collaboration, and re-verified dashboard tests plus full build.
+- 2026-04-10: Migrated legacy database frontend/backend surfaces to canonical `Service Instances`, exposed instance templates in the create flow, updated the App Detail data tab, removed the ext databases route, and re-verified frontend tests, backend route tests, and full build.
+- 2026-04-10: Migrated legacy cloud-account frontend/backend surfaces to canonical `Platform Accounts`, exposed provider-account templates in the create flow, removed the ext cloud-accounts route, and re-verified frontend tests, backend route tests, and full build.
+- 2026-04-10: Changed `Service Instances` creation to a searchable product-first chooser, hid raw kind/profile controls from the connection form, widened the form dialog to 896px, and re-verified dashboard tests, typecheck, and build.
+- 2026-04-10: Changed `Platform Accounts` creation to a searchable product-first chooser, hid raw kind/profile controls from the account form, widened the form dialog to 896px, and re-verified dashboard tests, typecheck, and build.

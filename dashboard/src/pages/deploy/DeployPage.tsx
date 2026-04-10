@@ -23,8 +23,17 @@ import {
 import { AppDetailModal } from '@/components/store/AppDetailModal'
 import { ActionHomeView } from '@/pages/deploy/actions/ActionHomeView'
 import { ActionListView } from '@/pages/deploy/actions/ActionListView'
-import { buildActionListHref, formatTime, isActiveStatus, statusVariant } from '@/pages/deploy/actions/action-utils'
-import type { ActionListSearch, ActionRecord, CreateDeploymentEntryMode } from '@/pages/deploy/actions/action-types'
+import {
+  buildActionListHref,
+  formatTime,
+  isActiveStatus,
+  statusVariant,
+} from '@/pages/deploy/actions/action-utils'
+import type {
+  ActionListSearch,
+  ActionRecord,
+  CreateDeploymentEntryMode,
+} from '@/pages/deploy/actions/action-types'
 import { useActionsController } from '@/pages/deploy/actions/useActionsController'
 
 type DeployPageProps = {
@@ -124,40 +133,47 @@ export function DeployPage({
     icon: ReactNode
     action: () => void
     variant?: 'default' | 'outline'
-  }> = useMemo(() => [
-    {
-      key: 'compose',
-      title: 'Compose File',
-      description: 'Paste or review docker-compose YAML. This is the recommended path for standard app stacks.',
-      icon: <FileCode2 className="h-4 w-4" />,
-      action: () => openManualDialog('compose'),
-      variant: 'default',
-    },
-    {
-      key: 'git-compose',
-      title: 'Git Repository',
-      description: 'Pull a compose file from a repository branch or tag, then create the deployment task.',
-      icon: <GitBranch className="h-4 w-4" />,
-      action: () => openManualDialog('git-compose'),
-      variant: 'outline',
-    },
-    {
-      key: 'docker-command',
-      title: 'Docker Command',
-      description: 'Convert a docker run command into compose-compatible content before submitting the deployment.',
-      icon: <TerminalSquare className="h-4 w-4" />,
-      action: () => openManualDialog('docker-command'),
-      variant: 'outline',
-    },
-    {
-      key: 'install-script',
-      title: 'Source Packages',
-      description: 'Use user-provided compressed source packages such as zip or tar.gz as the deployment input source.',
-      icon: <Wrench className="h-4 w-4" />,
-      action: () => openManualDialog('install-script'),
-      variant: 'outline',
-    },
-  ], [openManualDialog])
+  }> = useMemo(
+    () => [
+      {
+        key: 'compose',
+        title: 'Compose File',
+        description:
+          'Paste or review docker-compose YAML. This is the recommended path for standard app stacks.',
+        icon: <FileCode2 className="h-4 w-4" />,
+        action: () => openManualDialog('compose'),
+        variant: 'default',
+      },
+      {
+        key: 'git-compose',
+        title: 'Git Repository',
+        description:
+          'Pull a compose file from a repository branch or tag, then create the deployment task.',
+        icon: <GitBranch className="h-4 w-4" />,
+        action: () => openManualDialog('git-compose'),
+        variant: 'outline',
+      },
+      {
+        key: 'docker-command',
+        title: 'Docker Command',
+        description:
+          'Convert a docker run command into compose-compatible content before submitting the deployment.',
+        icon: <TerminalSquare className="h-4 w-4" />,
+        action: () => openManualDialog('docker-command'),
+        variant: 'outline',
+      },
+      {
+        key: 'install-script',
+        title: 'Source Packages',
+        description:
+          'Use user-provided compressed source packages such as zip or tar.gz as the deployment input source.',
+        icon: <Wrench className="h-4 w-4" />,
+        action: () => openManualDialog('install-script'),
+        variant: 'outline',
+      },
+    ],
+    [openManualDialog]
+  )
 
   const operationListHref = buildActionListHref()
 
@@ -165,7 +181,11 @@ export function DeployPage({
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" aria-label={`More actions for ${item.compose_project_name || item.id}`}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={`More actions for ${item.compose_project_name || item.id}`}
+          >
             <MoreVertical className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
@@ -187,16 +207,33 @@ export function DeployPage({
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{view === 'list' ? 'Action History' : 'Deploy Application'}</h1>
-          <p className="text-sm text-muted-foreground">{view === 'list' ? 'Browse lifecycle actions and open execution details.' : 'Choose an application source and start deployment.'}</p>
+          <h1 className="text-2xl font-bold">
+            {view === 'list' ? 'Action History' : 'Deploy Application'}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {view === 'list'
+              ? 'Browse lifecycle actions and open execution details.'
+              : 'Choose an application source and start deployment.'}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {view === 'home' ? (
             <>
-              <Button size="icon" title="Deploy" aria-label="Deploy" onClick={() => openManualDialog('compose')}>
+              <Button
+                size="icon"
+                title="Deploy"
+                aria-label="Deploy"
+                onClick={() => openManualDialog('compose')}
+              >
                 <Plus className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="icon" title="View actions" aria-label="View actions" asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                title="View actions"
+                aria-label="View actions"
+                asChild
+              >
                 <a href={operationListHref}>
                   <List className="h-4 w-4" />
                 </a>
@@ -209,7 +246,13 @@ export function DeployPage({
                   <Plus className="h-4 w-4" />
                 </a>
               </Button>
-              <Button variant="outline" size="icon" title="Refresh" aria-label="Refresh" onClick={() => void fetchOperations()}>
+              <Button
+                variant="outline"
+                size="icon"
+                title="Refresh"
+                aria-label="Refresh"
+                onClick={() => void fetchOperations()}
+              >
                 <RefreshCw className="h-4 w-4" />
               </Button>
             </>
@@ -220,7 +263,13 @@ export function DeployPage({
       {notice ? (
         <Alert variant={notice.variant} className="flex items-center justify-between gap-3 py-3">
           <AlertDescription className="truncate">{notice.message}</AlertDescription>
-          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" aria-label="Close notification" onClick={() => setNotice(null)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0"
+            aria-label="Close notification"
+            onClick={() => setNotice(null)}
+          >
             <X className="h-4 w-4" />
           </Button>
         </Alert>
@@ -229,7 +278,10 @@ export function DeployPage({
       {view === 'list' && listSearch?.appId ? (
         <Alert>
           <AlertDescription className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <span>Showing actions scoped to app {listSearch.appId}. Search, sorting, and filters apply within this app only.</span>
+            <span>
+              Showing actions scoped to app {listSearch.appId}. Search, sorting, and filters apply
+              within this app only.
+            </span>
             <Button variant="outline" size="sm" asChild>
               <a href="/actions">Clear App Scope</a>
             </Button>

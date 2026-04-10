@@ -38,6 +38,7 @@ var (
 	reRouterGroupAssign  = regexp.MustCompile(`(\w+)\s*:?=\s*(\w+)\.Router\.Group\("([^"]*)"\)`)
 	reRouteMethod        = regexp.MustCompile(`(\w+)\.(GET|POST|PUT|DELETE|PATCH|HEAD)\("([^"]*)"`)
 	reRouteMethodHandler = regexp.MustCompile(`(\w+)\.(GET|POST|PUT|DELETE|PATCH|HEAD)\("([^"]*)"\s*,\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)`)
+	reAuthBind           = regexp.MustCompile(`(\w+)\.Bind\(apis\.RequireAuth\(\)\)`)
 	reSuperuserBind      = regexp.MustCompile(`(\w+)\.Bind\(apis\.RequireSuperuserAuth\(\)\)`)
 	rePathParam          = regexp.MustCompile(`\{([^}]+)\}`)
 	reFuncStart          = regexp.MustCompile(`^func\s*(\([^)]*\)\s*)?([A-Za-z_][A-Za-z0-9_]*)\s*\(`)
@@ -52,6 +53,7 @@ var (
 	reSwaggerDescription = regexp.MustCompile(`@Description\s+(.+)`)
 	reSwaggerSuccessCode = regexp.MustCompile(`@Success\s+([0-9]{3})\b`)
 	reSwaggerFailureCode = regexp.MustCompile(`@Failure\s+([0-9]{3})\b`)
+	reSwaggerResponse    = regexp.MustCompile(`@(Success|Failure)\s+([0-9]{3})\s+\{([^}]+)\}\s+(\S+)`)
 )
 
 // publicPrefixes: routes whose full path starts with these are unauthenticated.
@@ -90,13 +92,17 @@ type route struct {
 	cookieParams   []swaggerParamHint
 	formDataParams []swaggerParamHint
 	bodyRequired   *bool
+	bodySchema     *swaggerSchemaHint
 	successCodes   []int
 	failureCodes   []int
+	successSchemas map[int]swaggerSchemaHint
+	failureSchemas map[int]swaggerSchemaHint
 	markerGroup    string
 	markerSummary  string
 	markerAuth     string
 	summary        string
 	description    string
+	detectedAuth   string
 }
 
 type swaggerParamHint struct {
@@ -130,12 +136,16 @@ func scanFile(filePath string) ([]route, map[string]bool) {
 	handlerParamHints := extractHandlerParamHints(string(data))
 	handlerSuccessCodes := extractHandlerSuccessCodes(string(data))
 	handlerFailureCodes := extractHandlerFailureCodes(string(data))
+	handlerSuccessSchemas, handlerFailureSchemas := extractHandlerResponseSchemas(string(data))
 	handlerSummaries := extractHandlerSummaries(string(data))
 	handlerDescriptions := extractHandlerDescriptions(string(data))
 
 	defaultG := "/api/ext"
 	if strings.HasPrefix(filepath.Base(filePath), "server") {
 		defaultG = "/api/servers"
+	}
+	if strings.Contains(filepath.ToSlash(filePath), "/domain/certs/") {
+		defaultG = "/api/certificates"
 	}
 	if strings.HasPrefix(filepath.Base(filePath), "terminal") {
 		defaultG = "/api/terminal"
@@ -149,6 +159,11 @@ func scanFile(filePath string) ([]route, map[string]bool) {
 
 	vars := map[string]string{
 		"g":  defaultG,
+		"se": "",
+		"r":  "",
+	}
+	varAuth := map[string]string{
+		"g":  "",
 		"se": "",
 		"r":  "",
 	}
@@ -169,6 +184,10 @@ func scanFile(filePath string) ([]route, map[string]bool) {
 			newVar, parent, suffix := m[1], m[2], m[3]
 			if base, ok := vars[parent]; ok {
 				vars[newVar] = base + suffix
+				varAuth[newVar] = varAuth[parent]
+				if varAuth[newVar] == "" {
+					varAuth[newVar] = "public"
+				}
 			}
 		}
 
@@ -178,6 +197,17 @@ func scanFile(filePath string) ([]route, map[string]bool) {
 			newVar, parent, suffix := m[1], m[2], m[3]
 			if base, ok := vars[parent]; ok {
 				vars[newVar] = base + suffix
+				varAuth[newVar] = varAuth[parent]
+				if varAuth[newVar] == "" {
+					varAuth[newVar] = "public"
+				}
+			}
+		}
+
+		if m := reAuthBind.FindStringSubmatch(line); m != nil {
+			varName := m[1]
+			if _, ok := vars[varName]; ok && varAuth[varName] != "superuser" {
+				varAuth[varName] = "auth"
 			}
 		}
 
@@ -186,6 +216,7 @@ func scanFile(filePath string) ([]route, map[string]bool) {
 			varName := m[1]
 			if base, ok := vars[varName]; ok && base != "" {
 				superuserVarPaths[base] = true
+				varAuth[varName] = "superuser"
 			}
 		}
 
@@ -194,6 +225,7 @@ func scanFile(filePath string) ([]route, map[string]bool) {
 			varName, method, suffix := m[1], m[2], m[3]
 			if base, ok := vars[varName]; ok && strings.HasPrefix(base, "/api/") {
 				r := route{method: method, path: base + suffix}
+				r.detectedAuth = strings.TrimSpace(varAuth[varName])
 				if hm := reRouteMethodHandler.FindStringSubmatch(line); hm != nil {
 					h := hm[4]
 					r.handler = h
@@ -202,6 +234,8 @@ func scanFile(filePath string) ([]route, map[string]bool) {
 					r.headerParams = []swaggerParamHint{}
 					r.cookieParams = []swaggerParamHint{}
 					r.formDataParams = []swaggerParamHint{}
+					r.successSchemas = map[int]swaggerSchemaHint{}
+					r.failureSchemas = map[int]swaggerSchemaHint{}
 					for _, p := range r.queryParams {
 						r.queryRequired[p] = false
 					}
@@ -215,6 +249,7 @@ func scanFile(filePath string) ([]route, map[string]bool) {
 						case "body":
 							required := hint.required
 							r.bodyRequired = &required
+							r.bodySchema = &swaggerSchemaHint{container: "object", dataType: hint.dataType}
 						case "header":
 							r.headerParams = append(r.headerParams, hint)
 						case "cookie":
@@ -226,6 +261,12 @@ func scanFile(filePath string) ([]route, map[string]bool) {
 					sort.Strings(r.queryParams)
 					r.successCodes = handlerSuccessCodes[h]
 					r.failureCodes = handlerFailureCodes[h]
+					for code, hint := range handlerSuccessSchemas[h] {
+						r.successSchemas[code] = hint
+					}
+					for code, hint := range handlerFailureSchemas[h] {
+						r.failureSchemas[code] = hint
+					}
 					r.summary = handlerSummaries[h]
 					r.description = handlerDescriptions[h]
 				}
@@ -382,6 +423,98 @@ func extractHandlerFailureCodes(src string) map[string][]int {
 	return extractHandlerCommentCodes(src, reSwaggerFailureCode, func(code int) bool {
 		return code >= 400 && code <= 599
 	})
+}
+
+func extractHandlerResponseSchemas(src string) (map[string]map[int]swaggerSchemaHint, map[string]map[int]swaggerSchemaHint) {
+	success := map[string]map[int]swaggerSchemaHint{}
+	failure := map[string]map[int]swaggerSchemaHint{}
+	scanner := bufio.NewScanner(strings.NewReader(src))
+
+	pendingCommentLines := make([]string, 0)
+	insideBlockComment := false
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		trim := strings.TrimSpace(line)
+
+		if trim == "" {
+			if !insideBlockComment {
+				pendingCommentLines = pendingCommentLines[:0]
+			}
+			continue
+		}
+
+		if insideBlockComment {
+			pendingCommentLines = append(pendingCommentLines, trim)
+			if strings.Contains(trim, "*/") {
+				insideBlockComment = false
+			}
+			continue
+		}
+
+		if strings.HasPrefix(trim, "/*") {
+			insideBlockComment = true
+			pendingCommentLines = append(pendingCommentLines, trim)
+			if strings.Contains(trim, "*/") {
+				insideBlockComment = false
+			}
+			continue
+		}
+
+		if strings.HasPrefix(trim, "//") {
+			pendingCommentLines = append(pendingCommentLines, trim)
+			continue
+		}
+
+		if m := reFuncStart.FindStringSubmatch(trim); m != nil {
+			fn := m[2]
+			successHints, failureHints := parseResponseHintsFromComments(pendingCommentLines)
+			if len(successHints) > 0 {
+				success[fn] = successHints
+			}
+			if len(failureHints) > 0 {
+				failure[fn] = failureHints
+			}
+			pendingCommentLines = pendingCommentLines[:0]
+			continue
+		}
+
+		pendingCommentLines = pendingCommentLines[:0]
+	}
+
+	return success, failure
+}
+
+func parseResponseHintsFromComments(lines []string) (map[int]swaggerSchemaHint, map[int]swaggerSchemaHint) {
+	if len(lines) == 0 {
+		return nil, nil
+	}
+	success := map[int]swaggerSchemaHint{}
+	failure := map[int]swaggerSchemaHint{}
+	for _, line := range lines {
+		for _, m := range reSwaggerResponse.FindAllStringSubmatch(line, -1) {
+			if len(m) < 5 {
+				continue
+			}
+			code := 0
+			for _, ch := range m[2] {
+				code = code*10 + int(ch-'0')
+			}
+			hint := swaggerSchemaHint{container: strings.TrimSpace(m[3]), dataType: strings.TrimSpace(m[4])}
+			if strings.EqualFold(strings.TrimSpace(m[1]), "Success") {
+				success[code] = hint
+				continue
+			}
+			failure[code] = hint
+		}
+	}
+	if len(success) == 0 {
+		success = nil
+	}
+	if len(failure) == 0 {
+		failure = nil
+	}
+	return success, failure
 }
 
 func extractHandlerCommentCodes(src string, codeRegex *regexp.Regexp, accept func(int) bool) map[string][]int {
@@ -786,6 +919,9 @@ func extTagsFromMatrix(groups []groupEntry) []groupEntry {
 		seen[name] = struct{}{}
 		out = append(out, group)
 	}
+	sort.Slice(out, func(i, j int) bool {
+		return strings.ToLower(strings.TrimSpace(out[i].Group)) < strings.ToLower(strings.TrimSpace(out[j].Group))
+	})
 	return out
 }
 
@@ -845,7 +981,7 @@ func existingPaths(specPath string) map[string]bool {
 }
 
 // methodBlock renders one HTTP method block inside a path entry.
-func methodBlock(method, path, tag, auth string, queryParams []string, queryRequired map[string]bool, headerParams []swaggerParamHint, cookieParams []swaggerParamHint, formDataParams []swaggerParamHint, bodyRequired *bool, successCodes []int, failureCodes []int) string {
+func methodBlock(method, path, tag, auth string, queryParams []string, queryRequired map[string]bool, headerParams []swaggerParamHint, cookieParams []swaggerParamHint, formDataParams []swaggerParamHint, bodyRequired *bool, bodySchema *swaggerSchemaHint, successCodes []int, failureCodes []int, successSchemas map[int]swaggerSchemaHint, failureSchemas map[int]swaggerSchemaHint, componentNames map[string]string) string {
 	var buf bytes.Buffer
 	lm := strings.ToLower(method)
 	fmt.Fprintf(&buf, "    %s:\n", lm)
@@ -875,7 +1011,7 @@ func methodBlock(method, path, tag, auth string, queryParams []string, queryRequ
 			fmt.Fprintf(&buf, "        content:\n")
 			fmt.Fprintf(&buf, "          application/json:\n")
 			fmt.Fprintf(&buf, "            schema:\n")
-			fmt.Fprintf(&buf, "              $ref: '#/components/schemas/GenericRequest'\n")
+			renderSchemaRef(&buf, "              ", bodySchema, componentNames, "GenericRequest")
 		}
 	}
 
@@ -888,11 +1024,22 @@ func methodBlock(method, path, tag, auth string, queryParams []string, queryRequ
 		fmt.Fprintf(&buf, "      security: []  # public\n")
 	}
 	fmt.Fprintf(&buf, "      responses:\n")
-	fmt.Fprintf(&buf, "        \"200\":\n          description: OK\n")
-	fmt.Fprintf(&buf, "          content:\n")
-	fmt.Fprintf(&buf, "            application/json:\n")
-	fmt.Fprintf(&buf, "              schema:\n")
-	fmt.Fprintf(&buf, "                $ref: '#/components/schemas/SuccessEnvelope'\n")
+	hasExplicitSuccess := len(successCodes) > 0 || len(successSchemas) > 0
+	if !hasExplicitSuccess || hasStatusCode(successCodes, 200) || hasResponseSchema(successSchemas, 200) {
+		fmt.Fprintf(&buf, "        \"200\":\n          description: OK\n")
+		fmt.Fprintf(&buf, "          content:\n")
+		fmt.Fprintf(&buf, "            application/json:\n")
+		fmt.Fprintf(&buf, "              schema:\n")
+		if successSchemas != nil {
+			if hint, ok := successSchemas[200]; ok {
+				renderSchemaRef(&buf, "                ", &hint, componentNames, "SuccessEnvelope")
+			} else {
+				renderSchemaRef(&buf, "                ", nil, componentNames, "SuccessEnvelope")
+			}
+		} else {
+			renderSchemaRef(&buf, "                ", nil, componentNames, "SuccessEnvelope")
+		}
+	}
 	for _, code := range successCodes {
 		if code == 200 {
 			continue
@@ -902,7 +1049,11 @@ func methodBlock(method, path, tag, auth string, queryParams []string, queryRequ
 			fmt.Fprintf(&buf, "          content:\n")
 			fmt.Fprintf(&buf, "            application/json:\n")
 			fmt.Fprintf(&buf, "              schema:\n")
-			fmt.Fprintf(&buf, "                $ref: '#/components/schemas/SuccessEnvelope'\n")
+			if hint, ok := successSchemas[code]; ok {
+				renderSchemaRef(&buf, "                ", &hint, componentNames, "SuccessEnvelope")
+			} else {
+				renderSchemaRef(&buf, "                ", nil, componentNames, "SuccessEnvelope")
+			}
 		}
 	}
 	if auth != "public" {
@@ -920,7 +1071,11 @@ func methodBlock(method, path, tag, auth string, queryParams []string, queryRequ
 		fmt.Fprintf(&buf, "          content:\n")
 		fmt.Fprintf(&buf, "            application/json:\n")
 		fmt.Fprintf(&buf, "              schema:\n")
-		fmt.Fprintf(&buf, "                $ref: '#/components/schemas/ErrorEnvelope'\n")
+		if hint, ok := failureSchemas[code]; ok {
+			renderSchemaRef(&buf, "                ", &hint, componentNames, "ErrorEnvelope")
+		} else {
+			renderSchemaRef(&buf, "                ", nil, componentNames, "ErrorEnvelope")
+		}
 	}
 	return buf.String()
 }
@@ -965,6 +1120,23 @@ func httpStatusDescription(code int) string {
 		}
 		return "Client Error"
 	}
+}
+
+func hasStatusCode(codes []int, want int) bool {
+	for _, code := range codes {
+		if code == want {
+			return true
+		}
+	}
+	return false
+}
+
+func hasResponseSchema(schemas map[int]swaggerSchemaHint, want int) bool {
+	if schemas == nil {
+		return false
+	}
+	_, ok := schemas[want]
+	return ok
 }
 
 func renderParameters(pathParams, queryParams []string, queryRequired map[string]bool, headerParams []swaggerParamHint, cookieParams []swaggerParamHint) []string {
@@ -1202,6 +1374,10 @@ func runGen() error {
 	if err != nil {
 		return fmt.Errorf("cannot resolve matrix route files: %w", err)
 	}
+	schemaFiles, err := parseDirsForSchemas(files)
+	if err != nil {
+		return fmt.Errorf("cannot resolve schema files: %w", err)
+	}
 
 	// Scan only matrix-declared route files
 	allRoutes := map[string][]string{} // path → []method (deduped)
@@ -1233,6 +1409,11 @@ func runGen() error {
 			allRoutes[key] = append(allRoutes[key], r.method)
 		next:
 		}
+	}
+	schemaRefs := collectSchemaTypeRefs(ops)
+	schemaBlocks, componentNames, err := buildSchemaComponents(schemaFiles, schemaRefs)
+	if err != nil {
+		return fmt.Errorf("cannot build schema components: %w", err)
 	}
 
 	// Sort paths for stable output
@@ -1287,6 +1468,12 @@ func runGen() error {
 	out.WriteString("        message:\n")
 	out.WriteString("          type: string\n")
 	out.WriteString("      required: [message]\n\n")
+	for _, block := range schemaBlocks {
+		out.WriteString(block)
+	}
+	if len(schemaBlocks) > 0 {
+		out.WriteString("\n")
+	}
 	out.WriteString("# This file is generated by backend/cmd/openapi/gen.go\n")
 	out.WriteString("# Do not edit manually. Edit routes source and re-run: make openapi-gen\n")
 	out.WriteString("paths:")
@@ -1304,11 +1491,14 @@ func runGen() error {
 				op := ops[m+" "+p]
 				resolvedTag, _ := tagFromMatrix(m, p, patterns)
 				resolvedAuth := auth
+				if strings.TrimSpace(op.detectedAuth) != "" {
+					resolvedAuth = strings.TrimSpace(op.detectedAuth)
+				}
 				if strings.TrimSpace(op.markerAuth) != "" {
 					resolvedAuth = strings.TrimSpace(op.markerAuth)
 				}
 
-				block := methodBlock(m, p, resolvedTag, resolvedAuth, op.queryParams, op.queryRequired, op.headerParams, op.cookieParams, op.formDataParams, op.bodyRequired, op.successCodes, op.failureCodes)
+				block := methodBlock(m, p, resolvedTag, resolvedAuth, op.queryParams, op.queryRequired, op.headerParams, op.cookieParams, op.formDataParams, op.bodyRequired, op.bodySchema, op.successCodes, op.failureCodes, op.successSchemas, op.failureSchemas, componentNames)
 				// Override summary: prefer @Summary annotation, then @swagger marker, then auto-generated
 				resolvedSummary := summaryFrom(m, p)
 				if strings.TrimSpace(op.summary) != "" {

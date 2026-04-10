@@ -26,16 +26,18 @@ export function formatActionType(value?: string): string {
 }
 
 export function getActionLabel(action: ActionRecord): string {
-  return formatActionType(action.pipeline?.selector?.operation_type || action.pipeline_selector?.operation_type)
+  return formatActionType(
+    action.pipeline?.selector?.operation_type || action.pipeline_selector?.operation_type
+  )
 }
 
 export function hasAccessHints(app: AppInstance | null): boolean {
   if (!app) return false
   return Boolean(
-    app.access_username?.trim()
-    || app.access_secret_hint?.trim()
-    || app.access_retrieval_method?.trim()
-    || app.access_notes?.trim()
+    app.access_username?.trim() ||
+    app.access_secret_hint?.trim() ||
+    app.access_retrieval_method?.trim() ||
+    app.access_notes?.trim()
   )
 }
 
@@ -60,17 +62,27 @@ export type SourceBuildAttribution = {
   targetRef?: string
 }
 
-function recordField(record: Record<string, unknown> | undefined, key: string): Record<string, unknown> | undefined {
+function recordField(
+  record: Record<string, unknown> | undefined,
+  key: string
+): Record<string, unknown> | undefined {
   const value = record?.[key]
-  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined
 }
 
-function stringRecordField(record: Record<string, unknown> | undefined, key: string): string | undefined {
+function stringRecordField(
+  record: Record<string, unknown> | undefined,
+  key: string
+): string | undefined {
   const value = record?.[key]
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
-export function parseActionSourceBuildAttribution(action?: ActionRecord | null): SourceBuildAttribution | null {
+export function parseActionSourceBuildAttribution(
+  action?: ActionRecord | null
+): SourceBuildAttribution | null {
   const spec = action?.spec
   if (!spec || typeof spec !== 'object' || Array.isArray(spec)) return null
 
@@ -86,10 +98,16 @@ export function parseActionSourceBuildAttribution(action?: ActionRecord | null):
     sourceKind: stringRecordField(sourceBuild, 'source_kind'),
     sourceRef: stringRecordField(sourceBuild, 'source_ref'),
     builderStrategy: stringRecordField(sourceBuild, 'builder_strategy'),
-    publicationMode: stringRecordField(artifactPublication, 'mode') || stringRecordField(publicationResult, 'mode'),
-    localImageRef: stringRecordField(publicationResult, 'local_image_ref') || stringRecordField(buildResult, 'local_image_ref'),
+    publicationMode:
+      stringRecordField(artifactPublication, 'mode') ||
+      stringRecordField(publicationResult, 'mode'),
+    localImageRef:
+      stringRecordField(publicationResult, 'local_image_ref') ||
+      stringRecordField(buildResult, 'local_image_ref'),
     targetService: stringRecordField(deployInputs, 'service_name'),
-    targetRef: stringRecordField(publicationResult, 'target_ref') || stringRecordField(artifactPublication, 'target_ref'),
+    targetRef:
+      stringRecordField(publicationResult, 'target_ref') ||
+      stringRecordField(artifactPublication, 'target_ref'),
   }
 }
 
@@ -131,14 +149,13 @@ export type RuntimeContainerStats = {
   MemUsage: string
 }
 
-export type ResourceDatabase = {
+export type ResourceInstance = {
   id: string
   name: string
-  type: string
-  host: string
-  port: string
-  db_name: string
-  user: string
+  kind: string
+  template_id: string
+  endpoint: string
+  summary: string
   description: string
 }
 
@@ -190,7 +207,7 @@ export function parseDockerInspect(output?: string): Record<string, unknown> | n
     if (Array.isArray(parsed) && parsed[0] && typeof parsed[0] === 'object') {
       return parsed[0] as Record<string, unknown>
     }
-    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : null
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null
   } catch {
     return null
   }
@@ -204,9 +221,12 @@ export function parentDir(path: string): string {
 }
 
 export function parseResourceList(raw: unknown): Record<string, unknown>[] {
-  if (Array.isArray(raw)) return raw.filter(item => item && typeof item === 'object') as Record<string, unknown>[]
+  if (Array.isArray(raw))
+    return raw.filter(item => item && typeof item === 'object') as Record<string, unknown>[]
   if (raw && typeof raw === 'object' && Array.isArray((raw as { items?: unknown[] }).items)) {
-    return (raw as { items: unknown[] }).items.filter(item => item && typeof item === 'object') as Record<string, unknown>[]
+    return (raw as { items: unknown[] }).items.filter(
+      item => item && typeof item === 'object'
+    ) as Record<string, unknown>[]
   }
   return []
 }
@@ -245,21 +265,35 @@ export function parseBackupProjection(raw: unknown): BackupProjection {
     .map(item => {
       const record = item as Record<string, unknown>
       return {
-        name: stringField(record, 'name') || stringField(record, 'filename') || stringField(record, 'path') || '-',
+        name:
+          stringField(record, 'name') ||
+          stringField(record, 'filename') ||
+          stringField(record, 'path') ||
+          '-',
         size: stringField(record, 'size') || stringField(record, 'size_label') || '-',
-        updatedAt: stringField(record, 'updated') || stringField(record, 'updated_at') || stringField(record, 'created') || '',
+        updatedAt:
+          stringField(record, 'updated') ||
+          stringField(record, 'updated_at') ||
+          stringField(record, 'created') ||
+          '',
       }
     })
 
   return {
     status: 'available',
     items,
-    message: items.length > 0 ? 'Available restore points detected.' : 'No backup snapshots were returned by the platform.',
+    message:
+      items.length > 0
+        ? 'Available restore points detected.'
+        : 'No backup snapshots were returned by the platform.',
   }
 }
 
 export function normalizeMatchValue(value: string): string {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
 }
 
 export function parseCpuPercent(value?: string): number {
@@ -317,10 +351,18 @@ export function formatBytesCompact(bytes: number): string {
 
 export function summarizePorts(raw?: string): string {
   if (!raw?.trim()) return '-'
-  return raw.split(',').map(item => item.trim()).filter(Boolean).join(', ')
+  return raw
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean)
+    .join(', ')
 }
 
 export function isPocketBaseAutoCancelled(err: unknown): boolean {
   const message = getApiErrorMessage(err, '').toLowerCase()
-  return message.includes('autocancelled') || message.includes('auto-cancellation') || message.includes('request was aborted')
+  return (
+    message.includes('autocancelled') ||
+    message.includes('auto-cancellation') ||
+    message.includes('request was aborted')
+  )
 }

@@ -10,7 +10,15 @@ vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (config: Record<string, unknown>) => ({
     ...config,
   }),
-  Link: ({ to, children, className }: { to: string; children: React.ReactNode; className?: string }) => (
+  Link: ({
+    to,
+    children,
+    className,
+  }: {
+    to: string
+    children: React.ReactNode
+    className?: string
+  }) => (
     <a href={to} className={className}>
       {children}
     </a>
@@ -432,7 +440,9 @@ describe('SettingsPage shared settings paths', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/This section now references connectors\. Create and edit SMTP connectors/i)
+        screen.getByText(
+          /This section now references connectors\. Create and edit SMTP connectors/i
+        )
       ).toBeInTheDocument()
       const links = screen.getAllByRole('link', { name: 'Open Connectors' })
       expect(links[0]).toHaveAttribute('href', '/resources/connectors')

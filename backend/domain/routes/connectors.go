@@ -27,6 +27,22 @@ type connectorUpsertRequest struct {
 	Description       string         `json:"description"`
 }
 
+type connectorResponseDocument struct {
+	ID                string         `json:"id"`
+	Created           string         `json:"created"`
+	Updated           string         `json:"updated"`
+	Name              string         `json:"name"`
+	Kind              string         `json:"kind"`
+	IsDefault         bool           `json:"is_default"`
+	TemplateID        string         `json:"template_id"`
+	Endpoint          string         `json:"endpoint"`
+	AuthScheme        string         `json:"auth_scheme"`
+	ProviderAccountID string         `json:"provider_account"`
+	CredentialID      string         `json:"credential"`
+	Config            map[string]any `json:"config"`
+	Description       string         `json:"description"`
+}
+
 // registerConnectorRoutes registers authenticated read routes and superuser-only
 // mutation routes for connector resources.
 
@@ -86,7 +102,7 @@ func handleConnectorTemplateGet(e *core.RequestEvent) error {
 // @Tags Resource
 // @Security BearerAuth
 // @Param kind query string false "comma-separated connector kinds"
-// @Success 200 {array} map[string]any
+// @Success 200 {array} connectorResponseDocument
 // @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]any
 // @Router /api/connectors [get]
@@ -109,7 +125,7 @@ func handleConnectorList(e *core.RequestEvent) error {
 // @Tags Resource
 // @Security BearerAuth
 // @Param id path string true "connector id"
-// @Success 200 {object} map[string]any
+// @Success 200 {object} connectorResponseDocument
 // @Failure 401 {object} map[string]any
 // @Failure 404 {object} map[string]any
 // @Router /api/connectors/{id} [get]
@@ -131,7 +147,7 @@ func handleConnectorGet(e *core.RequestEvent) error {
 // @Tags Resource
 // @Security BearerAuth
 // @Param body body connectorUpsertRequest true "connector payload"
-// @Success 201 {object} map[string]any
+// @Success 201 {object} connectorResponseDocument
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 403 {object} map[string]any
@@ -165,7 +181,7 @@ func handleConnectorCreate(e *core.RequestEvent) error {
 // @Security BearerAuth
 // @Param id path string true "connector id"
 // @Param body body connectorUpsertRequest true "connector payload"
-// @Success 200 {object} map[string]any
+// @Success 200 {object} connectorResponseDocument
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 403 {object} map[string]any

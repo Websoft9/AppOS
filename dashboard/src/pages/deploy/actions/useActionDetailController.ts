@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState, type UIEvent } from 'react'
 import { pb } from '@/lib/pb'
 import { buildActionWebSocketUrl, isActiveStatus } from '@/pages/deploy/actions/action-utils'
-import type { ActionLogsResponse, ActionRecord, ActionStreamMessage } from '@/pages/deploy/actions/action-types'
+import type {
+  ActionLogsResponse,
+  ActionRecord,
+  ActionStreamMessage,
+} from '@/pages/deploy/actions/action-types'
 
 export function useActionDetailController(actionId: string) {
   const [operation, setOperation] = useState<ActionRecord | null>(null)
@@ -9,7 +13,9 @@ export function useActionDetailController(actionId: string) {
   const [logText, setLogText] = useState('')
   const [logUpdatedAt, setLogUpdatedAt] = useState('')
   const [logTruncated, setLogTruncated] = useState(false)
-  const [streamStatus, setStreamStatus] = useState<'idle' | 'connecting' | 'live' | 'closed'>('idle')
+  const [streamStatus, setStreamStatus] = useState<'idle' | 'connecting' | 'live' | 'closed'>(
+    'idle'
+  )
   const [error, setError] = useState('')
   const [autoScrollEnabled, setAutoScrollEnabled] = useState(true)
   const logViewportRef = useRef<HTMLDivElement | null>(null)
@@ -47,8 +53,12 @@ export function useActionDetailController(actionId: string) {
         if (message.type === 'snapshot') setLogText(message.content || '')
         if (message.type === 'append') setLogText(current => current + (message.content || ''))
         if (message.updated) setLogUpdatedAt(message.updated)
-        if (typeof message.execution_log_truncated === 'boolean') setLogTruncated(message.execution_log_truncated)
-        if (message.status) setOperation(current => (current ? { ...current, status: message.status || current.status } : current))
+        if (typeof message.execution_log_truncated === 'boolean')
+          setLogTruncated(message.execution_log_truncated)
+        if (message.status)
+          setOperation(current =>
+            current ? { ...current, status: message.status || current.status } : current
+          )
       } catch {
         setStreamStatus('closed')
       }
@@ -84,7 +94,9 @@ export function useActionDetailController(actionId: string) {
 
   async function fetchActionLogs() {
     try {
-      const response = await pb.send<ActionLogsResponse>(`/api/actions/${actionId}/logs`, { method: 'GET' })
+      const response = await pb.send<ActionLogsResponse>(`/api/actions/${actionId}/logs`, {
+        method: 'GET',
+      })
       setLogText(response.execution_log || '')
       setLogUpdatedAt(response.updated)
       setLogTruncated(Boolean(response.execution_log_truncated))

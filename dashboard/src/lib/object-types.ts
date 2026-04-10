@@ -25,22 +25,102 @@ export interface ObjectTypeDef {
 }
 
 export const OBJECT_TYPES: ObjectTypeDef[] = [
-  { type: 'app', label: 'App', collection: 'apps', nameField: 'name', summaryField: 'status', detailRoute: '/apps/$id' },
-  { type: 'server', label: 'Server', collection: 'servers', nameField: 'name', summaryField: 'ip', detailRoute: '/servers/$id', createRoute: '/resources/servers' },
-  { type: 'topic', label: 'Topic', collection: 'topics', nameField: 'title', detailRoute: '/topics/$id', createRoute: '/topics' },
-  { type: 'secret', label: 'Secret', collection: 'secrets', nameField: 'name', summaryField: 'type', detailRoute: '/secrets', listSearchKey: 'id', createRoute: '/secrets' },
-  { type: 'env_set', label: 'Shared Env', collection: 'env_sets', nameField: 'name', summaryField: undefined, detailRoute: '/resources/shared-envs' },
-  { type: 'database', label: 'Database', collection: 'databases', nameField: 'name', summaryField: 'engine', detailRoute: '/databases/$id' },
-  { type: 'cloud_account', label: 'Cloud Account', collection: 'cloud_accounts', nameField: 'name', summaryField: 'provider', detailRoute: '/cloud-accounts/$id' },
-  { type: 'certificate', label: 'Certificate', collection: 'certificates', nameField: 'domain', summaryField: 'expires', detailRoute: '/certificates/$id' },
-  { type: 'connector', label: 'Connector', collection: 'connectors', nameField: 'name', summaryField: 'kind', detailRoute: '/resources/connectors', listSearchKey: 'id', createRoute: '/resources/connectors' },
-  { type: 'script', label: 'Script', collection: 'scripts', nameField: 'name', summaryField: undefined, detailRoute: '/scripts/$id' },
+  {
+    type: 'app',
+    label: 'App',
+    collection: 'apps',
+    nameField: 'name',
+    summaryField: 'status',
+    detailRoute: '/apps/$id',
+  },
+  {
+    type: 'server',
+    label: 'Server',
+    collection: 'servers',
+    nameField: 'name',
+    summaryField: 'ip',
+    detailRoute: '/servers/$id',
+    createRoute: '/resources/servers',
+  },
+  {
+    type: 'topic',
+    label: 'Topic',
+    collection: 'topics',
+    nameField: 'title',
+    detailRoute: '/topics/$id',
+    createRoute: '/topics',
+  },
+  {
+    type: 'secret',
+    label: 'Secret',
+    collection: 'secrets',
+    nameField: 'name',
+    summaryField: 'type',
+    detailRoute: '/secrets',
+    listSearchKey: 'id',
+    createRoute: '/secrets',
+  },
+  {
+    type: 'env_set',
+    label: 'Shared Env',
+    collection: 'env_sets',
+    nameField: 'name',
+    summaryField: undefined,
+    detailRoute: '/resources/shared-envs',
+  },
+  {
+    type: 'instance',
+    label: 'Service Instance',
+    collection: 'instances',
+    nameField: 'name',
+    summaryField: 'kind',
+    detailRoute: '/resources/service-instances',
+    listSearchKey: 'id',
+    createRoute: '/resources/service-instances',
+  },
+  {
+    type: 'provider_account',
+    label: 'Platform Account',
+    collection: 'provider_accounts',
+    nameField: 'name',
+    summaryField: 'kind',
+    detailRoute: '/resources/platform-accounts',
+    listSearchKey: 'id',
+    createRoute: '/resources/platform-accounts',
+  },
+  {
+    type: 'certificate',
+    label: 'Certificate',
+    collection: 'certificates',
+    nameField: 'domain',
+    summaryField: 'expires',
+    detailRoute: '/certificates/$id',
+  },
+  {
+    type: 'connector',
+    label: 'Connector',
+    collection: 'connectors',
+    nameField: 'name',
+    summaryField: 'kind',
+    detailRoute: '/resources/connectors',
+    listSearchKey: 'id',
+    createRoute: '/resources/connectors',
+  },
+  {
+    type: 'script',
+    label: 'Script',
+    collection: 'scripts',
+    nameField: 'name',
+    summaryField: undefined,
+    detailRoute: '/scripts/$id',
+  },
 ]
 
 /** Lookup map by type string */
-export const OBJECT_TYPE_MAP = Object.fromEntries(
-  OBJECT_TYPES.map(t => [t.type, t])
-) as Record<string, ObjectTypeDef>
+export const OBJECT_TYPE_MAP = Object.fromEntries(OBJECT_TYPES.map(t => [t.type, t])) as Record<
+  string,
+  ObjectTypeDef
+>
 
 /** Get label for a type, falling back to the raw value */
 export function getObjectTypeLabel(type: string): string {

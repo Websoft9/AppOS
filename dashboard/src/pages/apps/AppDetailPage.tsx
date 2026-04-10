@@ -16,7 +16,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -56,7 +62,7 @@ import {
   parseMemoryUsageBytes,
   parseReleaseAttribution,
   parseResourceList,
-  type ResourceDatabase,
+  type ResourceInstance,
   type RuntimeContainer,
   type RuntimeContainerMount,
   type RuntimeContainerStats,
@@ -89,7 +95,14 @@ type AppDisplayMetadata = {
 const DISPLAY_METADATA_STORAGE_PREFIX = 'app-detail-display:'
 
 function normalizeDisplayTags(value: string): string[] {
-  return Array.from(new Set(value.split(',').map(tag => tag.trim()).filter(Boolean)))
+  return Array.from(
+    new Set(
+      value
+        .split(',')
+        .map(tag => tag.trim())
+        .filter(Boolean)
+    )
+  )
 }
 
 function serializeDisplayTags(tags: string[]): string {
@@ -105,7 +118,12 @@ function loadDisplayMetadata(appId: string): AppDisplayMetadata {
     return {
       icon: typeof parsed.icon === 'string' ? parsed.icon : '',
       label: typeof parsed.label === 'string' ? parsed.label : '',
-      tags: Array.isArray(parsed.tags) ? parsed.tags.filter(tag => typeof tag === 'string').map(tag => tag.trim()).filter(Boolean) : [],
+      tags: Array.isArray(parsed.tags)
+        ? parsed.tags
+            .filter(tag => typeof tag === 'string')
+            .map(tag => tag.trim())
+            .filter(Boolean)
+        : [],
     }
   } catch {
     return { icon: '', label: '', tags: [] }
@@ -137,7 +155,11 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [envFileError, setEnvFileError] = useState('')
-  const [rollbackMeta, setRollbackMeta] = useState<{ available: boolean; savedAt?: string; sourceAction?: string }>({ available: false })
+  const [rollbackMeta, setRollbackMeta] = useState<{
+    available: boolean
+    savedAt?: string
+    sourceAction?: string
+  }>({ available: false })
   const [serverHost, setServerHost] = useState('')
   const [serverName, setServerName] = useState('')
   const [accessUsernameDraft, setAccessUsernameDraft] = useState('')
@@ -155,14 +177,20 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const [displayIconDraft, setDisplayIconDraft] = useState('')
   const [displayLabelDraft, setDisplayLabelDraft] = useState('')
   const [displayTagsDraft, setDisplayTagsDraft] = useState('')
-  const [savedDisplayMetadata, setSavedDisplayMetadata] = useState<AppDisplayMetadata>({ icon: '', label: '', tags: [] })
+  const [savedDisplayMetadata, setSavedDisplayMetadata] = useState<AppDisplayMetadata>({
+    icon: '',
+    label: '',
+    tags: [],
+  })
   const [displaySaving, setDisplaySaving] = useState(false)
   const [runtimeContainers, setRuntimeContainers] = useState<RuntimeContainer[]>([])
   const [runtimeStats, setRuntimeStats] = useState<Record<string, RuntimeContainerStats>>({})
-  const [runtimeInspectMap, setRuntimeInspectMap] = useState<Record<string, Record<string, unknown>>>({})
+  const [runtimeInspectMap, setRuntimeInspectMap] = useState<
+    Record<string, Record<string, unknown>>
+  >({})
   const [runtimeLoading, setRuntimeLoading] = useState(false)
   const [runtimeLoaded, setRuntimeLoaded] = useState(false)
-  const [databaseResources, setDatabaseResources] = useState<ResourceDatabase[]>([])
+  const [instanceResources, setInstanceResources] = useState<ResourceInstance[]>([])
   const [dataVolumes, setDataVolumes] = useState<DockerVolume[]>([])
   const [backupProjection, setBackupProjection] = useState<BackupProjection>({
     status: 'not-implemented',
@@ -176,13 +204,18 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const [runtimeLogsContent, setRuntimeLogsContent] = useState('')
   const [runtimeLogsLoading, setRuntimeLogsLoading] = useState(false)
   const [selectedRelease, setSelectedRelease] = useState<AppRelease | null>(null)
-  const [releaseCopyState, setReleaseCopyState] = useState<'idle' | 'artifact-copied' | 'source-copied' | 'failed'>('idle')
+  const [releaseCopyState, setReleaseCopyState] = useState<
+    'idle' | 'artifact-copied' | 'source-copied' | 'failed'
+  >('idle')
   const [envFileText, setEnvFileText] = useState('')
   const [originalEnvFileText, setOriginalEnvFileText] = useState('')
   const [envFileLoaded, setEnvFileLoaded] = useState(false)
   const logViewportRef = useRef<HTMLDivElement | null>(null)
   const stickToBottomRef = useRef(true)
-  const selectedReleaseAttribution = useMemo(() => parseReleaseAttribution(selectedRelease?.notes), [selectedRelease?.notes])
+  const selectedReleaseAttribution = useMemo(
+    () => parseReleaseAttribution(selectedRelease?.notes),
+    [selectedRelease?.notes]
+  )
 
   const syncAccessDrafts = useCallback((detail: AppInstance | null) => {
     setAccessUsernameDraft(detail?.access_username || '')
@@ -220,49 +253,59 @@ export function AppDetailPage({ appId }: { appId: string }) {
     }
   }, [appId])
 
-  const fetchLogs = useCallback(async (showSpinner = false) => {
-    if (showSpinner) setLogsLoading(true)
-    try {
-      const response = await pb.send<AppLogsResponse>(`/api/apps/${appId}/logs`, { method: 'GET' })
-      setLogs(response)
-    } catch (err) {
-      setLogs({
-        id: appId,
-        name: app?.name || appId,
-        server_id: app?.server_id || 'local',
-        project_dir: app?.project_dir || '-',
-        runtime_status: 'error',
-        output: getApiErrorMessage(err, 'Failed to load app logs'),
-      })
-    } finally {
-      if (showSpinner) setLogsLoading(false)
-    }
-  }, [app, appId])
+  const fetchLogs = useCallback(
+    async (showSpinner = false) => {
+      if (showSpinner) setLogsLoading(true)
+      try {
+        const response = await pb.send<AppLogsResponse>(`/api/apps/${appId}/logs`, {
+          method: 'GET',
+        })
+        setLogs(response)
+      } catch (err) {
+        setLogs({
+          id: appId,
+          name: app?.name || appId,
+          server_id: app?.server_id || 'local',
+          project_dir: app?.project_dir || '-',
+          runtime_status: 'error',
+          output: getApiErrorMessage(err, 'Failed to load app logs'),
+        })
+      } finally {
+        if (showSpinner) setLogsLoading(false)
+      }
+    },
+    [app, appId]
+  )
 
-  const fetchConfig = useCallback(async (force = false) => {
-    if (!force && originalConfig) return
-    setConfigLoading(true)
-    try {
-      const response = await pb.send<AppConfigResponse>(`/api/apps/${appId}/config`, {
-        method: 'GET',
-        requestKey: null,
-      })
-      setConfigText(response.content || '')
-      setOriginalConfig(response.content || '')
-      setValidation(null)
-      setRollbackMeta({
-        available: Boolean(response.rollback_available),
-        savedAt: response.rollback_saved_at,
-        sourceAction: response.rollback_source_action,
-      })
-      setApp(current => (current ? { ...current, iac_path: response.iac_path || current.iac_path } : current))
-    } catch (err) {
-      if (isPocketBaseAutoCancelled(err)) return
-      setError(getApiErrorMessage(err, 'Failed to load compose config'))
-    } finally {
-      setConfigLoading(false)
-    }
-  }, [appId, originalConfig])
+  const fetchConfig = useCallback(
+    async (force = false) => {
+      if (!force && originalConfig) return
+      setConfigLoading(true)
+      try {
+        const response = await pb.send<AppConfigResponse>(`/api/apps/${appId}/config`, {
+          method: 'GET',
+          requestKey: null,
+        })
+        setConfigText(response.content || '')
+        setOriginalConfig(response.content || '')
+        setValidation(null)
+        setRollbackMeta({
+          available: Boolean(response.rollback_available),
+          savedAt: response.rollback_saved_at,
+          sourceAction: response.rollback_source_action,
+        })
+        setApp(current =>
+          current ? { ...current, iac_path: response.iac_path || current.iac_path } : current
+        )
+      } catch (err) {
+        if (isPocketBaseAutoCancelled(err)) return
+        setError(getApiErrorMessage(err, 'Failed to load compose config'))
+      } finally {
+        setConfigLoading(false)
+      }
+    },
+    [appId, originalConfig]
+  )
 
   const fetchActionHistory = useCallback(async () => {
     setActionsLoading(true)
@@ -279,7 +322,10 @@ export function AppDetailPage({ appId }: { appId: string }) {
   }, [])
 
   const fetchRuntimeInventory = useCallback(async () => {
-    const query = app?.server_id && app.server_id !== 'local' ? `?server_id=${encodeURIComponent(app.server_id)}` : ''
+    const query =
+      app?.server_id && app.server_id !== 'local'
+        ? `?server_id=${encodeURIComponent(app.server_id)}`
+        : ''
     setRuntimeLoading(true)
     try {
       const [containersResponse, statsResponse] = await Promise.all([
@@ -289,7 +335,9 @@ export function AppDetailPage({ appId }: { appId: string }) {
       const nextContainers = parseDockerJsonLines<RuntimeContainer>(containersResponse.output || '')
       const nextStats = parseDockerJsonLines<RuntimeContainerStats>(statsResponse.output || '')
       setRuntimeContainers(nextContainers)
-      setRuntimeStats(Object.fromEntries(nextStats.filter(item => item.ID).map(item => [item.ID, item])))
+      setRuntimeStats(
+        Object.fromEntries(nextStats.filter(item => item.ID).map(item => [item.ID, item]))
+      )
       setRuntimeLoaded(true)
     } catch (err) {
       setError(getApiErrorMessage(err, 'Failed to load runtime containers'))
@@ -298,51 +346,80 @@ export function AppDetailPage({ appId }: { appId: string }) {
     }
   }, [app?.server_id])
 
-  const fetchRuntimeInspect = useCallback(async (containerIds: string[]) => {
-    if (containerIds.length === 0) return
-    const query = app?.server_id && app.server_id !== 'local' ? `?server_id=${encodeURIComponent(app.server_id)}` : ''
-    const results = await Promise.all(containerIds.map(async containerId => {
-      try {
-        const response = await pb.send<{ output?: string }>(`/api/ext/docker/containers/${containerId}${query}`, { method: 'GET' })
-        return [containerId, parseDockerInspect(response.output)] as const
-      } catch {
-        return [containerId, null] as const
-      }
-    }))
-    setRuntimeInspectMap(current => {
-      const next = { ...current }
-      for (const [containerId, inspect] of results) {
-        if (inspect) next[containerId] = inspect
-      }
-      return next
-    })
-  }, [app?.server_id])
+  const fetchRuntimeInspect = useCallback(
+    async (containerIds: string[]) => {
+      if (containerIds.length === 0) return
+      const query =
+        app?.server_id && app.server_id !== 'local'
+          ? `?server_id=${encodeURIComponent(app.server_id)}`
+          : ''
+      const results = await Promise.all(
+        containerIds.map(async containerId => {
+          try {
+            const response = await pb.send<{ output?: string }>(
+              `/api/ext/docker/containers/${containerId}${query}`,
+              { method: 'GET' }
+            )
+            return [containerId, parseDockerInspect(response.output)] as const
+          } catch {
+            return [containerId, null] as const
+          }
+        })
+      )
+      setRuntimeInspectMap(current => {
+        const next = { ...current }
+        for (const [containerId, inspect] of results) {
+          if (inspect) next[containerId] = inspect
+        }
+        return next
+      })
+    },
+    [app?.server_id]
+  )
 
   const fetchDataResources = useCallback(async () => {
-    const volumeQuery = app?.server_id && app.server_id !== 'local' ? `?server_id=${encodeURIComponent(app.server_id)}` : ''
+    const volumeQuery =
+      app?.server_id && app.server_id !== 'local'
+        ? `?server_id=${encodeURIComponent(app.server_id)}`
+        : ''
     setDataLoading(true)
     setDataError('')
 
-    const [databaseResult, volumeResult, backupResult] = await Promise.allSettled([
-      pb.send<unknown>('/api/ext/resources/databases', { method: 'GET' }),
+    const [instanceResult, volumeResult, backupResult] = await Promise.allSettled([
+      pb.send<unknown>('/api/instances', { method: 'GET' }),
       pb.send<{ output?: string }>(`/api/ext/docker/volumes${volumeQuery}`, { method: 'GET' }),
       pb.send<unknown>('/api/ext/backup/list', { method: 'GET' }),
     ])
 
-    if (databaseResult.status === 'fulfilled') {
-      const records = parseResourceList(databaseResult.value)
-      setDatabaseResources(records.map(record => ({
-        id: stringField(record, 'id') || stringField(record, 'name'),
-        name: stringField(record, 'name'),
-        type: stringField(record, 'type'),
-        host: stringField(record, 'host'),
-        port: stringField(record, 'port'),
-        db_name: stringField(record, 'db_name'),
-        user: stringField(record, 'user'),
-        description: stringField(record, 'description'),
-      })))
+    if (instanceResult.status === 'fulfilled') {
+      const records = parseResourceList(instanceResult.value)
+      setInstanceResources(
+        records.map(record => {
+          const config =
+            record.config && typeof record.config === 'object'
+              ? (record.config as Record<string, unknown>)
+              : {}
+
+          return {
+            id: stringField(record, 'id') || stringField(record, 'name'),
+            name: stringField(record, 'name'),
+            kind: stringField(record, 'kind'),
+            template_id: stringField(record, 'template_id'),
+            endpoint: stringField(record, 'endpoint'),
+            summary: String(
+              config.database ??
+                config.bucket ??
+                config.namespace ??
+                config.model ??
+                config.clusterIdentifier ??
+                ''
+            ),
+            description: stringField(record, 'description'),
+          }
+        })
+      )
     } else {
-      setDatabaseResources([])
+      setInstanceResources([])
     }
 
     if (volumeResult.status === 'fulfilled') {
@@ -361,7 +438,7 @@ export function AppDetailPage({ appId }: { appId: string }) {
       })
     }
 
-    if (databaseResult.status === 'rejected' && volumeResult.status === 'rejected') {
+    if (instanceResult.status === 'rejected' && volumeResult.status === 'rejected') {
       setDataError('Failed to load app-scoped data resources')
     }
 
@@ -391,22 +468,25 @@ export function AppDetailPage({ appId }: { appId: string }) {
     }
   }, [])
 
-  const saveEnvFile = useCallback(async (path: string) => {
-    if (!path) return
-    setEnvFileSaving(true)
-    setEnvFileError('')
-    setError('')
-    setSuccess('')
-    try {
-      await iacSaveFile(path, envFileText)
-      setOriginalEnvFileText(envFileText)
-      setSuccess('Environment file saved')
-    } catch (err) {
-      setEnvFileError(err instanceof Error ? err.message : 'Failed to save environment file')
-    } finally {
-      setEnvFileSaving(false)
-    }
-  }, [envFileText])
+  const saveEnvFile = useCallback(
+    async (path: string) => {
+      if (!path) return
+      setEnvFileSaving(true)
+      setEnvFileError('')
+      setError('')
+      setSuccess('')
+      try {
+        await iacSaveFile(path, envFileText)
+        setOriginalEnvFileText(envFileText)
+        setSuccess('Environment file saved')
+      } catch (err) {
+        setEnvFileError(err instanceof Error ? err.message : 'Failed to save environment file')
+      } finally {
+        setEnvFileSaving(false)
+      }
+    },
+    [envFileText]
+  )
 
   const refreshDetailView = useCallback(async () => {
     setRefreshing(true)
@@ -421,7 +501,17 @@ export function AppDetailPage({ appId }: { appId: string }) {
     } finally {
       setRefreshing(false)
     }
-  }, [actionsLoaded, dataLoaded, fetchActionHistory, fetchDataResources, fetchDetail, fetchLifecycleResources, fetchRuntimeInventory, runtimeLoaded, tab])
+  }, [
+    actionsLoaded,
+    dataLoaded,
+    fetchActionHistory,
+    fetchDataResources,
+    fetchDetail,
+    fetchLifecycleResources,
+    fetchRuntimeInventory,
+    runtimeLoaded,
+    tab,
+  ])
 
   useEffect(() => {
     void fetchDetail()
@@ -442,7 +532,10 @@ export function AppDetailPage({ appId }: { appId: string }) {
       return
     }
     let cancelled = false
-    void pb.send<Record<string, unknown>>(`/api/collections/servers/records/${app.server_id}`, { method: 'GET' })
+    void pb
+      .send<Record<string, unknown>>(`/api/collections/servers/records/${app.server_id}`, {
+        method: 'GET',
+      })
       .then(response => {
         if (cancelled) return
         setServerHost(typeof response.host === 'string' ? response.host : '')
@@ -501,7 +594,19 @@ export function AppDetailPage({ appId }: { appId: string }) {
       }
     }
     return undefined
-  }, [actionsLoaded, app?.iac_path, envFileLoaded, envFileLoading, fetchActionHistory, fetchConfig, fetchEnvFile, fetchLogs, fetchRuntimeInventory, runtimeLoaded, tab])
+  }, [
+    actionsLoaded,
+    app?.iac_path,
+    envFileLoaded,
+    envFileLoading,
+    fetchActionHistory,
+    fetchConfig,
+    fetchEnvFile,
+    fetchLogs,
+    fetchRuntimeInventory,
+    runtimeLoaded,
+    tab,
+  ])
 
   useEffect(() => {
     setEnvFileLoaded(false)
@@ -528,12 +633,20 @@ export function AppDetailPage({ appId }: { appId: string }) {
     setError('')
     setSuccess('')
     try {
-      const response = await pb.send<{ valid: boolean; message: string; iac_path?: string }>(`/api/apps/${appId}/config/validate`, {
-        method: 'POST',
-        body: { content: configText },
+      const response = await pb.send<{ valid: boolean; message: string; iac_path?: string }>(
+        `/api/apps/${appId}/config/validate`,
+        {
+          method: 'POST',
+          body: { content: configText },
+        }
+      )
+      setValidation({
+        valid: Boolean(response.valid),
+        message: response.message,
+        validatedContent: configText,
       })
-      setValidation({ valid: Boolean(response.valid), message: response.message, validatedContent: configText })
-      if (response.iac_path) setApp(current => (current ? { ...current, iac_path: response.iac_path } : current))
+      if (response.iac_path)
+        setApp(current => (current ? { ...current, iac_path: response.iac_path } : current))
       if (response.valid) setSuccess('Compose draft validated successfully')
     } catch (err) {
       setError(getApiErrorMessage(err, 'Failed to validate compose config'))
@@ -547,18 +660,26 @@ export function AppDetailPage({ appId }: { appId: string }) {
     setError('')
     setSuccess('')
     try {
-      const response = await pb.send<AppConfigResponse & { message: string }>(`/api/apps/${appId}/config`, {
-        method: 'PUT',
-        body: { content: configText },
-      })
+      const response = await pb.send<AppConfigResponse & { message: string }>(
+        `/api/apps/${appId}/config`,
+        {
+          method: 'PUT',
+          body: { content: configText },
+        }
+      )
       setOriginalConfig(configText)
-      setValidation({ valid: true, message: 'compose config is valid', validatedContent: configText })
+      setValidation({
+        valid: true,
+        message: 'compose config is valid',
+        validatedContent: configText,
+      })
       setRollbackMeta({
         available: Boolean(response.rollback_available),
         savedAt: response.rollback_saved_at,
         sourceAction: response.rollback_source_action,
       })
-      if (response.iac_path) setApp(current => (current ? { ...current, iac_path: response.iac_path } : current))
+      if (response.iac_path)
+        setApp(current => (current ? { ...current, iac_path: response.iac_path } : current))
       setSuccess(response.message || 'Compose config saved')
       await fetchDetail()
     } catch (err) {
@@ -573,19 +694,29 @@ export function AppDetailPage({ appId }: { appId: string }) {
     setError('')
     setSuccess('')
     try {
-      const response = await pb.send<AppConfigResponse & { message?: string }>(`/api/apps/${appId}/config/rollback`, {
-        method: 'POST',
-        body: {},
-      })
+      const response = await pb.send<AppConfigResponse & { message?: string }>(
+        `/api/apps/${appId}/config/rollback`,
+        {
+          method: 'POST',
+          body: {},
+        }
+      )
       setConfigText(response.content || '')
       setOriginalConfig(response.content || '')
-      setValidation({ valid: true, message: 'rollback restored', validatedContent: response.content || '' })
+      setValidation({
+        valid: true,
+        message: 'rollback restored',
+        validatedContent: response.content || '',
+      })
       setRollbackMeta({
         available: Boolean(response.rollback_available),
         savedAt: response.rollback_saved_at,
         sourceAction: response.rollback_source_action,
       })
-      if (response.iac_path) setApp(current => (current ? { ...current, iac_path: response.iac_path || current.iac_path } : current))
+      if (response.iac_path)
+        setApp(current =>
+          current ? { ...current, iac_path: response.iac_path || current.iac_path } : current
+        )
       setSuccess(response.message || 'Rollback restored')
       await fetchDetail()
     } catch (err) {
@@ -595,53 +726,65 @@ export function AppDetailPage({ appId }: { appId: string }) {
     }
   }, [appId, fetchDetail])
 
-  const navigateToActionDetail = useCallback((actionId: string) => {
-    void navigate({
-      to: '/actions/$actionId' as never,
-      params: { actionId } as never,
-      search: { returnTo: 'list' } as never,
-    })
-  }, [navigate])
-
-  const runAction = useCallback(async (action: AppAction) => {
-    setActionLoading(action)
-    setError('')
-    setSuccess('')
-    try {
-      const response = action === 'uninstall'
-        ? await pb.send<AppOperationResponse>(`/api/apps/${appId}`, { method: 'DELETE' })
-        : await pb.send<AppOperationResponse>(`/api/apps/${appId}/${action}`, { method: 'POST' })
-      if (response?.id) {
-        navigateToActionDetail(response.id)
-        return
-      }
-      setSuccess(`${app?.name || 'App'} ${action} operation created`)
-      await fetchDetail()
-    } catch (err) {
-      setError(getApiErrorMessage(err, `Failed to ${action} app`))
-    } finally {
-      setActionLoading('')
-    }
-  }, [app?.name, appId, fetchDetail, navigateToActionDetail])
-
-  const triggerOperation = useCallback(async (action: 'redeploy' | 'upgrade') => {
-    if (!app) return
-    setDeploying(action)
-    setError('')
-    setSuccess('')
-    try {
-      const response = await pb.send<{ id: string }>(`/api/apps/${app.id}/${action}`, {
-        method: 'POST',
+  const navigateToActionDetail = useCallback(
+    (actionId: string) => {
+      void navigate({
+        to: '/actions/$actionId' as never,
+        params: { actionId } as never,
+        search: { returnTo: 'list' } as never,
       })
-      setSuccess(`${app.name} ${action} operation created`)
-      await fetchDetail()
-      navigateToActionDetail(response.id)
-    } catch (err) {
-      setError(getApiErrorMessage(err, `Failed to ${action} app`))
-    } finally {
-      setDeploying('')
-    }
-  }, [app, fetchDetail, navigateToActionDetail])
+    },
+    [navigate]
+  )
+
+  const runAction = useCallback(
+    async (action: AppAction) => {
+      setActionLoading(action)
+      setError('')
+      setSuccess('')
+      try {
+        const response =
+          action === 'uninstall'
+            ? await pb.send<AppOperationResponse>(`/api/apps/${appId}`, { method: 'DELETE' })
+            : await pb.send<AppOperationResponse>(`/api/apps/${appId}/${action}`, {
+                method: 'POST',
+              })
+        if (response?.id) {
+          navigateToActionDetail(response.id)
+          return
+        }
+        setSuccess(`${app?.name || 'App'} ${action} operation created`)
+        await fetchDetail()
+      } catch (err) {
+        setError(getApiErrorMessage(err, `Failed to ${action} app`))
+      } finally {
+        setActionLoading('')
+      }
+    },
+    [app?.name, appId, fetchDetail, navigateToActionDetail]
+  )
+
+  const triggerOperation = useCallback(
+    async (action: 'redeploy' | 'upgrade') => {
+      if (!app) return
+      setDeploying(action)
+      setError('')
+      setSuccess('')
+      try {
+        const response = await pb.send<{ id: string }>(`/api/apps/${app.id}/${action}`, {
+          method: 'POST',
+        })
+        setSuccess(`${app.name} ${action} operation created`)
+        await fetchDetail()
+        navigateToActionDetail(response.id)
+      } catch (err) {
+        setError(getApiErrorMessage(err, `Failed to ${action} app`))
+      } finally {
+        setDeploying('')
+      }
+    },
+    [app, fetchDetail, navigateToActionDetail]
+  )
 
   const openOperationStatus = useCallback(() => {
     if (!app?.last_operation) return
@@ -660,15 +803,25 @@ export function AppDetailPage({ appId }: { appId: string }) {
     navigateToActionDetail(selectedRelease.created_by_operation)
   }, [navigateToActionDetail, selectedRelease])
 
-  const copySelectedReleaseValue = useCallback(async (kind: 'artifact' | 'source') => {
-    const value = kind === 'artifact' ? selectedRelease?.artifact_digest : selectedRelease?.source_ref
-    if (!value) return
-    const ok = await copyToClipboard(value)
-    setReleaseCopyState(ok ? (kind === 'artifact' ? 'artifact-copied' : 'source-copied') : 'failed')
-    window.setTimeout(() => {
-      setReleaseCopyState(current => (current === 'failed' || current === 'artifact-copied' || current === 'source-copied' ? 'idle' : current))
-    }, 1500)
-  }, [selectedRelease])
+  const copySelectedReleaseValue = useCallback(
+    async (kind: 'artifact' | 'source') => {
+      const value =
+        kind === 'artifact' ? selectedRelease?.artifact_digest : selectedRelease?.source_ref
+      if (!value) return
+      const ok = await copyToClipboard(value)
+      setReleaseCopyState(
+        ok ? (kind === 'artifact' ? 'artifact-copied' : 'source-copied') : 'failed'
+      )
+      window.setTimeout(() => {
+        setReleaseCopyState(current =>
+          current === 'failed' || current === 'artifact-copied' || current === 'source-copied'
+            ? 'idle'
+            : current
+        )
+      }, 1500)
+    },
+    [selectedRelease]
+  )
 
   const cancelAccessEditing = useCallback(() => {
     syncAccessDrafts(app)
@@ -676,10 +829,17 @@ export function AppDetailPage({ appId }: { appId: string }) {
   }, [app, syncAccessDrafts])
 
   const hasConfigChanges = configText !== originalConfig
-  const saveDisabled = !hasConfigChanges || !validation?.valid || validation.validatedContent !== configText || saving
-  const diffText = useMemo(() => buildUnifiedDiff(originalConfig, configText), [configText, originalConfig])
+  const saveDisabled =
+    !hasConfigChanges || !validation?.valid || validation.validatedContent !== configText || saving
+  const diffText = useMemo(
+    () => buildUnifiedDiff(originalConfig, configText),
+    [configText, originalConfig]
+  )
   const hasActivePipeline = Boolean(
-    app?.current_pipeline && !['completed', 'failed', 'cancelled', 'canceled', 'succeeded', 'success'].includes((app.current_pipeline.status || '').toLowerCase()),
+    app?.current_pipeline &&
+    !['completed', 'failed', 'cancelled', 'canceled', 'succeeded', 'success'].includes(
+      (app.current_pipeline.status || '').toLowerCase()
+    )
   )
   const hasBusyAction = Boolean(actionLoading || deploying || pendingUninstall || hasActivePipeline)
   const normalizedRuntimeStatus = (app?.runtime_status || '').toLowerCase()
@@ -688,7 +848,9 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const canRestartAction = Boolean(app) && normalizedRuntimeStatus === 'running'
   const primaryExposure = exposures.find(item => item.is_primary)
   const currentRelease = releases.find(item => item.is_active)
-  const domainExposure = primaryExposure?.domain ? primaryExposure : exposures.find(item => item.domain)
+  const domainExposure = primaryExposure?.domain
+    ? primaryExposure
+    : exposures.find(item => item.domain)
   const exposurePath = primaryExposure?.path || ''
   const effectiveServerHost = useMemo(() => {
     if (serverHost.trim()) return serverHost.trim()
@@ -698,21 +860,43 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const primaryDomainUrl = useMemo(() => {
     if (!domainExposure?.domain) return ''
     const scheme = domainExposure.certificate_id ? 'https' : 'http'
-    const normalizedPath = domainExposure.path ? (domainExposure.path.startsWith('/') ? domainExposure.path : `/${domainExposure.path}`) : ''
+    const normalizedPath = domainExposure.path
+      ? domainExposure.path.startsWith('/')
+        ? domainExposure.path
+        : `/${domainExposure.path}`
+      : ''
     return `${scheme}://${domainExposure.domain}${normalizedPath}`
   }, [domainExposure])
   const publicAccessUrl = useMemo(() => {
     if (!effectiveServerHost) return ''
-    const port = primaryExposure?.target_port && primaryExposure.target_port > 0 ? `:${primaryExposure.target_port}` : ''
-    const normalizedPath = exposurePath ? (exposurePath.startsWith('/') ? exposurePath : `/${exposurePath}`) : ''
+    const port =
+      primaryExposure?.target_port && primaryExposure.target_port > 0
+        ? `:${primaryExposure.target_port}`
+        : ''
+    const normalizedPath = exposurePath
+      ? exposurePath.startsWith('/')
+        ? exposurePath
+        : `/${exposurePath}`
+      : ''
     return `http://${effectiveServerHost}${port}${normalizedPath}`
   }, [effectiveServerHost, exposurePath, primaryExposure?.target_port])
   const hasAccessDraftChanges = useMemo(() => {
-    return accessUsernameDraft !== (app?.access_username || '')
-      || accessSecretHintDraft !== (app?.access_secret_hint || '')
-      || accessRetrievalMethodDraft !== (app?.access_retrieval_method || '')
-      || accessNotesDraft !== (app?.access_notes || '')
-  }, [accessNotesDraft, accessRetrievalMethodDraft, accessSecretHintDraft, accessUsernameDraft, app?.access_notes, app?.access_retrieval_method, app?.access_secret_hint, app?.access_username])
+    return (
+      accessUsernameDraft !== (app?.access_username || '') ||
+      accessSecretHintDraft !== (app?.access_secret_hint || '') ||
+      accessRetrievalMethodDraft !== (app?.access_retrieval_method || '') ||
+      accessNotesDraft !== (app?.access_notes || '')
+    )
+  }, [
+    accessNotesDraft,
+    accessRetrievalMethodDraft,
+    accessSecretHintDraft,
+    accessUsernameDraft,
+    app?.access_notes,
+    app?.access_retrieval_method,
+    app?.access_secret_hint,
+    app?.access_username,
+  ])
   const scopedActions = useMemo(() => {
     return actionHistory
       .filter(action => action.app_id === appId || action.pipeline?.app_id === appId)
@@ -727,14 +911,37 @@ export function AppDetailPage({ appId }: { appId: string }) {
     ].filter(Boolean) as string[]
     return Array.from(new Set(rawValues.map(value => normalizeMatchValue(value))))
   }, [app?.name, app?.project_dir, scopedActions])
-  const actionStatusOptions = useMemo(() => Array.from(new Set(scopedActions.map(item => item.status))).sort(), [scopedActions])
-  const actionTypeOptions = useMemo(() => Array.from(new Set(scopedActions
-    .map(item => (item.pipeline?.selector?.operation_type || item.pipeline_selector?.operation_type || '').trim().toLowerCase())
-    .filter(Boolean))).sort(), [scopedActions])
+  const actionStatusOptions = useMemo(
+    () => Array.from(new Set(scopedActions.map(item => item.status))).sort(),
+    [scopedActions]
+  )
+  const actionTypeOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          scopedActions
+            .map(item =>
+              (
+                item.pipeline?.selector?.operation_type ||
+                item.pipeline_selector?.operation_type ||
+                ''
+              )
+                .trim()
+                .toLowerCase()
+            )
+            .filter(Boolean)
+        )
+      ).sort(),
+    [scopedActions]
+  )
   const filteredScopedActions = useMemo(() => {
     const query = actionSearch.trim().toLowerCase()
     return scopedActions.filter(action => {
-      const actionType = (action.pipeline?.selector?.operation_type || action.pipeline_selector?.operation_type || '').toLowerCase()
+      const actionType = (
+        action.pipeline?.selector?.operation_type ||
+        action.pipeline_selector?.operation_type ||
+        ''
+      ).toLowerCase()
       if (actionStatusFilter !== 'all' && action.status !== actionStatusFilter) return false
       if (actionTypeFilter !== 'all' && actionType !== actionTypeFilter) return false
       if (!query) return true
@@ -746,7 +953,9 @@ export function AppDetailPage({ appId }: { appId: string }) {
         action.compose_project_name,
         action.server_label,
         action.server_id,
-      ].filter(Boolean).some(value => String(value).toLowerCase().includes(query))
+      ]
+        .filter(Boolean)
+        .some(value => String(value).toLowerCase().includes(query))
     })
   }, [actionSearch, actionStatusFilter, actionTypeFilter, scopedActions])
   const relatedRuntimeContainers = useMemo(() => {
@@ -758,8 +967,14 @@ export function AppDetailPage({ appId }: { appId: string }) {
   }, [projectNameCandidates, runtimeContainers])
   const runtimeSummary = useMemo(() => {
     const running = relatedRuntimeContainers.filter(item => item.State === 'running').length
-    const totalCpu = relatedRuntimeContainers.reduce((sum, container) => sum + parseCpuPercent(runtimeStats[container.ID]?.CPUPerc), 0)
-    const totalMemory = relatedRuntimeContainers.reduce((sum, container) => sum + parseMemoryUsageBytes(runtimeStats[container.ID]?.MemUsage), 0)
+    const totalCpu = relatedRuntimeContainers.reduce(
+      (sum, container) => sum + parseCpuPercent(runtimeStats[container.ID]?.CPUPerc),
+      0
+    )
+    const totalMemory = relatedRuntimeContainers.reduce(
+      (sum, container) => sum + parseMemoryUsageBytes(runtimeStats[container.ID]?.MemUsage),
+      0
+    )
     return {
       total: relatedRuntimeContainers.length,
       running,
@@ -767,22 +982,23 @@ export function AppDetailPage({ appId }: { appId: string }) {
       memory: totalMemory,
     }
   }, [relatedRuntimeContainers, runtimeStats])
-  const matchedDatabaseResources = useMemo(() => {
+  const matchedInstanceResources = useMemo(() => {
     if (projectNameCandidates.length === 0) return []
-    return databaseResources.filter(database => {
-      const haystack = normalizeMatchValue([
-        database.name,
-        database.db_name,
-        database.host,
-        database.description,
-      ].filter(Boolean).join(' '))
+    return instanceResources.filter(instance => {
+      const haystack = normalizeMatchValue(
+        [instance.name, instance.endpoint, instance.summary, instance.description]
+          .filter(Boolean)
+          .join(' ')
+      )
       return projectNameCandidates.some(candidate => haystack.includes(candidate))
     })
-  }, [databaseResources, projectNameCandidates])
+  }, [instanceResources, projectNameCandidates])
   const matchedDataVolumes = useMemo(() => {
     if (projectNameCandidates.length === 0) return []
     return dataVolumes.filter(volume => {
-      const haystack = normalizeMatchValue([volume.Name, volume.Mountpoint].filter(Boolean).join(' '))
+      const haystack = normalizeMatchValue(
+        [volume.Name, volume.Mountpoint].filter(Boolean).join(' ')
+      )
       return projectNameCandidates.some(candidate => haystack.includes(candidate))
     })
   }, [dataVolumes, projectNameCandidates])
@@ -794,13 +1010,16 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const envFilePath = iacDirectoryPath ? `${iacDirectoryPath}/.env` : ''
   const hasEnvFileChanges = envFileText !== originalEnvFileText
   const displayTags = useMemo(() => normalizeDisplayTags(displayTagsDraft), [displayTagsDraft])
-  const hasDisplayChanges = displayIconDraft.trim() !== savedDisplayMetadata.icon
-    || displayLabelDraft.trim() !== savedDisplayMetadata.label
-    || serializeDisplayTags(displayTags) !== serializeDisplayTags(savedDisplayMetadata.tags)
+  const hasDisplayChanges =
+    displayIconDraft.trim() !== savedDisplayMetadata.icon ||
+    displayLabelDraft.trim() !== savedDisplayMetadata.label ||
+    serializeDisplayTags(displayTags) !== serializeDisplayTags(savedDisplayMetadata.tags)
   const containerMountRows = useMemo(() => {
     return relatedRuntimeContainers.flatMap(container => {
       const inspect = runtimeInspectMap[container.ID]
-      const mounts = Array.isArray(inspect?.Mounts) ? inspect.Mounts as RuntimeContainerMount[] : []
+      const mounts = Array.isArray(inspect?.Mounts)
+        ? (inspect.Mounts as RuntimeContainerMount[])
+        : []
       return mounts.map((mount, index) => ({
         id: `${container.ID}-${mount.Destination || mount.Source || mount.Name || index}`,
         containerId: container.ID,
@@ -812,7 +1031,8 @@ export function AppDetailPage({ appId }: { appId: string }) {
       }))
     })
   }, [relatedRuntimeContainers, runtimeInspectMap])
-  const mountProjectionLoading = tab === 'data' && relatedRuntimeContainers.length > 0 && containerMountRows.length === 0
+  const mountProjectionLoading =
+    tab === 'data' && relatedRuntimeContainers.length > 0 && containerMountRows.length === 0
 
   useEffect(() => {
     if (tab !== 'data' || relatedRuntimeContainers.length === 0) return
@@ -838,22 +1058,21 @@ export function AppDetailPage({ appId }: { appId: string }) {
     return `/actions/${actionId}?returnTo=list`
   }, [])
 
-  const openServerWorkspace = useCallback((options?: {
-    panel?: 'none' | 'files' | 'docker'
-    path?: string
-    lockedRoot?: string
-  }) => {
-    if (!app?.server_id || app.server_id === 'local') return
-    void navigate({
-      to: '/terminal/server/$serverId' as never,
-      params: { serverId: app.server_id } as never,
-      search: {
-        panel: options?.panel && options.panel !== 'none' ? options.panel : undefined,
-        path: options?.path || undefined,
-        lockedRoot: options?.lockedRoot || undefined,
-      } as never,
-    })
-  }, [app?.server_id, navigate])
+  const openServerWorkspace = useCallback(
+    (options?: { panel?: 'none' | 'files' | 'docker'; path?: string; lockedRoot?: string }) => {
+      if (!app?.server_id || app.server_id === 'local') return
+      void navigate({
+        to: '/terminal/server/$serverId' as never,
+        params: { serverId: app.server_id } as never,
+        search: {
+          panel: options?.panel && options.panel !== 'none' ? options.panel : undefined,
+          path: options?.path || undefined,
+          lockedRoot: options?.lockedRoot || undefined,
+        } as never,
+      })
+    },
+    [app?.server_id, navigate]
+  )
 
   const openServerDetail = useCallback(() => {
     if (!app?.server_id || app.server_id === 'local') return
@@ -876,26 +1095,40 @@ export function AppDetailPage({ appId }: { appId: string }) {
     }
   }, [app?.iac_path, navigate])
 
-  const openRuntimeContainerLogs = useCallback(async (container: RuntimeContainer) => {
-    const query = app?.server_id && app.server_id !== 'local' ? `?server_id=${encodeURIComponent(app.server_id)}&tail=200` : '?tail=200'
-    setRuntimeLogsTarget(container)
-    setRuntimeLogsLoading(true)
-    try {
-      const response = await pb.send<{ output?: string }>(`/api/ext/docker/containers/${container.ID}/logs${query}`, { method: 'GET' })
-      setRuntimeLogsContent(typeof response.output === 'string' ? response.output : '')
-    } catch (err) {
-      setRuntimeLogsContent(getApiErrorMessage(err, 'Failed to load container logs'))
-    } finally {
-      setRuntimeLogsLoading(false)
-    }
-  }, [app?.server_id])
+  const openRuntimeContainerLogs = useCallback(
+    async (container: RuntimeContainer) => {
+      const query =
+        app?.server_id && app.server_id !== 'local'
+          ? `?server_id=${encodeURIComponent(app.server_id)}&tail=200`
+          : '?tail=200'
+      setRuntimeLogsTarget(container)
+      setRuntimeLogsLoading(true)
+      try {
+        const response = await pb.send<{ output?: string }>(
+          `/api/ext/docker/containers/${container.ID}/logs${query}`,
+          { method: 'GET' }
+        )
+        setRuntimeLogsContent(typeof response.output === 'string' ? response.output : '')
+      } catch (err) {
+        setRuntimeLogsContent(getApiErrorMessage(err, 'Failed to load container logs'))
+      } finally {
+        setRuntimeLogsLoading(false)
+      }
+    },
+    [app?.server_id]
+  )
 
   const saveAccessHints = useCallback(async () => {
     setAccessSaving(true)
     setError('')
     setSuccess('')
     try {
-      const response = await pb.send<Pick<AppInstance, 'access_username' | 'access_secret_hint' | 'access_retrieval_method' | 'access_notes'>>(`/api/apps/${appId}/access`, {
+      const response = await pb.send<
+        Pick<
+          AppInstance,
+          'access_username' | 'access_secret_hint' | 'access_retrieval_method' | 'access_notes'
+        >
+      >(`/api/apps/${appId}/access`, {
         method: 'PUT',
         body: {
           access_username: accessUsernameDraft,
@@ -904,15 +1137,19 @@ export function AppDetailPage({ appId }: { appId: string }) {
           access_notes: accessNotesDraft,
         },
       })
-      setApp(current => current ? ({
-        ...current,
-        access_username: response.access_username || '',
-        access_secret_hint: response.access_secret_hint || '',
-        access_retrieval_method: response.access_retrieval_method || '',
-        access_notes: response.access_notes || '',
-      }) : current)
+      setApp(current =>
+        current
+          ? {
+              ...current,
+              access_username: response.access_username || '',
+              access_secret_hint: response.access_secret_hint || '',
+              access_retrieval_method: response.access_retrieval_method || '',
+              access_notes: response.access_notes || '',
+            }
+          : current
+      )
       syncAccessDrafts({
-        ...(app || {} as AppInstance),
+        ...(app || ({} as AppInstance)),
         access_username: response.access_username || '',
         access_secret_hint: response.access_secret_hint || '',
         access_retrieval_method: response.access_retrieval_method || '',
@@ -925,7 +1162,15 @@ export function AppDetailPage({ appId }: { appId: string }) {
     } finally {
       setAccessSaving(false)
     }
-  }, [accessNotesDraft, accessRetrievalMethodDraft, accessSecretHintDraft, accessUsernameDraft, app, appId, syncAccessDrafts])
+  }, [
+    accessNotesDraft,
+    accessRetrievalMethodDraft,
+    accessSecretHintDraft,
+    accessUsernameDraft,
+    app,
+    appId,
+    syncAccessDrafts,
+  ])
 
   const saveDisplayMetadata = useCallback(async () => {
     const nextMetadata: AppDisplayMetadata = {
@@ -936,7 +1181,10 @@ export function AppDetailPage({ appId }: { appId: string }) {
     setDisplaySaving(true)
     try {
       if (typeof window !== 'undefined') {
-        window.localStorage.setItem(`${DISPLAY_METADATA_STORAGE_PREFIX}${appId}`, JSON.stringify(nextMetadata))
+        window.localStorage.setItem(
+          `${DISPLAY_METADATA_STORAGE_PREFIX}${appId}`,
+          JSON.stringify(nextMetadata)
+        )
       }
       setSavedDisplayMetadata(nextMetadata)
       setDisplayTagsDraft(serializeDisplayTags(nextMetadata.tags))
@@ -963,29 +1211,48 @@ export function AppDetailPage({ appId }: { appId: string }) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuItem onSelect={() => void runAction('start')} disabled={hasBusyAction || loading || !canStartAction}>
+          <DropdownMenuItem
+            onSelect={() => void runAction('start')}
+            disabled={hasBusyAction || loading || !canStartAction}
+          >
             <Play className="h-4 w-4" />
             {actionLoading === 'start' ? 'Starting...' : 'Start'}
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => void runAction('stop')} disabled={hasBusyAction || loading || !canStopAction}>
+          <DropdownMenuItem
+            onSelect={() => void runAction('stop')}
+            disabled={hasBusyAction || loading || !canStopAction}
+          >
             <Square className="h-4 w-4" />
             {actionLoading === 'stop' ? 'Stopping...' : 'Stop'}
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => void runAction('restart')} disabled={hasBusyAction || loading || !canRestartAction}>
+          <DropdownMenuItem
+            onSelect={() => void runAction('restart')}
+            disabled={hasBusyAction || loading || !canRestartAction}
+          >
             <RotateCcw className="h-4 w-4" />
             {actionLoading === 'restart' ? 'Restarting...' : 'Restart'}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => void triggerOperation('redeploy')} disabled={hasBusyAction || !app}>
+          <DropdownMenuItem
+            onSelect={() => void triggerOperation('redeploy')}
+            disabled={hasBusyAction || !app}
+          >
             <RotateCcw className="h-4 w-4" />
             {deploying === 'redeploy' ? 'Redeploying...' : 'Redeploy'}
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => void triggerOperation('upgrade')} disabled={hasBusyAction || !app}>
+          <DropdownMenuItem
+            onSelect={() => void triggerOperation('upgrade')}
+            disabled={hasBusyAction || !app}
+          >
             <ArrowUp className="h-4 w-4" />
             {deploying === 'upgrade' ? 'Upgrading...' : 'Upgrade'}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => setPendingUninstall(true)} disabled={hasBusyAction || loading} variant="destructive">
+          <DropdownMenuItem
+            onSelect={() => setPendingUninstall(true)}
+            disabled={hasBusyAction || loading}
+            variant="destructive"
+          >
             <Trash2 className="h-4 w-4" />
             Uninstall
           </DropdownMenuItem>
@@ -1004,13 +1271,28 @@ export function AppDetailPage({ appId }: { appId: string }) {
         actionMenu={renderActionMenu()}
       />
 
-      {error ? <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert> : null}
-      {success ? <Alert><AlertDescription>{success}</AlertDescription></Alert> : null}
+      {error ? (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {success ? (
+        <Alert>
+          <AlertDescription>{success}</AlertDescription>
+        </Alert>
+      ) : null}
 
       {loading ? (
-        <div className="rounded-xl border p-6 text-sm text-muted-foreground">Loading app detail...</div>
+        <div className="rounded-xl border p-6 text-sm text-muted-foreground">
+          Loading app detail...
+        </div>
       ) : app ? (
-        <Tabs value={tab} onValueChange={setTab} orientation="vertical" className="gap-5 md:grid md:grid-cols-[220px_minmax(0,1fr)] md:items-start">
+        <Tabs
+          value={tab}
+          onValueChange={setTab}
+          orientation="vertical"
+          className="gap-5 md:grid md:grid-cols-[220px_minmax(0,1fr)] md:items-start"
+        >
           <AppDetailTabRail />
           <AppDetailOverviewTab
             app={app}
@@ -1136,7 +1418,7 @@ export function AppDetailPage({ appId }: { appId: string }) {
             dataError={dataError}
             dataLoading={dataLoading}
             dataLoaded={dataLoaded}
-            matchedDatabaseResources={matchedDatabaseResources}
+            matchedInstanceResources={matchedInstanceResources}
             matchedDataVolumes={matchedDataVolumes}
             backupProjection={backupProjection}
             mountProjectionLoading={mountProjectionLoading}
@@ -1153,102 +1435,161 @@ export function AppDetailPage({ appId }: { appId: string }) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Uninstall App</AlertDialogTitle>
-            <AlertDialogDescription>{app ? `Uninstall ${app.name}? This creates a shared uninstall operation and moves execution tracking to the canonical action detail view.` : 'This action cannot be undone.'}</AlertDialogDescription>
+            <AlertDialogDescription>
+              {app
+                ? `Uninstall ${app.name}? This creates a shared uninstall operation and moves execution tracking to the canonical action detail view.`
+                : 'This action cannot be undone.'}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => void runAction('uninstall')}>Confirm Uninstall</AlertDialogAction>
+            <AlertDialogAction variant="destructive" onClick={() => void runAction('uninstall')}>
+              Confirm Uninstall
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog open={Boolean(runtimeLogsTarget)} onOpenChange={open => {
-        if (!open) {
-          setRuntimeLogsTarget(null)
-          setRuntimeLogsContent('')
-        }
-      }}>
+      <Dialog
+        open={Boolean(runtimeLogsTarget)}
+        onOpenChange={open => {
+          if (!open) {
+            setRuntimeLogsTarget(null)
+            setRuntimeLogsContent('')
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Container Logs: {runtimeLogsTarget?.Names || '-'}</DialogTitle>
-            <DialogDescription>Recent log output for the selected app-scoped runtime container.</DialogDescription>
+            <DialogDescription>
+              Recent log output for the selected app-scoped runtime container.
+            </DialogDescription>
           </DialogHeader>
           <div className="rounded-xl bg-black px-4 py-3 font-mono text-[11px] leading-5 text-slate-100">
-            <pre className={cn('max-h-[55vh] overflow-auto whitespace-pre-wrap break-words', runtimeLogsLoading && 'text-slate-500')}>
+            <pre
+              className={cn(
+                'max-h-[55vh] overflow-auto whitespace-pre-wrap break-words',
+                runtimeLogsLoading && 'text-slate-500'
+              )}
+            >
               {runtimeLogsLoading ? 'Loading logs...' : runtimeLogsContent || 'No logs available.'}
             </pre>
           </div>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(selectedRelease)} onOpenChange={open => {
-    if (!open) {
-      setSelectedRelease(null)
-      setReleaseCopyState('idle')
-    }
-  }}>
-    <DialogContent className="sm:max-w-2xl">
-      <DialogHeader>
-        <DialogTitle>Release Detail: {selectedRelease?.version_label || selectedRelease?.id || '-'}</DialogTitle>
-        <DialogDescription>Candidate and active release attribution from the lifecycle release store.</DialogDescription>
-      </DialogHeader>
-      <div className="grid gap-3 text-sm sm:grid-cols-2">
-        <div>
-          <div className="text-muted-foreground">Role</div>
-          <div>{selectedRelease?.release_role || '-'}</div>
-        </div>
-        <div>
-          <div className="text-muted-foreground">Version</div>
-          <div>{selectedRelease?.version_label || '-'}</div>
-        </div>
-        <div className="sm:col-span-2">
-          <div className="text-muted-foreground">Artifact</div>
-          <div className="break-all font-mono text-[12px]">{selectedRelease?.artifact_digest || '-'}</div>
-          {selectedRelease?.artifact_digest ? <Button variant="link" size="sm" className="mt-1 h-auto px-0 text-[11px]" onClick={() => void copySelectedReleaseValue('artifact')}>{releaseCopyState === 'artifact-copied' ? 'Copied' : releaseCopyState === 'failed' ? 'Copy failed' : 'Copy Artifact'}</Button> : null}
-        </div>
-        {selectedReleaseAttribution.localImageRef ? (
-          <div className="sm:col-span-2">
-            <div className="text-muted-foreground">Local Image</div>
-            <div className="break-all font-mono text-[12px]">{selectedReleaseAttribution.localImageRef}</div>
+      <Dialog
+        open={Boolean(selectedRelease)}
+        onOpenChange={open => {
+          if (!open) {
+            setSelectedRelease(null)
+            setReleaseCopyState('idle')
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              Release Detail: {selectedRelease?.version_label || selectedRelease?.id || '-'}
+            </DialogTitle>
+            <DialogDescription>
+              Candidate and active release attribution from the lifecycle release store.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 text-sm sm:grid-cols-2">
+            <div>
+              <div className="text-muted-foreground">Role</div>
+              <div>{selectedRelease?.release_role || '-'}</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground">Version</div>
+              <div>{selectedRelease?.version_label || '-'}</div>
+            </div>
+            <div className="sm:col-span-2">
+              <div className="text-muted-foreground">Artifact</div>
+              <div className="break-all font-mono text-[12px]">
+                {selectedRelease?.artifact_digest || '-'}
+              </div>
+              {selectedRelease?.artifact_digest ? (
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="mt-1 h-auto px-0 text-[11px]"
+                  onClick={() => void copySelectedReleaseValue('artifact')}
+                >
+                  {releaseCopyState === 'artifact-copied'
+                    ? 'Copied'
+                    : releaseCopyState === 'failed'
+                      ? 'Copy failed'
+                      : 'Copy Artifact'}
+                </Button>
+              ) : null}
+            </div>
+            {selectedReleaseAttribution.localImageRef ? (
+              <div className="sm:col-span-2">
+                <div className="text-muted-foreground">Local Image</div>
+                <div className="break-all font-mono text-[12px]">
+                  {selectedReleaseAttribution.localImageRef}
+                </div>
+              </div>
+            ) : null}
+            <div className="sm:col-span-2">
+              <div className="text-muted-foreground">Source</div>
+              <div className="break-all">{selectedRelease?.source_ref || '-'}</div>
+              {selectedRelease?.source_ref ? (
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="mt-1 h-auto px-0 text-[11px]"
+                  onClick={() => void copySelectedReleaseValue('source')}
+                >
+                  {releaseCopyState === 'source-copied'
+                    ? 'Copied'
+                    : releaseCopyState === 'failed'
+                      ? 'Copy failed'
+                      : 'Copy Source'}
+                </Button>
+              ) : null}
+            </div>
+            <div>
+              <div className="text-muted-foreground">Source Type</div>
+              <div>{selectedRelease?.source_type || '-'}</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground">Updated</div>
+              <div>{selectedRelease?.updated || '-'}</div>
+            </div>
+            {selectedReleaseAttribution.targetService ? (
+              <div>
+                <div className="text-muted-foreground">Target Service</div>
+                <div>{selectedReleaseAttribution.targetService}</div>
+              </div>
+            ) : null}
+            <div>
+              <div className="text-muted-foreground">Created By Operation</div>
+              <div className="break-all">{selectedRelease?.created_by_operation || '-'}</div>
+            </div>
+            {selectedRelease?.notes ? (
+              <div className="sm:col-span-2">
+                <div className="text-muted-foreground">Notes</div>
+                <div className="whitespace-pre-wrap">
+                  {selectedReleaseAttribution.summaryNotes.length > 0
+                    ? selectedReleaseAttribution.summaryNotes.join(' | ')
+                    : selectedRelease.notes}
+                </div>
+              </div>
+            ) : null}
           </div>
-        ) : null}
-        <div className="sm:col-span-2">
-          <div className="text-muted-foreground">Source</div>
-          <div className="break-all">{selectedRelease?.source_ref || '-'}</div>
-          {selectedRelease?.source_ref ? <Button variant="link" size="sm" className="mt-1 h-auto px-0 text-[11px]" onClick={() => void copySelectedReleaseValue('source')}>{releaseCopyState === 'source-copied' ? 'Copied' : releaseCopyState === 'failed' ? 'Copy failed' : 'Copy Source'}</Button> : null}
-        </div>
-        <div>
-          <div className="text-muted-foreground">Source Type</div>
-          <div>{selectedRelease?.source_type || '-'}</div>
-        </div>
-        <div>
-          <div className="text-muted-foreground">Updated</div>
-          <div>{selectedRelease?.updated || '-'}</div>
-        </div>
-        {selectedReleaseAttribution.targetService ? (
-          <div>
-            <div className="text-muted-foreground">Target Service</div>
-            <div>{selectedReleaseAttribution.targetService}</div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {selectedRelease?.created_by_operation ? (
+              <Button variant="outline" size="sm" onClick={openSelectedReleaseAction}>
+                Open Related Action
+              </Button>
+            ) : null}
           </div>
-        ) : null}
-        <div>
-          <div className="text-muted-foreground">Created By Operation</div>
-          <div className="break-all">{selectedRelease?.created_by_operation || '-'}</div>
-        </div>
-        {selectedRelease?.notes ? (
-          <div className="sm:col-span-2">
-            <div className="text-muted-foreground">Notes</div>
-            <div className="whitespace-pre-wrap">{selectedReleaseAttribution.summaryNotes.length > 0 ? selectedReleaseAttribution.summaryNotes.join(' | ') : selectedRelease.notes}</div>
-          </div>
-        ) : null}
-      </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {selectedRelease?.created_by_operation ? (
-          <Button variant="outline" size="sm" onClick={openSelectedReleaseAction}>Open Related Action</Button>
-        ) : null}
-      </div>
-    </DialogContent>
-  </Dialog>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

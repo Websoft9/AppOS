@@ -190,17 +190,14 @@ type ExpiryStatus = 'expired' | 'expiring-soon' | 'ok' | 'none'
 
 function getExpiryStatus(
   expiresAt: string | undefined,
-  warnBeforeExpiryDays: number,
+  warnBeforeExpiryDays: number
 ): ExpiryStatus {
   if (!expiresAt) return 'none'
   const exp = new Date(expiresAt)
   if (isNaN(exp.getTime())) return 'none'
   const now = new Date()
   if (now > exp) return 'expired'
-  if (
-    warnBeforeExpiryDays > 0 &&
-    now.getTime() + warnBeforeExpiryDays * 86_400_000 > exp.getTime()
-  )
+  if (warnBeforeExpiryDays > 0 && now.getTime() + warnBeforeExpiryDays * 86_400_000 > exp.getTime())
     return 'expiring-soon'
   return 'ok'
 }
@@ -893,7 +890,9 @@ export function SecretsPage() {
                   </TableCell>
                   <TableCell>{item.scope || 'global'}</TableCell>
                   <TableCell>
-                    <Badge variant="outline">{item.access_mode || DEFAULT_SECRET_ACCESS_MODE}</Badge>
+                    <Badge variant="outline">
+                      {item.access_mode || DEFAULT_SECRET_ACCESS_MODE}
+                    </Badge>
                   </TableCell>
                   <TableCell>
                     <Badge variant={item.status === 'revoked' ? 'secondary' : 'default'}>
@@ -907,7 +906,7 @@ export function SecretsPage() {
                     {(() => {
                       const status = getExpiryStatus(
                         item.expires_at,
-                        secretPolicy.warnBeforeExpiryDays,
+                        secretPolicy.warnBeforeExpiryDays
                       )
                       if (status === 'none') return '—'
                       const label = formatDate(item.expires_at)
@@ -922,16 +921,13 @@ export function SecretsPage() {
                         return (
                           <span className="flex items-center gap-1.5">
                             <span className="text-orange-500">{label}</span>
-                            <Badge
-                              variant="outline"
-                              className="border-orange-400 text-orange-500"
-                            >
+                            <Badge variant="outline" className="border-orange-400 text-orange-500">
                               Expiring Soon
                             </Badge>
                           </span>
                         )
                       return <span className="text-muted-foreground">{label}</span>
-                    })()} 
+                    })()}
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>

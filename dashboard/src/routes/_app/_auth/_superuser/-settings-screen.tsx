@@ -13,9 +13,7 @@ import {
   SpaceQuotaSection,
   TunnelSection,
 } from './-settings-sections/workspace-simple-sections'
-import {
-  DockerMirrorsSection,
-} from './-settings-sections/workspace-list-sections'
+import { DockerMirrorsSection } from './-settings-sections/workspace-list-sections'
 import { type SettingsPageController } from './-settings-controller'
 
 type SettingsScreenProps = {
@@ -226,9 +224,7 @@ function renderSection(controller: SettingsPageController) {
       )
     default:
       return (
-        <div className="text-sm text-muted-foreground">
-          No editor available for this entry.
-        </div>
+        <div className="text-sm text-muted-foreground">No editor available for this entry.</div>
       )
   }
 }

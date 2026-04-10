@@ -8,12 +8,11 @@ const getFullListMock = vi.fn()
 const navigateMock = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
-  createFileRoute: () =>
-    (config: Record<string, unknown>) => ({
-      ...config,
-      useSearch: () => ({}),
-      useNavigate: () => navigateMock,
-    }),
+  createFileRoute: () => (config: Record<string, unknown>) => ({
+    ...config,
+    useSearch: () => ({}),
+    useNavigate: () => navigateMock,
+  }),
   useNavigate: () => navigateMock,
 }))
 

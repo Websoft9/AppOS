@@ -18,9 +18,12 @@ function getServerHost(item: { server_host?: string; server_id: string }): strin
 }
 
 export function ActionDetailPage({ actionId }: { actionId: string }) {
-  const backHref = typeof window === 'undefined'
-    ? '/actions'
-    : buildActionListHref(Object.fromEntries(new URLSearchParams(window.location.search).entries()))
+  const backHref =
+    typeof window === 'undefined'
+      ? '/actions'
+      : buildActionListHref(
+          Object.fromEntries(new URLSearchParams(window.location.search).entries())
+        )
   const {
     operation,
     loading,
@@ -46,9 +49,17 @@ export function ActionDetailPage({ actionId }: { actionId: string }) {
               Back to Actions
             </a>
           </Button>
-          <h1 className="text-2xl font-bold">Execution Detail: {operation?.compose_project_name || actionId}</h1>
+          <h1 className="text-2xl font-bold">
+            Execution Detail: {operation?.compose_project_name || actionId}
+          </h1>
         </div>
-        <Button variant="outline" size="icon" title="Refresh" aria-label="Refresh" onClick={() => void refresh()}>
+        <Button
+          variant="outline"
+          size="icon"
+          title="Refresh"
+          aria-label="Refresh"
+          onClick={() => void refresh()}
+        >
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>

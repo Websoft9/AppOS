@@ -16,13 +16,19 @@ type DeleteOperationDialogProps = {
   onConfirm: (operations: ActionRecord[]) => void
 }
 
-export function DeleteActionDialog({ operations, onOpenChange, onConfirm }: DeleteOperationDialogProps) {
+export function DeleteActionDialog({
+  operations,
+  onOpenChange,
+  onConfirm,
+}: DeleteOperationDialogProps) {
   const singleOperation = operations.length === 1 ? operations[0] : null
   return (
     <AlertDialog open={operations.length > 0} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{operations.length > 1 ? 'Delete Actions' : 'Delete Action'}</AlertDialogTitle>
+          <AlertDialogTitle>
+            {operations.length > 1 ? 'Delete Actions' : 'Delete Action'}
+          </AlertDialogTitle>
           <AlertDialogDescription>
             {operations.length > 1
               ? `Delete ${operations.length} selected actions? This removes their action records from history.`

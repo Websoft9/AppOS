@@ -54,7 +54,9 @@ describe('ComponentsPage installed components presentation', () => {
       expect(screen.getByText('Redis')).toBeInTheDocument()
     })
 
-    expect(screen.getByText('Read-only snapshot for quick awareness. No actions are required here.')).toBeInTheDocument()
+    expect(
+      screen.getByText('Read-only snapshot for quick awareness. No actions are required here.')
+    ).toBeInTheDocument()
     expect(screen.getByText('Version 1.27.0')).toBeInTheDocument()
     expect(screen.getByText('Version 7.2.0')).toBeInTheDocument()
     expect(screen.getAllByText(/^Updated /).length).toBe(2)

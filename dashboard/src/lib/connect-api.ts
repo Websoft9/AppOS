@@ -430,14 +430,11 @@ export async function controlSystemdService(
   service: string,
   action: SystemdControlAction
 ): Promise<void> {
-  await pb.send(
-    `/api/servers/${serverId}/ops/systemd/${encodeURIComponent(service)}/action`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action }),
-    }
-  )
+  await pb.send(`/api/servers/${serverId}/ops/systemd/${encodeURIComponent(service)}/action`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action }),
+  })
 }
 
 export async function getSystemdUnit(

@@ -13,7 +13,19 @@ vi.mock('./sidebar-navigation', () => ({
 }))
 
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children, to, className }: { children: React.ReactNode; to: string; className?: string }) => <a href={to} className={className}>{children}</a>,
+  Link: ({
+    children,
+    to,
+    className,
+  }: {
+    children: React.ReactNode
+    to: string
+    className?: string
+  }) => (
+    <a href={to} className={className}>
+      {children}
+    </a>
+  ),
   useRouterState: () => ({
     location: { pathname },
   }),
@@ -55,7 +67,9 @@ describe('Sidebar', () => {
     const links = within(workspaceNav).getAllByRole('link')
     const appLinks = links
       .map(link => link.textContent?.trim())
-      .filter((label): label is string => ['My Apps', 'App Store', 'Deploy', 'Actions'].includes(label ?? ''))
+      .filter((label): label is string =>
+        ['My Apps', 'App Store', 'Deploy', 'Actions'].includes(label ?? '')
+      )
 
     expect(appLinks).toEqual(['My Apps', 'App Store', 'Deploy', 'Actions'])
   })
@@ -112,6 +126,19 @@ describe('Sidebar', () => {
     fireEvent.click(collaborationTrigger as HTMLButtonElement)
 
     expect(assignMock).toHaveBeenCalledWith('/groups')
+  })
+
+  it('shows Scripts under Collaboration', () => {
+    pathname = '/groups'
+    assignMock.mockReset()
+
+    render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
+
+    const workspaceNav = screen.getAllByLabelText('Workspace navigation')[0]
+    const collaborationTrigger = within(workspaceNav).getByText('Collaboration')
+
+    expect(collaborationTrigger).toBeInTheDocument()
+    expect(within(workspaceNav).getByRole('link', { name: 'Scripts' })).toBeInTheDocument()
   })
 
   it('opens Credentials and navigates to Secrets when clicked from a collapsed state', () => {

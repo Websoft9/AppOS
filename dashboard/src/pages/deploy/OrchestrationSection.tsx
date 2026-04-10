@@ -121,73 +121,102 @@ export function OrchestrationSection({
 
   // ── Compose file upload ──
   const composeFileRef = useRef<HTMLInputElement>(null)
-  const handleComposeFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => { if (typeof reader.result === 'string') setCompose(reader.result) }
-    reader.readAsText(file)
-    event.target.value = ''
-  }, [setCompose])
+  const handleComposeFileUpload = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = () => {
+        if (typeof reader.result === 'string') setCompose(reader.result)
+      }
+      reader.readAsText(file)
+      event.target.value = ''
+    },
+    [setCompose]
+  )
 
   // ── Template import ──
   const [templateLoading, setTemplateLoading] = useState(false)
   const [templateMenuOpen, setTemplateMenuOpen] = useState(false)
-  const importTemplate = useCallback(async (appKey: string, appName: string) => {
-    setTemplateLoading(true)
-    try {
-      const { compose: tplCompose, env: tplEnv } = await iacLoadLibraryAppFiles(appKey)
-      if (tplCompose) setCompose(tplCompose)
-      if (tplEnv) {
-        const parsed = parseEnvFile(tplEnv)
-        if (parsed.length > 0) setEnvVars(prev => [...prev.filter(e => e.key.trim()), ...parsed, { key: '', value: '' }])
+  const importTemplate = useCallback(
+    async (appKey: string, appName: string) => {
+      setTemplateLoading(true)
+      try {
+        const { compose: tplCompose, env: tplEnv } = await iacLoadLibraryAppFiles(appKey)
+        if (tplCompose) setCompose(tplCompose)
+        if (tplEnv) {
+          const parsed = parseEnvFile(tplEnv)
+          if (parsed.length > 0)
+            setEnvVars(prev => [
+              ...prev.filter(e => e.key.trim()),
+              ...parsed,
+              { key: '', value: '' },
+            ])
+        }
+        if (!projectName.trim()) setProjectName(appName || appKey)
+      } catch {
+        // silently skip — template unavailable
+      } finally {
+        setTemplateLoading(false)
+        setTemplateMenuOpen(false)
       }
-      if (!projectName.trim()) setProjectName(appName || appKey)
-    } catch {
-      // silently skip — template unavailable
-    } finally {
-      setTemplateLoading(false)
-      setTemplateMenuOpen(false)
-    }
-  }, [projectName, setCompose, setEnvVars, setProjectName])
+    },
+    [projectName, setCompose, setEnvVars, setProjectName]
+  )
 
   // ── Env file upload ──
   const envFileRef = useRef<HTMLInputElement>(null)
-  const handleEnvFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      if (typeof reader.result !== 'string') return
-      const parsed = parseEnvFile(reader.result)
-      if (parsed.length > 0) setEnvVars(prev => [...prev.filter(e => e.key.trim()), ...parsed, { key: '', value: '' }])
-    }
-    reader.readAsText(file)
-    event.target.value = ''
-  }, [setEnvVars])
+  const handleEnvFileUpload = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = () => {
+        if (typeof reader.result !== 'string') return
+        const parsed = parseEnvFile(reader.result)
+        if (parsed.length > 0)
+          setEnvVars(prev => [...prev.filter(e => e.key.trim()), ...parsed, { key: '', value: '' }])
+      }
+      reader.readAsText(file)
+      event.target.value = ''
+    },
+    [setEnvVars]
+  )
 
   // ── Mount file helpers ──
   const srcFileRef = useRef<HTMLInputElement>(null)
-  const handleSrcFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
-    if (!files) return
-    setSrcFiles(prev => [...prev, ...Array.from(files)])
-    event.target.value = ''
-  }, [setSrcFiles])
-  const removeSrcFile = useCallback((index: number) => {
-    setSrcFiles(prev => prev.filter((_, i) => i !== index))
-  }, [setSrcFiles])
+  const handleSrcFileSelect = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const files = event.target.files
+      if (!files) return
+      setSrcFiles(prev => [...prev, ...Array.from(files)])
+      event.target.value = ''
+    },
+    [setSrcFiles]
+  )
+  const removeSrcFile = useCallback(
+    (index: number) => {
+      setSrcFiles(prev => prev.filter((_, i) => i !== index))
+    },
+    [setSrcFiles]
+  )
 
   // ── Env var helpers ──
-  const updateEnvVar = useCallback((index: number, field: 'key' | 'value', val: string) => {
-    setEnvVars(prev => prev.map((item, i) => i === index ? { ...item, [field]: val } : item))
-  }, [setEnvVars])
-  const removeEnvVar = useCallback((index: number) => {
-    setEnvVars(prev => {
-      const next = prev.filter((_, i) => i !== index)
-      return next.length === 0 ? [{ key: '', value: '' }] : next
-    })
-  }, [setEnvVars])
+  const updateEnvVar = useCallback(
+    (index: number, field: 'key' | 'value', val: string) => {
+      setEnvVars(prev => prev.map((item, i) => (i === index ? { ...item, [field]: val } : item)))
+    },
+    [setEnvVars]
+  )
+  const removeEnvVar = useCallback(
+    (index: number) => {
+      setEnvVars(prev => {
+        const next = prev.filter((_, i) => i !== index)
+        return next.length === 0 ? [{ key: '', value: '' }] : next
+      })
+    },
+    [setEnvVars]
+  )
   const addEnvVar = useCallback(() => {
     setEnvVars(prev => [...prev, { key: '', value: '' }])
   }, [setEnvVars])
@@ -197,7 +226,9 @@ export function OrchestrationSection({
   const filteredProducts = useMemo(() => {
     const q = templateSearch.trim().toLowerCase()
     const filtered = q
-      ? storeProducts.filter(p => p.trademark.toLowerCase().includes(q) || p.key.toLowerCase().includes(q))
+      ? storeProducts.filter(
+          p => p.trademark.toLowerCase().includes(q) || p.key.toLowerCase().includes(q)
+        )
       : storeProducts
 
     return [...filtered].sort((left, right) => {
@@ -233,9 +264,13 @@ export function OrchestrationSection({
   // ── Env mode: sensitive auto-generation / shared env mapping ──
   const [envModes, setEnvModes] = useState<Record<number, 'sensitive' | 'shared'>>({})
   const [sensitiveMethods, setSensitiveMethods] = useState<Record<number, string>>({})
-  const [sharedSelections, setSharedSelections] = useState<Record<number, { setId: string; varId: string; sourceKey: string }>>({})
+  const [sharedSelections, setSharedSelections] = useState<
+    Record<number, { setId: string; varId: string; sourceKey: string }>
+  >({})
   const [sharedSets, setSharedSets] = useState<Array<{ id: string; name: string }>>([])
-  const [sharedVars, setSharedVars] = useState<Array<{ id: string; set: string; key: string; value: string }>>([])
+  const [sharedVars, setSharedVars] = useState<
+    Array<{ id: string; set: string; key: string; value: string }>
+  >([])
   const [sharedLoaded, setSharedLoaded] = useState(false)
 
   const loadSharedEnvs = useCallback(async () => {
@@ -244,89 +279,116 @@ export function OrchestrationSection({
       const sets = await pb.collection('env_sets').getFullList({ sort: 'name' })
       const vars = await pb.collection('env_set_vars').getFullList({ sort: 'key' })
       setSharedSets(sets.map(s => ({ id: s.id, name: s['name'] as string })))
-      setSharedVars(vars.map(v => ({ id: v.id, set: v['set'] as string, key: v['key'] as string, value: v['value'] as string })))
-    } catch { /* ignore */ }
+      setSharedVars(
+        vars.map(v => ({
+          id: v.id,
+          set: v['set'] as string,
+          key: v['key'] as string,
+          value: v['value'] as string,
+        }))
+      )
+    } catch {
+      /* ignore */
+    }
     setSharedLoaded(true)
   }, [sharedLoaded])
 
-  const toggleEnvMode = useCallback((index: number, mode: 'sensitive' | 'shared') => {
-    setEnvModes(prev => {
-      if (prev[index] === mode) {
-        const next = { ...prev }
-        delete next[index]
-        return next
-      }
-      return { ...prev, [index]: mode }
-    })
-    if (mode === 'shared') void loadSharedEnvs()
-  }, [loadSharedEnvs])
+  const toggleEnvMode = useCallback(
+    (index: number, mode: 'sensitive' | 'shared') => {
+      setEnvModes(prev => {
+        if (prev[index] === mode) {
+          const next = { ...prev }
+          delete next[index]
+          return next
+        }
+        return { ...prev, [index]: mode }
+      })
+      if (mode === 'shared') void loadSharedEnvs()
+    },
+    [loadSharedEnvs]
+  )
 
-  const handleSensitiveMethod = useCallback((index: number, method: string) => {
-    setSensitiveMethods(prev => ({ ...prev, [index]: method }))
-    setSharedSelections(prev => {
-      if (!(index in prev)) return prev
-      const next = { ...prev }
-      delete next[index]
-      return next
-    })
-    updateEnvVar(index, 'value', generateSensitive(method))
-  }, [updateEnvVar])
-
-  const regenerateSensitive = useCallback((index: number) => {
-    const method = sensitiveMethods[index]
-    if (method) updateEnvVar(index, 'value', generateSensitive(method))
-  }, [sensitiveMethods, updateEnvVar])
-
-  const handleSharedVarSelect = useCallback((index: number, varId: string) => {
-    if (varId.startsWith('current:')) {
+  const handleSensitiveMethod = useCallback(
+    (index: number, method: string) => {
+      setSensitiveMethods(prev => ({ ...prev, [index]: method }))
       setSharedSelections(prev => {
         if (!(index in prev)) return prev
         const next = { ...prev }
         delete next[index]
         return next
       })
-      const refVar = envVars.find(e => e.key === varId.slice(8))
-      if (refVar) updateEnvVar(index, 'value', refVar.value)
-    } else {
-      const sv = sharedVars.find(v => v.id === varId)
-      if (sv) {
-        setSharedSelections(prev => ({ ...prev, [index]: { setId: sv.set, varId: sv.id, sourceKey: sv.key } }))
-        if (!envVars[index]?.key.trim()) updateEnvVar(index, 'key', sv.key)
-        updateEnvVar(index, 'value', sv.value)
-      }
-    }
-  }, [envVars, sharedVars, updateEnvVar])
+      updateEnvVar(index, 'value', generateSensitive(method))
+    },
+    [updateEnvVar]
+  )
 
-  const removeEnvVarClean = useCallback((index: number) => {
-    removeEnvVar(index)
-    setEnvModes(prev => {
-      const next: typeof prev = {}
-      for (const [k, v] of Object.entries(prev)) {
-        const idx = Number(k)
-        if (idx < index) next[idx] = v
-        else if (idx > index) next[idx - 1] = v
+  const regenerateSensitive = useCallback(
+    (index: number) => {
+      const method = sensitiveMethods[index]
+      if (method) updateEnvVar(index, 'value', generateSensitive(method))
+    },
+    [sensitiveMethods, updateEnvVar]
+  )
+
+  const handleSharedVarSelect = useCallback(
+    (index: number, varId: string) => {
+      if (varId.startsWith('current:')) {
+        setSharedSelections(prev => {
+          if (!(index in prev)) return prev
+          const next = { ...prev }
+          delete next[index]
+          return next
+        })
+        const refVar = envVars.find(e => e.key === varId.slice(8))
+        if (refVar) updateEnvVar(index, 'value', refVar.value)
+      } else {
+        const sv = sharedVars.find(v => v.id === varId)
+        if (sv) {
+          setSharedSelections(prev => ({
+            ...prev,
+            [index]: { setId: sv.set, varId: sv.id, sourceKey: sv.key },
+          }))
+          if (!envVars[index]?.key.trim()) updateEnvVar(index, 'key', sv.key)
+          updateEnvVar(index, 'value', sv.value)
+        }
       }
-      return next
-    })
-    setSensitiveMethods(prev => {
-      const next: typeof prev = {}
-      for (const [k, v] of Object.entries(prev)) {
-        const idx = Number(k)
-        if (idx < index) next[idx] = v
-        else if (idx > index) next[idx - 1] = v
-      }
-      return next
-    })
-  	setSharedSelections(prev => {
-  	  const next: typeof prev = {}
-  	  for (const [k, v] of Object.entries(prev)) {
-  	    const idx = Number(k)
-  	    if (idx < index) next[idx] = v
-  	    else if (idx > index) next[idx - 1] = v
-  	  }
-  	  return next
-  	})
-  }, [removeEnvVar])
+    },
+    [envVars, sharedVars, updateEnvVar]
+  )
+
+  const removeEnvVarClean = useCallback(
+    (index: number) => {
+      removeEnvVar(index)
+      setEnvModes(prev => {
+        const next: typeof prev = {}
+        for (const [k, v] of Object.entries(prev)) {
+          const idx = Number(k)
+          if (idx < index) next[idx] = v
+          else if (idx > index) next[idx - 1] = v
+        }
+        return next
+      })
+      setSensitiveMethods(prev => {
+        const next: typeof prev = {}
+        for (const [k, v] of Object.entries(prev)) {
+          const idx = Number(k)
+          if (idx < index) next[idx] = v
+          else if (idx > index) next[idx - 1] = v
+        }
+        return next
+      })
+      setSharedSelections(prev => {
+        const next: typeof prev = {}
+        for (const [k, v] of Object.entries(prev)) {
+          const idx = Number(k)
+          if (idx < index) next[idx] = v
+          else if (idx > index) next[idx - 1] = v
+        }
+        return next
+      })
+    },
+    [removeEnvVar]
+  )
 
   const envCount = envVars.filter(e => e.key.trim()).length
 
@@ -374,11 +436,15 @@ export function OrchestrationSection({
               <TooltipTrigger asChild>
                 <CircleHelp className="ml-0.5 inline h-3.5 w-3.5 cursor-help text-muted-foreground/60 hover:text-muted-foreground" />
               </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-xs text-xs">Define the service stack: compose file, environment variables, and mount files.</TooltipContent>
+              <TooltipContent side="top" className="max-w-xs text-xs">
+                Define the service stack: compose file, environment variables, and mount files.
+              </TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </div>
-        <div className="text-xs text-muted-foreground">Compose, environment variables, and mount files</div>
+        <div className="text-xs text-muted-foreground">
+          Compose, environment variables, and mount files
+        </div>
       </div>
       <div className="space-y-3 pt-4">
         {/* ── Sub-area 1: Compose File (collapsed by default) ── */}
@@ -386,11 +452,19 @@ export function OrchestrationSection({
           <summary className="flex cursor-pointer items-center gap-2 py-2">
             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-open:rotate-0 [-webkit-details-marker]:hidden [&:not([open]_&)]:rotate-[-90deg]" />
             <span className="text-[13px] font-medium">Compose File</span>
-            {compose.trim() && !yamlError ? <span className="ml-auto text-xs text-muted-foreground">{compose.split('\n').length} lines</span> : null}
-            {yamlError ? <span className="ml-auto text-xs text-destructive">YAML syntax error</span> : null}
+            {compose.trim() && !yamlError ? (
+              <span className="ml-auto text-xs text-muted-foreground">
+                {compose.split('\n').length} lines
+              </span>
+            ) : null}
+            {yamlError ? (
+              <span className="ml-auto text-xs text-destructive">YAML syntax error</span>
+            ) : null}
           </summary>
           <div className="pl-5 pt-2">
-            <div className={`max-h-[420px] overflow-y-auto rounded-md border${yamlError ? ' border-destructive/60' : ''}`}>
+            <div
+              className={`max-h-[420px] overflow-y-auto rounded-md border${yamlError ? ' border-destructive/60' : ''}`}
+            >
               <Textarea
                 id="compose-content"
                 className="min-h-[280px] resize-none border-0 font-mono text-xs focus-visible:ring-0"
@@ -402,17 +476,34 @@ export function OrchestrationSection({
               />
             </div>
             {yamlError ? (
-              <div id="compose-yaml-error" role="alert" className="mt-1.5 flex items-start gap-1.5 text-xs text-destructive">
+              <div
+                id="compose-yaml-error"
+                role="alert"
+                className="mt-1.5 flex items-start gap-1.5 text-xs text-destructive"
+              >
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>
-                  {yamlError.line !== undefined ? `Line ${yamlError.line}: ` : ''}{yamlError.message}
+                  {yamlError.line !== undefined ? `Line ${yamlError.line}: ` : ''}
+                  {yamlError.message}
                 </span>
               </div>
             ) : null}
             <div className="mt-3 flex items-center gap-2">
-              <input ref={composeFileRef} type="file" accept=".yml,.yaml" className="hidden" onChange={handleComposeFileUpload} />
-              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => composeFileRef.current?.click()}>
-                <Upload className="mr-1 h-3 w-3" />Upload YAML
+              <input
+                ref={composeFileRef}
+                type="file"
+                accept=".yml,.yaml"
+                className="hidden"
+                onChange={handleComposeFileUpload}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => composeFileRef.current?.click()}
+              >
+                <Upload className="mr-1 h-3 w-3" />
+                Upload YAML
               </Button>
               {storeProducts.length > 0 ? (
                 <div className="relative" ref={templateMenuRef}>
@@ -427,7 +518,10 @@ export function OrchestrationSection({
                     Import from App Store
                   </Button>
                   {templateMenuOpen ? (
-                    <div className="absolute left-0 z-20 mt-1 w-64 rounded-md border bg-popover shadow-md" role="menu">
+                    <div
+                      className="absolute left-0 z-20 mt-1 w-64 rounded-md border bg-popover shadow-md"
+                      role="menu"
+                    >
                       <div className="flex items-center gap-2 border-b px-2 py-1.5">
                         <Search className="h-3.5 w-3.5 text-muted-foreground" />
                         <input
@@ -457,19 +551,28 @@ export function OrchestrationSection({
                             className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-accent disabled:opacity-50"
                             onClick={() => void importTemplate(p.key, p.trademark)}
                           >
-                            {p.logo?.imageurl ? <img src={p.logo.imageurl} alt="" className="h-4 w-4 rounded" /> : null}
+                            {p.logo?.imageurl ? (
+                              <img src={p.logo.imageurl} alt="" className="h-4 w-4 rounded" />
+                            ) : null}
                             <span className="truncate">{p.trademark}</span>
                           </button>
                         ))}
                         {filteredProducts.length === 0 ? (
-                          <div className="px-2 py-3 text-center text-xs text-muted-foreground">No matching apps</div>
+                          <div className="px-2 py-3 text-center text-xs text-muted-foreground">
+                            No matching apps
+                          </div>
                         ) : null}
                       </div>
                     </div>
                   ) : null}
                 </div>
               ) : null}
-              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setCompose(SAMPLE_COMPOSE)}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setCompose(SAMPLE_COMPOSE)}
+              >
                 Use sample
               </Button>
               <div className="ml-auto">
@@ -493,7 +596,9 @@ export function OrchestrationSection({
           <summary className="flex cursor-pointer items-center gap-2 py-2">
             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-open:rotate-0 [-webkit-details-marker]:hidden [&:not([open]_&)]:rotate-[-90deg]" />
             <span className="text-[13px] font-medium">Environment Variables & Secret-backed</span>
-            {envCount > 0 ? <span className="ml-auto text-xs text-muted-foreground">{envCount} defined</span> : null}
+            {envCount > 0 ? (
+              <span className="ml-auto text-xs text-muted-foreground">{envCount} defined</span>
+            ) : null}
           </summary>
           <div className="pl-5 pt-2">
             <div className="max-h-[400px] space-y-1.5 overflow-y-auto">
@@ -501,7 +606,12 @@ export function OrchestrationSection({
                 const mode = envModes[i]
                 return (
                   <div key={i} className="flex items-center gap-1.5">
-                    <Input className="h-8 w-[38%] shrink-0 font-mono text-xs" placeholder="KEY" value={env.key} onChange={e => updateEnvVar(i, 'key', e.target.value)} />
+                    <Input
+                      className="h-8 w-[38%] shrink-0 font-mono text-xs"
+                      placeholder="KEY"
+                      value={env.key}
+                      onChange={e => updateEnvVar(i, 'key', e.target.value)}
+                    />
                     {mode === 'sensitive' ? (
                       <div className="flex flex-1 items-center gap-1">
                         <select
@@ -509,11 +619,29 @@ export function OrchestrationSection({
                           value={sensitiveMethods[i] || ''}
                           onChange={e => handleSensitiveMethod(i, e.target.value)}
                         >
-                          <option value="" disabled>Generate…</option>
-                          {SENSITIVE_METHODS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                          <option value="" disabled>
+                            Generate…
+                          </option>
+                          {SENSITIVE_METHODS.map(m => (
+                            <option key={m.id} value={m.id}>
+                              {m.label}
+                            </option>
+                          ))}
                         </select>
-                        <Input className="h-8 flex-1 bg-muted/30 font-mono text-xs" readOnly value={env.value} placeholder="Select method" />
-                        <Button variant="ghost" size="sm" className="h-7 w-7 shrink-0 p-0" onClick={() => regenerateSensitive(i)} disabled={!sensitiveMethods[i]} title="Regenerate">
+                        <Input
+                          className="h-8 flex-1 bg-muted/30 font-mono text-xs"
+                          readOnly
+                          value={env.value}
+                          placeholder="Select method"
+                        />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 shrink-0 p-0"
+                          onClick={() => regenerateSensitive(i)}
+                          disabled={!sensitiveMethods[i]}
+                          title="Regenerate"
+                        >
                           <RefreshCw className="h-3 w-3 text-muted-foreground" />
                         </Button>
                       </div>
@@ -523,33 +651,65 @@ export function OrchestrationSection({
                         value=""
                         onChange={e => handleSharedVarSelect(i, e.target.value)}
                       >
-                        <option value="" disabled>Select variable…</option>
+                        <option value="" disabled>
+                          Select variable…
+                        </option>
                         {sharedSets.map(set => {
                           const setVars = sharedVars.filter(v => v.set === set.id)
                           return setVars.length > 0 ? (
                             <optgroup key={set.id} label={set.name}>
-                              {setVars.map(v => <option key={v.id} value={v.id}>{v.key}</option>)}
+                              {setVars.map(v => (
+                                <option key={v.id} value={v.id}>
+                                  {v.key}
+                                </option>
+                              ))}
                             </optgroup>
                           ) : null
                         })}
                         {envVars.filter((e, idx) => idx !== i && e.key.trim()).length > 0 ? (
                           <optgroup label="Current Variables">
-                            {envVars.filter((e, idx) => idx !== i && e.key.trim()).map(e => (
-                              <option key={`cur-${e.key}`} value={`current:${e.key}`}>{e.key}</option>
-                            ))}
+                            {envVars
+                              .filter((e, idx) => idx !== i && e.key.trim())
+                              .map(e => (
+                                <option key={`cur-${e.key}`} value={`current:${e.key}`}>
+                                  {e.key}
+                                </option>
+                              ))}
                           </optgroup>
                         ) : null}
                       </select>
                     ) : (
-                      <Input className="h-8 flex-1 font-mono text-xs" placeholder="value" value={env.value} onChange={e => updateEnvVar(i, 'value', e.target.value)} />
+                      <Input
+                        className="h-8 flex-1 font-mono text-xs"
+                        placeholder="value"
+                        value={env.value}
+                        onChange={e => updateEnvVar(i, 'value', e.target.value)}
+                      />
                     )}
-                    <Button variant={mode === 'sensitive' ? 'secondary' : 'ghost'} size="sm" className="h-7 w-7 shrink-0 p-0" onClick={() => toggleEnvMode(i, 'sensitive')} title="Auto-generate sensitive value">
+                    <Button
+                      variant={mode === 'sensitive' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="h-7 w-7 shrink-0 p-0"
+                      onClick={() => toggleEnvMode(i, 'sensitive')}
+                      title="Auto-generate sensitive value"
+                    >
                       <Shield className="h-3 w-3" />
                     </Button>
-                    <Button variant={mode === 'shared' ? 'secondary' : 'ghost'} size="sm" className="h-7 w-7 shrink-0 p-0" onClick={() => toggleEnvMode(i, 'shared')} title="Map from shared env">
+                    <Button
+                      variant={mode === 'shared' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="h-7 w-7 shrink-0 p-0"
+                      onClick={() => toggleEnvMode(i, 'shared')}
+                      title="Map from shared env"
+                    >
                       <Link2 className="h-3 w-3" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-7 w-7 shrink-0 p-0" onClick={() => removeEnvVarClean(i)}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 shrink-0 p-0"
+                      onClick={() => removeEnvVarClean(i)}
+                    >
                       <Trash2 className="h-3 w-3 text-muted-foreground" />
                     </Button>
                   </div>
@@ -558,11 +718,24 @@ export function OrchestrationSection({
             </div>
             <div className="mt-3 flex items-center gap-2">
               <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addEnvVar}>
-                <Plus className="mr-1 h-3 w-3" />Add Variable
+                <Plus className="mr-1 h-3 w-3" />
+                Add Variable
               </Button>
-              <input ref={envFileRef} type="file" accept=".env,.txt" className="hidden" onChange={handleEnvFileUpload} />
-              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => envFileRef.current?.click()}>
-                <Upload className="mr-1 h-3 w-3" />Upload .env
+              <input
+                ref={envFileRef}
+                type="file"
+                accept=".env,.txt"
+                className="hidden"
+                onChange={handleEnvFileUpload}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => envFileRef.current?.click()}
+              >
+                <Upload className="mr-1 h-3 w-3" />
+                Upload .env
               </Button>
             </div>
           </div>
@@ -573,23 +746,48 @@ export function OrchestrationSection({
           <summary className="flex cursor-pointer items-center gap-2 py-2">
             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-open:rotate-0 [-webkit-details-marker]:hidden [&:not([open]_&)]:rotate-[-90deg]" />
             <span className="text-[13px] font-medium">Mount Files</span>
-            {srcFiles.length + srcUploaded.length > 0 ? <span className="ml-auto text-xs text-muted-foreground">{srcFiles.length + srcUploaded.length} file(s)</span> : null}
+            {srcFiles.length + srcUploaded.length > 0 ? (
+              <span className="ml-auto text-xs text-muted-foreground">
+                {srcFiles.length + srcUploaded.length} file(s)
+              </span>
+            ) : null}
           </summary>
           <div className="pl-5 pt-2">
             <div className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
-              Volume mount path: <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">{srcRelativePath}&lt;upload_file&gt;</code>
+              Volume mount path:{' '}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">
+                {srcRelativePath}&lt;upload_file&gt;
+              </code>
             </div>
             {srcFiles.length > 0 || srcUploaded.length > 0 ? (
               <div className="mt-2 space-y-1">
                 {srcUploaded.map(name => (
-                  <div key={name} className="flex items-center gap-2 rounded px-2 py-1 text-xs text-muted-foreground">
-                    <span className="text-emerald-600">✓</span> {srcRelativePath}{name}
+                  <div
+                    key={name}
+                    className="flex items-center gap-2 rounded px-2 py-1 text-xs text-muted-foreground"
+                  >
+                    <span className="text-emerald-600">✓</span> {srcRelativePath}
+                    {name}
                   </div>
                 ))}
                 {srcFiles.map((file, i) => (
-                  <div key={`${file.name}-${i}`} className="flex items-center justify-between rounded px-2 py-1 text-xs hover:bg-muted/50">
-                    <span className="truncate font-mono">{srcRelativePath}{file.name} <span className="font-sans text-muted-foreground">({(file.size / 1024).toFixed(1)} KB)</span></span>
-                    <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => removeSrcFile(i)}>
+                  <div
+                    key={`${file.name}-${i}`}
+                    className="flex items-center justify-between rounded px-2 py-1 text-xs hover:bg-muted/50"
+                  >
+                    <span className="truncate font-mono">
+                      {srcRelativePath}
+                      {file.name}{' '}
+                      <span className="font-sans text-muted-foreground">
+                        ({(file.size / 1024).toFixed(1)} KB)
+                      </span>
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-5 w-5 p-0"
+                      onClick={() => removeSrcFile(i)}
+                    >
                       <X className="h-3 w-3" />
                     </Button>
                   </div>
@@ -597,9 +795,21 @@ export function OrchestrationSection({
               </div>
             ) : null}
             <div className="mt-3">
-              <input ref={srcFileRef} type="file" multiple className="hidden" onChange={handleSrcFileSelect} />
-              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => srcFileRef.current?.click()}>
-                <FolderUp className="mr-1 h-3 w-3" />Add Files
+              <input
+                ref={srcFileRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handleSrcFileSelect}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => srcFileRef.current?.click()}
+              >
+                <FolderUp className="mr-1 h-3 w-3" />
+                Add Files
               </Button>
             </div>
           </div>

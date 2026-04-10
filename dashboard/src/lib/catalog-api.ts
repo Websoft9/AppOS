@@ -186,7 +186,9 @@ async function fetchCatalogApps(query: CatalogAppsQuery): Promise<CatalogAppList
   })
 }
 
-export function toLegacyPrimaryCategories(response: CatalogCategoryTreeResponse): PrimaryCategory[] {
+export function toLegacyPrimaryCategories(
+  response: CatalogCategoryTreeResponse
+): PrimaryCategory[] {
   return response.items.map(item => ({
     key: item.key,
     title: item.title,

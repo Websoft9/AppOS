@@ -45,7 +45,7 @@ export function formatDate(iso?: string): string {
 export function formatCreator(
   createdBy: string | undefined,
   currentUserId: string | undefined,
-  currentUserEmail: string | undefined,
+  currentUserEmail: string | undefined
 ): string {
   if (!createdBy) return '—'
   if (currentUserId === createdBy) return currentUserEmail ?? '—'

@@ -13,10 +13,10 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
-	"github.com/websoft9/appos/backend/infra/docker"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	lifecycleruntime "github.com/websoft9/appos/backend/domain/lifecycle/runtime"
 	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
+	"github.com/websoft9/appos/backend/infra/docker"
 
 	_ "github.com/websoft9/appos/backend/infra/migrations"
 )

@@ -1,6 +1,23 @@
 import { useState, useEffect, useCallback, useMemo, useRef, type FormEvent } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { Plus, Pencil, Trash2, Loader2, Search, ArrowUp, ArrowDown, Lock, Unlock, Share2, Copy, Check, ExternalLink, QrCode, Download, Upload } from 'lucide-react'
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Loader2,
+  Search,
+  ArrowUp,
+  ArrowDown,
+  Lock,
+  Unlock,
+  Share2,
+  Copy,
+  Check,
+  ExternalLink,
+  QrCode,
+  Download,
+  Upload,
+} from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { getApiErrorMessage } from '@/lib/api-error'
 import { copyToClipboard } from '@/lib/clipboard'
@@ -11,15 +28,31 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { MarkdownEditor } from '@/components/ui/markdown'
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 
 // ─── Types ───────────────────────────────────────────────
@@ -91,19 +124,17 @@ function TopicsListPage() {
     try {
       const topicsRes = await pb.send<PBList<TopicRecord>>(
         '/api/collections/topics/records?perPage=500&sort=-updated',
-        {},
+        {}
       )
       const topicItems = topicsRes.items ?? []
       setTopics(topicItems)
 
       // Batch fetch comment counts for all visible topics
       if (topicItems.length > 0) {
-        const filter = topicItems
-          .map(t => `topic_id='${pbFilterValue(t.id)}'`)
-          .join('||')
+        const filter = topicItems.map(t => `topic_id='${pbFilterValue(t.id)}'`).join('||')
         const commentsRes = await pb.send<PBList<{ id: string; topic_id: string }>>(
           `/api/collections/topic_comments/records?perPage=500&fields=id,topic_id&filter=(${filter})`,
-          {},
+          {}
         )
         const counts = new Map<string, number>()
         for (const c of commentsRes.items ?? []) {
@@ -256,7 +287,7 @@ function TopicsListPage() {
         setFormError('Binary file detected, please upload a text file')
         return
       }
-      setFormDesc(prev => prev ? prev + '\n\n' + reader.result : reader.result as string)
+      setFormDesc(prev => (prev ? prev + '\n\n' + reader.result : (reader.result as string)))
     }
     reader.onerror = () => setFormError('Failed to read file')
     reader.readAsText(file)
@@ -282,7 +313,7 @@ function TopicsListPage() {
     try {
       const res = await pb.send<{ share_token: string; expires_at: string }>(
         `/api/topics/share/${shareTarget.id}`,
-        { method: 'POST', body: { minutes: shareMinutes } },
+        { method: 'POST', body: { minutes: shareMinutes } }
       )
       setShareUrl(`${window.location.origin}/share/topic/${res.share_token}`)
       setCopied(false)
@@ -324,7 +355,11 @@ function TopicsListPage() {
     setQrGenerating(true)
     try {
       const { toDataURL } = await import('qrcode')
-      const dataUrl = await toDataURL(shareUrl, { errorCorrectionLevel: 'M', margin: 2, width: 256 })
+      const dataUrl = await toDataURL(shareUrl, {
+        errorCorrectionLevel: 'M',
+        margin: 2,
+        width: 256,
+      })
       setQrDataUrl(dataUrl)
     } catch {
       setError('Failed to generate QR code')
@@ -435,7 +470,12 @@ function TopicsListPage() {
                     onClick={() => toggleSort('title')}
                   >
                     Title
-                    {sortField === 'title' && (sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+                    {sortField === 'title' &&
+                      (sortDir === 'asc' ? (
+                        <ArrowUp className="h-3 w-3" />
+                      ) : (
+                        <ArrowDown className="h-3 w-3" />
+                      ))}
                   </button>
                 </TableHead>
                 <TableHead>Author</TableHead>
@@ -446,7 +486,12 @@ function TopicsListPage() {
                     onClick={() => toggleSort('created')}
                   >
                     Created
-                    {sortField === 'created' && (sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+                    {sortField === 'created' &&
+                      (sortDir === 'asc' ? (
+                        <ArrowUp className="h-3 w-3" />
+                      ) : (
+                        <ArrowDown className="h-3 w-3" />
+                      ))}
                   </button>
                 </TableHead>
                 <TableHead>
@@ -456,7 +501,12 @@ function TopicsListPage() {
                     onClick={() => toggleSort('updated')}
                   >
                     Updated
-                    {sortField === 'updated' && (sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+                    {sortField === 'updated' &&
+                      (sortDir === 'asc' ? (
+                        <ArrowUp className="h-3 w-3" />
+                      ) : (
+                        <ArrowDown className="h-3 w-3" />
+                      ))}
                   </button>
                 </TableHead>
                 <TableHead>Comments</TableHead>
@@ -494,7 +544,10 @@ function TopicsListPage() {
                           size="icon"
                           className="h-8 w-8"
                           title="Share"
-                          onClick={e => { e.stopPropagation(); openShare(row) }}
+                          onClick={e => {
+                            e.stopPropagation()
+                            openShare(row)
+                          }}
                         >
                           <Share2 className="h-4 w-4" />
                         </Button>
@@ -526,7 +579,10 @@ function TopicsListPage() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8"
-                            onClick={e => { e.stopPropagation(); openEdit(row) }}
+                            onClick={e => {
+                              e.stopPropagation()
+                              openEdit(row)
+                            }}
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
@@ -535,7 +591,10 @@ function TopicsListPage() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-destructive hover:text-destructive"
-                          onClick={e => { e.stopPropagation(); setDeleteTarget(row) }}
+                          onClick={e => {
+                            e.stopPropagation()
+                            setDeleteTarget(row)
+                          }}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -574,7 +633,12 @@ function TopicsListPage() {
                 <div className="flex items-center justify-between">
                   <Label>Description</Label>
                   <label className="cursor-pointer">
-                    <input type="file" className="hidden" accept="text/*,.md,.txt,.log,.json,.yaml,.yml,.xml,.csv,.html,.htm,.css,.js,.ts,.py,.go,.sh,.sql,.toml,.ini,.cfg,.conf,.env" onChange={handleFileUpload} />
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="text/*,.md,.txt,.log,.json,.yaml,.yml,.xml,.csv,.html,.htm,.css,.js,.ts,.py,.go,.sh,.sql,.toml,.ini,.cfg,.conf,.env"
+                      onChange={handleFileUpload}
+                    />
                     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
                       <Upload className="h-3.5 w-3.5" /> Upload text file
                     </span>
@@ -630,8 +694,8 @@ function TopicsListPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Topic</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &ldquo;{deleteTarget?.title}&rdquo;? All comments
-              will also be deleted. This action cannot be undone.
+              Are you sure you want to delete &ldquo;{deleteTarget?.title}&rdquo;? All comments will
+              also be deleted. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -649,12 +713,21 @@ function TopicsListPage() {
       </AlertDialog>
 
       {/* Share Dialog */}
-      <Dialog open={!!shareTarget} onOpenChange={open => { if (!open) { setShareTarget(null); setQrDataUrl(null) } }}>
+      <Dialog
+        open={!!shareTarget}
+        onOpenChange={open => {
+          if (!open) {
+            setShareTarget(null)
+            setQrDataUrl(null)
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Share Topic</DialogTitle>
             <DialogDescription>
-              Generate a public link — anyone with the link can view this topic and post comments without logging in.
+              Generate a public link — anyone with the link can view this topic and post comments
+              without logging in.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -673,12 +746,34 @@ function TopicsListPage() {
               <div className="space-y-3">
                 <Label>Public link</Label>
                 <div className="flex gap-2">
-                  <Input ref={shareUrlInputRef} readOnly value={shareUrl} className="text-xs font-mono" />
-                  <Button type="button" variant="outline" size="icon" onClick={handleCopyShareUrl} title="Copy">
+                  <Input
+                    ref={shareUrlInputRef}
+                    readOnly
+                    value={shareUrl}
+                    className="text-xs font-mono"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={handleCopyShareUrl}
+                    title="Copy"
+                  >
                     {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                   </Button>
-                  <Button type="button" variant="outline" size="icon" onClick={handleGenerateQr} disabled={qrGenerating} title="QR Code">
-                    {qrGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={handleGenerateQr}
+                    disabled={qrGenerating}
+                    title="QR Code"
+                  >
+                    {qrGenerating ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <QrCode className="h-4 w-4" />
+                    )}
                   </Button>
                   <Button type="button" variant="outline" size="icon" asChild title="Open">
                     <a href={shareUrl} target="_blank" rel="noopener noreferrer">
@@ -702,12 +797,24 @@ function TopicsListPage() {
           </div>
           <DialogFooter className="flex items-center gap-2 sm:justify-between">
             {shareUrl ? (
-              <Button type="button" variant="outline" onClick={handleRevokeShare} disabled={revoking} className="text-destructive hover:text-destructive">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleRevokeShare}
+                disabled={revoking}
+                className="text-destructive hover:text-destructive"
+              >
                 {revoking ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 Revoke
               </Button>
-            ) : <div />}
-            <Button type="button" onClick={handleGenerateShare} disabled={sharing || shareMinutes < 1 || shareMinutes > 60}>
+            ) : (
+              <div />
+            )}
+            <Button
+              type="button"
+              onClick={handleGenerateShare}
+              disabled={sharing || shareMinutes < 1 || shareMinutes > 60}
+            >
               {sharing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               {shareUrl ? 'Refresh Link' : 'Generate Link'}
             </Button>

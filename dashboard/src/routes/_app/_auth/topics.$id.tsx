@@ -1,6 +1,20 @@
 import { useState, useEffect, useCallback, useRef, type FormEvent } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { Pencil, Trash2, Loader2, ArrowLeft, Lock, Unlock, Share2, Copy, Check, ExternalLink, QrCode, Download, Upload } from 'lucide-react'
+import {
+  Pencil,
+  Trash2,
+  Loader2,
+  ArrowLeft,
+  Lock,
+  Unlock,
+  Share2,
+  Copy,
+  Check,
+  ExternalLink,
+  QrCode,
+  Download,
+  Upload,
+} from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { getApiErrorMessage } from '@/lib/api-error'
 import { copyToClipboard } from '@/lib/clipboard'
@@ -12,11 +26,22 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { MarkdownEditor, MarkdownView } from '@/components/ui/markdown'
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 
 // ─── Types ───────────────────────────────────────────────
@@ -96,13 +121,10 @@ function TopicDetailPage() {
   const fetchTopic = useCallback(async () => {
     try {
       const [topicRes, commentsRes] = await Promise.all([
-        pb.send<TopicRecord>(
-          `/api/collections/topics/records/${pbFilterValue(id)}`,
-          {},
-        ),
+        pb.send<TopicRecord>(`/api/collections/topics/records/${pbFilterValue(id)}`, {}),
         pb.send<PBList<CommentRecord>>(
           `/api/collections/topic_comments/records?perPage=500&filter=(topic_id='${pbFilterValue(id)}')&sort=created`,
-          {},
+          {}
         ),
       ])
       setTopic(topicRes)
@@ -290,7 +312,7 @@ function TopicDetailPage() {
     try {
       const res = await pb.send<{ share_token: string; expires_at: string }>(
         `/api/topics/share/${topic.id}`,
-        { method: 'POST', body: { minutes: shareMinutes } },
+        { method: 'POST', body: { minutes: shareMinutes } }
       )
       setShareUrl(`${window.location.origin}/share/topic/${res.share_token}`)
       setCopied(false)
@@ -332,7 +354,11 @@ function TopicDetailPage() {
     setQrGenerating(true)
     try {
       const { toDataURL } = await import('qrcode')
-      const dataUrl = await toDataURL(shareUrl, { errorCorrectionLevel: 'M', margin: 2, width: 256 })
+      const dataUrl = await toDataURL(shareUrl, {
+        errorCorrectionLevel: 'M',
+        margin: 2,
+        width: 256,
+      })
       setQrDataUrl(dataUrl)
     } catch {
       setError('Failed to generate QR code')
@@ -366,7 +392,7 @@ function TopicDetailPage() {
         setFormError('Binary file detected, please upload a text file')
         return
       }
-      setFormDesc(prev => prev ? prev + '\n\n' + reader.result : reader.result as string)
+      setFormDesc(prev => (prev ? prev + '\n\n' + reader.result : (reader.result as string)))
     }
     reader.onerror = () => setFormError('Failed to read file')
     reader.readAsText(file)
@@ -385,7 +411,11 @@ function TopicDetailPage() {
   if (!topic) {
     return (
       <div className="space-y-4">
-        <Link to="/topics" search={{ returnGroup: undefined, returnType: undefined }} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <Link
+          to="/topics"
+          search={{ returnGroup: undefined, returnType: undefined }}
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
           <ArrowLeft className="h-4 w-4" /> Topics
         </Link>
         <p className="text-destructive">{error || 'Topic not found'}</p>
@@ -398,7 +428,13 @@ function TopicDetailPage() {
       {/* Breadcrumb */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Link to="/topics" search={{ returnGroup: undefined, returnType: undefined }} className="hover:text-foreground">Topics</Link>
+          <Link
+            to="/topics"
+            search={{ returnGroup: undefined, returnType: undefined }}
+            className="hover:text-foreground"
+          >
+            Topics
+          </Link>
           <span>/</span>
           <span className="text-foreground">{topic.title}</span>
         </div>
@@ -410,7 +446,7 @@ function TopicDetailPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => topic.closed ? handleToggleClosed() : setCloseConfirmOpen(true)}
+              onClick={() => (topic.closed ? handleToggleClosed() : setCloseConfirmOpen(true))}
               disabled={togglingClosed}
             >
               {togglingClosed ? (
@@ -440,14 +476,17 @@ function TopicDetailPage() {
       </div>
 
       {error && (
-        <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md text-sm">{error}</div>
+        <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md text-sm">
+          {error}
+        </div>
       )}
 
       {/* Topic content */}
       <div className="space-y-2">
         <h1 className="text-2xl font-bold tracking-tight">{topic.title}</h1>
         <p className="text-sm text-muted-foreground">
-          {authorName(topic)} &middot; Created {formatDate(topic.created)} &middot; Updated {formatDate(topic.updated)}
+          {authorName(topic)} &middot; Created {formatDate(topic.created)} &middot; Updated{' '}
+          {formatDate(topic.updated)}
         </p>
       </div>
 
@@ -508,8 +547,14 @@ function TopicDetailPage() {
                       rows={3}
                     />
                     <div className="flex justify-end gap-2">
-                      <Button variant="outline" size="sm" onClick={cancelEditComment}>Cancel</Button>
-                      <Button size="sm" disabled={savingComment || !editCommentBody.trim()} onClick={handleSaveComment}>
+                      <Button variant="outline" size="sm" onClick={cancelEditComment}>
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={savingComment || !editCommentBody.trim()}
+                        onClick={handleSaveComment}
+                      >
                         {savingComment ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
                         Save
                       </Button>
@@ -540,7 +585,9 @@ function TopicDetailPage() {
             </div>
           </form>
         ) : (
-          <p className="text-sm text-muted-foreground">This topic is closed. No new comments can be added.</p>
+          <p className="text-sm text-muted-foreground">
+            This topic is closed. No new comments can be added.
+          </p>
         )}
 
         {/* Bottom spacing so the comment form is never hidden behind the fold */}
@@ -569,7 +616,12 @@ function TopicDetailPage() {
                 <div className="flex items-center justify-between">
                   <Label>Description</Label>
                   <label className="cursor-pointer">
-                    <input type="file" className="hidden" accept="text/*,.md,.txt,.log,.json,.yaml,.yml,.xml,.csv,.html,.htm,.css,.js,.ts,.py,.go,.sh,.sql,.toml,.ini,.cfg,.conf,.env" onChange={handleFileUpload} />
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="text/*,.md,.txt,.log,.json,.yaml,.yml,.xml,.csv,.html,.htm,.css,.js,.ts,.py,.go,.sh,.sql,.toml,.ini,.cfg,.conf,.env"
+                      onChange={handleFileUpload}
+                    />
                     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
                       <Upload className="h-3.5 w-3.5" /> Upload text file
                     </span>
@@ -584,7 +636,9 @@ function TopicDetailPage() {
               {formError && <p className="text-sm text-destructive">{formError}</p>}
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
+                Cancel
+              </Button>
               <Button type="submit" disabled={saving}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 Save
@@ -600,8 +654,8 @@ function TopicDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Close Topic</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to close &ldquo;{topic.title}&rdquo;? Closed topics
-              cannot receive new comments or be edited until reopened.
+              Are you sure you want to close &ldquo;{topic.title}&rdquo;? Closed topics cannot
+              receive new comments or be edited until reopened.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -620,7 +674,8 @@ function TopicDetailPage() {
           <DialogHeader>
             <DialogTitle>Share Topic</DialogTitle>
             <DialogDescription>
-              Generate a public link — anyone with the link can view this topic and post comments without logging in. The link expires after the specified time.
+              Generate a public link — anyone with the link can view this topic and post comments
+              without logging in. The link expires after the specified time.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -639,12 +694,34 @@ function TopicDetailPage() {
               <div className="space-y-2">
                 <Label>Public link</Label>
                 <div className="flex gap-2">
-                  <Input ref={shareUrlInputRef} readOnly value={shareUrl} className="text-xs font-mono" />
-                  <Button type="button" variant="outline" size="icon" onClick={handleCopyShareUrl} title="Copy">
+                  <Input
+                    ref={shareUrlInputRef}
+                    readOnly
+                    value={shareUrl}
+                    className="text-xs font-mono"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={handleCopyShareUrl}
+                    title="Copy"
+                  >
                     {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                   </Button>
-                  <Button type="button" variant="outline" size="icon" onClick={handleGenerateQr} disabled={qrGenerating} title="QR Code">
-                    {qrGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={handleGenerateQr}
+                    disabled={qrGenerating}
+                    title="QR Code"
+                  >
+                    {qrGenerating ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <QrCode className="h-4 w-4" />
+                    )}
                   </Button>
                   <Button type="button" variant="outline" size="icon" asChild title="Open">
                     <a href={shareUrl} target="_blank" rel="noopener noreferrer">
@@ -668,12 +745,24 @@ function TopicDetailPage() {
           </div>
           <DialogFooter className="flex items-center gap-2 sm:justify-between">
             {shareUrl ? (
-              <Button type="button" variant="outline" onClick={handleRevokeShare} disabled={revoking} className="text-destructive hover:text-destructive">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleRevokeShare}
+                disabled={revoking}
+                className="text-destructive hover:text-destructive"
+              >
                 {revoking ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 Revoke
               </Button>
-            ) : <div />}
-            <Button type="button" onClick={handleGenerateShare} disabled={sharing || shareMinutes < 1 || shareMinutes > 60}>
+            ) : (
+              <div />
+            )}
+            <Button
+              type="button"
+              onClick={handleGenerateShare}
+              disabled={sharing || shareMinutes < 1 || shareMinutes > 60}
+            >
               {sharing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               {shareUrl ? 'Refresh Link' : 'Generate Link'}
             </Button>
@@ -687,8 +776,8 @@ function TopicDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Topic</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &ldquo;{topic.title}&rdquo;? All comments will
-              also be deleted. This action cannot be undone.
+              Are you sure you want to delete &ldquo;{topic.title}&rdquo;? All comments will also be
+              deleted. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -706,7 +795,10 @@ function TopicDetailPage() {
       </AlertDialog>
 
       {/* Delete Comment Confirmation */}
-      <AlertDialog open={!!deleteCommentTarget} onOpenChange={open => !open && setDeleteCommentTarget(null)}>
+      <AlertDialog
+        open={!!deleteCommentTarget}
+        onOpenChange={open => !open && setDeleteCommentTarget(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Comment</AlertDialogTitle>

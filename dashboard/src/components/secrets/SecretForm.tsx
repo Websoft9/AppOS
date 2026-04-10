@@ -20,23 +20,68 @@ export interface SecretTemplate {
 }
 
 const BINARY_EXTENSIONS = new Set([
-  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
-  'zip', 'gz', 'tar', 'rar', '7z', 'bz2',
-  'png', 'jpg', 'jpeg', 'gif', 'bmp', 'ico', 'svg', 'webp',
-  'mp3', 'mp4', 'avi', 'mov', 'mkv', 'wav', 'flac',
-  'exe', 'dll', 'so', 'dylib', 'bin', 'dmg', 'iso',
-  'woff', 'woff2', 'ttf', 'otf', 'eot',
-  'class', 'jar', 'pyc', 'o', 'obj',
+  'pdf',
+  'doc',
+  'docx',
+  'xls',
+  'xlsx',
+  'ppt',
+  'pptx',
+  'zip',
+  'gz',
+  'tar',
+  'rar',
+  '7z',
+  'bz2',
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'bmp',
+  'ico',
+  'svg',
+  'webp',
+  'mp3',
+  'mp4',
+  'avi',
+  'mov',
+  'mkv',
+  'wav',
+  'flac',
+  'exe',
+  'dll',
+  'so',
+  'dylib',
+  'bin',
+  'dmg',
+  'iso',
+  'woff',
+  'woff2',
+  'ttf',
+  'otf',
+  'eot',
+  'class',
+  'jar',
+  'pyc',
+  'o',
+  'obj',
 ])
 
 function isTextFile(file: File): boolean {
   const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
   if (BINARY_EXTENSIONS.has(ext)) return false
   const mime = file.type
-  if (!mime || mime.startsWith('text/') || mime === 'application/json' || mime === 'application/xml'
-    || mime === 'application/x-pem-file' || mime === 'application/pgp-keys'
-    || mime === 'application/x-x509-ca-cert' || mime === 'application/pkcs8'
-    || mime === 'application/octet-stream') {
+  if (
+    !mime ||
+    mime.startsWith('text/') ||
+    mime === 'application/json' ||
+    mime === 'application/xml' ||
+    mime === 'application/x-pem-file' ||
+    mime === 'application/pgp-keys' ||
+    mime === 'application/x-x509-ca-cert' ||
+    mime === 'application/pkcs8' ||
+    mime === 'application/octet-stream'
+  ) {
     return true
   }
   return false
@@ -67,7 +112,9 @@ export function SecretForm({
   function handleFileUpload(fieldKey: string, file: File) {
     setUploadError('')
     if (!isTextFile(file)) {
-      setUploadError(`"${file.name}" is not a text file. Please upload a text-based file (e.g. .pem, .key, .pub, .txt).`)
+      setUploadError(
+        `"${file.name}" is not a text file. Please upload a text-based file (e.g. .pem, .key, .pub, .txt).`
+      )
       return
     }
     // Read a small slice first to check for null bytes (binary content)
@@ -113,14 +160,16 @@ export function SecretForm({
           {selectedTemplate.fields.map(field => {
             const isPassword = field.type === 'password'
             const isTextarea = field.type === 'textarea'
+            const inputId = `secret-form-${templateId}-${field.key}`
             return (
               <div key={field.key} className="space-y-2">
-                <Label>
+                <Label htmlFor={inputId}>
                   {field.label}
                   {field.required ? ' *' : ''}
                 </Label>
                 {isTextarea ? (
                   <Textarea
+                    id={inputId}
                     required={field.required}
                     value={payload[field.key] ?? ''}
                     onChange={e => onPayloadChange(field.key, e.target.value)}
@@ -130,6 +179,7 @@ export function SecretForm({
                   />
                 ) : (
                   <Input
+                    id={inputId}
                     type={isPassword ? 'password' : 'text'}
                     required={field.required}
                     value={payload[field.key] ?? ''}
@@ -141,7 +191,9 @@ export function SecretForm({
                     <input
                       type="file"
                       className="hidden"
-                      ref={el => { fileInputRefs.current[field.key] = el }}
+                      ref={el => {
+                        fileInputRefs.current[field.key] = el
+                      }}
                       onChange={e => {
                         const file = e.target.files?.[0]
                         if (file) handleFileUpload(field.key, file)

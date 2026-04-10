@@ -7,7 +7,9 @@ const LazyComponentsPage = lazy(() =>
 
 function ComponentsRoutePage() {
   return (
-    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading Components...</div>}>
+    <Suspense
+      fallback={<div className="p-6 text-sm text-muted-foreground">Loading Components...</div>}
+    >
       <LazyComponentsPage />
     </Suspense>
   )

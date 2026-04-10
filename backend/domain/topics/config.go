@@ -1,4 +1,4 @@
-package topic
+package topics
 
 import (
 	"github.com/pocketbase/pocketbase/core"

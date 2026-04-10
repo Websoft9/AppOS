@@ -205,18 +205,6 @@ groups:
         - iac.go
       nativeRefs: []
 
-  - group: OpenAPI Docs
-    description: OpenAPI UI and raw specification serving endpoints.
-    apiType: Ext
-    extSurface:
-      - /openapi
-      - /openapi/spec
-    nativeSurface: []
-    sources:
-      extRouteFiles:
-        - openapi.go
-      nativeRefs: []
-
   - group: Proxy
     description: Reverse proxy domain management and SSL automation endpoints.
     apiType: Ext
@@ -253,18 +241,11 @@ groups:
       nativeRefs:
         - https://pocketbase.io/docs/api-realtime/
 
-  - group: Resource
-    description: Resource catalog APIs excluding server registry, including connector business routes and connector native collection CRUD.
+  - group: Connectors
+    description: Connector catalog, template, and native record CRUD APIs.
     apiType: Mixed
     extSurface:
       - /api/connectors*
-      - /api/ext/resources/certificates*
-      - /api/ext/resources/cloud-accounts*
-      - /api/ext/resources/databases*
-      - /api/ext/resources/env-groups*
-      - /api/ext/resources/groups*
-      - /api/ext/resources/scripts*
-      - /api/ext/resources/secrets*
     nativeSurface:
       - GET /api/collections/connectors/records
       - POST /api/collections/connectors/records
@@ -274,9 +255,43 @@ groups:
     sources:
       extRouteFiles:
         - connectors.go
-        - resources.go
       nativeRefs:
         - https://pocketbase.io/docs/api-records/#crud-actions
+
+  - group: Provider Accounts
+    description: Provider account catalog and template APIs for cloud and platform credentials.
+    apiType: Ext
+    extSurface:
+      - /api/provider-accounts*
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - provider_accounts.go
+      nativeRefs: []
+
+  - group: Service Instances
+    description: Service instance catalog and template APIs for managed external services.
+    apiType: Ext
+    extSurface:
+      - /api/instances*
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - instances.go
+      nativeRefs: []
+
+  - group: Resource
+    description: Generic resource-store collection APIs for cloud accounts, databases, and scripts only.
+    apiType: Ext
+    extSurface:
+      - /api/ext/resources/cloud-accounts*
+      - /api/ext/resources/databases*
+      - /api/ext/resources/scripts*
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - resources.go
+      nativeRefs: []
 
   - group: Groups
     description: Group registry and group-item membership CRUD via PocketBase native records API.
@@ -309,10 +324,25 @@ groups:
         - routes.go
       nativeRefs: []
 
-  - group: Server Registry
-    description: Server asset registry CRUD via PocketBase native records API.
-    apiType: Native
-    extSurface: []
+  - group: Servers
+    description: Server registry CRUD and remote operations APIs for connectivity, power, ports, and systemd management.
+    apiType: Mixed
+    extSurface:
+      - GET /api/ext/docker/servers
+      - GET /api/servers/{serverId}/ops/connectivity
+      - POST /api/servers/{serverId}/ops/power
+      - GET /api/servers/{serverId}/ops/ports
+      - GET /api/servers/{serverId}/ops/ports/{port}
+      - POST /api/servers/{serverId}/ops/ports/{port}/release
+      - GET /api/servers/{serverId}/ops/systemd/services
+      - GET /api/servers/{serverId}/ops/systemd/{service}/status
+      - GET /api/servers/{serverId}/ops/systemd/{service}/content
+      - GET /api/servers/{serverId}/ops/systemd/{service}/logs
+      - POST /api/servers/{serverId}/ops/systemd/{service}/action
+      - GET /api/servers/{serverId}/ops/systemd/{service}/unit
+      - PUT /api/servers/{serverId}/ops/systemd/{service}/unit
+      - POST /api/servers/{serverId}/ops/systemd/{service}/unit/verify
+      - POST /api/servers/{serverId}/ops/systemd/{service}/unit/apply
     nativeSurface:
       - GET /api/collections/servers/records
       - POST /api/collections/servers/records
@@ -321,63 +351,24 @@ groups:
       - DELETE /api/collections/servers/records/{id}
     sources:
       extRouteFiles:
-        - resources.go
-      nativeRefs: []
+        - docker.go
+        - server.go
+        - server_ops.go
+      nativeRefs:
+        - https://pocketbase.io/docs/api-records/#crud-actions
 
-  - group: Terminal SSH
-    description: SSH interactive PTY sessions to managed servers.
+  - group: Terminal
+    description: Interactive terminal and remote file APIs for SSH, Docker exec, SFTP, and local shell sessions.
     apiType: Ext
     extSurface:
-      - GET /api/terminal/ssh/{serverId}
-    nativeSurface: []
-    sources:
-      extRouteFiles:
-        - terminal_shell.go
-      nativeRefs: []
-
-  - group: Terminal Docker
-    description: Docker exec PTY sessions to containers on managed servers.
-    apiType: Ext
-    extSurface:
-      - GET /api/terminal/docker/{containerId}
-    nativeSurface: []
-    sources:
-      extRouteFiles:
-        - terminal_containers.go
-      nativeRefs: []
-
-  - group: Terminal SFTP
-    description: Remote file management over SFTP (SSH transport).
-    apiType: Ext
-    extSurface:
-      - /api/terminal/sftp/{serverId}/*
-    nativeSurface: []
-    sources:
-      extRouteFiles:
-        - terminal_files.go
-      nativeRefs: []
-
-  - group: Terminal Local
-    description: WebSocket PTY session on the local host.
-    apiType: Ext
-    extSurface:
-      - GET /api/terminal/local
-    nativeSurface: []
-    sources:
-      extRouteFiles:
-        - terminal_shell.go
-      nativeRefs: []
-
-  - group: Server Ops
-    description: "Server catalog operations: connectivity, power control, port inspection, and systemd management."
-    apiType: Ext
-    extSurface:
-      - /api/servers/{serverId}/ops*
+      - /api/terminal*
     nativeSurface: []
     sources:
       extRouteFiles:
         - server.go
-        - server_ops.go
+        - terminal_containers.go
+        - terminal_files.go
+        - terminal_shell.go
       nativeRefs: []
 
   - group: Services
@@ -474,7 +465,7 @@ groups:
       nativeRefs: []
 
   - group: Topics
-    description: Topic discussion sharing — time-limited public share links for topics with anonymous comment support.
+    description: Topic sharing APIs plus native topic and comment record CRUD endpoints.
     apiType: Mixed
     extSurface:
       - /api/topics/*
@@ -496,7 +487,7 @@ groups:
         - https://pocketbase.io/docs/api-records/#crud-actions
 
   - group: Secrets
-    description: Secrets lifecycle management — encrypted credential CRUD, template listing, payload rotation, internal resolve, and reveal APIs. Uses PB native collection for storage with application-layer AES-256-GCM encryption.
+    description: Secret storage, rotation, resolve, and reveal APIs.
     apiType: Mixed
     extSurface:
       - GET /api/secrets/templates
@@ -516,7 +507,7 @@ groups:
         - https://pocketbase.io/docs/api-records/#crud-actions
 
   - group: Certificates
-    description: Certificate lifecycle management — template listing, self-signed generation/renewal, and PB native collection CRUD with PEM validation hooks. Private keys are stored via the Secrets module.
+    description: Certificate template, self-signed issuance, renewal, and native record CRUD APIs.
     apiType: Mixed
     extSurface:
       - GET /api/certificates/templates
@@ -531,6 +522,7 @@ groups:
     sources:
       extRouteFiles:
         - certificates.go
+        - ../certs/generate_routes.go
       nativeRefs:
         - https://pocketbase.io/docs/api-records/#crud-actions
 

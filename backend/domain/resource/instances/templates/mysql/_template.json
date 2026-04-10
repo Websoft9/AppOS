@@ -10,10 +10,10 @@
       "placeholder": "appdb"
     },
     {
-      "id": "username",
-      "label": "Username",
+      "id": "ssl_ca_certificate",
+      "label": "SSL Root CA Certificate",
       "type": "text",
-      "placeholder": "appuser"
+      "helpText": "Choose a CA certificate only when your MySQL server requires custom SSL trust."
     }
   ]
 }

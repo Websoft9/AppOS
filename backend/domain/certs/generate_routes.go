@@ -16,12 +16,45 @@ import (
 
 var hostLabelRegexp = regexp.MustCompile(`^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$`)
 
+type selfSignedGenerateRequest struct {
+	ValidityDays int `json:"validity_days"`
+	KeyBits      int `json:"key_bits"`
+}
+
+type selfSignedRenewRequest struct {
+	ValidityDays int `json:"validity_days"`
+}
+
+type selfSignedCertificateResponse struct {
+	ID        string `json:"id"`
+	CertPEM   string `json:"cert_pem"`
+	ExpiresAt string `json:"expires_at"`
+	IssuedAt  string `json:"issued_at"`
+	Issuer    string `json:"issuer"`
+	Subject   string `json:"subject"`
+	Status    string `json:"status"`
+}
+
 // RegisterGenerateRoutes mounts the generate and renew routes on the given group.
 func RegisterGenerateRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	g.POST("/{id}/generate-self-signed", handleGenerateSelfSigned)
 	g.POST("/{id}/renew-self-signed", handleRenewSelfSigned)
 }
 
+// @Summary Generate self-signed certificate
+// @Description Generates certificate material for a self-signed certificate record.
+// @Tags Certificates
+// @Security BearerAuth
+// @Param id path string true "certificate id"
+// @Param body body selfSignedGenerateRequest false "generation options"
+// @Success 200 {object} selfSignedCertificateResponse
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 403 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 409 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/certificates/{id}/generate-self-signed [post]
 func handleGenerateSelfSigned(e *core.RequestEvent) error {
 	if e.Auth == nil {
 		return apis.NewUnauthorizedError("authentication required", nil)
@@ -46,10 +79,7 @@ func handleGenerateSelfSigned(e *core.RequestEvent) error {
 		})
 	}
 
-	var body struct {
-		ValidityDays int `json:"validity_days"`
-		KeyBits      int `json:"key_bits"`
-	}
+	var body selfSignedGenerateRequest
 	if err := e.BindBody(&body); err != nil {
 		// Not a fatal error — use defaults
 		body.ValidityDays = 0
@@ -128,6 +158,19 @@ func handleGenerateSelfSigned(e *core.RequestEvent) error {
 	})
 }
 
+// @Summary Renew self-signed certificate
+// @Description Regenerates certificate material for an existing self-signed certificate record.
+// @Tags Certificates
+// @Security BearerAuth
+// @Param id path string true "certificate id"
+// @Param body body selfSignedRenewRequest false "renewal options"
+// @Success 200 {object} selfSignedCertificateResponse
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 403 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/certificates/{id}/renew-self-signed [post]
 func handleRenewSelfSigned(e *core.RequestEvent) error {
 	if e.Auth == nil {
 		return apis.NewUnauthorizedError("authentication required", nil)
@@ -146,9 +189,7 @@ func handleRenewSelfSigned(e *core.RequestEvent) error {
 		return e.BadRequestError("only self_signed certificates can be renewed", nil)
 	}
 
-	var body struct {
-		ValidityDays int `json:"validity_days"`
-	}
+	var body selfSignedRenewRequest
 	if err := e.BindBody(&body); err != nil {
 		body.ValidityDays = 0
 	}

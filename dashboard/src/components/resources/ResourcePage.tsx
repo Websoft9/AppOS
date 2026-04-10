@@ -4,7 +4,6 @@ import {
   useCallback,
   useMemo,
   useRef,
-  type ReactNode,
   type FormEvent,
   type ChangeEvent,
 } from 'react'
@@ -15,7 +14,9 @@ import {
   Trash2,
   Loader2,
   Upload,
+  ChevronDown,
   ChevronLeft,
+  ChevronRight,
   Tags,
   X,
   RefreshCw,
@@ -58,129 +59,24 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { type PBList, pbFilterValue } from '@/lib/groups'
+import { ResourceFormField } from './ResourceFormField'
+import type {
+  FieldDef,
+  RelationOption,
+  ResourcePageConfig,
+  SelectOption,
+} from './resource-page-types'
 
-// ─── Types ───────────────────────────────────────────────
-
-/** Fields for the inline "create new relation" mini-dialog */
-export interface RelCreateField {
-  key: string
-  label: string
-  type: 'text' | 'password' | 'select' | 'textarea' | 'file-textarea'
-  required?: boolean
-  hidden?: boolean
-  defaultValue?: unknown
-  placeholder?: string
-  options?: SelectOption[]
-  fileAccept?: string
-  /** Switch type based on another field's current value */
-  dynamicType?: { field: string; values: string[]; as: 'textarea' | 'file-textarea' }
-  /** Only show when another field has one of these values */
-  showWhen?: { field: string; values: string[] }
-  /** Transform flat form data before POSTing (e.g. nest payload for new secrets API) */
-  prepareData?: (data: Record<string, unknown>) => Record<string, unknown>
-}
-
-export interface Column {
-  key: string
-  label: string
-  render?: (value: unknown, row: Record<string, unknown>) => ReactNode
-}
-
-export interface SelectOption {
-  label: string
-  value: string
-  group?: string
-}
-
-export interface FieldDef {
-  key: string
-  label: string
-  type:
-    | 'text'
-    | 'number'
-    | 'select'
-    | 'textarea'
-    | 'password'
-    | 'boolean'
-    | 'relation'
-    | 'file-textarea'
-  required?: boolean
-  placeholder?: string
-  options?: SelectOption[]
-  defaultValue?: unknown
-  hidden?: boolean
-  /** Relation: load options from this API path */
-  relationApiPath?: string
-  /** Relation: which field to use as label (default: "name") */
-  relationLabelKey?: string
-  /** Relation: custom label formatter — receives the raw record, returns display string */
-  relationFormatLabel?: (raw: Record<string, unknown>) => string
-  /** Relation: filter options via query params (e.g. { type: "password" }) */
-  relationFilter?: Record<string, string>
-  /** Relation: show an inline "+" button to create a new record */
-  relationCreate?: {
-    label: string
-    apiPath: string
-    fields: RelCreateField[]
-    /** Transform flat form data before POSTing to the create endpoint */
-    prepareData?: (data: Record<string, unknown>) => Record<string, unknown>
-  }
-  /** Relation: allow selecting multiple options (renders as checkboxes) */
-  multiSelect?: boolean
-  /** Relation + multiSelect: auto-select the option with is_default=true when creating */
-  relationAutoSelectDefault?: boolean
-  /** Only show when another field has one of these values */
-  showWhen?: { field: string; values: string[] }
-  /** Switch type when another field has one of these values */
-  dynamicType?: { field: string; values: string[]; as: 'textarea' | 'file-textarea' }
-  /** Enable file upload button (textarea / file-textarea) */
-  fileAccept?: string
-  /** Custom handler for the "+" button on a relation field (replaces built-in mini-dialog) */
-  relationCreateButton?: {
-    label: string
-    onClick: (callbacks: {
-      /** Call after creating a record to add it to the dropdown and auto-select it */
-      addOption: (id: string, label: string) => void
-    }) => void
-  }
-  /** Side effect: when this field changes, update other fields too */
-  onValueChange?: (value: unknown, update: (key: string, value: unknown) => void) => void
-}
-
-export interface ResourcePageConfig {
-  title: string
-  description?: string
-  apiPath: string // e.g., "/api/collections/servers/records"
-  columns: Column[]
-  fields: FieldDef[]
-  resolveFields?: (ctx: {
-    formData: Record<string, unknown>
-    editingItem: Record<string, unknown> | null
-  }) => FieldDef[]
-  nameField?: string // field used as display name (default: "name")
-  autoCreate?: boolean // open Create dialog on mount (from ?create=1)
-  parentNav?: { label: string; href: string } // breadcrumb back link
-  enableGroupAssign?: boolean // show batch assign-to-group toolbar on list
-  onCreateSuccess?: (record: Record<string, unknown>) => void
-  showRefreshButton?: boolean // show a manual refresh button next to Create
-  onRefresh?: (ctx: {
-    items: Record<string, unknown>[]
-    refreshList: () => Promise<void>
-  }) => Promise<void> | void
-  extraActions?: (item: Record<string, unknown>, refreshList: () => void) => ReactNode
-  resourceType?: string
-  listItems?: () => Promise<Record<string, unknown>[]>
-  createItem?: (payload: Record<string, unknown>) => Promise<Record<string, unknown>>
-  updateItem?: (id: string, payload: Record<string, unknown>) => Promise<void>
-  deleteItem?: (id: string) => Promise<void>
-  initialEditId?: string
-  onInitialEditHandled?: () => void
-}
+export type {
+  Column,
+  FieldDef,
+  RelCreateField,
+  ResourcePageConfig,
+  SelectOption,
+} from './resource-page-types'
 
 const INPUT_CLASS =
   'w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground text-sm'
-
-type RelOpt = { id: string; label: string; raw?: Record<string, unknown> }
 
 const GROUPS_API_PATH = '/api/collections/groups/records?perPage=500&sort=name'
 
@@ -232,16 +128,19 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   const [error, setError] = useState('')
 
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [createSelectionOpen, setCreateSelectionOpen] = useState(false)
+  const [createSelectionQuery, setCreateSelectionQuery] = useState('')
   const [editingItem, setEditingItem] = useState<Record<string, unknown> | null>(null)
   const [formData, setFormData] = useState<Record<string, unknown>>({})
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
+  const [advancedOpen, setAdvancedOpen] = useState(false)
 
   const [deleteTarget, setDeleteTarget] = useState<Record<string, unknown> | null>(null)
   const [deleting, setDeleting] = useState(false)
 
   // Relation options cache: fieldKey → list of {id, label}
-  const [relOpts, setRelOpts] = useState<Record<string, RelOpt[]>>({})
+  const [relOpts, setRelOpts] = useState<Record<string, RelationOption[]>>({})
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const createRelFileRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
@@ -254,7 +153,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
 
   // Batch group assignment
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
-  const [availableGroups, setAvailableGroups] = useState<RelOpt[]>([])
+  const [availableGroups, setAvailableGroups] = useState<RelationOption[]>([])
   const [groupsLoading, setGroupsLoading] = useState(false)
   const [assigningGroups, setAssigningGroups] = useState(false)
   const [groupAssignDialogOpen, setGroupAssignDialogOpen] = useState(false)
@@ -273,30 +172,75 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
     [editingItem, formData, getFields]
   )
 
+  const filteredCreateSelectionOptions = useMemo(() => {
+    const selection = config.createSelection
+    if (!selection) return []
+
+    const query = createSelectionQuery.trim().toLowerCase()
+    if (!query) return selection.options
+
+    return selection.options.filter(option => {
+      const haystack = [option.title, option.description, option.meta, option.searchText]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      return haystack.includes(query)
+    })
+  }, [config.createSelection, createSelectionQuery])
+
   const nameField = config.nameField || 'name'
   const groupField = activeFields.find(f => f.key === 'groups' && f.type === 'relation')
   const resourceObjectType = config.resourceType || ''
-
-  const listGroupMemberships = useCallback(
-    async (objectType: string, objectIds: string[]) => {
-      if (!objectType || objectIds.length === 0) return [] as Record<string, unknown>[]
-
-      const filter = [
-        `object_type='${pbFilterValue(objectType)}'`,
-        `(${buildOrFilter('object_id', objectIds)})`,
-      ].join('&&')
-      const params = new URLSearchParams({
-        perPage: '500',
-        filter: `(${filter})`,
-      })
-      const response = await pb.send<PBList<Record<string, unknown>>>(
-        `/api/collections/group_items/records?${params.toString()}`,
-        {}
-      )
-      return response.items ?? []
-    },
-    []
+  const visibleFields = useMemo(
+    () =>
+      activeFields
+        .filter(f => !f.hidden)
+        .filter(f => {
+          if (!f.showWhen) return true
+          return f.showWhen.values.includes(String(formData[f.showWhen.field] ?? ''))
+        }),
+    [activeFields, formData]
   )
+  const headerFields = useMemo(() => visibleFields.filter(field => field.header), [visibleFields])
+  const primaryFields = useMemo(
+    () => visibleFields.filter(field => !field.header && !field.advanced),
+    [visibleFields]
+  )
+  const advancedFields = useMemo(
+    () => visibleFields.filter(field => !field.header && field.advanced),
+    [visibleFields]
+  )
+  const defaultDialogTitle = editingItem
+    ? `Edit ${config.title.replace(/s$/, '')}`
+    : `Create ${config.title.replace(/s$/, '')}`
+  const defaultDialogDescription = editingItem
+    ? 'Update the resource details below.'
+    : 'Fill in the details to create a new resource.'
+  const dialogHeader = config.dialogHeader?.({
+    formData,
+    editingItem,
+    updateField,
+    title: defaultDialogTitle,
+    description: defaultDialogDescription,
+  })
+
+  const listGroupMemberships = useCallback(async (objectType: string, objectIds: string[]) => {
+    if (!objectType || objectIds.length === 0) return [] as Record<string, unknown>[]
+
+    const filter = [
+      `object_type='${pbFilterValue(objectType)}'`,
+      `(${buildOrFilter('object_id', objectIds)})`,
+    ].join('&&')
+    const params = new URLSearchParams({
+      perPage: '500',
+      filter: `(${filter})`,
+    })
+    const response = await pb.send<PBList<Record<string, unknown>>>(
+      `/api/collections/group_items/records?${params.toString()}`,
+      {}
+    )
+    return response.items ?? []
+  }, [])
 
   const syncGroupMemberships = useCallback(
     async (objectId: string, nextGroupIds: string[]) => {
@@ -409,7 +353,11 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
             let records: Record<string, unknown>[] = []
             if (Array.isArray(raw)) {
               records = raw
-            } else if (raw && typeof raw === 'object' && Array.isArray((raw as Record<string, unknown>).items)) {
+            } else if (
+              raw &&
+              typeof raw === 'object' &&
+              Array.isArray((raw as Record<string, unknown>).items)
+            ) {
               records = (raw as Record<string, unknown>).items as Record<string, unknown>[]
             }
             let data = records
@@ -419,7 +367,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                 data = data.filter(item => String(item[fk] ?? '') === fv)
               }
             }
-            const opts: RelOpt[] = data.map(item => ({
+            const opts: RelationOption[] = data.map(item => ({
               id: String(item.id),
               label: f.relationFormatLabel
                 ? f.relationFormatLabel(item)
@@ -445,10 +393,11 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
 
   // ─── Form helpers ────────────────────
 
-  function openCreateDialog() {
+  function openCreateForm(initialData: Record<string, unknown> = {}) {
     setEditingItem(null)
+    setAdvancedOpen(false)
     const defaults: Record<string, unknown> = {}
-    for (const f of getFields({}, null)) {
+    for (const f of getFields(initialData, null)) {
       if (f.multiSelect) {
         defaults[f.key] = Array.isArray(f.defaultValue) ? f.defaultValue : []
       } else {
@@ -456,13 +405,23 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
           f.defaultValue ?? (f.type === 'boolean' ? false : f.type === 'number' ? 0 : '')
       }
     }
-    setFormData(defaults)
+    setFormData({ ...defaults, ...initialData })
     setFormError('')
     setDialogOpen(true)
   }
 
+  function openCreateDialog() {
+    if (config.createSelection) {
+      setCreateSelectionQuery('')
+      setCreateSelectionOpen(true)
+      return
+    }
+    openCreateForm()
+  }
+
   function openEditDialog(item: Record<string, unknown>) {
     setEditingItem(item)
+    setAdvancedOpen(false)
     const data: Record<string, unknown> = {}
     for (const f of getFields(item, item)) {
       const val = item[f.key]
@@ -574,6 +533,11 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
 
     try {
       const payload = { ...formData }
+      for (const field of activeFields) {
+        if (field.readOnly) {
+          delete payload[field.key]
+        }
+      }
       const selectedGroups = groupField
         ? Array.isArray(payload[groupField.key])
           ? (payload[groupField.key] as string[])
@@ -648,7 +612,8 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
       const existingMemberships = await listGroupMemberships(resourceObjectType, resourceIds)
       const existingKeys = new Set(
         existingMemberships.map(
-          membership => `${String(membership['group_id'] ?? '')}:${String(membership['object_id'] ?? '')}`
+          membership =>
+            `${String(membership['group_id'] ?? '')}:${String(membership['object_id'] ?? '')}`
         )
       )
       const createOps = targetGroupIds.flatMap(groupId =>
@@ -739,9 +704,13 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
               <RefreshCw className="h-4 w-4" />
             </Button>
           )}
-          <Button onClick={openCreateDialog}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create
+          <Button
+            onClick={openCreateDialog}
+            size={config.createButtonIconOnly ? 'icon' : 'default'}
+            title="Create"
+          >
+            <Plus className={`h-4 w-4 ${config.createButtonIconOnly ? '' : 'mr-2'}`} />
+            {!config.createButtonIconOnly && 'Create'}
           </Button>
         </div>
       </div>
@@ -757,8 +726,8 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
       )}
 
       {/* Table */}
-      <Card>
-        <CardContent className="p-0">
+      {config.wrapTableInCard === false ? (
+        <div>
           {items.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <p>No {config.title.toLowerCase()} found</p>
@@ -838,8 +807,94 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
               </TableBody>
             </Table>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            {items.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <p>No {config.title.toLowerCase()} found</p>
+                <Button variant="link" onClick={openCreateDialog}>
+                  Create your first one
+                </Button>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    {config.enableGroupAssign && (
+                      <TableHead className="w-[40px]">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-input"
+                          checked={items.length > 0 && selectedItems.size === items.length}
+                          onChange={toggleSelectAll}
+                        />
+                      </TableHead>
+                    )}
+                    {config.columns.map(col => (
+                      <TableHead key={col.key}>{col.label}</TableHead>
+                    ))}
+                    <TableHead className="w-[72px] text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {items.map(item => (
+                    <TableRow
+                      key={String(item.id)}
+                      data-selected={selectedItems.has(String(item.id))}
+                    >
+                      {config.enableGroupAssign && (
+                        <TableCell>
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-input"
+                            checked={selectedItems.has(String(item.id))}
+                            onChange={() => toggleSelectItem(String(item.id))}
+                          />
+                        </TableCell>
+                      )}
+                      {config.columns.map(col => (
+                        <TableCell key={col.key}>
+                          {col.render
+                            ? col.render(item[col.key], item)
+                            : String(item[col.key] ?? '')}
+                        </TableCell>
+                      ))}
+                      <TableCell className="text-right whitespace-nowrap">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" title="More actions">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {config.extraActions?.(item, () => {
+                              void fetchItems()
+                            })}
+                            {config.extraActions && <DropdownMenuSeparator />}
+                            <DropdownMenuItem onClick={() => openEditDialog(item)}>
+                              <Pencil className="h-4 w-4" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onClick={() => setDeleteTarget(item)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Batch assign toolbar */}
       {config.enableGroupAssign && selectedItems.size > 0 && (
@@ -936,210 +991,203 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
 
       {/* Create/Edit Dialog */}
       <Dialog
+        open={createSelectionOpen}
+        onOpenChange={v => {
+          setCreateSelectionOpen(v)
+          if (!v) setCreateSelectionQuery('')
+        }}
+      >
+        <DialogContent className={config.createSelection?.dialogClassName ?? 'sm:max-w-2xl'}>
+          <DialogHeader>
+            <DialogTitle>{config.createSelection?.title ?? 'Choose an option'}</DialogTitle>
+            {config.createSelection?.description && (
+              <DialogDescription>{config.createSelection.description}</DialogDescription>
+            )}
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <input
+              type="text"
+              className={INPUT_CLASS}
+              placeholder={config.createSelection?.searchPlaceholder ?? 'Search...'}
+              value={createSelectionQuery}
+              onChange={e => setCreateSelectionQuery(e.target.value)}
+              autoFocus
+            />
+
+            {filteredCreateSelectionOptions.length === 0 ? (
+              <div className="rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+                {config.createSelection?.emptyMessage ?? 'No matching options found.'}
+              </div>
+            ) : (
+              <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
+                {filteredCreateSelectionOptions.map(option => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    className="w-full rounded-lg border px-4 py-3 text-left transition-colors hover:bg-muted"
+                    onClick={() => {
+                      const initialData = config.createSelection?.onSelect(option.id) ?? {}
+                      setCreateSelectionOpen(false)
+                      openCreateForm(initialData)
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-foreground">{option.title}</div>
+                        {option.description && (
+                          <div className="mt-1 text-sm text-muted-foreground">
+                            {option.description}
+                          </div>
+                        )}
+                      </div>
+                      {option.meta && (
+                        <div className="shrink-0 text-xs text-muted-foreground">{option.meta}</div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
         open={dialogOpen}
         onOpenChange={v => {
           setDialogOpen(v)
           if (!v) setCreateRelOpen(false)
+          if (!v) setAdvancedOpen(false)
         }}
       >
-        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {editingItem
-                ? `Edit ${config.title.replace(/s$/, '')}`
-                : `Create ${config.title.replace(/s$/, '')}`}
-            </DialogTitle>
-            <DialogDescription>
-              {editingItem
-                ? 'Update the resource details below.'
-                : 'Fill in the details to create a new resource.'}
-            </DialogDescription>
-          </DialogHeader>
-
+        <DialogContent
+          className={`${config.dialogContentClassName ?? 'sm:max-w-lg'} max-h-[85vh] overflow-y-auto`}
+        >
           <form onSubmit={handleSubmit} className="space-y-4">
-            {activeFields
-              .filter(f => !f.hidden)
-              .filter(f => {
-                if (!f.showWhen) return true
-                return f.showWhen.values.includes(String(formData[f.showWhen.field] ?? ''))
-              })
-              .map(field => {
-                // Resolve effective type (dynamic override)
-                const effectiveType = field.dynamicType
-                  ? field.dynamicType.values.includes(
-                      String(formData[field.dynamicType.field] ?? '')
-                    )
-                    ? field.dynamicType.as
-                    : field.type
-                  : field.type
-                const isUploadable = effectiveType === 'file-textarea' || !!field.fileAccept
-                return (
-                  <div key={field.key} className="space-y-1.5">
-                    <label className="text-sm font-medium text-foreground">
-                      {field.label}
-                      {field.required && <span className="text-destructive ml-1">*</span>}
-                    </label>
+            <DialogHeader>
+              <DialogTitle>{dialogHeader?.title ?? defaultDialogTitle}</DialogTitle>
+              <DialogDescription>
+                {dialogHeader?.description ?? defaultDialogDescription}
+              </DialogDescription>
 
-                    {effectiveType === 'select' ? (
-                      <select
-                        className={INPUT_CLASS}
-                        value={String(formData[field.key] ?? '')}
-                        onChange={e => handleChange(field, e.target.value)}
-                        required={field.required}
-                      >
-                        <option value="">Select…</option>
-                        {renderSelectOptions(field.options)}
-                      </select>
-                    ) : effectiveType === 'relation' && field.multiSelect ? (
-                      <div className="border border-input rounded-md p-2 max-h-44 overflow-y-auto space-y-1 bg-background">
-                        {(relOpts[field.key] ?? []).length === 0 ? (
-                          <p className="text-xs text-muted-foreground px-1">No options available</p>
-                        ) : (
-                          (relOpts[field.key] ?? []).map(o => {
-                            const selected = ((formData[field.key] as string[]) ?? []).includes(
-                              o.id
-                            )
-                            return (
-                              <label
-                                key={o.id}
-                                className="flex items-center gap-2 cursor-pointer px-1 py-0.5 rounded hover:bg-muted transition-colors"
-                              >
-                                <input
-                                  type="checkbox"
-                                  className="h-4 w-4 rounded border-input"
-                                  checked={selected}
-                                  onChange={e => {
-                                    const current = (formData[field.key] as string[]) ?? []
-                                    if (e.target.checked) {
-                                      updateField(field.key, [...current, o.id])
-                                    } else {
-                                      updateField(
-                                        field.key,
-                                        current.filter(id => id !== o.id)
-                                      )
-                                    }
-                                  }}
-                                />
-                                <span className="text-sm">{o.label}</span>
-                              </label>
-                            )
-                          })
-                        )}
-                      </div>
-                    ) : effectiveType === 'relation' ? (
-                      <div className="flex gap-2 items-center">
-                        <select
-                          className={INPUT_CLASS + ' flex-1'}
-                          value={String(formData[field.key] ?? '')}
-                          onChange={e => handleChange(field, e.target.value)}
-                          required={field.required}
-                        >
-                          <option value="">None</option>
-                          {(relOpts[field.key] ?? []).map(o => (
-                            <option key={o.id} value={o.id}>
-                              {o.label}
-                            </option>
-                          ))}
-                        </select>
-                        {field.relationCreateButton && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            title={field.relationCreateButton.label}
-                            onClick={() => {
-                              const fieldKey = field.key
-                              field.relationCreateButton!.onClick({
-                                addOption: (id: string, label: string) => {
-                                  setRelOpts(prev => ({
-                                    ...prev,
-                                    [fieldKey]: [
-                                      ...(prev[fieldKey] ?? []),
-                                      { id, label },
-                                    ],
-                                  }))
-                                  updateField(fieldKey, id)
-                                },
-                              })
-                            }}
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {field.relationCreate && !field.relationCreateButton && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            title={`Create new: ${field.relationCreate.label}`}
-                            onClick={() => openCreateRelDialog(field)}
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    ) : effectiveType === 'textarea' || effectiveType === 'file-textarea' ? (
-                      <div className="space-y-1">
-                        <textarea
-                          className={INPUT_CLASS + ' min-h-[120px] resize-y font-mono text-xs'}
-                          value={String(formData[field.key] ?? '')}
-                          onChange={e => updateField(field.key, e.target.value)}
-                          placeholder={field.placeholder}
-                          required={field.required}
-                          rows={5}
-                        />
-                        {isUploadable && (
-                          <>
-                            <input
-                              ref={el => {
-                                fileRefs.current[field.key] = el
-                              }}
-                              type="file"
-                              accept={field.fileAccept ?? '.pem,.key,.crt,.txt'}
-                              className="hidden"
-                              onChange={e => handleFileUpload(field.key, e)}
-                            />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => fileRefs.current[field.key]?.click()}
-                            >
-                              <Upload className="h-3 w-3 mr-1" />
-                              Upload file
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    ) : effectiveType === 'boolean' ? (
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 rounded border-input"
-                          checked={Boolean(formData[field.key])}
-                          onChange={e => updateField(field.key, e.target.checked)}
-                        />
-                        <span className="text-sm text-muted-foreground">Enabled</span>
-                      </label>
-                    ) : (
-                      <input
-                        type={
-                          effectiveType === 'password'
-                            ? 'password'
-                            : effectiveType === 'number'
-                              ? 'number'
-                              : 'text'
-                        }
-                        className={INPUT_CLASS}
-                        value={String(formData[field.key] ?? '')}
-                        onChange={e => handleChange(field, e.target.value)}
-                        placeholder={field.placeholder}
-                        required={field.required}
-                      />
+              {headerFields.length > 0 && (
+                <div className="mt-4 grid gap-3">
+                  {headerFields.map(field => (
+                    <ResourceFormField
+                      key={field.key}
+                      field={field}
+                      formData={formData}
+                      relationOptions={relOpts[field.key] ?? []}
+                      updateField={updateField}
+                      handleChange={handleChange}
+                      addRelationOption={(id, label, raw) => {
+                        setRelOpts(prev => ({
+                          ...prev,
+                          [field.key]: [...(prev[field.key] ?? []), { id, label, raw }],
+                        }))
+                      }}
+                      openRelationCreate={openCreateRelDialog}
+                      handleFileUpload={handleFileUpload}
+                      fileInputRef={(key, element) => {
+                        fileRefs.current[key] = element
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </DialogHeader>
+
+            {!dialogHeader?.hideSelectedProductSummary &&
+              String(formData['selected_product'] ?? '').trim() && (
+                <div className="rounded-lg border bg-muted/40 px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Selected Product
+                    </span>
+                    <span className="font-semibold text-foreground">
+                      {String(formData['selected_product'] ?? '')}
+                    </span>
+                    {String(formData['selected_product_meta'] ?? '').trim() && (
+                      <span className="text-xs text-muted-foreground">
+                        {String(formData['selected_product_meta'] ?? '')}
+                      </span>
+                    )}
+                    {String(formData['selected_product_description'] ?? '').trim() && (
+                      <span className="text-sm text-muted-foreground">
+                        {String(formData['selected_product_description'] ?? '')}
+                      </span>
                     )}
                   </div>
-                )
-              })}
+                </div>
+              )}
+
+            {primaryFields.map(field => (
+              <ResourceFormField
+                key={field.key}
+                field={field}
+                formData={formData}
+                relationOptions={relOpts[field.key] ?? []}
+                updateField={updateField}
+                handleChange={handleChange}
+                addRelationOption={(id, label, raw) => {
+                  setRelOpts(prev => ({
+                    ...prev,
+                    [field.key]: [...(prev[field.key] ?? []), { id, label, raw }],
+                  }))
+                }}
+                openRelationCreate={openCreateRelDialog}
+                handleFileUpload={handleFileUpload}
+                fileInputRef={(key, element) => {
+                  fileRefs.current[key] = element
+                }}
+              />
+            ))}
+
+            {advancedFields.length > 0 && (
+              <div className="overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-b from-muted/70 via-muted/30 to-background shadow-sm">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-4 border-b border-border/70 px-5 py-4 text-left"
+                  onClick={() => setAdvancedOpen(prev => !prev)}
+                >
+                  <div>
+                    <div className="text-sm font-medium text-foreground">Advanced</div>
+                  </div>
+                  {advancedOpen ? (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </button>
+
+                {advancedOpen && (
+                  <div className="space-y-4 bg-background/90 px-5 py-5">
+                    {advancedFields.map(field => (
+                      <ResourceFormField
+                        key={field.key}
+                        field={field}
+                        formData={formData}
+                        relationOptions={relOpts[field.key] ?? []}
+                        updateField={updateField}
+                        handleChange={handleChange}
+                        addRelationOption={(id, label, raw) => {
+                          setRelOpts(prev => ({
+                            ...prev,
+                            [field.key]: [...(prev[field.key] ?? []), { id, label, raw }],
+                          }))
+                        }}
+                        openRelationCreate={openCreateRelDialog}
+                        handleFileUpload={handleFileUpload}
+                        fileInputRef={(key, element) => {
+                          fileRefs.current[key] = element
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {formError && <p className="text-destructive text-sm">{formError}</p>}
 

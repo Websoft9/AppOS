@@ -5,7 +5,13 @@ import { pb } from '@/lib/pb'
 import { OBJECT_TYPES, getObjectTypeLabel } from '@/lib/object-types'
 import { getApiErrorMessage } from '@/lib/api-error'
 import { useAuth } from '@/contexts/AuthContext'
-import { type GroupRecord, type GroupItemRecord, type PBList, formatDate, formatCreator } from '@/lib/groups'
+import {
+  type GroupRecord,
+  type GroupItemRecord,
+  type PBList,
+  formatDate,
+  formatCreator,
+} from '@/lib/groups'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -192,7 +198,11 @@ function GroupsListPage() {
           body: { name: trimmedName, description: formDesc.trim(), created_by: user?.id ?? '' },
         })
         setDialogOpen(false)
-        navigate({ to: '/groups/$id', params: { id: created.id }, search: { addOpen: undefined, newItem: undefined } })
+        navigate({
+          to: '/groups/$id',
+          params: { id: created.id },
+          search: { addOpen: undefined, newItem: undefined },
+        })
       }
     } catch (err) {
       setFormError(getApiErrorMessage(err, 'Save failed'))
@@ -312,7 +322,12 @@ function GroupsListPage() {
                     onClick={() => toggleSort('name')}
                   >
                     Name
-                    {sortField === 'name' && (sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+                    {sortField === 'name' &&
+                      (sortDir === 'asc' ? (
+                        <ArrowUp className="h-3 w-3" />
+                      ) : (
+                        <ArrowDown className="h-3 w-3" />
+                      ))}
                   </button>
                 </TableHead>
                 <TableHead>Description</TableHead>
@@ -326,7 +341,12 @@ function GroupsListPage() {
                     onClick={() => toggleSort('created')}
                   >
                     Created
-                    {sortField === 'created' && (sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+                    {sortField === 'created' &&
+                      (sortDir === 'asc' ? (
+                        <ArrowUp className="h-3 w-3" />
+                      ) : (
+                        <ArrowDown className="h-3 w-3" />
+                      ))}
                   </button>
                 </TableHead>
                 <TableHead>
@@ -336,7 +356,12 @@ function GroupsListPage() {
                     onClick={() => toggleSort('updated')}
                   >
                     Updated
-                    {sortField === 'updated' && (sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+                    {sortField === 'updated' &&
+                      (sortDir === 'asc' ? (
+                        <ArrowUp className="h-3 w-3" />
+                      ) : (
+                        <ArrowDown className="h-3 w-3" />
+                      ))}
                   </button>
                 </TableHead>
                 <TableHead className="w-[100px] text-right">Actions</TableHead>
@@ -362,7 +387,9 @@ function GroupsListPage() {
                   <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
                     {breakdownText(row.breakdown) || '—'}
                   </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">{formatCreator(row.created_by, user?.id, user?.email)}</TableCell>
+                  <TableCell className="text-muted-foreground text-sm">
+                    {formatCreator(row.created_by, user?.id, user?.email)}
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{formatDate(row.created)}</TableCell>
                   <TableCell className="text-muted-foreground">{formatDate(row.updated)}</TableCell>
                   <TableCell className="text-right">
@@ -429,9 +456,7 @@ function GroupsListPage() {
                   rows={3}
                 />
               </div>
-              {formError && (
-                <p className="text-sm text-destructive">{formError}</p>
-              )}
+              {formError && <p className="text-sm text-destructive">{formError}</p>}
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
@@ -452,8 +477,8 @@ function GroupsListPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Group</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &ldquo;{deleteTarget?.name}&rdquo;? All items
-              in this group will be removed. This action cannot be undone.
+              Are you sure you want to delete &ldquo;{deleteTarget?.name}&rdquo;? All items in this
+              group will be removed. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

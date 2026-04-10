@@ -8,7 +8,9 @@ const navigateMock = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
-  Link: ({ children, to }: { children: React.ReactNode; to: string }) => <a href={to}>{children}</a>,
+  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
+    <a href={to}>{children}</a>
+  ),
 }))
 
 vi.mock('@/lib/i18n', () => ({
@@ -31,7 +33,17 @@ vi.mock('@/lib/store-api', () => ({
 
 vi.mock('@/lib/store-user-api', () => ({
   useUserApps: () => ({
-    data: [{ id: 'fav1', user: 'u1', app_key: 'wordpress', is_favorite: true, note: null, created: '2026-03-21T08:00:00Z', updated: '2026-03-21T08:00:00Z' }],
+    data: [
+      {
+        id: 'fav1',
+        user: 'u1',
+        app_key: 'wordpress',
+        is_favorite: true,
+        note: null,
+        created: '2026-03-21T08:00:00Z',
+        updated: '2026-03-21T08:00:00Z',
+      },
+    ],
   }),
 }))
 
@@ -57,7 +69,9 @@ describe('DeployPage homepage', () => {
     navigateMock.mockReset()
     sendMock.mockImplementation((path: string, options?: { method?: string }) => {
       if (path === '/api/ext/docker/servers') {
-        return Promise.resolve([{ id: 'local', label: 'local', host: '127.0.0.1', status: 'online' }])
+        return Promise.resolve([
+          { id: 'local', label: 'local', host: '127.0.0.1', status: 'online' },
+        ])
       }
       if (path === '/api/actions') {
         return Promise.resolve([
@@ -107,7 +121,10 @@ describe('DeployPage homepage', () => {
           },
         ])
       }
-      if ((path === '/api/actions/dep_1' || path === '/api/actions/dep_2') && options?.method === 'DELETE') {
+      if (
+        (path === '/api/actions/dep_1' || path === '/api/actions/dep_2') &&
+        options?.method === 'DELETE'
+      ) {
         return Promise.resolve({})
       }
       return Promise.resolve({})

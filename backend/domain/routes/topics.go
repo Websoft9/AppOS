@@ -1,13 +1,55 @@
 package routes
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/domain/topic"
+	sharedshare "github.com/websoft9/appos/backend/domain/share"
+	"github.com/websoft9/appos/backend/domain/topics"
 )
+
+type topicShareCreateRequest struct {
+	Minutes int `json:"minutes"`
+}
+
+type topicShareCreateResponse struct {
+	ShareToken string `json:"share_token"`
+	ExpiresAt  string `json:"expires_at"`
+}
+
+type topicShareCommentRequest struct {
+	Body      string `json:"body"`
+	GuestName string `json:"guest_name"`
+}
+
+type topicShareCommentDocument struct {
+	ID        string `json:"id"`
+	Body      string `json:"body"`
+	CreatedBy string `json:"created_by"`
+	Created   string `json:"created"`
+	Updated   string `json:"updated"`
+}
+
+type topicShareResolveResponse struct {
+	ID          string                      `json:"id"`
+	Title       string                      `json:"title"`
+	Description string                      `json:"description"`
+	Closed      bool                        `json:"closed"`
+	Created     string                      `json:"created"`
+	Updated     string                      `json:"updated"`
+	ExpiresAt   string                      `json:"expires_at"`
+	Comments    []topicShareCommentDocument `json:"comments"`
+}
+
+type topicShareCommentResponse struct {
+	ID        string `json:"id"`
+	Body      string `json:"body"`
+	CreatedBy string `json:"created_by"`
+	Created   string `json:"created"`
+}
 
 // ─── Route registration ────────────────────────────────────────────────────
 
@@ -30,60 +72,87 @@ func registerTopicPublicRoutes(se *core.ServeEvent) {
 // ─── Handlers ──────────────────────────────────────────────────────────────
 
 // handleTopicShareCreate creates or refreshes a share token on a topics record.
+//
+// @Summary Create topic share link
+// @Description Creates or refreshes a public share token for a topic owned by the authenticated user.
+// @Tags Topics
+// @Security BearerAuth
+// @Param id path string true "topic id"
+// @Param body body topicShareCreateRequest true "share token options"
+// @Success 200 {object} topicShareCreateResponse
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 403 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/topics/share/{id} [post]
 func handleTopicShareCreate(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 
-	record, err := e.App.FindRecordById(topic.Collection, id)
+	record, err := e.App.FindRecordById(topics.Collection, id)
 	if err != nil {
 		return e.NotFoundError("Topic not found", err)
 	}
 
-	t := topic.From(record)
+	t := topics.From(record)
 	if !t.IsOwnedBy(e.Auth) {
 		return e.ForbiddenError("Access denied", nil)
 	}
 
-	cfg := topic.GetShareConfig(e.App)
+	cfg := topics.GetShareConfig(e.App)
 
-	var body struct {
-		Minutes int `json:"minutes"`
+	var body topicShareCreateRequest
+	if err := e.BindBody(&body); err != nil {
+		return e.BadRequestError("Invalid request body", err)
 	}
-	_ = e.BindBody(&body)
 
-	share, err := topic.NewShareToken(body.Minutes, cfg.MaxMinutes, cfg.DefaultMinutes)
+	issuedShare, err := sharedshare.NewToken(body.Minutes, cfg.MaxMinutes, cfg.DefaultMinutes)
 	if err != nil {
-		return e.BadRequestError(err.Error(), nil)
+		if errors.Is(err, sharedshare.ErrDurationTooLong) {
+			return e.BadRequestError(sharedshare.MessageForError(err), nil)
+		}
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": "failed to generate share token"})
 	}
 
-	record.Set("share_token", share.Token)
-	record.Set("share_expires_at", share.ExpiresAt.Format(time.RFC3339))
-	if err := e.App.Save(record); err != nil {
+	t.ApplyShare(issuedShare)
+	if err := t.Save(e.App); err != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": "failed to save share token"})
 	}
 
 	return e.JSON(http.StatusOK, map[string]any{
-		"share_token": share.Token,
-		"expires_at":  share.ExpiresAt.Format(time.RFC3339),
+		"share_token": issuedShare.Value(),
+		"expires_at":  issuedShare.ExpiresAt().Format(time.RFC3339),
 	})
 }
 
 // handleTopicShareRevoke clears the share token on a topics record.
+//
+// @Summary Revoke topic share link
+// @Description Revokes the current public share token for a topic owned by the authenticated user.
+// @Tags Topics
+// @Security BearerAuth
+// @Param id path string true "topic id"
+// @Success 204 {object} nil
+// @Failure 401 {object} map[string]any
+// @Failure 403 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/topics/share/{id} [delete]
 func handleTopicShareRevoke(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 
-	record, err := e.App.FindRecordById(topic.Collection, id)
+	record, err := e.App.FindRecordById(topics.Collection, id)
 	if err != nil {
 		return e.NotFoundError("Topic not found", err)
 	}
 
-	t := topic.From(record)
+	t := topics.From(record)
 	if !t.IsOwnedBy(e.Auth) {
 		return e.ForbiddenError("Access denied", nil)
 	}
 
-	record.Set("share_token", "")
-	record.Set("share_expires_at", "")
-	if err := e.App.Save(record); err != nil {
+	t.RevokeShare()
+	if err := t.Save(e.App); err != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": "failed to revoke share"})
 	}
 
@@ -92,21 +161,30 @@ func handleTopicShareRevoke(e *core.RequestEvent) error {
 
 // handleTopicShareResolve is a public endpoint that returns topic data + comments
 // for a valid share token.
+//
+// @Summary Resolve topic share link
+// @Description Resolves a public share token and returns the topic with its visible comments.
+// @Tags Topics
+// @Param token path string true "share token"
+// @Success 200 {object} topicShareResolveResponse
+// @Failure 403 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Router /api/topics/share/{token} [get]
 func handleTopicShareResolve(e *core.RequestEvent) error {
 	token := e.Request.PathValue("token")
 
-	record, err := e.App.FindFirstRecordByData(topic.Collection, "share_token", token)
+	record, err := e.App.FindFirstRecordByData(topics.Collection, "share_token", token)
 	if err != nil || record == nil {
 		return e.NotFoundError("Share link not found", nil)
 	}
 
-	t := topic.From(record)
-	if active, reason := t.ShareIsActive(); !active {
-		return e.JSON(http.StatusForbidden, map[string]any{"message": reason})
+	t := topics.From(record)
+	if err := t.ValidateShareActive(); err != nil {
+		return e.JSON(http.StatusForbidden, map[string]any{"message": sharedshare.MessageForError(err)})
 	}
 
 	comments, err := e.App.FindRecordsByFilter(
-		topic.CommentsCollection,
+		topics.CommentsCollection,
 		"topic_id = {:topicId}",
 		"created",
 		500,
@@ -119,7 +197,7 @@ func handleTopicShareResolve(e *core.RequestEvent) error {
 
 	commentList := make([]map[string]any, 0, len(comments))
 	for _, c := range comments {
-		cm := topic.CommentFrom(c)
+		cm := topics.CommentFrom(c)
 		commentList = append(commentList, map[string]any{
 			"id":         cm.ID(),
 			"body":       cm.Body(),
@@ -142,55 +220,51 @@ func handleTopicShareResolve(e *core.RequestEvent) error {
 	})
 }
 
-// handleTopicShareComment allows anonymous comment posting on a shared topic.
+// handleTopicShareComment allows anonymous comment posting on a shared topics.
+//
+// @Summary Create topic share comment
+// @Description Creates an anonymous comment through a valid public share link.
+// @Tags Topics
+// @Param token path string true "share token"
+// @Param body body topicShareCommentRequest true "comment payload"
+// @Success 200 {object} topicShareCommentResponse
+// @Failure 400 {object} map[string]any
+// @Failure 403 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/topics/share/{token}/comments [post]
 func handleTopicShareComment(e *core.RequestEvent) error {
 	token := e.Request.PathValue("token")
 
-	record, err := e.App.FindFirstRecordByData(topic.Collection, "share_token", token)
+	record, err := e.App.FindFirstRecordByData(topics.Collection, "share_token", token)
 	if err != nil || record == nil {
 		return e.NotFoundError("Share link not found", nil)
 	}
 
-	t := topic.From(record)
-	if active, reason := t.ShareIsActive(); !active {
-		return e.JSON(http.StatusForbidden, map[string]any{"message": reason})
+	t := topics.From(record)
+	if err := t.ValidateShareActive(); err != nil {
+		return e.JSON(http.StatusForbidden, map[string]any{"message": sharedshare.MessageForError(err)})
 	}
-	if t.IsClosed() {
-		return e.BadRequestError("This topic is closed", nil)
+	if err := t.EnsureOpen(); err != nil {
+		return e.BadRequestError(topics.MessageForTopicError(err), nil)
 	}
 
-	var body struct {
-		Body      string `json:"body"`
-		GuestName string `json:"guest_name"`
-	}
+	var body topicShareCommentRequest
 	if err := e.BindBody(&body); err != nil {
 		return e.BadRequestError("Invalid request body", err)
 	}
-	if len(body.Body) == 0 || len(body.Body) > topic.MaxCommentBodyLen {
-		return e.BadRequestError("Comment body is required (max 10000 chars)", nil)
-	}
-	guestName := body.GuestName
-	if guestName == "" {
-		guestName = topic.DefaultGuestName
-	}
-	if len(guestName) > topic.MaxGuestNameLen {
-		return e.BadRequestError("Guest name too long (max 100 chars)", nil)
-	}
-
-	col, err := e.App.FindCollectionByNameOrId(topic.CommentsCollection)
+	col, err := e.App.FindCollectionByNameOrId(topics.CommentsCollection)
 	if err != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": "internal error"})
 	}
-
-	comment := core.NewRecord(col)
-	comment.Set("topic_id", t.ID())
-	comment.Set("body", body.Body)
-	comment.Set("created_by", topic.GuestAuthorPrefix+guestName)
-	if err := e.App.Save(comment); err != nil {
+	cm, err := t.NewGuestComment(col, body.Body, body.GuestName)
+	if err != nil {
+		return e.BadRequestError(topics.MessageForTopicError(err), nil)
+	}
+	if err := cm.Save(e.App); err != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": "failed to save comment"})
 	}
 
-	cm := topic.CommentFrom(comment)
 	return e.JSON(http.StatusOK, map[string]any{
 		"id":         cm.ID(),
 		"body":       cm.Body(),

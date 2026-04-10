@@ -307,7 +307,9 @@ export function ConnectorsPage() {
   const [connectorTemplates, setConnectorTemplates] = useState<ConnectorTemplate[]>([])
   const [secretSaving, setSecretSaving] = useState(false)
   const [secretError, setSecretError] = useState('')
-  const [secretAddOption, setSecretAddOption] = useState<((id: string, label: string) => void) | null>(null)
+  const [secretAddOption, setSecretAddOption] = useState<
+    ((id: string, label: string) => void) | null
+  >(null)
 
   useEffect(() => {
     void (async () => {
@@ -327,7 +329,9 @@ export function ConnectorsPage() {
 
     void (async () => {
       try {
-        const data = await pb.send<ConnectorTemplate[]>('/api/connectors/templates', { method: 'GET' })
+        const data = await pb.send<ConnectorTemplate[]>('/api/connectors/templates', {
+          method: 'GET',
+        })
         setConnectorTemplates(
           (Array.isArray(data) ? data : []).filter(template =>
             SUPPORTED_KINDS.includes(template.kind as (typeof SUPPORTED_KINDS)[number])
@@ -354,15 +358,18 @@ export function ConnectorsPage() {
     [connectorTemplates]
   )
 
-  const openSecretDialog = useCallback((callbacks: { addOption: (id: string, label: string) => void }) => {
-    setSecretName('')
-    setSecretDescription('')
-    setSecretTemplateId('single_value')
-    setSecretPayload({})
-    setSecretError('')
-    setSecretAddOption(() => callbacks.addOption)
-    setSecretDialogOpen(true)
-  }, [])
+  const openSecretDialog = useCallback(
+    (callbacks: { addOption: (id: string, label: string) => void }) => {
+      setSecretName('')
+      setSecretDescription('')
+      setSecretTemplateId('single_value')
+      setSecretPayload({})
+      setSecretError('')
+      setSecretAddOption(() => callbacks.addOption)
+      setSecretDialogOpen(true)
+    },
+    []
+  )
 
   const handleSecretCreate = useCallback(async () => {
     if (!secretName.trim()) {
@@ -479,7 +486,10 @@ export function ConnectorsPage() {
           },
           createItem: async payload => {
             const body = await buildConnectorPayload(payload, connectorTemplatesById)
-            const created = await pb.send<ConnectorRecord>('/api/connectors', { method: 'POST', body })
+            const created = await pb.send<ConnectorRecord>('/api/connectors', {
+              method: 'POST',
+              body,
+            })
             return mapConnectorRow(created, connectorTemplatesById)
           },
           updateItem: async (id, payload) => {
@@ -496,7 +506,9 @@ export function ConnectorsPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>New Secret</DialogTitle>
-            <DialogDescription>Create a reusable secret and attach it to this connector.</DialogDescription>
+            <DialogDescription>
+              Create a reusable secret and attach it to this connector.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -506,7 +518,10 @@ export function ConnectorsPage() {
             </div>
             <div className="space-y-2">
               <Label>Description</Label>
-              <Input value={secretDescription} onChange={e => setSecretDescription(e.target.value)} />
+              <Input
+                value={secretDescription}
+                onChange={e => setSecretDescription(e.target.value)}
+              />
             </div>
             <SecretForm
               templates={secretTemplates}

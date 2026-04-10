@@ -14,7 +14,13 @@ type AppDetailHeaderProps = {
   actionMenu: ReactNode
 }
 
-export function AppDetailHeader({ app, refreshing, refreshDisabled = false, onRefresh, actionMenu }: AppDetailHeaderProps) {
+export function AppDetailHeader({
+  app,
+  refreshing,
+  refreshDisabled = false,
+  onRefresh,
+  actionMenu,
+}: AppDetailHeaderProps) {
   return (
     <div className="space-y-3">
       <Button variant="ghost" className="w-fit px-0 text-muted-foreground" asChild>
@@ -38,7 +44,11 @@ export function AppDetailHeader({ app, refreshing, refreshDisabled = false, onRe
         </div>
         <div className="flex flex-wrap items-center gap-2 md:self-start">
           <Button variant="outline" onClick={onRefresh} disabled={refreshing || refreshDisabled}>
-            {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            {refreshing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
             Refresh
           </Button>
           {actionMenu}

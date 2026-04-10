@@ -9,11 +9,11 @@
 package space
 
 import (
-	"errors"
 	"strings"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
+	sharedshare "github.com/websoft9/appos/backend/domain/share"
 )
 
 // ─── Collection names ─────────────────────────────────────────────────────────
@@ -51,9 +51,6 @@ const (
 		"editorconfig,log,diff,patch"
 )
 
-// errShareNoExpiry is a sentinel returned by ShareExpiresAt when the field is absent.
-var errShareNoExpiry = errors.New("share link has no expiry set")
-
 // ─── UserFile aggregate ───────────────────────────────────────────────────────
 
 // UserFile is the aggregate root for the Space domain.
@@ -67,29 +64,25 @@ func From(rec *core.Record) *UserFile {
 	return &UserFile{rec: rec}
 }
 
-// Record returns the underlying PocketBase record for persistence operations.
-func (f *UserFile) Record() *core.Record { return f.rec }
+// Save persists the current aggregate state.
+func (f *UserFile) Save(app core.App) error { return app.Save(f.rec) }
 
 // ─── Identity and state accessors ────────────────────────────────────────────
 
-func (f *UserFile) ID() string          { return f.rec.Id }
-func (f *UserFile) Name() string        { return f.rec.GetString("name") }
-func (f *UserFile) Owner() string       { return f.rec.GetString("owner") }
-func (f *UserFile) MimeType() string    { return f.rec.GetString("mime_type") }
-func (f *UserFile) Size() int           { return f.rec.GetInt("size") }
-func (f *UserFile) IsFolder() bool      { return f.rec.GetBool("is_folder") }
-func (f *UserFile) IsDeleted() bool     { return f.rec.GetBool("is_deleted") }
-func (f *UserFile) Parent() string      { return f.rec.GetString("parent") }
+func (f *UserFile) ID() string             { return f.rec.Id }
+func (f *UserFile) Name() string           { return f.rec.GetString("name") }
+func (f *UserFile) Owner() string          { return f.rec.GetString("owner") }
+func (f *UserFile) MimeType() string       { return f.rec.GetString("mime_type") }
+func (f *UserFile) Size() int              { return f.rec.GetInt("size") }
+func (f *UserFile) IsFolder() bool         { return f.rec.GetBool("is_folder") }
+func (f *UserFile) IsDeleted() bool        { return f.rec.GetBool("is_deleted") }
+func (f *UserFile) Parent() string         { return f.rec.GetString("parent") }
 func (f *UserFile) StoredFilename() string { return f.rec.GetString("content") }
-func (f *UserFile) ShareToken() string  { return f.rec.GetString("share_token") }
+func (f *UserFile) ShareToken() string     { return f.rec.GetString("share_token") }
 
 // ShareExpiresAt parses and returns the share expiry time.
 func (f *UserFile) ShareExpiresAt() (time.Time, error) {
-	raw := f.rec.GetString("share_expires_at")
-	if raw == "" {
-		return time.Time{}, errShareNoExpiry
-	}
-	return time.Parse(time.RFC3339, raw)
+	return sharedshare.ParseExpiry(f.rec.GetString("share_expires_at"))
 }
 
 // ─── Domain rules ────────────────────────────────────────────────────────────
@@ -107,21 +100,34 @@ func (f *UserFile) IsOwnedByID(userID string) bool {
 	return f.rec.GetString("owner") == userID
 }
 
-// ShareIsActive reports whether this file has an active (non-expired, non-revoked)
-// share token. Returns (true, "") when active; (false, reason) otherwise.
+// ValidateShareActive reports whether this file has an active (non-expired,
+// non-revoked) share token. It returns a typed domain error when inactive.
+func (f *UserFile) ValidateShareActive() error {
+	return sharedshare.ValidateActive(
+		f.rec.GetString("share_token"),
+		f.rec.GetString("share_expires_at"),
+		time.Now().UTC(),
+	)
+}
+
+// ShareIsActive preserves the previous boolean API while delegating to typed errors.
 func (f *UserFile) ShareIsActive() (bool, string) {
-	token := f.rec.GetString("share_token")
-	if token == "" {
-		return false, "share link has been revoked"
-	}
-	expiresAt, err := f.ShareExpiresAt()
-	if err != nil {
-		return false, "share link has no expiry set"
-	}
-	if time.Now().UTC().After(expiresAt) {
-		return false, "share link has expired"
+	if err := f.ValidateShareActive(); err != nil {
+		return false, sharedshare.MessageForError(err)
 	}
 	return true, ""
+}
+
+// ApplyShare writes the share token and expiry from s onto the underlying record.
+func (f *UserFile) ApplyShare(s sharedshare.Token) {
+	f.rec.Set("share_token", s.Value())
+	f.rec.Set("share_expires_at", s.ExpiresAt().Format(time.RFC3339))
+}
+
+// RevokeShare clears the share token and expiry from the underlying record.
+func (f *UserFile) RevokeShare() {
+	f.rec.Set("share_token", "")
+	f.rec.Set("share_expires_at", "")
 }
 
 // IsPreviewable reports whether this file's MIME type is in the preview whitelist.

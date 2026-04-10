@@ -1,7 +1,9 @@
 import { Suspense, lazy } from 'react'
 import { Outlet, createFileRoute, useLocation } from '@tanstack/react-router'
 
-const LazyAppsPage = lazy(() => import('@/pages/apps/AppsPage').then(module => ({ default: module.AppsPage })))
+const LazyAppsPage = lazy(() =>
+  import('@/pages/apps/AppsPage').then(module => ({ default: module.AppsPage }))
+)
 
 function AppsRoutePage() {
   const location = useLocation()

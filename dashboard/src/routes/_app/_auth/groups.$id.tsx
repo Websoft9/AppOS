@@ -4,7 +4,14 @@ import { ChevronLeft, ChevronDown, Loader2, Plus, X, Pencil, Search } from 'luci
 import { pb } from '@/lib/pb'
 import { OBJECT_TYPES, OBJECT_TYPE_MAP, getObjectTypeLabel } from '@/lib/object-types'
 import { getApiErrorMessage } from '@/lib/api-error'
-import { type GroupRecord, type GroupItemRecord, type PBList, formatDate, pbFilterValue, buildDetailLink } from '@/lib/groups'
+import {
+  type GroupRecord,
+  type GroupItemRecord,
+  type PBList,
+  formatDate,
+  pbFilterValue,
+  buildDetailLink,
+} from '@/lib/groups'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -46,7 +53,9 @@ function GroupDetailPage() {
 
   const [group, setGroup] = useState<GroupRecord | null>(null)
   const [items, setItems] = useState<GroupItemRecord[]>([])
-  const [resolvedObjects, setResolvedObjects] = useState<Map<string, Record<string, unknown>>>(new Map())
+  const [resolvedObjects, setResolvedObjects] = useState<Map<string, Record<string, unknown>>>(
+    new Map()
+  )
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -83,7 +92,12 @@ function GroupDetailPage() {
     setAddOpen(true)
     loadCandidates(addOpenParam)
     // Clear params so this doesn't re-trigger
-    void navigate({ to: '/groups/$id', params: { id }, search: { addOpen: undefined, newItem: undefined }, replace: true })
+    void navigate({
+      to: '/groups/$id',
+      params: { id },
+      search: { addOpen: undefined, newItem: undefined },
+      replace: true,
+    })
   }, [loading, addOpenParam])
 
   // ─── Data fetch ─────────────────────────────────────────
@@ -157,8 +171,7 @@ function GroupDetailPage() {
       return {
         ...m,
         resolvedName: obj && def ? String(obj[def.nameField] ?? m.object_id) : m.object_id,
-        resolvedSummary:
-          obj && def?.summaryField ? String(obj[def.summaryField] ?? '—') : '—',
+        resolvedSummary: obj && def?.summaryField ? String(obj[def.summaryField] ?? '—') : '—',
         resolvedUpdated: obj ? formatDate(String(obj['updated'] ?? '')) : '—',
       }
     })
@@ -247,9 +260,7 @@ function GroupDetailPage() {
           `/api/collections/${def.collection}/records?perPage=500`,
           {}
         )
-        const available = (res.items ?? []).filter(
-          rec => !existingIds.has(String(rec.id))
-        )
+        const available = (res.items ?? []).filter(rec => !existingIds.has(String(rec.id)))
         setCandidates(available)
       } catch {
         setCandidates([])
@@ -542,7 +553,13 @@ function GroupDetailPage() {
       </Dialog>
 
       {/* Add Items Dialog */}
-      <Dialog open={addOpen} onOpenChange={open => { setAddOpen(open); if (!open) setAddDropdownOpen(false) }}>
+      <Dialog
+        open={addOpen}
+        onOpenChange={open => {
+          setAddOpen(open)
+          if (!open) setAddDropdownOpen(false)
+        }}
+      >
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Add Items</DialogTitle>
@@ -582,7 +599,9 @@ function GroupDetailPage() {
                       ? `Select ${OBJECT_TYPE_MAP[addType]?.label ?? addType}s...`
                       : `${addSelected.size} item${addSelected.size > 1 ? 's' : ''} selected`}
                   </span>
-                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${addDropdownOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown
+                    className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${addDropdownOpen ? 'rotate-180' : ''}`}
+                  />
                 </button>
 
                 {/* Dropdown panel */}
@@ -649,7 +668,10 @@ function GroupDetailPage() {
                           <button
                             type="button"
                             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-muted/50 rounded-sm transition-colors"
-                            onClick={() => { setAddDropdownOpen(false); handleCreateNew(addType) }}
+                            onClick={() => {
+                              setAddDropdownOpen(false)
+                              handleCreateNew(addType)
+                            }}
                           >
                             <Plus className="h-3.5 w-3.5 shrink-0" />
                             Create a new {OBJECT_TYPE_MAP[addType]?.label}

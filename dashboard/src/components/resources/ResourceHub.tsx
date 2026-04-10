@@ -5,7 +5,6 @@ import {
   Database,
   Cloud,
   Plug,
-  FileCode,
   Plus,
   ChevronDown,
   Loader2,
@@ -19,6 +18,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
@@ -30,6 +30,8 @@ interface ResourceDef {
   description: string
   icon: React.ReactNode
   href: string
+  createLabel?: string
+  createDescription?: string
   apiPath?: string
   countQuery?: {
     collection: string
@@ -37,49 +39,77 @@ interface ResourceDef {
   }
 }
 
-const RESOURCES: ResourceDef[] = [
+interface ResourceSection {
+  key: string
+  title: string
+  description: string
+  resources: ResourceDef[]
+}
+
+const HOST_INFRASTRUCTURE: ResourceDef[] = [
   {
     key: 'servers',
     title: 'Servers',
-    description: 'SSH deployment targets',
+    description: 'Linux hosts, SSH targets, and deployment nodes where workloads run.',
     icon: <Server className="h-5 w-5" />,
     href: '/resources/servers',
+    createLabel: 'Add a deployment target',
+    createDescription: 'Linux hosts, SSH targets, and deployment nodes.',
     countQuery: { collection: 'servers' },
   },
-  {
-    key: 'databases',
-    title: 'Databases',
-    description: 'External DB connections',
-    icon: <Database className="h-5 w-5" />,
-    href: '/resources/databases',
-    apiPath: '/api/ext/resources/databases',
-  },
-  {
-    key: 'cloud-accounts',
-    title: 'Cloud Accounts',
-    description: 'AWS, GCP, Aliyun…',
-    icon: <Cloud className="h-5 w-5" />,
-    href: '/resources/cloud-accounts',
-    apiPath: '/api/ext/resources/cloud-accounts',
-  },
+]
 
+const DEPENDENCY_INFRASTRUCTURE: ResourceDef[] = [
+  {
+    key: 'service-instances',
+    title: 'Service Instances',
+    description:
+      'MySQL, PostgreSQL, Redis, Kafka, S3 storage, and model services your apps depend on.',
+    icon: <Database className="h-5 w-5" />,
+    href: '/resources/service-instances',
+    createLabel: 'Register an application dependency',
+    createDescription: 'MySQL, PostgreSQL, Redis, Kafka, S3 storage, and model services.',
+    apiPath: '/api/instances',
+  },
   {
     key: 'connectors',
     title: 'Connectors',
-    description: 'APIs, webhooks, MCP, SMTP, registry, DNS, and external integrations',
+    description: 'OpenAI, SMTP, DNS, webhook, MCP, and registry connections AppOS uses outward.',
     icon: <Plug className="h-5 w-5" />,
     href: '/resources/connectors',
+    createLabel: 'Configure an external connection',
+    createDescription: 'OpenAI, SMTP, DNS, webhook, MCP, and registry connections.',
     apiPath: '/api/connectors?kind=rest_api,webhook,mcp,smtp,registry,dns',
   },
   {
-    key: 'scripts',
-    title: 'Scripts',
-    description: 'Automation scripts',
-    icon: <FileCode className="h-5 w-5" />,
-    href: '/resources/scripts',
-    apiPath: '/api/ext/resources/scripts',
+    key: 'platform-accounts',
+    title: 'Platform Accounts',
+    description: 'AWS, Azure, Google Cloud, GitHub, Cloudflare, and similar platform identities.',
+    icon: <Cloud className="h-5 w-5" />,
+    href: '/resources/platform-accounts',
+    createLabel: 'Save a platform account',
+    createDescription: 'AWS, Azure, Google Cloud, GitHub, Cloudflare, and similar platforms.',
+    apiPath: '/api/provider-accounts',
   },
 ]
+
+const RESOURCE_SECTIONS: ResourceSection[] = [
+  {
+    key: 'host-infrastructure',
+    title: 'Host Infrastructure',
+    description: 'Where workloads run and where host-level operations happen.',
+    resources: HOST_INFRASTRUCTURE,
+  },
+  {
+    key: 'dependency-infrastructure',
+    title: 'Dependency Infrastructure',
+    description: 'Long-lived dependencies, external connections, and the identities behind them.',
+    resources: DEPENDENCY_INFRASTRUCTURE,
+  },
+]
+
+const CREATE_RESOURCES = [...HOST_INFRASTRUCTURE, ...DEPENDENCY_INFRASTRUCTURE]
+const ALL_RESOURCES = [...HOST_INFRASTRUCTURE, ...DEPENDENCY_INFRASTRUCTURE]
 
 // ─── Component ───────────────────────────────────────────
 
@@ -89,7 +119,7 @@ export function ResourceHub() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const promises = RESOURCES.map(r => {
+    const promises = ALL_RESOURCES.map(r => {
       if (r.countQuery) {
         return pb
           .collection(r.countQuery.collection)
@@ -123,7 +153,8 @@ export function ResourceHub() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Resources</h1>
           <p className="text-muted-foreground mt-1">
-            Infrastructure your apps depend on to deploy and run
+            Shared infrastructure for where workloads run, what they depend on, and how AppOS
+            connects outward.
           </p>
         </div>
 
@@ -145,15 +176,23 @@ export function ResourceHub() {
                 <ChevronDown className="h-4 w-4 ml-2" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              {RESOURCES.map(r => (
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuLabel className="text-xs text-muted-foreground">
+                Canonical families
+              </DropdownMenuLabel>
+              {CREATE_RESOURCES.map(r => (
                 <DropdownMenuItem
                   key={r.key}
                   onClick={() => goToCreate(r.href)}
-                  className="gap-2 cursor-pointer"
+                  className="cursor-pointer items-start gap-3"
                 >
                   {r.icon}
-                  {r.title}
+                  <div className="min-w-0">
+                    <div className="font-medium leading-tight">{r.createLabel ?? r.title}</div>
+                    <div className="text-muted-foreground text-xs leading-tight mt-1">
+                      {r.createDescription ?? r.title}
+                    </div>
+                  </div>
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -161,46 +200,52 @@ export function ResourceHub() {
         </div>
       </div>
 
-      {/* Cards grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {RESOURCES.map(r => (
-          <Card
-            key={r.key}
-            className="cursor-pointer transition-shadow hover:shadow-md group"
-            onClick={() => navigate({ to: r.href as never })}
-          >
-            <CardContent className="px-4 py-3">
-              {/* Icon + Title(n) + Arrow */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="p-1 rounded-md bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors shrink-0">
-                    {r.icon}
-                  </div>
-                  <p className="text-sm font-medium leading-tight truncate">
-                    {r.title}
-                    {!loading && (
-                      <span className="ml-2 text-muted-foreground font-medium">
-                        ({counts[r.key] ?? 0})
-                      </span>
-                    )}
-                    {loading && (
-                      <span className="ml-2 inline-flex">
-                        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                      </span>
-                    )}
-                  </p>
-                </div>
-                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0 ml-1" />
-              </div>
+      {RESOURCE_SECTIONS.map(section => (
+        <section key={section.key} className="space-y-3">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">{section.title}</h2>
+            <p className="text-sm text-muted-foreground mt-1">{section.description}</p>
+          </div>
 
-              {/* Description */}
-              <p className="text-xs text-muted-foreground leading-tight mt-2 pl-7">
-                {r.description}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {section.resources.map(r => (
+              <Card
+                key={r.key}
+                className="cursor-pointer transition-shadow hover:shadow-md group"
+                onClick={() => navigate({ to: r.href as never })}
+              >
+                <CardContent className="px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="p-1 rounded-md bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors shrink-0">
+                        {r.icon}
+                      </div>
+                      <p className="text-sm font-medium leading-tight truncate">
+                        {r.title}
+                        {!loading && (
+                          <span className="ml-2 text-muted-foreground font-medium">
+                            ({counts[r.key] ?? 0})
+                          </span>
+                        )}
+                        {loading && (
+                          <span className="ml-2 inline-flex">
+                            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0 ml-1" />
+                  </div>
+
+                  <p className="text-xs text-muted-foreground leading-tight mt-2 pl-7">
+                    {r.description}
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+      ))}
     </div>
   )
 }

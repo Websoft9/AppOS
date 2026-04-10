@@ -47,7 +47,9 @@ vi.mock('@/components/ui/alert-dialog', () => ({
   AlertDialogTitle: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   AlertDialogDescription: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   AlertDialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  AlertDialogCancel: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
+  AlertDialogCancel: ({ children }: { children: ReactNode }) => (
+    <button type="button">{children}</button>
+  ),
   AlertDialogAction: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => (
     <button type="button" onClick={onClick}>
       {children}
@@ -275,7 +277,9 @@ describe('TunnelsPage', () => {
         ],
       })
     })
-    expect(screen.getByText('Saved. Applies on next reconnect or regenerated setup.')).toBeInTheDocument()
+    expect(
+      screen.getByText('Saved. Applies on next reconnect or regenerated setup.')
+    ).toBeInTheDocument()
   })
 
   it('renames disconnect to restart connection and allows dismissing notices', async () => {

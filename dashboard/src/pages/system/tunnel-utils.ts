@@ -60,10 +60,15 @@ export function normalizeTunnelForwardsResponse(
       service_name: String(forward.service_name ?? '').trim(),
       local_port: Number(forward.local_port ?? 0),
     }))
-    .filter(forward => forward.service_name && Number.isInteger(forward.local_port) && forward.local_port > 0)
+    .filter(
+      forward =>
+        forward.service_name && Number.isInteger(forward.local_port) && forward.local_port > 0
+    )
 }
 
-export function normalizeTunnelLogsResponse(response: { items?: TunnelLogItem[] } | null | undefined) {
+export function normalizeTunnelLogsResponse(
+  response: { items?: TunnelLogItem[] } | null | undefined
+) {
   if (!Array.isArray(response?.items)) {
     return [] as TunnelLogItem[]
   }

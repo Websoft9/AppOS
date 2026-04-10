@@ -23,6 +23,19 @@ type providerAccountUpsertRequest struct {
 	Description  string         `json:"description"`
 }
 
+type providerAccountResponseDocument struct {
+	ID           string         `json:"id"`
+	Created      string         `json:"created"`
+	Updated      string         `json:"updated"`
+	Name         string         `json:"name"`
+	Kind         string         `json:"kind"`
+	TemplateID   string         `json:"template_id"`
+	Identifier   string         `json:"identifier"`
+	CredentialID string         `json:"credential"`
+	Config       map[string]any `json:"config"`
+	Description  string         `json:"description"`
+}
+
 func registerProviderAccountRoutes(se *core.ServeEvent) {
 	group := se.Router.Group("/api/provider-accounts")
 	group.Bind(apis.RequireAuth())
@@ -79,7 +92,7 @@ func handleProviderAccountTemplateGet(e *core.RequestEvent) error {
 // @Tags Resource
 // @Security BearerAuth
 // @Param kind query string false "comma-separated provider-account kinds"
-// @Success 200 {array} map[string]any
+// @Success 200 {array} providerAccountResponseDocument
 // @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]any
 // @Router /api/provider-accounts [get]
@@ -100,7 +113,7 @@ func handleProviderAccountList(e *core.RequestEvent) error {
 // @Tags Resource
 // @Security BearerAuth
 // @Param id path string true "provider account id"
-// @Success 200 {object} map[string]any
+// @Success 200 {object} providerAccountResponseDocument
 // @Failure 401 {object} map[string]any
 // @Failure 404 {object} map[string]any
 // @Router /api/provider-accounts/{id} [get]
@@ -120,7 +133,7 @@ func handleProviderAccountGet(e *core.RequestEvent) error {
 // @Tags Resource
 // @Security BearerAuth
 // @Param body body providerAccountUpsertRequest true "provider account payload"
-// @Success 201 {object} map[string]any
+// @Success 201 {object} providerAccountResponseDocument
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 403 {object} map[string]any
@@ -150,7 +163,7 @@ func handleProviderAccountCreate(e *core.RequestEvent) error {
 // @Security BearerAuth
 // @Param id path string true "provider account id"
 // @Param body body providerAccountUpsertRequest true "provider account payload"
-// @Success 200 {object} map[string]any
+// @Success 200 {object} providerAccountResponseDocument
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
 // @Failure 403 {object} map[string]any

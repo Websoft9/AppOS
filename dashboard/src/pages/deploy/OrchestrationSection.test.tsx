@@ -24,7 +24,10 @@ describe('OrchestrationSection', () => {
 
   beforeEach(() => {
     loadLibraryAppFilesMock.mockReset()
-    loadLibraryAppFilesMock.mockResolvedValue({ compose: 'services:\n  web:\n    image: nginx:alpine\n', env: '' })
+    loadLibraryAppFilesMock.mockResolvedValue({
+      compose: 'services:\n  web:\n    image: nginx:alpine\n',
+      env: '',
+    })
   })
 
   function renderSection() {
@@ -108,7 +111,7 @@ describe('OrchestrationSection', () => {
           srcUploaded={[]}
           onYamlError={onYamlError}
         />
-      </TooltipProvider>,
+      </TooltipProvider>
     )
 
     // Open the Compose File details section
@@ -130,7 +133,7 @@ describe('OrchestrationSection', () => {
           srcUploaded={[]}
           onYamlError={onYamlError}
         />
-      </TooltipProvider>,
+      </TooltipProvider>
     )
     rerender(
       <TooltipProvider>
@@ -147,11 +150,13 @@ describe('OrchestrationSection', () => {
           srcUploaded={[]}
           onYamlError={onYamlError}
         />
-      </TooltipProvider>,
+      </TooltipProvider>
     )
 
     // Wait for debounce + state update
-    await act(async () => { await new Promise(r => setTimeout(r, 500)) })
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 500))
+    })
 
     await waitFor(() => {
       expect(onYamlError).toHaveBeenCalledWith(expect.stringContaining(''))
@@ -177,10 +182,12 @@ describe('OrchestrationSection', () => {
           srcUploaded={[]}
           onYamlError={onYamlError}
         />
-      </TooltipProvider>,
+      </TooltipProvider>
     )
 
-    await act(async () => { await new Promise(r => setTimeout(r, 500)) })
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 500))
+    })
 
     await waitFor(() => {
       expect(onYamlError).toHaveBeenCalledWith(null)

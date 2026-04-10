@@ -108,14 +108,15 @@ func loadTemplates() error {
 }
 
 type templateFile struct {
-	ID              *string             `json:"id,omitempty"`
-	Category        *string             `json:"category,omitempty"`
-	Kind            *string             `json:"kind,omitempty"`
-	Title           *string             `json:"title,omitempty"`
-	Vendor          *string             `json:"vendor,omitempty"`
-	Description     *string             `json:"description,omitempty"`
-	DefaultEndpoint *string             `json:"defaultEndpoint,omitempty"`
-	Fields          []templateFieldFile `json:"fields,omitempty"`
+	ID               *string             `json:"id,omitempty"`
+	Category         *string             `json:"category,omitempty"`
+	Kind             *string             `json:"kind,omitempty"`
+	Title            *string             `json:"title,omitempty"`
+	Vendor           *string             `json:"vendor,omitempty"`
+	Description      *string             `json:"description,omitempty"`
+	DefaultEndpoint  *string             `json:"defaultEndpoint,omitempty"`
+	OmitCommonFields []string            `json:"omitCommonFields,omitempty"`
+	Fields           []templateFieldFile `json:"fields,omitempty"`
 }
 
 type templateFieldFile struct {
@@ -182,6 +183,9 @@ func applyTemplateOverlay(base Template, file templateFile) (Template, error) {
 	}
 	if file.DefaultEndpoint != nil {
 		result.DefaultEndpoint = strings.TrimSpace(*file.DefaultEndpoint)
+	}
+	if file.OmitCommonFields != nil {
+		result.OmitCommonFields = append([]string(nil), file.OmitCommonFields...)
 	}
 	if file.Fields != nil {
 		fields, err := mergeTemplateFields(base.Fields, file.Fields)
