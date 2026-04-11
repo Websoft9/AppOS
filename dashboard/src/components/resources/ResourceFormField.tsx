@@ -46,6 +46,7 @@ function renderSelectOptions(options: SelectOption[] | undefined) {
 interface ResourceFormFieldProps {
   field: FieldDef
   formData: Record<string, unknown>
+  editingItem: Record<string, unknown> | null
   relationOptions: RelationOption[]
   updateField: (key: string, value: unknown) => void
   handleChange: (field: FieldDef, raw: unknown) => void
@@ -58,6 +59,7 @@ interface ResourceFormFieldProps {
 export function ResourceFormField({
   field,
   formData,
+  editingItem,
   relationOptions,
   updateField,
   handleChange,
@@ -90,6 +92,7 @@ export function ResourceFormField({
           inputId,
           value: formData[field.key],
           formData,
+          editingItem,
           updateField,
           setValue: value => handleChange(field, value),
           relationOptions,
@@ -151,6 +154,9 @@ export function ResourceFormField({
           searchPlaceholder={`Search ${field.label.toLowerCase()}...`}
           emptyMessage="No matching references."
           createLabel={field.relationCreateButton?.label ?? field.relationCreate?.label}
+          showNoneOption={field.relationShowNoneOption ?? !field.required}
+          showSelectedIndicator={field.relationShowSelectedIndicator ?? true}
+          borderlessMenu={field.relationBorderlessMenu ?? false}
           onCreate={
             field.relationCreateButton
               ? () => {

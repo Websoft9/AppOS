@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
 import { PlugZap, Loader2, Cable, Link as LinkIcon, RotateCcw, Power } from 'lucide-react'
@@ -12,11 +12,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { ResourcePage, type Column, type FieldDef } from '@/components/resources/ResourcePage'
 import { TunnelSetupWizard } from '@/components/servers/TunnelSetupWizard'
-import { SecretForm, type SecretTemplate } from '@/components/secrets/SecretForm'
+import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { pb } from '@/lib/pb'
 import { checkServerStatus as pingServerStatus, serverPower } from '@/lib/connect-api'
 
@@ -78,68 +76,18 @@ function ServersPage() {
   const [powerError, setPowerError] = useState('')
   const [pingResults, setPingResults] = useState<Record<string, 'online' | 'offline'>>({})
 
-  // ── Create-Secret dialog (reuses SecretForm) ──
   const [secretDialogOpen, setSecretDialogOpen] = useState(false)
-  const [secretName, setSecretName] = useState('')
-  const [secretTemplateId, setSecretTemplateId] = useState('')
-  const [secretPayload, setSecretPayload] = useState<Record<string, string>>({})
-  const [secretTemplates, setSecretTemplates] = useState<SecretTemplate[]>([])
-  const [secretSaving, setSecretSaving] = useState(false)
-  const [secretError, setSecretError] = useState('')
-  // callback provided by ResourcePage's addOption
   const [secretAddOption, setSecretAddOption] = useState<
     ((id: string, label: string) => void) | null
   >(null)
 
-  // Load secret templates on mount (only the allowed ones)
-  useEffect(() => {
-    void (async () => {
-      try {
-        const data = await pb.send<SecretTemplate[]>('/api/secrets/templates', { method: 'GET' })
-        const filtered = (Array.isArray(data) ? data : []).filter(t => ALLOWED_TEMPLATES.has(t.id))
-        // Rename labels to user-friendly aliases
-        setSecretTemplates(filtered.map(t => ({ ...t, label: TEMPLATE_ALIASES[t.id] ?? t.label })))
-      } catch {
-        // ignore
-      }
-    })()
-  }, [])
-
   const openSecretDialog = useCallback(
     (callbacks: { addOption: (id: string, label: string) => void }) => {
-      setSecretName('')
-      setSecretTemplateId('')
-      setSecretPayload({})
-      setSecretError('')
       setSecretAddOption(() => callbacks.addOption)
       setSecretDialogOpen(true)
     },
     []
   )
-
-  const handleSecretCreate = useCallback(async () => {
-    setSecretSaving(true)
-    setSecretError('')
-    try {
-      const created = await pb.collection('secrets').create({
-        name: secretName,
-        template_id: secretTemplateId,
-        scope: 'global',
-        payload: secretPayload,
-      })
-      const label = formatSecretLabel({
-        name: secretName,
-        template_id: secretTemplateId,
-        id: created.id,
-      })
-      secretAddOption?.(String(created.id), label)
-      setSecretDialogOpen(false)
-    } catch (err) {
-      setSecretError(err instanceof Error ? err.message : 'Create failed')
-    } finally {
-      setSecretSaving(false)
-    }
-  }, [secretName, secretTemplateId, secretPayload, secretAddOption])
 
   // Build fields (credential's create button needs component-level handler)
   const serverFields = useMemo<FieldDef[]>(
@@ -500,62 +448,19 @@ function ServersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Create credential secret dialog – reuses SecretForm */}
-      <Dialog open={secretDialogOpen} onOpenChange={setSecretDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Create Credential Secret</DialogTitle>
-            <DialogDescription>Choose a type and fill in the credential details.</DialogDescription>
-          </DialogHeader>
-          <form
-            onSubmit={e => {
-              e.preventDefault()
-              void handleSecretCreate()
-            }}
-          >
-            <div className="space-y-4 py-2">
-              <div className="space-y-2">
-                <Label htmlFor="secret-name">Name</Label>
-                <Input
-                  id="secret-name"
-                  value={secretName}
-                  onChange={e => setSecretName(e.target.value)}
-                  placeholder="e.g. my-server-key"
-                  required
-                />
-              </div>
-
-              <SecretForm
-                templates={secretTemplates}
-                templateId={secretTemplateId}
-                payload={secretPayload}
-                onTemplateChange={id => {
-                  setSecretTemplateId(id)
-                  setSecretPayload({})
-                }}
-                onPayloadChange={(k, v) => setSecretPayload(prev => ({ ...prev, [k]: v }))}
-              />
-
-              {secretError && <div className="text-sm text-destructive">{secretError}</div>}
-            </div>
-
-            <DialogFooter className="mt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setSecretDialogOpen(false)}
-                disabled={secretSaving}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={secretSaving || !secretName.trim()}>
-                {secretSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Create
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <SecretCreateDialog
+        open={secretDialogOpen}
+        onOpenChange={setSecretDialogOpen}
+        title="Create Credential Secret"
+        description="Choose a type and fill in the credential details."
+        allowedTemplateIds={Array.from(ALLOWED_TEMPLATES)}
+        templateLabels={TEMPLATE_ALIASES}
+        defaultTemplateId="single_value"
+        onCreated={({ id, name, templateId }) => {
+          const label = formatSecretLabel({ name, template_id: templateId, id })
+          secretAddOption?.(id, label)
+        }}
+      />
     </>
   )
 }

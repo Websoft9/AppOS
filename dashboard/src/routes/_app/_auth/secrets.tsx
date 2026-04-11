@@ -264,7 +264,7 @@ function FilterHeader({
 // ─── Main page ───────────────────────────────────────────
 
 export function SecretsPage() {
-  const { id: idFilter, returnGroup, returnType } = Route.useSearch()
+  const { id: idFilter, edit: editFilter, returnGroup, returnType } = Route.useSearch()
   const navigate = Route.useNavigate()
   const [allItems, setAllItems] = useState<SecretRecord[]>([])
   const [templates, setTemplates] = useState<SecretTemplate[]>([])
@@ -580,6 +580,16 @@ export function SecretsPage() {
     setEditNotice('')
   }
 
+  function clearEditSearchParam() {
+    if (!editFilter) {
+      return
+    }
+    void navigate({
+      to: '.',
+      search: prev => ({ ...prev, edit: undefined }),
+    })
+  }
+
   async function openEdit(item: SecretRecord) {
     setEditId(item.id)
     setEditName(item.name)
@@ -597,6 +607,18 @@ export function SecretsPage() {
       setEditError(err instanceof Error ? err.message : 'Failed to load secret types')
     }
   }
+
+  useEffect(() => {
+    if (!editFilter || editOpen || loading) {
+      return
+    }
+    const target = allItems.find(item => item.id === editFilter)
+    if (!target) {
+      return
+    }
+    void openEdit(target)
+    clearEditSearchParam()
+  }, [allItems, editFilter, editOpen, loading])
 
   async function handleEditMetadataSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -1066,7 +1088,10 @@ export function SecretsPage() {
         open={editOpen}
         onOpenChange={open => {
           setEditOpen(open)
-          if (!open) resetEditForm()
+          if (!open) {
+            resetEditForm()
+            clearEditSearchParam()
+          }
         }}
       >
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
@@ -1257,6 +1282,7 @@ export const Route = createFileRoute('/_app/_auth/secrets')({
   component: SecretsPage,
   validateSearch: (search: Record<string, unknown>) => ({
     id: typeof search.id === 'string' ? search.id : undefined,
+    edit: typeof search.edit === 'string' ? search.edit : undefined,
     returnGroup: typeof search.returnGroup === 'string' ? search.returnGroup : undefined,
     returnType: typeof search.returnType === 'string' ? search.returnType : undefined,
   }),

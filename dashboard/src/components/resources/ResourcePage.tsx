@@ -143,6 +143,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   const [relOpts, setRelOpts] = useState<Record<string, RelationOption[]>>({})
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const createRelFileRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const listItemsRef = useRef(config.listItems)
 
   // Inline "create relation" mini-dialog
   const [createRelOpen, setCreateRelOpen] = useState(false)
@@ -285,10 +286,14 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
 
   // ─── Fetch ───────────────────────────
 
+  useEffect(() => {
+    listItemsRef.current = config.listItems
+  }, [config.listItems])
+
   const fetchItems = useCallback(async () => {
     try {
-      const data = config.listItems
-        ? await config.listItems()
+      const data = listItemsRef.current
+        ? await listItemsRef.current()
         : await pb.send<Record<string, unknown>[]>(config.apiPath, {})
       setItems(Array.isArray(data) ? data : [])
       setError('')
@@ -393,11 +398,9 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
 
   // ─── Form helpers ────────────────────
 
-  function openCreateForm(initialData: Record<string, unknown> = {}) {
-    setEditingItem(null)
-    setAdvancedOpen(false)
+  function buildDefaultFormData(initialData: Record<string, unknown>, nextEditingItem: Record<string, unknown> | null) {
     const defaults: Record<string, unknown> = {}
-    for (const f of getFields(initialData, null)) {
+    for (const f of getFields(initialData, nextEditingItem)) {
       if (f.multiSelect) {
         defaults[f.key] = Array.isArray(f.defaultValue) ? f.defaultValue : []
       } else {
@@ -405,6 +408,13 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
           f.defaultValue ?? (f.type === 'boolean' ? false : f.type === 'number' ? 0 : '')
       }
     }
+    return defaults
+  }
+
+  function openCreateForm(initialData: Record<string, unknown> = {}) {
+    setEditingItem(null)
+    setAdvancedOpen(false)
+    const defaults = buildDefaultFormData(initialData, null)
     setFormData({ ...defaults, ...initialData })
     setFormError('')
     setDialogOpen(true)
@@ -452,6 +462,16 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
 
   function updateField(key: string, value: unknown) {
     setFormData(prev => ({ ...prev, [key]: value }))
+  }
+
+  function resetFormDialog() {
+    setFormError('')
+    if (editingItem) {
+      openEditDialog(editingItem)
+      return
+    }
+    setAdvancedOpen(false)
+    setFormData(buildDefaultFormData(formData, null))
   }
 
   function handleChange(field: FieldDef, raw: unknown) {
@@ -1078,6 +1098,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                       key={field.key}
                       field={field}
                       formData={formData}
+                      editingItem={editingItem}
                       relationOptions={relOpts[field.key] ?? []}
                       updateField={updateField}
                       handleChange={handleChange}
@@ -1127,6 +1148,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                 key={field.key}
                 field={field}
                 formData={formData}
+                editingItem={editingItem}
                 relationOptions={relOpts[field.key] ?? []}
                 updateField={updateField}
                 handleChange={handleChange}
@@ -1168,6 +1190,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                         key={field.key}
                         field={field}
                         formData={formData}
+                        editingItem={editingItem}
                         relationOptions={relOpts[field.key] ?? []}
                         updateField={updateField}
                         handleChange={handleChange}
@@ -1192,9 +1215,15 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
             {formError && <p className="text-destructive text-sm">{formError}</p>}
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                Cancel
-              </Button>
+              {config.resetFormButtonLabel ? (
+                <Button type="button" variant="outline" onClick={resetFormDialog}>
+                  {config.resetFormButtonLabel}
+                </Button>
+              ) : (
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                  Cancel
+                </Button>
+              )}
               <Button type="submit" disabled={saving}>
                 {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 {editingItem ? 'Save' : 'Create'}

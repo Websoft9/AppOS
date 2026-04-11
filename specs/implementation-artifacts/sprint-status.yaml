@@ -95,6 +95,13 @@ development_status:
   7.10-responsive-design: backlog         # Mobile optimization (1024px+)
   epic7-retrospective: optional
 
+  # Epic 8: Resources
+  epic8: in-progress
+  story8.10-resource-hub-canonical-structure: ready-for-dev
+  story8.11-add-resource-canonical-entry: ready-for-dev
+  story8.12-resource-hub-usability-baseline: ready-for-dev
+  epic8-retrospective: optional
+
   # Epic 9: User Space (formerly Files)
   # Rebrand: files→space applied 2026-02-24 (sprint-change-proposal-2026-02-24.md)
   # Normalized split (2026-03-01): 9.1~9.4 consolidated stories

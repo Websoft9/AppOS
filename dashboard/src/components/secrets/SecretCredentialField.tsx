@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -31,6 +32,8 @@ interface SecretCredentialFieldProps {
   onReferenceValueChange: (value: string) => void
   options: RelationOption[]
   onCreateReference?: () => void
+  onEditReference?: (value: string) => void
+  editMode?: boolean
 }
 
 export function SecretCredentialField({
@@ -43,56 +46,90 @@ export function SecretCredentialField({
   onReferenceValueChange,
   options,
   onCreateReference,
+  onEditReference,
+  editMode = false,
 }: SecretCredentialFieldProps) {
   const [generatorOpen, setGeneratorOpen] = useState(false)
   const [length, setLength] = useState(24)
+  const [revealed, setRevealed] = useState(false)
+  const showReferencePicker = editMode || useReference
 
   return (
     <div className="space-y-3">
-      {!useReference ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-muted/30 p-3">
-          <Input
-            id={inputId}
-            type="password"
-            value={manualValue}
-            onChange={event => onManualValueChange(event.target.value)}
-            placeholder="Enter a password"
-            className="min-w-[220px] flex-1 bg-background"
-          />
-          <Button type="button" variant="outline" size="sm" onClick={() => setGeneratorOpen(true)}>
-            Generate
-          </Button>
-          <label className="inline-flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm">
+      <div className="flex flex-wrap items-start gap-3 rounded-xl border border-border/70 bg-muted/30 p-3">
+        <div className="min-w-[220px] flex-1">
+          {showReferencePicker ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="min-w-[220px] flex-1">
+                <ReferenceSelect
+                  id={`${inputId}-reference`}
+                  value={referenceValue}
+                  options={options}
+                  onSelect={onReferenceValueChange}
+                  placeholder="Select a Secret"
+                  searchPlaceholder="Search secrets..."
+                  emptyMessage="No matching secrets."
+                  createLabel={onCreateReference ? 'New Secret' : undefined}
+                  onCreate={onCreateReference}
+                  autoOpen={!editMode}
+                  showNoneOption={false}
+                  showSelectedIndicator={false}
+                  borderlessMenu
+                />
+              </div>
+              {referenceValue && onEditReference && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10"
+                  onClick={() => onEditReference(referenceValue)}
+                >
+                  Edit Secret
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative min-w-[220px] flex-1">
+                <Input
+                  id={inputId}
+                  type={revealed ? 'text' : 'password'}
+                  value={manualValue}
+                  onChange={event => onManualValueChange(event.target.value)}
+                  placeholder="Enter a password"
+                  className="bg-background pr-10"
+                />
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                  title={revealed ? 'Hide password' : 'Show password'}
+                  onClick={() => setRevealed(prev => !prev)}
+                >
+                  {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <Button type="button" className="h-10" onClick={() => setGeneratorOpen(true)}>
+                Generate
+              </Button>
+            </div>
+          )}
+        </div>
+        {!editMode && (
+          <label className="inline-flex h-10 shrink-0 items-center gap-2 self-start pt-0.5 text-sm">
             <Checkbox
               checked={useReference}
-              onCheckedChange={checked => onUseReferenceChange(Boolean(checked))}
+              onCheckedChange={checked => {
+                const nextValue = Boolean(checked)
+                if (nextValue) {
+                  setRevealed(false)
+                }
+                onUseReferenceChange(nextValue)
+              }}
             />
             <span>Select a Secret</span>
           </label>
-        </div>
-      ) : (
-        <div className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-3">
-          <label className="inline-flex w-fit items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm">
-            <Checkbox
-              checked={useReference}
-              onCheckedChange={checked => onUseReferenceChange(Boolean(checked))}
-            />
-            <span>Select a Secret</span>
-          </label>
-          <ReferenceSelect
-            id={`${inputId}-reference`}
-            value={referenceValue}
-            options={options}
-            onSelect={onReferenceValueChange}
-            placeholder="Select a Secret"
-            searchPlaceholder="Search secrets..."
-            emptyMessage="No matching secrets."
-            createLabel={onCreateReference ? 'New Secret' : undefined}
-            onCreate={onCreateReference}
-            autoOpen
-          />
-        </div>
-      )}
+        )}
+      </div>
 
       <PasswordGeneratorDialog
         open={generatorOpen}

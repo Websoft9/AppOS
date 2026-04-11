@@ -12,43 +12,70 @@ vi.mock('@tanstack/react-router', () => ({
     children,
     to,
     className,
+    onClick,
   }: {
     children: React.ReactNode
     to: string
     className?: string
+    onClick?: () => void
   }) => (
-    <a href={to} className={className}>
+    <a href={to} className={className} onClick={onClick}>
       {children}
     </a>
   ),
 }))
 
-vi.mock('@/components/ui/dropdown-menu', () => ({
-  DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DropdownMenuLabel: ({
+vi.mock('@/components/ui/popover', () => {
+  function Popover({ children }: { children: React.ReactNode }) {
+    return <div>{children}</div>
+  }
+
+  function PopoverTrigger({ children }: { children: React.ReactNode }) {
+    return <div>{children}</div>
+  }
+
+  function PopoverContent({
     children,
     className,
   }: {
     children: React.ReactNode
     className?: string
-  }) => <div className={className}>{children}</div>,
-  DropdownMenuSeparator: () => <hr />,
-  DropdownMenuItem: ({
+  }) {
+    return <div className={className}>{children}</div>
+  }
+
+  return { Popover, PopoverTrigger, PopoverContent }
+})
+
+vi.mock('@/components/ui/collapsible', () => {
+  function Collapsible({
     children,
-    onClick,
-    className,
+    open,
   }: {
     children: React.ReactNode
-    onClick?: () => void
-    className?: string
-  }) => (
-    <button type="button" onClick={onClick} className={className}>
-      {children}
-    </button>
-  ),
-}))
+    open?: boolean
+  }) {
+    return <div data-open={open ? 'true' : 'false'}>{children}</div>
+  }
+
+  function CollapsibleTrigger({
+    children,
+  }: {
+    children: React.ReactNode
+  }) {
+    return <div>{children}</div>
+  }
+
+  function CollapsibleContent({
+    children,
+  }: {
+    children: React.ReactNode
+  }) {
+    return <div>{children}</div>
+  }
+
+  return { Collapsible, CollapsibleTrigger, CollapsibleContent }
+})
 
 vi.mock('@/lib/pb', () => ({
   pb: {
@@ -90,8 +117,22 @@ describe('ResourceHub', () => {
   it('renders canonical hub sections and copy', async () => {
     render(<ResourceHub />)
 
-    expect(screen.getByRole('heading', { name: 'Host Infrastructure' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Dependency Infrastructure' })).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Shared platform resources for where workloads run, what they depend on, and how AppOS connects outward.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByText('2 grouped areas')).toBeInTheDocument()
+    expect(screen.getByText('4 canonical families')).toBeInTheDocument()
+    expect(
+      screen.getByText('Choose a destination first, then manage details inside that family.')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('The hub stays orientation-first while counts refresh in the background.')
+    ).toBeInTheDocument()
+    expect(screen.getByText('Refreshing family counts...')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Runtime Infrastructure' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'External Integrations' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Additional Resources' })).not.toBeInTheDocument()
 
     expect(screen.getAllByText('Service Instances').length).toBeGreaterThan(0)
@@ -101,9 +142,15 @@ describe('ResourceHub', () => {
       screen.getByText('Linux hosts, SSH targets, and deployment nodes where workloads run.')
     ).toBeInTheDocument()
     expect(
+      screen.getByText('Where applications run and the shared services they depend on.')
+    ).toBeInTheDocument()
+    expect(
       screen.getByText(
-        'MySQL, PostgreSQL, Redis, Kafka, S3 storage, and model services your apps depend on.'
+        'Long-lived runtime services your apps depend on before or during deployment.'
       )
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('How AppOS connects to external platforms, APIs, and cloud services.')
     ).toBeInTheDocument()
     expect(
       screen.getByText(
@@ -113,23 +160,45 @@ describe('ResourceHub', () => {
 
     await waitFor(() => {
       expect(
-        screen.getAllByText((_, element) => element?.textContent === 'Servers(3)').length
+        screen.getAllByText('3 items').length
       ).toBeGreaterThan(0)
       expect(
-        screen.getAllByText((_, element) => element?.textContent === 'Service Instances(2)').length
+        screen.getAllByText('2 items').length
       ).toBeGreaterThan(0)
       expect(
-        screen.getAllByText((_, element) => element?.textContent === 'Platform Accounts(1)').length
+        screen.getAllByText('1 items').length
       ).toBeGreaterThan(0)
     })
+
+    expect(screen.getAllByText('Open family').length).toBeGreaterThan(0)
+
+    expect(screen.getByRole('link', { name: /Servers/i })).toHaveAttribute(
+      'href',
+      '/resources/servers'
+    )
+    expect(screen.getByRole('link', { name: /Service Instances/i })).toHaveAttribute(
+      'href',
+      '/resources/service-instances'
+    )
+    expect(screen.getByRole('link', { name: /Connectors/i })).toHaveAttribute(
+      'href',
+      '/resources/connectors'
+    )
+    expect(screen.getByRole('link', { name: /Platform Accounts/i })).toHaveAttribute(
+      'href',
+      '/resources/platform-accounts'
+    )
   })
 
   it('shows intent-first create actions mapped to current routes', async () => {
     render(<ResourceHub />)
 
+    expect(screen.getByRole('link', { name: /Resource Groups/i })).toHaveAttribute('href', '/groups')
+    expect(screen.getByRole('button', { name: /Add Resource/i })).toBeInTheDocument()
+
     fireEvent.click(screen.getByRole('button', { name: /Add Resource/i }))
 
-    expect(screen.getByText('Canonical families')).toBeInTheDocument()
+    expect(screen.getByText('Choose a resource family')).toBeInTheDocument()
     expect(screen.getByText('Add a deployment target')).toBeInTheDocument()
     expect(screen.getByText('Register an application dependency')).toBeInTheDocument()
     expect(screen.getByText('Configure an external connection')).toBeInTheDocument()
@@ -140,6 +209,13 @@ describe('ResourceHub', () => {
     expect(
       screen.getByText('AWS, Azure, Google Cloud, GitHub, Cloudflare, and similar platforms.')
     ).toBeInTheDocument()
+    expect(screen.getAllByText('Examples').length).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getAllByText('Examples')[0])
+
+    expect(screen.getByText('Database')).toBeInTheDocument()
+    expect(screen.getByText('Cache')).toBeInTheDocument()
+    expect(screen.getByText('Model Service')).toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Register an application dependency'))
 

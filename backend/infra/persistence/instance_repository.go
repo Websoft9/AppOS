@@ -3,6 +3,7 @@ package persistence
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -105,8 +106,8 @@ func (r *pocketBaseInstanceRepository) recordForSave(instance *domaininstances.I
 func instanceFromRecord(record *core.Record) *domaininstances.Instance {
 	return domaininstances.RestoreInstance(domaininstances.Snapshot{
 		ID:                record.Id,
-		Created:           record.GetString("created"),
-		Updated:           record.GetString("updated"),
+		Created:           recordDateTimeString(record, "created"),
+		Updated:           recordDateTimeString(record, "updated"),
 		Name:              record.GetString("name"),
 		Kind:              record.GetString("kind"),
 		TemplateID:        record.GetString("template_id"),
@@ -116,6 +117,20 @@ func instanceFromRecord(record *core.Record) *domaininstances.Instance {
 		Config:            domaininstances.DecodeConfig(record.Get("config")),
 		Description:       record.GetString("description"),
 	})
+}
+
+func recordDateTimeString(record *core.Record, key string) string {
+	if value := strings.TrimSpace(record.GetDateTime(key).String()); value != "" {
+		return value
+	}
+	if value := strings.TrimSpace(record.GetString(key)); value != "" {
+		return value
+	}
+	raw := strings.TrimSpace(fmt.Sprint(record.Get(key)))
+	if raw == "" || raw == "<nil>" {
+		return ""
+	}
+	return raw
 }
 
 func applyInstanceToRecord(record *core.Record, instance *domaininstances.Instance) {

@@ -61,6 +61,9 @@ export interface FieldDef {
   }
   multiSelect?: boolean
   relationAutoSelectDefault?: boolean
+  relationShowNoneOption?: boolean
+  relationShowSelectedIndicator?: boolean
+  relationBorderlessMenu?: boolean
   showWhen?: { field: string; values: string[] }
   dynamicType?: { field: string; values: string[]; as: 'textarea' | 'file-textarea' }
   fileAccept?: string
@@ -70,6 +73,7 @@ export interface FieldDef {
     inputId: string
     value: unknown
     formData: Record<string, unknown>
+    editingItem: Record<string, unknown> | null
     updateField: (key: string, value: unknown) => void
     setValue: (value: unknown) => void
     relationOptions: RelationOption[]
@@ -138,6 +142,7 @@ export interface ResourcePageConfig {
   createItem?: (payload: Record<string, unknown>) => Promise<Record<string, unknown>>
   updateItem?: (id: string, payload: Record<string, unknown>) => Promise<void>
   deleteItem?: (id: string) => Promise<void>
+  resetFormButtonLabel?: string
   initialEditId?: string
   onInitialEditHandled?: () => void
 }

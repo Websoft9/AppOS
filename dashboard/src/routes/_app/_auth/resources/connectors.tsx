@@ -2,23 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
   ResourcePage,
   type Column,
   type FieldDef,
   type SelectOption,
 } from '@/components/resources/ResourcePage'
-import { SecretForm, type SecretTemplate } from '@/components/secrets/SecretForm'
+import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { pb } from '@/lib/pb'
 
 type ConnectorRecord = {
@@ -299,34 +288,12 @@ const columns: Column[] = [
 export function ConnectorsPage() {
   const autoCreate = new URLSearchParams(window.location.search).get('create') === '1'
   const [secretDialogOpen, setSecretDialogOpen] = useState(false)
-  const [secretName, setSecretName] = useState('')
-  const [secretDescription, setSecretDescription] = useState('')
-  const [secretTemplateId, setSecretTemplateId] = useState('single_value')
-  const [secretPayload, setSecretPayload] = useState<Record<string, string>>({})
-  const [secretTemplates, setSecretTemplates] = useState<SecretTemplate[]>([])
   const [connectorTemplates, setConnectorTemplates] = useState<ConnectorTemplate[]>([])
-  const [secretSaving, setSecretSaving] = useState(false)
-  const [secretError, setSecretError] = useState('')
   const [secretAddOption, setSecretAddOption] = useState<
     ((id: string, label: string) => void) | null
   >(null)
 
   useEffect(() => {
-    void (async () => {
-      try {
-        const data = await pb.send<SecretTemplate[]>('/api/secrets/templates', { method: 'GET' })
-        const templates = (Array.isArray(data) ? data : [])
-          .filter(template => SECRET_TEMPLATE_IDS.has(template.id))
-          .map(template => ({
-            ...template,
-            label: SECRET_TEMPLATE_LABELS[template.id] ?? template.label,
-          }))
-        setSecretTemplates(templates)
-      } catch {
-        setSecretTemplates([])
-      }
-    })()
-
     void (async () => {
       try {
         const data = await pb.send<ConnectorTemplate[]>('/api/connectors/templates', {
@@ -360,45 +327,11 @@ export function ConnectorsPage() {
 
   const openSecretDialog = useCallback(
     (callbacks: { addOption: (id: string, label: string) => void }) => {
-      setSecretName('')
-      setSecretDescription('')
-      setSecretTemplateId('single_value')
-      setSecretPayload({})
-      setSecretError('')
       setSecretAddOption(() => callbacks.addOption)
       setSecretDialogOpen(true)
     },
     []
   )
-
-  const handleSecretCreate = useCallback(async () => {
-    if (!secretName.trim()) {
-      setSecretError('Name is required')
-      return
-    }
-    if (!secretTemplateId) {
-      setSecretError('Type is required')
-      return
-    }
-
-    setSecretSaving(true)
-    setSecretError('')
-    try {
-      const created = await pb.collection('secrets').create({
-        name: secretName.trim(),
-        description: secretDescription.trim(),
-        template_id: secretTemplateId,
-        scope: 'global',
-        payload: secretPayload,
-      })
-      secretAddOption?.(String(created.id), secretName.trim())
-      setSecretDialogOpen(false)
-    } catch (err) {
-      setSecretError(err instanceof Error ? err.message : 'Create failed')
-    } finally {
-      setSecretSaving(false)
-    }
-  }, [secretAddOption, secretDescription, secretName, secretPayload, secretTemplateId])
 
   const baseConnectorFields = useMemo<FieldDef[]>(
     () => [
@@ -502,52 +435,19 @@ export function ConnectorsPage() {
         }}
       />
 
-      <Dialog open={secretDialogOpen} onOpenChange={setSecretDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>New Secret</DialogTitle>
-            <DialogDescription>
-              Create a reusable secret and attach it to this connector.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Name</Label>
-              <Input value={secretName} onChange={e => setSecretName(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Description</Label>
-              <Input
-                value={secretDescription}
-                onChange={e => setSecretDescription(e.target.value)}
-              />
-            </div>
-            <SecretForm
-              templates={secretTemplates}
-              templateId={secretTemplateId}
-              payload={secretPayload}
-              onTemplateChange={templateId => {
-                setSecretTemplateId(templateId)
-                setSecretPayload({})
-              }}
-              onPayloadChange={(key, value) => {
-                setSecretPayload(prev => ({ ...prev, [key]: value }))
-              }}
-            />
-            {secretError && <p className="text-sm text-destructive">{secretError}</p>}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSecretDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => void handleSecretCreate()} disabled={secretSaving}>
-              Create Secret
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <SecretCreateDialog
+        open={secretDialogOpen}
+        onOpenChange={setSecretDialogOpen}
+        title="New Secret"
+        description="Create a reusable secret and attach it to this connector."
+        allowedTemplateIds={Array.from(SECRET_TEMPLATE_IDS)}
+        templateLabels={SECRET_TEMPLATE_LABELS}
+        defaultTemplateId="single_value"
+        onCreated={({ id, name, templateId }) => {
+          const suffix = SECRET_TEMPLATE_LABELS[templateId]
+          secretAddOption?.(id, suffix ? `${name} (${suffix})` : name)
+        }}
+      />
     </>
   )
 }

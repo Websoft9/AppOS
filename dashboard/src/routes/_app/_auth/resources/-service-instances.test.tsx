@@ -47,11 +47,9 @@ describe('ServiceInstancesPage', () => {
               category: 'database',
               kind: 'mysql',
               title: 'Generic MySQL',
+              commonFieldDefaults: { username: 'root' },
               fields: [
-                { id: 'database', label: 'Database', type: 'text', required: true },
-                { id: 'username', label: 'Username', type: 'text', required: true },
-                { id: 'connect_timeout', label: 'Connection Timeout', type: 'number', default: 10 },
-                { id: 'ssl_enabled', label: 'Use SSL', type: 'boolean', default: false },
+                { id: 'database', label: 'Database', type: 'text', required: true, default: 'MySQL' },
                 { id: 'ssl_ca_certificate', label: 'SSL Root CA Certificate', type: 'text' },
               ],
             },
@@ -70,11 +68,9 @@ describe('ServiceInstancesPage', () => {
               category: 'database',
               kind: 'postgres',
               title: 'Generic PostgreSQL',
+              commonFieldDefaults: { username: 'postgres' },
               fields: [
-                { id: 'database', label: 'Database', type: 'text', required: true },
-                { id: 'username', label: 'Username', type: 'text', required: true },
-                { id: 'connect_timeout', label: 'Connection Timeout', type: 'number', default: 10 },
-                { id: 'ssl_enabled', label: 'Use SSL', type: 'boolean', default: false },
+                { id: 'database', label: 'Database', type: 'text', required: true, default: 'postgres' },
                 { id: 'ssl_ca_certificate', label: 'SSL Root CA Certificate', type: 'text' },
               ],
             },
@@ -190,7 +186,7 @@ describe('ServiceInstancesPage', () => {
     expect(
       screen.getByText('Create Amazon Aurora MySQL Databases Service Instance')
     ).toBeInTheDocument()
-    expect(screen.getByText('Editable')).toBeInTheDocument()
+    expect(screen.queryByText('Editable')).not.toBeInTheDocument()
 
     const formDialog = await screen.findByRole('dialog')
     expect(formDialog.className).toContain('sm:max-w-4xl')
@@ -210,7 +206,10 @@ describe('ServiceInstancesPage', () => {
     expect(screen.getByTitle('Edit title')).toBeInTheDocument()
     expect(screen.getByLabelText(/^Database/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Username/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Database/)).toHaveValue('MySQL')
+    expect(screen.getByLabelText(/^Username/)).toHaveValue('root')
     expect(screen.getByLabelText(/^Password/)).toBeInTheDocument()
+    expect(screen.getByTitle('Show password')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Search secrets...')).not.toBeInTheDocument()
     expect(screen.getByLabelText(/^Host/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Port/)).toBeInTheDocument()
@@ -228,12 +227,12 @@ describe('ServiceInstancesPage', () => {
     expect(screen.getByLabelText('Platform Account')).toBeInTheDocument()
     expect(screen.getByLabelText('Description')).toBeInTheDocument()
     expect(screen.getByLabelText(/^Connection Timeout/)).toBeInTheDocument()
-    expect(screen.getByLabelText('Use SSL')).toBeInTheDocument()
+    expect(screen.getByText('Use SSL')).toBeInTheDocument()
     expect(screen.queryByText('Optional connection, security, and organization settings.')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByLabelText('Use SSL'))
+    fireEvent.click(screen.getByText('Mutual SSL'))
 
-    expect(await screen.findByLabelText('SSL Root CA Certificate')).toBeInTheDocument()
+    expect(await screen.findByLabelText('SSL Certificate')).toBeInTheDocument()
   })
 
   it('reuses the same database-family flow for postgresql', async () => {
@@ -247,13 +246,94 @@ describe('ServiceInstancesPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: /^PostgreSQL/i }))
 
     expect(await screen.findByLabelText(/^Database/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Database/)).toHaveValue('postgres')
     expect(screen.getByLabelText(/^Username/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Username/)).toHaveValue('postgres')
     expect(screen.getByLabelText(/^Password/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Host/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Port/)).toHaveValue(5432)
 
     fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
-    expect(screen.getByLabelText('Use SSL')).toBeInTheDocument()
+    expect(screen.getByText('Use SSL')).toBeInTheDocument()
+  })
+
+  it('keeps secret-only password editing and remembers ssl mode for existing instances', async () => {
+    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+      if (path === '/api/instances/templates') {
+        return Promise.resolve([
+          {
+            id: 'generic-mysql',
+            category: 'database',
+            kind: 'mysql',
+            title: 'Generic MySQL',
+            commonFieldDefaults: { username: 'root' },
+            fields: [
+              { id: 'database', label: 'Database', type: 'text', required: true, default: 'MySQL' },
+              { id: 'ssl_ca_certificate', label: 'SSL Root CA Certificate', type: 'text' },
+            ],
+          },
+        ])
+      }
+      if (path === '/api/instances' && (!options?.method || options.method === 'GET')) {
+        return Promise.resolve([
+          {
+            id: 'instance-1',
+            created: '2026-04-11T08:30:00Z',
+            updated: '2026-04-11T09:45:00Z',
+            name: 'mysql-prod',
+            kind: 'mysql',
+            template_id: 'generic-mysql',
+            endpoint: 'db.example.com:3306',
+            credential: 'secret-1',
+            config: {
+              database: 'appdb',
+              username: 'root',
+              ssl_enabled: true,
+            },
+          },
+        ])
+      }
+      if (path === '/api/instances/reachability' && options?.method === 'POST') {
+        return Promise.resolve([{ id: 'instance-1', status: 'online', latency_ms: 12 }])
+      }
+      if (path.startsWith('/api/collections/secrets/records?filter=')) {
+        return Promise.resolve({ items: [{ id: 'secret-1', name: 'db-password' }] })
+      }
+      if (path === '/api/provider-accounts') {
+        return Promise.resolve([])
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === "/api/collections/certificates/records?filter=(status='active')&sort=name") {
+        return Promise.resolve({ items: [{ id: 'cert-1', name: 'Demo CA' }] })
+      }
+      return Promise.resolve([])
+    })
+
+    render(<ServiceInstancesPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('mysql-prod')).toBeInTheDocument()
+    })
+
+    expect(screen.getAllByText(/2026/).length).toBeGreaterThanOrEqual(1)
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(await screen.findByText('Edit'))
+
+    await waitFor(() => {
+      expect(screen.getByText('db-password')).toBeInTheDocument()
+    })
+
+    expect(screen.queryByPlaceholderText('Search secrets...')).not.toBeInTheDocument()
+    expect(screen.queryByTitle('Show password')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit Secret' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
+    expect(screen.getByLabelText('One-way SSL')).toBeChecked()
+    expect(screen.getByLabelText('Mutual SSL')).not.toBeChecked()
   })
 
   it('creates a password secret inline for mysql', async () => {

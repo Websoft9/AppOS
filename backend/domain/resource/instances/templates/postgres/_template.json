@@ -1,12 +1,16 @@
 {
   "kind": "postgres",
   "category": "database",
+  "commonFieldDefaults": {
+    "username": "postgres"
+  },
   "fields": [
     {
       "id": "database",
       "label": "Database",
       "type": "text",
       "required": true,
+      "default": "postgres",
       "placeholder": "appdb"
     },
     {

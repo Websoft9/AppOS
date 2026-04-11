@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Check, Pencil } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { ResourcePage, type Column, type FieldDef } from '@/components/resources/ResourcePage'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
@@ -51,6 +52,7 @@ type InstanceTemplate = {
   description?: string
   defaultEndpoint?: string
   omitCommonFields?: string[]
+  commonFieldDefaults?: Record<string, unknown>
   fields?: InstanceTemplateField[]
 }
 
@@ -168,6 +170,14 @@ function productDescription(template: InstanceTemplate) {
   )
 }
 
+function parseBooleanValue(value: unknown) {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value !== 0
+  const normalized = String(value ?? '').trim().toLowerCase()
+  if (!normalized) return false
+  return ['1', 'true', 'yes', 'on'].includes(normalized)
+}
+
 function splitEndpoint(endpoint: string) {
   const raw = endpoint.trim()
   if (!raw) {
@@ -235,9 +245,9 @@ function databaseCredentialLabel(template: InstanceTemplate | null | undefined) 
 
 function databaseCertificateHelpText(template: InstanceTemplate | null | undefined) {
   if (template?.kind === 'postgres') {
-    return 'Use a root CA certificate only when your PostgreSQL server requires custom SSL trust.'
+    return 'Choose a certificate only when your PostgreSQL connection requires mutual SSL.'
   }
-  return 'Use a root CA certificate only when your MySQL server requires custom SSL trust.'
+  return 'Choose a certificate only when your MySQL connection requires mutual SSL.'
 }
 
 function formatDateTime(value: unknown) {
@@ -292,7 +302,14 @@ function mergeDatabaseTemplateFields(template: InstanceTemplate | null | undefin
     if (omitted.has(field.id)) {
       continue
     }
-    merged.push(existingById.get(field.id) ?? field)
+    const override = existingById.get(field.id)
+    const configuredDefault = template.commonFieldDefaults?.[field.id]
+    merged.push(
+      override ?? {
+        ...field,
+        default: configuredDefault ?? field.default,
+      }
+    )
   }
 
   for (const field of template.fields ?? []) {
@@ -325,28 +342,39 @@ function mapTemplateFieldToResourceField(
   if (isDatabaseConnectionKind(template) && field.id === 'ssl_ca_certificate') {
     return {
       key: field.id,
-      label: 'SSL Root CA Certificate',
+      label: 'SSL Certificate',
       type: 'relation',
       advanced: true,
-      showWhen: { field: 'ssl_enabled', values: ['true'] },
+      showWhen: { field: 'ssl_mode', values: ['mutual'] },
       relationApiPath: "/api/collections/certificates/records?filter=(status='active')&sort=name",
       relationLabelKey: 'name',
       helpText: databaseCertificateHelpText(template),
+      relationShowNoneOption: false,
+      relationShowSelectedIndicator: false,
+      relationBorderlessMenu: true,
+      defaultValue: normalizeTemplateFieldDefault(field),
+    }
+  }
+
+  if (isDatabaseConnectionKind(template) && field.id === 'ssl_enabled') {
+    return {
+      key: field.id,
+      label: field.label,
+      type: 'boolean',
+      hidden: true,
       defaultValue: normalizeTemplateFieldDefault(field),
     }
   }
 
   return {
     key: field.id,
-    label:
-      isDatabaseConnectionKind(template) && field.id === 'ssl_enabled' ? 'Use SSL' : field.label,
+    label: field.label,
     type: field.type === 'boolean' ? 'boolean' : field.type === 'number' ? 'number' : 'text',
     required: field.required,
     placeholder: field.placeholder,
     defaultValue: normalizeTemplateFieldDefault(field),
     helpText: field.helpText,
-    advanced:
-      isDatabaseConnectionKind(template) && ['connect_timeout', 'ssl_enabled'].includes(field.id),
+    advanced: isDatabaseConnectionKind(template) && ['connect_timeout'].includes(field.id),
   }
 }
 
@@ -388,6 +416,17 @@ async function buildInstancePayload(
     }
   }
 
+  if (isDatabaseConnectionKind(template)) {
+    const sslMode = String(body.ssl_mode ?? '').trim()
+    body.ssl_enabled = sslMode === 'one_way' || sslMode === 'mutual'
+    if (sslMode !== 'mutual') {
+      body.ssl_ca_certificate = ''
+    }
+    if (sslMode === 'mutual' && !String(body.ssl_ca_certificate ?? '').trim()) {
+      throw new Error('SSL certificate is required for mutual SSL')
+    }
+  }
+
   const config: Record<string, unknown> = {}
   for (const field of mergeDatabaseTemplateFields(template)) {
     const value = body[field.id]
@@ -420,6 +459,7 @@ function mapInstanceRow(
   const template = templatesById.get(String(item.template_id ?? ''))
   const endpointParts = splitEndpoint(String(item.endpoint ?? ''))
   const flattenedConfig: Record<string, unknown> = {}
+  const fallbackConfig = item.config ?? {}
 
   for (const field of mergeDatabaseTemplateFields(template)) {
     const value = item.config?.[field.id]
@@ -428,6 +468,15 @@ function mapInstanceRow(
     }
     flattenedConfig[field.id] = value
   }
+
+  if (Object.keys(flattenedConfig).length === 0) {
+    Object.assign(flattenedConfig, fallbackConfig)
+  }
+
+  const credentialId = String(item.credential ?? '').trim()
+  const sslEnabled = parseBooleanValue(flattenedConfig.ssl_enabled)
+  const sslCertificate = String(flattenedConfig.ssl_ca_certificate ?? '').trim()
+  flattenedConfig.ssl_mode = sslEnabled ? (sslCertificate ? 'mutual' : 'one_way') : ''
 
   return {
     id: item.id,
@@ -442,7 +491,9 @@ function mapInstanceRow(
     host: endpointParts.host,
     port: endpointParts.port,
     provider_account: String(item.provider_account ?? ''),
-    credential: String(item.credential ?? ''),
+    credential: credentialId,
+    credential_use_secret: Boolean(credentialId),
+    password_value: '',
     description: String(item.description ?? ''),
     reachability: 'unknown',
     reachability_reason: '',
@@ -535,9 +586,9 @@ export function ServiceInstancesPage() {
         .map(template => ({
           id: template.id,
           title: productTitle(template),
-          description: productDescription(template),
           meta: productMeta(template),
           searchText: [
+            productDescription(template),
             template.title,
             template.vendor,
             template.kind,
@@ -547,6 +598,41 @@ export function ServiceInstancesPage() {
     [instanceTemplates]
   )
 
+  const listItems = useCallback(async () => {
+    const items = await pb.send<InstanceRecord[]>('/api/instances', { method: 'GET' })
+    const rows = Array.isArray(items) ? items.map(item => mapInstanceRow(item, templatesById)) : []
+    if (rows.length === 0) {
+      return rows
+    }
+
+    let reachability: InstanceReachabilityRecord[] = []
+    try {
+      const response = await pb.send<InstanceReachabilityRecord[]>('/api/instances/reachability', {
+        method: 'POST',
+        body: { ids: rows.map(row => String(row.id)) },
+      })
+      reachability = Array.isArray(response) ? response : []
+    } catch {
+      reachability = []
+    }
+
+    const byId = new Map(
+      reachability.map(item => [
+        item.id,
+        {
+          reachability: String(item.status ?? 'unknown'),
+          reachability_reason: String(item.reason ?? ''),
+          reachability_latency_ms: item.latency_ms,
+        },
+      ])
+    )
+
+    return rows.map(row => ({
+      ...row,
+      ...(byId.get(String(row.id)) ?? {}),
+    }))
+  }, [templatesById])
+
   const openSecretDialog = useCallback(
     (callbacks: { addOption: (id: string, label: string) => void }) => {
       setSecretAddOption(() => callbacks.addOption)
@@ -555,15 +641,27 @@ export function ServiceInstancesPage() {
     []
   )
 
+  const openSecretEditor = useCallback((secretId: string) => {
+    const targetUrl = new URL('/secrets', window.location.origin)
+    targetUrl.searchParams.set('id', secretId)
+    targetUrl.searchParams.set('edit', secretId)
+    const opened = window.open(targetUrl.toString(), '_blank', 'noopener,noreferrer')
+    if (!opened) {
+      window.location.assign(targetUrl.toString())
+    }
+  }, [])
+
   const renderDatabaseCredentialField = useCallback(
     ({
       inputId,
       formData,
+      editingItem,
       updateField,
       relationOptions,
       addRelationOption,
     }: Parameters<NonNullable<FieldDef['render']>>[0]) => {
-      const useSecret = Boolean(formData.credential_use_secret)
+      const editMode = Boolean(editingItem)
+      const useSecret = editMode ? true : Boolean(formData.credential_use_secret)
 
       return (
         <SecretCredentialField
@@ -589,10 +687,48 @@ export function ServiceInstancesPage() {
               },
             })
           }}
+          onEditReference={openSecretEditor}
+          editMode={editMode}
         />
       )
     },
-    [openSecretDialog]
+    [openSecretDialog, openSecretEditor]
+  )
+
+  const renderSslModeField = useCallback(
+    ({ formData, updateField }: Parameters<NonNullable<FieldDef['render']>>[0]) => {
+      const mode = String(formData.ssl_mode ?? '')
+
+      return (
+        <div className="flex flex-wrap items-center gap-4 py-1">
+          <label className="inline-flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={mode === 'one_way'}
+              onCheckedChange={checked => {
+                updateField('ssl_mode', checked ? 'one_way' : '')
+                if (!checked) {
+                  updateField('ssl_ca_certificate', '')
+                }
+              }}
+            />
+            <span>One-way SSL</span>
+          </label>
+          <label className="inline-flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={mode === 'mutual'}
+              onCheckedChange={checked => {
+                updateField('ssl_mode', checked ? 'mutual' : '')
+                if (!checked) {
+                  updateField('ssl_ca_certificate', '')
+                }
+              }}
+            />
+            <span>Mutual SSL</span>
+          </label>
+        </div>
+      )
+    },
+    []
   )
 
   const buildBaseFields = useCallback(
@@ -688,6 +824,9 @@ export function ServiceInstancesPage() {
           advanced: isDatabaseConnectionKind(selectedTemplate),
           relationApiPath: '/api/provider-accounts',
           relationLabelKey: 'name',
+          relationShowNoneOption: false,
+          relationShowSelectedIndicator: false,
+          relationBorderlessMenu: true,
         },
         {
           key: 'credential',
@@ -698,12 +837,35 @@ export function ServiceInstancesPage() {
             ? buildSecretRelationApiPath(['single_value'])
             : '/api/collections/secrets/records?perPage=500&sort=name',
           relationLabelKey: 'name',
-          helpText: isSecretBackedConnectionKind(selectedTemplate)
-            ? 'Use a direct password or switch to a reusable Secret.'
-            : undefined,
           render: isSecretBackedConnectionKind(selectedTemplate)
             ? renderDatabaseCredentialField
             : undefined,
+          relationShowNoneOption: false,
+          relationShowSelectedIndicator: false,
+          relationBorderlessMenu: true,
+        },
+        {
+          key: 'credential_use_secret',
+          label: 'Credential Uses Secret',
+          type: 'boolean',
+          hidden: true,
+          defaultValue: false,
+        },
+        {
+          key: 'password_value',
+          label: 'Password Value',
+          type: 'text',
+          hidden: true,
+          defaultValue: '',
+        },
+        {
+          key: 'ssl_mode',
+          label: 'Use SSL',
+          type: 'text',
+          advanced: isDatabaseConnectionKind(selectedTemplate),
+          hidden: !isDatabaseConnectionKind(selectedTemplate),
+          defaultValue: '',
+          render: isDatabaseConnectionKind(selectedTemplate) ? renderSslModeField : undefined,
         },
         {
           key: 'description',
@@ -723,7 +885,7 @@ export function ServiceInstancesPage() {
           defaultValue: [],
         },
       ] satisfies FieldDef[],
-    [renderDatabaseCredentialField]
+    [renderDatabaseCredentialField, renderSslModeField]
   )
 
   const resolveInstanceFields = useCallback(
@@ -742,6 +904,8 @@ export function ServiceInstancesPage() {
         const advancedTemplateFields = dynamicFields.filter(
           field => !field.hidden && field.advanced
         )
+        const certificateFields = advancedTemplateFields.filter(field => field.key === 'ssl_ca_certificate')
+        const otherAdvancedFields = advancedTemplateFields.filter(field => field.key !== 'ssl_ca_certificate')
         const hiddenTemplateFields = dynamicFields.filter(field => field.hidden)
         const identityFields = ['database', 'username'].flatMap(key =>
           primaryTemplateFields.filter(field => field.key === key)
@@ -757,6 +921,8 @@ export function ServiceInstancesPage() {
           baseFields[3],
           baseFields[4],
           baseFields[7],
+          baseFields[12],
+          baseFields[13],
           ...hiddenTemplateFields,
           baseFields[5],
           ...identityFields,
@@ -764,10 +930,12 @@ export function ServiceInstancesPage() {
           baseFields[8],
           baseFields[9],
           ...extraFields,
-          ...advancedTemplateFields,
+          baseFields[14],
+          ...certificateFields,
+          ...otherAdvancedFields,
           baseFields[10],
-          baseFields[12],
-          baseFields[13],
+          baseFields[15],
+          baseFields[16],
           baseFields[6],
         ]
       }
@@ -819,6 +987,7 @@ export function ServiceInstancesPage() {
                 endpoint: selectedTemplate.defaultEndpoint ?? '',
                 credential_use_secret: false,
                 password_value: '',
+                ssl_mode: '',
                 title_name_editing: false,
               }
 
@@ -892,9 +1061,6 @@ export function ServiceInstancesPage() {
                       </Button>
                     </>
                   )}
-                  <span className="rounded-full border border-border/70 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    Editable
-                  </span>
                 </div>
               ),
               description: `${editingItem ? 'Update' : 'Create'} ${productTitle(selectedTemplate)} ${categoryLabel(selectedTemplate.category)} Service Instance`,
@@ -908,42 +1074,7 @@ export function ServiceInstancesPage() {
           showRefreshButton: true,
           createButtonIconOnly: true,
           wrapTableInCard: false,
-          listItems: async () => {
-            const items = await pb.send<InstanceRecord[]>('/api/instances', { method: 'GET' })
-            const rows = Array.isArray(items)
-              ? items.map(item => mapInstanceRow(item, templatesById))
-              : []
-            if (rows.length === 0) {
-              return rows
-            }
-
-            let reachability: InstanceReachabilityRecord[] = []
-            try {
-              const response = await pb.send<InstanceReachabilityRecord[]>('/api/instances/reachability', {
-                method: 'POST',
-                body: { ids: rows.map(row => String(row.id)) },
-              })
-              reachability = Array.isArray(response) ? response : []
-            } catch {
-              reachability = []
-            }
-
-            const byId = new Map(
-              reachability.map(item => [
-                item.id,
-                {
-                  reachability: String(item.status ?? 'unknown'),
-                  reachability_reason: String(item.reason ?? ''),
-                  reachability_latency_ms: item.latency_ms,
-                },
-              ])
-            )
-
-            return rows.map(row => ({
-              ...row,
-              ...(byId.get(String(row.id)) ?? {}),
-            }))
-          },
+          listItems,
           createItem: async payload => {
             const body = await buildInstancePayload(payload, templatesById)
             const created = await pb.send<InstanceRecord>('/api/instances', {
