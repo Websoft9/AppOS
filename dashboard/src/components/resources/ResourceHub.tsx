@@ -3,6 +3,7 @@ import { useNavigate, Link } from '@tanstack/react-router'
 import {
   Server,
   Database,
+  Bot,
   Cloud,
   Plug,
   Plus,
@@ -59,25 +60,37 @@ const RUNTIME_INFRASTRUCTURE: ResourceDef[] = [
     key: 'service-instances',
     title: 'Service Instances',
     description:
-      'Long-lived runtime services your apps depend on before or during deployment.',
+      'Runtime dependencies your apps cannot start without, including database, middleware, and storage instances like MySQL, PostgreSQL, Redis, Kafka, and S3.',
     icon: <Database className="h-5 w-5" />,
     href: '/resources/service-instances',
     createLabel: 'Register an application dependency',
-    createDescription: 'MySQL, PostgreSQL, Redis, Kafka, S3 storage, and model services.',
-    exampleItems: ['Database', 'Cache', 'Queue', 'Object Storage', 'Model Service'],
+    createDescription: 'MySQL, PostgreSQL, Redis, Kafka, and S3-backed application dependencies.',
+    exampleItems: ['Database', 'Cache', 'Queue', 'Object Storage'],
     apiPath: '/api/instances',
   },
 ]
 
 const EXTERNAL_INTEGRATIONS: ResourceDef[] = [
   {
+    key: 'ai-providers',
+    title: 'AI Providers',
+    description:
+      'Hosted and local AI capability sources such as OpenAI, Anthropic, OpenRouter, and Ollama endpoints.',
+    icon: <Bot className="h-5 w-5" />,
+    href: '/resources/ai-providers',
+    createLabel: 'Choose an AI capability source',
+    createDescription: 'OpenAI, Anthropic, OpenRouter, Ollama, and similar AI providers.',
+    exampleItems: ['OpenAI', 'Anthropic', 'OpenRouter', 'Ollama'],
+    apiPath: '/api/ai-providers',
+  },
+  {
     key: 'connectors',
     title: 'Connectors',
-    description: 'OpenAI, SMTP, DNS, webhook, MCP, and registry connections AppOS uses outward.',
+    description: 'SMTP, DNS, webhook, MCP, registry, and other reusable external capability connections.',
     icon: <Plug className="h-5 w-5" />,
     href: '/resources/connectors',
     createLabel: 'Configure an external connection',
-    createDescription: 'OpenAI, SMTP, DNS, webhook, MCP, and registry connections.',
+    createDescription: 'SMTP, DNS, webhook, MCP, registry, and other reusable external connections.',
     exampleItems: ['REST API', 'Webhook', 'MCP', 'SMTP', 'Registry', 'DNS'],
     apiPath: '/api/connectors?kind=rest_api,webhook,mcp,smtp,registry,dns',
   },
@@ -98,13 +111,13 @@ const RESOURCE_SECTIONS: ResourceSection[] = [
   {
     key: 'runtime-infrastructure',
     title: 'Runtime Infrastructure',
-    description: 'Where applications run and the shared services they depend on.',
+    description: 'Where applications run and the startup-critical dependencies they cannot run without.',
     resources: RUNTIME_INFRASTRUCTURE,
   },
   {
     key: 'external-integrations',
     title: 'External Integrations',
-    description: 'How AppOS connects to external platforms, APIs, and cloud services.',
+    description: 'How AppOS connects to AI providers, external platforms, APIs, and cloud services.',
     resources: EXTERNAL_INTEGRATIONS,
   },
 ]
@@ -160,7 +173,7 @@ export function ResourceHub() {
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold tracking-tight">Resources</h1>
           <p className="text-muted-foreground mt-1">
-            Shared platform resources for where workloads run, what they depend on, and how AppOS connects outward.
+            Shared platform resources for where Applications run, what they depend on, and how AppOS connects outward.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span className="rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 font-medium text-foreground/80">
@@ -169,7 +182,6 @@ export function ResourceHub() {
             <span className="rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 font-medium text-foreground/80">
               {resourceFamilyCount} canonical families
             </span>
-            <span className="leading-none">Choose a destination first, then manage details inside that family.</span>
           </div>
         </div>
 
@@ -257,20 +269,10 @@ export function ResourceHub() {
         </div>
       </div>
 
-      <div
-        className="flex flex-col gap-2 rounded-xl border border-border/70 bg-muted/20 px-4 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between"
-        aria-live="polite"
-      >
-        <p className="font-medium text-foreground/80">The hub stays orientation-first while counts refresh in the background.</p>
-        <p className="text-xs sm:text-sm">
-          {loading ? 'Refreshing family counts...' : 'Counts loaded. Open a family to manage individual resources.'}
-        </p>
-      </div>
-
       {RESOURCE_SECTIONS.map(section => (
         <section
           key={section.key}
-          className="space-y-4 rounded-2xl border border-border/70 bg-card/40 p-4 sm:p-5"
+          className="space-y-4 rounded-2xl bg-card/40 p-4 sm:p-5"
           aria-labelledby={`${section.key}-title`}
         >
           <div>
@@ -280,7 +282,7 @@ export function ResourceHub() {
             <p className="text-sm text-muted-foreground mt-1">{section.description}</p>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {section.resources.map(r => (
               <Link
                 key={r.key}

@@ -79,6 +79,16 @@ export const OBJECT_TYPES: ObjectTypeDef[] = [
     createRoute: '/resources/service-instances',
   },
   {
+    type: 'ai_provider',
+    label: 'AI Provider',
+    collection: 'ai_providers',
+    nameField: 'name',
+    summaryField: 'template_id',
+    detailRoute: '/resources/ai-providers',
+    listSearchKey: 'id',
+    createRoute: '/resources/ai-providers',
+  },
+  {
     type: 'provider_account',
     label: 'Platform Account',
     collection: 'provider_accounts',

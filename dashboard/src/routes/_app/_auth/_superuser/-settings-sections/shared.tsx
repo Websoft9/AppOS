@@ -1,5 +1,4 @@
 import { useCallback, useState } from 'react'
-import { Link } from '@tanstack/react-router'
 import { Loader2 } from 'lucide-react'
 import type { SettingsSection } from '@/lib/settings-api'
 import { Button } from '@/components/ui/button'
@@ -83,10 +82,16 @@ export function ConnectorReferenceSection({
   title,
   description,
   connectorKinds,
+  helperNoun = 'connectors',
+  ctaLabel = 'Open Connectors',
+  ctaHref = '/resources/connectors',
 }: {
   title: string
   description: string
   connectorKinds: string
+  helperNoun?: string
+  ctaLabel?: string
+  ctaHref?: string
 }) {
   return (
     <Card>
@@ -96,11 +101,11 @@ export function ConnectorReferenceSection({
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          This section now references connectors. Create and edit {connectorKinds} from Resources so
+          This section now references {helperNoun}. Create and edit {connectorKinds} from Resources so
           all connector profiles stay in one place.
         </p>
         <Button asChild>
-          <Link to="/resources/connectors">Open Connectors</Link>
+          <a href={ctaHref}>{ctaLabel}</a>
         </Button>
       </CardContent>
     </Card>

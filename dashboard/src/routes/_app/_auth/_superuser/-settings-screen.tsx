@@ -217,9 +217,12 @@ function renderSection(controller: SettingsPageController) {
           description={connectorSectionDescription(
             controller,
             'llm-providers',
-            'LLM providers are managed as reusable connectors.'
+            'LLM providers are managed from Resources > AI Providers.'
           )}
-          connectorKinds="LLM connectors"
+          connectorKinds="AI Providers"
+          helperNoun="AI provider records"
+          ctaLabel="Open AI Providers"
+          ctaHref="/resources/ai-providers"
         />
       )
     default:

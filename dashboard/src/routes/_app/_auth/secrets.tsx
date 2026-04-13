@@ -814,7 +814,6 @@ export function SecretsPage() {
                   current={sortField}
                   dir={sortDir}
                   onSort={handleSort}
-                  withDisclosureHint
                 />
               </TableHead>
               <TableHead>

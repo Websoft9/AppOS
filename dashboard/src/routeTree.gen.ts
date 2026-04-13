@@ -45,6 +45,7 @@ import { Route as AppAuthResourcesServersRouteImport } from './routes/_app/_auth
 import { Route as AppAuthResourcesScriptsRouteImport } from './routes/_app/_auth/resources/scripts'
 import { Route as AppAuthResourcesPlatformAccountsRouteImport } from './routes/_app/_auth/resources/platform-accounts'
 import { Route as AppAuthResourcesConnectorsRouteImport } from './routes/_app/_auth/resources/connectors'
+import { Route as AppAuthResourcesAiProvidersRouteImport } from './routes/_app/_auth/resources/ai-providers'
 import { Route as AppAuthGroupsIdRouteImport } from './routes/_app/_auth/groups.$id'
 import { Route as AppAuthDeployCreateRouteImport } from './routes/_app/_auth/deploy.create'
 import { Route as AppAuthAppsAppIdRouteImport } from './routes/_app/_auth/apps.$appId'
@@ -240,6 +241,12 @@ const AppAuthResourcesConnectorsRoute =
     path: '/resources/connectors',
     getParentRoute: () => AppAuthRoute,
   } as any)
+const AppAuthResourcesAiProvidersRoute =
+  AppAuthResourcesAiProvidersRouteImport.update({
+    id: '/resources/ai-providers',
+    path: '/resources/ai-providers',
+    getParentRoute: () => AppAuthRoute,
+  } as any)
 const AppAuthGroupsIdRoute = AppAuthGroupsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -349,6 +356,7 @@ export interface FileRoutesByFullPath {
   '/apps/$appId': typeof AppAuthAppsAppIdRoute
   '/deploy/create': typeof AppAuthDeployCreateRoute
   '/groups/$id': typeof AppAuthGroupsIdRoute
+  '/resources/ai-providers': typeof AppAuthResourcesAiProvidersRoute
   '/resources/connectors': typeof AppAuthResourcesConnectorsRoute
   '/resources/platform-accounts': typeof AppAuthResourcesPlatformAccountsRoute
   '/resources/scripts': typeof AppAuthResourcesScriptsRoute
@@ -395,6 +403,7 @@ export interface FileRoutesByTo {
   '/apps/$appId': typeof AppAuthAppsAppIdRoute
   '/deploy/create': typeof AppAuthDeployCreateRoute
   '/groups/$id': typeof AppAuthGroupsIdRoute
+  '/resources/ai-providers': typeof AppAuthResourcesAiProvidersRoute
   '/resources/connectors': typeof AppAuthResourcesConnectorsRoute
   '/resources/platform-accounts': typeof AppAuthResourcesPlatformAccountsRoute
   '/resources/scripts': typeof AppAuthResourcesScriptsRoute
@@ -448,6 +457,7 @@ export interface FileRoutesById {
   '/_app/_auth/apps/$appId': typeof AppAuthAppsAppIdRoute
   '/_app/_auth/deploy/create': typeof AppAuthDeployCreateRoute
   '/_app/_auth/groups/$id': typeof AppAuthGroupsIdRoute
+  '/_app/_auth/resources/ai-providers': typeof AppAuthResourcesAiProvidersRoute
   '/_app/_auth/resources/connectors': typeof AppAuthResourcesConnectorsRoute
   '/_app/_auth/resources/platform-accounts': typeof AppAuthResourcesPlatformAccountsRoute
   '/_app/_auth/resources/scripts': typeof AppAuthResourcesScriptsRoute
@@ -499,6 +509,7 @@ export interface FileRouteTypes {
     | '/apps/$appId'
     | '/deploy/create'
     | '/groups/$id'
+    | '/resources/ai-providers'
     | '/resources/connectors'
     | '/resources/platform-accounts'
     | '/resources/scripts'
@@ -545,6 +556,7 @@ export interface FileRouteTypes {
     | '/apps/$appId'
     | '/deploy/create'
     | '/groups/$id'
+    | '/resources/ai-providers'
     | '/resources/connectors'
     | '/resources/platform-accounts'
     | '/resources/scripts'
@@ -597,6 +609,7 @@ export interface FileRouteTypes {
     | '/_app/_auth/apps/$appId'
     | '/_app/_auth/deploy/create'
     | '/_app/_auth/groups/$id'
+    | '/_app/_auth/resources/ai-providers'
     | '/_app/_auth/resources/connectors'
     | '/_app/_auth/resources/platform-accounts'
     | '/_app/_auth/resources/scripts'
@@ -875,6 +888,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthResourcesConnectorsRouteImport
       parentRoute: typeof AppAuthRoute
     }
+    '/_app/_auth/resources/ai-providers': {
+      id: '/_app/_auth/resources/ai-providers'
+      path: '/resources/ai-providers'
+      fullPath: '/resources/ai-providers'
+      preLoaderRoute: typeof AppAuthResourcesAiProvidersRouteImport
+      parentRoute: typeof AppAuthRoute
+    }
     '/_app/_auth/groups/$id': {
       id: '/_app/_auth/groups/$id'
       path: '/$id'
@@ -1086,6 +1106,7 @@ interface AppAuthRouteChildren {
   AppAuthSharedEnvsRoute: typeof AppAuthSharedEnvsRoute
   AppAuthSpaceRoute: typeof AppAuthSpaceRoute
   AppAuthTopicsRoute: typeof AppAuthTopicsRouteWithChildren
+  AppAuthResourcesAiProvidersRoute: typeof AppAuthResourcesAiProvidersRoute
   AppAuthResourcesConnectorsRoute: typeof AppAuthResourcesConnectorsRoute
   AppAuthResourcesPlatformAccountsRoute: typeof AppAuthResourcesPlatformAccountsRoute
   AppAuthResourcesScriptsRoute: typeof AppAuthResourcesScriptsRoute
@@ -1113,6 +1134,7 @@ const AppAuthRouteChildren: AppAuthRouteChildren = {
   AppAuthSharedEnvsRoute: AppAuthSharedEnvsRoute,
   AppAuthSpaceRoute: AppAuthSpaceRoute,
   AppAuthTopicsRoute: AppAuthTopicsRouteWithChildren,
+  AppAuthResourcesAiProvidersRoute: AppAuthResourcesAiProvidersRoute,
   AppAuthResourcesConnectorsRoute: AppAuthResourcesConnectorsRoute,
   AppAuthResourcesPlatformAccountsRoute: AppAuthResourcesPlatformAccountsRoute,
   AppAuthResourcesScriptsRoute: AppAuthResourcesScriptsRoute,

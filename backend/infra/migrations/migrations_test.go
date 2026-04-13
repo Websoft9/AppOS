@@ -770,7 +770,7 @@ func TestResourceCollectionsHaveNoGroupsField(t *testing.T) {
 	collections := []string{
 		"servers", "secrets", "env_sets",
 		"databases", "cloud_accounts", "certificates", "provider_accounts",
-		"connectors", "scripts",
+		"connectors", "ai_providers", "scripts",
 	}
 	for _, colName := range collections {
 		col, err := app.FindCollectionByNameOrId(colName)
@@ -857,6 +857,27 @@ func TestConnectorsCollectionHasProviderAccountRelation(t *testing.T) {
 		t.Fatal("connectors collection missing field \"provider_account\"")
 	}
 	assertRelationTarget(t, app, col, "provider_account", "provider_accounts")
+}
+
+func TestAIProvidersCollectionExistsAfterMigration(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Cleanup()
+
+	col, err := app.FindCollectionByNameOrId("ai_providers")
+	if err != nil {
+		t.Fatal("ai_providers collection not found after migration:", err)
+	}
+
+	for _, fieldName := range []string{"name", "kind", "template_id", "endpoint", "provider_account", "credential", "config", "description"} {
+		if col.Fields.GetByName(fieldName) == nil {
+			t.Fatalf("ai_providers collection missing field %q", fieldName)
+		}
+	}
+	assertRelationTarget(t, app, col, "provider_account", "provider_accounts")
+	assertRelationTarget(t, app, col, "credential", "secrets")
 }
 
 // ═══════════════════════════════════════════════════════════

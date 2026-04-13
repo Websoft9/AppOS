@@ -103,4 +103,23 @@ describe('SecretsPage policy loading', () => {
       })
     })
   })
+
+  it('does not render a disclosure chevron in the Name header', async () => {
+    getFullListMock.mockResolvedValue([
+      {
+        id: 'secret-1',
+        name: 'db-password',
+        template_id: 'single_value',
+        scope: 'global',
+        access_mode: 'mask',
+        status: 'active',
+      },
+    ])
+
+    render(<SecretsPage />)
+
+    const nameHeader = await screen.findByRole('button', { name: 'Name' })
+
+    expect(nameHeader.querySelector('svg.lucide-chevron-right')).toBeNull()
+  })
 })

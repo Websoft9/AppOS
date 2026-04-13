@@ -15,6 +15,7 @@ import (
 	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/domain/config/sharedenv"
 	"github.com/websoft9/appos/backend/domain/resource/accounts"
+	"github.com/websoft9/appos/backend/domain/resource/aiproviders"
 	"github.com/websoft9/appos/backend/domain/resource/connectors"
 	"github.com/websoft9/appos/backend/domain/resource/instances"
 
@@ -77,6 +78,7 @@ func (te *testEnv) do(t *testing.T, method, url, body string, authenticated bool
 
 	g := r.Group("/api/ext")
 	registerResourceRoutes(g)
+	registerAIProviderRoutes(&core.ServeEvent{Router: r})
 	registerConnectorRoutes(&core.ServeEvent{Router: r})
 	registerInstanceRoutes(&core.ServeEvent{Router: r})
 	registerProviderAccountRoutes(&core.ServeEvent{Router: r})
@@ -121,6 +123,133 @@ func TestConnectorTemplatesRequireAuthAndList(t *testing.T) {
 	}
 	if templates[0]["id"] == nil {
 		t.Fatalf("expected connector template to include id")
+	}
+}
+
+func TestAIProviderTemplatesRequireAuthAndList(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.do(t, http.MethodGet, "/api/ai-providers/templates", "", false)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated list: expected 401, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = te.do(t, http.MethodGet, "/api/ai-providers/templates", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("authenticated list: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	templates := parseJSONArray(t, rec)
+	if len(templates) == 0 {
+		t.Fatalf("expected at least one AI provider template")
+	}
+	for _, template := range templates {
+		if template["kind"] != aiproviders.KindLLM {
+			t.Fatalf("expected AI provider template kind %q, got %v", aiproviders.KindLLM, template["kind"])
+		}
+	}
+}
+
+func TestAIProviderTemplateGet(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.do(t, http.MethodGet, "/api/ai-providers/templates/openai", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get openai AI provider template: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	template := parseJSON(t, rec)
+	if template["id"] != "openai" {
+		t.Fatalf("expected template id openai, got %v", template["id"])
+	}
+	if template["kind"] != aiproviders.KindLLM {
+		t.Fatalf("expected template kind %q, got %v", aiproviders.KindLLM, template["kind"])
+	}
+
+	rec = te.do(t, http.MethodGet, "/api/ai-providers/templates/not-found", "", true)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected missing template to return 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAIProvidersCRUD(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.do(t, http.MethodPost, "/api/ai-providers",
+		`{"name":"workspace-openai","is_default":true,"template_id":"openai","credential":"","config":{"defaultModel":"gpt-4.1-mini"}}`, true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create AI provider: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	created := parseJSON(t, rec)
+	id := created["id"].(string)
+	if created["endpoint"] != "https://api.openai.com/v1" {
+		t.Fatalf("expected template default endpoint, got %v", created["endpoint"])
+	}
+	if created["auth_scheme"] != connectors.AuthSchemeAPIKey {
+		t.Fatalf("expected template default auth scheme %q, got %v", connectors.AuthSchemeAPIKey, created["auth_scheme"])
+	}
+	if created["kind"] != aiproviders.KindLLM {
+		t.Fatalf("expected kind %q, got %v", aiproviders.KindLLM, created["kind"])
+	}
+
+	rec = te.do(t, http.MethodGet, "/api/ai-providers/"+id, "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get AI provider: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = te.do(t, http.MethodPut, "/api/ai-providers/"+id,
+		`{"name":"workspace-anthropic","is_default":false,"template_id":"anthropic","endpoint":"https://api.anthropic.com","auth_scheme":"api_key","config":{"version":"2023-06-01"}}`, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("update AI provider: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	updated := parseJSON(t, rec)
+	if updated["template_id"] != "anthropic" {
+		t.Fatalf("expected template_id anthropic after update, got %v", updated["template_id"])
+	}
+	if updated["is_default"] != false {
+		t.Fatalf("expected is_default false after update, got %v", updated["is_default"])
+	}
+
+	rec = te.do(t, http.MethodPost, "/api/ai-providers",
+		`{"name":"fallback-openai","is_default":true,"template_id":"openai"}`, true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create second default AI provider: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	otherID := parseJSON(t, rec)["id"].(string)
+
+	rec = te.do(t, http.MethodGet, "/api/ai-providers/"+id, "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get first AI provider after second default: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if parseJSON(t, rec)["is_default"] != false {
+		t.Fatalf("expected first AI provider default flag to be cleared")
+	}
+
+	rec = te.do(t, http.MethodGet, "/api/ai-providers", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list AI providers: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	list := parseJSONArray(t, rec)
+	if len(list) != 2 {
+		t.Fatalf("expected 2 AI providers, got %d", len(list))
+	}
+
+	rec = te.do(t, http.MethodPost, "/api/ai-providers",
+		`{"name":"bad-provider","kind":"webhook","template_id":"openai"}`, true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("unsupported AI provider kind: expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = te.do(t, http.MethodDelete, "/api/ai-providers/"+id, "", true)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("delete AI provider: expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	rec = te.do(t, http.MethodDelete, "/api/ai-providers/"+otherID, "", true)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("delete second AI provider: expected 204, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -578,6 +707,17 @@ func TestProviderAccountsCRUD(t *testing.T) {
 		t.Fatalf("expected connector provider_account %q", accountID)
 	}
 
+	rec = te.do(t, http.MethodPost, "/api/ai-providers",
+		`{"name":"llm-with-account","template_id":"openai","provider_account":"`+accountID+`"}`, true)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create AI provider with provider account: expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	aiProviderCreated := parseJSON(t, rec)
+	aiProviderID := aiProviderCreated["id"].(string)
+	if aiProviderCreated["provider_account"] != accountID {
+		t.Fatalf("expected AI provider provider_account %q", accountID)
+	}
+
 	rec = te.do(t, http.MethodPost, "/api/provider-accounts",
 		`{"name":"bad-provider-account","kind":"aws","template_id":"github-app-installation"}`, true)
 	if rec.Code != http.StatusBadRequest {
@@ -595,7 +735,7 @@ func TestProviderAccountsCRUD(t *testing.T) {
 		t.Fatalf("delete referenced provider account: expected 409, got %d: %s", rec.Code, rec.Body.String())
 	}
 	deleteConflict := parseJSON(t, rec)
-	if deleteConflict["message"] != "provider account is still referenced; remove related instances or connectors first" {
+	if deleteConflict["message"] != "provider account is still referenced; remove related instances, AI providers, or connectors first" {
 		t.Fatalf("unexpected delete conflict message: %v", deleteConflict["message"])
 	}
 	deleteConflictData, ok := deleteConflict["data"].(map[string]any)
@@ -609,6 +749,11 @@ func TestProviderAccountsCRUD(t *testing.T) {
 	rec = te.do(t, http.MethodDelete, "/api/connectors/"+connectorID, "", true)
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("delete referencing connector: expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = te.do(t, http.MethodDelete, "/api/ai-providers/"+aiProviderID, "", true)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("delete referencing AI provider: expected 204, got %d: %s", rec.Code, rec.Body.String())
 	}
 
 	rec = te.do(t, http.MethodDelete, "/api/instances/"+instanceID, "", true)

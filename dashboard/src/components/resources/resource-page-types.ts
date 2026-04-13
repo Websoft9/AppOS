@@ -19,6 +19,11 @@ export interface Column {
   key: string
   label: string
   render?: (value: unknown, row: Record<string, unknown>) => ReactNode
+  searchable?: boolean
+  sortable?: boolean
+  sortValue?: (row: Record<string, unknown>) => string | number | null | undefined
+  filterOptions?: SelectOption[]
+  filterValue?: (row: Record<string, unknown>) => string | null | undefined
 }
 
 export interface SelectOption {
@@ -93,6 +98,19 @@ export interface ResourcePageConfig {
   apiPath: string
   columns: Column[]
   fields: FieldDef[]
+  favoriteStorageKey?: string
+  favoritesFilterLabel?: string
+  createButtonLabel?: string
+  createButtonShowIcon?: boolean
+  searchPlaceholder?: string
+  pageSize?: number
+  pageSizeOptions?: number[]
+  defaultSort?: { key: string; dir: 'asc' | 'desc' }
+  headerFilters?: boolean
+  listControlsBorder?: boolean
+  listControlsShowReset?: boolean
+  pageSizeSelectorPlacement?: 'header' | 'footer' | 'none'
+  paginationSummary?: boolean
   createSelection?: {
     title: string
     description?: string
@@ -130,13 +148,19 @@ export interface ResourcePageConfig {
   enableGroupAssign?: boolean
   onCreateSuccess?: (record: Record<string, unknown>) => void
   showRefreshButton?: boolean
+  refreshButtonLabel?: string
+  refreshButtonIconOnly?: boolean
   createButtonIconOnly?: boolean
+  favoriteActionPlacement?: 'beforeExtraActions' | 'afterExtraActions'
   wrapTableInCard?: boolean
   onRefresh?: (ctx: {
     items: Record<string, unknown>[]
     refreshList: () => Promise<void>
   }) => Promise<void> | void
   extraActions?: (item: Record<string, unknown>, refreshList: () => void) => ReactNode
+  selectedItemId?: string
+  onSelectItem?: (item: Record<string, unknown> | null) => void
+  renderDetailPanel?: (item: Record<string, unknown>, refreshList: () => Promise<void>) => ReactNode
   resourceType?: string
   listItems?: () => Promise<Record<string, unknown>[]>
   createItem?: (payload: Record<string, unknown>) => Promise<Record<string, unknown>>

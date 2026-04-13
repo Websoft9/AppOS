@@ -65,6 +65,8 @@ function TunnelsRoutePage() {
               returnGroup: undefined,
               returnType: undefined,
               edit: serverId,
+              server: undefined,
+              tab: undefined,
             },
           })
         }}

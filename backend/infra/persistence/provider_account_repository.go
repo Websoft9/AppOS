@@ -62,7 +62,7 @@ func (r *pocketBaseProviderAccountRepository) HasReferences(accountID string) (b
 	if trimmedID == "" {
 		return false, nil
 	}
-	for _, collectionName := range []string{collections.Instances, collections.Connectors} {
+	for _, collectionName := range []string{collections.Instances, collections.AIProviders} {
 		records, err := r.app.FindRecordsByFilter(collectionName, "provider_account = {:accountId}", "", 1, 0, map[string]any{"accountId": trimmedID})
 		if err != nil {
 			return false, err
@@ -70,6 +70,13 @@ func (r *pocketBaseProviderAccountRepository) HasReferences(accountID string) (b
 		if len(records) > 0 {
 			return true, nil
 		}
+	}
+	records, err := r.app.FindRecordsByFilter(collections.Connectors, "provider_account = {:accountId} && kind != {:kind}", "", 1, 0, map[string]any{"accountId": trimmedID, "kind": "llm"})
+	if err != nil {
+		return false, err
+	}
+	if len(records) > 0 {
+		return true, nil
 	}
 	return false, nil
 }

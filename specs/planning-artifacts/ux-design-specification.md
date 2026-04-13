@@ -27,7 +27,7 @@ inputDocuments:
 
 AppOS is a single-server-first app operations and lifecycle platform. From a UX perspective, the Resources homepage should not behave like a raw inventory index. It should work as a resource map that helps operators understand where applications run, what shared services they depend on, and how AppOS connects to external services and platforms.
 
-For the current Resources homepage work, the design goal is to preserve Epic 8's canonical four-family taxonomy while presenting it through a simpler, more task-aligned information architecture. The homepage should reduce classification ambiguity for novice and intermediate operators without weakening the canonical labels used by the deeper resource pages.
+For the current Resources homepage work, the design goal is to preserve Epic 8's canonical five-family taxonomy while presenting it through a simpler, more task-aligned information architecture. The homepage should reduce classification ambiguity for novice and intermediate operators without weakening the canonical labels used by the deeper resource pages.
 
 ### Target Users
 
@@ -43,17 +43,17 @@ These users need fast orientation, low taxonomy friction, and clear navigation t
 
 ### Key Design Challenges
 
-The first challenge is balancing canonical domain taxonomy with user-facing comprehension. Epic 8 defines four stable resource families, but exposing those families as a flat conceptual model on the homepage risks turning the page into a schema browser instead of a usable navigation surface.
+The first challenge is balancing canonical domain taxonomy with user-facing comprehension. Epic 8 defines five stable resource families, but exposing those families as a flat conceptual model on the homepage risks turning the page into a schema browser instead of a usable navigation surface.
 
-The second challenge is avoiding confusion between Service Instances, Connectors, and Platform Accounts. These are distinct in the domain model, but they can feel similar to users unless the homepage explains their roles through grouping, language, and card-level framing.
+The second challenge is avoiding confusion between Service Instances, AI Providers, Connectors, and Platform Accounts. These are distinct in the domain model, but they can feel similar to users unless the homepage explains their roles through grouping, language, and card-level framing.
 
 The third challenge is supporting both first-time understanding and repeat-use efficiency. New users need conceptual guidance, while experienced users need quick entry to the correct resource page with minimal friction.
 
 ### Design Opportunities
 
-The strongest opportunity is to use the homepage as a conceptual bridge between the domain model and operator intent. Grouping the four canonical families into Runtime Infrastructure and External Integrations creates a more intuitive first layer without changing the underlying taxonomy.
+The strongest opportunity is to use the homepage as a conceptual bridge between the domain model and operator intent. Grouping the five canonical families into Runtime Infrastructure and External Integrations creates a more intuitive first layer without changing the underlying taxonomy.
 
-A second opportunity is to make relationships between resource families explicit. Servers are where applications run, Service Instances are the shared services those applications rely on, Connectors are how AppOS reaches external capabilities, and Platform Accounts are the identities behind those external operations. Communicating these relationships can reduce user hesitation and improve navigation confidence.
+A second opportunity is to make relationships between resource families explicit. Servers are where applications run, Service Instances are the non-optional runtime dependencies applications rely on, AI Providers are where AppOS gets model capability, Connectors are how AppOS reaches other external capabilities, and Platform Accounts are the identities behind those external operations. Communicating these relationships can reduce user hesitation and improve navigation confidence.
 
 A third opportunity is to evolve the Resources homepage from a simple card directory into a lightweight platform resource map. That shift would make the page more valuable for SMB and novice-intermediate operators, who benefit from orientation as much as from raw navigation speed.
 
@@ -67,7 +67,7 @@ For AppOS, the homepage experience should support two parallel user goals:
 - see the overall resource structure at a glance
 - enter the correct resource page with minimal thought
 
-The page should feel like a structured resource map rather than a generic admin directory. It should preserve Epic 8's canonical four-family taxonomy, but present it through a simpler mental model that reduces hesitation and improves first-glance comprehension.
+The page should feel like a structured resource map rather than a generic admin directory. It should preserve Epic 8's canonical five-family taxonomy, but present it through a simpler mental model that reduces hesitation and improves first-glance comprehension.
 
 ### Platform Strategy
 
@@ -95,7 +95,7 @@ The primary success moment is when the user can say, within a few seconds, "I kn
 
 A secondary success moment is when the user feels that the page is more than a list of admin links. It should feel like a coherent resource map that reflects how AppOS is organized.
 
-The make-or-break failure would be hesitation caused by taxonomy ambiguity. If users still pause to ask whether something belongs to Service Instances, Connectors, or Platform Accounts, then the homepage has failed its core job.
+The make-or-break failure would be hesitation caused by taxonomy ambiguity. If users still pause to ask whether something belongs to Service Instances, AI Providers, Connectors, or Platform Accounts, then the homepage has failed its core job.
 
 ### Experience Principles
 
@@ -343,7 +343,7 @@ Because the homepage is an orientation surface, accessibility should reinforce c
 
 ### Design Directions Explored
 
-Six homepage design directions were explored for the AppOS Resources homepage, all based on the same strategic foundation established in earlier steps: the page should function as an orientation-first resource map, preserve the canonical four-family taxonomy, support fast next-click confidence, and express a restrained blue-led brand identity.
+Six homepage design directions were explored for the AppOS Resources homepage, all based on the same strategic foundation established in earlier steps: the page should function as an orientation-first resource map, preserve the canonical five-family taxonomy, support fast next-click confidence, and express a restrained blue-led brand identity.
 
 The explored directions varied across four main axes:
 - visual weight, from light and quiet to more console-like and structured
@@ -367,9 +367,10 @@ Atlas Calm presents the Resources homepage as a clean, blue-accented orientation
 - Runtime Infrastructure
 - External Integrations
 
-Within those groups, the four canonical resource families remain visible and stable:
+Within those groups, the five canonical resource families remain visible and stable:
 - Servers
 - Service Instances
+- AI Providers
 - Connectors
 - Platform Accounts
 
@@ -412,11 +413,11 @@ In implementation terms, the page should prioritize grouping, hierarchy, and car
 
 This journey covers the primary homepage success case: a user lands on Resources, understands the structure quickly, resolves any ambiguity around Service Instances, and enters the correct destination page with confidence.
 
-The most important design requirement in this journey is to help users understand that Service Instances are runtime dependencies used by applications before deployment or during deployment, while Servers are comparatively self-explanatory. Connector and Platform Account understanding remains important, but should be treated as a secondary layer for more experienced users.
+The most important design requirement in this journey is to help users understand that Service Instances are runtime dependencies an application cannot start without, while Servers are comparatively self-explanatory. AI Provider, Connector, and Platform Account understanding remains important, but should be treated as a secondary layer for more experienced users.
 
 ```mermaid
 flowchart TD
-  A[User opens Resources homepage] --> B[Page shows two groups and four canonical resource entries]
+  A[User opens Resources homepage] --> B[Page shows two groups and five canonical resource entries]
   B --> C{Does user already know the target category?}
 
   C -->|Yes| D[User clicks the matching resource card]
@@ -429,21 +430,24 @@ flowchart TD
   H -->|Yes| I[User opens Service Instances]
   H -->|No| J{Is the task about external access or identity?}
 
-  J -->|External capability| K[User opens Connectors]
-  J -->|Platform identity/account| L[User opens Platform Accounts]
+  J -->|AI capability source| K[User opens AI Providers]
+  J -->|Other external capability| L[User opens Connectors]
+  J -->|Platform identity/account| M[User opens Platform Accounts]
 
-  G --> M{Is the task about host or machine management?}
-  M -->|Yes| N[User opens Servers]
+  G --> N{Is the task about host or machine management?}
+  N -->|Yes| O[User opens Servers]
 
-  I --> O[User confirms this is the runtime resource surface]
-  K --> O2[User confirms this is the external connection surface]
-  L --> O3[User confirms this is the platform identity surface]
-  N --> O4[User confirms this is the host management surface]
+  I --> P[User confirms this is the runtime dependency surface]
+  K --> P2[User confirms this is the AI provider surface]
+  L --> P3[User confirms this is the external connection surface]
+  M --> P4[User confirms this is the platform identity surface]
+  O --> P5[User confirms this is the host management surface]
 
-  O --> F
-  O2 --> F
-  O3 --> F
-  O4 --> F
+  P --> F
+  P2 --> F
+  P3 --> F
+  P4 --> F
+  P5 --> F
 ```
 
 **Flow Notes**
@@ -456,32 +460,38 @@ flowchart TD
 
 This journey covers users who arrive with creation intent. The homepage should let them start quickly without hiding the canonical taxonomy behind an extra decision layer.
 
-All four canonical resource types should appear together in the Add Resource entry. However, Instance, Connector, and Platform Account should use concise helper copy and expandable option menus to clarify their meaning. This preserves domain consistency while reducing first-time confusion.
+All five canonical resource types should appear together in the Add Resource entry. However, Service Instances, AI Providers, Connectors, and Platform Accounts should use concise helper copy and expandable option menus to clarify their meaning. This preserves domain consistency while reducing first-time confusion.
 
 ```mermaid
 flowchart TD
-  A[User clicks Add Resource] --> B[Creation menu opens with 4 canonical options]
+  A[User clicks Add Resource] --> B[Creation menu opens with 5 canonical options]
   B --> C[Servers]
   B --> D[Service Instances]
-  B --> E[Connectors]
-  B --> F[Platform Accounts]
+  B --> E[AI Providers]
+  B --> F[Connectors]
+  B --> G[Platform Accounts]
 
-  D --> D1[Short helper text explains runtime dependency role]
+  D --> D1[Short helper text explains startup-critical runtime dependency role]
   D1 --> D2[Expandable menu shows common examples]
-  D2 --> D3[Database / Cache / Queue / Storage / Model Service]
+  D2 --> D3[Database / Cache / Queue / Storage]
 
-  E --> E1[Short helper text explains external capability access]
+  E --> E1[Short helper text explains AI capability source]
   E1 --> E2[Expandable menu shows common examples]
-  E2 --> E3[DNS / SMTP / Webhook / Registry / API]
+  E2 --> E3[OpenAI / Anthropic / OpenRouter / Ollama]
 
-  F --> F1[Short helper text explains platform or cloud identity]
+  F --> F1[Short helper text explains external capability access]
   F1 --> F2[Expandable menu shows common examples]
-  F2 --> F3[Cloud Account / Subscription / Tenant]
+  F2 --> F3[DNS / SMTP / Webhook / Registry / API / MCP]
+
+  G --> G1[Short helper text explains platform or cloud identity]
+  G1 --> G2[Expandable menu shows common examples]
+  G2 --> G3[Cloud Account / Subscription / Tenant]
 
   C --> G[User selects resource type]
   D3 --> G
   E3 --> G
   F3 --> G
+  G3 --> G
 
   G --> H[System opens the corresponding create flow]
   H --> I[User completes resource setup]
@@ -490,8 +500,8 @@ flowchart TD
 
 **Flow Notes**
 - The Add Resource menu should not introduce a separate first decision between the two homepage groups.
-- The four canonical options should remain visible together to preserve taxonomy consistency.
-- The explanatory burden should be handled through helper text and expandable examples, especially for Service Instances.
+- The five canonical options should remain visible together to preserve taxonomy consistency.
+- The explanatory burden should be handled through helper text and expandable examples, especially for Service Instances and AI Providers.
 - Success is achieved when users can choose a type without needing external explanation.
 
 ### Journey 3: Return and Re-Enter Through Recent Activity
@@ -597,13 +607,13 @@ These components are sufficient for the majority of the page. The main need is n
 
 **Purpose:** Act as the primary homepage navigation target for each canonical resource family.
 
-**Usage:** Use for Servers, Service Instances, Connectors, and Platform Accounts.
+**Usage:** Use for Servers, Service Instances, AI Providers, Connectors, and Platform Accounts.
 
 **Anatomy:** Canonical title, one-line helper description, light metadata area, optional icon, hoverable container.
 
 **States:** Default, hover, focus-visible, active/pressed, disabled if ever needed in future states.
 
-**Variants:** Standard card variant for all four categories. A subtle emphasis variant may be used for categories that need stronger educational support, especially Service Instances, but the base anatomy should remain the same.
+**Variants:** Standard card variant for all five categories. A subtle emphasis variant may be used for categories that need stronger educational support, especially Service Instances, but the base anatomy should remain the same.
 
 **Accessibility:** The full card should be keyboard-focusable and activatable. Focus-visible styling must be clear and high-contrast. Card labels and descriptions must remain understandable to screen readers.
 
@@ -613,11 +623,11 @@ These components are sufficient for the majority of the page. The main need is n
 
 ### Add Resource Selector Panel
 
-**Purpose:** Provide a lightweight but explanatory creation entry surface that keeps all four canonical resource types visible together.
+**Purpose:** Provide a lightweight but explanatory creation entry surface that keeps all five canonical resource types visible together.
 
 **Usage:** Triggered from the Add Resource control in the page header.
 
-**Anatomy:** Panel title, short instruction line, four canonical options, helper text for less obvious categories, expandable example lists for Service Instances, Connectors, and Platform Accounts.
+**Anatomy:** Panel title, short instruction line, five canonical options, helper text for less obvious categories, expandable example lists for Service Instances, AI Providers, Connectors, and Platform Accounts.
 
 **States:** Closed, open, hover, focus-visible, expanded example state for categories with additional explanation.
 
@@ -659,6 +669,7 @@ The component strategy should follow these principles:
 - preserve canonical terminology in component titles
 - place explanatory effort in descriptions, helper text, and expandable examples instead of structural complexity
 - ensure Service Instances receive stronger educational support without visually isolating them as a different class of object
+- make AI Providers clearly distinguishable from generic Connectors
 - treat Recent Activity as a lightweight enhancement, not a primary navigation surface
 
 Custom components should be built from design system tokens and primitives so they inherit the same spacing, radius, color, and focus behavior as the rest of AppOS. This keeps the page visually consistent while still allowing a more deliberate resource-surface language.
@@ -674,7 +685,7 @@ Custom components should be built from design system tokens and primitives so th
 - Recent Activity List, because it improves return efficiency for experienced users without blocking the initial homepage redesign
 
 **Phase 3 - Refinement and Standardization**
-- helper copy refinement for Service Instances, Connectors, and Platform Accounts
+- helper copy refinement for Service Instances, AI Providers, Connectors, and Platform Accounts
 - metadata conventions for counts or light context signals on cards
 - responsive behavior tuning for smaller screens and compressed widths
 

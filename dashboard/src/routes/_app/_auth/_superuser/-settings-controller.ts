@@ -35,14 +35,14 @@ export function useSettingsPageController() {
         pb.send<SettingsEntriesListResponse>(SETTINGS_ENTRIES_API_PATH, { method: 'GET' }),
       ])
 
-      // Inject LLM providers nav entry (served by connectors API, not settings)
+      // Inject LLM providers nav entry (served by the AI Providers resource surface, not settings)
       const allEntries = [
         ...schemaResult.entries,
         {
           id: 'llm-providers' as const,
           title: 'LLM Providers',
           description:
-            'Reference-only entry. Create and manage LLM connectors from Resources > Connectors.',
+            'Reference-only entry. Create and manage AI providers from Resources > AI Providers.',
           section: 'workspace',
           source: 'custom' as const,
           fields: [{ id: 'items', label: 'Items', type: 'object-list' }],

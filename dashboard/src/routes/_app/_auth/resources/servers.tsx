@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
 import { PlugZap, Loader2, Cable, Link as LinkIcon, RotateCcw, Power } from 'lucide-react'
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ResourcePage, type Column, type FieldDef } from '@/components/resources/ResourcePage'
 import { TunnelSetupWizard } from '@/components/servers/TunnelSetupWizard'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
@@ -30,6 +31,20 @@ function formatSecretLabel(raw: Record<string, unknown>): string {
   const tid = String(raw.template_id ?? '')
   const alias = TEMPLATE_ALIASES[tid]
   return alias ? `${name}  (${alias})` : name
+}
+
+function parseTunnelServices(value: unknown): Array<{ service_name: string; tunnel_port: number }> {
+  try {
+    if (typeof value === 'string' && value !== '' && value !== 'null') {
+      return JSON.parse(value) as Array<{ service_name: string; tunnel_port: number }>
+    }
+    if (Array.isArray(value)) {
+      return value as Array<{ service_name: string; tunnel_port: number }>
+    }
+  } catch {
+    return []
+  }
+  return []
 }
 
 const fields: FieldDef[] = [
@@ -59,10 +74,10 @@ const fields: FieldDef[] = [
   { key: 'description', label: 'Description', type: 'textarea' },
 ]
 
-function ServersPage() {
-  const { create, returnGroup, returnType, edit } = Route.useSearch()
+export function ServersPage() {
+  const { create, returnGroup, returnType, edit, server, tab } = Route.useSearch()
   const autoCreate = create === '1' || !!returnGroup
-  const navigate = useNavigate()
+  const navigate = Route.useNavigate()
   const [wizardServerId, setWizardServerId] = useState<string | null>(null)
   const [checkingIds, setCheckingIds] = useState<Set<string>>(new Set())
   const [connectingOpen, setConnectingOpen] = useState(false)
@@ -80,6 +95,17 @@ function ServersPage() {
   const [secretAddOption, setSecretAddOption] = useState<
     ((id: string, label: string) => void) | null
   >(null)
+
+  const getStatusValue = useCallback(
+    (item: Record<string, unknown>) => {
+      const id = String(item.id ?? '')
+      if (pingResults[id]) return pingResults[id]
+      const raw = String(item.tunnel_status ?? '').toLowerCase()
+      if (raw === 'online' || raw === 'offline') return raw
+      return item.connect_type === 'tunnel' ? 'offline' : 'unknown'
+    },
+    [pingResults]
+  )
 
   const openSecretDialog = useCallback(
     (callbacks: { addOption: (id: string, label: string) => void }) => {
@@ -188,19 +214,72 @@ function ServersPage() {
     }
   }, [checkServerStatus, powerAction, powerTarget])
 
+  const handleSelectServer = useCallback(
+    (item: Record<string, unknown> | null) => {
+      void navigate({
+        to: '/resources/servers',
+        search: prev => ({
+          ...prev,
+          server:
+            item && String(item.id) !== prev.server ? String(item.id) : undefined,
+          tab:
+            item && String(item.id) !== prev.server ? prev.tab ?? 'detail' : undefined,
+        }),
+      })
+    },
+    [navigate]
+  )
+
   const columns: Column[] = [
-    { key: 'name', label: 'Name' },
+    {
+      key: 'name',
+      label: 'Name',
+      searchable: true,
+      sortable: true,
+      render: (value, row) => {
+        const id = String(row.id ?? '')
+        const selected = server === id
+        return (
+          <button
+            type="button"
+            className="cursor-pointer text-left font-medium text-primary underline-offset-4 hover:underline"
+            onClick={event => {
+              event.stopPropagation()
+              void handleSelectServer(row)
+            }}
+          >
+            <span>{String(value || '—')}</span>
+            <span className="sr-only">{selected ? 'Hide detail' : 'Show detail'}</span>
+          </button>
+        )
+      },
+    },
     {
       key: 'connect_type',
       label: 'Type',
+      filterOptions: [
+        { label: 'Direct SSH', value: 'direct' },
+        { label: 'Reverse Tunnel', value: 'tunnel' },
+      ],
       render: v => <Badge variant="outline">{v === 'tunnel' ? 'Tunnel' : 'Direct'}</Badge>,
     },
-    { key: 'host', label: 'Host' },
-    { key: 'port', label: 'Port' },
-    { key: 'user', label: 'User' },
+    { key: 'host', label: 'Host', searchable: true, sortable: true },
+    {
+      key: 'port',
+      label: 'Port',
+      sortable: true,
+      sortValue: row => Number(row.port ?? 0),
+    },
+    { key: 'user', label: 'User', searchable: true, sortable: true },
     {
       key: 'tunnel_status',
       label: 'Status',
+      filterOptions: [
+        { label: 'Online', value: 'online' },
+        { label: 'Offline', value: 'offline' },
+        { label: 'Unknown', value: 'unknown' },
+      ],
+      filterValue: row => getStatusValue(row),
       render: (v, row) => {
         const id = String(row.id ?? '')
         const ct = row.connect_type
@@ -246,21 +325,12 @@ function ServersPage() {
     {
       key: 'tunnel_services',
       label: 'Tunnel Ports',
+      searchable: true,
       render: (v, row) => {
         if (row.connect_type !== 'tunnel') {
           return <span className="text-muted-foreground">—</span>
         }
-        type Svc = { service_name: string; tunnel_port: number }
-        let services: Svc[] = []
-        try {
-          if (typeof v === 'string' && v !== '' && v !== 'null') {
-            services = JSON.parse(v)
-          } else if (Array.isArray(v)) {
-            services = v as Svc[]
-          }
-        } catch {
-          /* ignore */
-        }
+        const services = parseTunnelServices(v)
         if (!services.length) {
           return <span className="text-muted-foreground">—</span>
         }
@@ -272,6 +342,134 @@ function ServersPage() {
       },
     },
   ]
+
+  const renderDetailPanel = useCallback(
+    (item: Record<string, unknown>) => {
+      const detailTab = tab ?? 'detail'
+      const services = parseTunnelServices(item.tunnel_services)
+      const status = getStatusValue(item)
+      return (
+        <div className="space-y-4">
+          <div className="border-b pb-4">
+            <h2 className="text-xl font-semibold tracking-tight">
+              {String(item.name || 'Unnamed Server')}
+              <span className="ml-2 text-sm font-normal text-muted-foreground">{String(item.id || '')}</span>
+            </h2>
+          </div>
+
+          <Tabs
+            value={detailTab}
+            onValueChange={value => {
+              void navigate({
+                to: '/resources/servers',
+                search: prev => ({ ...prev, tab: value as 'detail' | 'monitor' | 'runtime' }),
+              })
+            }}
+          >
+            <TabsList>
+              <TabsTrigger value="detail">Detail</TabsTrigger>
+              <TabsTrigger value="monitor">Monitor</TabsTrigger>
+              <TabsTrigger value="runtime">Runtime</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="detail" className="mt-4">
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-lg border bg-muted/10 p-4">
+                  <h3 className="text-sm font-semibold">Connection</h3>
+                  <dl className="mt-3 space-y-2 text-sm">
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted-foreground">Type</dt>
+                      <dd>{item.connect_type === 'tunnel' ? 'Reverse Tunnel' : 'Direct SSH'}</dd>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted-foreground">Host</dt>
+                      <dd className="font-mono text-xs">{String(item.host || '—')}</dd>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted-foreground">Port</dt>
+                      <dd>{String(item.port || '22')}</dd>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted-foreground">User</dt>
+                      <dd>{String(item.user || 'root')}</dd>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted-foreground">Status</dt>
+                      <dd>{status === 'unknown' ? 'Unknown' : status === 'online' ? 'Online' : 'Offline'}</dd>
+                    </div>
+                  </dl>
+                </div>
+
+                <div className="rounded-lg border bg-muted/10 p-4">
+                  <h3 className="text-sm font-semibold">Security</h3>
+                  <dl className="mt-3 space-y-2 text-sm">
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted-foreground">Credential Secret</dt>
+                      <dd className="font-mono text-xs">{String(item.credential || '—')}</dd>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted-foreground">Description</dt>
+                      <dd className="max-w-[18rem] text-right text-muted-foreground">
+                        {String(item.description || '—')}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+
+                <div className="rounded-lg border bg-muted/10 p-4 lg:col-span-2">
+                  <h3 className="text-sm font-semibold">Tunnel Services</h3>
+                  {services.length === 0 ? (
+                    <p className="mt-3 text-sm text-muted-foreground">No tunnel service mapping exposed for this server.</p>
+                  ) : (
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                      {services.map(service => (
+                        <div key={`${service.service_name}:${service.tunnel_port}`} className="rounded-md border bg-background px-3 py-2 text-sm">
+                          <div className="font-medium">{service.service_name}</div>
+                          <div className="text-muted-foreground">Port {service.tunnel_port}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-lg border bg-muted/10 p-4 lg:col-span-2">
+                  <h3 className="text-sm font-semibold">Record Fields</h3>
+                  <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2 xl:grid-cols-3">
+                    {[
+                      ['ID', String(item.id || '—')],
+                      ['Name', String(item.name || '—')],
+                      ['Host', String(item.host || '—')],
+                      ['Port', String(item.port || '22')],
+                      ['User', String(item.user || 'root')],
+                      ['Connect Type', String(item.connect_type || 'direct')],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-md border bg-background px-3 py-2">
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
+                        <dd className="mt-1 break-all">{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="monitor" className="mt-4">
+              <div className="rounded-lg border bg-muted/10 p-4 text-sm text-muted-foreground">
+                Connectivity checks, tunnel health, and runtime probes can be surfaced here. Current server status is {status}.
+              </div>
+            </TabsContent>
+
+            <TabsContent value="runtime" className="mt-4">
+              <div className="rounded-lg border bg-muted/10 p-4 text-sm text-muted-foreground">
+                Runtime details can later include active sessions, deployed workloads, and process information for {String(item.name || item.id)}.
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
+      )
+    },
+    [getStatusValue, navigate, tab]
+  )
 
   const renderExtraActions = useCallback(
     (item: Record<string, unknown>) => {
@@ -341,6 +539,19 @@ function ServersPage() {
           title: 'Servers',
           description: 'SSH deployment targets',
           apiPath: '/api/collections/servers/records',
+          favoriteStorageKey: 'resource-page:favorites:servers',
+          favoritesFilterLabel: 'Favorites only',
+          createButtonLabel: 'Add Server',
+          createButtonShowIcon: false,
+          searchPlaceholder: 'Search servers by name, host, or user...',
+          pageSize: 10,
+          pageSizeOptions: [10, 20, 50],
+          defaultSort: { key: 'name', dir: 'asc' },
+          headerFilters: true,
+          listControlsBorder: false,
+          listControlsShowReset: false,
+          pageSizeSelectorPlacement: 'footer',
+          paginationSummary: false,
           resourceType: 'server',
           listItems: async () => await pb.collection('servers').getFullList({ sort: 'name' }),
           createItem: async payload => await pb.collection('servers').create(payload),
@@ -352,23 +563,30 @@ function ServersPage() {
           },
           columns,
           fields: serverFields,
-          parentNav: { label: 'Resources', href: '/resources' },
           autoCreate,
           showRefreshButton: true,
+          wrapTableInCard: false,
           onRefresh: refreshAllStatuses,
+          favoriteActionPlacement: 'afterExtraActions',
           extraActions: renderExtraActions,
+          selectedItemId: server,
+          onSelectItem: handleSelectServer,
+          renderDetailPanel,
           initialEditId: edit,
           onInitialEditHandled: () => {
             if (!edit) return
             void navigate({
               to: '/resources/servers',
               replace: true,
-              search: {
+              search: prev => ({
+                ...prev,
                 create,
                 returnGroup,
                 returnType,
                 edit: undefined,
-              },
+                server: prev.server,
+                tab: prev.tab,
+              }),
             })
           },
           onCreateSuccess: record => {
@@ -472,5 +690,10 @@ export const Route = createFileRoute('/_app/_auth/resources/servers')({
     returnGroup: typeof search.returnGroup === 'string' ? search.returnGroup : undefined,
     returnType: typeof search.returnType === 'string' ? search.returnType : undefined,
     edit: typeof search.edit === 'string' ? search.edit : undefined,
+    server: typeof search.server === 'string' ? search.server : undefined,
+    tab:
+      search.tab === 'detail' || search.tab === 'monitor' || search.tab === 'runtime'
+        ? search.tab
+        : undefined,
   }),
 })

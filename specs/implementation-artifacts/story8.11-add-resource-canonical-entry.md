@@ -13,8 +13,8 @@ so that I can start creating the right resource without taxonomy confusion.
 ## Acceptance Criteria
 
 1. From the `/resources` homepage, activating `Add Resource` opens a lightweight chooser panel instead of navigating away immediately, and the chooser remains visually subordinate to the page shell while still clearly actionable.
-2. The chooser presents all four canonical families together: `Servers`, `Service Instances`, `Connectors`, and `Platform Accounts`, without forcing a prior group-level decision.
-3. `Service Instances`, `Connectors`, and `Platform Accounts` include concise helper text in user-task language, and `Service Instances` explains runtime dependency meaning more explicitly than the other families.
+2. The chooser presents all five canonical families together: `Servers`, `Service Instances`, `AI Providers`, `Connectors`, and `Platform Accounts`, without forcing a prior group-level decision.
+3. `Service Instances`, `AI Providers`, `Connectors`, and `Platform Accounts` include concise helper text in user-task language, and `Service Instances` explains runtime dependency meaning more explicitly than the other families.
 4. Each family can reveal inline example items without leaving the chooser, and the expanded content remains secondary to the main family selection.
 5. Choosing a family routes directly to the corresponding create flow for that family without exposing legacy taxonomy decisions during the path to creation.
 6. The chooser supports predictable keyboard navigation, visible focus treatment, escape-to-close behavior, and focus return to the `Add Resource` trigger when closed.
@@ -24,10 +24,10 @@ so that I can start creating the right resource without taxonomy confusion.
 - [ ] Replace the current quick-create dropdown with a canonical chooser panel interaction (AC: 1, 2)
   - [ ] Rework the existing `Add Resource` control in `dashboard/src/components/resources/ResourceHub.tsx` so it opens a lightweight chooser panel instead of a simple dropdown list.
   - [ ] Keep the chooser visually subordinate to the page shell; do not turn this into a dedicated full-page wizard or route.
-  - [ ] Present the four canonical families together in one chooser surface with no extra group-first step.
+  - [ ] Present the five canonical families together in one chooser surface with no extra group-first step.
 - [ ] Define canonical family options, helper copy, and inline examples (AC: 2, 3, 4)
   - [ ] Keep the primary action on each option focused on the canonical family itself rather than intent-only wording.
-  - [ ] Retain concise helper copy in user-task language and give `Service Instances` the strongest explanatory support.
+  - [ ] Retain concise helper copy in user-task language and give `Service Instances` the strongest explanatory support while making `AI Providers` clearly distinct from generic `Connectors`.
   - [ ] Add secondary expandable examples for each family without allowing the examples to overshadow the main selection action.
 - [ ] Standardize direct create routing across family destinations (AC: 5)
   - [ ] Preserve direct navigation from chooser selection to the target family create flow.
@@ -50,7 +50,7 @@ so that I can start creating the right resource without taxonomy confusion.
 
 **Business and UX intent**
 
-- The user should be able to decide what to create without translating backend terms first, but the final visible choice must still reinforce the canonical four-family model.
+- The user should be able to decide what to create without translating backend terms first, but the final visible choice must still reinforce the canonical five-family model.
 - `Service Instances` remains the highest-risk concept for confusion. The chooser should make this family easier to understand than a generic resource-type picker does today.
 - The chooser must feel like a short assistive layer attached to the homepage, not like a separate flow that breaks the page's orientation-first value.
 
@@ -72,8 +72,8 @@ so that I can start creating the right resource without taxonomy confusion.
 
 - AppOS remains single-server-first, so this chooser must not imply cluster-specific or multi-environment resource semantics. [Source: specs/planning-artifacts/prd.md#Project-Type Requirements]
 - Dashboard and CLI share the same HTTP API and auth model; this story should not create a dashboard-only API contract for resource creation entry. [Source: specs/planning-artifacts/architecture.md#Overview]
-- Secrets remain outside the canonical four-family resource taxonomy and must not appear as a primary chooser option. [Source: specs/planning-artifacts/architecture.md#Domain boundary]
-- Canonical family labels remain `Servers`, `Service Instances`, `Connectors`, and `Platform Accounts`. Do not regress to legacy top-level labels such as `Databases` or `Cloud Accounts`. [Source: specs/implementation-artifacts/epic8-resources.md#Phase 2 Canonical Resource Families]
+- Secrets remain outside the canonical five-family resource taxonomy and must not appear as a primary chooser option. [Source: specs/planning-artifacts/architecture.md#Domain boundary]
+- Canonical family labels remain `Servers`, `Service Instances`, `AI Providers`, `Connectors`, and `Platform Accounts`. Do not regress to legacy top-level labels such as `Databases` or `Cloud Accounts`. [Source: specs/implementation-artifacts/epic8-resources.md#Phase 2 Canonical Resource Families]
 
 ### Library / Framework Requirements
 
@@ -86,7 +86,7 @@ so that I can start creating the right resource without taxonomy confusion.
 
 - Primary homepage interaction file: `dashboard/src/components/resources/ResourceHub.tsx`.
 - Primary chooser regression file: `dashboard/src/components/resources/ResourceHub.test.tsx`.
-- Likely route files needing create-entry normalization: `dashboard/src/routes/_app/_auth/resources/servers.tsx`, `dashboard/src/routes/_app/_auth/resources/service-instances.tsx`, `dashboard/src/routes/_app/_auth/resources/connectors.tsx`, and `dashboard/src/routes/_app/_auth/resources/platform-accounts.tsx`.
+- Likely route files needing create-entry normalization: `dashboard/src/routes/_app/_auth/resources/servers.tsx`, `dashboard/src/routes/_app/_auth/resources/service-instances.tsx`, `dashboard/src/routes/_app/_auth/resources/ai-providers.tsx`, `dashboard/src/routes/_app/_auth/resources/connectors.tsx`, and `dashboard/src/routes/_app/_auth/resources/platform-accounts.tsx`.
 - If a chooser subcomponent is extracted for maintainability, keep it under `dashboard/src/components/resources/` rather than introducing a separate feature area.
 
 ### Testing Requirements
@@ -97,7 +97,7 @@ so that I can start creating the right resource without taxonomy confusion.
 
 ### Previous Story Intelligence
 
-- Story 8.9 defined Add Resource as an intent-led flow, but Story 8.11 must implement the later refined requirement: one chooser surface with all four canonical families visible together and explanatory support inline.
+- Story 8.9 defined Add Resource as an intent-led flow, but Story 8.11 must implement the later refined requirement: one chooser surface with all five canonical families visible together and explanatory support inline.
 - Story 8.10 already shipped the canonical homepage structure and top-right action placement. Reuse that shell instead of rethinking header layout.
 - Story 8.10 explicitly deferred chooser redesign. This story is the intended place to absorb that deferred work.
 

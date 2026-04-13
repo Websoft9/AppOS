@@ -24,13 +24,6 @@ type InstanceRecord = {
   description?: string
 }
 
-type InstanceReachabilityRecord = {
-  id: string
-  status?: string
-  latency_ms?: number
-  reason?: string
-}
-
 type InstanceTemplateField = {
   id: string
   label: string
@@ -264,28 +257,6 @@ function formatDateTime(value: unknown) {
   }).format(date)
 }
 
-function reachabilityTone(status: unknown) {
-  switch (String(status ?? '').toLowerCase()) {
-    case 'online':
-      return 'border-emerald-200 bg-emerald-50 text-emerald-700'
-    case 'offline':
-      return 'border-rose-200 bg-rose-50 text-rose-700'
-    default:
-      return 'border-amber-200 bg-amber-50 text-amber-700'
-  }
-}
-
-function reachabilityLabel(status: unknown) {
-  switch (String(status ?? '').toLowerCase()) {
-    case 'online':
-      return 'Reachable'
-    case 'offline':
-      return 'Unreachable'
-    default:
-      return 'Unknown'
-  }
-}
-
 function mergeDatabaseTemplateFields(template: InstanceTemplate | null | undefined) {
   if (!template) {
     return [] as InstanceTemplateField[]
@@ -495,24 +466,31 @@ function mapInstanceRow(
     credential_use_secret: Boolean(credentialId),
     password_value: '',
     description: String(item.description ?? ''),
-    reachability: 'unknown',
-    reachability_reason: '',
-    reachability_latency_ms: undefined,
     ...flattenedConfig,
   }
 }
 
 const columns: Column[] = [
-  { key: 'name', label: 'Name' },
+  { key: 'name', label: 'Name', searchable: true, sortable: true },
   {
     key: 'kind_label',
     label: 'Kind',
+    sortable: true,
+    filterValue: row => String(row.kind_label ?? ''),
     render: value => <Badge variant="outline">{String(value || '—')}</Badge>,
   },
-  { key: 'profile', label: 'Profile' },
   {
-    key: 'endpoint',
-    label: 'Endpoint',
+    key: 'profile',
+    label: 'Profile',
+    searchable: true,
+    sortable: true,
+    filterValue: row => String(row.profile ?? ''),
+  },
+  {
+    key: 'host',
+    label: 'Host',
+    searchable: true,
+    sortable: true,
     render: value => (
       <span className="max-w-[220px] truncate block" title={String(value || '')}>
         {String(value || '—')}
@@ -520,31 +498,15 @@ const columns: Column[] = [
     ),
   },
   {
-    key: 'reachability',
-    label: 'Network Reachability',
-    render: (value, row) => {
-      const status = String(value ?? 'unknown')
-      const reason = String(row.reachability_reason ?? '').trim()
-      const latency = Number(row.reachability_latency_ms ?? 0)
-      const title = status === 'online' && latency > 0
-        ? `${reachabilityLabel(status)} · ${latency} ms`
-        : reason || reachabilityLabel(status)
-
-      return (
-        <Badge variant="outline" className={reachabilityTone(status)} title={title}>
-          {reachabilityLabel(status)}
-        </Badge>
-      )
-    },
-  },
-  {
     key: 'created',
     label: 'Created',
+    sortable: true,
     render: value => <span className="text-sm text-muted-foreground">{formatDateTime(value)}</span>,
   },
   {
     key: 'updated',
     label: 'Updated',
+    sortable: true,
     render: value => <span className="text-sm text-muted-foreground">{formatDateTime(value)}</span>,
   },
 ]
@@ -600,37 +562,7 @@ export function ServiceInstancesPage() {
 
   const listItems = useCallback(async () => {
     const items = await pb.send<InstanceRecord[]>('/api/instances', { method: 'GET' })
-    const rows = Array.isArray(items) ? items.map(item => mapInstanceRow(item, templatesById)) : []
-    if (rows.length === 0) {
-      return rows
-    }
-
-    let reachability: InstanceReachabilityRecord[] = []
-    try {
-      const response = await pb.send<InstanceReachabilityRecord[]>('/api/instances/reachability', {
-        method: 'POST',
-        body: { ids: rows.map(row => String(row.id)) },
-      })
-      reachability = Array.isArray(response) ? response : []
-    } catch {
-      reachability = []
-    }
-
-    const byId = new Map(
-      reachability.map(item => [
-        item.id,
-        {
-          reachability: String(item.status ?? 'unknown'),
-          reachability_reason: String(item.reason ?? ''),
-          reachability_latency_ms: item.latency_ms,
-        },
-      ])
-    )
-
-    return rows.map(row => ({
-      ...row,
-      ...(byId.get(String(row.id)) ?? {}),
-    }))
+    return Array.isArray(items) ? items.map(item => mapInstanceRow(item, templatesById)) : []
   }, [templatesById])
 
   const openSecretDialog = useCallback(
@@ -965,6 +897,19 @@ export function ServiceInstancesPage() {
           description:
             'MySQL, PostgreSQL, Redis, Kafka, S3 storage, and model services with profile-based templates.',
           apiPath: '/api/instances',
+          favoriteStorageKey: 'resource-page:favorites:service-instances',
+          favoritesFilterLabel: 'Favorites only',
+          createButtonLabel: 'Add Instance',
+          createButtonShowIcon: false,
+          searchPlaceholder: 'Search any instances',
+          pageSize: 10,
+          pageSizeOptions: [10, 20, 50],
+          defaultSort: { key: 'name', dir: 'asc' },
+          headerFilters: true,
+          listControlsBorder: false,
+          listControlsShowReset: false,
+          pageSizeSelectorPlacement: 'footer',
+          paginationSummary: false,
           columns,
           fields: bootstrapFields,
           createSelection: {
@@ -1072,7 +1017,6 @@ export function ServiceInstancesPage() {
           autoCreate,
           enableGroupAssign: true,
           showRefreshButton: true,
-          createButtonIconOnly: true,
           wrapTableInCard: false,
           listItems,
           createItem: async payload => {

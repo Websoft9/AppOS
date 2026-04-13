@@ -17,8 +17,8 @@ Turn the resource taxonomy ADR into an explicit implementation contract for nami
 
 ## In Scope
 
-- canonical product labels: `Servers`, `Service Instances`, `Platform Accounts`, `Connectors`
-- canonical backend terms: `server`, `instance`, `provider_account`, `connector`
+- canonical product labels: `Servers`, `Service Instances`, `AI Providers`, `Platform Accounts`, `Connectors`
+- canonical backend terms: `server`, `instance`, `ai_provider`, `provider_account`, `connector`
 - classification rules for ambiguous families such as `llm`, `s3`, and `registry`
 - route and collection target names for future work
 - explicit boundary between resources and settings ownership
@@ -38,6 +38,7 @@ Turn the resource taxonomy ADR into an explicit implementation contract for nami
 | --- | --- |
 | `server` | `Servers` |
 | `instance` | `Service Instances` |
+| `ai_provider` | `AI Providers` |
 | `provider_account` | `Platform Accounts` |
 | `connector` | `Connectors` |
 
@@ -47,6 +48,7 @@ Turn the resource taxonomy ADR into an explicit implementation contract for nami
 | --- | --- |
 | `server` | `/api/servers` |
 | `instance` | `/api/instances` |
+| `ai_provider` | `/api/ai-providers` |
 | `provider_account` | `/api/provider-accounts` |
 | `connector` | `/api/connectors` |
 
@@ -56,21 +58,23 @@ Turn the resource taxonomy ADR into an explicit implementation contract for nami
 | --- | --- |
 | third-party RDS | `instance` |
 | object storage used as long-lived app dependency | `instance` |
-| self-hosted model service | `instance` |
-| current settings-owned LLM provider configuration | `connector` |
-| OpenAI or Anthropic access | `connector` |
+| current settings-owned LLM provider configuration | `ai_provider` |
+| OpenAI or Anthropic access | `ai_provider` |
+| Ollama endpoint access consumed by AppOS | `ai_provider` |
+| MCP endpoint access | `connector` |
 | DNS automation target | `connector` |
 | SMTP delivery target | `connector` |
 | cloud or source-control account | `provider_account` |
 
 ## Acceptance Criteria
 
-1. Epic 8 and the companion ADR use the same four-family taxonomy and label mapping.
+1. Epic 8 and the companion ADR use the same five-family taxonomy and label mapping.
 2. Product/UI label `Platform Accounts` is explicitly mapped to backend term `provider_account`.
 3. Product/UI label `Service Instances` is explicitly mapped to backend term `instance`.
-4. The target route direction for all four families is documented and treated as canonical for new stories.
-5. `settings` is explicitly documented as a reference layer rather than canonical owner for long-lived business resources.
-6. `llm`, `s3`, and `registry` have documented classification rules to avoid story-level drift.
+4. Product/UI label `AI Providers` is explicitly mapped to backend term `ai_provider`.
+5. The target route direction for all five families is documented and treated as canonical for new stories.
+6. `settings` is explicitly documented as a reference layer rather than canonical owner for long-lived business resources.
+7. `llm`, `s3`, `registry`, and `mcp` have documented classification rules to avoid story-level drift.
 
 ## Tasks / Subtasks
 
@@ -80,14 +84,15 @@ Turn the resource taxonomy ADR into an explicit implementation contract for nami
   - [ ] 1.3 Mark any superseded resource-taxonomy drafts as non-authoritative
 
 - [ ] Task 2: Taxonomy contract publication
-  - [ ] 2.1 Define the canonical four-family matrix
+  - [ ] 2.1 Define the canonical five-family matrix
   - [ ] 2.2 Document the product-label to backend-term mapping
   - [ ] 2.3 Document target route names for future implementation stories
 
 - [ ] Task 3: Ambiguous object classification
-  - [ ] 3.1 Freeze LLM current-state classification as `connector`
+  - [ ] 3.1 Freeze LLM current-state classification as `ai_provider`
   - [ ] 3.2 Freeze object storage dependency classification as `instance`
   - [ ] 3.3 Freeze managed database dependency classification as `instance`
+  - [ ] 3.4 Freeze MCP classification as `connector`
 
 ## Notes
 

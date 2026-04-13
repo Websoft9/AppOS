@@ -14,17 +14,24 @@ import {
   Trash2,
   Loader2,
   Upload,
+  ArrowDown,
+  ArrowUp,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Filter,
+  Search,
   Tags,
   X,
   RefreshCw,
   MoreVertical,
+  Star,
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
 import {
   Table,
   TableBody,
@@ -53,12 +60,14 @@ import {
 } from '@/components/ui/alert-dialog'
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { type PBList, pbFilterValue } from '@/lib/groups'
+import { cn } from '@/lib/utils'
 import { ResourceFormField } from './ResourceFormField'
 import type {
   FieldDef,
@@ -79,6 +88,35 @@ const INPUT_CLASS =
   'w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground text-sm'
 
 const GROUPS_API_PATH = '/api/collections/groups/records?perPage=500&sort=name'
+
+type SortDir = 'asc' | 'desc'
+
+function readFavoriteIds(storageKey: string | undefined) {
+  if (!storageKey || typeof window === 'undefined') {
+    return new Set<string>()
+  }
+
+  try {
+    const raw = window.localStorage.getItem(storageKey)
+    if (!raw) return new Set<string>()
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? new Set(parsed.map(String)) : new Set<string>()
+  } catch {
+    return new Set<string>()
+  }
+}
+
+function writeFavoriteIds(storageKey: string | undefined, ids: Set<string>) {
+  if (!storageKey || typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify(Array.from(ids)))
+  } catch {
+    // Ignore persistence failures and keep the in-memory state usable.
+  }
+}
 
 function buildOrFilter(field: string, values: string[]): string {
   return values.map(value => `${field}='${pbFilterValue(value)}'`).join('||')
@@ -126,6 +164,16 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   const [items, setItems] = useState<Record<string, unknown>[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortKey, setSortKey] = useState<string | null>(config.defaultSort?.key ?? null)
+  const [sortDir, setSortDir] = useState<SortDir>(config.defaultSort?.dir ?? 'asc')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(config.pageSize ?? 10)
+  const [excludedFilters, setExcludedFilters] = useState<Record<string, Set<string>>>({})
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(() =>
+    readFavoriteIds(config.favoriteStorageKey)
+  )
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [createSelectionOpen, setCreateSelectionOpen] = useState(false)
@@ -172,6 +220,145 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
     () => getFields(formData, editingItem),
     [editingItem, formData, getFields]
   )
+  const searchableColumns = useMemo(
+    () => config.columns.filter(column => column.searchable),
+    [config.columns]
+  )
+  const filterableColumns = useMemo(
+    () => config.columns.filter(column => column.filterOptions || column.filterValue),
+    [config.columns]
+  )
+  const filterOptionMap = useMemo(() => {
+    const entries = filterableColumns.map(column => {
+      const options = column.filterOptions?.length
+        ? column.filterOptions
+        : Array.from(
+            new Set(
+              items
+                .map(item => column.filterValue?.(item) ?? item[column.key])
+                .map(value => String(value ?? '').trim())
+                .filter(Boolean)
+            )
+          )
+            .sort((a, b) => a.localeCompare(b))
+            .map(value => ({ label: value, value }))
+
+      return [column.key, options]
+    })
+
+    return Object.fromEntries(entries) as Record<string, SelectOption[]>
+  }, [filterableColumns, items])
+
+  const processedItems = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    let next = [...items]
+
+    if (query) {
+      next = next.filter(item => {
+        const haystack = searchableColumns
+          .map(column => {
+            const raw = column.sortValue?.(item) ?? item[column.key]
+            return String(raw ?? '').toLowerCase()
+          })
+          .join(' ')
+        return haystack.includes(query)
+      })
+    }
+
+    if (filterableColumns.length > 0) {
+      next = next.filter(item => {
+        return filterableColumns.every(column => {
+          const excluded = excludedFilters[column.key]
+          if (!excluded || excluded.size === 0) return true
+          const value = String(column.filterValue?.(item) ?? item[column.key] ?? '')
+          return !excluded.has(value)
+        })
+      })
+    }
+
+    if (config.favoriteStorageKey && showFavoritesOnly) {
+      next = next.filter(item => favoriteIds.has(String(item.id ?? '')))
+    }
+
+    if (sortKey) {
+      const column = config.columns.find(entry => entry.key === sortKey)
+      if (column) {
+        next.sort((left, right) => {
+          if (config.favoriteStorageKey) {
+            const favoriteCompare =
+              Number(favoriteIds.has(String(right.id ?? ''))) -
+              Number(favoriteIds.has(String(left.id ?? '')))
+            if (favoriteCompare !== 0) {
+              return favoriteCompare
+            }
+          }
+
+          const leftRaw = column.sortValue?.(left) ?? left[column.key]
+          const rightRaw = column.sortValue?.(right) ?? right[column.key]
+          const leftValue = typeof leftRaw === 'number' ? leftRaw : String(leftRaw ?? '')
+          const rightValue = typeof rightRaw === 'number' ? rightRaw : String(rightRaw ?? '')
+
+          let comparison = 0
+          if (typeof leftValue === 'number' && typeof rightValue === 'number') {
+            comparison = leftValue - rightValue
+          } else {
+            comparison = String(leftValue).localeCompare(String(rightValue), undefined, {
+              numeric: true,
+              sensitivity: 'base',
+            })
+          }
+
+          return sortDir === 'asc' ? comparison : -comparison
+        })
+      }
+    } else if (config.favoriteStorageKey) {
+      next.sort(
+        (left, right) =>
+          Number(favoriteIds.has(String(right.id ?? ''))) -
+          Number(favoriteIds.has(String(left.id ?? '')))
+      )
+    }
+
+    return next
+  }, [
+    config.columns,
+    config.favoriteStorageKey,
+    excludedFilters,
+    favoriteIds,
+    filterableColumns,
+    items,
+    searchQuery,
+    searchableColumns,
+    showFavoritesOnly,
+    sortDir,
+    sortKey,
+  ])
+
+  const totalPages = Math.max(1, Math.ceil(processedItems.length / pageSize))
+  const pagedItems = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return processedItems.slice(start, start + pageSize)
+  }, [page, pageSize, processedItems])
+  const selectedDetailItem = useMemo(
+    () =>
+      config.selectedItemId
+        ? items.find(item => String(item.id) === config.selectedItemId) ?? null
+        : null,
+    [config.selectedItemId, items]
+  )
+  const showListControls =
+    searchableColumns.length > 0 ||
+    Boolean(config.favoriteStorageKey) ||
+    (filterableColumns.length > 0 && !config.headerFilters) ||
+    (config.pageSizeSelectorPlacement ?? 'header') === 'header'
+  const showHeaderPageSizeSelector =
+    (config.pageSizeSelectorPlacement ?? 'header') === 'header'
+  const showFooterPageSizeSelector =
+    (config.pageSizeSelectorPlacement ?? 'header') === 'footer'
+  const showPaginationSummary = config.paginationSummary ?? true
+  const showListControlsBorder = config.listControlsBorder ?? true
+  const showListControlsReset = config.listControlsShowReset ?? true
+  const favoriteActionPlacement = config.favoriteActionPlacement ?? 'beforeExtraActions'
 
   const filteredCreateSelectionOptions = useMemo(() => {
     const selection = config.createSelection
@@ -315,6 +502,20 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   useEffect(() => {
     fetchItems()
   }, [fetchItems])
+
+  useEffect(() => {
+    setPage(1)
+  }, [searchQuery, pageSize, excludedFilters, showFavoritesOnly])
+
+  useEffect(() => {
+    setFavoriteIds(readFavoriteIds(config.favoriteStorageKey))
+  }, [config.favoriteStorageKey])
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages)
+    }
+  }, [page, totalPages])
 
   // Pre-load available groups on mount when batch assign is enabled
   useEffect(() => {
@@ -612,11 +813,138 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   }
 
   function toggleSelectAll() {
-    if (selectedItems.size === items.length) {
-      setSelectedItems(new Set())
-    } else {
-      setSelectedItems(new Set(items.map(i => String(i.id))))
-    }
+    const pageIds = pagedItems.map(item => String(item.id))
+    const allVisibleSelected = pageIds.every(id => selectedItems.has(id))
+    setSelectedItems(prev => {
+      const next = new Set(prev)
+      if (allVisibleSelected) {
+        pageIds.forEach(id => next.delete(id))
+      } else {
+        pageIds.forEach(id => next.add(id))
+      }
+      return next
+    })
+  }
+
+  function toggleSort(columnKey: string) {
+    setSortKey(current => {
+      if (current === columnKey) {
+        setSortDir(prev => (prev === 'asc' ? 'desc' : 'asc'))
+        return current
+      }
+      setSortDir('asc')
+      return columnKey
+    })
+  }
+
+  function toggleFilterValue(columnKey: string, value: string, included: boolean) {
+    setExcludedFilters(prev => {
+      const next = new Set(prev[columnKey] ?? [])
+      if (included) next.delete(value)
+      else next.add(value)
+      return { ...prev, [columnKey]: next }
+    })
+  }
+
+  function resetListControls() {
+    setSearchQuery('')
+    setExcludedFilters({})
+    setShowFavoritesOnly(false)
+    setPage(1)
+    setPageSize(config.pageSize ?? 10)
+    setSortKey(config.defaultSort?.key ?? null)
+    setSortDir(config.defaultSort?.dir ?? 'asc')
+  }
+
+  function toggleFavorite(itemId: string) {
+    setFavoriteIds(prev => {
+      const next = new Set(prev)
+      if (next.has(itemId)) {
+        next.delete(itemId)
+      } else {
+        next.add(itemId)
+      }
+      writeFavoriteIds(config.favoriteStorageKey, next)
+      return next
+    })
+  }
+
+  function isInteractiveTarget(target: EventTarget | null) {
+    if (!(target instanceof HTMLElement)) return false
+    return Boolean(target.closest('button,a,input,textarea,select,[role="menuitem"],[role="checkbox"]'))
+  }
+
+  function renderFilterMenu(column: (typeof config.columns)[number]) {
+    const options = filterOptionMap[column.key] ?? []
+    const excluded = excludedFilters[column.key] ?? new Set<string>()
+    const active = excluded.size > 0
+    if (options.length === 0) return null
+
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label={`Filter ${column.label}`}
+          >
+            <Filter className={`h-3.5 w-3.5 ${active ? 'text-primary' : ''}`} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-48 p-2">
+          <div className="space-y-1">
+            {options.map(option => {
+              const checked = !excluded.has(option.value)
+              return (
+                <DropdownMenuCheckboxItem
+                  key={option.value}
+                  checked={checked}
+                  className="px-2"
+                  onSelect={event => event.preventDefault()}
+                  onCheckedChange={value =>
+                    toggleFilterValue(column.key, option.value, value === true)
+                  }
+                >
+                  <span>{option.label}</span>
+                </DropdownMenuCheckboxItem>
+              )
+            })}
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+  }
+
+  function renderColumnHeader(column: (typeof config.columns)[number]) {
+    const hasSort = Boolean(column.sortable || column.sortValue)
+    const hasFilter = Boolean(config.headerFilters && (column.filterOptions || column.filterValue))
+    const showSort = hasSort && !hasFilter
+
+    return (
+      <div className="flex items-center gap-1">
+        {showSort ? (
+          <button
+            type="button"
+            className="flex items-center gap-1 hover:text-foreground"
+            onClick={() => toggleSort(column.key)}
+          >
+            <span>{column.label}</span>
+            {sortKey === column.key ? (
+              sortDir === 'asc' ? (
+                <ArrowUp className="h-3.5 w-3.5" />
+              ) : (
+                <ArrowDown className="h-3.5 w-3.5" />
+              )
+            ) : (
+              <ArrowUp className="h-3.5 w-3.5 opacity-30" />
+            )}
+          </button>
+        ) : (
+          <span>{column.label}</span>
+        )}
+        {hasFilter ? renderFilterMenu(column) : null}
+      </div>
+    )
   }
 
   async function handleAssignToGroups() {
@@ -715,22 +1043,25 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
           {config.showRefreshButton && (
             <Button
               variant="outline"
-              size="icon"
+              size={config.refreshButtonIconOnly === false ? 'default' : 'icon'}
               onClick={() => {
                 void handleRefresh()
               }}
-              title="Refresh"
+              title={config.refreshButtonLabel ?? 'Refresh'}
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className={`h-4 w-4 ${config.refreshButtonIconOnly === false ? 'mr-2' : ''}`} />
+              {config.refreshButtonIconOnly === false && (config.refreshButtonLabel ?? 'Refresh')}
             </Button>
           )}
           <Button
             onClick={openCreateDialog}
             size={config.createButtonIconOnly ? 'icon' : 'default'}
-            title="Create"
+            title={config.createButtonLabel ?? 'Create'}
           >
-            <Plus className={`h-4 w-4 ${config.createButtonIconOnly ? '' : 'mr-2'}`} />
-            {!config.createButtonIconOnly && 'Create'}
+            {(config.createButtonShowIcon ?? true) && (
+              <Plus className={`h-4 w-4 ${config.createButtonIconOnly ? '' : 'mr-2'}`} />
+            )}
+            {!config.createButtonIconOnly && (config.createButtonLabel ?? 'Create')}
           </Button>
         </div>
       </div>
@@ -745,15 +1076,115 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
         </div>
       )}
 
+      {showListControls && (
+        <div
+          className={cn(
+            'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between',
+            showListControlsBorder ? 'rounded-lg border bg-muted/20 p-3' : 'p-0'
+          )}
+        >
+          <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+            {searchableColumns.length > 0 && (
+              <div className="relative w-full sm:max-w-sm">
+                <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={event => setSearchQuery(event.target.value)}
+                  placeholder={config.searchPlaceholder ?? `Search ${config.title.toLowerCase()}...`}
+                  className="pl-9"
+                />
+              </div>
+            )}
+            {filterableColumns.length > 0 && !config.headerFilters && (
+              <div className="flex flex-wrap items-center gap-2">
+                {filterableColumns.map(column => {
+                  const options = filterOptionMap[column.key] ?? []
+                  const excluded = excludedFilters[column.key] ?? new Set<string>()
+                  const active = excluded.size > 0
+                  return (
+                    <DropdownMenu key={column.key}>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="gap-2">
+                          <Filter className={`h-3.5 w-3.5 ${active ? 'text-primary' : 'text-muted-foreground'}`} />
+                          {column.label}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="min-w-48 p-2">
+                        <div className="space-y-1">
+                          {options.map(option => {
+                            const checked = !excluded.has(option.value)
+                            return (
+                              <label
+                                key={option.value}
+                                className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted"
+                              >
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={value =>
+                                    toggleFilterValue(column.key, option.value, value === true)
+                                  }
+                                />
+                                <span>{option.label}</span>
+                              </label>
+                            )
+                          })}
+                        </div>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )
+                })}
+              </div>
+            )}
+            {config.favoriteStorageKey && (
+              <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                <Checkbox
+                  checked={showFavoritesOnly}
+                  onCheckedChange={checked => setShowFavoritesOnly(checked === true)}
+                />
+                <span>{config.favoritesFilterLabel ?? 'Favorites only'}</span>
+              </label>
+            )}
+          </div>
+          {(showHeaderPageSizeSelector || showListControlsReset) && (
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              {showHeaderPageSizeSelector && (
+                <select
+                  value={pageSize}
+                  onChange={event => setPageSize(Number(event.target.value))}
+                  className={INPUT_CLASS}
+                >
+                  {(config.pageSizeOptions ?? [10, 20, 50]).map(option => (
+                    <option key={option} value={option}>
+                      {option} / page
+                    </option>
+                  ))}
+                </select>
+              )}
+              {showListControlsReset && (
+                <Button variant="ghost" size="sm" onClick={resetListControls}>
+                  Reset
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Table */}
       {config.wrapTableInCard === false ? (
         <div>
-          {items.length === 0 ? (
+          {processedItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <p>No {config.title.toLowerCase()} found</p>
-              <Button variant="link" onClick={openCreateDialog}>
-                Create your first one
-              </Button>
+              {items.length > 0 ? (
+                <Button variant="link" onClick={resetListControls}>
+                  Clear current filters
+                </Button>
+              ) : (
+                <Button variant="link" onClick={openCreateDialog}>
+                  Create your first one
+                </Button>
+              )}
             </div>
           ) : (
             <Table>
@@ -764,22 +1195,34 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                       <input
                         type="checkbox"
                         className="h-4 w-4 rounded border-input"
-                        checked={items.length > 0 && selectedItems.size === items.length}
+                        checked={
+                          pagedItems.length > 0 &&
+                          pagedItems.every(item => selectedItems.has(String(item.id)))
+                        }
                         onChange={toggleSelectAll}
                       />
                     </TableHead>
                   )}
                   {config.columns.map(col => (
-                    <TableHead key={col.key}>{col.label}</TableHead>
+                    <TableHead key={col.key}>{renderColumnHeader(col)}</TableHead>
                   ))}
                   <TableHead className="w-[72px] text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map(item => (
+                {pagedItems.map(item => (
                   <TableRow
                     key={String(item.id)}
                     data-selected={selectedItems.has(String(item.id))}
+                    className={config.selectedItemId === String(item.id) ? 'bg-muted/40' : undefined}
+                    onClick={
+                      config.onSelectItem
+                        ? event => {
+                            if (isInteractiveTarget(event.target)) return
+                            config.onSelectItem?.(item)
+                          }
+                        : undefined
+                    }
                   >
                     {config.enableGroupAssign && (
                       <TableCell>
@@ -804,10 +1247,38 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          {favoriteActionPlacement === 'beforeExtraActions' && config.favoriteStorageKey && (
+                            <>
+                              <DropdownMenuItem onClick={() => toggleFavorite(String(item.id ?? ''))}>
+                                <Star
+                                  className="h-4 w-4"
+                                  fill={favoriteIds.has(String(item.id ?? '')) ? 'currentColor' : 'none'}
+                                />
+                                {favoriteIds.has(String(item.id ?? ''))
+                                  ? 'Remove Favorite'
+                                  : 'Add Favorite'}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                            </>
+                          )}
                           {config.extraActions?.(item, () => {
                             void fetchItems()
                           })}
-                          {config.extraActions && <DropdownMenuSeparator />}
+                          {favoriteActionPlacement === 'afterExtraActions' && config.favoriteStorageKey && (
+                            <>
+                              {config.extraActions && <DropdownMenuSeparator />}
+                              <DropdownMenuItem onClick={() => toggleFavorite(String(item.id ?? ''))}>
+                                <Star
+                                  className="h-4 w-4"
+                                  fill={favoriteIds.has(String(item.id ?? '')) ? 'currentColor' : 'none'}
+                                />
+                                {favoriteIds.has(String(item.id ?? ''))
+                                  ? 'Remove Favorite'
+                                  : 'Add Favorite'}
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {(config.extraActions || (favoriteActionPlacement === 'afterExtraActions' && config.favoriteStorageKey)) && <DropdownMenuSeparator />}
                           <DropdownMenuItem onClick={() => openEditDialog(item)}>
                             <Pencil className="h-4 w-4" />
                             Edit
@@ -847,22 +1318,34 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                         <input
                           type="checkbox"
                           className="h-4 w-4 rounded border-input"
-                          checked={items.length > 0 && selectedItems.size === items.length}
+                          checked={
+                            pagedItems.length > 0 &&
+                            pagedItems.every(item => selectedItems.has(String(item.id)))
+                          }
                           onChange={toggleSelectAll}
                         />
                       </TableHead>
                     )}
                     {config.columns.map(col => (
-                      <TableHead key={col.key}>{col.label}</TableHead>
+                      <TableHead key={col.key}>{renderColumnHeader(col)}</TableHead>
                     ))}
                     <TableHead className="w-[72px] text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {items.map(item => (
+                    {pagedItems.map(item => (
                     <TableRow
                       key={String(item.id)}
                       data-selected={selectedItems.has(String(item.id))}
+                        className={config.selectedItemId === String(item.id) ? 'bg-muted/40' : undefined}
+                        onClick={
+                          config.onSelectItem
+                            ? event => {
+                                if (isInteractiveTarget(event.target)) return
+                                config.onSelectItem?.(item)
+                              }
+                            : undefined
+                        }
                     >
                       {config.enableGroupAssign && (
                         <TableCell>
@@ -889,10 +1372,38 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            {favoriteActionPlacement === 'beforeExtraActions' && config.favoriteStorageKey && (
+                              <>
+                                <DropdownMenuItem onClick={() => toggleFavorite(String(item.id ?? ''))}>
+                                  <Star
+                                    className="h-4 w-4"
+                                    fill={favoriteIds.has(String(item.id ?? '')) ? 'currentColor' : 'none'}
+                                  />
+                                  {favoriteIds.has(String(item.id ?? ''))
+                                    ? 'Remove Favorite'
+                                    : 'Add Favorite'}
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
                             {config.extraActions?.(item, () => {
                               void fetchItems()
                             })}
-                            {config.extraActions && <DropdownMenuSeparator />}
+                            {favoriteActionPlacement === 'afterExtraActions' && config.favoriteStorageKey && (
+                              <>
+                                {config.extraActions && <DropdownMenuSeparator />}
+                                <DropdownMenuItem onClick={() => toggleFavorite(String(item.id ?? ''))}>
+                                  <Star
+                                    className="h-4 w-4"
+                                    fill={favoriteIds.has(String(item.id ?? '')) ? 'currentColor' : 'none'}
+                                  />
+                                  {favoriteIds.has(String(item.id ?? ''))
+                                    ? 'Remove Favorite'
+                                    : 'Add Favorite'}
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                            {(config.extraActions || (favoriteActionPlacement === 'afterExtraActions' && config.favoriteStorageKey)) && <DropdownMenuSeparator />}
                             <DropdownMenuItem onClick={() => openEditDialog(item)}>
                               <Pencil className="h-4 w-4" />
                               Edit
@@ -914,6 +1425,48 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {processedItems.length > 0 && totalPages > 1 && (
+        <div className="flex items-center justify-end gap-2 text-sm text-muted-foreground">
+          {showPaginationSummary && (
+            <span>
+              {processedItems.length} total · Page {page} of {totalPages}
+            </span>
+          )}
+          {showFooterPageSizeSelector && (
+            <select
+              value={pageSize}
+              onChange={event => setPageSize(Number(event.target.value))}
+              className={INPUT_CLASS}
+            >
+              {(config.pageSizeOptions ?? [10, 20, 50]).map(option => (
+                <option key={option} value={option}>
+                  {option} / page
+                </option>
+              ))}
+            </select>
+          )}
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => setPage(page + 1)}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {config.renderDetailPanel && selectedDetailItem && (
+        <div className="rounded-xl border bg-background p-5 shadow-sm">
+          {config.renderDetailPanel(selectedDetailItem, fetchItems)}
+        </div>
       )}
 
       {/* Batch assign toolbar */}

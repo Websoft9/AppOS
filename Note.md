@@ -220,3 +220,4 @@ resource/  server/  database/  integration/  registry/  ...
 
 1. 如果你要把“网络可达性”再升级成应用层探测，我下一步可以把 MySQL/PostgreSQL/Redis/Kafka 从 TCP 通断扩展到协议握手级检查。
 2. 把 connectors 和 servers 里还保留的旧版 “新建 Secret” 对话框也完全切到 SecretCreateDialog.tsx。
+

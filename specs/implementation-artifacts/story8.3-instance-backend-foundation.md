@@ -9,7 +9,7 @@
 
 As a platform engineer,
 I want a canonical service-instance backend foundation,
-so that AppOS can register long-lived runtime dependencies as stable `Service Instances` instead of overloading connectors or settings.
+so that AppOS can register startup-critical runtime dependencies as stable `Service Instances` instead of overloading connectors or settings.
 
 ## Goal
 
@@ -34,20 +34,21 @@ This story intentionally does not consider legacy migration compatibility. It es
 
 ## Minimum Instance Semantics
 
-An `instance` is a concrete service dependency with stable identity.
+An `instance` is a concrete startup-critical service dependency with stable identity.
 
 It is not:
 
 1. a generic external capability access configuration
 2. a provider account or tenant boundary
 3. an inline app-only payload
+4. an optional service that the app can still start without
 
 ## Minimum Canonical Field Set
 
 | Field | Purpose |
 | --- | --- |
 | `name` | display name |
-| `kind` | instance kind such as `mysql`, `postgres`, `redis`, `kafka`, `s3`, `registry`, `ollama` |
+| `kind` | instance kind such as `mysql`, `postgres`, `redis`, `kafka`, or `s3` |
 | `template_id` | built-in profile id under the chosen kind |
 | `endpoint` | optional primary service address or base URL |
 | `credential` | optional secret relation for future auth/bootstrap use |
@@ -58,9 +59,9 @@ It is not:
 
 `instances` template metadata is intentionally split into three layers:
 
-1. `category` is the product-facing directory group used for navigation and discovery, such as `database`, `storage`, `ai`, or `artifact`.
-2. `kind` is the canonical resource identity and must follow the product/service line, such as `mysql`, `postgres`, `redis`, `s3`, `registry`, or `ollama`.
-3. `template_id` is a profile under one `kind`, such as `generic-postgres`, `aws-rds-postgres`, `minio`, or `generic-ollama`.
+1. `category` is the product-facing directory group used for navigation and discovery, such as `database` or `storage`.
+2. `kind` is the canonical resource identity and must follow the product/service line, such as `mysql`, `postgres`, `redis`, `kafka`, or `s3`.
+3. `template_id` is a profile under one `kind`, such as `generic-postgres`, `aws-rds-postgres`, or `minio`.
 
 Naming rules:
 
@@ -68,7 +69,7 @@ Naming rules:
 2. `template_id` must stay inside one `kind` family and must not fall back to category-level profiles such as `custom_database` or `custom_storage`.
 3. Generic profiles are allowed only at the product-kind layer, for example `generic-mysql` or `generic-postgres`.
 4. Template directory names must equal `kind` names.
-5. Template directory names must stay aligned with product-family `kind` names such as `mysql`, `s3`, or `ollama`.
+5. Template directory names must stay aligned with product-family `kind` names such as `mysql` or `s3`.
 
 ## Acceptance Criteria
 

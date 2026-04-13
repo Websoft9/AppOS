@@ -117,10 +117,6 @@ describe('ServiceInstancesPage', () => {
             description: options.body?.description ?? '',
           })
         }
-        if (path === '/api/instances/reachability' && options?.method === 'POST') {
-          const ids = Array.isArray(options.body?.ids) ? options.body.ids : []
-          return Promise.resolve(ids.map(id => ({ id, status: 'online', latency_ms: 12 })))
-        }
         if (path === '/api/provider-accounts') {
           return Promise.resolve([])
         }
@@ -150,18 +146,17 @@ describe('ServiceInstancesPage', () => {
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/instances/templates', { method: 'GET' })
-      expect(screen.getByRole('button', { name: 'Create' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Add Instance' })).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
 
     await screen.findByRole('dialog')
 
     expect(screen.getByText('Choose a Product')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('')).toHaveAttribute(
-      'placeholder',
-      'Search products like MySQL, Redis, Aurora, PostgreSQL...'
-    )
+    expect(
+      screen.getByPlaceholderText('Search products like MySQL, Redis, Aurora, PostgreSQL...')
+    ).toBeInTheDocument()
     expect(screen.getByText('MySQL')).toBeInTheDocument()
     expect(screen.getByText('Amazon Aurora MySQL')).toBeInTheDocument()
 
@@ -196,10 +191,10 @@ describe('ServiceInstancesPage', () => {
     render(<ServiceInstancesPage />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Create' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Add Instance' })).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
     fireEvent.click(await screen.findByRole('button', { name: /^MySQL/i }))
 
     expect(screen.queryByLabelText(/^Name/)).not.toBeInTheDocument()
@@ -239,10 +234,10 @@ describe('ServiceInstancesPage', () => {
     render(<ServiceInstancesPage />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Create' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Add Instance' })).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
     fireEvent.click(await screen.findByRole('button', { name: /^PostgreSQL/i }))
 
     expect(await screen.findByLabelText(/^Database/)).toBeInTheDocument()
@@ -293,9 +288,6 @@ describe('ServiceInstancesPage', () => {
           },
         ])
       }
-      if (path === '/api/instances/reachability' && options?.method === 'POST') {
-        return Promise.resolve([{ id: 'instance-1', status: 'online', latency_ms: 12 }])
-      }
       if (path.startsWith('/api/collections/secrets/records?filter=')) {
         return Promise.resolve({ items: [{ id: 'secret-1', name: 'db-password' }] })
       }
@@ -316,6 +308,11 @@ describe('ServiceInstancesPage', () => {
     await waitFor(() => {
       expect(screen.getByText('mysql-prod')).toBeInTheDocument()
     })
+
+    expect(sendMock).not.toHaveBeenCalledWith(
+      '/api/instances/reachability',
+      expect.anything()
+    )
 
     expect(screen.getAllByText(/2026/).length).toBeGreaterThanOrEqual(1)
 
@@ -340,10 +337,10 @@ describe('ServiceInstancesPage', () => {
     render(<ServiceInstancesPage />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Create' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Add Instance' })).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
     fireEvent.click(await screen.findByRole('button', { name: /^MySQL/i }))
 
     fireEvent.click(screen.getByText('Select a Secret'))
@@ -374,10 +371,10 @@ describe('ServiceInstancesPage', () => {
     render(<ServiceInstancesPage />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Create' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Add Instance' })).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
     fireEvent.click(await screen.findByRole('button', { name: /^MySQL/i }))
 
     fireEvent.change(screen.getByLabelText(/^Database/), { target: { value: 'appdb' } })
@@ -415,10 +412,10 @@ describe('ServiceInstancesPage', () => {
     render(<ServiceInstancesPage />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Create' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Add Instance' })).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
     fireEvent.click(await screen.findByRole('button', { name: /^Redis/i }))
 
     expect(await screen.findByLabelText(/^Credential|^Password/)).toBeInTheDocument()
@@ -427,7 +424,7 @@ describe('ServiceInstancesPage', () => {
     expect(screen.getByPlaceholderText('Search secrets...')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add Instance' }))
     fireEvent.click(await screen.findByRole('button', { name: /^Kafka/i }))
 
     expect(await screen.findByLabelText(/^Credential/)).toBeInTheDocument()

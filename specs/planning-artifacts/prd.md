@@ -60,6 +60,7 @@ This table is the baseline mapping of domain boundaries, product modules, and ca
 | Resource | Server Service Operations | Components, Services, Service Logs, Systemd Diagnostics | Current | `ServiceTarget` | `ServiceStatus`, `ServiceLogView`, `ServiceAction` |
 | Resource | Server Container Operations | Docker, Containers, Compose, Exec | Current | `RuntimeContainer` | `ContainerRef`, `ComposeProject`, `ContainerAction` |
 | Resource | Database Resources | Databases, Database Bindings | Current + Planned | `DatabaseResource` | `DatabaseResource`, `DatabaseCredentialRef`, `DatabaseEndpoint` |
+| Resource | AI Provider Resources | AI Providers, Hosted AI Providers, Local AI Providers | Planned | `AIProvider` | `AIProvider`, `ProviderModelProfile`, `ProviderCredentialRef` |
 | Resource | Connector Resources | Connectors, Webhooks, MCP, SMTP, Registry, DNS | Current | `Connector` | `Connector`, `ConnectorCapability`, `ConnectorCredentialRef` |
 | Resource | Registry Resources | Registries, Artifact Sources, Registry Settings | Current + Planned | `Registry` | `Registry`, `ArtifactSource`, `RegistryCredentialRef` |
 | Observability | Telemetry | Metrics, Logs, Events, Container Stats | Current | `TelemetryStream` | `MetricSeries`, `LogEntry`, `PlatformEvent` |
@@ -142,7 +143,7 @@ This table maps user-facing surfaces to the domains they project.
 | Collaboration | Navigation Bundle | `Operations Management` | `/groups`, `/feeds`, `/topics` | Current grouping for collaboration and operational knowledge workflows |
 | Feeds | Single-Domain Entry | `Operations Management` | `/feeds` | Dedicated external signal workbench for source monitoring, filtering, judgment, and binding |
 | Space | Single-Domain Entry | `Operations Management` | `/space` | User workspace / document surface for operational knowledge artifacts |
-| Resources | Cross-Domain Container | `Resource`, `Operations Management` | `/resources`, `/resources/servers`, `/resources/tunnels`, `/resources/scripts`, `/resources/connectors`, `/resources/groups`, `/resources/databases`, `/resources/cloud-accounts` | Inventory-style container for external resources plus cross-resource grouping views; connectors are the canonical surface for reusable external capability access |
+| Resources | Cross-Domain Container | `Resource`, `Operations Management` | `/resources`, `/resources/servers`, `/resources/ai-providers`, `/resources/tunnels`, `/resources/scripts`, `/resources/connectors`, `/resources/groups`, `/resources/databases`, `/resources/cloud-accounts` | Inventory-style container for external resources plus cross-resource grouping views; AI providers and connectors are separate external-integration surfaces |
 | System | Cross-Domain Container | `Observability`, `Runtime Infrastructure`, `Audit and Policy` | `/status`, `/tunnels`, `/logs`, `/audit`, `/iac` | Admin container for platform health, tunnel state, logs, audit, and IaC assets |
 | Users | Single-Domain Entry | `Identity and Access` | `/users`, `/profile` | Account and access administration surface |
 | Credentials | Navigation Bundle | `Secrets Management`, `Gateway Management`, `Runtime Infrastructure` | `/secrets`, `/certificates`, `/shared-envs` | Current admin grouping for secret-like assets with different domain ownership |

@@ -414,9 +414,14 @@ describe('SettingsPage shared settings paths', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/This section now references connectors\. Create and edit LLM connectors/i)
+        screen.getByText(/This section now references AI provider records\. Create and edit AI Providers/i)
       ).toBeInTheDocument()
     })
+
+    expect(screen.getByRole('link', { name: 'Open AI Providers' })).toHaveAttribute(
+      'href',
+      '/resources/ai-providers'
+    )
   })
 
   it('shows connector reference cards for smtp and docker registries', async () => {

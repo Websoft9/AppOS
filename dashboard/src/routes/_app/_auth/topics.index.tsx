@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, type FormEvent } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import {
-  Plus,
   Pencil,
   Trash2,
   Loader2,
@@ -17,6 +16,9 @@ import {
   QrCode,
   Download,
   Upload,
+  Filter,
+  RefreshCw,
+  MoreVertical,
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { getApiErrorMessage } from '@/lib/api-error'
@@ -54,6 +56,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -74,8 +83,9 @@ interface TopicRow extends TopicRecord {
   authorName: string
 }
 
-type SortField = 'title' | 'created' | 'updated'
+type SortField = 'title' | 'status' | 'created' | 'updated'
 type SortDir = 'asc' | 'desc'
+type StatusFilter = 'all' | 'open' | 'closed'
 
 // ─── Page Component ──────────────────────────────────────
 
@@ -87,11 +97,13 @@ function TopicsListPage() {
   const [topics, setTopics] = useState<TopicRecord[]>([])
   const [commentCounts, setCommentCounts] = useState<Map<string, number>>(new Map())
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
 
   const [search, setSearch] = useState('')
   const [sortField, setSortField] = useState<SortField>('updated')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
   // Create/Edit dialog
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -178,14 +190,20 @@ function TopicsListPage() {
       const q = search.toLowerCase()
       result = result.filter(r => r.title.toLowerCase().includes(q))
     }
+    if (statusFilter !== 'all') {
+      result = result.filter(r => (statusFilter === 'closed' ? r.closed : !r.closed))
+    }
     return [...result].sort((a, b) => {
       let cmp = 0
       if (sortField === 'title') cmp = (a.title ?? '').localeCompare(b.title ?? '')
+      else if (sortField === 'status') cmp = Number(a.closed) - Number(b.closed)
       else if (sortField === 'created') cmp = (a.created ?? '').localeCompare(b.created ?? '')
       else cmp = (a.updated ?? '').localeCompare(b.updated ?? '')
       return sortDir === 'asc' ? cmp : -cmp
     })
-  }, [rows, search, sortField, sortDir])
+  }, [rows, search, sortField, sortDir, statusFilter])
+
+  const isStatusFilterActive = statusFilter !== 'all'
 
   // ─── Dialog handlers ────────────────────────────────────
 
@@ -259,6 +277,15 @@ function TopicsListPage() {
     }
   }
 
+  async function handleRefresh() {
+    setRefreshing(true)
+    try {
+      await fetchData()
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
   function toggleSort(field: SortField) {
     if (sortField === field) {
       setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
@@ -266,6 +293,50 @@ function TopicsListPage() {
       setSortField(field)
       setSortDir('asc')
     }
+  }
+
+  function renderStatusFilterMenu() {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label="Filter topics by status"
+          >
+            <Filter className={`h-3.5 w-3.5 ${isStatusFilterActive ? 'text-primary' : ''}`} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-40 p-2">
+          <DropdownMenuCheckboxItem
+            checked={statusFilter === 'all'}
+            className="px-2"
+            onSelect={event => event.preventDefault()}
+            onCheckedChange={checked => {
+              if (checked) setStatusFilter('all')
+            }}
+          >
+            All Statuses
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem
+            checked={statusFilter === 'open'}
+            className="px-2"
+            onSelect={event => event.preventDefault()}
+            onCheckedChange={checked => setStatusFilter(checked ? 'open' : 'all')}
+          >
+            Open
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem
+            checked={statusFilter === 'closed'}
+            className="px-2"
+            onSelect={event => event.preventDefault()}
+            onCheckedChange={checked => setStatusFilter(checked ? 'closed' : 'all')}
+          >
+            Closed
+          </DropdownMenuCheckboxItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
   }
 
   const isOwner = (t: TopicRecord) => user?.id === t.created_by
@@ -414,10 +485,12 @@ function TopicsListPage() {
             Capture shared context, decisions, and discussion threads for your team.
           </p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4 mr-2" />
-          New Topic
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" onClick={() => void handleRefresh()} title="Refresh">
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          </Button>
+          <Button onClick={openCreate}>New Topic</Button>
+        </div>
       </div>
 
       {error && (
@@ -443,127 +516,136 @@ function TopicsListPage() {
       </div>
 
       {/* Table / Empty state */}
-      {filteredRows.length === 0 && !search ? (
+      {filteredRows.length === 0 && !search && statusFilter === 'all' ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground border rounded-lg">
           <p className="text-lg font-medium">No topics yet</p>
           <p className="text-sm mt-1">
             Create the first Topic to start capturing shared context for your team.
           </p>
-          <Button className="mt-4" onClick={openCreate}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Topic
-          </Button>
+          <Button className="mt-4" onClick={openCreate}>New Topic</Button>
         </div>
       ) : filteredRows.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground border rounded-lg">
           <p>No topics match your search</p>
         </div>
       ) : (
-        <div className="border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>
+                <button
+                  type="button"
+                  className="flex items-center gap-1 hover:text-foreground"
+                  onClick={() => toggleSort('title')}
+                >
+                  Title
+                  {sortField === 'title' &&
+                    (sortDir === 'asc' ? (
+                      <ArrowUp className="h-3 w-3" />
+                    ) : (
+                      <ArrowDown className="h-3 w-3" />
+                    ))}
+                </button>
+              </TableHead>
+              <TableHead>
+                <div className="flex items-center gap-1">
                   <button
                     type="button"
                     className="flex items-center gap-1 hover:text-foreground"
-                    onClick={() => toggleSort('title')}
+                    onClick={() => toggleSort('status')}
                   >
-                    Title
-                    {sortField === 'title' &&
+                    Status
+                    {sortField === 'status' &&
                       (sortDir === 'asc' ? (
                         <ArrowUp className="h-3 w-3" />
                       ) : (
                         <ArrowDown className="h-3 w-3" />
                       ))}
                   </button>
-                </TableHead>
-                <TableHead>Author</TableHead>
-                <TableHead>
-                  <button
-                    type="button"
-                    className="flex items-center gap-1 hover:text-foreground"
-                    onClick={() => toggleSort('created')}
-                  >
-                    Created
-                    {sortField === 'created' &&
-                      (sortDir === 'asc' ? (
-                        <ArrowUp className="h-3 w-3" />
-                      ) : (
-                        <ArrowDown className="h-3 w-3" />
-                      ))}
-                  </button>
-                </TableHead>
-                <TableHead>
-                  <button
-                    type="button"
-                    className="flex items-center gap-1 hover:text-foreground"
-                    onClick={() => toggleSort('updated')}
-                  >
-                    Updated
-                    {sortField === 'updated' &&
-                      (sortDir === 'asc' ? (
-                        <ArrowUp className="h-3 w-3" />
-                      ) : (
-                        <ArrowDown className="h-3 w-3" />
-                      ))}
-                  </button>
-                </TableHead>
-                <TableHead>Comments</TableHead>
-                <TableHead className="w-[100px] text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredRows.map(row => (
-                <TableRow key={row.id} className="cursor-pointer hover:bg-muted/50">
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Link
-                        to="/topics/$id"
-                        params={{ id: row.id }}
-                        className="font-medium hover:underline"
-                      >
-                        {row.title}
-                      </Link>
-                      {row.closed && (
-                        <Badge variant="secondary" className="text-xs font-normal">
-                          <Lock className="h-3 w-3 mr-0.5" /> Closed
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">{row.authorName}</TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(row.created)}</TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(row.updated)}</TableCell>
-                  <TableCell>{row.commentCount}</TableCell>
-                  <TableCell className="text-right">
-                    {isOwner(row) && (
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          title="Share"
-                          onClick={e => {
-                            e.stopPropagation()
-                            openShare(row)
-                          }}
-                        >
-                          <Share2 className="h-4 w-4" />
+                  {renderStatusFilterMenu()}
+                </div>
+              </TableHead>
+              <TableHead>Author</TableHead>
+              <TableHead>
+                <button
+                  type="button"
+                  className="flex items-center gap-1 hover:text-foreground"
+                  onClick={() => toggleSort('created')}
+                >
+                  Created
+                  {sortField === 'created' &&
+                    (sortDir === 'asc' ? (
+                      <ArrowUp className="h-3 w-3" />
+                    ) : (
+                      <ArrowDown className="h-3 w-3" />
+                    ))}
+                </button>
+              </TableHead>
+              <TableHead>
+                <button
+                  type="button"
+                  className="flex items-center gap-1 hover:text-foreground"
+                  onClick={() => toggleSort('updated')}
+                >
+                  Updated
+                  {sortField === 'updated' &&
+                    (sortDir === 'asc' ? (
+                      <ArrowUp className="h-3 w-3" />
+                    ) : (
+                      <ArrowDown className="h-3 w-3" />
+                    ))}
+                </button>
+              </TableHead>
+              <TableHead>Comments</TableHead>
+              <TableHead className="w-[100px] text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredRows.map(row => (
+              <TableRow key={row.id} className="cursor-pointer hover:bg-muted/50">
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <Link to="/topics/$id" params={{ id: row.id }} className="font-medium hover:underline">
+                      {row.title}
+                    </Link>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  {row.closed ? (
+                    <Badge variant="secondary" className="text-xs font-normal">
+                      <Lock className="h-3 w-3 mr-0.5" /> Closed
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-xs font-normal">
+                      Open
+                    </Badge>
+                  )}
+                </TableCell>
+                <TableCell className="text-muted-foreground text-sm">{row.authorName}</TableCell>
+                <TableCell className="text-muted-foreground">{formatDate(row.created)}</TableCell>
+                <TableCell className="text-muted-foreground">{formatDate(row.updated)}</TableCell>
+                <TableCell>{row.commentCount}</TableCell>
+                <TableCell className="text-right">
+                  {isOwner(row) && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" title="More actions">
+                          <MoreVertical className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          title={row.closed ? 'Reopen' : 'Close'}
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => openShare(row)}>
+                          <Share2 className="h-4 w-4" />
+                          Share
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
                           disabled={togglingId === row.id}
-                          onClick={e => {
-                            e.stopPropagation()
+                          onClick={() => {
                             if (row.closed) {
                               void handleToggleClosed(row)
-                            } else {
-                              setCloseTarget(row)
+                              return
                             }
+                            setCloseTarget(row)
                           }}
                         >
                           {togglingId === row.id ? (
@@ -573,39 +655,29 @@ function TopicsListPage() {
                           ) : (
                             <Lock className="h-4 w-4" />
                           )}
-                        </Button>
+                          {row.closed ? 'Reopen' : 'Close'}
+                        </DropdownMenuItem>
                         {!row.closed && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={e => {
-                              e.stopPropagation()
-                              openEdit(row)
-                            }}
-                          >
+                          <DropdownMenuItem onClick={() => openEdit(row)}>
                             <Pencil className="h-4 w-4" />
-                          </Button>
+                            Edit
+                          </DropdownMenuItem>
                         )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
-                          onClick={e => {
-                            e.stopPropagation()
-                            setDeleteTarget(row)
-                          }}
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => setDeleteTarget(row)}
                         >
                           <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
 
       {/* Create / Edit Dialog */}

@@ -251,7 +251,7 @@ func providerAccountSaveError(e *core.RequestEvent, err error) error {
 	if errors.As(err, &referencedErr) {
 		return e.JSON(http.StatusConflict, map[string]any{
 			"code":    http.StatusConflict,
-			"message": "provider account is still referenced; remove related instances or connectors first",
+			"message": "provider account is still referenced; remove related instances, AI providers, or connectors first",
 			"data": map[string]any{
 				"reason_code": "provider_account_referenced",
 				"error":       err.Error(),

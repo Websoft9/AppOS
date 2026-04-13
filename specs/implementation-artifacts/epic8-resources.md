@@ -11,7 +11,7 @@
 This epic now covers both:
 
 1. the delivered Phase 1 Resource Store foundation
-2. the next-stage resource taxonomy refactor that introduces canonical `Service Instances`, `Platform Accounts`, and `Connectors`
+2. the next-stage resource taxonomy refactor that introduces canonical `Service Instances`, `AI Providers`, `Platform Accounts`, and `Connectors`
 
 Companion ADR for the next-stage taxonomy: [specs/adr/resource-taxonomy-instance-connector.md](specs/adr/resource-taxonomy-instance-connector.md)
 
@@ -25,12 +25,13 @@ Phase 1 delivered the original resource-store model with separate collections su
 
 ### Phase 2: Resource taxonomy refactor
 
-Phase 2 evolves the original resource-store taxonomy into four canonical resource families:
+Phase 2 evolves the original resource-store taxonomy into five canonical resource families:
 
 1. `Servers`
 2. `Service Instances`
-3. `Platform Accounts`
-4. `Connectors`
+3. `AI Providers`
+4. `Platform Accounts`
+5. `Connectors`
 
 This phase does not require full operational depth for every instance kind on day one. Its first goal is to stabilize ownership, naming, references, and migration direction.
 
@@ -40,19 +41,20 @@ The current model has three structural problems:
 
 1. some long-lived external dependencies are still stored under `settings`
 2. the legacy `endpoints` concept is too narrow as a long-term home for all connection-oriented resources
-3. there is no canonical home yet for service-like app dependencies such as RDS, object storage, model services, or managed registries
+3. there is no canonical home yet for startup-critical app dependencies such as RDS, object storage, or other non-optional runtime services
 
-Without the taxonomy refactor, future work on LLM, S3, registry, DNS, SMTP, backup targets, and managed runtime dependencies will continue to drift into inconsistent resource families.
+Without the taxonomy refactor, future work on AI providers, S3, registry, DNS, SMTP, backup targets, and managed runtime dependencies will continue to drift into inconsistent resource families.
 
 ## Phase 2 Goals
 
 Phase 2 of Epic 8 is responsible for:
 
-1. establishing `instances` as a canonical resource family for concrete app dependencies
-2. completing the evolution from legacy `endpoints` toward `connectors`
-3. defining when a dependency belongs to `instance` versus `connector`
-4. moving long-lived resource ownership out of `settings`
-5. defining how settings, apps, deploy, and workflows reference the new resource families
+1. establishing `instances` as a canonical resource family for startup-critical app dependencies
+2. establishing `ai_providers` as a canonical resource family for model-provider definitions
+3. completing the evolution from legacy `endpoints` toward `connectors`
+4. defining when a dependency belongs to `instance`, `ai_provider`, versus `connector`
+5. moving long-lived resource ownership out of `settings`
+6. defining how settings, apps, deploy, and workflows reference the new resource families
 
 ## Phase 2 Non-Goals
 
@@ -68,9 +70,10 @@ Phase 2 is not responsible for:
 | Family | Product label | Typical examples |
 | --- | --- | --- |
 | `server` | `Servers` | server nodes, SSH targets, host compute environments |
-| `instance` | `Service Instances` | RDS, MySQL, Redis, Kafka, MinIO, object storage, model services |
+| `instance` | `Service Instances` | RDS, MySQL, Redis, Kafka, MinIO, object storage used as a startup-critical app dependency |
+| `ai_provider` | `AI Providers` | OpenAI, Anthropic, OpenRouter, Ollama endpoint |
 | `provider_account` | `Platform Accounts` | AWS account, GitHub installation, Cloudflare account |
-| `connector` | `Connectors` | OpenAI, SMTP, DNS, Webhook, MCP, registry login |
+| `connector` | `Connectors` | SMTP, DNS, Webhook, MCP, registry login |
 
 Product/UI label uses `Platform Accounts`, while backend domain terminology remains `provider_account`.
 
@@ -78,16 +81,16 @@ Product/UI label uses `Platform Accounts`, while backend domain terminology rema
 
 ### Track A: Taxonomy and naming
 
-1. define route, collection, and frontend naming for `instances`, `provider accounts`, and `connectors`
+1. define route, collection, and frontend naming for `instances`, `ai providers`, `provider accounts`, and `connectors`
 2. update resource hub taxonomy and future navigation labels
-3. document classification rules for ambiguous technology families such as `llm`, `s3`, and `registry`
+3. document classification rules for ambiguous technology families such as `llm`, `mcp`, `s3`, and `registry`
 
-### Track B: LLM extraction from settings
+### Track B: AI provider extraction from settings
 
 1. remove LLM provider ownership from `settings`
-2. expose dedicated LLM resource routes during the transition period
-3. migrate the current settings-owned LLM provider configuration into `connectors`
-4. reserve self-hosted or managed model-service inventory for future `instance` kinds rather than mixing both shapes in one resource type
+2. expose dedicated AI provider resource routes during the transition period
+3. migrate the current settings-owned LLM provider configuration into `ai_providers`
+4. treat local provider endpoints such as Ollama as `ai_provider` records when AppOS is only consuming them
 
 ### Track C: Instance foundation
 
@@ -114,9 +117,10 @@ Product/UI label uses `Platform Accounts`, while backend domain terminology rema
 | third-party RDS | `instance` |
 | self-hosted MySQL or Redis | `instance` |
 | object storage used as long-lived app dependency | `instance` |
-| self-hosted model service | `instance` |
-| current LLM provider configuration migrated from settings | `connector` |
-| OpenAI or Anthropic access | `connector` |
+| current LLM provider configuration migrated from settings | `ai_provider` |
+| OpenAI or Anthropic access | `ai_provider` |
+| Ollama endpoint access consumed by AppOS | `ai_provider` |
+| MCP endpoint access | `connector` |
 | SMTP delivery target | `connector` |
 | DNS automation target | `connector` |
 | webhook target | `connector` |
@@ -134,7 +138,7 @@ Product/UI label uses `Platform Accounts`, while backend domain terminology rema
 
 The remaining sections in this part of the document preserve the original Phase 1 resource-store design for migration context.
 
-Current canonical naming for connection-oriented resources is `Connectors`, surfaced at `/resources/connectors` and `/api/connectors`.
+Current canonical naming for connection-oriented resources is split between `AI Providers`, surfaced at `/resources/ai-providers` and `/api/ai-providers`, and `Connectors`, surfaced at `/resources/connectors` and `/api/connectors`.
 
 ### Frontend Navigation
 
@@ -403,7 +407,7 @@ Introduce `instances` collection, domain model, CRUD API, and minimal validation
 
 ### Story 8.4: Resource Hub and Navigation Refactor
 
-Update dashboard resource navigation to expose `Service Instances`, `Connectors`, and `Platform Accounts` using the canonical product labels.
+Update dashboard resource navigation to expose `Service Instances`, `AI Providers`, `Connectors`, and `Platform Accounts` using the canonical product labels.
 
 ### [Story 8.5: Endpoints to Connectors Refactor](story8.5-endpoints-to-connectors-refactor.md)
 

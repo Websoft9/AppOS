@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/dialog'
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -193,6 +194,36 @@ function SortableHeader({
         <ArrowDown className="h-3.5 w-3.5 opacity-30" />
       )}
     </button>
+  )
+}
+
+function FilterHeader({
+  label,
+  active,
+  children,
+}: {
+  label: string
+  active: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      <span>{label}</span>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label={`Filter ${label}`}
+          >
+            <Filter className={`h-3.5 w-3.5 ${active ? 'text-primary' : ''}`} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-40 p-2">
+          {children}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   )
 }
 
@@ -642,7 +673,7 @@ function CertificatesPage() {
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {/* Search + Kind filter */}
+      {/* Search */}
       <div className="flex items-center gap-2">
         <div className="relative max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -653,49 +684,6 @@ function CertificatesPage() {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1.5">
-              <Filter className="h-3.5 w-3.5" />
-              {kindFilter === 'all' ? 'Kind' : humanizeKind(kindFilter)}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem onClick={() => setKindFilter('all')}>
-              {kindFilter === 'all' && <span className="mr-1">✓</span>}All
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setKindFilter('self_signed')}>
-              {kindFilter === 'self_signed' && <span className="mr-1">✓</span>}Self-Signed
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setKindFilter('ca_issued')}>
-              {kindFilter === 'ca_issued' && <span className="mr-1">✓</span>}CA-Issued
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1.5">
-              <Filter className="h-3.5 w-3.5" />
-              {statusFilter === 'all'
-                ? 'Status'
-                : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem onClick={() => setStatusFilter('all')}>
-              {statusFilter === 'all' && <span className="mr-1">✓</span>}All
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setStatusFilter('active')}>
-              {statusFilter === 'active' && <span className="mr-1">✓</span>}Active
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setStatusFilter('expired')}>
-              {statusFilter === 'expired' && <span className="mr-1">✓</span>}Expired
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setStatusFilter('revoked')}>
-              {statusFilter === 'revoked' && <span className="mr-1">✓</span>}Revoked
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
 
       {/* Table */}
@@ -732,7 +720,36 @@ function CertificatesPage() {
                   onSort={handleSort}
                 />
               </TableHead>
-              <TableHead>Kind</TableHead>
+              <TableHead>
+                <FilterHeader label="Kind" active={kindFilter !== 'all'}>
+                  <DropdownMenuCheckboxItem
+                    checked={kindFilter === 'all'}
+                    className="px-2"
+                    onSelect={event => event.preventDefault()}
+                    onCheckedChange={checked => {
+                      if (checked) setKindFilter('all')
+                    }}
+                  >
+                    All
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={kindFilter === 'self_signed'}
+                    className="px-2"
+                    onSelect={event => event.preventDefault()}
+                    onCheckedChange={checked => setKindFilter(checked ? 'self_signed' : 'all')}
+                  >
+                    Self-Signed
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={kindFilter === 'ca_issued'}
+                    className="px-2"
+                    onSelect={event => event.preventDefault()}
+                    onCheckedChange={checked => setKindFilter(checked ? 'ca_issued' : 'all')}
+                  >
+                    CA-Issued
+                  </DropdownMenuCheckboxItem>
+                </FilterHeader>
+              </TableHead>
               <TableHead>
                 <SortableHeader
                   label="Issued"
@@ -751,7 +768,44 @@ function CertificatesPage() {
                   onSort={handleSort}
                 />
               </TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>
+                <FilterHeader label="Status" active={statusFilter !== 'all'}>
+                  <DropdownMenuCheckboxItem
+                    checked={statusFilter === 'all'}
+                    className="px-2"
+                    onSelect={event => event.preventDefault()}
+                    onCheckedChange={checked => {
+                      if (checked) setStatusFilter('all')
+                    }}
+                  >
+                    All
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={statusFilter === 'active'}
+                    className="px-2"
+                    onSelect={event => event.preventDefault()}
+                    onCheckedChange={checked => setStatusFilter(checked ? 'active' : 'all')}
+                  >
+                    Active
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={statusFilter === 'expired'}
+                    className="px-2"
+                    onSelect={event => event.preventDefault()}
+                    onCheckedChange={checked => setStatusFilter(checked ? 'expired' : 'all')}
+                  >
+                    Expired
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={statusFilter === 'revoked'}
+                    className="px-2"
+                    onSelect={event => event.preventDefault()}
+                    onCheckedChange={checked => setStatusFilter(checked ? 'revoked' : 'all')}
+                  >
+                    Revoked
+                  </DropdownMenuCheckboxItem>
+                </FilterHeader>
+              </TableHead>
               <TableHead className="text-right w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>

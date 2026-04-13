@@ -14,8 +14,8 @@ so that I can quickly understand the resource map and enter the correct destinat
 
 1. The `/resources` page displays the title `Resources`, a one-sentence description of shared platform resources, `Add Resource` as the primary action, and `Resource Groups` as the secondary action.
 2. The homepage renders two visible groups in this order: `Runtime Infrastructure` and `External Integrations`, and the grouping remains UX framing rather than a replacement for canonical family labels.
-3. The `Runtime Infrastructure` group contains `Servers` and `Service Instances`, and `Service Instances` uses helper copy that explains it as long-lived runtime services used by applications before or during deployment.
-4. The `External Integrations` group contains `Connectors` and `Platform Accounts`, and each card uses concise product-facing copy instead of backend terminology.
+3. The `Runtime Infrastructure` group contains `Servers` and `Service Instances`, and `Service Instances` uses helper copy that explains it as runtime dependencies an application cannot start without.
+4. The `External Integrations` group contains `AI Providers`, `Connectors`, and `Platform Accounts`, and each card uses concise product-facing copy instead of backend terminology.
 5. Each canonical family card shows a stable canonical label, a one-line explanation, lightweight metadata when available, and acts as a full-card click target to the relevant family page.
 6. Canonical family cards provide stronger hover and keyboard-focus affordances so the entry target feels clearly enterable and remains keyboard reachable with visible focus indication.
 
@@ -26,8 +26,8 @@ so that I can quickly understand the resource map and enter the correct destinat
   - [ ] Preserve the existing top-right action layout with `Resource Groups` secondary action and `Add Resource` primary action.
   - [ ] Ensure section order remains `Runtime Infrastructure` first and `External Integrations` second.
 - [ ] Refine canonical card content and grouping semantics (AC: 3, 4, 5)
-  - [ ] Keep `Servers`, `Service Instances`, `Connectors`, and `Platform Accounts` as the only primary canonical cards on the page.
-  - [ ] Tighten helper copy so `Service Instances` is clearly framed as an app runtime dependency.
+  - [ ] Keep `Servers`, `Service Instances`, `AI Providers`, `Connectors`, and `Platform Accounts` as the only primary canonical cards on the page.
+  - [ ] Tighten helper copy so `Service Instances` is clearly framed as an app runtime dependency the app cannot start without.
   - [ ] Keep metadata lightweight and subordinate to title and description.
   - [ ] Preserve full-card navigation to the existing family route for each card.
 - [ ] Improve enterability and keyboard reachability for canonical cards (AC: 5, 6)
@@ -53,7 +53,7 @@ so that I can quickly understand the resource map and enter the correct destinat
 - The homepage must behave as an orientation-first resource map, not a management dashboard or schema browser.
 - The core success condition is that users know where to click within a few seconds.
 - `Service Instances` is the highest-risk concept for confusion and therefore deserves the strongest helper copy.
-- Grouping helps users interpret the map, but it must not replace canonical labels. Users still need to see the four canonical families directly.
+- Grouping helps users interpret the map, but it must not replace canonical labels. Users still need to see the five canonical families directly.
 
 **Story relationships**
 
@@ -74,7 +74,7 @@ so that I can quickly understand the resource map and enter the correct destinat
 - AppOS is single-server-first; avoid any story implementation assumptions that depend on clustered or multi-node infrastructure. [Source: specs/planning-artifacts/prd.md#Project-Type Requirements]
 - Dashboard and CLI share the same HTTP API and auth model, so homepage changes must stay at the UI layer and not imply parallel API shapes. [Source: specs/planning-artifacts/architecture.md#Overview]
 - External reverse proxy responsibilities stay outside the container. Do not imply ownership changes through homepage copy or new flows. [Source: specs/planning-artifacts/architecture.md#Runtime Topology]
-- The canonical resource family model for this story is `Servers`, `Service Instances`, `Connectors`, and `Platform Accounts`. [Source: specs/implementation-artifacts/epic8-resources.md#Phase 2 Canonical Resource Families]
+- The canonical resource family model for this story is `Servers`, `Service Instances`, `AI Providers`, `Connectors`, and `Platform Accounts`. [Source: specs/implementation-artifacts/epic8-resources.md#Phase 2 Canonical Resource Families]
 
 ### Library / Framework Requirements
 

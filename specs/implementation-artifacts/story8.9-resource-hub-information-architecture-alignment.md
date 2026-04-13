@@ -13,13 +13,13 @@ so that I can quickly understand the difference between deployment targets, app 
 
 ## Goal
 
-Define the information architecture and UX contract for the Resource Hub so the canonical four-family taxonomy becomes understandable in product experience, not only in backend naming.
+Define the information architecture and UX contract for the Resource Hub so the canonical five-family taxonomy becomes understandable in product experience, not only in backend naming.
 
 This story makes `Servers` a first-class part of the unified resource center while explicitly distinguishing them from dependency-oriented resource families.
 
 ## Why Now
 
-AppOS already has the canonical four-family taxonomy, but the current resource-center experience still exposes a legacy card layout and mixed naming. Without a dedicated IA story, future UI work may flatten `Servers`, `Service Instances`, `Platform Accounts`, and `Connectors` into one visually uniform set even though they answer different user questions.
+AppOS already has the canonical five-family taxonomy, but the current resource-center experience still exposes a legacy card layout and mixed naming. Without a dedicated IA story, future UI work may flatten `Servers`, `Service Instances`, `AI Providers`, `Platform Accounts`, and `Connectors` into one visually uniform set even though they answer different user questions.
 
 That would create two recurring UX failures:
 
@@ -28,8 +28,8 @@ That would create two recurring UX failures:
 
 ## In Scope
 
-- define the Resource Hub entry structure for the four canonical families
-- define how `Servers` should be positioned relative to `Service Instances`, `Connectors`, and `Platform Accounts`
+- define the Resource Hub entry structure for the five canonical families
+- define how `Servers` should be positioned relative to `Service Instances`, `AI Providers`, `Connectors`, and `Platform Accounts`
 - define the first-step decision model for the global `Add Resource` flow
 - define product-facing grouping and explanatory copy for host infrastructure vs dependency infrastructure
 - define relationship expectations for resource detail views so the four families feel connected rather than merely co-located
@@ -45,7 +45,7 @@ That would create two recurring UX failures:
 
 ## UX Positioning Contract
 
-The Resource Hub must present one unified entry into platform infrastructure, but it must not flatten all four families into the same conceptual role.
+The Resource Hub must present one unified entry into platform infrastructure, but it must not flatten all five families into the same conceptual role.
 
 ### Canonical user questions
 
@@ -54,7 +54,8 @@ Each top-level family answers a different operator question:
 | Family | Product label | User question |
 | --- | --- | --- |
 | `server` | `Servers` | where does the workload run? |
-| `instance` | `Service Instances` | what long-lived service does the workload depend on? |
+| `instance` | `Service Instances` | what runtime dependency cannot be separated from the app because it cannot start without it? |
+| `ai_provider` | `AI Providers` | which model provider gives AppOS AI capability? |
 | `connector` | `Connectors` | how does AppOS reach an external capability? |
 | `provider_account` | `Platform Accounts` | which external platform identity or scope does this belong to? |
 
@@ -62,14 +63,14 @@ Each top-level family answers a different operator question:
 
 The hub must distinguish two product-facing infrastructure groups:
 
-1. `Host Infrastructure`
-2. `Dependency Infrastructure`
+1. `Runtime Infrastructure`
+2. `External Integrations`
 
-`Servers` belong to `Host Infrastructure`.
+`Servers` and `Service Instances` belong to `Runtime Infrastructure`.
 
-`Service Instances`, `Connectors`, and `Platform Accounts` belong to `Dependency Infrastructure`.
+`AI Providers`, `Connectors`, and `Platform Accounts` belong to `External Integrations`.
 
-This grouping is a UX-level framing device. It does not replace the canonical four-family taxonomy.
+This grouping is a UX-level framing device. It does not replace the canonical five-family taxonomy.
 
 ### Required add-resource intent model
 
@@ -77,8 +78,9 @@ The first-step `Add Resource` experience must route users by intent before askin
 
 1. `Add a deployment target` -> `Servers`
 2. `Register an application dependency` -> `Service Instances`
-3. `Configure an external connection` -> `Connectors`
-4. `Save a platform account` -> `Platform Accounts`
+3. `Choose an AI capability source` -> `AI Providers`
+4. `Configure an external connection` -> `Connectors`
+5. `Save a platform account` -> `Platform Accounts`
 
 The flow may later reveal the canonical family names, but the first step must be intention-led.
 
@@ -102,19 +104,19 @@ Recommended short description:
 
 `Deployment targets and host environments where workloads run.`
 
-### Section B: Dependency Infrastructure
+### Section B: External Integrations
 
 This section contains three canonical families:
 
-1. `Service Instances`
+1. `AI Providers`
 2. `Connectors`
 3. `Platform Accounts`
 
 Recommended short descriptions:
 
-1. `Service Instances` -> `Long-lived services your apps depend on.`
+1. `AI Providers` -> `Reusable AI provider definitions such as OpenAI or Ollama endpoints.`
 2. `Connectors` -> `Reusable ways for AppOS to reach external capabilities.`
-3. `Platform Accounts` -> `External platform identities that back instances and connectors.`
+3. `Platform Accounts` -> `External platform identities that back providers, instances, and connectors.`
 
 ### Layout behavior
 
@@ -124,8 +126,8 @@ Minimum acceptable behavior:
 
 1. section headers are visible above grouped cards
 2. `Servers` appear in the first group and are not visually buried among dependency cards
-3. dependency families appear together in the second group
-4. legacy non-canonical cards may remain during transition, but they must not compete with the canonical four-family story
+3. external-integration families appear together in the second group
+4. legacy non-canonical cards may remain during transition, but they must not compete with the canonical five-family story
 
 ## Page-Level Hub Specification
 
@@ -158,19 +160,21 @@ The first two sections are canonical. A transitional section is optional and tem
 
 Recommended order:
 
-1. `Host Infrastructure`
+1. `Runtime Infrastructure`
 2. `Servers`
+3. `Service Instances`
 
-1. `Dependency Infrastructure`
-2. `Service Instances`
+1. `External Integrations`
+2. `AI Providers`
 3. `Connectors`
 4. `Platform Accounts`
 
 Recommended rationale:
 
-1. `Service Instances` comes first because it is the most direct app dependency category
-2. `Connectors` comes second because it represents external capability access
-3. `Platform Accounts` comes third because it supports the previous two rather than replacing them
+1. `Service Instances` stays adjacent to `Servers` because it is the most direct app runtime dependency category
+2. `AI Providers` comes first in `External Integrations` because AI is a primary product-facing capability source
+3. `Connectors` comes second because it represents generic external capability access
+4. `Platform Accounts` comes third because it supports the previous two rather than replacing them
 
 ### Card contents
 
@@ -191,9 +195,10 @@ The hub and create entry should use stable, repeatable copy.
 | Family | Hub label | Short description | Add Resource intent label |
 | --- | --- | --- | --- |
 | `server` | `Servers` | `Deployment targets and host environments where workloads run.` | `Add a deployment target` |
-| `instance` | `Service Instances` | `Long-lived services your apps depend on.` | `Register an application dependency` |
+| `instance` | `Service Instances` | `Runtime dependencies your apps cannot start without.` | `Register an application dependency` |
+| `ai_provider` | `AI Providers` | `Reusable AI provider definitions AppOS uses for model capability.` | `Choose an AI capability source` |
 | `connector` | `Connectors` | `Reusable ways for AppOS to reach external capabilities.` | `Configure an external connection` |
-| `provider_account` | `Platform Accounts` | `External platform identities that back instances and connectors.` | `Save a platform account` |
+| `provider_account` | `Platform Accounts` | `External platform identities that back providers, instances, and connectors.` | `Save a platform account` |
 
 This copy should be preferred over older family labels whenever the UI surface is meant to communicate canonical taxonomy.
 
@@ -207,8 +212,9 @@ The first screen or popover state must present operator goals in plain language:
 
 1. `Add a deployment target`
 2. `Register an application dependency`
-3. `Configure an external connection`
-4. `Save a platform account`
+3. `Choose an AI capability source`
+4. `Configure an external connection`
+5. `Save a platform account`
 
 ### Step 2: Canonical family confirmation
 
@@ -216,8 +222,9 @@ After the user chooses an intent, the UI may reveal the canonical family label a
 
 1. `Add a deployment target` -> `/resources/servers?create=1`
 2. `Register an application dependency` -> `/resources/service-instances?create=1` or the transitional route for the current implementation
-3. `Configure an external connection` -> `/resources/connectors?create=1`
-4. `Save a platform account` -> `/resources/platform-accounts?create=1` or the transitional route for the current implementation
+3. `Choose an AI capability source` -> `/resources/ai-providers?create=1`
+4. `Configure an external connection` -> `/resources/connectors?create=1`
+5. `Save a platform account` -> `/resources/platform-accounts?create=1` or the transitional route for the current implementation
 
 ### Interaction model
 
@@ -235,7 +242,7 @@ The create entry should support three implementation states:
 
 1. `canonical` state: all four intent choices route to canonical family pages
 2. `transitional` state: one or more intent choices route to legacy pages with canonical framing
-3. `legacy fallback` state: old destination pages remain, but the menu order and wording still align with the canonical four-family story
+3. `legacy fallback` state: old destination pages remain, but the menu order and wording still align with the canonical five-family story
 
 ### Transitional compatibility rule
 
@@ -307,7 +314,7 @@ The first implementation pass should update the existing hub component rather th
 Expected first-pass changes:
 
 1. split the card grid into sectioned groups
-2. replace legacy-first descriptions with canonical descriptions for the four families
+2. replace legacy-first descriptions with canonical descriptions for the five families
 3. keep count behavior and full-card navigation
 4. preserve `Resource Groups` and `Add Resource` actions in the header
 

@@ -97,6 +97,9 @@ describe('ResourceHub', () => {
       if (path === '/api/instances') {
         return Promise.resolve([{ id: 'db-1' }, { id: 'db-2' }])
       }
+      if (path === '/api/ai-providers') {
+        return Promise.resolve([{ id: 'provider-1' }, { id: 'provider-2' }])
+      }
       if (path === '/api/provider-accounts') {
         return Promise.resolve([{ id: 'acct-1' }])
       }
@@ -119,38 +122,39 @@ describe('ResourceHub', () => {
 
     expect(
       screen.getByText(
-        'Shared platform resources for where workloads run, what they depend on, and how AppOS connects outward.'
+        'Shared platform resources for where Applications run, what they depend on, and how AppOS connects outward.'
       )
     ).toBeInTheDocument()
     expect(screen.getByText('2 grouped areas')).toBeInTheDocument()
-    expect(screen.getByText('4 canonical families')).toBeInTheDocument()
-    expect(
-      screen.getByText('Choose a destination first, then manage details inside that family.')
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText('The hub stays orientation-first while counts refresh in the background.')
-    ).toBeInTheDocument()
-    expect(screen.getByText('Refreshing family counts...')).toBeInTheDocument()
+    expect(screen.getByText('5 canonical families')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Runtime Infrastructure' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'External Integrations' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Additional Resources' })).not.toBeInTheDocument()
 
     expect(screen.getAllByText('Service Instances').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('AI Providers').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Platform Accounts').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Connectors').length).toBeGreaterThan(0)
     expect(
       screen.getByText('Linux hosts, SSH targets, and deployment nodes where workloads run.')
     ).toBeInTheDocument()
     expect(
-      screen.getByText('Where applications run and the shared services they depend on.')
-    ).toBeInTheDocument()
-    expect(
       screen.getByText(
-        'Long-lived runtime services your apps depend on before or during deployment.'
+        'Where applications run and the startup-critical dependencies they cannot run without.'
       )
     ).toBeInTheDocument()
     expect(
-      screen.getByText('How AppOS connects to external platforms, APIs, and cloud services.')
+      screen.getByText(
+        'Runtime dependencies your apps cannot start without, including database, middleware, and storage instances like MySQL, PostgreSQL, Redis, Kafka, and S3.'
+      )
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('How AppOS connects to AI providers, external platforms, APIs, and cloud services.')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Hosted and local AI capability sources such as OpenAI, Anthropic, OpenRouter, and Ollama endpoints.'
+      )
     ).toBeInTheDocument()
     expect(
       screen.getByText(
@@ -180,6 +184,10 @@ describe('ResourceHub', () => {
       'href',
       '/resources/service-instances'
     )
+    expect(screen.getByRole('link', { name: /AI Providers/i })).toHaveAttribute(
+      'href',
+      '/resources/ai-providers'
+    )
     expect(screen.getByRole('link', { name: /Connectors/i })).toHaveAttribute(
       'href',
       '/resources/connectors'
@@ -201,10 +209,14 @@ describe('ResourceHub', () => {
     expect(screen.getByText('Choose a resource family')).toBeInTheDocument()
     expect(screen.getByText('Add a deployment target')).toBeInTheDocument()
     expect(screen.getByText('Register an application dependency')).toBeInTheDocument()
+    expect(screen.getByText('Choose an AI capability source')).toBeInTheDocument()
     expect(screen.getByText('Configure an external connection')).toBeInTheDocument()
     expect(screen.getByText('Save a platform account')).toBeInTheDocument()
     expect(
-      screen.getByText('MySQL, PostgreSQL, Redis, Kafka, S3 storage, and model services.')
+      screen.getByText('MySQL, PostgreSQL, Redis, Kafka, and S3-backed application dependencies.')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('OpenAI, Anthropic, OpenRouter, Ollama, and similar AI providers.')
     ).toBeInTheDocument()
     expect(
       screen.getByText('AWS, Azure, Google Cloud, GitHub, Cloudflare, and similar platforms.')
@@ -215,7 +227,7 @@ describe('ResourceHub', () => {
 
     expect(screen.getByText('Database')).toBeInTheDocument()
     expect(screen.getByText('Cache')).toBeInTheDocument()
-    expect(screen.getByText('Model Service')).toBeInTheDocument()
+    expect(screen.queryByText('Model Service')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Register an application dependency'))
 

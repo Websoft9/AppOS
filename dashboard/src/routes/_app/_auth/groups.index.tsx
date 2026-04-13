@@ -1,6 +1,16 @@
 import { useState, useEffect, useCallback, useMemo, type FormEvent } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { Plus, Pencil, Trash2, Loader2, Search, ArrowUp, ArrowDown } from 'lucide-react'
+import {
+  Pencil,
+  Trash2,
+  Loader2,
+  Search,
+  ArrowUp,
+  ArrowDown,
+  Filter,
+  RefreshCw,
+  MoreVertical,
+} from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { OBJECT_TYPES, getObjectTypeLabel } from '@/lib/object-types'
 import { getApiErrorMessage } from '@/lib/api-error'
@@ -42,12 +52,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 // ─── Types ───────────────────────────────────────────────
 
 interface GroupRow extends GroupRecord {
   totalItems: number
   breakdown: Record<string, number>
+  breakdownLabel: string
+  creatorName: string
 }
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -58,7 +77,7 @@ function breakdownText(breakdown: Record<string, number>): string {
     .join(', ')
 }
 
-type SortField = 'name' | 'created' | 'updated'
+type SortField = 'name' | 'description' | 'created' | 'updated' | 'totalItems' | 'breakdown' | 'creator'
 type SortDir = 'asc' | 'desc'
 
 // ─── Page Component ──────────────────────────────────────
@@ -70,6 +89,7 @@ function GroupsListPage() {
   const [groups, setGroups] = useState<GroupRecord[]>([])
   const [items, setItems] = useState<GroupItemRecord[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
 
   // Search / filter / sort
@@ -125,9 +145,15 @@ function GroupsListPage() {
       for (const gi of gItems) {
         breakdown[gi.object_type] = (breakdown[gi.object_type] ?? 0) + 1
       }
-      return { ...g, totalItems: gItems.length, breakdown }
+      return {
+        ...g,
+        totalItems: gItems.length,
+        breakdown,
+        breakdownLabel: breakdownText(breakdown),
+        creatorName: formatCreator(g.created_by, user?.id, user?.email),
+      }
     })
-  }, [groups, items])
+  }, [groups, items, user])
 
   // Filter & sort
   const filteredRows = useMemo(() => {
@@ -145,7 +171,11 @@ function GroupsListPage() {
     return [...result].sort((a, b) => {
       let cmp = 0
       if (sortField === 'name') cmp = (a.name ?? '').localeCompare(b.name ?? '')
+      else if (sortField === 'description') cmp = (a.description ?? '').localeCompare(b.description ?? '')
       else if (sortField === 'created') cmp = (a.created ?? '').localeCompare(b.created ?? '')
+      else if (sortField === 'totalItems') cmp = a.totalItems - b.totalItems
+      else if (sortField === 'breakdown') cmp = a.breakdownLabel.localeCompare(b.breakdownLabel)
+      else if (sortField === 'creator') cmp = a.creatorName.localeCompare(b.creatorName)
       else cmp = (a.updated ?? '').localeCompare(b.updated ?? '')
       return sortDir === 'asc' ? cmp : -cmp
     })
@@ -156,6 +186,8 @@ function GroupsListPage() {
     const types = new Set(items.map(gi => gi.object_type))
     return OBJECT_TYPES.filter(t => types.has(t.type))
   }, [items])
+
+  const isTypeFilterActive = typeFilter !== 'all'
 
   // ─── Dialog handlers ────────────────────────────────────
 
@@ -225,6 +257,15 @@ function GroupsListPage() {
     }
   }
 
+  async function handleRefresh() {
+    setRefreshing(true)
+    try {
+      await fetchData()
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
   function toggleSort(field: SortField) {
     if (sortField === field) {
       setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
@@ -232,6 +273,45 @@ function GroupsListPage() {
       setSortField(field)
       setSortDir('asc')
     }
+  }
+
+  function renderTypeFilterMenu() {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label="Filter breakdown"
+          >
+            <Filter className={`h-3.5 w-3.5 ${isTypeFilterActive ? 'text-primary' : ''}`} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-48 p-2">
+          <DropdownMenuCheckboxItem
+            checked={typeFilter === 'all'}
+            className="px-2"
+            onSelect={event => event.preventDefault()}
+            onCheckedChange={checked => {
+              if (checked) setTypeFilter('all')
+            }}
+          >
+            All Types
+          </DropdownMenuCheckboxItem>
+          {presentTypes.map(type => (
+            <DropdownMenuCheckboxItem
+              key={type.type}
+              checked={typeFilter === type.type}
+              className="px-2"
+              onSelect={event => event.preventDefault()}
+              onCheckedChange={checked => setTypeFilter(checked ? type.type : 'all')}
+            >
+              {type.label}
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
   }
 
   // ─── Render ─────────────────────────────────────────────
@@ -254,10 +334,12 @@ function GroupsListPage() {
             Organize applications and reusable platform objects for clearer management
           </p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4 mr-2" />
-          New Group
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" onClick={() => void handleRefresh()} title="Refresh">
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          </Button>
+          <Button onClick={openCreate}>New Group</Button>
+        </div>
       </div>
 
       {error && (
@@ -280,18 +362,6 @@ function GroupsListPage() {
             className="pl-9"
           />
         </div>
-        <select
-          value={typeFilter}
-          onChange={e => setTypeFilter(e.target.value)}
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-        >
-          <option value="all">All Types</option>
-          {presentTypes.map(t => (
-            <option key={t.type} value={t.type}>
-              {t.label}
-            </option>
-          ))}
-        </select>
       </div>
 
       {/* Table */}
@@ -301,128 +371,176 @@ function GroupsListPage() {
           <p className="text-sm mt-1">
             Create the first Group to organize related applications and resources.
           </p>
-          <Button className="mt-4" onClick={openCreate}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Group
-          </Button>
+          <Button className="mt-4" onClick={openCreate}>New Group</Button>
         </div>
       ) : filteredRows.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground border rounded-lg">
           <p>No groups match your filters</p>
         </div>
       ) : (
-        <div className="border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>
+                <button
+                  type="button"
+                  className="flex items-center gap-1 hover:text-foreground"
+                  onClick={() => toggleSort('name')}
+                >
+                  Name
+                  {sortField === 'name' &&
+                    (sortDir === 'asc' ? (
+                      <ArrowUp className="h-3 w-3" />
+                    ) : (
+                      <ArrowDown className="h-3 w-3" />
+                    ))}
+                </button>
+              </TableHead>
+              <TableHead>
+                <button
+                  type="button"
+                  className="flex items-center gap-1 hover:text-foreground"
+                  onClick={() => toggleSort('description')}
+                >
+                  Description
+                  {sortField === 'description' &&
+                    (sortDir === 'asc' ? (
+                      <ArrowUp className="h-3 w-3" />
+                    ) : (
+                      <ArrowDown className="h-3 w-3" />
+                    ))}
+                </button>
+              </TableHead>
+              <TableHead>
+                <button
+                  type="button"
+                  className="flex items-center gap-1 hover:text-foreground"
+                  onClick={() => toggleSort('totalItems')}
+                >
+                  Total Items
+                  {sortField === 'totalItems' &&
+                    (sortDir === 'asc' ? (
+                      <ArrowUp className="h-3 w-3" />
+                    ) : (
+                      <ArrowDown className="h-3 w-3" />
+                    ))}
+                </button>
+              </TableHead>
+              <TableHead>
+                <div className="flex items-center gap-1">
                   <button
                     type="button"
                     className="flex items-center gap-1 hover:text-foreground"
-                    onClick={() => toggleSort('name')}
+                    onClick={() => toggleSort('breakdown')}
                   >
-                    Name
-                    {sortField === 'name' &&
+                    Breakdown
+                    {sortField === 'breakdown' &&
                       (sortDir === 'asc' ? (
                         <ArrowUp className="h-3 w-3" />
                       ) : (
                         <ArrowDown className="h-3 w-3" />
                       ))}
                   </button>
-                </TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Total Items</TableHead>
-                <TableHead>Breakdown</TableHead>
-                <TableHead>Creator</TableHead>
-                <TableHead>
-                  <button
-                    type="button"
-                    className="flex items-center gap-1 hover:text-foreground"
-                    onClick={() => toggleSort('created')}
+                  {renderTypeFilterMenu()}
+                </div>
+              </TableHead>
+              <TableHead>
+                <button
+                  type="button"
+                  className="flex items-center gap-1 hover:text-foreground"
+                  onClick={() => toggleSort('creator')}
+                >
+                  Creator
+                  {sortField === 'creator' &&
+                    (sortDir === 'asc' ? (
+                      <ArrowUp className="h-3 w-3" />
+                    ) : (
+                      <ArrowDown className="h-3 w-3" />
+                    ))}
+                </button>
+              </TableHead>
+              <TableHead>
+                <button
+                  type="button"
+                  className="flex items-center gap-1 hover:text-foreground"
+                  onClick={() => toggleSort('created')}
+                >
+                  Created
+                  {sortField === 'created' &&
+                    (sortDir === 'asc' ? (
+                      <ArrowUp className="h-3 w-3" />
+                    ) : (
+                      <ArrowDown className="h-3 w-3" />
+                    ))}
+                </button>
+              </TableHead>
+              <TableHead>
+                <button
+                  type="button"
+                  className="flex items-center gap-1 hover:text-foreground"
+                  onClick={() => toggleSort('updated')}
+                >
+                  Updated
+                  {sortField === 'updated' &&
+                    (sortDir === 'asc' ? (
+                      <ArrowUp className="h-3 w-3" />
+                    ) : (
+                      <ArrowDown className="h-3 w-3" />
+                    ))}
+                </button>
+              </TableHead>
+              <TableHead className="w-[100px] text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredRows.map(row => (
+              <TableRow key={row.id} className="cursor-pointer hover:bg-muted/50">
+                <TableCell>
+                  <Link
+                    to="/groups/$id"
+                    params={{ id: row.id }}
+                    search={{ addOpen: undefined, newItem: undefined }}
+                    className="font-medium hover:underline"
                   >
-                    Created
-                    {sortField === 'created' &&
-                      (sortDir === 'asc' ? (
-                        <ArrowUp className="h-3 w-3" />
-                      ) : (
-                        <ArrowDown className="h-3 w-3" />
-                      ))}
-                  </button>
-                </TableHead>
-                <TableHead>
-                  <button
-                    type="button"
-                    className="flex items-center gap-1 hover:text-foreground"
-                    onClick={() => toggleSort('updated')}
-                  >
-                    Updated
-                    {sortField === 'updated' &&
-                      (sortDir === 'asc' ? (
-                        <ArrowUp className="h-3 w-3" />
-                      ) : (
-                        <ArrowDown className="h-3 w-3" />
-                      ))}
-                  </button>
-                </TableHead>
-                <TableHead className="w-[100px] text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredRows.map(row => (
-                <TableRow key={row.id} className="cursor-pointer hover:bg-muted/50">
-                  <TableCell>
-                    <Link
-                      to="/groups/$id"
-                      params={{ id: row.id }}
-                      search={{ addOpen: undefined, newItem: undefined }}
-                      className="font-medium hover:underline"
-                    >
-                      {row.name}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground max-w-[200px] truncate">
-                    {row.description || '—'}
-                  </TableCell>
-                  <TableCell>{row.totalItems}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
-                    {breakdownText(row.breakdown) || '—'}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {formatCreator(row.created_by, user?.id, user?.email)}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(row.created)}</TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(row.updated)}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={e => {
-                          e.stopPropagation()
-                          openEdit(row)
-                        }}
-                      >
-                        <Pencil className="h-4 w-4" />
+                    {row.name}
+                  </Link>
+                </TableCell>
+                <TableCell className="text-muted-foreground max-w-[200px] truncate">
+                  {row.description || '—'}
+                </TableCell>
+                <TableCell>{row.totalItems}</TableCell>
+                <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
+                  {row.breakdownLabel || '—'}
+                </TableCell>
+                <TableCell className="text-muted-foreground text-sm">{row.creatorName}</TableCell>
+                <TableCell className="text-muted-foreground">{formatDate(row.created)}</TableCell>
+                <TableCell className="text-muted-foreground">{formatDate(row.updated)}</TableCell>
+                <TableCell className="text-right">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title="More actions">
+                        <MoreVertical className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
-                        onClick={e => {
-                          e.stopPropagation()
-                          setDeleteTarget(row)
-                        }}
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => openEdit(row)}>
+                        <Pencil className="h-4 w-4" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => setDeleteTarget(row)}
                       >
                         <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
 
       {/* Create / Edit Dialog */}
