@@ -95,6 +95,52 @@ func TestResolve_Revoked(t *testing.T) {
 	}
 }
 
+func TestResolve_Expired(t *testing.T) {
+	te := resolverTestEnv(t)
+	defer te.cleanup()
+
+	id := createTestSecret(t, te, "expired-secret", "active", "global", "user1", map[string]any{"value": "mysecret"})
+	rec, err := te.app.FindRecordById("secrets", id)
+	if err != nil {
+		t.Fatalf("find secret: %v", err)
+	}
+	rec.Set("expires_at", time.Now().UTC().Add(-time.Hour).Format(time.RFC3339))
+	if err := te.app.Save(rec); err != nil {
+		t.Fatalf("save expired secret: %v", err)
+	}
+
+	_, err = secrets.Resolve(te.app, id, "user1")
+	if err == nil {
+		t.Fatal("expected error for expired secret")
+	}
+	var re *secrets.ResolveError
+	if !isResolveError(err, &re) {
+		t.Fatalf("expected ResolveError, got %T", err)
+	}
+	if re.Reason != secrets.ReasonExpired {
+		t.Errorf("unexpected reason: %s", re.Reason)
+	}
+}
+
+func TestResolve_PrivateOtherUserDenied(t *testing.T) {
+	te := resolverTestEnv(t)
+	defer te.cleanup()
+
+	id := createTestSecret(t, te, "private-secret", "active", "user_private", "owner-id", map[string]any{"value": "mysecret"})
+
+	_, err := secrets.Resolve(te.app, id, "other-user-id")
+	if err == nil {
+		t.Fatal("expected access denied for private secret")
+	}
+	var re *secrets.ResolveError
+	if !isResolveError(err, &re) {
+		t.Fatalf("expected ResolveError, got %T", err)
+	}
+	if re.Reason != secrets.ReasonAccessDenied {
+		t.Errorf("unexpected reason: %s", re.Reason)
+	}
+}
+
 func TestResolve_NewFormat(t *testing.T) {
 	te := resolverTestEnv(t)
 	defer te.cleanup()
@@ -202,6 +248,33 @@ func TestValidateRef_PrivateOwnUser(t *testing.T) {
 	id := createTestSecret(t, te, "private-own", "active", "user_private", "owner-id", nil)
 	if err := secrets.ValidateRef(te.app, id, "owner-id"); err != nil {
 		t.Errorf("expected allowed for owner, got: %v", err)
+	}
+}
+
+func TestValidateRef_Expired(t *testing.T) {
+	te := resolverTestEnv(t)
+	defer te.cleanup()
+
+	id := createTestSecret(t, te, "expired-global", "active", "global", "owner-id", nil)
+	rec, err := te.app.FindRecordById("secrets", id)
+	if err != nil {
+		t.Fatalf("find secret: %v", err)
+	}
+	rec.Set("expires_at", time.Now().UTC().Add(-time.Hour).Format(time.RFC3339))
+	if err := te.app.Save(rec); err != nil {
+		t.Fatalf("save expired secret: %v", err)
+	}
+
+	err = secrets.ValidateRef(te.app, id, "owner-id")
+	if err == nil {
+		t.Fatal("expected error for expired secret")
+	}
+	var re *secrets.ResolveError
+	if !isResolveError(err, &re) {
+		t.Fatalf("expected ResolveError, got %T", err)
+	}
+	if re.Reason != secrets.ReasonExpired {
+		t.Errorf("unexpected reason: %s", re.Reason)
 	}
 }
 

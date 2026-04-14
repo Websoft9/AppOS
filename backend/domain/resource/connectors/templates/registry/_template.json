@@ -13,10 +13,17 @@
       "placeholder": "https://registry.example.com"
     },
     {
+      "id": "username",
+      "label": "Username",
+      "type": "string",
+      "required": true,
+      "placeholder": "registry-user"
+    },
+    {
       "id": "credential",
-      "label": "Credential",
+      "label": "Password Secret",
       "type": "secret_ref",
-      "secretTemplate": "basic_auth",
+      "secretTemplate": "single_value",
       "placeholder": "secretRef:..."
     }
   ]

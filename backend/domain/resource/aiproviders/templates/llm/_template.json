@@ -1,7 +1,7 @@
 {
   "kind": "llm",
   "category": "AI",
-  "description": "Reusable LLM connector profile.",
+  "description": "Reusable AI provider profile.",
   "defaultAuthScheme": "api_key",
   "capabilities": ["chat"],
   "fields": [
@@ -18,7 +18,7 @@
       "type": "secret_ref",
       "required": true,
       "sensitive": true,
-      "secretTemplate": "api_key",
+      "secretTemplate": "single_value",
       "placeholder": "secretRef:..."
     }
   ]

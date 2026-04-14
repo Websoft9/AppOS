@@ -44,11 +44,7 @@ describe('ConnectorsPage', () => {
 
     sendMock.mockImplementation((path: string) => {
       if (path === '/api/secrets/templates') {
-        return Promise.resolve([
-          { id: 'single_value', label: 'Single Value' },
-          { id: 'api_key', label: 'API Key' },
-          { id: 'basic_auth', label: 'Basic Auth' },
-        ])
+        return Promise.resolve([{ id: 'single_value', label: 'Single Value' }])
       }
       if (path === '/api/connectors/templates') {
         return Promise.resolve([
@@ -74,15 +70,23 @@ describe('ConnectorsPage', () => {
             id: 'generic-smtp',
             kind: 'smtp',
             title: 'Generic SMTP',
-            fields: [{ id: 'endpoint', label: 'SMTP Endpoint', type: 'string', required: true }],
+            defaultAuthScheme: 'basic',
+            fields: [
+              { id: 'endpoint', label: 'SMTP Endpoint', type: 'string', required: true },
+              { id: 'username', label: 'Username', type: 'string', required: true },
+              { id: 'credential', label: 'Password Secret', type: 'secret_ref', required: true, secretTemplate: 'single_value' },
+            ],
           },
           {
             id: 'ses-smtp',
             kind: 'smtp',
             title: 'Amazon SES SMTP',
             defaultEndpoint: 'smtp://email-smtp.us-east-1.amazonaws.com:587',
+            defaultAuthScheme: 'basic',
             fields: [
               { id: 'endpoint', label: 'SMTP Endpoint', type: 'string', required: true },
+              { id: 'username', label: 'Username', type: 'string', required: true },
+              { id: 'credential', label: 'Password Secret', type: 'secret_ref', required: true, secretTemplate: 'single_value' },
               { id: 'region', label: 'AWS Region', type: 'string', placeholder: 'us-east-1' },
             ],
           },
@@ -90,13 +94,23 @@ describe('ConnectorsPage', () => {
             id: 'generic-registry',
             kind: 'registry',
             title: 'Generic OCI Registry',
-            fields: [{ id: 'endpoint', label: 'Registry URL', type: 'url', required: true }],
+            defaultAuthScheme: 'basic',
+            fields: [
+              { id: 'endpoint', label: 'Registry URL', type: 'url', required: true },
+              { id: 'username', label: 'Username', type: 'string', required: true },
+              { id: 'credential', label: 'Password Secret', type: 'secret_ref', required: true, secretTemplate: 'single_value' },
+            ],
           },
           {
             id: 'ghcr',
             kind: 'registry',
             title: 'GitHub Container Registry',
-            fields: [{ id: 'endpoint', label: 'Registry URL', type: 'url', required: true }],
+            defaultAuthScheme: 'basic',
+            fields: [
+              { id: 'endpoint', label: 'Registry URL', type: 'url', required: true },
+              { id: 'username', label: 'Username', type: 'string', required: true },
+              { id: 'credential', label: 'Password Secret', type: 'secret_ref', required: true, secretTemplate: 'single_value' },
+            ],
           },
           {
             id: 'generic-dns',
@@ -120,7 +134,7 @@ describe('ConnectorsPage', () => {
       }
       if (
         path ===
-        "/api/collections/secrets/records?filter=(status='active'%26%26(template_id='single_value'||template_id='api_key'||template_id='basic_auth'))&sort=name"
+        "/api/collections/secrets/records?filter=(status='active'%26%26(template_id='single_value'))&sort=name"
       ) {
         return Promise.resolve({ items: [] })
       }

@@ -160,7 +160,7 @@ export function SecretCreateDialog({
                   size="sm"
                   onClick={() => setGeneratorOpen(true)}
                 >
-                  Generate Password
+                  Generate Secret Value
                 </Button>
               </div>
             )}
@@ -198,6 +198,10 @@ export function SecretCreateDialog({
         onOpenChange={setGeneratorOpen}
         length={generatedLength}
         onLengthChange={setGeneratedLength}
+        title="Generate Secret Value"
+        description="Choose the value length before filling the field."
+        lengthLabel="Value Length"
+        confirmLabel="Fill Secret Value"
         onConfirm={() => {
           setPayload(prev => ({ ...prev, value: buildRandomPassword(generatedLength) }))
         }}

@@ -4,6 +4,7 @@ import {
   InstalledComponentsContent,
   ActiveServicesContent,
 } from '@/pages/components/ComponentsPage'
+import { MonitorOverviewContent } from '@/pages/system/MonitorOverview'
 import { SystemCronsContent } from './system-tasks'
 
 function StatusPage() {
@@ -17,10 +18,14 @@ function StatusPage() {
       </div>
       <Tabs defaultValue="components">
         <TabsList className="mb-1">
+          <TabsTrigger value="monitor">Monitor</TabsTrigger>
           <TabsTrigger value="components">Components</TabsTrigger>
           <TabsTrigger value="services">Active Services</TabsTrigger>
           <TabsTrigger value="crons">System Crons</TabsTrigger>
         </TabsList>
+        <TabsContent value="monitor" className="mt-1">
+          <MonitorOverviewContent />
+        </TabsContent>
         <TabsContent value="components" className="mt-1">
           <InstalledComponentsContent />
         </TabsContent>

@@ -154,6 +154,7 @@ func smtpConfigFromConnector(secrets SecretResolvePort, connector *Connector) (*
 		Endpoint:    endpoint,
 		Host:        host,
 		Port:        port,
+		Username:    stringValue(config, "username", "user"),
 		FromAddress: stringValue(config, "fromAddress"),
 		AuthScheme:  connector.AuthScheme(),
 		LocalName:   stringValue(config, "localName", "local_name"),
@@ -161,7 +162,6 @@ func smtpConfigFromConnector(secrets SecretResolvePort, connector *Connector) (*
 		ImplicitTLS: implicitTLS,
 	}
 	if secret != nil {
-		result.Username = stringValue(secret.Payload, "username", "user")
 		result.Password = stringValue(secret.Payload, "password", "value", "api_key")
 	}
 	if result.FromAddress == "" {
@@ -189,12 +189,12 @@ func registryConfigFromConnector(secrets SecretResolvePort, connector *Connector
 		TemplateID:  connector.TemplateID(),
 		Endpoint:    endpoint,
 		Host:        host,
+		Username:    stringValue(config, "username", "user"),
 		Namespace:   stringValue(config, "namespace", "project"),
 		Insecure:    boolValue(config, "insecure"),
 		AuthScheme:  connector.AuthScheme(),
 	}
 	if secret != nil {
-		result.Username = stringValue(secret.Payload, "username", "user")
 		result.Password = stringValue(secret.Payload, "password", "value", "api_key")
 	}
 	return result, nil

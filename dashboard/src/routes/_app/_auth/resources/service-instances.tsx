@@ -1014,6 +1014,7 @@ export function ServiceInstancesPage() {
           },
           resolveFields: resolveInstanceFields,
           resourceType: 'instance',
+          parentNav: { label: 'Resources', href: '/resources' },
           autoCreate,
           enableGroupAssign: true,
           showRefreshButton: true,
@@ -1055,4 +1056,7 @@ export function ServiceInstancesPage() {
 
 export const Route = createFileRoute('/_app/_auth/resources/service-instances')({
   component: ServiceInstancesPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    create: typeof search.create === 'string' ? search.create : undefined,
+  }),
 })

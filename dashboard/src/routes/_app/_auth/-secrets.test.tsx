@@ -74,7 +74,7 @@ describe('SecretsPage policy loading', () => {
         return Promise.resolve([
           {
             id: 'single_value',
-            label: 'Single Value',
+            label: 'Secret Value',
             fields: [{ key: 'value', label: 'Value', type: 'password', required: true }],
           },
         ])

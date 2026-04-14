@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ResourcePage, type Column, type FieldDef } from '@/components/resources/ResourcePage'
 import { TunnelSetupWizard } from '@/components/servers/TunnelSetupWizard'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
+import { MonitorTargetPanel } from '@/components/monitor/MonitorTargetPanel'
 import { pb } from '@/lib/pb'
 import { checkServerStatus as pingServerStatus, serverPower } from '@/lib/connect-api'
 
@@ -454,9 +455,11 @@ export function ServersPage() {
             </TabsContent>
 
             <TabsContent value="monitor" className="mt-4">
-              <div className="rounded-lg border bg-muted/10 p-4 text-sm text-muted-foreground">
-                Connectivity checks, tunnel health, and runtime probes can be surfaced here. Current server status is {status}.
-              </div>
+              <MonitorTargetPanel
+                targetType="server"
+                targetId={String(item.id || '')}
+                emptyMessage={`No monitoring data available yet for ${String(item.name || item.id)}. Current connectivity status is ${status}.`}
+              />
             </TabsContent>
 
             <TabsContent value="runtime" className="mt-4">
@@ -553,6 +556,7 @@ export function ServersPage() {
           pageSizeSelectorPlacement: 'footer',
           paginationSummary: false,
           resourceType: 'server',
+          parentNav: { label: 'Resources', href: '/resources' },
           listItems: async () => await pb.collection('servers').getFullList({ sort: 'name' }),
           createItem: async payload => await pb.collection('servers').create(payload),
           updateItem: async (id, payload) => {

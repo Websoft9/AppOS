@@ -1,7 +1,9 @@
 package certs
 
 import (
+	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -9,6 +11,7 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/audit"
+	"github.com/websoft9/appos/backend/domain/secrets"
 )
 
 var (
@@ -25,6 +28,11 @@ func RegisterHooks(app *pocketbase.PocketBase) {
 			if _, ok := FindTemplate(templateID); !ok {
 				return apis.NewBadRequestError("invalid template_id", nil)
 			}
+		}
+
+		privateKeySecretID := normalizePrivateKeySecretRef(e.Record)
+		if err := validatePrivateKeySecretRef(app, privateKeySecretID, actorID(e.Auth)); err != nil {
+			return apis.NewBadRequestError(err.Error(), nil)
 		}
 
 		// PEM validation and metadata extraction
@@ -83,6 +91,11 @@ func RegisterHooks(app *pocketbase.PocketBase) {
 			return apis.NewBadRequestError("cert_pem cannot be cleared once set", nil)
 		}
 
+		privateKeySecretID := normalizePrivateKeySecretRef(e.Record)
+		if err := validatePrivateKeySecretRef(app, privateKeySecretID, actorID(e.Auth)); err != nil {
+			return apis.NewBadRequestError(err.Error(), nil)
+		}
+
 		if newPEM != "" && newPEM != oldPEM {
 			if IsBinaryContent(newPEM) {
 				return apis.NewBadRequestError("cert_pem contains binary content; only text PEM is supported", nil)
@@ -139,6 +152,32 @@ func RegisterHooks(app *pocketbase.PocketBase) {
 		}
 		return e.Next()
 	})
+}
+
+func validatePrivateKeySecretRef(app core.App, secretID, userID string) error {
+	secretID = strings.TrimSpace(secretID)
+	if secretID == "" {
+		return nil
+	}
+
+	if err := secrets.ValidateRef(app, secretID, userID); err != nil {
+		return fmt.Errorf("invalid private key secret")
+	}
+
+	rec, err := app.FindRecordById("secrets", secretID)
+	if err != nil {
+		return fmt.Errorf("invalid private key secret")
+	}
+
+	if strings.TrimSpace(rec.GetString("template_id")) != "tls_private_key" {
+		return fmt.Errorf("certificate key must reference a tls_private_key secret")
+	}
+
+	if strings.TrimSpace(rec.GetString("status")) == "revoked" {
+		return fmt.Errorf("invalid private key secret")
+	}
+
+	return nil
 }
 
 func runExpirySweepLoop(app core.App, stop <-chan struct{}) {

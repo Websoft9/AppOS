@@ -420,6 +420,7 @@ export function SecretsPage() {
         const record = item as {
           id: string
           label: string
+          description?: string
           fields?: Array<{
             key: string
             label: string
@@ -431,6 +432,7 @@ export function SecretsPage() {
         return {
           id: record.id,
           label: record.label,
+          description: typeof record.description === 'string' ? record.description : undefined,
           fields: Array.isArray(record.fields) ? record.fields : [],
         }
       })

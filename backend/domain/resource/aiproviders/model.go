@@ -3,8 +3,9 @@ package aiproviders
 import "github.com/websoft9/appos/backend/domain/resource/connectors"
 
 const (
-	KindLLM            = connectors.KindLLM
-	TemplateGenericLLM = connectors.TemplateGenericLLM
+	KindLLM                  = connectors.KindLLM
+	TemplateOpenAICompatible = connectors.TemplateGenericLLM
+	TemplateGenericLLM       = TemplateOpenAICompatible
 )
 
 var EditableFields = connectors.EditableFields

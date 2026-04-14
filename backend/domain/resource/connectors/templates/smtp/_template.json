@@ -13,10 +13,17 @@
       "placeholder": "smtp://smtp.example.com:587"
     },
     {
+      "id": "username",
+      "label": "Username",
+      "type": "string",
+      "required": true,
+      "placeholder": "mailer@example.com"
+    },
+    {
       "id": "credential",
-      "label": "Credential",
+      "label": "Password Secret",
       "type": "secret_ref",
-      "secretTemplate": "basic_auth",
+      "secretTemplate": "single_value",
       "placeholder": "secretRef:..."
     }
   ]

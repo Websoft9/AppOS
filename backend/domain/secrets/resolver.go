@@ -39,6 +39,7 @@ func ExtractSecretID(v string) (string, bool) {
 const (
 	ReasonNotFound     = "secret not found"
 	ReasonRevoked      = "secret has been revoked"
+	ReasonExpired      = "secret has expired"
 	ReasonAccessDenied = "access denied: secret is private to another user"
 )
 
@@ -67,7 +68,6 @@ type ResolveResult struct {
 	TemplateID string
 	Payload    map[string]any
 	ExpiresAt  string // RFC 3339 or empty
-	IsExpired  bool
 }
 
 // ─── Resolve ─────────────────────────────────────────────────────────────────
@@ -93,6 +93,12 @@ func Resolve(app core.App, secretID, userID string) (*ResolveResult, error) {
 
 	if s.IsRevoked() {
 		return nil, &ResolveError{SecretID: secretID, Reason: ReasonRevoked}
+	}
+	if s.IsExpired() {
+		return nil, &ResolveError{SecretID: secretID, Reason: ReasonExpired}
+	}
+	if !s.CanBindByUser(userID) {
+		return nil, &ResolveError{SecretID: secretID, Reason: ReasonAccessDenied}
 	}
 
 	var payload map[string]any
@@ -135,7 +141,6 @@ func Resolve(app core.App, secretID, userID string) (*ResolveResult, error) {
 		TemplateID: rec.GetString("template_id"),
 		Payload:    payload,
 		ExpiresAt:  rec.GetString("expires_at"),
-		IsExpired:  s.IsExpired(),
 	}, nil
 }
 
@@ -159,8 +164,11 @@ func ValidateRef(app core.App, secretID, userID string) error {
 	if s.IsRevoked() {
 		return &ResolveError{SecretID: secretID, Reason: ReasonRevoked}
 	}
+	if s.IsExpired() {
+		return &ResolveError{SecretID: secretID, Reason: ReasonExpired}
+	}
 
-	if s.Scope() == ScopeUserPrivate && s.CreatedBy() != userID {
+	if !s.CanBindByUser(userID) {
 		return &ResolveError{SecretID: secretID, Reason: ReasonAccessDenied}
 	}
 

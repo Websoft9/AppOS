@@ -102,6 +102,7 @@ func Register(se *core.ServeEvent) {
 	registerServerRoutes(servers)
 	registerTerminalRoutes(terminalGroup)
 	registerTunnelRoutes(se)
+	registerMonitorRoutes(se)
 	registerSecretsRoutes(se)
 	registerCertificatesRoutes(se)
 	registerCronLogsRoute(se)

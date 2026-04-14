@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ResourcePage } from './ResourcePage'
 import type { ResourcePageConfig } from './resource-page-types'
@@ -149,5 +149,38 @@ describe('ResourcePage list controls', () => {
       expect(screen.getByText('beta')).toBeInTheDocument()
       expect(screen.queryByText('alpha')).not.toBeInTheDocument()
     })
+  })
+
+  it('waits for create-selection options before auto-opening the create flow', async () => {
+    function AutoCreateHarness() {
+      const [options, setOptions] = useState<Array<{ id: string; title: string }>>([])
+
+      useEffect(() => {
+        Promise.resolve().then(() => {
+          setOptions([{ id: 'mysql', title: 'MySQL' }])
+        })
+      }, [])
+
+      const config: ResourcePageConfig = {
+        title: 'Service Instances',
+        apiPath: '/api/instances',
+        listItems: async () => [],
+        fields: [{ key: 'name', label: 'Name', type: 'text', required: true }],
+        columns: [{ key: 'name', label: 'Name' }],
+        autoCreate: true,
+        createSelection: {
+          title: 'Choose a Product',
+          options,
+          onSelect: () => ({ template_id: 'mysql' }),
+        },
+      }
+
+      return <ResourcePage config={config} />
+    }
+
+    render(<AutoCreateHarness />)
+
+    expect(await screen.findByText('Choose a Product')).toBeInTheDocument()
+    expect(screen.getByText('MySQL')).toBeInTheDocument()
   })
 })

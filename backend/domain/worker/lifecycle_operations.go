@@ -73,10 +73,17 @@ func (w *Worker) startLifecycleScheduler() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	w.schedulerCancel = cancel
+	w.stateMu.Lock()
+	w.schedulerRunning = true
+	w.schedulerLastTick = time.Now().UTC()
+	w.stateMu.Unlock()
 	w.backgroundWG.Add(1)
 	go func() {
 		defer w.backgroundWG.Done()
 		if err := w.dispatchQueuedOperations(); err != nil {
+			w.stateMu.Lock()
+			w.lastDispatchError = err.Error()
+			w.stateMu.Unlock()
 			log.Printf("dispatch queued operations: %v", err)
 		}
 
@@ -86,9 +93,18 @@ func (w *Worker) startLifecycleScheduler() {
 		for {
 			select {
 			case <-ctx.Done():
+				w.stateMu.Lock()
+				w.schedulerRunning = false
+				w.stateMu.Unlock()
 				return
 			case <-ticker.C:
+				w.stateMu.Lock()
+				w.schedulerLastTick = time.Now().UTC()
+				w.stateMu.Unlock()
 				if err := w.dispatchQueuedOperations(); err != nil {
+					w.stateMu.Lock()
+					w.lastDispatchError = err.Error()
+					w.stateMu.Unlock()
 					log.Printf("dispatch queued operations: %v", err)
 				}
 			}
@@ -100,6 +116,10 @@ func (w *Worker) dispatchQueuedOperations() error {
 	if w.client == nil {
 		return nil
 	}
+	w.stateMu.Lock()
+	w.lastDispatchAt = time.Now().UTC()
+	w.lastDispatchError = ""
+	w.stateMu.Unlock()
 
 	col, err := w.app.FindCollectionByNameOrId("app_operations")
 	if err != nil {

@@ -16,7 +16,7 @@
       "id": "credential",
       "label": "Credential",
       "type": "secret_ref",
-      "secretTemplate": "api_key",
+      "secretTemplate": "single_value",
       "placeholder": "secretRef:..."
     }
   ]

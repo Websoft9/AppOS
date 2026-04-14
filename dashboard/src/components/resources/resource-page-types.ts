@@ -95,6 +95,7 @@ export interface FieldDef {
 export interface ResourcePageConfig {
   title: string
   description?: string
+  emptyStateLabel?: string
   apiPath: string
   columns: Column[]
   fields: FieldDef[]
@@ -150,6 +151,7 @@ export interface ResourcePageConfig {
   showRefreshButton?: boolean
   refreshButtonLabel?: string
   refreshButtonIconOnly?: boolean
+  refreshButtonShowIcon?: boolean
   createButtonIconOnly?: boolean
   favoriteActionPlacement?: 'beforeExtraActions' | 'afterExtraActions'
   wrapTableInCard?: boolean

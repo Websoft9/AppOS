@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/websoft9/appos/backend/domain/certs"
+	"github.com/websoft9/appos/backend/domain/monitor"
 	"github.com/websoft9/appos/backend/domain/routes"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/domain/terminal"
@@ -33,6 +34,18 @@ func main() {
 
 	// Initialize Asynq worker (created once, shared across app lifecycle)
 	w := worker.New(app)
+	platformObserver := monitor.NewPlatformObserver(app, func() monitor.RuntimeSnapshot {
+		snap := w.Snapshot()
+		return monitor.RuntimeSnapshot{
+			StartedAt:         snap.StartedAt,
+			WorkerRunning:     snap.ServerRunning,
+			SchedulerRunning:  snap.SchedulerRunning,
+			SchedulerLastTick: snap.SchedulerLastTick,
+			LastDispatchAt:    snap.LastDispatchAt,
+			LastServerError:   snap.LastServerError,
+			LastDispatchError: snap.LastDispatchError,
+		}
+	})
 	routes.SetAsynqClient(w.Client())
 
 	// Register custom routes
@@ -48,12 +61,14 @@ func main() {
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
 		terminal.StartIdleMonitor()
 		w.Start()
+		platformObserver.Start()
 		return se.Next()
 	})
 
 	// Graceful shutdown: stop worker and session monitor when PocketBase terminates
 	app.OnTerminate().BindFunc(func(e *core.TerminateEvent) error {
 		terminal.StopIdleMonitor()
+		platformObserver.Stop()
 		w.Shutdown()
 		return e.Next()
 	})

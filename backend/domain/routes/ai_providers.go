@@ -236,7 +236,7 @@ func (v aiProviderCredentialValidator) ValidateCredentialRef(credentialID string
 			switch resolveErr.Reason {
 			case secrets.ReasonAccessDenied:
 				return &aiproviders.AccessDeniedError{Message: "credential is not accessible", Cause: err}
-			case secrets.ReasonNotFound, secrets.ReasonRevoked:
+			case secrets.ReasonNotFound, secrets.ReasonRevoked, secrets.ReasonExpired:
 				return &aiproviders.ValidationError{Message: "invalid AI provider credential", Cause: err}
 			default:
 				return &aiproviders.ValidationError{Message: "invalid AI provider credential", Cause: err}

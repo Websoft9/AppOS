@@ -195,6 +195,9 @@ func (s *ManagedServer) applyCredential(app core.App, userID string, cfg *Access
 	if s.CredentialID == "" {
 		return nil
 	}
+	if userID == "" {
+		userID = sec.CreatedSourceSystem
+	}
 
 	cfg.AuthType = CredentialAuthType(app, s.CredentialID)
 	result, err := sec.Resolve(app, s.CredentialID, userID)

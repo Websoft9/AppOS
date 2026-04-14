@@ -16,6 +16,7 @@ export interface SecretTemplateField {
 export interface SecretTemplate {
   id: string
   label: string
+  description?: string
   fields: SecretTemplateField[]
 }
 
@@ -153,6 +154,9 @@ export function SecretForm({
             </option>
           ))}
         </select>
+        {selectedTemplate?.description && (
+          <p className="text-sm text-muted-foreground">{selectedTemplate.description}</p>
+        )}
       </div>
 
       {selectedTemplate && (

@@ -3,6 +3,7 @@
   "title": "OpenAI",
   "vendor": "OpenAI",
   "description": "OpenAI-compatible hosted LLM access using an API key.",
+  "contextSize": 128000,
   "defaultEndpoint": "https://api.openai.com/v1",
   "capabilities": ["chat", "embeddings", "tools", "streaming"],
   "aliases": ["openai"],

@@ -59,15 +59,9 @@ const CONNECTOR_KIND_QUERY = SUPPORTED_KINDS.join(',')
 
 const SECRET_TEMPLATE_LABELS: Record<string, string> = {
   single_value: 'Token / Single Value',
-  api_key: 'API Key',
-  basic_auth: 'Basic Auth',
 }
 
 const SECRET_TEMPLATE_IDS = new Set(Object.keys(SECRET_TEMPLATE_LABELS))
-
-const SECRET_TEMPLATE_ALIASES: Record<string, string> = {
-  bearer_token: 'single_value',
-}
 
 function formatSecretLabel(raw: Record<string, unknown>): string {
   const name = String(raw.name ?? raw.id)
@@ -89,8 +83,7 @@ function resolveSecretTemplateId(secretTemplate?: string) {
   if (!normalized) {
     return ''
   }
-  const aliased = SECRET_TEMPLATE_ALIASES[normalized] ?? normalized
-  return SECRET_TEMPLATE_IDS.has(aliased) ? aliased : ''
+  return SECRET_TEMPLATE_IDS.has(normalized) ? normalized : ''
 }
 
 function buildSecretRelationApiPath(secretTemplate?: string) {
@@ -161,14 +154,8 @@ async function buildConnectorPayload(
   const credentialId = String(body.credential ?? '')
   let authScheme = 'none'
   if (credentialId) {
-    const secret = await pb.collection('secrets').getOne(credentialId)
-    const secretTemplateId = String(secret.template_id ?? '')
-    const authTypeByTemplate: Record<string, string> = {
-      single_value: 'bearer',
-      api_key: 'api_key',
-      basic_auth: 'basic',
-    }
-    authScheme = authTypeByTemplate[secretTemplateId] ?? 'bearer'
+    const defaultAuthScheme = String(template.defaultAuthScheme ?? 'none').trim() || 'none'
+    authScheme = defaultAuthScheme !== 'none' ? defaultAuthScheme : 'bearer'
   }
 
   const extra =
@@ -440,7 +427,7 @@ export function ConnectorsPage() {
         onOpenChange={setSecretDialogOpen}
         title="New Secret"
         description="Create a reusable secret and attach it to this connector."
-        allowedTemplateIds={Array.from(SECRET_TEMPLATE_IDS)}
+        allowedTemplateIds={['single_value']}
         templateLabels={SECRET_TEMPLATE_LABELS}
         defaultTemplateId="single_value"
         onCreated={({ id, name, templateId }) => {
@@ -454,4 +441,7 @@ export function ConnectorsPage() {
 
 export const Route = createFileRoute('/_app/_auth/resources/connectors')({
   component: ConnectorsPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    create: typeof search.create === 'string' ? search.create : undefined,
+  }),
 })

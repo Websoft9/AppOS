@@ -161,4 +161,18 @@ func TestEmbeddedTemplatesValid(t *testing.T) {
 		}
 		seen[tpl.ID] = true
 	}
+
+	requiredIDs := []string{"single_value", "ssh_key", "tls_private_key"}
+	for _, id := range requiredIDs {
+		if !seen[id] {
+			t.Errorf("expected embedded template id %q", id)
+		}
+	}
+
+	retiredIDs := []string{"api_key", "database", "basic_auth"}
+	for _, id := range retiredIDs {
+		if seen[id] {
+			t.Errorf("did not expect retired template id %q", id)
+		}
+	}
 }

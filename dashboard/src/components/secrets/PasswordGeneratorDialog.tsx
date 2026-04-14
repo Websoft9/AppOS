@@ -16,6 +16,10 @@ interface PasswordGeneratorDialogProps {
   length: number
   onLengthChange: (length: number) => void
   onConfirm: () => void
+  title?: string
+  description?: string
+  lengthLabel?: string
+  confirmLabel?: string
 }
 
 export function PasswordGeneratorDialog({
@@ -24,19 +28,21 @@ export function PasswordGeneratorDialog({
   length,
   onLengthChange,
   onConfirm,
+  title = 'Generate Password',
+  description = 'Choose the password length before filling the field.',
+  lengthLabel = 'Password Length',
+  confirmLabel = 'Fill Password',
 }: PasswordGeneratorDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Generate Password</DialogTitle>
-          <DialogDescription>
-            Choose the password length before filling the field.
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-2">
-          <Label htmlFor="generated-password-length">Password Length</Label>
+          <Label htmlFor="generated-password-length">{lengthLabel}</Label>
           <select
             id="generated-password-length"
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -63,7 +69,7 @@ export function PasswordGeneratorDialog({
             }}
           >
             <WandSparkles className="mr-1.5 h-4 w-4" />
-            Fill Password
+            {confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -150,17 +150,24 @@ func registerSecretsGroup(secretsGroup *router.RouterGroup[*core.RequestEvent]) 
 			return e.BadRequestError("secret_id is required", nil)
 		}
 
-		result, err := secrets.Resolve(e.App, body.SecretID, strings.TrimSpace(body.UsedBy))
+		usedBy := strings.TrimSpace(body.UsedBy)
+		if usedBy == "" {
+			usedBy = secrets.CreatedSourceSystem
+		}
+		result, err := secrets.Resolve(e.App, body.SecretID, usedBy)
 		if err != nil {
 			var resolveErr *secrets.ResolveError
 			if errors.As(err, &resolveErr) {
-				reason := strings.ToLower(resolveErr.Reason)
-				switch {
-				case strings.Contains(reason, "not found"):
+				switch resolveErr.Reason {
+				case secrets.ReasonNotFound:
 					return e.NotFoundError("secret not found", err)
-				case strings.Contains(reason, "revoked"):
+				case secrets.ReasonRevoked:
 					return apis.NewForbiddenError("secret is revoked", nil)
-				case strings.Contains(reason, "no payload"):
+				case secrets.ReasonExpired:
+					return apis.NewForbiddenError("secret has expired", nil)
+				case secrets.ReasonAccessDenied:
+					return apis.NewForbiddenError("secret is not accessible", nil)
+				case "secret has no payload":
 					return e.BadRequestError("secret has no payload", nil)
 				}
 			}
@@ -170,7 +177,6 @@ func registerSecretsGroup(secretsGroup *router.RouterGroup[*core.RequestEvent]) 
 		resp := map[string]any{"payload": result.Payload}
 		if result.ExpiresAt != "" {
 			resp["expires_at"] = result.ExpiresAt
-			resp["is_expired"] = result.IsExpired
 		}
 		return e.JSON(http.StatusOK, resp)
 	})
@@ -182,20 +188,19 @@ func registerSecretsGroup(secretsGroup *router.RouterGroup[*core.RequestEvent]) 
 
 		result, err := secrets.RevealPayload(e.App, id, e.Auth)
 		if err != nil {
-			msg := err.Error()
 			switch {
-			case strings.Contains(msg, "reveal_disabled"):
+			case errors.Is(err, secrets.ErrRevealDisabled):
 				return apis.NewForbiddenError("Secret reveal is disabled by administrator", nil)
-			case strings.Contains(msg, "not_found"):
+			case errors.Is(err, secrets.ErrRevealNotFound):
 				return apis.NewNotFoundError("secret not found", nil)
-			case strings.Contains(msg, "forbidden"):
+			case errors.Is(err, secrets.ErrRevealForbidden):
 				return apis.NewForbiddenError("forbidden", nil)
-			case strings.Contains(msg, "revoked"):
+			case errors.Is(err, secrets.ErrRevealRevoked):
 				return apis.NewForbiddenError("secret is revoked", nil)
-			case strings.Contains(msg, "reveal_not_allowed"):
+			case errors.Is(err, secrets.ErrRevealExpired):
+				return apis.NewForbiddenError("secret has expired", nil)
+			case errors.Is(err, secrets.ErrRevealNotAllowed):
 				return apis.NewForbiddenError("reveal disabled", nil)
-			case strings.Contains(msg, "decrypt_failed"):
-				return apis.NewBadRequestError("decrypt failed", err)
 			default:
 				return apis.NewBadRequestError("reveal failed", err)
 			}

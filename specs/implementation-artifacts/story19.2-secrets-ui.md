@@ -42,6 +42,7 @@ As an admin, I want a Secrets management page under Admin → Credentials, so th
 
 - Depends on Story 19.1 APIs: `GET /api/secrets/templates`, `PUT /api/secrets/:id/payload`, `GET /api/secrets/:id/reveal`, and PB records CRUD for `secrets`.
 - `Environment Variables` is only a sibling menu entry in this story; its page/feature is handled by a separate epic.
+- The template picker is intentionally material-centric. Connection metadata such as API endpoints, database host/port, or resource descriptors belongs in the consuming resource flow and should reference a secret rather than be modeled as a secret template.
 
 ## Dev Notes
 
@@ -68,6 +69,7 @@ As an admin, I want a Secrets management page under Admin → Credentials, so th
 | 2026-03-11 | Story created |
 | 2026-03-11 | Implemented credentials sidebar group, secrets list/create/edit/reveal UI, and env-vars placeholder route |
 | 2026-03-12 | Added ID column to list; search covers id field; `?id=` URL param for deep-link filtering |
+| 2026-04-14 | Aligned UI spec with material-centric secret templates only; connection-shaped templates are no longer part of the create/edit flow. |
 
 ## Dev Agent Record
 

@@ -1,11 +1,11 @@
 {
   "id": "generic-llm",
-  "title": "Generic LLM",
-  "vendor": "Generic",
-  "description": "User-defined LLM endpoint for providers not covered by built-in templates.",
+  "title": "OpenAI-Compatible",
+  "vendor": "OpenAI-Compatible",
+  "description": "User-defined OpenAI-compatible LLM endpoint for providers not covered by built-in templates.",
   "defaultEndpoint": "",
   "defaultAuthScheme": "none",
-  "aliases": ["generic", "generic-llm", "custom", "custom-llm"],
+  "aliases": ["generic", "generic-llm", "custom", "custom-llm", "openai-compatible"],
   "fields": [
     {
       "id": "credential",

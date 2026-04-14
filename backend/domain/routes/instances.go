@@ -363,7 +363,7 @@ func (v instanceCredentialValidator) ValidateCredentialRef(credentialID string, 
 			switch resolveErr.Reason {
 			case secrets.ReasonAccessDenied:
 				return &instances.AccessDeniedError{Message: "credential is not accessible", Cause: err}
-			case secrets.ReasonNotFound, secrets.ReasonRevoked:
+			case secrets.ReasonNotFound, secrets.ReasonRevoked, secrets.ReasonExpired:
 				return &instances.ValidationError{Message: "invalid instance credential", Cause: err}
 			default:
 				return &instances.ValidationError{Message: "invalid instance credential", Cause: err}

@@ -84,11 +84,29 @@ type BackupRestorePayload struct {
 
 // Worker manages the Asynq server and a shared client for enqueuing tasks.
 type Worker struct {
-	server          *asynq.Server
-	client          *asynq.Client
-	app             core.App // PocketBase app for audit writes
-	schedulerCancel context.CancelFunc
-	backgroundWG    sync.WaitGroup
+	server            *asynq.Server
+	client            *asynq.Client
+	app               core.App // PocketBase app for audit writes
+	schedulerCancel   context.CancelFunc
+	backgroundWG      sync.WaitGroup
+	stateMu           sync.RWMutex
+	startedAt         time.Time
+	serverRunning     bool
+	schedulerRunning  bool
+	schedulerLastTick time.Time
+	lastDispatchAt    time.Time
+	lastServerError   string
+	lastDispatchError string
+}
+
+type Snapshot struct {
+	StartedAt         time.Time
+	ServerRunning     bool
+	SchedulerRunning  bool
+	SchedulerLastTick time.Time
+	LastDispatchAt    time.Time
+	LastServerError   string
+	LastDispatchError string
 }
 
 var deployServerLocks = struct {
@@ -130,6 +148,13 @@ func New(app core.App) *Worker {
 // Start begins processing tasks in a background goroutine.
 // This should be called only once during the application lifecycle.
 func (w *Worker) Start() {
+	w.stateMu.Lock()
+	if w.startedAt.IsZero() {
+		w.startedAt = time.Now().UTC()
+	}
+	w.serverRunning = true
+	w.stateMu.Unlock()
+
 	if err := w.recoverOrphanedDeployments(); err != nil {
 		log.Printf("recover orphaned deployments: %v", err)
 	}
@@ -149,8 +174,16 @@ func (w *Worker) Start() {
 
 	go func() {
 		if err := w.server.Run(mux); err != nil {
+			w.stateMu.Lock()
+			w.serverRunning = false
+			w.lastServerError = err.Error()
+			w.stateMu.Unlock()
 			log.Printf("asynq worker error: %v", err)
+			return
 		}
+		w.stateMu.Lock()
+		w.serverRunning = false
+		w.stateMu.Unlock()
 	}()
 }
 
@@ -161,12 +194,30 @@ func (w *Worker) Client() *asynq.Client {
 
 // Shutdown gracefully stops the worker and closes the client connection.
 func (w *Worker) Shutdown() {
+	w.stateMu.Lock()
+	w.serverRunning = false
+	w.schedulerRunning = false
+	w.stateMu.Unlock()
 	if w.schedulerCancel != nil {
 		w.schedulerCancel()
 	}
 	w.server.Shutdown()
 	w.backgroundWG.Wait()
 	_ = w.client.Close()
+}
+
+func (w *Worker) Snapshot() Snapshot {
+	w.stateMu.RLock()
+	defer w.stateMu.RUnlock()
+	return Snapshot{
+		StartedAt:         w.startedAt,
+		ServerRunning:     w.serverRunning,
+		SchedulerRunning:  w.schedulerRunning,
+		SchedulerLastTick: w.schedulerLastTick,
+		LastDispatchAt:    w.lastDispatchAt,
+		LastServerError:   w.lastServerError,
+		LastDispatchError: w.lastDispatchError,
+	}
 }
 
 // ─── Task Handlers ───────────────────────────────────────

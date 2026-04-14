@@ -22,6 +22,21 @@ function buildRandomPassword(length: number) {
   ).join('')
 }
 
+function buildRandomToken(length: number) {
+  const normalizedLength = Math.min(Math.max(length, 16), 64)
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  const cryptoObject = globalThis.crypto
+  if (cryptoObject?.getRandomValues) {
+    const bytes = new Uint32Array(normalizedLength)
+    cryptoObject.getRandomValues(bytes)
+    return Array.from(bytes, value => alphabet[value % alphabet.length]).join('')
+  }
+  return Array.from(
+    { length: normalizedLength },
+    () => alphabet[Math.floor(Math.random() * alphabet.length)]
+  ).join('')
+}
+
 interface SecretCredentialFieldProps {
   inputId: string
   manualValue: string
@@ -34,6 +49,14 @@ interface SecretCredentialFieldProps {
   onCreateReference?: () => void
   onEditReference?: (value: string) => void
   editMode?: boolean
+  manualPlaceholder?: string
+  showLabel?: string
+  hideLabel?: string
+  generateValue?: (length: number) => string
+  generatorTitle?: string
+  generatorDescription?: string
+  generatorLengthLabel?: string
+  generatorConfirmLabel?: string
 }
 
 export function SecretCredentialField({
@@ -48,6 +71,14 @@ export function SecretCredentialField({
   onCreateReference,
   onEditReference,
   editMode = false,
+  manualPlaceholder = 'Enter a password',
+  showLabel = 'Show password',
+  hideLabel = 'Hide password',
+  generateValue = buildRandomPassword,
+  generatorTitle = 'Generate Password',
+  generatorDescription = 'Choose the password length before filling the field.',
+  generatorLengthLabel = 'Password Length',
+  generatorConfirmLabel = 'Fill Password',
 }: SecretCredentialFieldProps) {
   const [generatorOpen, setGeneratorOpen] = useState(false)
   const [length, setLength] = useState(24)
@@ -96,13 +127,13 @@ export function SecretCredentialField({
                   type={revealed ? 'text' : 'password'}
                   value={manualValue}
                   onChange={event => onManualValueChange(event.target.value)}
-                  placeholder="Enter a password"
+                  placeholder={manualPlaceholder}
                   className="bg-background pr-10"
                 />
                 <button
                   type="button"
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-                  title={revealed ? 'Hide password' : 'Show password'}
+                  title={revealed ? hideLabel : showLabel}
                   onClick={() => setRevealed(prev => !prev)}
                 >
                   {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -136,8 +167,16 @@ export function SecretCredentialField({
         onOpenChange={setGeneratorOpen}
         length={length}
         onLengthChange={setLength}
-        onConfirm={() => onManualValueChange(buildRandomPassword(length))}
+        onConfirm={() => onManualValueChange(generateValue(length))}
+        title={generatorTitle}
+        description={generatorDescription}
+        lengthLabel={generatorLengthLabel}
+        confirmLabel={generatorConfirmLabel}
       />
     </div>
   )
+}
+
+export function buildApiKeyValue(length: number) {
+  return `sk-${buildRandomToken(length)}`
 }

@@ -91,6 +91,35 @@ describe('AppDetailPage', () => {
             output: 'app log line 1\napp log line 2',
           })
         }
+        if (path === '/api/monitor/targets/app/app-1' && options?.method === 'GET') {
+          return Promise.resolve({
+            hasData: true,
+            targetType: 'app',
+            targetId: 'app-1',
+            displayName: 'Demo App',
+            status: 'healthy',
+            reason: null,
+            signalSource: 'agent',
+            lastTransitionAt: '2026-03-30T10:10:00Z',
+            lastSuccessAt: '2026-03-30T10:10:00Z',
+            lastFailureAt: null,
+            lastCheckedAt: '2026-03-30T10:10:00Z',
+            lastReportedAt: '2026-03-30T10:10:00Z',
+            consecutiveFailures: 0,
+            summary: { runtime_state: 'running', server_id: 'local' },
+          })
+        }
+        if (path === '/api/monitor/targets/app/app-1/series?window=1h&series=cpu,memory' && options?.method === 'GET') {
+          return Promise.resolve({
+            targetType: 'app',
+            targetId: 'app-1',
+            window: '1h',
+            series: [
+              { name: 'cpu', unit: 'percent', points: [[1713096000, 12.5], [1713096060, 11.8]] },
+              { name: 'memory', unit: 'bytes', points: [[1713096000, 268435456], [1713096060, 272629760]] },
+            ],
+          })
+        }
         if (path === '/api/actions' && options?.method === 'GET') {
           return Promise.resolve([
             {
@@ -797,6 +826,8 @@ describe('AppDetailPage', () => {
       expect(sendMock).toHaveBeenCalledWith('/api/actions', { method: 'GET' })
       expect(sendMock).toHaveBeenCalledWith('/api/ext/docker/containers', { method: 'GET' })
       expect(sendMock).toHaveBeenCalledWith('/api/ext/docker/containers/stats', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/app/app-1', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/app/app-1/series?window=1h&series=cpu,memory', { method: 'GET' })
     })
 
     const observabilityPanel = screen.getByRole('tabpanel')
@@ -804,6 +835,8 @@ describe('AppDetailPage', () => {
     expect(observabilityPanel).toHaveTextContent('1 / 1')
     expect(observabilityPanel).toHaveTextContent('CPU 12.5%')
     expect(observabilityPanel).toHaveTextContent('Restart')
+    expect(observabilityPanel).toHaveTextContent('Monitor Status')
+    expect(observabilityPanel).toHaveTextContent('Short Window Trends')
 
     const metricsHeading = screen.getByText('Metrics')
     const logsHeading = screen.getByText('Logs')

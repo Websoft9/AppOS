@@ -30,6 +30,11 @@ func legacyKey() ([]byte, error) {
 	legacyKeyOnce.Do(func() {
 		hexKey := os.Getenv(envLegacyKey)
 		if hexKey == "" {
+			env := os.Getenv("APPOS_ENV")
+			if env != "" && env != "dev" && env != "test" {
+				legacyKeyErr = fmt.Errorf("%s is required in production (APPOS_ENV=%s)", envLegacyKey, env)
+				return
+			}
 			log.Printf("WARNING: %s is not set — using insecure dev-only key. Do NOT use this in production.", envLegacyKey)
 			hexKey = devLegacyKey
 		}
@@ -80,9 +85,10 @@ func DecryptLegacyValue(ciphertextHex string) (string, error) {
 	return string(plain), nil
 }
 
-// EncryptLegacyValue encrypts plaintext using the legacy hex-encoded AES-256-GCM
+// encryptLegacyValue encrypts plaintext using the legacy hex-encoded AES-256-GCM
 // format stored in the `value` field by pre-Epic-19 system-managed secrets.
-func EncryptLegacyValue(plaintext string) (string, error) {
+// Deprecated: only used in tests; new code should use EncryptPayload.
+func encryptLegacyValue(plaintext string) (string, error) {
 	k, err := legacyKey()
 	if err != nil {
 		return "", err

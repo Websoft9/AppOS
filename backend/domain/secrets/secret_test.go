@@ -108,3 +108,58 @@ func TestIsExpiringSoon_OutsideWindow(t *testing.T) {
 		t.Fatal("secret expiring in 30 days should not be expiring soon with 7-day window")
 	}
 }
+
+// ─── CanBindByUser ────────────────────────────────────────────────────────────
+
+func TestCanBindByUser_EmptyUserID(t *testing.T) {
+	app, rec := newSecretRecord(t)
+	defer app.Cleanup()
+
+	rec.Set("scope", ScopeGlobal)
+	if From(rec).CanBindByUser("") {
+		t.Fatal("empty userID should never bind")
+	}
+}
+
+func TestCanBindByUser_WhitespaceUserID(t *testing.T) {
+	app, rec := newSecretRecord(t)
+	defer app.Cleanup()
+
+	rec.Set("scope", ScopeGlobal)
+	if From(rec).CanBindByUser("   ") {
+		t.Fatal("whitespace-only userID should never bind")
+	}
+}
+
+func TestCanBindByUser_GlobalAllows(t *testing.T) {
+	app, rec := newSecretRecord(t)
+	defer app.Cleanup()
+
+	rec.Set("scope", ScopeGlobal)
+	rec.Set("created_by", "owner1")
+	if !From(rec).CanBindByUser("other-user") {
+		t.Fatal("global scope should allow any non-empty userID")
+	}
+}
+
+func TestCanBindByUser_UserPrivateOwner(t *testing.T) {
+	app, rec := newSecretRecord(t)
+	defer app.Cleanup()
+
+	rec.Set("scope", ScopeUserPrivate)
+	rec.Set("created_by", "user42")
+	if !From(rec).CanBindByUser("user42") {
+		t.Fatal("user_private scope should allow the owner")
+	}
+}
+
+func TestCanBindByUser_UserPrivateNonOwner(t *testing.T) {
+	app, rec := newSecretRecord(t)
+	defer app.Cleanup()
+
+	rec.Set("scope", ScopeUserPrivate)
+	rec.Set("created_by", "user42")
+	if From(rec).CanBindByUser("other-user") {
+		t.Fatal("user_private scope should reject non-owner")
+	}
+}

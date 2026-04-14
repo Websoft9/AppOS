@@ -143,10 +143,17 @@ func TestAIProviderTemplatesRequireAuthAndList(t *testing.T) {
 	if len(templates) == 0 {
 		t.Fatalf("expected at least one AI provider template")
 	}
+	foundXAI := false
 	for _, template := range templates {
 		if template["kind"] != aiproviders.KindLLM {
 			t.Fatalf("expected AI provider template kind %q, got %v", aiproviders.KindLLM, template["kind"])
 		}
+		if template["id"] == "xai" {
+			foundXAI = true
+		}
+	}
+	if !foundXAI {
+		t.Fatalf("expected xai AI provider template in list")
 	}
 }
 
@@ -166,6 +173,15 @@ func TestAIProviderTemplateGet(t *testing.T) {
 		t.Fatalf("expected template kind %q, got %v", aiproviders.KindLLM, template["kind"])
 	}
 
+	rec = te.do(t, http.MethodGet, "/api/ai-providers/templates/xai", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get xai AI provider template: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	template = parseJSON(t, rec)
+	if template["id"] != "xai" {
+		t.Fatalf("expected template id xai, got %v", template["id"])
+	}
+
 	rec = te.do(t, http.MethodGet, "/api/ai-providers/templates/not-found", "", true)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected missing template to return 404, got %d: %s", rec.Code, rec.Body.String())
@@ -173,11 +189,13 @@ func TestAIProviderTemplateGet(t *testing.T) {
 }
 
 func TestAIProvidersCRUD(t *testing.T) {
+	ensureConnectorSecretRuntime(t)
 	te := newTestEnv(t)
 	defer te.cleanup()
+	secret := createRouteSecret(t, te, "global", "")
 
 	rec := te.do(t, http.MethodPost, "/api/ai-providers",
-		`{"name":"workspace-openai","is_default":true,"template_id":"openai","credential":"","config":{"defaultModel":"gpt-4.1-mini"}}`, true)
+		`{"name":"workspace-openai","is_default":true,"template_id":"openai","credential":"`+secret.Id+`","config":{"defaultModel":"gpt-4.1-mini"}}`, true)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create AI provider: expected 201, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -200,7 +218,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 	}
 
 	rec = te.do(t, http.MethodPut, "/api/ai-providers/"+id,
-		`{"name":"workspace-anthropic","is_default":false,"template_id":"anthropic","endpoint":"https://api.anthropic.com","auth_scheme":"api_key","config":{"version":"2023-06-01"}}`, true)
+		`{"name":"workspace-anthropic","is_default":false,"template_id":"anthropic","endpoint":"https://api.anthropic.com","auth_scheme":"api_key","credential":"`+secret.Id+`","config":{"version":"2023-06-01"}}`, true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("update AI provider: expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -214,7 +232,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 	}
 
 	rec = te.do(t, http.MethodPost, "/api/ai-providers",
-		`{"name":"fallback-openai","is_default":true,"template_id":"openai"}`, true)
+		`{"name":"fallback-openai","is_default":true,"template_id":"openai","credential":"`+secret.Id+`"}`, true)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create second default AI provider: expected 201, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -257,16 +275,16 @@ func TestConnectorTemplateGet(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	rec := te.do(t, http.MethodGet, "/api/connectors/templates/openai", "", true)
+	rec := te.do(t, http.MethodGet, "/api/connectors/templates/generic-webhook", "", true)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("get openai template: expected 200, got %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("get generic-webhook template: expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 	template := parseJSON(t, rec)
-	if template["id"] != "openai" {
-		t.Fatalf("expected template id openai, got %v", template["id"])
+	if template["id"] != "generic-webhook" {
+		t.Fatalf("expected template id generic-webhook, got %v", template["id"])
 	}
-	if template["kind"] != "llm" {
-		t.Fatalf("expected template kind llm, got %v", template["kind"])
+	if template["kind"] != "webhook" {
+		t.Fatalf("expected template kind webhook, got %v", template["kind"])
 	}
 
 	rec = te.do(t, http.MethodGet, "/api/connectors/templates/not-found", "", true)
@@ -287,10 +305,10 @@ func TestConnectorsListByKindFilter(t *testing.T) {
 	}
 
 	rec = te.do(t, http.MethodPost, "/api/connectors",
-		`{"name":"openai-prod","kind":"llm","template_id":"openai","endpoint":"https://api.openai.com/v1","auth_scheme":"api_key"}`,
+		`{"name":"smtp-prod","kind":"smtp","template_id":"generic-smtp","endpoint":"smtp://smtp.example.com:587","auth_scheme":"basic"}`,
 		true)
 	if rec.Code != http.StatusCreated {
-		t.Fatalf("create llm connector: expected 201, got %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("create smtp connector: expected 201, got %d: %s", rec.Code, rec.Body.String())
 	}
 
 	rec = te.do(t, http.MethodGet, "/api/connectors?kind=webhook,mcp", "", true)
@@ -311,18 +329,18 @@ func TestConnectorsCRUD(t *testing.T) {
 	defer te.cleanup()
 
 	rec := te.do(t, http.MethodPost, "/api/connectors",
-		`{"name":"workspace-openai","kind":"llm","is_default":true,"template_id":"openai","credential":"","config":{"defaultModel":"gpt-4.1-mini"}}`, true)
+		`{"name":"workspace-webhook","kind":"webhook","is_default":true,"template_id":"generic-webhook","endpoint":"https://hooks.example.com/workspace","config":{"event":"deploy.finished"}}`, true)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create connector: expected 201, got %d: %s", rec.Code, rec.Body.String())
 	}
 
 	created := parseJSON(t, rec)
 	id := created["id"].(string)
-	if created["endpoint"] != "https://api.openai.com/v1" {
+	if created["endpoint"] != "https://hooks.example.com/workspace" {
 		t.Fatalf("expected template default endpoint, got %v", created["endpoint"])
 	}
-	if created["auth_scheme"] != connectors.AuthSchemeAPIKey {
-		t.Fatalf("expected template default auth scheme %q, got %v", connectors.AuthSchemeAPIKey, created["auth_scheme"])
+	if created["auth_scheme"] != connectors.AuthSchemeNone {
+		t.Fatalf("expected template default auth scheme %q, got %v", connectors.AuthSchemeNone, created["auth_scheme"])
 	}
 	if created["is_default"] != true {
 		t.Fatalf("expected is_default true, got %v", created["is_default"])
@@ -334,26 +352,26 @@ func TestConnectorsCRUD(t *testing.T) {
 	}
 
 	got := parseJSON(t, rec)
-	if got["template_id"] != "openai" {
-		t.Fatalf("expected template_id openai, got %v", got["template_id"])
+	if got["template_id"] != "generic-webhook" {
+		t.Fatalf("expected template_id generic-webhook, got %v", got["template_id"])
 	}
 
 	rec = te.do(t, http.MethodPut, "/api/connectors/"+id,
-		`{"name":"workspace-anthropic","kind":"llm","is_default":false,"template_id":"anthropic","endpoint":"https://api.anthropic.com","auth_scheme":"api_key","config":{"version":"2023-06-01"}}`, true)
+		`{"name":"workspace-webhook-updated","kind":"webhook","is_default":false,"template_id":"generic-webhook","endpoint":"https://hooks.example.com/updated","auth_scheme":"none","config":{"event":"deploy.succeeded"}}`, true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("update connector: expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 
 	updated := parseJSON(t, rec)
-	if updated["template_id"] != "anthropic" {
-		t.Fatalf("expected template_id anthropic after update, got %v", updated["template_id"])
+	if updated["template_id"] != "generic-webhook" {
+		t.Fatalf("expected template_id generic-webhook after update, got %v", updated["template_id"])
 	}
 	if updated["is_default"] != false {
 		t.Fatalf("expected is_default false after update, got %v", updated["is_default"])
 	}
 
 	rec = te.do(t, http.MethodPost, "/api/connectors",
-		`{"name":"fallback-openai","kind":"llm","is_default":true,"template_id":"openai"}`, true)
+		`{"name":"fallback-webhook","kind":"webhook","is_default":true,"template_id":"generic-webhook","endpoint":"https://hooks.example.com/fallback"}`, true)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create second default connector: expected 201, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -622,8 +640,10 @@ func TestProviderAccountTemplateGet(t *testing.T) {
 }
 
 func TestProviderAccountsCRUD(t *testing.T) {
+	ensureConnectorSecretRuntime(t)
 	te := newTestEnv(t)
 	defer te.cleanup()
+	secret := createRouteSecret(t, te, "global", "")
 
 	rec := te.do(t, http.MethodPost, "/api/provider-accounts",
 		`{"name":"primary-aws","kind":"aws","template_id":"generic-aws-account","identifier":"123456789012","config":{"region":"us-east-1"}}`, true)
@@ -708,7 +728,7 @@ func TestProviderAccountsCRUD(t *testing.T) {
 	}
 
 	rec = te.do(t, http.MethodPost, "/api/ai-providers",
-		`{"name":"llm-with-account","template_id":"openai","provider_account":"`+accountID+`"}`, true)
+		`{"name":"llm-with-account","template_id":"openai","credential":"`+secret.Id+`","provider_account":"`+accountID+`"}`, true)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create AI provider with provider account: expected 201, got %d: %s", rec.Code, rec.Body.String())
 	}

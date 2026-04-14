@@ -80,6 +80,7 @@ interface CertRecord {
   template_id: string
   kind: string
   cert_pem?: string
+  private_key_secret?: string
   key?: string
   issuer?: string
   subject?: string
@@ -384,14 +385,11 @@ function CertificatesPage() {
 
   async function fetchSecrets() {
     try {
-      const list = await pb
-        .collection('secrets')
-        .getFullList<{ id: string; name: string; template_id: string; status: string }>({
-          filter: 'status = "active"',
-          fields: 'id,name,template_id,status',
-        })
-      const tlsKeys = list.filter(s => s.template_id === 'tls_private_key')
-      setSecrets(tlsKeys.length > 0 ? tlsKeys : list)
+      const result = await pb.send<{ items?: { id: string; name: string }[] }>(
+        "/api/collections/secrets/records?filter=(status='active'%26%26(template_id='tls_private_key'))&sort=name",
+        { method: 'GET' }
+      )
+      setSecrets(Array.isArray(result.items) ? result.items : [])
     } catch {
       setSecrets([])
     }
@@ -428,9 +426,9 @@ function CertificatesPage() {
 
       await fetchSecrets()
       if (quickSecretTarget === 'create') {
-        setCreateFields(prev => ({ ...prev, key: rec.id }))
+        setCreateFields(prev => ({ ...prev, private_key_secret: rec.id }))
       } else {
-        setEditFields(prev => ({ ...prev, key: rec.id }))
+        setEditFields(prev => ({ ...prev, private_key_secret: rec.id }))
       }
       setQuickSecretOpen(false)
     } catch (err: unknown) {
@@ -502,7 +500,7 @@ function CertificatesPage() {
         kind: selectedCreateTemplate.kind,
       }
       for (const field of selectedCreateTemplate.fields) {
-        if (field.key === 'key') {
+		if (field.key === 'private_key_secret') {
           if (createFields[field.key]) data[field.key] = createFields[field.key]
         } else {
           data[field.key] = createFields[field.key] ?? ''
@@ -544,7 +542,7 @@ function CertificatesPage() {
       name: record.name,
       description: record.description ?? '',
       cert_pem: record.cert_pem ?? '',
-      key: record.key ?? '',
+      private_key_secret: record.private_key_secret ?? record.key ?? '',
     })
     setEditError('')
     setEditSaving(false)
@@ -563,7 +561,7 @@ function CertificatesPage() {
       }
       if (editRecord.kind === 'ca_issued') {
         data.cert_pem = editFields.cert_pem
-        if (editFields.key) data.key = editFields.key
+        if (editFields.private_key_secret) data.private_key_secret = editFields.private_key_secret
       }
       await pb.collection('certificates').update(editRecord.id, data)
       setEditOpen(false)
@@ -968,6 +966,7 @@ function CertificatesPage() {
                       )}
                     </>
                   ) : field.type === 'relation' ? (
+                    <>
                     <select
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       value={createFields[field.key] ?? ''}
@@ -987,9 +986,13 @@ function CertificatesPage() {
                         </option>
                       ))}
                       <option value={CREATE_SECRET_OPTION_VALUE}>
-                        + Create Private Key Secret
+                        + Create TLS Private Key Secret
                       </option>
                     </select>
+                    <p className="text-xs text-muted-foreground">
+                      The certificate object stores the certificate chain and references the private key through a TLS private key secret.
+                    </p>
+                    </>
                   ) : (
                     <Input
                       type="text"
@@ -1022,7 +1025,7 @@ function CertificatesPage() {
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground bg-muted p-2 rounded">
-                  ℹ A certificate and private key will be generated on the server after saving.
+                  ℹ The server will generate the certificate chain and create or update a referenced TLS private key secret after saving.
                 </p>
               </>
             )}
@@ -1099,7 +1102,7 @@ function CertificatesPage() {
                 </div>
               </div>
 
-              {/* CA-issued: allow cert_pem and key edits */}
+              {/* CA-issued: allow cert_pem and private-key-secret edits */}
               {editRecord.kind === 'ca_issued' && (
                 <>
                   <div className="space-y-2 min-w-0 overflow-hidden">
@@ -1136,17 +1139,17 @@ function CertificatesPage() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>Private Key Secret</Label>
+                    <Label>TLS Private Key Secret</Label>
                     <select
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      value={editFields.key ?? ''}
+                      value={editFields.private_key_secret ?? ''}
                       onChange={e => {
                         const val = e.target.value
                         if (val === CREATE_SECRET_OPTION_VALUE) {
                           openQuickSecretCreate('edit')
                           return
                         }
-                        setEditFields(prev => ({ ...prev, key: val }))
+                        setEditFields(prev => ({ ...prev, private_key_secret: val }))
                       }}
                     >
                       <option value="">None</option>
@@ -1156,9 +1159,12 @@ function CertificatesPage() {
                         </option>
                       ))}
                       <option value={CREATE_SECRET_OPTION_VALUE}>
-                        + Create Private Key Secret
+                        + Create TLS Private Key Secret
                       </option>
                     </select>
+                    <p className="text-xs text-muted-foreground">
+                      This certificate keeps the certificate chain on the certificate record and references its private key through a secret.
+                    </p>
                   </div>
                 </>
               )}
@@ -1208,9 +1214,9 @@ function CertificatesPage() {
       <Dialog open={quickSecretOpen} onOpenChange={setQuickSecretOpen}>
         <DialogContent className="max-w-lg" onOpenAutoFocus={e => e.preventDefault()}>
           <DialogHeader>
-            <DialogTitle>Create Private Key Secret</DialogTitle>
+            <DialogTitle>Create TLS Private Key Secret</DialogTitle>
             <DialogDescription>
-              Create a TLS private key secret without leaving the certificate form.
+              Create a TLS private key secret without leaving the certificate form, then attach it by reference.
             </DialogDescription>
           </DialogHeader>
 

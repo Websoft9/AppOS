@@ -474,6 +474,7 @@ func TestCertificatesCollectionFields(t *testing.T) {
 	assertFieldExists(t, col, "kind", core.FieldTypeSelect, false)
 	assertFieldExists(t, col, "cert_pem", core.FieldTypeText, false)
 	assertFieldExists(t, col, "key", core.FieldTypeRelation, false)
+	assertFieldExists(t, col, "private_key_secret", core.FieldTypeRelation, false)
 	assertFieldExists(t, col, "issuer", core.FieldTypeText, false)
 	assertFieldExists(t, col, "subject", core.FieldTypeText, false)
 	assertFieldExists(t, col, "expires_at", core.FieldTypeDate, false)
@@ -489,6 +490,7 @@ func TestCertificatesCollectionFields(t *testing.T) {
 	assertFieldExists(t, col, "updated", core.FieldTypeAutodate, false)
 
 	assertRelationTarget(t, app, col, "key", "secrets")
+	assertRelationTarget(t, app, col, "private_key_secret", "secrets")
 }
 
 // ─── Helpers ─────────────────────────────────────────────

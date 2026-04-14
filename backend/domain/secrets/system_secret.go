@@ -30,16 +30,19 @@ func ReadSystemSingleValue(secret *Secret) (string, error) {
 	if secret == nil || secret.Record() == nil {
 		return "", nil
 	}
+	if enc := secret.Record().GetString("payload_encrypted"); enc != "" {
+		payload, err := DecryptPayload(enc)
+		if err != nil {
+			return "", err
+		}
+		return FirstStringFromPayload(payload, "value"), nil
+	}
 	return DecryptLegacyValue(secret.Record().GetString("value"))
 }
 
-// UpsertSystemSingleValue creates or updates a system-managed single-value secret using the legacy value field.
+// UpsertSystemSingleValue creates or updates a system-managed single-value secret using payload_encrypted.
+// It sets the type and clears the legacy value field in the same save as UpsertSystemPayloadSecret.
 func UpsertSystemSingleValue(app core.App, secret *Secret, name, secretType, plaintext string) (*Secret, error) {
-	encValue, err := EncryptLegacyValue(plaintext)
-	if err != nil {
-		return nil, err
-	}
-
 	var record *core.Record
 	if secret != nil {
 		record = secret.Record()
@@ -53,13 +56,12 @@ func UpsertSystemSingleValue(app core.App, secret *Secret, name, secretType, pla
 
 	record.Set("name", name)
 	record.Set("type", secretType)
-	record.Set("template_id", TemplateSingleValue)
-	record.Set("created_source", CreatedSourceSystem)
-	record.Set("value", encValue)
-	if err := app.Save(record); err != nil {
+	record.Set("value", "") // clear legacy field in the same save
+	updated, err := UpsertSystemPayloadSecret(app, From(record), name, TemplateSingleValue, map[string]any{"value": plaintext})
+	if err != nil {
 		return nil, err
 	}
-	return From(record), nil
+	return updated, nil
 }
 
 // UpsertSystemPayloadSecret creates or updates a system-managed encrypted-payload secret.

@@ -359,6 +359,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   const showListControlsBorder = config.listControlsBorder ?? true
   const showListControlsReset = config.listControlsShowReset ?? true
   const favoriteActionPlacement = config.favoriteActionPlacement ?? 'beforeExtraActions'
+  const emptyStateLabel = config.emptyStateLabel ?? `No ${config.title.toLowerCase()} found`
 
   const filteredCreateSelectionOptions = useMemo(() => {
     const selection = config.createSelection
@@ -531,11 +532,22 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
       .catch(() => setAvailableGroups([]))
       .finally(() => setGroupsLoading(false))
   }, [config.enableGroupAssign])
+  const hasAutoOpenedCreateRef = useRef(false)
+  const createSelectionReady =
+    !config.createSelection || config.createSelection.options.length > 0
 
   // Auto-open Create dialog once data has loaded (triggered by ?create=1)
   useEffect(() => {
-    if (config.autoCreate && !loading) openCreateDialog()
-  }, [loading])
+    if (!config.autoCreate) {
+      hasAutoOpenedCreateRef.current = false
+      return
+    }
+    if (hasAutoOpenedCreateRef.current || loading || !createSelectionReady) {
+      return
+    }
+    hasAutoOpenedCreateRef.current = true
+    openCreateDialog()
+  }, [config.autoCreate, loading, createSelectionReady])
 
   useEffect(() => {
     if (!config.initialEditId || loading || dialogOpen) return
@@ -1049,7 +1061,11 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
               }}
               title={config.refreshButtonLabel ?? 'Refresh'}
             >
-              <RefreshCw className={`h-4 w-4 ${config.refreshButtonIconOnly === false ? 'mr-2' : ''}`} />
+              {(config.refreshButtonShowIcon ?? true) && (
+                <RefreshCw
+                  className={`h-4 w-4 ${config.refreshButtonIconOnly === false ? 'mr-2' : ''}`}
+                />
+              )}
               {config.refreshButtonIconOnly === false && (config.refreshButtonLabel ?? 'Refresh')}
             </Button>
           )}
@@ -1175,7 +1191,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
         <div>
           {processedItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <p>No {config.title.toLowerCase()} found</p>
+              <p>{emptyStateLabel}</p>
               {items.length > 0 ? (
                 <Button variant="link" onClick={resetListControls}>
                   Clear current filters
@@ -1304,7 +1320,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
           <CardContent className="p-0">
             {items.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                <p>No {config.title.toLowerCase()} found</p>
+                <p>{emptyStateLabel}</p>
                 <Button variant="link" onClick={openCreateDialog}>
                   Create your first one
                 </Button>

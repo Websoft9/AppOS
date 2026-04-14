@@ -23,9 +23,10 @@ type TemplateField struct {
 }
 
 type Template struct {
-	ID     string          `json:"id"`
-	Label  string          `json:"label"`
-	Fields []TemplateField `json:"fields"`
+	ID          string          `json:"id"`
+	Label       string          `json:"label"`
+	Description string          `json:"description,omitempty"`
+	Fields      []TemplateField `json:"fields"`
 }
 
 var (

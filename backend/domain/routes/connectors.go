@@ -252,6 +252,9 @@ func bindConnectorUpsertRequest(e *core.RequestEvent) (connectors.SaveInput, err
 	if err := e.BindBody(&body); err != nil {
 		return connectors.SaveInput{}, e.BadRequestError("invalid JSON body", err)
 	}
+	if strings.TrimSpace(body.Kind) == connectors.KindLLM {
+		return connectors.SaveInput{}, e.BadRequestError("llm connectors are no longer supported on /api/connectors; use /api/ai-providers instead", nil)
+	}
 	return connectors.SaveInput{
 		Name:              body.Name,
 		Kind:              body.Kind,
@@ -340,7 +343,7 @@ func (v connectorCredentialValidator) ValidateCredentialRef(credentialID string,
 			switch resolveErr.Reason {
 			case secrets.ReasonAccessDenied:
 				return &connectors.AccessDeniedError{Message: "credential is not accessible", Cause: err}
-			case secrets.ReasonNotFound, secrets.ReasonRevoked:
+			case secrets.ReasonNotFound, secrets.ReasonRevoked, secrets.ReasonExpired:
 				return &connectors.ValidationError{Message: "invalid connector credential", Cause: err}
 			default:
 				return &connectors.ValidationError{Message: "invalid connector credential", Cause: err}

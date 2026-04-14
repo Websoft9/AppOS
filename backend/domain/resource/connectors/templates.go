@@ -49,12 +49,8 @@ func FindTemplate(id string) (Template, bool) {
 }
 
 func ResolveLLMTemplate(name string) Template {
-	ensureTemplatesLoaded()
 	normalized := normalizeTemplateKey(name)
-	for _, template := range templates {
-		if template.Kind != KindLLM {
-			continue
-		}
+	for _, template := range legacyLLMTemplates {
 		if normalizeTemplateKey(template.Title) == normalized {
 			return template
 		}
@@ -64,8 +60,37 @@ func ResolveLLMTemplate(name string) Template {
 			}
 		}
 	}
-	custom, _ := FindTemplate(TemplateGenericLLM)
-	return custom
+	return legacyLLMTemplates[len(legacyLLMTemplates)-1]
+}
+
+var legacyLLMTemplates = []Template{
+	{
+		ID:              "openai",
+		Kind:            KindLLM,
+		Title:           "OpenAI",
+		Vendor:          "OpenAI",
+		DefaultEndpoint: "https://api.openai.com/v1",
+		DefaultAuth:     AuthSchemeAPIKey,
+		Aliases:         []string{"openai"},
+	},
+	{
+		ID:              "azure-openai",
+		Kind:            KindLLM,
+		Title:           "Azure OpenAI",
+		Vendor:          "Microsoft Azure",
+		DefaultEndpoint: "https://{resource}.openai.azure.com/openai/deployments/{deployment}",
+		DefaultAuth:     AuthSchemeAPIKey,
+		Aliases:         []string{"azure openai", "azure-openai"},
+	},
+	{
+		ID:              TemplateGenericLLM,
+		Kind:            KindLLM,
+		Title:           "OpenAI-Compatible",
+		Vendor:          "OpenAI-Compatible",
+		DefaultEndpoint: "",
+		DefaultAuth:     AuthSchemeNone,
+		Aliases:         []string{"generic", "generic-llm", "custom", "custom-llm", "openai-compatible"},
+	},
 }
 
 func ensureTemplatesLoaded() {

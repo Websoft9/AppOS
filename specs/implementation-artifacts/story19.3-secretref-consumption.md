@@ -47,6 +47,7 @@ As a module developer, I want to bind a `secretRef` to any sensitive config fiel
 - `secretRef` is a plain string convention: `"secretRef:<uuid>"`. No special DB type needed.
 - Consuming modules detect `secretRef:` prefix at runtime and route through resolver.
 - `resolver.Resolve()` is synchronous; no caching in MVP (caching deferred).
+- Consuming modules own non-sensitive connection metadata such as endpoint, host, port, database name, and provider-specific routing. Secrets only carry the sensitive credential payload referenced by those modules.
 - The `secrets` package already has `crypto.go` with `EncryptPayload`/`DecryptPayload` (AES-256-GCM, base64 JSON blob).
   Legacy connector secrets used `internal/crypto` package (AES-256-GCM, hex-encoded). Resolver handles both formats.
 - The HTTP `POST /api/secrets/resolve` route (Story 19.1) should also call this same resolver internally, not duplicate decrypt logic.
@@ -67,6 +68,7 @@ As a module developer, I want to bind a `secretRef` to any sensitive config fiel
 | 2026-03-11 | Story created |
 | 2026-03-11 | Added Task 3.2/3.3 — Server credential resolve as second reference integration; added Server.go to File List |
 | 2026-03-11 | Implementation complete — all tasks done, all tests passing |
+| 2026-04-14 | Clarified that secretRef consumers own connection metadata while the secret domain stores only sensitive credential material. |
 
 ## Dev Agent Record
 

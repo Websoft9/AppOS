@@ -387,4 +387,7 @@ export function PlatformAccountsPage() {
 
 export const Route = createFileRoute('/_app/_auth/resources/platform-accounts')({
   component: PlatformAccountsPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    create: typeof search.create === 'string' ? search.create : undefined,
+  }),
 })

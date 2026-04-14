@@ -10,6 +10,7 @@ import {
   type FieldDef,
   type SelectOption,
 } from '@/components/resources/ResourcePage'
+import { buildApiKeyValue, SecretCredentialField } from '@/components/secrets/SecretCredentialField'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { pb } from '@/lib/pb'
 
@@ -17,13 +18,14 @@ type AIProviderRecord = {
   id: string
   name?: string
   kind?: string
-  is_default?: boolean
   template_id?: string
   endpoint?: string
   auth_scheme?: string
   credential?: string
   config?: Record<string, unknown>
   description?: string
+  created?: string
+  updated?: string
 }
 
 type AIProviderTemplateField = {
@@ -43,6 +45,7 @@ type AIProviderTemplate = {
   title: string
   vendor?: string
   description?: string
+  contextSize?: number
   defaultEndpoint?: string
   defaultAuthScheme?: string
   capabilities?: string[]
@@ -51,15 +54,11 @@ type AIProviderTemplate = {
 
 const SECRET_TEMPLATE_LABELS: Record<string, string> = {
   single_value: 'Token / Single Value',
-  api_key: 'API Key',
-  basic_auth: 'Basic Auth',
 }
 
 const SECRET_TEMPLATE_IDS = new Set(Object.keys(SECRET_TEMPLATE_LABELS))
 
-const SECRET_TEMPLATE_ALIASES: Record<string, string> = {
-  bearer_token: 'single_value',
-}
+const AI_PROVIDER_CREDENTIAL_TEMPLATE_ID = 'single_value'
 
 function formatSecretLabel(raw: Record<string, unknown>): string {
   const name = String(raw.name ?? raw.id)
@@ -88,12 +87,8 @@ function productTitle(template: AIProviderTemplate) {
   return template.title.trim() || humanizeTemplateId(template.id)
 }
 
-function productMeta(template: AIProviderTemplate) {
-  return [template.vendor, providerType(template)].filter(Boolean).join(' · ')
-}
-
-function productDescription(template: AIProviderTemplate) {
-  return template.description || `${productTitle(template)} AI provider profile.`
+function chooserTitle(template: AIProviderTemplate) {
+  return String(template.vendor ?? '').trim() || productTitle(template)
 }
 
 function buildDefaultProviderName(template: AIProviderTemplate) {
@@ -106,8 +101,7 @@ function resolveSecretTemplateId(secretTemplate?: string) {
   if (!normalized) {
     return ''
   }
-  const aliased = SECRET_TEMPLATE_ALIASES[normalized] ?? normalized
-  return SECRET_TEMPLATE_IDS.has(aliased) ? aliased : ''
+  return SECRET_TEMPLATE_IDS.has(normalized) ? normalized : ''
 }
 
 function buildSecretRelationApiPath(secretTemplate?: string) {
@@ -115,6 +109,22 @@ function buildSecretRelationApiPath(secretTemplate?: string) {
   const templateIds = explicit ? [explicit] : Array.from(SECRET_TEMPLATE_IDS)
   const filter = templateIds.map(id => `template_id='${id}'`).join('||')
   return `/api/collections/secrets/records?filter=(status='active'%26%26(${filter}))&sort=name`
+}
+
+function isAdvancedProviderField(field: AIProviderTemplateField) {
+  const normalizedId = field.id.trim().toLowerCase()
+  const normalizedLabel = String(field.label ?? '')
+    .trim()
+    .toLowerCase()
+  return normalizedId === 'apiversion' || normalizedId === 'api_version' || normalizedLabel === 'api version'
+}
+
+function resolveAuthScheme(template: AIProviderTemplate, secretTemplateId: string) {
+  const defaultAuthScheme = String(template.defaultAuthScheme ?? 'none').trim() || 'none'
+  if (secretTemplateId === AI_PROVIDER_CREDENTIAL_TEMPLATE_ID) {
+    return defaultAuthScheme !== 'none' ? defaultAuthScheme : 'bearer'
+  }
+  return defaultAuthScheme
 }
 
 function normalizeTemplateFieldDefault(field: AIProviderTemplateField) {
@@ -126,6 +136,38 @@ function normalizeTemplateFieldDefault(field: AIProviderTemplateField) {
     return JSON.stringify(field.default, null, 2)
   }
   return field.default
+}
+
+function formatDateTime(value: unknown) {
+  const raw = String(value ?? '').trim()
+  if (!raw) return '—'
+  const date = new Date(raw)
+  if (Number.isNaN(date.getTime())) return raw
+  return new Intl.DateTimeFormat('en', {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
+function normalizeReachabilityStatus(value: unknown) {
+  const normalized = String(value ?? '')
+    .trim()
+    .toLowerCase()
+  if (normalized === 'reachable') return 'Reachable'
+  if (normalized === 'unreachable') return 'Unreachable'
+  return 'Unknown'
+}
+
+function resolveReachability(item: AIProviderRecord) {
+  const config = item.config ?? {}
+  const reachability = config.reachability
+  if (reachability && typeof reachability === 'object') {
+    return normalizeReachabilityStatus((reachability as Record<string, unknown>).status)
+  }
+  return normalizeReachabilityStatus(config.reachability_status)
 }
 
 function mapTemplateFieldToResourceField(
@@ -161,14 +203,11 @@ function mapTemplateFieldToResourceField(
     required: field.required,
     placeholder: field.placeholder,
     defaultValue: normalizeTemplateFieldDefault(field),
+    advanced: isAdvancedProviderField(field),
   }
 }
 
-function providerType(template: AIProviderTemplate | undefined) {
-  return template?.capabilities?.includes('local') ? 'Local' : 'Hosted'
-}
-
-async function buildAIProviderPayload(
+export async function buildAIProviderPayload(
   payload: Record<string, unknown>,
   templatesById: Map<string, AIProviderTemplate>
 ) {
@@ -179,17 +218,32 @@ async function buildAIProviderPayload(
     throw new Error('AI Provider profile is required')
   }
 
-  const credentialId = String(body.credential ?? '')
+  const credentialField = (template.fields ?? []).find(field => field.id === 'credential')
+  const useCredentialReference = Boolean(body.credential_use_secret)
+  const manualCredentialValue = String(body.api_key_value ?? '').trim()
+
+  if (!useCredentialReference && manualCredentialValue) {
+    const providerName = String(body.name ?? '').trim()
+    const createdSecret = await pb.collection('secrets').create({
+      name: `${slugifyNamePart(providerName || productTitle(template)) || 'ai-provider'}-api-key`,
+      description: `API key for ${providerName || productTitle(template)}`,
+      template_id: AI_PROVIDER_CREDENTIAL_TEMPLATE_ID,
+      scope: 'global',
+      payload: { value: manualCredentialValue },
+    })
+    body.credential = String(createdSecret.id ?? '')
+  }
+
+  const credentialId = String(body.credential ?? '').trim()
+  if (credentialField?.required && !credentialId) {
+    throw new Error(`${credentialField.label || 'API Key'} is required`)
+  }
+
   let authScheme = template.defaultAuthScheme ?? 'none'
   if (credentialId) {
     const secret = await pb.collection('secrets').getOne(credentialId)
     const secretTemplateId = String(secret.template_id ?? '')
-    const authTypeByTemplate: Record<string, string> = {
-      single_value: 'bearer',
-      api_key: 'api_key',
-      basic_auth: 'basic',
-    }
-    authScheme = authTypeByTemplate[secretTemplateId] ?? 'bearer'
+    authScheme = resolveAuthScheme(template, secretTemplateId)
   }
 
   const extra =
@@ -225,7 +279,6 @@ async function buildAIProviderPayload(
   return {
     name: String(body.name ?? ''),
     kind: template.kind,
-    is_default: Boolean(body.is_default),
     template_id: template.id,
     endpoint: String(body.endpoint ?? template.defaultEndpoint ?? ''),
     auth_scheme: authScheme,
@@ -261,14 +314,16 @@ function mapAIProviderRow(
   return {
     id: item.id,
     name: String(item.name ?? ''),
-    is_default: Boolean(item.is_default),
-    provider_type: providerType(template),
     template_id: String(item.template_id ?? ''),
     profile: template?.title ?? humanizeTemplateId(String(item.template_id ?? '')),
+    reachability: resolveReachability(item),
     endpoint: String(item.endpoint ?? ''),
-    auth_type: String(item.auth_scheme ?? 'none'),
     credential: String(item.credential ?? ''),
+    credential_use_secret: Boolean(String(item.credential ?? '').trim()),
+    api_key_value: '',
     description: String(item.description ?? ''),
+    created: String(item.created ?? ''),
+    updated: String(item.updated ?? ''),
     advanced_config:
       Object.keys(advancedConfig).length > 0 ? JSON.stringify(advancedConfig, null, 2) : '',
     ...flattenedConfig,
@@ -277,25 +332,26 @@ function mapAIProviderRow(
 
 const columns: Column[] = [
   { key: 'name', label: 'Name', searchable: true, sortable: true },
-  {
-    key: 'is_default',
-    label: 'Default',
-    render: value =>
-      value ? <Badge>Default</Badge> : <span className="text-muted-foreground">—</span>,
-  },
-  {
-    key: 'provider_type',
-    label: 'Type',
-    filterOptions: [
-      { label: 'Hosted', value: 'Hosted' },
-      { label: 'Local', value: 'Local' },
-    ],
-    render: value => <Badge variant="outline">{String(value || '—')}</Badge>,
-  },
   { key: 'profile', label: 'Profile', searchable: true, sortable: true },
   {
+    key: 'reachability',
+    label: 'Reachability',
+    sortable: true,
+    filterOptions: [
+      { label: 'Reachable', value: 'Reachable' },
+      { label: 'Unreachable', value: 'Unreachable' },
+      { label: 'Unknown', value: 'Unknown' },
+    ],
+    render: value => {
+      const status = normalizeReachabilityStatus(value)
+      const variant =
+        status === 'Reachable' ? 'default' : status === 'Unreachable' ? 'destructive' : 'secondary'
+      return <Badge variant={variant}>{status}</Badge>
+    },
+  },
+  {
     key: 'endpoint',
-    label: 'URL',
+    label: 'Endpoint',
     searchable: true,
     sortable: true,
     render: value => (
@@ -305,15 +361,16 @@ const columns: Column[] = [
     ),
   },
   {
-    key: 'auth_type',
-    label: 'Auth',
-    filterOptions: [
-      { label: 'None', value: 'none' },
-      { label: 'API Key', value: 'api_key' },
-      { label: 'Bearer', value: 'bearer' },
-      { label: 'Basic', value: 'basic' },
-    ],
-    render: value => <Badge variant="secondary">{String(value || 'none')}</Badge>,
+    key: 'created',
+    label: 'Created',
+    sortable: true,
+    render: value => formatDateTime(value),
+  },
+  {
+    key: 'updated',
+    label: 'Updated',
+    sortable: true,
+    render: value => formatDateTime(value),
   },
 ]
 
@@ -354,13 +411,22 @@ export function AIProvidersPage() {
 
   const productOptions = useMemo(
     () =>
-      providerTemplates.map(template => ({
-        id: template.id,
-        title: productTitle(template),
-        description: productDescription(template),
-        meta: productMeta(template),
-        searchText: [template.title, template.vendor, template.description, template.id].join(' '),
-      })),
+      [...providerTemplates]
+        .sort((left, right) => {
+          const leftIsOpenAICompatible = left.id === 'generic-llm'
+          const rightIsOpenAICompatible = right.id === 'generic-llm'
+          if (leftIsOpenAICompatible !== rightIsOpenAICompatible) {
+            return leftIsOpenAICompatible ? 1 : -1
+          }
+          const leftInitial = chooserTitle(left).trim().charAt(0).toLowerCase()
+          const rightInitial = chooserTitle(right).trim().charAt(0).toLowerCase()
+          return leftInitial.localeCompare(rightInitial, undefined, { sensitivity: 'base' })
+        })
+        .map(template => ({
+          id: template.id,
+          title: chooserTitle(template),
+          searchText: [template.title, template.vendor, template.description, template.id].join(' '),
+        })),
     [providerTemplates]
   )
 
@@ -372,6 +438,69 @@ export function AIProvidersPage() {
     []
   )
 
+  const openSecretEditor = useCallback((secretId: string) => {
+    const targetUrl = new URL('/secrets', window.location.origin)
+    targetUrl.searchParams.set('id', secretId)
+    targetUrl.searchParams.set('edit', secretId)
+    const opened = window.open(targetUrl.toString(), '_blank', 'noopener,noreferrer')
+    if (!opened) {
+      window.location.assign(targetUrl.toString())
+    }
+  }, [])
+
+  const renderCredentialField = useCallback(
+    ({
+      field,
+      inputId,
+      formData,
+      editingItem,
+      updateField,
+      relationOptions,
+      addRelationOption,
+    }: Parameters<NonNullable<FieldDef['render']>>[0]) => {
+      const editMode = Boolean(editingItem)
+      const useSecret = editMode ? true : Boolean(formData.credential_use_secret)
+
+      return (
+        <SecretCredentialField
+          inputId={inputId}
+          manualValue={String(formData.api_key_value ?? '')}
+          onManualValueChange={value => updateField('api_key_value', value)}
+          useReference={useSecret}
+          onUseReferenceChange={checked => {
+            updateField('credential_use_secret', checked)
+            if (!checked) {
+              updateField('credential', '')
+            }
+          }}
+          referenceValue={String(formData.credential ?? '')}
+          onReferenceValueChange={value => updateField('credential', value)}
+          options={relationOptions}
+          onCreateReference={() => {
+            openSecretDialog({
+              addOption: (id, label) => {
+                addRelationOption(id, label)
+                updateField('credential_use_secret', true)
+                updateField('credential', id)
+              },
+            })
+          }}
+          onEditReference={openSecretEditor}
+          editMode={editMode}
+          manualPlaceholder={`Enter ${String(field.label ?? 'API Key')}`}
+          showLabel={`Show ${String(field.label ?? 'API Key')}`}
+          hideLabel={`Hide ${String(field.label ?? 'API Key')}`}
+          generateValue={buildApiKeyValue}
+          generatorTitle="Generate API Key"
+          generatorDescription="Choose the API key length before filling the field."
+          generatorLengthLabel="API Key Length"
+          generatorConfirmLabel="Fill API Key"
+        />
+      )
+    },
+    [openSecretDialog, openSecretEditor]
+  )
+
   const baseProviderFields = useMemo<FieldDef[]>(
     () => [
       {
@@ -381,7 +510,6 @@ export function AIProvidersPage() {
         required: true,
         placeholder: 'my-ai-provider',
       },
-      { key: 'is_default', label: 'Runtime Default', type: 'boolean', defaultValue: false },
       {
         key: 'template_id',
         label: 'Profile',
@@ -400,7 +528,7 @@ export function AIProvidersPage() {
           }
         },
       },
-      { key: 'description', label: 'Description', type: 'textarea' },
+      { key: 'description', label: 'Description', type: 'textarea', advanced: true },
       {
         key: 'selected_product',
         label: 'Selected Product',
@@ -427,15 +555,31 @@ export function AIProvidersPage() {
         defaultValue: false,
       },
       {
+        key: 'credential_use_secret',
+        label: 'Credential Use Secret',
+        type: 'boolean',
+        hidden: true,
+        defaultValue: false,
+      },
+      {
+        key: 'api_key_value',
+        label: 'API Key Value',
+        type: 'password',
+        hidden: true,
+        defaultValue: '',
+      },
+      {
         key: 'advanced_config',
         label: 'Advanced Config (JSON)',
         type: 'textarea',
         placeholder: '{"temperature": 0.2}',
+        advanced: true,
       },
       {
         key: 'groups',
         label: 'Groups',
         type: 'relation',
+        advanced: true,
         multiSelect: true,
         relationAutoSelectDefault: true,
         relationApiPath: '/api/collections/groups/records?perPage=500&sort=name',
@@ -449,30 +593,44 @@ export function AIProvidersPage() {
   const resolveProviderFields = useCallback(
     ({ formData, editingItem }: { formData: Record<string, unknown>; editingItem: Record<string, unknown> | null }) => {
       const selectedTemplate = providerTemplatesById.get(String(formData.template_id ?? ''))
-      const dynamicFields = (selectedTemplate?.fields ?? []).map(field =>
-        mapTemplateFieldToResourceField(field, openSecretDialog)
-      )
+      const dynamicFields = (selectedTemplate?.fields ?? []).map(field => {
+        if (field.id === 'credential') {
+          return {
+            key: field.id,
+            label: field.label,
+            type: 'relation',
+            required: field.required,
+            relationApiPath: buildSecretRelationApiPath(AI_PROVIDER_CREDENTIAL_TEMPLATE_ID),
+            relationFormatLabel: formatSecretLabel,
+            relationCreateButton: {
+              label: 'New Secret',
+              onClick: openSecretDialog,
+            },
+            render: renderCredentialField,
+          } satisfies FieldDef
+        }
+
+        return mapTemplateFieldToResourceField(field, openSecretDialog)
+      })
 
       if (editingItem) {
         return [
           baseProviderFields[0],
           baseProviderFields[1],
-          baseProviderFields[2],
           ...dynamicFields,
-          baseProviderFields[3],
+          baseProviderFields[2],
           ...baseProviderFields.slice(7),
         ]
       }
 
       return [
         baseProviderFields[0],
-        baseProviderFields[1],
-        ...baseProviderFields.slice(3, 7),
+        ...baseProviderFields.slice(2, 9),
         ...dynamicFields,
-        ...baseProviderFields.slice(7),
+        ...baseProviderFields.slice(9),
       ]
     },
-    [baseProviderFields, openSecretDialog, providerTemplatesById]
+    [baseProviderFields, openSecretDialog, providerTemplatesById, renderCredentialField]
   )
 
   return (
@@ -482,6 +640,7 @@ export function AIProvidersPage() {
           title: 'AI Providers',
           description:
             'Hosted and local AI provider definitions such as OpenAI, Anthropic, OpenRouter, and Ollama endpoints.',
+          emptyStateLabel: 'No AI Providers found',
           apiPath: '/api/ai-providers',
           columns,
           fields: baseProviderFields,
@@ -508,11 +667,12 @@ export function AIProvidersPage() {
                 kind: selectedTemplate.kind,
                 template_id: selectedTemplate.id,
                 name: buildDefaultProviderName(selectedTemplate),
-                selected_product: productTitle(selectedTemplate),
-                selected_product_meta: productMeta(selectedTemplate),
-                selected_product_description: productDescription(selectedTemplate),
+                selected_product: chooserTitle(selectedTemplate),
+                selected_product_meta: '',
+                selected_product_description: '',
                 endpoint: selectedTemplate.defaultEndpoint ?? '',
-                is_default: false,
+                credential_use_secret: false,
+                api_key_value: '',
                 title_name_editing: false,
               }
 
@@ -591,9 +751,11 @@ export function AIProvidersPage() {
           enableGroupAssign: true,
           createButtonLabel: 'Add AI Provider',
           createButtonShowIcon: false,
+          dialogContentClassName: 'sm:max-w-4xl',
           showRefreshButton: true,
           refreshButtonLabel: 'Refresh',
-          refreshButtonIconOnly: false,
+          refreshButtonIconOnly: true,
+          refreshButtonShowIcon: true,
           wrapTableInCard: false,
           listItems: async () => {
             const items = await pb.send<AIProviderRecord[]>('/api/ai-providers', {
@@ -626,9 +788,9 @@ export function AIProvidersPage() {
         onOpenChange={setSecretDialogOpen}
         title="New Secret"
         description="Create a reusable secret and attach it to this AI Provider."
-        allowedTemplateIds={Array.from(SECRET_TEMPLATE_IDS)}
+        allowedTemplateIds={[AI_PROVIDER_CREDENTIAL_TEMPLATE_ID]}
         templateLabels={SECRET_TEMPLATE_LABELS}
-        defaultTemplateId="api_key"
+        defaultTemplateId={AI_PROVIDER_CREDENTIAL_TEMPLATE_ID}
         onCreated={({ id, name, templateId }) => {
           const suffix = SECRET_TEMPLATE_LABELS[templateId]
           secretAddOption?.(id, suffix ? `${name} (${suffix})` : name)
@@ -640,4 +802,7 @@ export function AIProvidersPage() {
 
 export const Route = createFileRoute('/_app/_auth/resources/ai-providers')({
   component: AIProvidersPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    create: typeof search.create === 'string' ? search.create : undefined,
+  }),
 })

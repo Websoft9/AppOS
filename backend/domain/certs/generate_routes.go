@@ -119,7 +119,7 @@ func handleGenerateSelfSigned(e *core.RequestEvent) error {
 	}
 
 	record.Set("cert_pem", certPEM)
-	record.Set("key", secretID)
+	setPrivateKeySecretID(record, secretID)
 	record.Set("issuer", meta.Issuer)
 	record.Set("subject", meta.Subject)
 	record.Set("expires_at", meta.ExpiresAt.Format(time.RFC3339))
@@ -210,7 +210,7 @@ func handleRenewSelfSigned(e *core.RequestEvent) error {
 	}
 
 	// Update or create the private key secret
-	existingKeyID := record.GetString("key")
+	existingKeyID := getPrivateKeySecretID(record)
 	if existingKeyID != "" {
 		if err := UpdatePrivateKeySecret(e.App, existingKeyID, keyPEM); err != nil {
 			return e.InternalServerError("failed to update private key", err)
@@ -220,7 +220,7 @@ func handleRenewSelfSigned(e *core.RequestEvent) error {
 		if err != nil {
 			return e.InternalServerError("failed to store private key", err)
 		}
-		record.Set("key", secretID)
+		setPrivateKeySecretID(record, secretID)
 	}
 
 	renewMeta, err := ExtractCertMeta(certPEM)

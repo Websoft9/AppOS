@@ -1,6 +1,7 @@
 package secrets
 
 import (
+	"strings"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -126,4 +127,18 @@ func (s *Secret) IsExpiringSoon(warnDays int) bool {
 		return false
 	}
 	return !s.IsExpired() && time.Now().UTC().Add(time.Duration(warnDays)*24*time.Hour).After(exp)
+}
+
+// CanBindByUser reports whether userID may bind or consume this secret.
+// Global secrets are available to any non-empty caller identity.
+// user_private secrets are restricted to their creator.
+func (s *Secret) CanBindByUser(userID string) bool {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return false
+	}
+	if s.Scope() == ScopeUserPrivate {
+		return s.CreatedBy() == userID
+	}
+	return true
 }

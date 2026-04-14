@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ResourceHub } from './ResourceHub'
 
@@ -25,56 +25,20 @@ vi.mock('@tanstack/react-router', () => ({
   ),
 }))
 
-vi.mock('@/components/ui/popover', () => {
-  function Popover({ children }: { children: React.ReactNode }) {
-    return <div>{children}</div>
+vi.mock('@/components/ui/tooltip', () => {
+  function Tooltip({ children }: { children: React.ReactNode }) {
+    return <>{children}</>
   }
 
-  function PopoverTrigger({ children }: { children: React.ReactNode }) {
-    return <div>{children}</div>
+  function TooltipTrigger({ children }: { children: React.ReactNode }) {
+    return <>{children}</>
   }
 
-  function PopoverContent({
-    children,
-    className,
-  }: {
-    children: React.ReactNode
-    className?: string
-  }) {
-    return <div className={className}>{children}</div>
+  function TooltipContent() {
+    return null
   }
 
-  return { Popover, PopoverTrigger, PopoverContent }
-})
-
-vi.mock('@/components/ui/collapsible', () => {
-  function Collapsible({
-    children,
-    open,
-  }: {
-    children: React.ReactNode
-    open?: boolean
-  }) {
-    return <div data-open={open ? 'true' : 'false'}>{children}</div>
-  }
-
-  function CollapsibleTrigger({
-    children,
-  }: {
-    children: React.ReactNode
-  }) {
-    return <div>{children}</div>
-  }
-
-  function CollapsibleContent({
-    children,
-  }: {
-    children: React.ReactNode
-  }) {
-    return <div>{children}</div>
-  }
-
-  return { Collapsible, CollapsibleTrigger, CollapsibleContent }
+  return { Tooltip, TooltipTrigger, TooltipContent }
 })
 
 vi.mock('@/lib/pb', () => ({
@@ -145,11 +109,11 @@ describe('ResourceHub', () => {
     ).toBeInTheDocument()
     expect(
       screen.getByText(
-        'Runtime dependencies your apps cannot start without, including database, middleware, and storage instances like MySQL, PostgreSQL, Redis, Kafka, and S3.'
+        'Runtime dependencies required for application startup, including databases, middleware, and storage instances such as MySQL, PostgreSQL, Redis, Kafka, and S3.'
       )
     ).toBeInTheDocument()
     expect(
-      screen.getByText('How AppOS connects to AI providers, external platforms, APIs, and cloud services.')
+      screen.getByText('How platform connects to AI providers, external platforms, APIs, and cloud services.')
     ).toBeInTheDocument()
     expect(
       screen.getByText(
@@ -206,30 +170,45 @@ describe('ResourceHub', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Add Resource/i }))
 
-    expect(screen.getByText('Choose a resource family')).toBeInTheDocument()
-    expect(screen.getByText('Add a deployment target')).toBeInTheDocument()
-    expect(screen.getByText('Register an application dependency')).toBeInTheDocument()
-    expect(screen.getByText('Choose an AI capability source')).toBeInTheDocument()
-    expect(screen.getByText('Configure an external connection')).toBeInTheDocument()
-    expect(screen.getByText('Save a platform account')).toBeInTheDocument()
+    const dialog = screen.getByRole('dialog')
+
+    expect(within(dialog).getByRole('heading', { name: 'Add Resource' })).toBeInTheDocument()
     expect(
-      screen.getByText('MySQL, PostgreSQL, Redis, Kafka, and S3-backed application dependencies.')
+      within(dialog).queryByText(/Choose the canonical resource family first/i)
+    ).not.toBeInTheDocument()
+    expect(
+      within(dialog).queryByText(
+        'Where applications run and the startup-critical dependencies they cannot run without.'
+      )
+    ).not.toBeInTheDocument()
+    expect(within(dialog).getByText('Runtime Infrastructure')).toBeInTheDocument()
+    expect(within(dialog).getByText('External Integrations')).toBeInTheDocument()
+    expect(within(dialog).getByText('Servers')).toBeInTheDocument()
+    expect(within(dialog).getByText('Service Instances')).toBeInTheDocument()
+    expect(within(dialog).getByText('AI Providers')).toBeInTheDocument()
+    expect(within(dialog).getByText('Connectors')).toBeInTheDocument()
+    expect(within(dialog).getByText('Platform Accounts')).toBeInTheDocument()
+    expect(within(dialog).getByText('Linux hosts, SSH targets, and deployment nodes.')).toBeInTheDocument()
+    expect(
+      within(dialog).getByText('MySQL, PostgreSQL, Redis, Kafka, and S3-backed application dependencies.')
     ).toBeInTheDocument()
     expect(
-      screen.getByText('OpenAI, Anthropic, OpenRouter, Ollama, and similar AI providers.')
+      within(dialog).getByText('OpenAI, Anthropic, OpenRouter, Ollama, and similar AI providers.')
     ).toBeInTheDocument()
     expect(
-      screen.getByText('AWS, Azure, Google Cloud, GitHub, Cloudflare, and similar platforms.')
+      within(dialog).getByText('AWS, Azure, Google Cloud, GitHub, Cloudflare, and similar platforms.')
     ).toBeInTheDocument()
-    expect(screen.getAllByText('Examples').length).toBeGreaterThan(0)
+    expect(within(dialog).getByText('Database')).toBeInTheDocument()
+    expect(within(dialog).getByText('Cache')).toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: /Add Now/i })).toBeNull()
 
-    fireEvent.click(screen.getAllByText('Examples')[0])
+    const serviceInstanceCard = within(dialog)
+      .getByText('Service Instances')
+      .closest('button')
 
-    expect(screen.getByText('Database')).toBeInTheDocument()
-    expect(screen.getByText('Cache')).toBeInTheDocument()
-    expect(screen.queryByText('Model Service')).not.toBeInTheDocument()
+    expect(serviceInstanceCard).not.toBeNull()
 
-    fireEvent.click(screen.getByText('Register an application dependency'))
+    fireEvent.click(serviceInstanceCard as HTMLElement)
 
     expect(navigateMock).toHaveBeenCalledWith({
       to: '/resources/service-instances',

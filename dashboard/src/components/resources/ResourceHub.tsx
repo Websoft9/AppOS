@@ -6,8 +6,8 @@ import {
   Bot,
   Cloud,
   Plug,
+  CircleQuestionMark,
   Plus,
-  ChevronsUpDown,
   ChevronDown,
   Loader2,
   ChevronRight,
@@ -16,8 +16,14 @@ import {
 import { pb } from '@/lib/pb'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 // ─── Resource definitions ────────────────────────────────
@@ -60,7 +66,7 @@ const RUNTIME_INFRASTRUCTURE: ResourceDef[] = [
     key: 'service-instances',
     title: 'Service Instances',
     description:
-      'Runtime dependencies your apps cannot start without, including database, middleware, and storage instances like MySQL, PostgreSQL, Redis, Kafka, and S3.',
+      'Runtime dependencies required for application startup, including databases, middleware, and storage instances such as MySQL, PostgreSQL, Redis, Kafka, and S3.',
     icon: <Database className="h-5 w-5" />,
     href: '/resources/service-instances',
     createLabel: 'Register an application dependency',
@@ -117,12 +123,11 @@ const RESOURCE_SECTIONS: ResourceSection[] = [
   {
     key: 'external-integrations',
     title: 'External Integrations',
-    description: 'How AppOS connects to AI providers, external platforms, APIs, and cloud services.',
+    description: 'How platform connects to AI providers, external platforms, APIs, and cloud services.',
     resources: EXTERNAL_INTEGRATIONS,
   },
 ]
 
-const CREATE_RESOURCES = [...RUNTIME_INFRASTRUCTURE, ...EXTERNAL_INTEGRATIONS]
 const ALL_RESOURCES = [...RUNTIME_INFRASTRUCTURE, ...EXTERNAL_INTEGRATIONS]
 
 // ─── Component ───────────────────────────────────────────
@@ -132,7 +137,6 @@ export function ResourceHub() {
   const [counts, setCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [createChooserOpen, setCreateChooserOpen] = useState(false)
-  const [expandedCreateFamily, setExpandedCreateFamily] = useState<string | null>(null)
 
   const resourceFamilyCount = ALL_RESOURCES.length
   const sectionCount = RESOURCE_SECTIONS.length
@@ -194,80 +198,90 @@ export function ResourceHub() {
             </Link>
           </Button>
 
-          {/* Global quick-create */}
-          <Popover open={createChooserOpen} onOpenChange={setCreateChooserOpen}>
-            <PopoverTrigger asChild>
-              <Button className="w-full sm:w-auto">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Resource
-                <ChevronDown className="h-4 w-4 ml-2" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-80 space-y-3 p-3">
-              <div className="space-y-1">
-                <p className="text-sm font-semibold">Choose a resource family</p>
-                <p className="text-xs text-muted-foreground">
-                  Start with the canonical type that best matches the resource you want to add.
-                </p>
-              </div>
-              {CREATE_RESOURCES.map(r => (
-                <div
-                  key={r.key}
-                  className="rounded-lg border border-border/70 bg-background"
-                >
-                  <button
-                    type="button"
-                    onClick={() => goToCreate(r.href)}
-                    className="flex w-full items-start gap-3 rounded-lg px-3 py-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                  >
-                    <div className="mt-0.5 rounded-md bg-muted p-1 text-muted-foreground">
-                      {r.icon}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="font-medium leading-tight">{r.createLabel ?? r.title}</div>
-                      <div className="mt-1 text-xs leading-tight text-muted-foreground">
-                        {r.createDescription ?? r.title}
-                      </div>
-                    </div>
-                  </button>
-                  {r.exampleItems && r.exampleItems.length > 0 && (
-                    <Collapsible
-                      open={expandedCreateFamily === r.key}
-                      onOpenChange={open => {
-                        setExpandedCreateFamily(open ? r.key : null)
-                      }}
-                    >
-                      <CollapsibleTrigger asChild>
-                        <button
-                          type="button"
-                          className="flex w-full items-center justify-between border-t border-border/60 px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                        >
-                          <span>Examples</span>
-                          <ChevronsUpDown className="h-3.5 w-3.5" />
-                        </button>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent className="border-t border-border/60 px-3 py-2">
-                        <ul className="flex flex-wrap gap-2">
-                          {r.exampleItems.map(example => (
-                            <li
-                              key={example}
-                              className={cn(
-                                'rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground'
-                              )}
-                            >
-                              {example}
-                            </li>
-                          ))}
-                        </ul>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  )}
-                </div>
-              ))}
-            </PopoverContent>
-          </Popover>
+          <Button className="w-full sm:w-auto" onClick={() => setCreateChooserOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Resource
+            <ChevronDown className="h-4 w-4 ml-2" />
+          </Button>
         </div>
       </div>
+
+      <Dialog open={createChooserOpen} onOpenChange={setCreateChooserOpen}>
+        <DialogContent className="sm:max-w-2xl" aria-describedby={undefined}>
+          <DialogHeader className="text-left">
+            <DialogTitle className="text-2xl font-semibold tracking-tight">Add Resource</DialogTitle>
+          </DialogHeader>
+
+          <div className="max-h-[70vh] space-y-6 overflow-y-auto pr-1">
+            {RESOURCE_SECTIONS.map(section => (
+              <section key={section.key} className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-semibold tracking-tight text-foreground">{section.title}</h3>
+                  <Tooltip delayDuration={100}>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+                        aria-label={`${section.title} description`}
+                      >
+                        <CircleQuestionMark className="h-4 w-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs leading-5">
+                      {section.description}
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+
+                <div className="space-y-3">
+                  {section.resources.map(r => (
+                    <button
+                      key={r.key}
+                      type="button"
+                      onClick={() => goToCreate(r.href)}
+                      className="block w-full rounded-xl border border-border/70 bg-background p-4 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                    >
+                      <div className="flex min-w-0 gap-3">
+                        <div className="mt-0.5 shrink-0 text-muted-foreground">
+                          {r.icon}
+                        </div>
+                        <div className="min-w-0 space-y-2">
+                          <div>
+                            <p className="text-base font-medium leading-tight">{r.title}</p>
+                            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                              {r.createDescription ?? r.description}
+                            </p>
+                          </div>
+                          {r.exampleItems && r.exampleItems.length > 0 && (
+                            <ul className="flex flex-wrap gap-2">
+                              {r.exampleItems.map(example => (
+                                <li
+                                  key={example}
+                                  className={cn(
+                                    'rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground'
+                                  )}
+                                >
+                                  {example}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setCreateChooserOpen(false)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {RESOURCE_SECTIONS.map(section => (
         <section

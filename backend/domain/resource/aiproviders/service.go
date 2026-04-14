@@ -36,6 +36,7 @@ func CreateWithDeps(repo Repository, input SaveInput, deps SaveDeps) (*AIProvide
 	if err != nil {
 		return nil, err
 	}
+	deps.TemplateResolver = FindTemplate
 	return connectors.CreateWithDeps(repo, normalized, deps)
 }
 
@@ -56,6 +57,7 @@ func UpdateExistingWithDeps(repo Repository, existing *AIProvider, input SaveInp
 	if err != nil {
 		return nil, err
 	}
+	deps.TemplateResolver = FindTemplate
 	return connectors.UpdateExistingWithDeps(repo, existing, normalized, deps)
 }
 

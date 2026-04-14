@@ -2,6 +2,7 @@ package secrets
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -57,7 +58,7 @@ func payloadFromAny(v any) (map[string]any, error) {
 	default:
 		b, err := json.Marshal(v)
 		if err != nil {
-			return nil, fmt.Errorf("payload must be object")
+			return nil, fmt.Errorf("payload must be a JSON object")
 		}
 		raw = b
 	}
@@ -78,6 +79,16 @@ type RevealResult struct {
 	RecordName string
 }
 
+// Sentinel errors returned by RevealPayload for structured route-layer mapping.
+var (
+	ErrRevealDisabled   = errors.New("reveal_disabled")
+	ErrRevealNotFound   = errors.New("not_found")
+	ErrRevealForbidden  = errors.New("forbidden")
+	ErrRevealRevoked    = errors.New("revoked")
+	ErrRevealExpired    = errors.New("expired")
+	ErrRevealNotAllowed = errors.New("reveal_not_allowed")
+)
+
 // RevealPayload performs the full reveal operation atomically:
 //  1. Checks the platform-wide reveal policy.
 //  2. Validates ownership, revocation, and access_mode.
@@ -92,23 +103,26 @@ func RevealPayload(app core.App, secretID string, auth *core.Record) (*RevealRes
 	txErr := app.RunInTransaction(func(txApp core.App) error {
 		policy := GetPolicy(txApp)
 		if policy.RevealDisabled {
-			return fmt.Errorf("reveal_disabled")
+			return ErrRevealDisabled
 		}
 
 		rec, err := txApp.FindRecordById("secrets", secretID)
 		if err != nil {
-			return fmt.Errorf("not_found")
+			return ErrRevealNotFound
 		}
 		s := From(rec)
 
 		if !s.IsOwnedBy(auth) {
-			return fmt.Errorf("forbidden")
+			return ErrRevealForbidden
 		}
 		if s.IsRevoked() {
-			return fmt.Errorf("revoked")
+			return ErrRevealRevoked
+		}
+		if s.IsExpired() {
+			return ErrRevealExpired
 		}
 		if !s.CanReveal() {
-			return fmt.Errorf("reveal_not_allowed")
+			return ErrRevealNotAllowed
 		}
 
 		payload, err := DecryptPayload(rec.GetString("payload_encrypted"))

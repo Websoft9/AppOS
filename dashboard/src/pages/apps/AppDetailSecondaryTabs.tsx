@@ -32,6 +32,7 @@ import {
 import { TabsContent } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+import { MonitorTargetPanel } from '@/components/monitor/MonitorTargetPanel'
 import { statusVariant } from '@/pages/deploy/actions/action-utils'
 import { formatBytesCompact, getActionLabel, summarizePorts } from '@/pages/apps/app-detail-utils'
 import { formatTime } from '@/pages/apps/types'
@@ -538,6 +539,14 @@ export function AppDetailObservabilityTab({
                 {app.runtime_reason}
               </div>
             ) : null}
+
+            <div className="pt-2">
+              <MonitorTargetPanel
+                targetType="app"
+                targetId={app.id}
+                emptyMessage={`No monitoring projection is available yet for ${app.name}. Current runtime status is ${app.runtime_status || 'unknown'}.`}
+              />
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -588,7 +597,9 @@ export function AppDetailDataTab({
           <CardDescription>Projected matches from shared resource inventory.</CardDescription>
           <CardAction>
             <Button variant="outline" size="sm" asChild>
-              <Link to="/resources/service-instances">Open Service Instances</Link>
+              <Link to="/resources/service-instances" search={{ create: undefined }}>
+                Open Service Instances
+              </Link>
             </Button>
           </CardAction>
         </CardHeader>

@@ -305,7 +305,7 @@ func (v providerAccountCredentialValidator) ValidateCredentialRef(credentialID s
 			switch resolveErr.Reason {
 			case secrets.ReasonAccessDenied:
 				return &accounts.AccessDeniedError{Message: "credential is not accessible", Cause: err}
-			case secrets.ReasonNotFound, secrets.ReasonRevoked:
+			case secrets.ReasonNotFound, secrets.ReasonRevoked, secrets.ReasonExpired:
 				return &accounts.ValidationError{Message: "invalid provider account credential", Cause: err}
 			default:
 				return &accounts.ValidationError{Message: "invalid provider account credential", Cause: err}

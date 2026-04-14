@@ -1,6 +1,8 @@
 package secrets
 
 import (
+	"time"
+
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -44,6 +46,13 @@ func RegisterHooks(app *pocketbase.PocketBase) {
 		}
 		e.Record.Set("payload", nil)
 
+		// Validate expires_at format when provided.
+		if raw := e.Record.GetString("expires_at"); raw != "" {
+			if _, parseErr := time.Parse(time.RFC3339, raw); parseErr != nil {
+				return apis.NewBadRequestError("expires_at must be RFC3339 format", nil)
+			}
+		}
+
 		err = e.Next()
 		if err == nil {
 			audit.Write(app, audit.Entry{
@@ -85,8 +94,22 @@ func RegisterHooks(app *pocketbase.PocketBase) {
 			return apis.NewForbiddenError("system_secret_read_only", nil)
 		}
 
+		// Protect immutable identity fields from client-side modification.
+		for _, f := range []string{"scope", "created_by", "created_source", "template_id", "version"} {
+			if existing.GetString(f) != e.Record.GetString(f) {
+				return apis.NewForbiddenError(f+" cannot be changed", nil)
+			}
+		}
+
 		if existing.GetString("payload_encrypted") != e.Record.GetString("payload_encrypted") {
 			return apis.NewForbiddenError("payload_encrypted cannot be updated directly", nil)
+		}
+
+		// Validate expires_at format when provided.
+		if raw := e.Record.GetString("expires_at"); raw != "" {
+			if _, parseErr := time.Parse(time.RFC3339, raw); parseErr != nil {
+				return apis.NewBadRequestError("expires_at must be RFC3339 format", nil)
+			}
 		}
 
 		oldStatus := existingSecret.Status()

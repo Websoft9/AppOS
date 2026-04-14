@@ -59,7 +59,7 @@ func TestConnectorCreateReturnsCreatedAndAudits(t *testing.T) {
 	defer te.cleanup()
 
 	rec := te.do(t, http.MethodPost, "/api/connectors",
-		`{"name":"workspace-openai","kind":"llm","is_default":true,"template_id":"openai"}`,
+		`{"name":"deploy-webhook","kind":"webhook","is_default":true,"template_id":"generic-webhook","endpoint":"https://hooks.example.com/deploy"}`,
 		true)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
@@ -79,7 +79,7 @@ func TestConnectorRejectsBlankName(t *testing.T) {
 	defer te.cleanup()
 
 	rec := te.do(t, http.MethodPost, "/api/connectors",
-		`{"name":"   ","kind":"llm","template_id":"openai"}`,
+		`{"name":"   ","kind":"webhook","template_id":"generic-webhook","endpoint":"https://hooks.example.com/deploy"}`,
 		true)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
@@ -127,7 +127,7 @@ func TestConnectorUpdateMissingReturnsNotFound(t *testing.T) {
 	defer te.cleanup()
 
 	rec := te.do(t, http.MethodPut, "/api/connectors/missing-id",
-		`{"name":"workspace-openai","kind":"llm","template_id":"openai"}`,
+		`{"name":"deploy-webhook","kind":"webhook","template_id":"generic-webhook","endpoint":"https://hooks.example.com/deploy"}`,
 		true)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d: %s", rec.Code, rec.Body.String())
@@ -186,7 +186,7 @@ func TestConnectorUpdateSuccessAuditsBeforeAfter(t *testing.T) {
 
 	// Create a connector first
 	create := te.do(t, http.MethodPost, "/api/connectors",
-		`{"name":"orig-llm","kind":"llm","is_default":true,"template_id":"openai"}`,
+		`{"name":"orig-webhook","kind":"webhook","is_default":true,"template_id":"generic-webhook","endpoint":"https://hooks.example.com/original"}`,
 		true)
 	if create.Code != http.StatusCreated {
 		t.Fatalf("setup create failed: %d %s", create.Code, create.Body.String())
@@ -199,7 +199,7 @@ func TestConnectorUpdateSuccessAuditsBeforeAfter(t *testing.T) {
 
 	// Update it
 	rec := te.do(t, http.MethodPut, "/api/connectors/"+id,
-		`{"name":"renamed-llm","kind":"llm","is_default":true,"template_id":"openai"}`,
+		`{"name":"renamed-webhook","kind":"webhook","is_default":true,"template_id":"generic-webhook","endpoint":"https://hooks.example.com/renamed"}`,
 		true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
@@ -219,11 +219,11 @@ func TestConnectorUpdateSuccessAuditsBeforeAfter(t *testing.T) {
 	}
 	before := detail["before"].(map[string]any)
 	after := detail["after"].(map[string]any)
-	if before["name"] != "orig-llm" {
-		t.Fatalf("expected before name 'orig-llm', got %q", before["name"])
+	if before["name"] != "orig-webhook" {
+		t.Fatalf("expected before name 'orig-webhook', got %q", before["name"])
 	}
-	if after["name"] != "renamed-llm" {
-		t.Fatalf("expected after name 'renamed-llm', got %q", after["name"])
+	if after["name"] != "renamed-webhook" {
+		t.Fatalf("expected after name 'renamed-webhook', got %q", after["name"])
 	}
 }
 
@@ -233,7 +233,7 @@ func TestConnectorDeleteSuccessReturns204AndAudits(t *testing.T) {
 	defer te.cleanup()
 
 	create := te.do(t, http.MethodPost, "/api/connectors",
-		`{"name":"to-delete","kind":"llm","is_default":false,"template_id":"openai"}`,
+		`{"name":"to-delete","kind":"webhook","is_default":false,"template_id":"generic-webhook","endpoint":"https://hooks.example.com/delete"}`,
 		true)
 	if create.Code != http.StatusCreated {
 		t.Fatalf("setup create failed: %d %s", create.Code, create.Body.String())
@@ -267,9 +267,9 @@ func TestConnectorCreateDefaultClearsPreviousDefault(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	// Create first default LLM
+	// Create first default webhook connector
 	first := te.do(t, http.MethodPost, "/api/connectors",
-		`{"name":"first-llm","kind":"llm","is_default":true,"template_id":"openai"}`,
+		`{"name":"first-webhook","kind":"webhook","is_default":true,"template_id":"generic-webhook","endpoint":"https://hooks.example.com/first"}`,
 		true)
 	if first.Code != http.StatusCreated {
 		t.Fatalf("first create failed: %d %s", first.Code, first.Body.String())
@@ -280,9 +280,9 @@ func TestConnectorCreateDefaultClearsPreviousDefault(t *testing.T) {
 	}
 	firstID := firstBody["id"].(string)
 
-	// Create second default LLM
+	// Create second default webhook connector
 	second := te.do(t, http.MethodPost, "/api/connectors",
-		`{"name":"second-llm","kind":"llm","is_default":true,"template_id":"anthropic"}`,
+		`{"name":"second-webhook","kind":"webhook","is_default":true,"template_id":"generic-webhook","endpoint":"https://hooks.example.com/second"}`,
 		true)
 	if second.Code != http.StatusCreated {
 		t.Fatalf("second create failed: %d %s", second.Code, second.Body.String())
@@ -308,14 +308,14 @@ func TestConnectorRejectsDuplicateName(t *testing.T) {
 	defer te.cleanup()
 
 	first := te.do(t, http.MethodPost, "/api/connectors",
-		`{"name":"dup-llm","kind":"llm","template_id":"openai"}`,
+		`{"name":"dup-webhook","kind":"webhook","template_id":"generic-webhook","endpoint":"https://hooks.example.com/dup"}`,
 		true)
 	if first.Code != http.StatusCreated {
 		t.Fatalf("first create failed: %d %s", first.Code, first.Body.String())
 	}
 
 	second := te.do(t, http.MethodPost, "/api/connectors",
-		`{"name":"dup-llm","kind":"smtp","template_id":"generic-smtp","endpoint":"smtp://smtp.example.com:587"}`,
+		`{"name":"dup-webhook","kind":"smtp","template_id":"generic-smtp","endpoint":"smtp://smtp.example.com:587"}`,
 		true)
 	if second.Code != http.StatusConflict {
 		t.Fatalf("expected 409 for duplicate name, got %d: %s", second.Code, second.Body.String())

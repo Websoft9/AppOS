@@ -30,6 +30,7 @@ type SaveDeps struct {
 	ActorID                     string
 	CredentialRefValidator      CredentialRefValidator
 	ProviderAccountRefValidator ProviderAccountRefValidator
+	TemplateResolver            func(templateID string) (Template, bool)
 }
 
 func List(repo Repository, kinds []string) ([]*Connector, error) {
@@ -116,7 +117,7 @@ func DeleteExisting(repo Repository, existing *Connector) error {
 func saveRecord(repo Repository, connector *Connector, input SaveInput, deps SaveDeps) error {
 	connector.ApplySaveInput(input)
 
-	if err := applyTemplateConstraints(connector); err != nil {
+	if err := applyTemplateConstraints(connector, deps.TemplateResolver); err != nil {
 		return err
 	}
 
@@ -146,11 +147,15 @@ func saveRecord(repo Repository, connector *Connector, input SaveInput, deps Sav
 	})
 }
 
-func applyTemplateConstraints(connector *Connector) error {
+func applyTemplateConstraints(connector *Connector, templateResolver func(templateID string) (Template, bool)) error {
 	kind := strings.TrimSpace(connector.Kind())
 	name := strings.TrimSpace(connector.Name())
 	templateID := NormalizeTemplateID(connector.TemplateID())
 	authScheme := strings.TrimSpace(connector.AuthScheme())
+	resolveTemplate := templateResolver
+	if resolveTemplate == nil {
+		resolveTemplate = FindTemplate
+	}
 
 	if name == "" {
 		return newValidationError("name is required", nil)
@@ -165,7 +170,7 @@ func applyTemplateConstraints(connector *Connector) error {
 	}
 
 	if templateID != "" {
-		template, ok := FindTemplate(templateID)
+		template, ok := resolveTemplate(templateID)
 		if !ok {
 			return newValidationError(fmt.Sprintf("unknown template_id %q", templateID), nil)
 		}

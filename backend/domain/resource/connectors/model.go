@@ -212,6 +212,7 @@ type Template struct {
 	Vendor          string          `json:"vendor,omitempty"`
 	Category        string          `json:"category,omitempty"`
 	Description     string          `json:"description,omitempty"`
+	ContextSize     int             `json:"contextSize,omitempty"`
 	DefaultEndpoint string          `json:"defaultEndpoint,omitempty"`
 	DefaultAuth     string          `json:"defaultAuthScheme,omitempty"`
 	Capabilities    []string        `json:"capabilities,omitempty"`

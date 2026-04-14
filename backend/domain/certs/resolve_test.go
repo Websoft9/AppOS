@@ -97,12 +97,12 @@ func TestResolveCertificate(t *testing.T) {
 		}
 	})
 
-	t.Run("happy path — active with key relation", func(t *testing.T) {
+	t.Run("happy path — active with private_key_secret relation", func(t *testing.T) {
 		secretID := newSecret("test-resolve-key", map[string]any{"private_key": "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----"})
 		rec := newRecord("test-resolve-with-key", "active", certPEM)
-		rec.Set("key", secretID)
+		rec.Set("private_key_secret", secretID)
 		if err := app.Save(rec); err != nil {
-			t.Fatalf("save record with key: %v", err)
+			t.Fatalf("save record with private_key_secret: %v", err)
 		}
 
 		mat, err := certs.ResolveCertificate(app, rec.Id, "")
@@ -114,12 +114,29 @@ func TestResolveCertificate(t *testing.T) {
 		}
 	})
 
-	t.Run("key relation payload missing private_key returns error", func(t *testing.T) {
-		secretID := newSecret("test-resolve-missing-private-key", map[string]any{"value": "x"})
-		rec := newRecord("test-resolve-bad-key", "active", certPEM)
+	t.Run("legacy key relation still resolves during transition", func(t *testing.T) {
+		secretID := newSecret("test-resolve-legacy-key", map[string]any{"private_key": "-----BEGIN PRIVATE KEY-----\nlegacy\n-----END PRIVATE KEY-----"})
+		rec := newRecord("test-resolve-legacy-key", "active", certPEM)
 		rec.Set("key", secretID)
 		if err := app.Save(rec); err != nil {
-			t.Fatalf("save record with key: %v", err)
+			t.Fatalf("save record with legacy key: %v", err)
+		}
+
+		mat, err := certs.ResolveCertificate(app, rec.Id, "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if mat.KeyPEM == "" {
+			t.Fatal("expected non-empty KeyPEM")
+		}
+	})
+
+	t.Run("private_key_secret payload missing private_key returns error", func(t *testing.T) {
+		secretID := newSecret("test-resolve-missing-private-key", map[string]any{"value": "x"})
+		rec := newRecord("test-resolve-bad-key", "active", certPEM)
+		rec.Set("private_key_secret", secretID)
+		if err := app.Save(rec); err != nil {
+			t.Fatalf("save record with private_key_secret: %v", err)
 		}
 
 		_, err := certs.ResolveCertificate(app, rec.Id, "")

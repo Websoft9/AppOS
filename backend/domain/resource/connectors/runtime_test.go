@@ -83,10 +83,7 @@ func TestLoadSMTPUsesDefaultNamedConnector(t *testing.T) {
 	app := newRuntimeTestApp(t)
 	defer app.Cleanup()
 
-	secret := createSecretRecord(t, app, "basic_auth", map[string]any{
-		"username": "mailer",
-		"password": "s3cr3t",
-	})
+	secret := createSecretRecord(t, app, "single_value", map[string]any{"value": "s3cr3t"})
 
 	createConnectorRecord(t, app, connectors.SaveInput{
 		Name:         "Marketing SMTP",
@@ -96,7 +93,7 @@ func TestLoadSMTPUsesDefaultNamedConnector(t *testing.T) {
 		Endpoint:     "smtp://smtp.alt.example.com:587",
 		AuthScheme:   connectors.AuthSchemeBasic,
 		CredentialID: secret.Id,
-		Config:       map[string]any{"fromAddress": "alt@example.com", "tls": false},
+		Config:       map[string]any{"username": "mailer", "fromAddress": "alt@example.com", "tls": false},
 	})
 	createConnectorRecord(t, app, connectors.SaveInput{
 		Name:         "default",
@@ -107,6 +104,7 @@ func TestLoadSMTPUsesDefaultNamedConnector(t *testing.T) {
 		AuthScheme:   connectors.AuthSchemeBasic,
 		CredentialID: secret.Id,
 		Config: map[string]any{
+			"username":    "mailer",
 			"fromAddress": "noreply@example.com",
 			"localName":   "appos.local",
 		},
@@ -153,10 +151,7 @@ func TestListRegistryResolvesBasicAuthAndFlags(t *testing.T) {
 	app := newRuntimeTestApp(t)
 	defer app.Cleanup()
 
-	secret := createSecretRecord(t, app, "basic_auth", map[string]any{
-		"username": "oci-user",
-		"password": "oci-pass",
-	})
+	secret := createSecretRecord(t, app, "single_value", map[string]any{"value": "oci-pass"})
 
 	createConnectorRecord(t, app, connectors.SaveInput{
 		Name:         "GHCR",
@@ -167,6 +162,7 @@ func TestListRegistryResolvesBasicAuthAndFlags(t *testing.T) {
 		AuthScheme:   connectors.AuthSchemeBasic,
 		CredentialID: secret.Id,
 		Config: map[string]any{
+			"username":  "oci-user",
 			"namespace": "websoft9/appos",
 			"insecure":  true,
 		},
@@ -225,10 +221,7 @@ func TestLoadSMTPFailsForRevokedSecret(t *testing.T) {
 	app := newRuntimeTestApp(t)
 	defer app.Cleanup()
 
-	secret := createSecretRecord(t, app, "basic_auth", map[string]any{
-		"username": "mailer",
-		"password": "s3cr3t",
-	})
+	secret := createSecretRecord(t, app, "single_value", map[string]any{"value": "s3cr3t"})
 	createConnectorRecord(t, app, connectors.SaveInput{
 		Name:         "SMTP",
 		Kind:         connectors.KindSMTP,
@@ -237,6 +230,7 @@ func TestLoadSMTPFailsForRevokedSecret(t *testing.T) {
 		Endpoint:     "smtp://smtp.example.com:587",
 		AuthScheme:   connectors.AuthSchemeBasic,
 		CredentialID: secret.Id,
+		Config:       map[string]any{"username": "mailer"},
 	})
 
 	secret.Set("status", "revoked")
@@ -254,10 +248,7 @@ func TestLoadSMTPFailsForDeletedSecret(t *testing.T) {
 	app := newRuntimeTestApp(t)
 	defer app.Cleanup()
 
-	secret := createSecretRecord(t, app, "basic_auth", map[string]any{
-		"username": "mailer",
-		"password": "s3cr3t",
-	})
+	secret := createSecretRecord(t, app, "single_value", map[string]any{"value": "s3cr3t"})
 	createConnectorRecord(t, app, connectors.SaveInput{
 		Name:         "SMTP",
 		Kind:         connectors.KindSMTP,
@@ -266,6 +257,7 @@ func TestLoadSMTPFailsForDeletedSecret(t *testing.T) {
 		Endpoint:     "smtp://smtp.example.com:587",
 		AuthScheme:   connectors.AuthSchemeBasic,
 		CredentialID: secret.Id,
+		Config:       map[string]any{"username": "mailer"},
 	})
 
 	if _, err := app.DB().NewQuery("DELETE FROM secrets WHERE id = {:id}").Bind(map[string]any{"id": secret.Id}).Execute(); err != nil {

@@ -17,6 +17,8 @@ Admin
 
 Provide a centralized, minimal, and secure secrets module for AppOS so all sensitive values are stored and consumed through `secretRef` instead of plain settings.
 
+The secret domain stores sensitive material and credential payloads. Non-sensitive connection metadata such as endpoint, host, port, database name, or provider-specific routing belongs to the consuming resource domain and should reference secrets rather than be modeled inside secret templates.
+
 ## Session Delta (2026-03-20)
 
 - Added `created_source` to distinguish system-created and user-created credentials.
@@ -68,7 +70,7 @@ Missing `APPOS_SECRET_KEY` at startup → fatal error, process exits.
 |-------|------|-------|
 | `id` | string | PB auto |
 | `name` | string | unique display name |
-| `template_id` | string | e.g. `single_value`, `basic_auth` |
+| `template_id` | string | e.g. `single_value`, `ssh_key`, `tls_private_key` |
 | `scope` | enum | `global` \| `user_private` |
 | `access_mode` | enum | `use_only` (default) \| `reveal_once` \| `reveal_allowed` |
 | `payload_encrypted` | string | AES-256-GCM ciphertext blob |
@@ -120,19 +122,23 @@ Read is intentionally open to all authenticated users: the list view only expose
 - Frontend fetches via `GET /api/secrets/templates`.
 - No template table introduced.
 
-5 built-in templates: `single_value`, `basic_auth`, `api_key`, `database`, `ssh_key`.
+Template design rule: keep templates focused on secret material and reusable credential payloads. Do not define templates that represent full connection objects.
+
+3 built-in templates: `single_value`, `ssh_key`, `tls_private_key`.
+
+Retired templates: `api_key`, `database`, and `basic_auth`. These were removed because they mixed ordinary connection metadata or identity fields into the secret domain. API endpoints, usernames, database hosts, ports, and names must be modeled by the consuming resource or connector, while the secret record carries only the sensitive credential material.
 
 Field types: `text`, `password`, `textarea`. Fields may include `upload: true` for file-based input (e.g. SSH private key).
 
 ```json
 [
   { "id": "single_value", "fields": [{ "key": "value", "type": "password" }] },
-  { "id": "basic_auth", "fields": [{ "key": "username", "type": "text" }, { "key": "password", "type": "password" }] },
-  { "id": "api_key", "fields": [{ "key": "api_key", "type": "password" }] },
-  { "id": "database", "fields": [{ "key": "host" }, { "key": "port" }, { "key": "username" }, { "key": "password", "type": "password" }, { "key": "database" }] },
-  { "id": "ssh_key", "fields": [{ "key": "username" }, { "key": "private_key", "type": "textarea", "upload": true }, { "key": "passphrase", "type": "password" }] }
+  { "id": "ssh_key", "fields": [{ "key": "private_key", "type": "textarea", "upload": true }, { "key": "passphrase", "type": "password" }] },
+  { "id": "tls_private_key", "fields": [{ "key": "private_key", "type": "textarea" }] }
 ]
 ```
+
+`single_value` is the preferred generic template for API keys, bearer tokens, passwords, and other one-field credentials unless a stronger material-specific template already exists.
 
 ## API
 

@@ -3,7 +3,7 @@
     "id": "self_signed_basic",
     "label": "Self-Signed Certificate",
     "kind": "self_signed",
-    "description": "Generate a self-signed certificate on this server",
+    "description": "Create a certificate object and let the server generate both the certificate chain and a referenced TLS private key secret.",
     "fields": [
       { "key": "name", "label": "Name", "type": "text", "required": true },
       { "key": "domain", "label": "Domain / CN", "type": "text", "required": true },
@@ -14,12 +14,12 @@
     "id": "ca_import_basic",
     "label": "CA-Issued Certificate (Import)",
     "kind": "ca_issued",
-    "description": "Import a certificate issued by a certificate authority",
+    "description": "Create a certificate object by importing the certificate chain and referencing an existing TLS private key secret.",
     "fields": [
       { "key": "name", "label": "Name", "type": "text", "required": true },
       { "key": "domain", "label": "Domain / CN", "type": "text", "required": true },
       { "key": "cert_pem", "label": "Certificate Chain (PEM)", "type": "textarea", "required": true, "upload": true },
-      { "key": "key", "label": "Private Key Secret", "type": "relation", "required": false },
+      { "key": "private_key_secret", "label": "TLS Private Key Secret", "type": "relation", "required": false },
       { "key": "description", "label": "Description", "type": "textarea" }
     ]
   }

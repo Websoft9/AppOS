@@ -221,3 +221,6 @@ resource/  server/  database/  integration/  registry/  ...
 1. 如果你要把“网络可达性”再升级成应用层探测，我下一步可以把 MySQL/PostgreSQL/Redis/Kafka 从 TCP 通断扩展到协议握手级检查。
 2. 把 connectors 和 servers 里还保留的旧版 “新建 Secret” 对话框也完全切到 SecretCreateDialog.tsx。
 
+
+add resource 统一入口，仍然没有链接到具体的创建弹窗，而仅仅是列表页。除了 server 之外
+
