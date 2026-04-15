@@ -9,7 +9,8 @@ mkdir -p \
     /appos/data/pb/pb_migrations \
     /appos/data/redis \
     /appos/data/apps \
-  /appos/data/pi \
+    /appos/data/pi \
+    /appos/data/victoriametrics \
     /appos/data/workflows \
     /appos/data/templates/apps \
     /appos/data/templates/workflows \

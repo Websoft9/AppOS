@@ -1,5 +1,5 @@
 # Development Build - Uses pre-built artifacts from host
-# Requires: backend/appos (Go binary with PocketBase framework) and dashboard/dist/ (React build)
+# Requires: backend/appos + backend/appos-monitor-agent (Go binaries with PocketBase framework) and dashboard/dist/ (React build)
 #
 # Usage:
 #   make build backend && make build dashboard
@@ -30,7 +30,12 @@ FROM node:24-alpine AS node-provider
 FROM hashicorp/terraform:1.14 AS terraform-bin
 
 # ===========================
-# Stage 4: Runtime
+# Stage 4: VictoriaMetrics Binary
+# ===========================
+FROM victoriametrics/victoria-metrics:v1.124.0 AS victoriametrics-bin
+
+# ===========================
+# Stage 5: Runtime
 # ===========================
 FROM alpine:3
 
@@ -71,8 +76,10 @@ RUN npm install -g @mariozechner/pi-coding-agent
 # Copy pre-built artifacts from host (appos is statically linked)
 COPY dashboard/dist /usr/share/nginx/html/dashboard
 COPY backend/appos /usr/local/bin/appos
+COPY backend/appos-monitor-agent /usr/local/bin/appos-monitor-agent
 COPY --from=terraform-bin /bin/terraform /usr/local/bin/terraform
-RUN chmod +x /usr/local/bin/appos
+COPY --from=victoriametrics-bin /victoria-metrics-prod /usr/local/bin/victoria-metrics-prod
+RUN chmod +x /usr/local/bin/appos /usr/local/bin/appos-monitor-agent
 
 # Store Library plugin (from download stage, Docker-cached after first build)
 COPY --from=library-downloader /appos/library /appos/library
@@ -84,6 +91,7 @@ RUN mkdir -p \
     /appos/data/redis \
     /appos/data/apps \
     /appos/data/pi \
+    /appos/data/victoriametrics \
     /appos/data/workflows \
     /appos/data/templates/apps \
     /appos/data/templates/workflows \
@@ -100,9 +108,12 @@ COPY --chmod=755 build/entrypoint.sh /entrypoint.sh
 
 RUN set -eux; \
     test -x /usr/local/bin/appos || { echo "ERROR: appos binary not found"; exit 1; }; \
+    test -x /usr/local/bin/appos-monitor-agent || { echo "ERROR: appos-monitor-agent binary not found"; exit 1; }; \
+    test -x /usr/local/bin/victoria-metrics-prod || { echo "ERROR: victoria-metrics-prod binary not found"; exit 1; }; \
     test -x /usr/local/bin/pi || { echo "ERROR: pi binary not found"; exit 1; }
 
-ENV PI_CODING_AGENT_DIR=/appos/data/pi
+ENV PI_CODING_AGENT_DIR=/appos/data/pi \
+    TSDB_ADDR=http://127.0.0.1:8428
 
 EXPOSE 80
 

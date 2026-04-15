@@ -19,6 +19,7 @@ services:
       - SUPERUSER_PASSWORD=${SUPERUSER_PASSWORD:-changeme123}
       - TUNNEL_SSH_PORT=${TUNNEL_SSH_PORT:-9222}
       - PI_CODING_AGENT_DIR=${PI_CODING_AGENT_DIR:-/appos/data/pi}
+      - TSDB_ADDR=${TSDB_ADDR:-http://127.0.0.1:8428}
 
   # Optional: External reverse proxy for SSL and domain routing
   # reverse-proxy:

@@ -224,3 +224,6 @@ resource/  server/  database/  integration/  registry/  ...
 
 add resource 统一入口，仍然没有链接到具体的创建弹窗，而仅仅是列表页。除了 server 之外
 
+
+tunnul 的Port Forward  Effective Mappings 区域没有显示具体的内容了
+

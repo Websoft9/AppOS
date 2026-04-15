@@ -325,7 +325,7 @@ groups:
       nativeRefs: []
 
   - group: Servers
-    description: Server registry CRUD and remote operations APIs for connectivity, power, ports, and systemd management.
+    description: Server registry CRUD and remote operations APIs for connectivity, power, ports, monitor-agent deployment, and systemd management.
     apiType: Mixed
     extSurface:
       - GET /api/ext/docker/servers
@@ -334,6 +334,8 @@ groups:
       - GET /api/servers/{serverId}/ops/ports
       - GET /api/servers/{serverId}/ops/ports/{port}
       - POST /api/servers/{serverId}/ops/ports/{port}/release
+      - POST /api/servers/{serverId}/ops/monitor-agent/install
+      - POST /api/servers/{serverId}/ops/monitor-agent/update
       - GET /api/servers/{serverId}/ops/systemd/services
       - GET /api/servers/{serverId}/ops/systemd/{service}/status
       - GET /api/servers/{serverId}/ops/systemd/{service}/content

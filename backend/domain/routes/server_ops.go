@@ -34,6 +34,8 @@ func registerServerOpsRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	serverOps.PUT("/systemd/{service}/unit", handleSystemdServiceUnitWrite)
 	serverOps.POST("/systemd/{service}/unit/verify", handleSystemdServiceUnitVerify)
 	serverOps.POST("/systemd/{service}/unit/apply", handleSystemdServiceUnitApply)
+	serverOps.POST("/monitor-agent/install", handleMonitorAgentInstall)
+	serverOps.POST("/monitor-agent/update", handleMonitorAgentUpdate)
 }
 
 // ════════════════════════════════════════════════════════════

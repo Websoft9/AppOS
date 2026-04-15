@@ -315,6 +315,26 @@ func TestSystemdUnitApplyRequiresAuth(t *testing.T) {
 	}
 }
 
+func TestMonitorAgentInstallRequiresAuth(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doServer(t, http.MethodPost, "/api/servers/nonexistent/ops/monitor-agent/install", "", false)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestMonitorAgentUpdateRequiresAuth(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doServer(t, http.MethodPost, "/api/servers/nonexistent/ops/monitor-agent/update", "", false)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestServerPortInspectRequiresAuth(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()

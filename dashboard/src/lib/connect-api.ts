@@ -104,6 +104,19 @@ export interface SystemdUnitApplyResponse {
   apply_output?: string
 }
 
+export interface MonitorAgentDeployResponse {
+  server_id: string
+  service: string
+  status: string
+  binary_path: string
+  config_path: string
+  unit_path: string
+  output: string
+  status_text?: string
+  packaged_version?: string
+  systemd?: Record<string, string>
+}
+
 export type SystemdControlAction = 'start' | 'stop' | 'restart' | 'enable' | 'disable'
 
 export type ServerPortProtocol = 'tcp' | 'udp'
@@ -480,6 +493,22 @@ export async function applySystemdUnit(
     `/api/servers/${serverId}/ops/systemd/${encodeURIComponent(service)}/unit/apply`,
     { method: 'POST' }
   )
+}
+
+export async function installMonitorAgent(
+  serverId: string
+): Promise<MonitorAgentDeployResponse> {
+  return pb.send<MonitorAgentDeployResponse>(`/api/servers/${serverId}/ops/monitor-agent/install`, {
+    method: 'POST',
+  })
+}
+
+export async function updateMonitorAgent(
+  serverId: string
+): Promise<MonitorAgentDeployResponse> {
+  return pb.send<MonitorAgentDeployResponse>(`/api/servers/${serverId}/ops/monitor-agent/update`, {
+    method: 'POST',
+  })
 }
 
 // ─── Server connectivity check ────────────────────────────────────────────────

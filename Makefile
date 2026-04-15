@@ -25,7 +25,7 @@ help:
 	@echo "  make install              Install dev dependencies (Go tools, build-essential, npm packages)"
 	@echo "  make tidy                 Tidy Go modules"
 	@echo "  make build                Build all (backend + dashboard)"
-	@echo "  make build backend        Build Go binary → backend/appos"
+	@echo "  make build backend        Build Go binaries → backend/appos + backend/appos-monitor-agent"
 	@echo "  make build dashboard      Build React app → dashboard/dist"
 	@echo "  make run                  Copy artifacts + restart services (~10s)"
 	@echo "  make run 9092             Copy artifacts + restart on custom port"
@@ -145,10 +145,11 @@ tidy:
 
 build:
 ifeq ($(ARG2),backend)
-	@echo "Building backend (static binary, no dependencies)..."
+	@echo "Building backend binaries (static, no dependencies)..."
 	@$(MAKE) openapi-sync
 	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
-	@echo "✓ Backend built → backend/appos (statically linked)"
+	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos-monitor-agent ./cmd/appos-monitor-agent
+	@echo "✓ Backend built → backend/appos + backend/appos-monitor-agent (statically linked)"
 else ifeq ($(ARG2),dashboard)
 	@echo "Building dashboard..."
 	@cd dashboard && npm run build
@@ -159,7 +160,8 @@ else
 	@echo "Building all..."
 	@$(MAKE) openapi-sync
 	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
-	@echo "✓ Backend built → backend/appos"
+	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos-monitor-agent ./cmd/appos-monitor-agent
+	@echo "✓ Backend built → backend/appos + backend/appos-monitor-agent"
 	@cd dashboard && npm run build
 	@echo "✓ Dashboard built → dashboard/dist/"
 	@echo "✓ All built"
@@ -181,6 +183,7 @@ redo:
 run:
 	@echo "Hot reload: copying pre-built artifacts..."
 	@docker cp backend/appos $(CONTAINER):/usr/local/bin/appos
+	@docker cp backend/appos-monitor-agent $(CONTAINER):/usr/local/bin/appos-monitor-agent
 	@docker cp dashboard/dist/. $(CONTAINER):/usr/share/nginx/html/dashboard/
 	@docker cp build/nginx.conf $(CONTAINER):/etc/nginx/nginx.conf
 	@docker exec $(CONTAINER) nginx -t
@@ -335,6 +338,7 @@ else ifeq ($(ARG2),build-local)
 	@echo "Building dev image (pre-built artifacts)..."
 	@# Verify artifacts exist
 	@test -f backend/appos || { echo "Error: backend/appos not found. Run 'make build backend' first."; exit 1; }
+	@test -f backend/appos-monitor-agent || { echo "Error: backend/appos-monitor-agent not found. Run 'make build backend' first."; exit 1; }
 	@test -d dashboard/dist || { echo "Error: dashboard/dist/ not found. Run 'make build dashboard' first."; exit 1; }
 	@# Pass host proxy into build (replace 127.0.0.1 with host-gateway for container access)
 	$(eval HOST_PROXY := $(shell \

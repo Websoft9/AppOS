@@ -49,7 +49,7 @@ tags:
       name: Resource
     - description: Secret storage, rotation, resolve, and reveal APIs.
       name: Secrets
-    - description: Server registry CRUD and remote operations APIs for connectivity, power, ports, and systemd management.
+    - description: Server registry CRUD and remote operations APIs for connectivity, power, ports, monitor-agent deployment, and systemd management.
       name: Servers
     - description: Service instance catalog and template APIs for managed external services.
       name: Service Instances
@@ -7349,6 +7349,58 @@ paths:
                     description: OK
             security: []
             summary: Get servers by serverId ops connectivity
+            tags:
+                - Servers
+    /api/servers/{serverId}/ops/monitor-agent/install:
+        post:
+            operationId: post_api_servers_serverid_ops_monitor-agent_install
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+            security: []
+            summary: Create or execute servers by serverId ops monitor agent install
+            tags:
+                - Servers
+    /api/servers/{serverId}/ops/monitor-agent/update:
+        post:
+            operationId: post_api_servers_serverid_ops_monitor-agent_update
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+            security: []
+            summary: Create or execute servers by serverId ops monitor agent update
             tags:
                 - Servers
     /api/servers/{serverId}/ops/ports:

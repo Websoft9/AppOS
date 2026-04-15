@@ -55,6 +55,7 @@ PocketBase built-ins provide auth, CRUD, realtime, admin UI, middleware, cron, a
 Custom Go code owns AppOS-specific behavior:
 
 - app lifecycle and Docker actions
+- server base capability management for server prerequisites
 - gateway and domain binding management
 - terminal and remote operations
 - backup and restore
@@ -128,6 +129,13 @@ Configuration:
 2. AppOS validates, persists, and versions the change.
 3. Apply, rollback, or follow-up execution runs synchronously or through a job, depending on cost.
 
+Server base capability management:
+
+1. Dashboard or CLI reads capability readiness synchronously.
+2. If a prerequisite is missing, API accepts an async command such as ensure, upgrade, or verify.
+3. A Server Base domain worker executes preflight, command execution, and verification.
+4. Status projection, audit, and events expose the final outcome to dependent domains.
+
 Terminal:
 
 1. Authenticated request opens a shell endpoint.
@@ -150,6 +158,27 @@ Key risks:
 - single-process failure impact: keep runtime simple and rely on supervised restart
 - Redis as single queue backend: acceptable under single-server constraints
 - custom APIs need manual contract documentation: keep custom endpoint specs maintained
+
+## Async Execution Boundary
+
+AppOS should share one async substrate across long-running domains, but not force one business runner model on every domain.
+
+Shared across domains:
+
+- Asynq + Redis
+- worker hosting and retry infrastructure
+- operation id and phase-oriented status conventions
+- audit and event publication patterns
+
+Kept separate by domain:
+
+- App Lifecycle runner remains app- and release-oriented
+- Server Base runner remains server-capability-oriented
+
+Implication:
+
+- Server Base may reuse the same queue and worker process model as App Lifecycle
+- Server Base should keep its own command handlers, operation DTOs, and phase semantics
 
 ## Complexity Assessment
 

@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { TimeSeriesChart } from '@/components/monitor/TimeSeriesChart'
 
 type MonitorTargetResponse = {
   hasData: boolean
@@ -27,12 +28,25 @@ type MonitorSeriesResponse = {
   targetType: string
   targetId: string
   window: string
+  availableNetworkInterfaces?: string[]
+  selectedNetworkInterface?: string
   series: Array<{
     name: string
     unit: string
-    points: number[][]
+    points?: number[][]
+    segments?: Array<{
+      name: string
+      points: number[][]
+    }>
+    metadata?: Record<string, string>
   }>
 }
+
+const SERIES_WINDOWS = [
+  { value: '1h', label: '1H', description: 'Last hour trends from the monitoring time-series backend.' },
+  { value: '6h', label: '6H', description: 'Last six hours trends from the monitoring time-series backend.' },
+  { value: '24h', label: '24H', description: 'Last twenty-four hours trends from the monitoring time-series backend.' },
+] as const
 
 function formatBytes(value: number): string {
   if (!Number.isFinite(value) || value < 1024) return `${Math.round(value)} B`
@@ -55,6 +69,11 @@ function formatDurationSeconds(value: number): string {
 }
 
 function formatLabel(value: string): string {
+  const normalized = value.trim().toLowerCase()
+  if (normalized === 'cpu') return 'CPU'
+  if (normalized === 'network') return 'Network Speed'
+  if (normalized === 'network_traffic') return 'Network Traffic'
+
   return value
     .split('_')
     .map(part => part.charAt(0).toUpperCase() + part.slice(1))
@@ -80,6 +99,19 @@ function formatValue(key: string, value: unknown): string {
     return value
   }
   return JSON.stringify(value)
+}
+
+function formatTrendValue(unit: string, name: string, value: number): string {
+  if (unit === 'bytes') return formatValue(`${name}_bytes`, value)
+  if (unit === 'bytes/s') return `${formatBytes(value)}/s`
+  return formatValue(name, value)
+}
+
+function seriesQueryForTargetType(targetType: string): string {
+  if (targetType === 'server') {
+    return 'cpu,memory,disk_usage,disk,network,network_traffic'
+  }
+  return 'cpu,memory'
 }
 
 function statusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
@@ -112,6 +144,8 @@ export function MonitorTargetPanel({
   const [error, setError] = useState('')
   const [series, setSeries] = useState<MonitorSeriesResponse | null>(null)
   const [seriesLoading, setSeriesLoading] = useState(false)
+  const [selectedWindow, setSelectedWindow] = useState<(typeof SERIES_WINDOWS)[number]['value']>('1h')
+  const [selectedNetworkInterface, setSelectedNetworkInterface] = useState('all')
 
   const load = useCallback(async (silent = false) => {
     if (!targetId) return
@@ -143,17 +177,34 @@ export function MonitorTargetPanel({
     }
     setSeriesLoading(true)
     try {
+      const requestedSeries = seriesQueryForTargetType(targetType)
+      const params = new URLSearchParams({
+        window: selectedWindow,
+        series: requestedSeries,
+      })
+      if (targetType === 'server' && selectedNetworkInterface !== 'all') {
+        params.set('networkInterface', selectedNetworkInterface)
+      }
       const response = await pb.send<MonitorSeriesResponse>(
-        `/api/monitor/targets/${encodeURIComponent(targetType)}/${encodeURIComponent(targetId)}/series?window=1h&series=cpu,memory`,
+        `/api/monitor/targets/${encodeURIComponent(targetType)}/${encodeURIComponent(targetId)}/series?${params.toString()}`,
         { method: 'GET' }
       )
+      if (targetType === 'server' && response.selectedNetworkInterface && response.selectedNetworkInterface !== selectedNetworkInterface) {
+        setSelectedNetworkInterface(response.selectedNetworkInterface)
+      }
       setSeries(response)
     } catch {
       setSeries(null)
     } finally {
       setSeriesLoading(false)
     }
-  }, [targetId, targetType])
+  }, [selectedNetworkInterface, selectedWindow, targetId, targetType])
+
+  const selectedWindowMeta = SERIES_WINDOWS.find(window => window.value === selectedWindow) ?? SERIES_WINDOWS[0]
+
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([load(true), loadSeries()])
+  }, [load, loadSeries])
 
   useEffect(() => {
     void load()
@@ -162,6 +213,10 @@ export function MonitorTargetPanel({
   useEffect(() => {
     void loadSeries()
   }, [loadSeries])
+
+  useEffect(() => {
+    setSelectedNetworkInterface('all')
+  }, [targetId, targetType])
 
   const summaryEntries = Object.entries(data?.summary ?? {})
 
@@ -174,7 +229,7 @@ export function MonitorTargetPanel({
             Latest normalized monitoring state for this target.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => void load(true)} disabled={loading || refreshing || !targetId}>
+        <Button variant="outline" size="sm" onClick={() => void handleRefresh()} disabled={loading || refreshing || seriesLoading || !targetId}>
           {loading || refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           Refresh
         </Button>
@@ -257,9 +312,29 @@ export function MonitorTargetPanel({
 
           {seriesLoading || (series && series.series.length > 0) ? (
             <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle className="text-base">Short Window Trends</CardTitle>
-                <CardDescription>Last hour trends from the monitoring time-series backend.</CardDescription>
+              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-1">
+                  <CardTitle className="text-base">Short Window Trends</CardTitle>
+                  <CardDescription>{selectedWindowMeta.description}</CardDescription>
+                </div>
+                <div className="inline-flex items-center rounded-lg border bg-muted/20 p-1" role="tablist" aria-label="trend window selector">
+                  {SERIES_WINDOWS.map(window => {
+                    const active = window.value === selectedWindow
+                    return (
+                      <Button
+                        key={window.value}
+                        type="button"
+                        size="xs"
+                        variant={active ? 'secondary' : 'ghost'}
+                        aria-pressed={active}
+                        onClick={() => setSelectedWindow(window.value)}
+                        disabled={seriesLoading}
+                      >
+                        {window.label}
+                      </Button>
+                    )
+                  })}
+                </div>
               </CardHeader>
               <CardContent>
                 {seriesLoading ? (
@@ -268,9 +343,19 @@ export function MonitorTargetPanel({
                     Loading trend data...
                   </div>
                 ) : (
-                  <div className="grid gap-3 md:grid-cols-2">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                     {series?.series.map(item => (
-                      <TrendCard key={item.name} name={item.name} unit={item.unit} points={item.points} />
+                      <TrendCard
+                        key={item.name}
+                        name={item.name}
+                        unit={item.unit}
+                        points={item.points ?? []}
+                        segments={item.segments}
+                        metadata={item.metadata}
+                        availableNetworkInterfaces={item.name === 'network' || item.name === 'network_traffic' ? series.availableNetworkInterfaces : undefined}
+                        selectedNetworkInterface={item.name === 'network' || item.name === 'network_traffic' ? selectedNetworkInterface : undefined}
+                        onNetworkInterfaceChange={item.name === 'network' || item.name === 'network_traffic' ? setSelectedNetworkInterface : undefined}
+                      />
                     ))}
                   </div>
                 )}
@@ -287,44 +372,100 @@ export function MonitorTargetPanel({
   )
 }
 
-function TrendCard({ name, unit, points }: { name: string; unit: string; points: number[][] }) {
+function latestValue(points: number[][]): number | null {
   const values = points.map(point => point[1]).filter(value => Number.isFinite(value))
-  const latest = values.length > 0 ? values[values.length - 1] : null
+  return values.length > 0 ? values[values.length - 1] : null
+}
+
+function TrendCard({
+  name,
+  unit,
+  points,
+  segments,
+  metadata,
+  availableNetworkInterfaces,
+  selectedNetworkInterface,
+  onNetworkInterfaceChange,
+}: {
+  name: string
+  unit: string
+  points: number[][]
+  segments?: Array<{ name: string; points: number[][] }>
+  metadata?: Record<string, string>
+  availableNetworkInterfaces?: string[]
+  selectedNetworkInterface?: string
+  onNetworkInterfaceChange?: (value: string) => void
+}) {
+  const latest = latestValue(points)
+  const used = segments?.find(segment => segment.name === 'used')
+  const available = segments?.find(segment => segment.name === 'available')
+  const free = segments?.find(segment => segment.name === 'free')
+  const read = segments?.find(segment => segment.name === 'read')
+  const write = segments?.find(segment => segment.name === 'write')
+  const inbound = segments?.find(segment => segment.name === 'in')
+  const outbound = segments?.find(segment => segment.name === 'out')
+  const latestUsed = used ? latestValue(used.points) : null
+  const latestAvailable = available ? latestValue(available.points) : null
+  const latestFree = free ? latestValue(free.points) : null
+  const latestRead = read ? latestValue(read.points) : null
+  const latestWrite = write ? latestValue(write.points) : null
+  const latestInbound = inbound ? latestValue(inbound.points) : null
+  const latestOutbound = outbound ? latestValue(outbound.points) : null
+  const latestLabel = (() => {
+    if (latest !== null) {
+      return formatTrendValue(unit, name, latest)
+    }
+    if (name === 'memory' && latestUsed !== null) {
+      const total = latestUsed + (latestAvailable ?? 0)
+      return `${formatBytes(latestUsed)} used / ${formatBytes(total)} total`
+    }
+    if (name === 'disk_usage' && (latestUsed !== null || latestFree !== null)) {
+      return `${latestUsed === null ? '—' : formatBytes(latestUsed)} used${latestFree === null ? '' : ` / ${formatBytes(latestFree)} free`}`
+    }
+    if (name === 'disk' && (latestRead !== null || latestWrite !== null)) {
+      return `${latestRead === null ? '—' : `${formatBytes(latestRead)}/s`} read${latestWrite === null ? '' : ` / ${formatBytes(latestWrite)}/s write`}`
+    }
+    if (name === 'network_traffic' && (latestInbound !== null || latestOutbound !== null)) {
+      return `${latestInbound === null ? '—' : `${formatBytes(latestInbound)}/s`} in${latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)}/s out`}`
+    }
+    return '—'
+  })()
+  const networkInterfaceLabel = metadata?.network_interface && metadata.network_interface !== 'all'
+    ? `Interface ${metadata.network_interface}`
+    : unit
+
   return (
     <div className="rounded-lg border bg-background p-3">
       <div className="flex items-center justify-between gap-3">
         <div>
           <div className="text-sm font-medium">{formatLabel(name)}</div>
-          <div className="text-xs text-muted-foreground">{unit}</div>
+          <div className="text-xs text-muted-foreground">{name === 'network' ? networkInterfaceLabel : unit}</div>
         </div>
-        <div className="text-sm font-semibold">{latest === null ? '—' : formatValue(unit === 'bytes' ? `${name}_bytes` : name, latest)}</div>
+        <div className="flex items-center gap-3">
+          {name === 'network_traffic' && availableNetworkInterfaces && availableNetworkInterfaces.length > 0 && onNetworkInterfaceChange ? (
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>Interface</span>
+              <select
+                aria-label="Network interface"
+                className="h-8 rounded-md border bg-background px-2 text-xs text-foreground"
+                value={selectedNetworkInterface ?? 'all'}
+                onChange={event => onNetworkInterfaceChange(event.target.value)}
+              >
+                <option value="all">All interfaces</option>
+                {availableNetworkInterfaces.map(option => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <div className="text-right text-sm font-semibold">{latestLabel}</div>
+        </div>
       </div>
       <div className="mt-3">
-        <Sparkline points={values} />
+        <TimeSeriesChart name={name} unit={unit} points={points} segments={segments} formatValue={formatTrendValue} />
       </div>
     </div>
-  )
-}
-
-function Sparkline({ points }: { points: number[] }) {
-  if (points.length < 2) {
-    return <div className="h-16 rounded-md border border-dashed text-xs text-muted-foreground flex items-center justify-center">No trend yet</div>
-  }
-  const width = 240
-  const height = 64
-  const min = Math.min(...points)
-  const max = Math.max(...points)
-  const range = max - min || 1
-  const path = points
-    .map((point, index) => {
-      const x = (index / (points.length - 1)) * width
-      const y = height - ((point - min) / range) * (height - 8) - 4
-      return `${index === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`
-    })
-    .join(' ')
-  return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="h-16 w-full overflow-visible" role="img" aria-label="trend chart">
-      <path d={path} fill="none" stroke="currentColor" strokeWidth="2" className="text-foreground/80" />
-    </svg>
   )
 }

@@ -42,7 +42,7 @@ tags:
   - name: Secrets
     description: "Secret storage, rotation, resolve, and reveal APIs."
   - name: Servers
-    description: "Server registry CRUD and remote operations APIs for connectivity, power, ports, and systemd management."
+    description: "Server registry CRUD and remote operations APIs for connectivity, power, ports, monitor-agent deployment, and systemd management."
   - name: Service Instances
     description: "Service instance catalog and template APIs for managed external services."
   - name: Services
@@ -5701,6 +5701,56 @@ paths:
           required: false
           schema:
             type: string
+      security: []  # public
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+  /api/servers/{serverId}/ops/monitor-agent/install:
+    post:
+      tags: [Servers]
+      summary: Create or execute servers by serverId ops monitor agent install
+      operationId: post_api_servers_serverid_ops_monitor-agent_install
+      parameters:
+        - name: serverId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security: []  # public
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+  /api/servers/{serverId}/ops/monitor-agent/update:
+    post:
+      tags: [Servers]
+      summary: Create or execute servers by serverId ops monitor agent update
+      operationId: post_api_servers_serverid_ops_monitor-agent_update
+      parameters:
+        - name: serverId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
       security: []  # public
       responses:
         "200":

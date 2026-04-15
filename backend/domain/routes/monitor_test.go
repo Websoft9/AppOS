@@ -56,6 +56,34 @@ func (te *testEnv) doMonitor(t *testing.T, method, url, body string, authHeader 
 	return rec
 }
 
+func (te *testEnv) doMonitorWithHeaders(t *testing.T, method, url, body string, authHeader string, headers map[string]string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	r, err := apis.NewRouter(te.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	registerMonitorRoutes(&core.ServeEvent{App: te.app, Router: r})
+
+	mux, err := r.BuildMux()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(method, url, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	if authHeader != "" {
+		req.Header.Set("Authorization", authHeader)
+	}
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	return rec
+}
+
 func createMonitorServer(t *testing.T, te *testEnv, name string) *core.Record {
 	t.Helper()
 	col, err := te.app.FindCollectionByNameOrId("servers")
@@ -117,6 +145,96 @@ func TestMonitorAgentTokenCreateAndRotate(t *testing.T) {
 	secondToken, _ := rotated["token"].(string)
 	if secondToken == "" || secondToken == firstToken {
 		t.Fatalf("expected rotated token to differ, first=%q second=%q", firstToken, secondToken)
+	}
+}
+
+func TestMonitorAgentSetupKeepsRequestHostPort(t *testing.T) {
+	te := newMonitorTestEnv(t)
+	defer te.cleanup()
+
+	server := createMonitorServer(t, te, "prod-01")
+
+	rec := te.doMonitor(t, http.MethodGet, "https://appos.example.com:9443/api/monitor/servers/"+server.Id+"/agent-setup", "", te.token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var response map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if got := response["ingestBaseUrl"]; got != "https://appos.example.com:9443/api/monitor/ingest" {
+		t.Fatalf("expected request-host ingest base url with port preserved, got %v", got)
+	}
+	configYaml, _ := response["configYaml"].(string)
+	if !strings.Contains(configYaml, "ingest_base_url: https://appos.example.com:9443/api/monitor/ingest") {
+		t.Fatalf("expected config yaml to contain request-host ingest url, got %q", configYaml)
+	}
+}
+
+func TestMonitorAgentSetupUsesForwardedProtoWithRequestHostPort(t *testing.T) {
+	te := newMonitorTestEnv(t)
+	defer te.cleanup()
+
+	server := createMonitorServer(t, te, "prod-01")
+	rec := te.doMonitorWithHeaders(t, http.MethodGet, "http://console.example.com:8090/api/monitor/servers/"+server.Id+"/agent-setup", "", te.token, map[string]string{
+		"X-Forwarded-Proto": "https",
+		"X-Forwarded-Host":  "ignored.example.com",
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var response map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if got := response["ingestBaseUrl"]; got != "https://console.example.com:8090/api/monitor/ingest" {
+		t.Fatalf("expected monitor setup to use request host port and forwarded proto, got %v", got)
+	}
+}
+
+func TestMonitorAgentSetupUsesForwardedHostPortWhenProxyDropsRequestPort(t *testing.T) {
+	te := newMonitorTestEnv(t)
+	defer te.cleanup()
+
+	server := createMonitorServer(t, te, "prod-01")
+	rec := te.doMonitorWithHeaders(t, http.MethodGet, "http://console.example.com/api/monitor/servers/"+server.Id+"/agent-setup", "", te.token, map[string]string{
+		"X-Forwarded-Host":  "console.example.com:9091",
+		"X-Forwarded-Proto": "https",
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var response map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if got := response["ingestBaseUrl"]; got != "https://console.example.com:9091/api/monitor/ingest" {
+		t.Fatalf("expected monitor setup to recover proxy-forwarded host port, got %v", got)
+	}
+	configYaml, _ := response["configYaml"].(string)
+	if !strings.Contains(configYaml, "ingest_base_url: https://console.example.com:9091/api/monitor/ingest") {
+		t.Fatalf("expected config yaml to contain forwarded-host ingest url, got %q", configYaml)
+	}
+}
+
+func TestMonitorAgentSetupUsesForwardedPortWhenHostLacksPort(t *testing.T) {
+	te := newMonitorTestEnv(t)
+	defer te.cleanup()
+
+	server := createMonitorServer(t, te, "prod-01")
+	rec := te.doMonitorWithHeaders(t, http.MethodGet, "http://console.example.com/api/monitor/servers/"+server.Id+"/agent-setup", "", te.token, map[string]string{
+		"X-Forwarded-Port":  "9091",
+		"X-Forwarded-Proto": "http",
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var response map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if got := response["ingestBaseUrl"]; got != "http://console.example.com:9091/api/monitor/ingest" {
+		t.Fatalf("expected monitor setup to append forwarded port, got %v", got)
 	}
 }
 
@@ -429,9 +547,12 @@ func TestMonitorTargetSeriesReturnsShortWindowData(t *testing.T) {
 	defer te.cleanup()
 
 	server := createMonitorServer(t, te, "prod-01")
-	restore := monitor.SetMetricQueryFuncForTest(func(_ context.Context, targetType, targetID, window string, seriesNames []string) (*monitor.MetricSeriesResponse, error) {
+	restore := monitor.SetMetricQueryFuncForTest(func(_ context.Context, targetType, targetID, window string, seriesNames []string, options monitor.MetricSeriesQueryOptions) (*monitor.MetricSeriesResponse, error) {
 		if targetType != monitor.TargetTypeServer || targetID != server.Id || window != "1h" {
 			t.Fatalf("unexpected series query params: %s %s %s %+v", targetType, targetID, window, seriesNames)
+		}
+		if options.NetworkInterface != "" {
+			t.Fatalf("unexpected options: %+v", options)
 		}
 		return &monitor.MetricSeriesResponse{
 			TargetType: targetType,
@@ -464,9 +585,12 @@ func TestMonitorAppTargetSeriesReturnsShortWindowData(t *testing.T) {
 	defer te.cleanup()
 
 	appRecord := createMonitorApp(t, te, "app-1-monitor-key", "Demo App", "local")
-	restore := monitor.SetMetricQueryFuncForTest(func(_ context.Context, targetType, targetID, window string, seriesNames []string) (*monitor.MetricSeriesResponse, error) {
+	restore := monitor.SetMetricQueryFuncForTest(func(_ context.Context, targetType, targetID, window string, seriesNames []string, options monitor.MetricSeriesQueryOptions) (*monitor.MetricSeriesResponse, error) {
 		if targetType != monitor.TargetTypeApp || targetID != appRecord.Id || window != "1h" {
 			t.Fatalf("unexpected app series query params: %s %s %s %+v", targetType, targetID, window, seriesNames)
+		}
+		if options.NetworkInterface != "" {
+			t.Fatalf("unexpected options: %+v", options)
 		}
 		return &monitor.MetricSeriesResponse{TargetType: targetType, TargetID: targetID, Window: window, Series: []monitor.MetricSeries{{Name: "memory", Unit: "bytes", Points: [][]float64{{1713096000, 104857600}}}}}, nil
 	})

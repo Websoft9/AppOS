@@ -20,6 +20,11 @@ FROM node:24-alpine AS node-provider
 FROM hashicorp/terraform:1.14 AS terraform-bin
 
 # ===========================
+# VictoriaMetrics Binary
+# ===========================
+FROM victoriametrics/victoria-metrics:v1.124.0 AS victoriametrics-bin
+
+# ===========================
 # Stage 2: Build Backend (PocketBase Framework)
 # ===========================
 FROM golang:1.26-alpine AS backend-builder
@@ -29,6 +34,7 @@ COPY backend/go.mod backend/go.sum ./
 RUN go mod download
 COPY backend/ .
 RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
+RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o appos-monitor-agent ./cmd/appos-monitor-agent
 
 # ===========================
 # Stage 3: Runtime
@@ -75,7 +81,9 @@ RUN npm install -g @mariozechner/pi-coding-agent
 # Copy build artifacts
 COPY --from=dashboard-builder /build/dist /usr/share/nginx/html/dashboard
 COPY --from=backend-builder /build/appos /usr/local/bin/appos
+COPY --from=backend-builder /build/appos-monitor-agent /usr/local/bin/appos-monitor-agent
 COPY --from=terraform-bin /bin/terraform /usr/local/bin/terraform
+COPY --from=victoriametrics-bin /victoria-metrics-prod /usr/local/bin/victoria-metrics-prod
 
 # Download Store Library plugin at build time
 ARG WEBSOFT9_ARTIFACT="https://artifact.websoft9.com/release/websoft9"
@@ -92,6 +100,7 @@ RUN mkdir -p \
     /appos/data/redis \
     /appos/data/apps \
     /appos/data/pi \
+    /appos/data/victoriametrics \
     /appos/data/workflows \
     /appos/data/templates/apps \
     /appos/data/templates/workflows \
@@ -109,11 +118,14 @@ COPY --chmod=755 build/entrypoint.sh /entrypoint.sh
 # Verify critical files
 RUN set -eux; \
     test -x /usr/local/bin/appos || { echo "ERROR: appos binary not found"; exit 1; }; \
+    test -x /usr/local/bin/appos-monitor-agent || { echo "ERROR: appos-monitor-agent binary not found"; exit 1; }; \
+    test -x /usr/local/bin/victoria-metrics-prod || { echo "ERROR: victoria-metrics-prod binary not found"; exit 1; }; \
     test -x /usr/local/bin/pi || { echo "ERROR: pi binary not found"; exit 1; }; \
     test -x /entrypoint.sh || { echo "ERROR: entrypoint.sh not executable"; exit 1; }; \
     nginx -t || { echo "ERROR: nginx config invalid"; exit 1; }
 
-ENV PI_CODING_AGENT_DIR=/appos/data/pi
+ENV PI_CODING_AGENT_DIR=/appos/data/pi \
+    TSDB_ADDR=http://127.0.0.1:8428
 
 EXPOSE 80
 

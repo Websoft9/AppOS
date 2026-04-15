@@ -316,8 +316,8 @@ func handleMonitorAgentSetup(e *core.RequestEvent) error {
 		"serverId":      server.Id,
 		"token":         token,
 		"ingestBaseUrl": baseURL + "/api/monitor/ingest",
-		"systemdUnit":   monitorSystemdUnit(baseURL),
-		"configYaml":    fmt.Sprintf("server_id: %s\ninterval: %s\ningest_base_url: %s/api/monitor/ingest\ntoken: %s\n", server.Id, monitor.ExpectedHeartbeatInterval, baseURL, token),
+		"systemdUnit":   monitorSystemdUnit(),
+		"configYaml":    monitorAgentConfigYAML(server.Id, baseURL, token),
 	})
 }
 
@@ -432,6 +432,9 @@ func handleMonitorTargetSeries(e *core.RequestEvent) error {
 	if window == "" {
 		window = "1h"
 	}
+	options := monitor.MetricSeriesQueryOptions{
+		NetworkInterface: strings.TrimSpace(e.Request.URL.Query().Get("networkInterface")),
+	}
 	requestedSeries := []string{}
 	if raw := strings.TrimSpace(e.Request.URL.Query().Get("series")); raw != "" {
 		requestedSeries = append(requestedSeries, raw)
@@ -442,6 +445,7 @@ func handleMonitorTargetSeries(e *core.RequestEvent) error {
 		e.Request.PathValue("targetId"),
 		window,
 		requestedSeries,
+		options,
 	)
 	if err != nil {
 		return e.BadRequestError("failed to query monitor series", err)
@@ -482,16 +486,101 @@ func monitorBaseURL(e *core.RequestEvent) string {
 	if strings.EqualFold(strings.TrimSpace(e.Request.Header.Get("X-Forwarded-Proto")), "https") || e.Request.TLS != nil {
 		scheme = "https"
 	}
-	host := e.Request.Host
-	if host == "" {
-		host = e.Request.Header.Get("X-Forwarded-Host")
-	}
-	if host == "" {
-		host = "localhost"
-	}
-	return scheme + "://" + host
+	return scheme + "://" + resolveMonitorHTTPHost(e)
 }
 
-func monitorSystemdUnit(baseURL string) string {
-	return "[Unit]\nDescription=AppOS Monitor Agent\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=simple\nExecStart=/usr/local/bin/appos-monitor-agent --config /etc/appos-monitor-agent.yaml\nRestart=always\nRestartSec=5\nEnvironment=APPOS_MONITOR_BASE_URL=" + baseURL + "\n\n[Install]\nWantedBy=multi-user.target\n"
+func resolveMonitorHTTPHost(e *core.RequestEvent) string {
+	host := firstForwardedHostValue(e.Request.Host)
+	forwardedHost := firstForwardedHostValue(e.Request.Header.Get("X-Forwarded-Host"))
+	if host == "" {
+		host = forwardedHost
+	}
+	if forwardedHost != "" && forwardedHostCarriesPort(host, forwardedHost) {
+		host = forwardedHost
+	}
+	if !hostHasExplicitPort(host) {
+		if forwardedPort := firstForwardedPortValue(e.Request.Header.Get("X-Forwarded-Port")); forwardedPort != "" {
+			host = appendPortIfMissing(host, forwardedPort)
+		}
+	}
+	if host == "" {
+		host = "appos-host"
+	}
+	return host
+}
+
+func firstForwardedHostValue(value string) string {
+	value = strings.TrimSpace(value)
+	if idx := strings.Index(value, ","); idx >= 0 {
+		value = strings.TrimSpace(value[:idx])
+	}
+	return value
+}
+
+func firstForwardedPortValue(value string) string {
+	value = firstForwardedHostValue(value)
+	if value == "" {
+		return ""
+	}
+	for _, ch := range value {
+		if ch < '0' || ch > '9' {
+			return ""
+		}
+	}
+	return value
+}
+
+func forwardedHostCarriesPort(requestHost string, forwardedHost string) bool {
+	if !hostHasExplicitPort(forwardedHost) {
+		return false
+	}
+	if requestHost == "" || !hostHasExplicitPort(requestHost) {
+		return sameHostWithoutPort(requestHost, forwardedHost)
+	}
+	return false
+}
+
+func sameHostWithoutPort(left string, right string) bool {
+	return stripOptionalPort(left) == stripOptionalPort(right)
+}
+
+func stripOptionalPort(host string) string {
+	if strings.HasPrefix(host, "[") {
+		if idx := strings.LastIndex(host, "]:"); idx >= 0 {
+			return host[:idx+1]
+		}
+		return host
+	}
+	idx := strings.LastIndex(host, ":")
+	if idx <= 0 || strings.Contains(host[:idx], ":") {
+		return host
+	}
+	for _, ch := range host[idx+1:] {
+		if ch < '0' || ch > '9' {
+			return host
+		}
+	}
+	return host[:idx]
+}
+
+func hostHasExplicitPort(host string) bool {
+	return stripOptionalPort(host) != host
+}
+
+func appendPortIfMissing(host string, port string) string {
+	if host == "" || port == "" || hostHasExplicitPort(host) {
+		return host
+	}
+	if strings.HasPrefix(host, "[") {
+		return host + ":" + port
+	}
+	return host + ":" + port
+}
+
+func monitorAgentConfigYAML(serverID string, baseURL string, token string) string {
+	return fmt.Sprintf("server_id: %s\ninterval: %s\ningest_base_url: %s/api/monitor/ingest\ntoken: %s\ntimeout: 10s\n", serverID, monitor.ExpectedHeartbeatInterval, baseURL, token)
+}
+
+func monitorSystemdUnit() string {
+	return "[Unit]\nDescription=AppOS Monitor Agent\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=simple\nExecStart=/usr/local/bin/appos-monitor-agent --config /etc/appos-monitor-agent.yaml\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\n"
 }

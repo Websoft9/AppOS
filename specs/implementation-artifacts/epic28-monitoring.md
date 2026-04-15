@@ -75,6 +75,18 @@ The epic defines four monitoring subdomains:
 
 The product should read primarily from normalized status projections rather than query raw time-series data for every page load. Trend charts may query the time-series store directly for short windows.
 
+### Current Server Metrics Chain
+
+The current server-metric implementation is intentionally narrow and push-first:
+
+- Netdata runs on each managed server under systemd
+- Netdata exports selected host charts by Prometheus remote write
+- managed servers push to AppOS `/api/monitor/netdata/write`
+- AppOS public ingress forwards that path to embedded `VictoriaMetrics /api/v1/write`
+- AppOS monitor APIs query VictoriaMetrics for short-window CPU, memory, disk, and network trends
+
+This keeps AppOS as the control and presentation plane while Netdata remains the collector.
+
 ### Minimal Domain Flow
 
 ```text
@@ -122,7 +134,7 @@ overview + detail surfaces
 
 ### 28.2 Agent Ingestion and Metrics Pipeline
 
-- Introduce a lightweight server-side agent contract intended to run under systemd on managed servers
+- Standardize the managed-server metrics collector contract with Netdata running under systemd
 - Add ingestion endpoints for metrics, heartbeat, and runtime summary
 - Store host and container metrics in `VictoriaMetrics`
 - Record agent freshness and stale-heartbeat detection in the business store
