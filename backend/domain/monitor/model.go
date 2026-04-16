@@ -66,12 +66,17 @@ type MetricSeriesSegment struct {
 
 type MetricSeriesQueryOptions struct {
 	NetworkInterface string
+	StartAt          *time.Time
+	EndAt            *time.Time
 }
 
 type MetricSeriesResponse struct {
 	TargetType                 string         `json:"targetType"`
 	TargetID                   string         `json:"targetId"`
 	Window                     string         `json:"window"`
+	RangeStartAt               string         `json:"rangeStartAt,omitempty"`
+	RangeEndAt                 string         `json:"rangeEndAt,omitempty"`
+	StepSeconds                int            `json:"stepSeconds,omitempty"`
 	Series                     []MetricSeries `json:"series"`
 	AvailableNetworkInterfaces []string       `json:"availableNetworkInterfaces,omitempty"`
 	SelectedNetworkInterface   string         `json:"selectedNetworkInterface,omitempty"`
@@ -91,6 +96,7 @@ type LatestStatusUpsert struct {
 	LastReportedAt          *time.Time
 	ConsecutiveFailures     *int
 	Summary                 map[string]any
+	StatusPriorityMap       map[string]int
 	PreserveStrongerFailure bool
 }
 
@@ -114,6 +120,7 @@ type OverviewResponse struct {
 type HeartbeatProjection struct {
 	Status         string
 	Reason         string
+	ReasonCode     string
 	HeartbeatState string
 	ObservedAt     time.Time
 }

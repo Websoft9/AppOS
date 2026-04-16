@@ -104,6 +104,9 @@ describe('ServiceInstancesPage', () => {
         if (path === '/api/instances' && (!options?.method || options.method === 'GET')) {
           return Promise.resolve([])
         }
+        if (path.startsWith('/api/collections/monitor_latest_status/records?')) {
+          return Promise.resolve({ items: [] })
+        }
         if (path === '/api/instances' && options?.method === 'POST') {
           return Promise.resolve({
             id: 'instance-created',
@@ -288,6 +291,18 @@ describe('ServiceInstancesPage', () => {
           },
         ])
       }
+      if (path.startsWith('/api/collections/monitor_latest_status/records?')) {
+        return Promise.resolve({
+          items: [
+            {
+              target_id: 'instance-1',
+              status: 'unreachable',
+              reason: 'dial tcp 127.0.0.1:6379: connect: connection refused',
+              last_checked_at: '2026-04-11T10:00:00Z',
+            },
+          ],
+        })
+      }
       if (path.startsWith('/api/collections/secrets/records?filter=')) {
         return Promise.resolve({ items: [{ id: 'secret-1', name: 'db-password' }] })
       }
@@ -308,6 +323,9 @@ describe('ServiceInstancesPage', () => {
     await waitFor(() => {
       expect(screen.getByText('mysql-prod')).toBeInTheDocument()
     })
+
+    expect(screen.getByText('Unreachable')).toBeInTheDocument()
+    expect(screen.getByText('Apr 11, 2026, 10:00 AM')).toBeInTheDocument()
 
     expect(sendMock).not.toHaveBeenCalledWith(
       '/api/instances/reachability',

@@ -1,0 +1,186 @@
+[
+  {
+    "id": "resource-mysql-generic",
+    "targetType": "resource",
+    "kind": "mysql",
+    "templateIds": ["generic-mysql"],
+    "enabledChecks": ["reachability"],
+    "statusPriority": {
+      "credential_invalid": 5,
+      "unreachable": 4,
+      "degraded": 3,
+      "offline": 2,
+      "unknown": 1,
+      "healthy": 0
+    },
+    "checks": {
+      "reachability": {
+        "requireEndpoint": true,
+        "statusMap": {
+          "online": "healthy",
+          "offline": "unreachable",
+          "unknown": "unknown"
+        },
+        "reasonMap": {
+          "offline": "endpoint is unreachable",
+          "unknown": "reachability result is unknown"
+        },
+        "reasonCodeMap": {
+          "offline": "endpoint_unreachable",
+          "unknown": "reachability_unknown"
+        }
+      }
+    }
+  },
+  {
+    "id": "resource-postgres-generic",
+    "targetType": "resource",
+    "kind": "postgres",
+    "templateIds": ["generic-postgres"],
+    "enabledChecks": ["reachability"],
+    "statusPriority": {
+      "credential_invalid": 5,
+      "unreachable": 4,
+      "degraded": 3,
+      "offline": 2,
+      "unknown": 1,
+      "healthy": 0
+    },
+    "checks": {
+      "reachability": {
+        "requireEndpoint": true,
+        "statusMap": {
+          "online": "healthy",
+          "offline": "unreachable",
+          "unknown": "unknown"
+        },
+        "reasonMap": {
+          "offline": "endpoint is unreachable",
+          "unknown": "reachability result is unknown"
+        },
+        "reasonCodeMap": {
+          "offline": "endpoint_unreachable",
+          "unknown": "reachability_unknown"
+        }
+      }
+    }
+  },
+  {
+    "id": "resource-redis-generic",
+    "targetType": "resource",
+    "kind": "redis",
+    "templateIds": ["generic-redis"],
+    "enabledChecks": ["reachability", "credential"],
+    "statusPriority": {
+      "credential_invalid": 5,
+      "unreachable": 4,
+      "degraded": 3,
+      "offline": 2,
+      "unknown": 1,
+      "healthy": 0
+    },
+    "checks": {
+      "reachability": {
+        "requireEndpoint": true,
+        "statusMap": {
+          "online": "healthy",
+          "offline": "unreachable",
+          "unknown": "unknown"
+        },
+        "reasonMap": {
+          "offline": "endpoint is unreachable",
+          "unknown": "reachability result is unknown"
+        },
+        "reasonCodeMap": {
+          "offline": "endpoint_unreachable",
+          "unknown": "reachability_unknown"
+        }
+      },
+      "credential": {
+        "requireCredential": true,
+        "statusMap": {
+          "success": "healthy",
+          "auth_failed": "credential_invalid",
+          "unreachable": "unreachable",
+          "unknown": "unknown"
+        },
+        "reasonMap": {
+          "auth_failed": "credential validation failed",
+          "unreachable": "credential target is unreachable",
+          "unknown": "credential validation result is unknown"
+        },
+        "reasonCodeMap": {
+          "auth_failed": "credential_auth_failed",
+          "unreachable": "credential_target_unreachable",
+          "unknown": "credential_check_unknown"
+        }
+      }
+    }
+  },
+  {
+    "id": "resource-kafka-generic",
+    "targetType": "resource",
+    "kind": "kafka",
+    "templateIds": ["generic-kafka"],
+    "enabledChecks": ["reachability"],
+    "statusPriority": {
+      "credential_invalid": 5,
+      "unreachable": 4,
+      "degraded": 3,
+      "offline": 2,
+      "unknown": 1,
+      "healthy": 0
+    },
+    "checks": {
+      "reachability": {
+        "requireEndpoint": true,
+        "statusMap": {
+          "online": "healthy",
+          "offline": "unreachable",
+          "unknown": "unknown"
+        },
+        "reasonMap": {
+          "offline": "endpoint is unreachable",
+          "unknown": "reachability result is unknown"
+        },
+        "reasonCodeMap": {
+          "offline": "endpoint_unreachable",
+          "unknown": "reachability_unknown"
+        }
+      }
+    }
+  },
+  {
+    "id": "resource-ollama-generic",
+    "targetType": "resource",
+    "kind": "ollama",
+    "templateIds": ["generic-ollama"],
+    "enabledChecks": ["reachability"],
+    "statusPriority": {
+      "credential_invalid": 5,
+      "unreachable": 4,
+      "degraded": 3,
+      "offline": 2,
+      "unknown": 1,
+      "healthy": 0
+    },
+    "checks": {
+      "reachability": {
+        "requireEndpoint": true,
+        "statusMap": {
+          "online": "healthy",
+          "offline": "unreachable",
+          "unknown": "unknown"
+        },
+        "reasonMap": {
+          "offline": "endpoint is unreachable",
+          "unknown": "reachability result is unknown"
+        },
+        "reasonCodeMap": {
+          "offline": "endpoint_unreachable",
+          "unknown": "reachability_unknown"
+        }
+      }
+    }
+  }
+]

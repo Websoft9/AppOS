@@ -93,6 +93,10 @@ func ValidateAgentToken(app core.App, plaintext string) (string, error) {
 }
 
 func EvaluateHeartbeat(observedAt, now time.Time) HeartbeatProjection {
+	serverEntry, ok, err := ResolveTargetRegistryEntry(TargetTypeServer, "", "")
+	if err != nil || !ok {
+		serverEntry = TargetRegistryEntry{}
+	}
 	age := now.Sub(observedAt)
 	if age < 0 {
 		age = 0
@@ -100,22 +104,25 @@ func EvaluateHeartbeat(observedAt, now time.Time) HeartbeatProjection {
 	switch {
 	case age > OfflineHeartbeatThreshold:
 		return HeartbeatProjection{
-			Status:         StatusOffline,
-			Reason:         "heartbeat missing",
+			Status:         serverEntry.HeartbeatStatusFor(HeartbeatStateOffline),
+			Reason:         serverEntry.HeartbeatReasonFor(HeartbeatStateOffline, ""),
+			ReasonCode:     serverEntry.HeartbeatReasonCodeFor(HeartbeatStateOffline, ""),
 			HeartbeatState: HeartbeatStateOffline,
 			ObservedAt:     observedAt,
 		}
 	case age > StaleHeartbeatThreshold:
 		return HeartbeatProjection{
-			Status:         StatusUnknown,
-			Reason:         "heartbeat stale",
+			Status:         serverEntry.HeartbeatStatusFor(HeartbeatStateStale),
+			Reason:         serverEntry.HeartbeatReasonFor(HeartbeatStateStale, ""),
+			ReasonCode:     serverEntry.HeartbeatReasonCodeFor(HeartbeatStateStale, ""),
 			HeartbeatState: HeartbeatStateStale,
 			ObservedAt:     observedAt,
 		}
 	default:
 		return HeartbeatProjection{
-			Status:         StatusHealthy,
+			Status:         serverEntry.HeartbeatStatusFor(HeartbeatStateFresh),
 			Reason:         "",
+			ReasonCode:     serverEntry.HeartbeatReasonCodeFor(HeartbeatStateFresh, ""),
 			HeartbeatState: HeartbeatStateFresh,
 			ObservedAt:     observedAt,
 		}
@@ -138,7 +145,7 @@ func UpsertLatestStatus(app core.App, input LatestStatusUpsert) (*core.Record, e
 	}
 
 	existingStatus := record.GetString("status")
-	if input.PreserveStrongerFailure && isStrongerFailure(existingStatus, input.Status) {
+	if input.PreserveStrongerFailure && isStrongerFailure(existingStatus, input.Status, input.StatusPriorityMap) {
 		input.Status = existingStatus
 		input.Reason = record.GetString("reason")
 	}
@@ -183,6 +190,10 @@ func UpsertLatestStatus(app core.App, input LatestStatusUpsert) (*core.Record, e
 }
 
 func RefreshHeartbeatFreshness(app core.App, now time.Time) error {
+	serverEntry, ok, err := ResolveTargetRegistryEntry(TargetTypeServer, "", "")
+	if err != nil || !ok {
+		serverEntry = TargetRegistryEntry{}
+	}
 	records, err := app.FindRecordsByFilter(
 		collections.MonitorLatestStatus,
 		"target_type = {:targetType} && signal_source = {:signalSource}",
@@ -201,7 +212,7 @@ func RefreshHeartbeatFreshness(app core.App, now time.Time) error {
 		}
 		observedAt := value.Time()
 		projection := EvaluateHeartbeat(observedAt, now)
-		if isStrongerFailure(record.GetString("status"), projection.Status) {
+		if isStrongerFailure(record.GetString("status"), projection.Status, serverEntry.StatusPriority) {
 			continue
 		}
 		summary, _ := summaryFromAny(record.Get("summary_json"))
@@ -209,6 +220,7 @@ func RefreshHeartbeatFreshness(app core.App, now time.Time) error {
 			summary = map[string]any{}
 		}
 		summary["heartbeat_state"] = projection.HeartbeatState
+		ApplyReasonCode(summary, projection.ReasonCode)
 
 		failures := record.GetInt("consecutive_failures")
 		lastFailureAt := (*time.Time)(nil)
@@ -234,6 +246,7 @@ func RefreshHeartbeatFreshness(app core.App, now time.Time) error {
 			LastReportedAt:          &observedAt,
 			ConsecutiveFailures:     &failures,
 			Summary:                 summary,
+			StatusPriorityMap:       serverEntry.StatusPriority,
 			PreserveStrongerFailure: true,
 		})
 		if err != nil {
@@ -397,19 +410,10 @@ func synthesizeAppTargetStatus(app core.App, targetID string) (*TargetStatusResp
 			runtimeStatus = "error"
 		}
 	}
-	status := StatusUnknown
-	reason := "app monitoring has not reported yet"
-	switch runtimeStatus {
-	case "running":
-		status = StatusHealthy
-		reason = ""
-	case "error", "failed":
-		status = StatusDegraded
-		reason = firstNonEmpty(healthSummary, "app runtime unhealthy")
-	case "stopped", "exited":
-		status = StatusUnknown
-		reason = "app is not running"
-	}
+	appEntry := ResolveAppBaselineTarget()
+	outcome := AppHealthOutcomeFromRuntimeState(runtimeStatus)
+	status := appEntry.AppHealthStatusFor(outcome)
+	reason := appEntry.AppHealthReasonFor(outcome, healthSummary)
 	transitionAt := appRecord.GetDateTime("updated").String()
 	if strings.TrimSpace(transitionAt) == "" {
 		transitionAt = appRecord.GetDateTime("created").String()
@@ -430,6 +434,7 @@ func synthesizeAppTargetStatus(app core.App, targetID string) (*TargetStatusResp
 		ConsecutiveFailures: 0,
 		Summary: map[string]any{
 			"monitoring_state":    "awaiting_runtime_projection",
+			"reason_code":         appEntry.AppHealthReasonCodeFor(outcome, ""),
 			"runtime_status":      runtimeStatus,
 			"lifecycle_state":     lifecycleState,
 			"health_summary":      healthSummary,
@@ -485,6 +490,18 @@ func CloneSummary(summary map[string]any) map[string]any {
 	return cloned
 }
 
+func ApplyReasonCode(summary map[string]any, reasonCode string) {
+	if summary == nil {
+		return
+	}
+	trimmed := strings.TrimSpace(strings.ToLower(reasonCode))
+	if trimmed == "" {
+		delete(summary, "reason_code")
+		return
+	}
+	summary["reason_code"] = trimmed
+}
+
 func LoadExistingSummary(app core.App, targetType, targetID string) map[string]any {
 	record, err := app.FindFirstRecordByFilter(
 		collections.MonitorLatestStatus,
@@ -508,11 +525,17 @@ func SummaryFromRecord(record *core.Record) (map[string]any, error) {
 	return CloneSummary(summary), nil
 }
 
-func isStrongerFailure(existingStatus, nextStatus string) bool {
-	return statusPriority(existingStatus) > statusPriority(nextStatus)
+func isStrongerFailure(existingStatus, nextStatus string, priorityMap map[string]int) bool {
+	return statusPriorityWithMap(existingStatus, priorityMap) > statusPriorityWithMap(nextStatus, priorityMap)
 }
 
-func statusPriority(status string) int {
+func statusPriorityWithMap(status string, priorityMap map[string]int) int {
+	status = strings.TrimSpace(strings.ToLower(status))
+	if priorityMap != nil {
+		if value, ok := priorityMap[status]; ok {
+			return value
+		}
+	}
 	switch status {
 	case StatusCredentialInvalid:
 		return 5

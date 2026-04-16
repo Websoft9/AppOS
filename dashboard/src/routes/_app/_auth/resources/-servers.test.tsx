@@ -1,5 +1,6 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AnchorHTMLAttributes, ReactNode } from 'react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ServersPage } from './servers'
 
 const navigateMock = vi.fn()
@@ -12,6 +13,9 @@ vi.mock('@tanstack/react-router', () => ({
     useSearch: () => searchState,
     useNavigate: () => navigateMock,
   }),
+  Link: ({ children, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { children?: ReactNode }) => (
+    <a {...props}>{children}</a>
+  ),
 }))
 
 vi.mock('@/lib/pb', () => ({
@@ -58,6 +62,10 @@ describe('ServersPage layout', () => {
     ])
   })
 
+  afterEach(() => {
+    cleanup()
+  })
+
   it('uses the updated page header controls', async () => {
     render(<ServersPage />)
 
@@ -81,5 +89,40 @@ describe('ServersPage layout', () => {
     const menuText = (await screen.findByText('Restart')).parentElement?.parentElement?.textContent ?? ''
     expect(menuText.indexOf('Restart')).toBeLessThan(menuText.indexOf('Shutdown'))
     expect(menuText.indexOf('Shutdown')).toBeLessThan(menuText.indexOf('Add Favorite'))
+  })
+
+  it('shows the tunnel tab only for tunnel-connected servers', async () => {
+    searchState = { server: 'server-1', tab: 'detail' }
+    getFullListMock.mockResolvedValue([
+      {
+        id: 'server-1',
+        name: 'alpha',
+        connect_type: 'tunnel',
+        host: '10.0.0.1',
+        port: 22,
+        user: 'root',
+        created: '2026-04-16 00:00:00.000Z',
+        updated: '2026-04-16 01:00:00.000Z',
+        tunnel_services: [{ service_name: 'ssh', tunnel_port: 2201 }],
+      },
+    ])
+
+    render(<ServersPage />)
+
+    expect(await screen.findByRole('tab', { name: 'Tunnel' })).toBeInTheDocument()
+    expect(screen.getByText('Record Fields')).toBeInTheDocument()
+    expect(screen.queryByText('Connection')).not.toBeInTheDocument()
+  })
+
+  it('hides the tunnel tab for direct servers', async () => {
+    searchState = { server: 'server-1', tab: 'detail' }
+
+    render(<ServersPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Overview')).toBeInTheDocument()
+    })
+    expect(screen.queryByRole('tab', { name: 'Tunnel' })).toBeNull()
+    expect(screen.queryByText('Tunnel Services')).toBeNull()
   })
 })

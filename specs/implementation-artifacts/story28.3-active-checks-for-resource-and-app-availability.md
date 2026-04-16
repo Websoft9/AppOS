@@ -9,6 +9,9 @@
 
 Add AppOS-owned active checks so resource reachability, credential usability, and selected app health do not depend only on agent self-report.
 
+These checks belong to the `monitoring` domain.
+Resource, app, and server domains continue to own target identity and endpoint metadata, but scheduling, execution policy, result normalization, and latest-status projection belong to monitoring.
+
 ## Scope
 
 - Scheduled reachability checks for resources and selected endpoints
@@ -56,6 +59,8 @@ Supported MVP check kinds:
 - `credential`
 - `app_health`
 
+Existing request-time probe helpers in other domains may be reused internally by executors, but they should not remain the system of record for operator-facing health state.
+
 Suggested minimal executor contract:
 
 ```go
@@ -85,10 +90,19 @@ MVP should reuse existing platform infrastructure:
 - PocketBase cron for periodic scheduling
 - Asynq worker for execution isolation and retries where useful
 
+Primary operating mode should be scheduled execution with persisted monitoring results.
+On-demand execution may remain available as a manual diagnostic or refresh action, but business pages should consume stored monitoring status by default.
+
 Recommended split:
 
 - cron triggers enqueue or invoke check batches on schedule
 - worker executes the actual checks and writes results
+
+Ownership split:
+
+- `monitoring scheduler` decides when a check runs
+- `monitoring executor` performs the check
+- business domains provide target metadata and safe validation inputs
 
 Why this split:
 
@@ -125,6 +139,8 @@ Minimal actions:
 - TCP dial
 - HTTP GET or HEAD to health endpoint
 - optional TLS handshake check if that is the real operator concern
+
+Reachability should be modeled as a monitoring check kind first, not as a resource-page-only feature.
 
 ### Credential Usability
 
@@ -265,3 +281,51 @@ Similarly, scheduling should reuse the existing cron and worker infrastructure a
 - Multi-step remediation
 - Notification routing
 - Broad plugin system for arbitrary checks
+
+## Dev Agent Record
+
+- Implemented the first `28.3` execution slice for monitoring-owned `reachability` checks.
+- Reused the existing instance TCP probe logic by moving it behind `backend/domain/monitor/reachability.go`.
+- Added scheduled trigger wiring through PocketBase cron and Asynq task execution.
+- Scoped the first pass to `resource instances` only and projected results into `monitor_latest_status`.
+- Kept `/api/instances/reachability` as an on-demand diagnostic surface.
+- Updated monitor route tests to use current timestamps so heartbeat semantics remain stable over time.
+- Moved heartbeat freshness from implicit overview-read refresh into an explicit monitoring cron + worker task.
+- Wired the service instances resource page to consume `monitor_latest_status` directly for resource targets.
+- Added list-level monitor status and last-checked display so resource operators consume projected monitoring state instead of request-time probes.
+- Added an initial monitoring-owned target registry overlay inside the monitor domain.
+- Refactored reachability sweep to resolve eligible resource-instance targets through that registry before probing, instead of sweeping every instance record indiscriminately.
+- Extended the registry schema to declare `server` and `app` target baselines as capability entries, without adding new active probes yet.
+- Added the first registry-driven non-reachability active check: `credential` for `generic-redis` resource instances, using system secret resolution plus a minimal Redis `PING` validation action.
+- Added `monitor_credential_checks` cron + worker wiring and kept the first credential slice scoped to redis instances only.
+- Moved initial `reachability` and `credential` status mappings into the monitoring target registry overlay so target policies, not hardcoded switch branches, define outcome-to-status projection.
+- Updated heartbeat freshness projection to consume the server baseline registry mapping, so `fresh/stale/offline` heartbeat outcomes now follow monitoring target policy instead of a hardcoded status switch.
+- Updated app target synthesis and runtime-status projection to consume the app baseline registry mapping, so app-health status derivation now follows monitoring target policy instead of route/service-local switches.
+- Moved initial status precedence into monitoring target registry entries so current resource/server/app projections can preserve stronger failures using target policy instead of only a global hardcoded priority table.
+- Moved initial failure-reason defaults into monitoring target registry policies so heartbeat, reachability, credential, and app-health projections now share target-defined fallback reason semantics instead of scattered hardcoded strings.
+
+### Tests Run
+
+- `cd /data/dev/appos/backend && go test ./domain/monitor ./domain/worker`
+- `cd /data/dev/appos/backend && go test ./domain/routes ./platform/hooks ./cmd/appos`
+- `cd /data/dev/appos/dashboard && npm test -- --run src/routes/_app/_auth/resources/-service-instances.test.tsx`
+
+## File List
+
+- `backend/domain/monitor/reachability.go`
+- `backend/domain/monitor/target_registry.go`
+- `backend/domain/monitor/credential.go`
+- `backend/domain/monitor/credential_test.go`
+- `backend/domain/monitor/target_registry_test.go`
+- `backend/domain/monitor/targets/resource-instances.json`
+- `backend/domain/monitor/targets/server-apps.json`
+- `backend/domain/routes/instances.go`
+- `backend/domain/routes/monitor_test.go`
+- `backend/domain/worker/monitoring_checks.go`
+- `backend/domain/worker/monitoring_checks_test.go`
+- `backend/domain/worker/worker.go`
+- `backend/platform/hooks/cron.go`
+- `backend/platform/hooks/hooks.go`
+- `backend/cmd/appos/main.go`
+- `dashboard/src/routes/_app/_auth/resources/service-instances.tsx`
+- `dashboard/src/routes/_app/_auth/resources/-service-instances.test.tsx`

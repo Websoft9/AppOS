@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -247,7 +248,8 @@ func TestMonitorHeartbeatIngestCreatesLatestStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	body := `{"serverId":"` + server.Id + `","agentVersion":"0.1.0","reportedAt":"2026-04-14T12:00:00Z","items":[{"targetType":"server","targetId":"` + server.Id + `","status":"healthy","observedAt":"2026-04-14T12:00:00Z"}]}`
+	nowRaw := time.Now().UTC().Format(time.RFC3339)
+	body := `{"serverId":"` + server.Id + `","agentVersion":"0.1.0","reportedAt":"` + nowRaw + `","items":[{"targetType":"server","targetId":"` + server.Id + `","status":"healthy","observedAt":"` + nowRaw + `"}]}`
 	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/heartbeat", body, "Bearer "+token)
 	if rec.Code != http.StatusAccepted {
 		t.Fatalf("expected 202, got %d: %s", rec.Code, rec.Body.String())
@@ -264,24 +266,25 @@ func TestMonitorHeartbeatIngestCreatesLatestStatus(t *testing.T) {
 	}
 }
 
-func TestMonitorOverviewRefreshesOfflineHeartbeat(t *testing.T) {
+func TestMonitorOverviewReturnsProjectedOfflineHeartbeat(t *testing.T) {
 	te := newMonitorTestEnv(t)
 	defer te.cleanup()
 
 	server := createMonitorServer(t, te, "prod-01")
-	staleAt := time.Now().UTC().Add(-monitor.OfflineHeartbeatThreshold).Add(-time.Minute)
+	now := time.Now().UTC()
 	zeroFailures := 0
 	if _, err := monitor.UpsertLatestStatus(te.app, monitor.LatestStatusUpsert{
 		TargetType:          monitor.TargetTypeServer,
 		TargetID:            server.Id,
 		DisplayName:         server.GetString("name"),
-		Status:              monitor.StatusHealthy,
+		Status:              monitor.StatusOffline,
+		Reason:              "heartbeat missing",
 		SignalSource:        monitor.SignalSourceAgent,
-		LastTransitionAt:    staleAt,
-		LastSuccessAt:       &staleAt,
-		LastReportedAt:      &staleAt,
+		LastTransitionAt:    now,
+		LastFailureAt:       &now,
+		LastReportedAt:      &now,
 		ConsecutiveFailures: &zeroFailures,
-		Summary:             map[string]any{"heartbeat_state": monitor.HeartbeatStateFresh},
+		Summary:             map[string]any{"heartbeat_state": monitor.HeartbeatStateOffline},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -434,7 +437,8 @@ func TestMonitorMetricsIngestWritesAllowedSeries(t *testing.T) {
 	})
 	defer restore()
 
-	body := `{"serverId":"` + server.Id + `","reportedAt":"2026-04-14T12:00:00Z","items":[{"targetType":"server","targetId":"` + server.Id + `","series":"appos_host_cpu_usage","value":0.42,"labels":{"hostname":"prod-01"},"observedAt":"2026-04-14T12:00:00Z"}]}`
+	nowRaw := time.Now().UTC().Format(time.RFC3339)
+	body := `{"serverId":"` + server.Id + `","reportedAt":"` + nowRaw + `","items":[{"targetType":"server","targetId":"` + server.Id + `","series":"appos_host_cpu_usage","value":0.42,"labels":{"hostname":"prod-01"},"observedAt":"` + nowRaw + `"}]}`
 	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/metrics", body, "Bearer "+token)
 	if rec.Code != http.StatusAccepted {
 		t.Fatalf("expected 202, got %d: %s", rec.Code, rec.Body.String())
@@ -456,7 +460,8 @@ func TestMonitorMetricsIngestRejectsUnknownSeries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	body := `{"serverId":"` + server.Id + `","reportedAt":"2026-04-14T12:00:00Z","items":[{"targetType":"server","targetId":"` + server.Id + `","series":"appos_unknown_metric","value":1,"observedAt":"2026-04-14T12:00:00Z"}]}`
+	nowRaw := time.Now().UTC().Format(time.RFC3339)
+	body := `{"serverId":"` + server.Id + `","reportedAt":"` + nowRaw + `","items":[{"targetType":"server","targetId":"` + server.Id + `","series":"appos_unknown_metric","value":1,"observedAt":"` + nowRaw + `"}]}`
 	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/metrics", body, "Bearer "+token)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
@@ -491,7 +496,8 @@ func TestMonitorRuntimeStatusIngestMergesServerSummary(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	body := `{"serverId":"` + server.Id + `","reportedAt":"2026-04-14T12:05:00Z","items":[{"targetType":"server","targetId":"` + server.Id + `","runtimeState":"running","observedAt":"2026-04-14T12:05:00Z","containers":{"running":3,"restarting":1,"exited":0},"apps":[{"appId":"` + appOne.Id + `","runtimeState":"running"},{"appId":"` + appTwo.Id + `","runtimeState":"restarting"}]}]}`
+	observedAtRaw := now.Add(5 * time.Minute).Format(time.RFC3339)
+	body := `{"serverId":"` + server.Id + `","reportedAt":"` + observedAtRaw + `","items":[{"targetType":"server","targetId":"` + server.Id + `","runtimeState":"running","observedAt":"` + observedAtRaw + `","containers":{"running":3,"restarting":1,"exited":0},"apps":[{"appId":"` + appOne.Id + `","runtimeState":"running"},{"appId":"` + appTwo.Id + `","runtimeState":"restarting"}]}]}`
 	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/runtime-status", body, "Bearer "+token)
 	if rec.Code != http.StatusAccepted {
 		t.Fatalf("expected 202, got %d: %s", rec.Code, rec.Body.String())
@@ -506,6 +512,9 @@ func TestMonitorRuntimeStatusIngestMergesServerSummary(t *testing.T) {
 	}
 	if summary["heartbeat_state"] != "fresh" {
 		t.Fatalf("expected heartbeat summary preserved, got %+v", summary)
+	}
+	if _, ok := summary["reason_code"]; ok {
+		t.Fatalf("expected healthy server runtime summary to omit reason_code, got %+v", summary)
 	}
 	if summary["runtime_state"] != "running" || summary["containers_running"] != float64(3) {
 		t.Fatalf("expected runtime summary merged, got %+v", summary)
@@ -524,6 +533,13 @@ func TestMonitorRuntimeStatusIngestMergesServerSummary(t *testing.T) {
 	if appRecord.GetString("status") != monitor.StatusDegraded {
 		t.Fatalf("expected degraded app status from runtime projection, got %q", appRecord.GetString("status"))
 	}
+	appSummary, err := monitor.SummaryFromRecord(appRecord)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if appSummary["reason_code"] != "app_runtime_unhealthy" {
+		t.Fatalf("expected app_runtime_unhealthy reason_code, got %+v", appSummary)
+	}
 }
 
 func TestMonitorRuntimeStatusRejectsMismatchedTarget(t *testing.T) {
@@ -535,7 +551,8 @@ func TestMonitorRuntimeStatusRejectsMismatchedTarget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	body := `{"serverId":"` + server.Id + `","reportedAt":"2026-04-14T12:05:00Z","items":[{"targetType":"server","targetId":"other","runtimeState":"running","observedAt":"2026-04-14T12:05:00Z"}]}`
+	nowRaw := time.Now().UTC().Format(time.RFC3339)
+	body := `{"serverId":"` + server.Id + `","reportedAt":"` + nowRaw + `","items":[{"targetType":"server","targetId":"other","runtimeState":"running","observedAt":"` + nowRaw + `"}]}`
 	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/runtime-status", body, "Bearer "+token)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
@@ -596,6 +613,45 @@ func TestMonitorAppTargetSeriesReturnsShortWindowData(t *testing.T) {
 	})
 	defer restore()
 	rec := te.doMonitor(t, http.MethodGet, "/api/monitor/targets/app/"+appRecord.Id+"/series?window=1h&series=memory", "", te.token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestMonitorTargetSeriesParsesCustomRange(t *testing.T) {
+	te := newMonitorTestEnv(t)
+	defer te.cleanup()
+
+	server := createMonitorServer(t, te, "prod-custom")
+	startAt := "2026-04-14T08:00:00Z"
+	endAt := "2026-04-14T20:00:00Z"
+	restore := monitor.SetMetricQueryFuncForTest(func(_ context.Context, targetType, targetID, window string, seriesNames []string, options monitor.MetricSeriesQueryOptions) (*monitor.MetricSeriesResponse, error) {
+		if targetType != monitor.TargetTypeServer || targetID != server.Id || window != "custom" {
+			t.Fatalf("unexpected custom series query params: %s %s %s %+v", targetType, targetID, window, seriesNames)
+		}
+		if options.StartAt == nil || options.EndAt == nil {
+			t.Fatalf("expected custom range options, got %+v", options)
+		}
+		if options.StartAt.Format(time.RFC3339) != startAt || options.EndAt.Format(time.RFC3339) != endAt {
+			t.Fatalf("unexpected custom range values: %+v", options)
+		}
+		return &monitor.MetricSeriesResponse{
+			TargetType:   targetType,
+			TargetID:     targetID,
+			Window:       window,
+			RangeStartAt: startAt,
+			RangeEndAt:   endAt,
+			StepSeconds:  600,
+			Series: []monitor.MetricSeries{{
+				Name:   "cpu",
+				Unit:   "percent",
+				Points: [][]float64{{1713081600, 12.1}, {1713124800, 18.4}},
+			}},
+		}, nil
+	})
+	defer restore()
+
+	rec := te.doMonitor(t, http.MethodGet, "/api/monitor/targets/server/"+server.Id+"/series?window=custom&series=cpu&startAt="+url.QueryEscape(startAt)+"&endAt="+url.QueryEscape(endAt), "", te.token)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}

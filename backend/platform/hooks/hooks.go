@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/hibiken/asynq"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
@@ -18,9 +19,9 @@ import (
 )
 
 // Register binds all custom event hooks to the PocketBase app.
-func Register(app *pocketbase.PocketBase) {
+func Register(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 	registerAppHooks(app)
-	registerCronHooks(app)
+	registerCronHooks(app, asynqClient)
 	registerSpaceHooks(app)
 	registerSuperuserHooks(app)
 	registerUserAuditHooks(app)

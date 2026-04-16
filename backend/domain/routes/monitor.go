@@ -188,19 +188,10 @@ func handleMonitorRuntimeStatus(e *core.RequestEvent) error {
 						appDisplayName = name
 					}
 				}
-				appStatus := monitor.StatusUnknown
-				appReason := "app runtime reported"
-				switch strings.ToLower(appRuntimeState) {
-				case "running", "healthy":
-					appStatus = monitor.StatusHealthy
-					appReason = ""
-				case "degraded", "restarting":
-					appStatus = monitor.StatusDegraded
-					appReason = "app runtime degraded"
-				case "stopped", "stopping", "exited":
-					appStatus = monitor.StatusUnknown
-					appReason = "app is not running"
-				}
+				appOutcome := monitor.AppHealthOutcomeFromRuntimeState(appRuntimeState)
+				appEntry := monitor.ResolveAppBaselineTarget()
+				appStatus := appEntry.AppHealthStatusFor(appOutcome)
+				appReason := appEntry.AppHealthReasonFor(appOutcome, "")
 				appFailures := 0
 				appLastSuccessAt := (*time.Time)(nil)
 				appLastFailureAt := (*time.Time)(nil)
@@ -213,6 +204,7 @@ func handleMonitorRuntimeStatus(e *core.RequestEvent) error {
 				appSummary := monitor.LoadExistingSummary(e.App, monitor.TargetTypeApp, appID)
 				appSummary["runtime_state"] = appRuntimeState
 				appSummary["server_id"] = body.ServerID
+				monitor.ApplyReasonCode(appSummary, appEntry.AppHealthReasonCodeFor(appOutcome, ""))
 				_, err = monitor.UpsertLatestStatus(e.App, monitor.LatestStatusUpsert{
 					TargetType:              monitor.TargetTypeApp,
 					TargetID:                appID,
@@ -227,6 +219,7 @@ func handleMonitorRuntimeStatus(e *core.RequestEvent) error {
 					LastReportedAt:          &observedAt,
 					ConsecutiveFailures:     &appFailures,
 					Summary:                 appSummary,
+					StatusPriorityMap:       appEntry.StatusPriority,
 					PreserveStrongerFailure: true,
 				})
 				if err != nil {
@@ -260,6 +253,10 @@ func handleMonitorRuntimeStatus(e *core.RequestEvent) error {
 			failures = 1
 			lastFailureAt = &observedAt
 		}
+		serverEntry, ok, resolveErr := monitor.ResolveTargetRegistryEntry(monitor.TargetTypeServer, "", "")
+		if resolveErr != nil || !ok {
+			serverEntry = monitor.TargetRegistryEntry{}
+		}
 		_, err = monitor.UpsertLatestStatus(e.App, monitor.LatestStatusUpsert{
 			TargetType:              monitor.TargetTypeServer,
 			TargetID:                body.ServerID,
@@ -274,6 +271,7 @@ func handleMonitorRuntimeStatus(e *core.RequestEvent) error {
 			LastReportedAt:          &observedAt,
 			ConsecutiveFailures:     &failures,
 			Summary:                 summary,
+			StatusPriorityMap:       serverEntry.StatusPriority,
 			PreserveStrongerFailure: true,
 		})
 		if err != nil {
@@ -361,6 +359,10 @@ func handleMonitorHeartbeat(e *core.RequestEvent) error {
 		return e.BadRequestError("reportedAt must be RFC3339", err)
 	}
 	now := time.Now().UTC()
+	serverEntry, ok, resolveErr := monitor.ResolveTargetRegistryEntry(monitor.TargetTypeServer, "", "")
+	if resolveErr != nil || !ok {
+		serverEntry = monitor.TargetRegistryEntry{}
+	}
 	accepted := 0
 	for _, item := range body.Items {
 		if item.TargetType != monitor.TargetTypeServer {
@@ -380,6 +382,7 @@ func handleMonitorHeartbeat(e *core.RequestEvent) error {
 		summary := map[string]any{
 			"heartbeat_state": projection.HeartbeatState,
 		}
+		monitor.ApplyReasonCode(summary, projection.ReasonCode)
 		if strings.TrimSpace(body.AgentVersion) != "" {
 			summary["agent_version"] = body.AgentVersion
 		}
@@ -406,6 +409,7 @@ func handleMonitorHeartbeat(e *core.RequestEvent) error {
 			LastReportedAt:          &observedAt,
 			ConsecutiveFailures:     &failures,
 			Summary:                 summary,
+			StatusPriorityMap:       serverEntry.StatusPriority,
 			PreserveStrongerFailure: true,
 		})
 		if err != nil {
@@ -417,9 +421,6 @@ func handleMonitorHeartbeat(e *core.RequestEvent) error {
 }
 
 func handleMonitorOverview(e *core.RequestEvent) error {
-	if err := monitor.RefreshHeartbeatFreshness(e.App, time.Now().UTC()); err != nil {
-		return e.InternalServerError("failed to refresh heartbeat freshness", err)
-	}
 	overview, err := monitor.BuildOverview(e.App)
 	if err != nil {
 		return e.InternalServerError("failed to build overview", err)
@@ -432,8 +433,18 @@ func handleMonitorTargetSeries(e *core.RequestEvent) error {
 	if window == "" {
 		window = "1h"
 	}
+	startAt, err := parseMonitorSeriesTimeParam(e.Request.URL.Query().Get("startAt"))
+	if err != nil {
+		return e.BadRequestError("invalid startAt", err)
+	}
+	endAt, err := parseMonitorSeriesTimeParam(e.Request.URL.Query().Get("endAt"))
+	if err != nil {
+		return e.BadRequestError("invalid endAt", err)
+	}
 	options := monitor.MetricSeriesQueryOptions{
 		NetworkInterface: strings.TrimSpace(e.Request.URL.Query().Get("networkInterface")),
+		StartAt:          startAt,
+		EndAt:            endAt,
 	}
 	requestedSeries := []string{}
 	if raw := strings.TrimSpace(e.Request.URL.Query().Get("series")); raw != "" {
@@ -451,6 +462,18 @@ func handleMonitorTargetSeries(e *core.RequestEvent) error {
 		return e.BadRequestError("failed to query monitor series", err)
 	}
 	return e.JSON(http.StatusOK, response)
+}
+
+func parseMonitorSeriesTimeParam(value string) (*time.Time, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return nil, err
+	}
+	return &parsed, nil
 }
 
 func handleMonitorTargetStatus(e *core.RequestEvent) error {

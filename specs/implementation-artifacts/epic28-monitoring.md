@@ -9,7 +9,7 @@ Establish a minimal monitoring domain for AppOS that gives operators one place t
 This epic adopts a push-first hybrid model:
 
 - managed servers run a systemd agent that pushes host, container, and app heartbeat signals to AppOS
-- AppOS executes active checks for reachability, credential usability, and selected health probes
+- AppOS executes monitoring-owned active checks for reachability, credential usability, and selected health probes
 - high-frequency metrics use a dedicated time-series store
 - latest status, check results, and operator-facing summaries remain in the business data store
 
@@ -64,7 +64,12 @@ The epic defines four monitoring subdomains:
 **Collection model**:
 
 - `agent push`: host metrics, container metrics, app heartbeat, local runtime summary
-- `AppOS active check`: reachability checks, credential checks, selected app health probes, AppOS self-observation
+- `AppOS active check`: scheduled reachability checks, credential checks, selected app health probes, AppOS self-observation
+
+Active checks are owned by the `monitoring` domain even when target identity comes from resource, app, or server domains.
+
+Primary operating mode is scheduled evaluation with persisted results.
+On-demand checks may still exist as supplemental diagnostic actions, but operator surfaces should read the monitoring projection first instead of depending on request-time probes.
 
 **Storage split**:
 
@@ -74,6 +79,38 @@ The epic defines four monitoring subdomains:
 **Read model**:
 
 The product should read primarily from normalized status projections rather than query raw time-series data for every page load. Trend charts may query the time-series store directly for short windows.
+
+### High-Level Architecture
+
+```text
+signal producers
+  |
+  +-- managed server agent -------------------+
+  |                                           |
+  +-- AppOS active checks ------------------+ |
+  |                                         | |
+  v                                         v v
+ingest routes / scheduled jobs / worker execution
+        |
+        v
+     monitoring domain core
+     - signal normalization
+     - check policy
+     - latest-status projection
+        |
+     +-------+------------------+
+     |                          |
+     v                          v
+business store                time-series store
+- latest status               - host metrics
+- reasons                     - container metrics
+- summaries                   - short-window trends
+     |                          |
+     +------------+-------------+
+             |
+             v
+        overview + detail surfaces
+```
 
 ### Current Server Metrics Chain
 
@@ -100,6 +137,34 @@ latest status projection
    ↓
 overview + detail surfaces
 ```
+
+### Minimal Signal Semantics
+
+The MVP uses four operator-facing signal types. They should be collected independently where practical, but interpreted together when producing one latest status.
+
+| Signal | Answers | Primary concern |
+|--------|---------|-----------------|
+| `app_health` | Is the application service itself behaving correctly? | serving health |
+| `heartbeat` | Is the target still reporting fresh runtime signal? | liveness / freshness |
+| `reachability` | Can AppOS reach the target over the expected network path? | connectivity |
+| `credential` | Can AppOS complete one minimal safe authenticated action? | authenticated access |
+
+Signal relationship rules:
+
+- signals should not require strict execution chaining; each may be collected on its own schedule
+- signal interpretation is contextual; one failed lower-layer signal may limit what a higher-layer result means
+- final target status must be resolved by precedence, not by whichever signal arrived last
+
+### Minimal Status Adjudication
+
+| Condition | Latest status | Why |
+|----------|---------------|-----|
+| heartbeat is `offline` | `offline` | freshness failure outranks older or partial check success |
+| heartbeat is fresh and reachability fails | `unreachable` | network path failure blocks stronger health claims |
+| heartbeat is fresh, reachability succeeds, credential fails | `credential_invalid` | authenticated access failed after connectivity succeeded |
+| heartbeat is fresh, reachability succeeds, app health fails | `degraded` | service is reachable but not behaving correctly |
+| no reliable signal is available | `unknown` | no trustworthy current judgment |
+| relevant signals succeed | `healthy` | current checks support a healthy operator view |
 
 ### Storage Responsibilities
 
@@ -197,16 +262,22 @@ Implementation may use cron or worker infrastructure, but the business contract 
 - selected app health probes run on AppOS schedule
 - stale heartbeat evaluation runs on AppOS schedule
 
+Recommended MVP implementation:
+
+- PocketBase cron triggers monitoring check batches on schedule
+- Asynq worker executes individual checks and retries where needed
+- manual or on-demand probes remain optional diagnostic helpers, not the primary monitoring path
+
 Exact route placement can still shift during implementation, but the separation between ingest APIs and operator read APIs should remain. Detailed payloads, auth transport, and response fields are owned by Stories 28.2, 28.3, and 28.4.
 
 ---
 
 ## Story Artifacts
 
-- `story28.1-monitoring-domain-foundation.md`
-- `story28.2-agent-ingestion-and-metrics-pipeline.md`
-- `story28.3-active-checks-for-resource-and-app-availability.md`
-- `story28.4-minimal-operator-surfaces.md`
+- `story28.1-monitor-foundation.md`
+- `story28.2-agent-ingestion.md`
+- `story28.3-active-checks.md`
+- `story28.4-operator-surfaces.md`
 
 ---
 

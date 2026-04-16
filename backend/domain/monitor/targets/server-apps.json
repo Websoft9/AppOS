@@ -1,0 +1,69 @@
+[
+  {
+    "id": "server-heartbeat-default",
+    "targetType": "server",
+    "signalSources": ["agent"],
+    "enabledChecks": ["heartbeat"],
+    "statusPriority": {
+      "credential_invalid": 5,
+      "unreachable": 4,
+      "degraded": 3,
+      "offline": 2,
+      "unknown": 1,
+      "healthy": 0
+    },
+    "checks": {
+      "heartbeat": {
+        "statusMap": {
+          "fresh": "healthy",
+          "stale": "unknown",
+          "offline": "offline"
+        },
+        "reasonMap": {
+          "stale": "heartbeat stale",
+          "offline": "heartbeat missing",
+          "unknown": "heartbeat state is unknown"
+        },
+        "reasonCodeMap": {
+          "stale": "heartbeat_stale",
+          "offline": "heartbeat_missing",
+          "unknown": "heartbeat_unknown"
+        }
+      }
+    }
+  },
+  {
+    "id": "app-health-default",
+    "targetType": "app",
+    "signalSources": ["appos_self"],
+    "enabledChecks": ["app_health"],
+    "statusPriority": {
+      "credential_invalid": 5,
+      "unreachable": 4,
+      "degraded": 3,
+      "offline": 2,
+      "unknown": 1,
+      "healthy": 0
+    },
+    "checks": {
+      "app_health": {
+        "statusMap": {
+          "healthy": "healthy",
+          "degraded": "degraded",
+          "offline": "offline",
+          "unknown": "unknown"
+        },
+        "reasonMap": {
+          "degraded": "app runtime unhealthy",
+          "offline": "app is not running",
+          "unknown": "app monitoring has not reported yet"
+        },
+        "reasonCodeMap": {
+          "degraded": "app_runtime_unhealthy",
+          "offline": "app_not_running",
+          "unknown": "app_monitoring_pending"
+        }
+      }
+    }
+  }
+]

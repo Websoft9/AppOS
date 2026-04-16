@@ -11,6 +11,10 @@ import {
 type TimeSeriesChartProps = {
   name: string
   unit: string
+  window: string
+  rangeStartAt?: string
+  rangeEndAt?: string
+  stepSeconds?: number
   points?: number[][]
   segments?: Array<{
     name: string
@@ -21,7 +25,25 @@ type TimeSeriesChartProps = {
 
 type TimeSeriesDatum = {
   timestamp: number
-  [key: string]: number
+  [key: string]: number | null
+}
+
+const WINDOW_STEP_MS: Record<string, number> = {
+  '1h': 60 * 1000,
+  '5h': 5 * 60 * 1000,
+  '12h': 10 * 60 * 1000,
+  '1d': 15 * 60 * 1000,
+  '24h': 15 * 60 * 1000,
+  '7d': 60 * 60 * 1000,
+}
+
+const WINDOW_DURATION_MS: Record<string, number> = {
+  '1h': 60 * 60 * 1000,
+  '5h': 5 * 60 * 60 * 1000,
+  '12h': 12 * 60 * 60 * 1000,
+  '1d': 24 * 60 * 60 * 1000,
+  '24h': 24 * 60 * 60 * 1000,
+  '7d': 7 * 24 * 60 * 60 * 1000,
 }
 
 const SERIES_PALETTE: Record<string, { stroke: string; fill: string }> = {
@@ -43,8 +65,12 @@ const SEGMENT_PALETTE: Record<string, Record<string, { stroke: string; fill: str
     free: { stroke: '#0f766e', fill: '#2dd4bf' },
   },
   disk: {
-    read: { stroke: '#7c2d12', fill: '#fb923c' },
-    write: { stroke: '#a16207', fill: '#facc15' },
+    read: { stroke: '#7e22ce', fill: '#c084fc' },
+    write: { stroke: '#ea580c', fill: '#fb923c' },
+  },
+  network: {
+    in: { stroke: '#0f766e', fill: '#2dd4bf' },
+    out: { stroke: '#1d4ed8', fill: '#60a5fa' },
   },
   network_traffic: {
     in: { stroke: '#0f766e', fill: '#2dd4bf' },
@@ -64,11 +90,21 @@ function formatLabel(value: string): string {
     .join(' ')
 }
 
-function formatAxisTime(timestamp: number): string {
-  return new Intl.DateTimeFormat(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(timestamp))
+function getRangeDurationMs(window: string, rangeStartAt?: string, rangeEndAt?: string): number {
+  const rangeStart = rangeStartAt ? new Date(rangeStartAt) : null
+  const rangeEnd = rangeEndAt ? new Date(rangeEndAt) : null
+  if (rangeStart && rangeEnd && !Number.isNaN(rangeStart.getTime()) && !Number.isNaN(rangeEnd.getTime())) {
+    return Math.max(rangeEnd.getTime() - rangeStart.getTime(), 0)
+  }
+  return WINDOW_DURATION_MS[window] ?? WINDOW_DURATION_MS['1h']
+}
+
+function formatAxisTime(timestamp: number, window: string, rangeStartAt?: string, rangeEndAt?: string): string {
+  const durationMs = getRangeDurationMs(window, rangeStartAt, rangeEndAt)
+  const format = durationMs > 24 * 60 * 60 * 1000
+    ? { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' } as const
+    : { hour: '2-digit', minute: '2-digit' } as const
+  return new Intl.DateTimeFormat(undefined, format).format(new Date(timestamp))
 }
 
 function defaultTickFormatter(value: number): string {
@@ -82,31 +118,87 @@ function defaultTickFormatter(value: number): string {
   return value.toFixed(2)
 }
 
-function mergeSeriesData(points?: number[][], segments?: TimeSeriesChartProps['segments']): TimeSeriesDatum[] {
+function normalizeBucket(timestampMs: number, stepMs: number): number {
+  return Math.round(timestampMs / stepMs) * stepMs
+}
+
+function buildWindowTimeline(window: string, rangeStartAt?: string, rangeEndAt?: string, stepSeconds?: number): number[] {
+  const stepMs = (stepSeconds && stepSeconds > 0 ? stepSeconds * 1000 : WINDOW_STEP_MS[window]) ?? WINDOW_STEP_MS['1h']
+  const durationMs = WINDOW_DURATION_MS[window] ?? WINDOW_DURATION_MS['1h']
+  const rangeStart = rangeStartAt ? new Date(rangeStartAt) : null
+  const rangeEnd = rangeEndAt ? new Date(rangeEndAt) : null
+  const start = rangeStart && !Number.isNaN(rangeStart.getTime())
+    ? Math.floor(rangeStart.getTime() / stepMs) * stepMs
+    : Math.floor((Date.now() - durationMs) / stepMs) * stepMs
+  const end = rangeEnd && !Number.isNaN(rangeEnd.getTime())
+    ? Math.ceil(rangeEnd.getTime() / stepMs) * stepMs
+    : Math.floor(Date.now() / stepMs) * stepMs
+  const timestamps: number[] = []
+  for (let current = start; current <= end; current += stepMs) {
+    timestamps.push(current)
+  }
+  return timestamps
+}
+
+function mergeSeriesData(
+  window: string,
+  rangeStartAt?: string,
+  rangeEndAt?: string,
+  stepSeconds?: number,
+  points?: number[][],
+  segments?: TimeSeriesChartProps['segments']
+): TimeSeriesDatum[] {
+  const stepMs = (stepSeconds && stepSeconds > 0 ? stepSeconds * 1000 : WINDOW_STEP_MS[window]) ?? WINDOW_STEP_MS['1h']
+  const timeline = buildWindowTimeline(window, rangeStartAt, rangeEndAt, stepSeconds)
+  const merged = new Map<number, TimeSeriesDatum>()
+
+  for (const timestamp of timeline) {
+    merged.set(timestamp, { timestamp })
+  }
+
   if (segments && segments.length > 0) {
-    const merged = new Map<number, TimeSeriesDatum>()
     for (const segment of segments) {
       for (const point of segment.points) {
         if (point.length < 2 || !Number.isFinite(point[0]) || !Number.isFinite(point[1])) {
           continue
         }
-        const timestamp = point[0] * 1000
+        const timestamp = normalizeBucket(point[0] * 1000, stepMs)
         const current = merged.get(timestamp) ?? { timestamp }
         current[segment.name] = point[1]
         merged.set(timestamp, current)
       }
     }
-    return Array.from(merged.values()).sort((left, right) => left.timestamp - right.timestamp)
+
+    return Array.from(merged.values())
+      .sort((left, right) => left.timestamp - right.timestamp)
+      .map(item => {
+        const normalized: TimeSeriesDatum = { timestamp: item.timestamp }
+        for (const segment of segments) {
+          normalized[segment.name] = item[segment.name] ?? null
+        }
+        return normalized
+      })
   }
-  return (points ?? [])
-    .filter(point => point.length >= 2 && Number.isFinite(point[0]) && Number.isFinite(point[1]))
-    .map(point => ({
-      timestamp: point[0] * 1000,
-      value: point[1],
+
+  for (const point of points ?? []) {
+    if (point.length < 2 || !Number.isFinite(point[0]) || !Number.isFinite(point[1])) {
+      continue
+    }
+    const timestamp = normalizeBucket(point[0] * 1000, stepMs)
+    const current = merged.get(timestamp) ?? { timestamp }
+    current.value = point[1]
+    merged.set(timestamp, current)
+  }
+
+  return Array.from(merged.values())
+    .sort((left, right) => left.timestamp - right.timestamp)
+    .map(item => ({
+      timestamp: item.timestamp,
+      value: item.value ?? null,
     }))
 }
 
-export function TimeSeriesChart({ name, unit, points, segments, formatValue }: TimeSeriesChartProps) {
+export function TimeSeriesChart({ name, unit, window, rangeStartAt, rangeEndAt, stepSeconds, points, segments, formatValue }: TimeSeriesChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [chartWidth, setChartWidth] = useState(320)
 
@@ -133,9 +225,32 @@ export function TimeSeriesChart({ name, unit, points, segments, formatValue }: T
     }
   }, [])
 
-  const data = mergeSeriesData(points, segments)
+  const data = mergeSeriesData(window, rangeStartAt, rangeEndAt, stepSeconds, points, segments)
+  const shouldStackSegments = name === 'memory' || name === 'disk_usage'
 
-  if (data.length < 2) {
+  const tooltipFormatter = (value: unknown, entryName: unknown, item: { payload?: Record<string, number> }) => {
+  const numericValue = Number(value ?? 0)
+  const seriesName = String(entryName ?? 'value')
+  if (name === 'disk_usage' && item?.payload) {
+    const used = Number(item.payload.used ?? 0)
+    const free = Number(item.payload.free ?? 0)
+    const total = used + free
+    const percentage = total > 0 ? (numericValue / total) * 100 : 0
+    const label = seriesName === 'used'
+      ? `Used (${percentage.toFixed(1)}%)`
+      : seriesName === 'free'
+        ? `Free (${percentage.toFixed(1)}%)`
+        : formatLabel(seriesName)
+    return [formatValue(unit, `${name}_${seriesName}`, numericValue), label]
+  }
+  return [formatValue(unit, `${name}_${seriesName}`, numericValue), seriesName === 'value' ? formatLabel(name) : formatLabel(seriesName)]
+  }
+
+  const actualPointCount = segments && segments.length > 0
+    ? data.filter(item => segments.some(segment => Number.isFinite(item[segment.name] ?? NaN))).length
+    : data.filter(item => Number.isFinite(item.value ?? NaN)).length
+
+  if (actualPointCount < 2) {
     return <div className="flex h-24 items-center justify-center rounded-md border border-dashed text-xs text-muted-foreground">No trend yet</div>
   }
 
@@ -144,7 +259,7 @@ export function TimeSeriesChart({ name, unit, points, segments, formatValue }: T
 
   return (
     <div ref={containerRef} className="h-24 w-full" role="img" aria-label={`${name} time series chart`}>
-      <AreaChart width={resolvedWidth} height={96} data={data} margin={{ top: 6, right: 2, bottom: 0, left: 2 }}>
+      <AreaChart width={resolvedWidth} height={96} data={data} margin={{ top: 6, right: 2, bottom: 0, left: 8 }}>
         <defs>
           {(segments && segments.length > 0 ? segments : [{ name: 'value', points: points ?? [] }]).map(segment => {
             const segmentPalette = SEGMENT_PALETTE[name]?.[segment.name] ?? palette
@@ -163,19 +278,18 @@ export function TimeSeriesChart({ name, unit, points, segments, formatValue }: T
           dataKey="timestamp"
           minTickGap={24}
           tick={{ fontSize: 10, fill: '#64748b' }}
-          tickFormatter={formatAxisTime}
+          tickFormatter={value => formatAxisTime(value, window, rangeStartAt, rangeEndAt)}
           tickLine={false}
           type="number"
           domain={[data[0].timestamp, data[data.length - 1].timestamp]}
         />
         <YAxis
           axisLine={false}
-          mirror
-          orientation="right"
+          orientation="left"
           tick={{ fontSize: 10, fill: '#94a3b8' }}
           tickFormatter={defaultTickFormatter}
           tickLine={false}
-          width={36}
+          width={40}
         />
         <Tooltip
           contentStyle={{
@@ -183,7 +297,7 @@ export function TimeSeriesChart({ name, unit, points, segments, formatValue }: T
             borderColor: '#e2e8f0',
             fontSize: '12px',
           }}
-          formatter={(value, entryName) => [formatValue(unit, `${name}_${String(entryName)}`, Number(value ?? 0)), entryName === 'value' ? formatLabel(name) : formatLabel(String(entryName))]}
+          formatter={tooltipFormatter}
           labelFormatter={label => new Date(Number(label ?? 0)).toLocaleString()}
         />
         {segments && segments.length > 0 ? (
@@ -195,7 +309,7 @@ export function TimeSeriesChart({ name, unit, points, segments, formatValue }: T
                 key={segment.name}
                 type="monotone"
                 dataKey={segment.name}
-                stackId={`${name}-stack`}
+                stackId={shouldStackSegments ? `${name}-stack` : undefined}
                 stroke={segmentPalette.stroke}
                 strokeWidth={1.75}
                 fill={`url(#${gradientId})`}

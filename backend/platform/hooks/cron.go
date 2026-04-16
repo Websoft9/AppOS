@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/hibiken/asynq"
+	"github.com/websoft9/appos/backend/domain/worker"
 	"github.com/websoft9/appos/backend/infra/cronutil"
 	comp "github.com/websoft9/appos/backend/platform/components"
 
@@ -11,13 +13,50 @@ import (
 )
 
 const componentsInventoryCronJobID = "appos_components_inventory_probe"
+const monitorReachabilityCronJobID = "monitor_reachability_checks"
+const monitorHeartbeatFreshnessCronJobID = "monitor_heartbeat_freshness"
+const monitorCredentialCronJobID = "monitor_credential_checks"
 
-func registerCronHooks(app *pocketbase.PocketBase) {
+func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 	app.Cron().MustAdd(
 		componentsInventoryCronJobID,
 		"*/15 * * * *",
 		cronutil.Wrap(app, componentsInventoryCronJobID, func() {
 			if err := runComponentsInventoryProbe(); err != nil {
+				panic(err)
+			}
+		}),
+	)
+
+	if asynqClient == nil {
+		return
+	}
+
+	app.Cron().MustAdd(
+		monitorReachabilityCronJobID,
+		"*/1 * * * *",
+		cronutil.Wrap(app, monitorReachabilityCronJobID, func() {
+			if err := worker.EnqueueMonitorReachabilitySweep(asynqClient); err != nil {
+				panic(err)
+			}
+		}),
+	)
+
+	app.Cron().MustAdd(
+		monitorHeartbeatFreshnessCronJobID,
+		"*/1 * * * *",
+		cronutil.Wrap(app, monitorHeartbeatFreshnessCronJobID, func() {
+			if err := worker.EnqueueMonitorHeartbeatFreshness(asynqClient); err != nil {
+				panic(err)
+			}
+		}),
+	)
+
+	app.Cron().MustAdd(
+		monitorCredentialCronJobID,
+		"*/5 * * * *",
+		cronutil.Wrap(app, monitorCredentialCronJobID, func() {
+			if err := worker.EnqueueMonitorCredentialSweep(asynqClient); err != nil {
 				panic(err)
 			}
 		}),

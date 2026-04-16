@@ -354,9 +354,16 @@ export function ServersPage() {
 
   const renderDetailPanel = useCallback(
     (item: Record<string, unknown>) => {
-      const detailTab = tab ?? 'detail'
+      const isTunnel = item.connect_type === 'tunnel'
+      const requestedTab = tab ?? 'detail'
+      const detailTab = requestedTab === 'tunnel' && !isTunnel ? 'detail' : requestedTab
       const services = parseTunnelServices(item.tunnel_services)
       const status = getStatusValue(item)
+      const recordFields = [
+        ['ID', String(item.id || '—')],
+        ['Created', String(item.created || '—')],
+        ['Updated', String(item.updated || '—')],
+      ]
       return (
         <div className="space-y-4">
           <div className="border-b pb-4">
@@ -371,12 +378,13 @@ export function ServersPage() {
             onValueChange={value => {
               void navigate({
                 to: '/resources/servers',
-                search: prev => ({ ...prev, tab: value as 'detail' | 'monitor' | 'runtime' }),
+                search: prev => ({ ...prev, tab: value as 'detail' | 'monitor' | 'runtime' | 'tunnel' }),
               })
             }}
           >
             <TabsList>
               <TabsTrigger value="detail">Detail</TabsTrigger>
+              {isTunnel ? <TabsTrigger value="tunnel">Tunnel</TabsTrigger> : null}
               <TabsTrigger value="monitor">Monitor</TabsTrigger>
               <TabsTrigger value="runtime">Runtime</TabsTrigger>
             </TabsList>
@@ -384,75 +392,54 @@ export function ServersPage() {
             <TabsContent value="detail" className="mt-4">
               <div className="grid gap-4 lg:grid-cols-2">
                 <div className="rounded-lg border bg-muted/10 p-4">
-                  <h3 className="text-sm font-semibold">Connection</h3>
-                  <dl className="mt-3 space-y-2 text-sm">
-                    <div className="flex justify-between gap-4">
-                      <dt className="text-muted-foreground">Type</dt>
-                      <dd>{item.connect_type === 'tunnel' ? 'Reverse Tunnel' : 'Direct SSH'}</dd>
+                  <h3 className="text-sm font-semibold">Overview</h3>
+                  <dl className="mt-4 grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Connection Type</dt>
+                      <dd className="mt-1">{isTunnel ? 'Reverse Tunnel' : 'Direct SSH'}</dd>
                     </div>
-                    <div className="flex justify-between gap-4">
-                      <dt className="text-muted-foreground">Host</dt>
-                      <dd className="font-mono text-xs">{String(item.host || '—')}</dd>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Status</dt>
+                      <dd className="mt-1">{status === 'unknown' ? 'Unknown' : status === 'online' ? 'Online' : 'Offline'}</dd>
                     </div>
-                    <div className="flex justify-between gap-4">
-                      <dt className="text-muted-foreground">Port</dt>
-                      <dd>{String(item.port || '22')}</dd>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Host</dt>
+                      <dd className="mt-1 break-all font-mono text-xs">{String(item.host || '—')}</dd>
                     </div>
-                    <div className="flex justify-between gap-4">
-                      <dt className="text-muted-foreground">User</dt>
-                      <dd>{String(item.user || 'root')}</dd>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Port</dt>
+                      <dd className="mt-1">{String(item.port || '22')}</dd>
                     </div>
-                    <div className="flex justify-between gap-4">
-                      <dt className="text-muted-foreground">Status</dt>
-                      <dd>{status === 'unknown' ? 'Unknown' : status === 'online' ? 'Online' : 'Offline'}</dd>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">User</dt>
+                      <dd className="mt-1">{String(item.user || 'root')}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Server Name</dt>
+                      <dd className="mt-1 break-all">{String(item.name || '—')}</dd>
                     </div>
                   </dl>
                 </div>
 
                 <div className="rounded-lg border bg-muted/10 p-4">
-                  <h3 className="text-sm font-semibold">Security</h3>
-                  <dl className="mt-3 space-y-2 text-sm">
-                    <div className="flex justify-between gap-4">
-                      <dt className="text-muted-foreground">Credential Secret</dt>
-                      <dd className="font-mono text-xs">{String(item.credential || '—')}</dd>
+                  <h3 className="text-sm font-semibold">Access & Notes</h3>
+                  <dl className="mt-4 space-y-4 text-sm">
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Credential Secret</dt>
+                      <dd className="mt-1 break-all font-mono text-xs">{String(item.credential || '—')}</dd>
                     </div>
-                    <div className="flex justify-between gap-4">
-                      <dt className="text-muted-foreground">Description</dt>
-                      <dd className="max-w-[18rem] text-right text-muted-foreground">
-                        {String(item.description || '—')}
-                      </dd>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Description</dt>
+                      <dd className="mt-1 text-muted-foreground">{String(item.description || '—')}</dd>
                     </div>
                   </dl>
                 </div>
 
                 <div className="rounded-lg border bg-muted/10 p-4 lg:col-span-2">
-                  <h3 className="text-sm font-semibold">Tunnel Services</h3>
-                  {services.length === 0 ? (
-                    <p className="mt-3 text-sm text-muted-foreground">No tunnel service mapping exposed for this server.</p>
-                  ) : (
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                      {services.map(service => (
-                        <div key={`${service.service_name}:${service.tunnel_port}`} className="rounded-md border bg-background px-3 py-2 text-sm">
-                          <div className="font-medium">{service.service_name}</div>
-                          <div className="text-muted-foreground">Port {service.tunnel_port}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="rounded-lg border bg-muted/10 p-4 lg:col-span-2">
                   <h3 className="text-sm font-semibold">Record Fields</h3>
-                  <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2 xl:grid-cols-3">
-                    {[
-                      ['ID', String(item.id || '—')],
-                      ['Name', String(item.name || '—')],
-                      ['Host', String(item.host || '—')],
-                      ['Port', String(item.port || '22')],
-                      ['User', String(item.user || 'root')],
-                      ['Connect Type', String(item.connect_type || 'direct')],
-                    ].map(([label, value]) => (
-                      <div key={label} className="rounded-md border bg-background px-3 py-2">
+                  <dl className="mt-4 grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
+                    {recordFields.map(([label, value]) => (
+                      <div key={label}>
                         <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
                         <dd className="mt-1 break-all">{value}</dd>
                       </div>
@@ -461,6 +448,42 @@ export function ServersPage() {
                 </div>
               </div>
             </TabsContent>
+
+            {isTunnel ? (
+              <TabsContent value="tunnel" className="mt-4">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
+                  <div className="rounded-lg border bg-muted/10 p-4">
+                    <h3 className="text-sm font-semibold">Tunnel Status</h3>
+                    <dl className="mt-4 space-y-4 text-sm">
+                      <div>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Connection Mode</dt>
+                        <dd className="mt-1">Reverse Tunnel</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Status</dt>
+                        <dd className="mt-1">{status === 'online' ? 'Online' : 'Offline'}</dd>
+                      </div>
+                    </dl>
+                  </div>
+
+                  <div className="rounded-lg border bg-muted/10 p-4">
+                    <h3 className="text-sm font-semibold">Tunnel Services</h3>
+                    {services.length === 0 ? (
+                      <p className="mt-3 text-sm text-muted-foreground">No tunnel service mapping exposed for this server.</p>
+                    ) : (
+                      <div className="mt-4 grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
+                        {services.map(service => (
+                          <div key={`${service.service_name}:${service.tunnel_port}`}>
+                            <div className="text-xs uppercase tracking-wide text-muted-foreground">{service.service_name}</div>
+                            <div className="mt-1 font-medium">Port {service.tunnel_port}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </TabsContent>
+            ) : null}
 
             <TabsContent value="monitor" className="mt-4">
               <div className="space-y-4">
@@ -876,7 +899,7 @@ export const Route = createFileRoute('/_app/_auth/resources/servers')({
     edit: typeof search.edit === 'string' ? search.edit : undefined,
     server: typeof search.server === 'string' ? search.server : undefined,
     tab:
-      search.tab === 'detail' || search.tab === 'monitor' || search.tab === 'runtime'
+      search.tab === 'detail' || search.tab === 'monitor' || search.tab === 'runtime' || search.tab === 'tunnel'
         ? search.tab
         : undefined,
   }),

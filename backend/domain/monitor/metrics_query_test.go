@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestQueryMetricSeriesQueriesVictoriaMetricsRangeAPI(t *testing.T) {
@@ -88,7 +90,7 @@ func TestQueryMetricSeriesQueriesNetdataServerDiskExpression(t *testing.T) {
 }
 
 func TestQueryMetricSeriesQueriesNetdataServerNetworkExpression(t *testing.T) {
-	var queryString string
+	queries := make([]string, 0, 2)
 	var hitSeriesLookup bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -96,7 +98,7 @@ func TestQueryMetricSeriesQueriesNetdataServerNetworkExpression(t *testing.T) {
 			hitSeriesLookup = true
 			_, _ = w.Write([]byte(`{"status":"success","data":[{"device":"eth0"},{"device":"ens3"}]}`))
 		default:
-			queryString = r.URL.Query().Get("query")
+			queries = append(queries, r.URL.Query().Get("query"))
 			_, _ = w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
 		}
 	}))
@@ -110,10 +112,16 @@ func TestQueryMetricSeriesQueriesNetdataServerNetworkExpression(t *testing.T) {
 	if !hitSeriesLookup {
 		t.Fatal("expected network interface lookup")
 	}
-	if queryString != `sum(netdata_net_net_kilobits_persec_average{instance="srv_4",device="eth0",dimension=~"received|sent"}) * 125` {
-		t.Fatalf("unexpected VM query: %s", queryString)
+	if len(queries) != 2 {
+		t.Fatalf("expected two network speed queries, got %+v", queries)
 	}
-	if len(resp.Series) != 1 {
+	if queries[0] != `sum(netdata_net_net_kilobits_persec_average{instance="srv_4",device="eth0",dimension="received"}) * 125` {
+		t.Fatalf("unexpected received query: %s", queries[0])
+	}
+	if queries[1] != `sum(netdata_net_net_kilobits_persec_average{instance="srv_4",device="eth0",dimension="sent"}) * 125` {
+		t.Fatalf("unexpected sent query: %s", queries[1])
+	}
+	if len(resp.Series) != 1 || len(resp.Series[0].Segments) != 2 {
 		t.Fatalf("unexpected series response: %+v", resp)
 	}
 	if resp.SelectedNetworkInterface != "eth0" || len(resp.AvailableNetworkInterfaces) != 2 {
@@ -137,7 +145,7 @@ func TestQueryMetricSeriesQueriesNetdataServerNetworkTrafficExpression(t *testin
 	defer server.Close()
 	t.Setenv(EnvVictoriaMetricsURL, server.URL)
 
-	resp, err := QueryMetricSeries(context.Background(), TargetTypeServer, "srv_4", "1h", []string{"network_traffic"}, MetricSeriesQueryOptions{NetworkInterface: "eth0"})
+	resp, err := QueryMetricSeries(context.Background(), TargetTypeServer, "srv_4", "5h", []string{"network_traffic"}, MetricSeriesQueryOptions{NetworkInterface: "eth0"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,6 +163,9 @@ func TestQueryMetricSeriesQueriesNetdataServerNetworkTrafficExpression(t *testin
 	}
 	if len(resp.Series) != 1 || len(resp.Series[0].Segments) != 2 {
 		t.Fatalf("unexpected network traffic response: %+v", resp)
+	}
+	if resp.Series[0].Unit != "GB" {
+		t.Fatalf("unexpected network traffic unit: %+v", resp.Series[0])
 	}
 }
 
@@ -192,5 +203,69 @@ func TestQueryMetricSeriesRejectsUnknownAlias(t *testing.T) {
 	_, err := QueryMetricSeries(context.Background(), TargetTypeServer, "srv_1", "1h", []string{"bogus"}, MetricSeriesQueryOptions{})
 	if err == nil || !strings.Contains(err.Error(), "not allowed") {
 		t.Fatalf("expected alias rejection, got %v", err)
+	}
+}
+
+func TestQueryMetricSeriesAcceptsExtendedFixedWindows(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
+	}))
+	defer server.Close()
+	t.Setenv(EnvVictoriaMetricsURL, server.URL)
+
+	for _, window := range []string{"12h", "1d", "7d"} {
+		resp, err := QueryMetricSeries(context.Background(), TargetTypeApp, "app-1", window, []string{"cpu"}, MetricSeriesQueryOptions{})
+		if err != nil {
+			t.Fatalf("window %s should be accepted: %v", window, err)
+		}
+		if resp.Window != window {
+			t.Fatalf("expected window %s, got %+v", window, resp)
+		}
+	}
+}
+
+func TestQueryMetricSeriesUsesCustomRange(t *testing.T) {
+	var lastQuery url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lastQuery = r.URL.Query()
+		_, _ = w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
+	}))
+	defer server.Close()
+	t.Setenv(EnvVictoriaMetricsURL, server.URL)
+
+	startAt := time.Date(2026, time.April, 14, 8, 0, 0, 0, time.UTC)
+	endAt := startAt.Add(36 * time.Hour)
+	resp, err := QueryMetricSeries(context.Background(), TargetTypeApp, "app-2", "custom", []string{"cpu"}, MetricSeriesQueryOptions{
+		StartAt: &startAt,
+		EndAt:   &endAt,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Window != "custom" {
+		t.Fatalf("expected custom window, got %+v", resp)
+	}
+	if resp.RangeStartAt != startAt.Format(time.RFC3339) || resp.RangeEndAt != endAt.Format(time.RFC3339) {
+		t.Fatalf("unexpected range metadata: %+v", resp)
+	}
+	if resp.StepSeconds != int(time.Hour.Seconds()) {
+		t.Fatalf("expected 1h step for 36h custom range, got %+v", resp)
+	}
+	if got := lastQuery.Get("start"); got != fmt.Sprintf("%d", startAt.Unix()) {
+		t.Fatalf("unexpected start query: %s", got)
+	}
+	if got := lastQuery.Get("end"); got != fmt.Sprintf("%d", endAt.Unix()) {
+		t.Fatalf("unexpected end query: %s", got)
+	}
+	if got := lastQuery.Get("step"); got != "3600s" {
+		t.Fatalf("unexpected step query: %s", got)
+	}
+}
+
+func TestQueryMetricSeriesRejectsPartialCustomRange(t *testing.T) {
+	startAt := time.Date(2026, time.April, 14, 8, 0, 0, 0, time.UTC)
+	_, err := QueryMetricSeries(context.Background(), TargetTypeApp, "app-2", "custom", []string{"cpu"}, MetricSeriesQueryOptions{StartAt: &startAt})
+	if err == nil || !strings.Contains(err.Error(), "requires both") {
+		t.Fatalf("expected partial custom range rejection, got %v", err)
 	}
 }

@@ -72,13 +72,20 @@ describe('MonitorTargetPanel', () => {
               { name: 'write', points: [[1713096000, 2048], [1713096060, 1024]] },
             ],
           },
-          { name: 'network', unit: 'bytes/s', points: [[1713096000, 2048], [1713096060, 3072]] },
           {
-            name: 'network_traffic',
+            name: 'network',
             unit: 'bytes/s',
             segments: [
               { name: 'in', points: [[1713096000, 1024], [1713096060, 1536]] },
               { name: 'out', points: [[1713096000, 1024], [1713096060, 1536]] },
+            ],
+          },
+          {
+            name: 'network_traffic',
+            unit: 'GB',
+            segments: [
+              { name: 'in', points: [[1713096000, 0.06], [1713096060, 0.09]] },
+              { name: 'out', points: [[1713096000, 0.06], [1713096060, 0.09]] },
             ],
           },
         ],
@@ -89,7 +96,7 @@ describe('MonitorTargetPanel', () => {
     expect(await screen.findByText('prod-01')).toBeInTheDocument()
     expect(screen.getByText('Healthy')).toBeInTheDocument()
     expect(screen.getByText('Heartbeat State')).toBeInTheDocument()
-    expect(await screen.findByText('Short Window Trends')).toBeInTheDocument()
+    expect(await screen.findByText('Trend History')).toBeInTheDocument()
     expect(screen.getByText('CPU')).toBeInTheDocument()
     expect(screen.getByText('Memory')).toBeInTheDocument()
     expect(screen.getByText('Disk Usage')).toBeInTheDocument()
@@ -176,7 +183,7 @@ describe('MonitorTargetPanel', () => {
     render(<MonitorTargetPanel targetType="app" targetId="app-1" />)
 
     expect(await screen.findByText('Demo App')).toBeInTheDocument()
-    expect(await screen.findByText('Short Window Trends')).toBeInTheDocument()
+    expect(await screen.findByText('Trend History')).toBeInTheDocument()
     expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/app/app-1', { method: 'GET' })
     expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/app/app-1/series?window=1h&series=cpu%2Cmemory', { method: 'GET' })
   })
@@ -213,24 +220,116 @@ describe('MonitorTargetPanel', () => {
       .mockResolvedValueOnce({
         targetType: 'server',
         targetId: 'srv-2',
-        window: '24h',
+        window: '5h',
+        selectedNetworkInterface: 'all',
+        series: [
+          { name: 'cpu', unit: 'percent', points: [[1713096000, 34.1], [1713110400, 29.4]] },
+        ],
+      })
+      .mockResolvedValueOnce({
+        targetType: 'server',
+        targetId: 'srv-2',
+        window: '12h',
         selectedNetworkInterface: 'all',
         series: [
           { name: 'cpu', unit: 'percent', points: [[1713096000, 40.1], [1713182400, 28.4]] },
+        ],
+      })
+      .mockResolvedValueOnce({
+        targetType: 'server',
+        targetId: 'srv-2',
+        window: '1d',
+        selectedNetworkInterface: 'all',
+        series: [
+          { name: 'cpu', unit: 'percent', points: [[1713096000, 39.7], [1713182400, 26.8]] },
+        ],
+      })
+      .mockResolvedValueOnce({
+        targetType: 'server',
+        targetId: 'srv-2',
+        window: '7d',
+        selectedNetworkInterface: 'all',
+        series: [
+          { name: 'cpu', unit: 'percent', points: [[1713096000, 44.2], [1713697200, 31.2]] },
+        ],
+      })
+      .mockResolvedValueOnce({
+        targetType: 'server',
+        targetId: 'srv-2',
+        window: 'custom',
+        rangeStartAt: '2026-04-16T00:11:00.000Z',
+        rangeEndAt: '2026-04-16T01:11:00.000Z',
+        stepSeconds: 60,
+        selectedNetworkInterface: 'all',
+        series: [
+          { name: 'cpu', unit: 'percent', points: [[1713226260, 27.2], [1713229860, 24.1]] },
+        ],
+      })
+      .mockResolvedValueOnce({
+        targetType: 'server',
+        targetId: 'srv-2',
+        window: 'custom',
+        rangeStartAt: '2026-04-14T08:00:00.000Z',
+        rangeEndAt: '2026-04-14T20:00:00.000Z',
+        stepSeconds: 600,
+        selectedNetworkInterface: 'all',
+        series: [
+          { name: 'cpu', unit: 'percent', points: [[1713081600, 27.2], [1713124800, 24.1]] },
         ],
       })
 
     render(<MonitorTargetPanel targetType="server" targetId="srv-2" />)
 
     expect(await screen.findByText('prod-02')).toBeInTheDocument()
-    expect(await screen.findByText('Short Window Trends')).toBeInTheDocument()
+    expect(await screen.findByText('Trend History')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: '24H' }))
+    fireEvent.click(screen.getByRole('button', { name: '5小时' }))
 
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/server/srv-2/series?window=24h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/server/srv-2/series?window=5h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic', { method: 'GET' })
     })
-    expect(screen.getByText('Last twenty-four hours trends from the monitoring time-series backend.')).toBeInTheDocument()
+
+    expect(screen.getByText('Last five hours trends from the monitoring time-series backend.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '12小时' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/server/srv-2/series?window=12h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic', { method: 'GET' })
+    })
+    expect(screen.getByText('Last twelve hours trends from the monitoring time-series backend.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '1天' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/server/srv-2/series?window=1d&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic', { method: 'GET' })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: '7天' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/server/srv-2/series?window=7d&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic', { method: 'GET' })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: '自定义' }))
+
+    expect(screen.getByText('自定义时间区间')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Trend range start'), { target: { value: '2026-04-14T08:00' } })
+    fireEvent.change(screen.getByLabelText('Trend range end'), { target: { value: '2026-04-14T20:00' } })
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+
+    await waitFor(() => {
+      expect(sendMock.mock.calls).toHaveLength(7)
+    })
+    const customSeriesRequest = sendMock.mock.calls.at(-1)?.[0]
+    expect(customSeriesRequest).toEqual(expect.stringContaining('/api/monitor/targets/server/srv-2/series?window=custom&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic'))
+    expect(customSeriesRequest).toEqual(expect.stringContaining('startAt='))
+    expect(customSeriesRequest).toEqual(expect.stringContaining('endAt='))
+    expect(screen.queryByText('自定义时间区间')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '自定义' })).not.toBeInTheDocument()
   })
 
   it('switches server network trends by interface', async () => {
@@ -260,13 +359,20 @@ describe('MonitorTargetPanel', () => {
         availableNetworkInterfaces: ['eth0'],
         selectedNetworkInterface: 'all',
         series: [
-          { name: 'network', unit: 'bytes/s', points: [[1713096000, 2048], [1713096060, 3072]] },
           {
-            name: 'network_traffic',
+            name: 'network',
             unit: 'bytes/s',
             segments: [
               { name: 'in', points: [[1713096000, 1024], [1713096060, 1536]] },
               { name: 'out', points: [[1713096000, 1024], [1713096060, 1536]] },
+            ],
+          },
+          {
+            name: 'network_traffic',
+            unit: 'GB',
+            segments: [
+              { name: 'in', points: [[1713096000, 0.06], [1713096060, 0.09]] },
+              { name: 'out', points: [[1713096000, 0.06], [1713096060, 0.09]] },
             ],
           },
         ],
@@ -278,14 +384,22 @@ describe('MonitorTargetPanel', () => {
         availableNetworkInterfaces: ['eth0'],
         selectedNetworkInterface: 'eth0',
         series: [
-          { name: 'network', unit: 'bytes/s', points: [[1713096000, 1024], [1713096060, 1536]], metadata: { network_interface: 'eth0' } },
           {
-            name: 'network_traffic',
+            name: 'network',
             unit: 'bytes/s',
             metadata: { network_interface: 'eth0' },
             segments: [
               { name: 'in', points: [[1713096000, 512], [1713096060, 768]] },
               { name: 'out', points: [[1713096000, 512], [1713096060, 768]] },
+            ],
+          },
+          {
+            name: 'network_traffic',
+            unit: 'GB',
+            metadata: { network_interface: 'eth0' },
+            segments: [
+              { name: 'in', points: [[1713096000, 0.03], [1713096060, 0.045]] },
+              { name: 'out', points: [[1713096000, 0.03], [1713096060, 0.045]] },
             ],
           },
         ],

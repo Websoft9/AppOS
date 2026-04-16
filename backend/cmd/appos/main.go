@@ -55,7 +55,7 @@ func main() {
 	})
 
 	// Register event hooks
-	hooks.Register(app)
+	hooks.Register(app, w.Client())
 
 	// Start Asynq worker when PocketBase starts serving
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {

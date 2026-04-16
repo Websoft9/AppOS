@@ -54,7 +54,7 @@ var allowedSeriesQueries = map[string]map[string]metricSeriesDefinition{
 			},
 		},
 		"network_traffic": {
-			Unit: "bytes/s",
+			Unit: "GB",
 			BuildQuery: func(_ string, targetID string) string {
 				return fmt.Sprintf(`sum(netdata_system_net_kilobits_persec_average{instance=%q,dimension=~"received|sent"}) * 125`, targetID)
 			},
@@ -75,8 +75,18 @@ var allowedSeriesWindows = map[string]struct {
 	Step     time.Duration
 }{
 	"1h":  {Duration: time.Hour, Step: time.Minute},
-	"6h":  {Duration: 6 * time.Hour, Step: 5 * time.Minute},
+	"5h":  {Duration: 5 * time.Hour, Step: 5 * time.Minute},
+	"12h": {Duration: 12 * time.Hour, Step: 10 * time.Minute},
+	"1d":  {Duration: 24 * time.Hour, Step: 15 * time.Minute},
 	"24h": {Duration: 24 * time.Hour, Step: 15 * time.Minute},
+	"7d":  {Duration: 7 * 24 * time.Hour, Step: time.Hour},
+}
+
+type metricSeriesWindowSpec struct {
+	Label string
+	Start time.Time
+	End   time.Time
+	Step  time.Duration
 }
 
 type metricQueryOverrideFunc func(context.Context, string, string, string, []string, MetricSeriesQueryOptions) (*MetricSeriesResponse, error)
@@ -103,6 +113,14 @@ func QueryMetricSeries(ctx context.Context, targetType, targetID, window string,
 	targetID = strings.TrimSpace(targetID)
 	window = strings.TrimSpace(window)
 	options.NetworkInterface = strings.TrimSpace(options.NetworkInterface)
+	if options.StartAt != nil {
+		startAt := options.StartAt.UTC()
+		options.StartAt = &startAt
+	}
+	if options.EndAt != nil {
+		endAt := options.EndAt.UTC()
+		options.EndAt = &endAt
+	}
 	metricQueryOverrideMu.RLock()
 	override := metricQueryOverride
 	metricQueryOverrideMu.RUnlock()
@@ -113,9 +131,9 @@ func QueryMetricSeries(ctx context.Context, targetType, targetID, window string,
 }
 
 func queryMetricSeriesVM(ctx context.Context, targetType, targetID, window string, seriesNames []string, options MetricSeriesQueryOptions) (*MetricSeriesResponse, error) {
-	windowSpec, ok := allowedSeriesWindows[window]
-	if !ok {
-		return nil, fmt.Errorf("window %q is not allowed", window)
+	windowSpec, err := resolveMetricSeriesWindow(window, options, time.Now().UTC())
+	if err != nil {
+		return nil, err
 	}
 	definitions, ok := allowedSeriesQueries[targetType]
 	if !ok {
@@ -123,10 +141,13 @@ func queryMetricSeriesVM(ctx context.Context, targetType, targetID, window strin
 	}
 	baseURL := strings.TrimSpace(os.Getenv(EnvVictoriaMetricsURL))
 	response := &MetricSeriesResponse{
-		TargetType: targetType,
-		TargetID:   targetID,
-		Window:     window,
-		Series:     make([]MetricSeries, 0, len(seriesNames)),
+		TargetType:   targetType,
+		TargetID:     targetID,
+		Window:       windowSpec.Label,
+		RangeStartAt: windowSpec.Start.Format(time.RFC3339),
+		RangeEndAt:   windowSpec.End.Format(time.RFC3339),
+		StepSeconds:  int(windowSpec.Step.Seconds()),
+		Series:       make([]MetricSeries, 0, len(seriesNames)),
 	}
 	requestedSeries := normalizeRequestedSeries(seriesNames)
 	for _, requested := range requestedSeries {
@@ -138,8 +159,8 @@ func queryMetricSeriesVM(ctx context.Context, targetType, targetID, window strin
 		return response, nil
 	}
 	client := &http.Client{Timeout: 5 * time.Second}
-	end := time.Now().UTC()
-	start := end.Add(-windowSpec.Duration)
+	start := windowSpec.Start
+	end := windowSpec.End
 	if targetType == TargetTypeServer && (containsRequestedSeries(requestedSeries, "network") || containsRequestedSeries(requestedSeries, "network_traffic")) {
 		interfaces, err := listNetworkInterfaces(ctx, client, strings.TrimRight(baseURL, "/")+"/api/v1/series", targetID, start, end)
 		if err != nil {
@@ -219,6 +240,38 @@ func queryMetricSeriesVM(ctx context.Context, targetType, targetID, window strin
 			})
 			continue
 		}
+		if requested == "network" && targetType == TargetTypeServer {
+			selected := response.SelectedNetworkInterface
+			if selected == "" {
+				selected = allNetworkInterfaces
+			}
+			receivedQuery := fmt.Sprintf(`sum(netdata_system_net_kilobits_persec_average{instance=%q,dimension="received"}) * 125`, targetID)
+			sentQuery := fmt.Sprintf(`sum(netdata_system_net_kilobits_persec_average{instance=%q,dimension="sent"}) * 125`, targetID)
+			metadata := map[string]string(nil)
+			if selected != allNetworkInterfaces {
+				receivedQuery = fmt.Sprintf(`sum(netdata_net_net_kilobits_persec_average{instance=%q,device=%q,dimension="received"}) * 125`, targetID, selected)
+				sentQuery = fmt.Sprintf(`sum(netdata_net_net_kilobits_persec_average{instance=%q,device=%q,dimension="sent"}) * 125`, targetID, selected)
+				metadata = map[string]string{"network_interface": selected}
+			}
+			receivedPoints, err := executeVMQueryRange(ctx, client, strings.TrimRight(baseURL, "/")+"/api/v1/query_range", receivedQuery, start, end, windowSpec.Step)
+			if err != nil {
+				return nil, err
+			}
+			sentPoints, err := executeVMQueryRange(ctx, client, strings.TrimRight(baseURL, "/")+"/api/v1/query_range", sentQuery, start, end, windowSpec.Step)
+			if err != nil {
+				return nil, err
+			}
+			response.Series = append(response.Series, MetricSeries{
+				Name: "network",
+				Unit: "bytes/s",
+				Segments: []MetricSeriesSegment{
+					{Name: "in", Points: receivedPoints},
+					{Name: "out", Points: sentPoints},
+				},
+				Metadata: metadata,
+			})
+			continue
+		}
 		if requested == "disk_usage" {
 			usedPoints, err := executeVMQueryRange(
 				ctx,
@@ -275,9 +328,11 @@ func queryMetricSeriesVM(ctx context.Context, targetType, targetID, window strin
 			if err != nil {
 				return nil, err
 			}
+			receivedPoints = scalePoints(receivedPoints, float64(windowSpec.Step)/float64(time.Second)/(1024*1024*1024))
+			sentPoints = scalePoints(sentPoints, float64(windowSpec.Step)/float64(time.Second)/(1024*1024*1024))
 			response.Series = append(response.Series, MetricSeries{
 				Name: "network_traffic",
-				Unit: "bytes/s",
+				Unit: "GB",
 				Segments: []MetricSeriesSegment{
 					{Name: "in", Points: receivedPoints},
 					{Name: "out", Points: sentPoints},
@@ -289,16 +344,6 @@ func queryMetricSeriesVM(ctx context.Context, targetType, targetID, window strin
 		definition := definitions[requested]
 		query := definition.BuildQuery(targetType, targetID)
 		metadata := map[string]string(nil)
-		if requested == "network" && targetType == TargetTypeServer {
-			selected := response.SelectedNetworkInterface
-			if selected == "" {
-				selected = allNetworkInterfaces
-			}
-			if selected != allNetworkInterfaces {
-				query = fmt.Sprintf(`sum(netdata_net_net_kilobits_persec_average{instance=%q,device=%q,dimension=~"received|sent"}) * 125`, targetID, selected)
-				metadata = map[string]string{"network_interface": selected}
-			}
-		}
 		points, err := executeVMQueryRange(ctx, client, strings.TrimRight(baseURL, "/")+"/api/v1/query_range", query, start, end, windowSpec.Step)
 		if err != nil {
 			return nil, err
@@ -306,6 +351,54 @@ func queryMetricSeriesVM(ctx context.Context, targetType, targetID, window strin
 		response.Series = append(response.Series, MetricSeries{Name: requested, Unit: definition.Unit, Points: points, Metadata: metadata})
 	}
 	return response, nil
+}
+
+func resolveMetricSeriesWindow(window string, options MetricSeriesQueryOptions, now time.Time) (metricSeriesWindowSpec, error) {
+	if options.StartAt != nil || options.EndAt != nil {
+		if options.StartAt == nil || options.EndAt == nil {
+			return metricSeriesWindowSpec{}, fmt.Errorf("custom range requires both startAt and endAt")
+		}
+		start := options.StartAt.UTC()
+		end := options.EndAt.UTC()
+		if !end.After(start) {
+			return metricSeriesWindowSpec{}, fmt.Errorf("custom range endAt must be after startAt")
+		}
+		return metricSeriesWindowSpec{
+			Label: "custom",
+			Start: start,
+			End:   end,
+			Step:  stepForSeriesDuration(end.Sub(start)),
+		}, nil
+	}
+	windowSpec, ok := allowedSeriesWindows[window]
+	if !ok {
+		return metricSeriesWindowSpec{}, fmt.Errorf("window %q is not allowed", window)
+	}
+	end := now.UTC()
+	start := end.Add(-windowSpec.Duration)
+	return metricSeriesWindowSpec{
+		Label: window,
+		Start: start,
+		End:   end,
+		Step:  windowSpec.Step,
+	}, nil
+}
+
+func stepForSeriesDuration(duration time.Duration) time.Duration {
+	switch {
+	case duration <= time.Hour:
+		return time.Minute
+	case duration <= 5*time.Hour:
+		return 5 * time.Minute
+	case duration <= 12*time.Hour:
+		return 10 * time.Minute
+	case duration <= 24*time.Hour:
+		return 15 * time.Minute
+	case duration <= 7*24*time.Hour:
+		return time.Hour
+	default:
+		return 6 * time.Hour
+	}
 }
 
 func containsRequestedSeries(seriesNames []string, target string) bool {
@@ -359,6 +452,17 @@ func metricSelectorDefinition(metric string, unit string) metricSeriesDefinition
 			return fmt.Sprintf(`%s{target_type=%q,target_id=%q}`, metric, targetType, targetID)
 		},
 	}
+}
+
+func scalePoints(points [][]float64, multiplier float64) [][]float64 {
+	scaled := make([][]float64, 0, len(points))
+	for _, point := range points {
+		if len(point) < 2 {
+			continue
+		}
+		scaled = append(scaled, []float64{point[0], point[1] * multiplier})
+	}
+	return scaled
 }
 
 func listNetworkInterfaces(ctx context.Context, client *http.Client, endpoint, targetID string, start, end time.Time) ([]string, error) {

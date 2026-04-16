@@ -24,6 +24,13 @@ type InstanceRecord = {
   description?: string
 }
 
+type MonitorLatestStatusRecord = {
+  target_id?: string
+  status?: string
+  reason?: string | null
+  last_checked_at?: string | null
+}
+
 type InstanceTemplateField = {
   id: string
   label: string
@@ -257,6 +264,30 @@ function formatDateTime(value: unknown) {
   }).format(date)
 }
 
+function formatMonitorStatusLabel(value: unknown) {
+  const raw = String(value ?? '').trim().toLowerCase()
+  if (!raw) return 'Unknown'
+  return raw
+    .split('_')
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+function monitorStatusVariant(status: unknown): 'default' | 'secondary' | 'destructive' | 'outline' {
+  switch (String(status ?? '').trim().toLowerCase()) {
+    case 'healthy':
+      return 'default'
+    case 'offline':
+    case 'unreachable':
+    case 'credential_invalid':
+      return 'destructive'
+    case 'degraded':
+      return 'outline'
+    default:
+      return 'secondary'
+  }
+}
+
 function mergeDatabaseTemplateFields(template: InstanceTemplate | null | undefined) {
   if (!template) {
     return [] as InstanceTemplateField[]
@@ -425,9 +456,11 @@ async function buildInstancePayload(
 
 function mapInstanceRow(
   item: InstanceRecord,
-  templatesById: Map<string, InstanceTemplate>
+  templatesById: Map<string, InstanceTemplate>,
+  monitorByTargetId: Map<string, MonitorLatestStatusRecord>
 ): Record<string, unknown> {
   const template = templatesById.get(String(item.template_id ?? ''))
+  const monitor = monitorByTargetId.get(String(item.id ?? ''))
   const endpointParts = splitEndpoint(String(item.endpoint ?? ''))
   const flattenedConfig: Record<string, unknown> = {}
   const fallbackConfig = item.config ?? {}
@@ -463,6 +496,9 @@ function mapInstanceRow(
     port: endpointParts.port,
     provider_account: String(item.provider_account ?? ''),
     credential: credentialId,
+    monitor_status: String(monitor?.status ?? ''),
+    monitor_reason: String(monitor?.reason ?? ''),
+    monitor_last_checked_at: String(monitor?.last_checked_at ?? ''),
     credential_use_secret: Boolean(credentialId),
     password_value: '',
     description: String(item.description ?? ''),
@@ -496,6 +532,32 @@ const columns: Column[] = [
         {String(value || '—')}
       </span>
     ),
+  },
+  {
+    key: 'monitor_status',
+    label: 'Monitor',
+    sortable: true,
+    sortValue: row => String(row.monitor_status ?? ''),
+    filterValue: row => String(row.monitor_status ?? ''),
+    render: (value, row) => {
+      const status = String(value ?? '').trim()
+      const reason = String(row.monitor_reason ?? '').trim()
+      if (!status) {
+        return <span className="text-sm text-muted-foreground">—</span>
+      }
+      return (
+        <Badge variant={monitorStatusVariant(status)} title={reason || undefined}>
+          {formatMonitorStatusLabel(status)}
+        </Badge>
+      )
+    },
+  },
+  {
+    key: 'monitor_last_checked_at',
+    label: 'Last Checked',
+    sortable: true,
+    sortValue: row => String(row.monitor_last_checked_at ?? ''),
+    render: value => <span className="text-sm text-muted-foreground">{formatDateTime(value)}</span>,
   },
   {
     key: 'created',
@@ -561,8 +623,29 @@ export function ServiceInstancesPage() {
   )
 
   const listItems = useCallback(async () => {
-    const items = await pb.send<InstanceRecord[]>('/api/instances', { method: 'GET' })
-    return Array.isArray(items) ? items.map(item => mapInstanceRow(item, templatesById)) : []
+    const [items, monitorResponse] = await Promise.all([
+      pb.send<InstanceRecord[]>('/api/instances', { method: 'GET' }),
+      pb.send<{ items?: MonitorLatestStatusRecord[] }>(
+        `/api/collections/monitor_latest_status/records?${new URLSearchParams({
+          perPage: '500',
+          sort: '-updated',
+          filter: `(target_type='resource')`,
+        }).toString()}`,
+        { method: 'GET' }
+      ),
+    ])
+
+    const monitorByTargetId = new Map(
+      Array.isArray(monitorResponse?.items)
+        ? monitorResponse.items
+            .map(record => [String(record.target_id ?? '').trim(), record] as const)
+            .filter(([targetId]) => Boolean(targetId))
+        : []
+    )
+
+    return Array.isArray(items)
+      ? items.map(item => mapInstanceRow(item, templatesById, monitorByTargetId))
+      : []
   }, [templatesById])
 
   const openSecretDialog = useCallback(
@@ -1026,7 +1109,7 @@ export function ServiceInstancesPage() {
               method: 'POST',
               body,
             })
-            return mapInstanceRow(created, templatesById)
+            return mapInstanceRow(created, templatesById, new Map())
           },
           updateItem: async (id, payload) => {
             const body = await buildInstancePayload(payload, templatesById)
