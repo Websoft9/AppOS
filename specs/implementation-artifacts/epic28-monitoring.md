@@ -33,7 +33,7 @@ The goal is not to build a full observability platform. The goal is to provide a
 
 ## Monitoring Model
 
-The epic defines four monitoring subdomains:
+The epic defines four operator-facing monitoring areas:
 
 1. `Host & Runtime Telemetry`
    - host metrics
@@ -56,6 +56,20 @@ The epic defines four monitoring subdomains:
    - AppOS CPU, memory, queue, worker, and job metrics
    - monitor ingestion health
    - scheduler and background task status
+
+Internal implementation should still keep one `monitor` bounded context.
+Within that context, the recommended split is:
+
+- shared contract at root: target model, signal model, status semantics, target registry
+- `status`: latest-status projection and health adjudication
+- `timeseries`: operator-facing metric and trend queries for server, container, app, and platform runtime surfaces
+- `ingest`: pushed signal normalization such as agent heartbeat, runtime summary, and metrics envelope handling
+- `checks`: AppOS-owned active checks such as reachability, credential validation, and selected health probes
+- `selfobs`: AppOS self-observation signal production
+
+The TSDB adapter is infrastructure, not a monitor subdomain. It should stay behind an infra-facing port so monitor owns semantics and presentation while storage details remain replaceable.
+
+Distributed tracing remains out of scope for Epic 28 and should be treated as a future independent observability context rather than a child of `monitor`.
 
 ---
 
@@ -112,17 +126,41 @@ business store                time-series store
         overview + detail surfaces
 ```
 
+### Collection Substrate
+
+AppOS runs as a single container that includes PocketBase, Asynq, VictoriaMetrics, a reverse proxy, and one local Netdata agent under one process supervisor.
+
+Within that shape, Netdata is acceptable as a collection substrate, but not as the monitoring authority.
+
+- managed-server Netdata remains the primary collector for remote host, container, and application-adjacent telemetry
+- control-plane Netdata is required for AppOS self-observation and is limited to probes against targets that are local to the control-plane environment
+- both collectors write raw telemetry into `VictoriaMetrics`
+- the AppOS monitoring domain keeps ownership of target identity, signal normalization, status adjudication, latest-status projection, and notification orchestration
+
+Operational constraints:
+
+- local Netdata in the AppOS container is required and starts by default with AppOS
+- Netdata local alerts, notifications, and cloud claim should be disabled
+- Netdata should be treated as collector and exporter only; business status does not come from Netdata alarm state
+
+Netdata usage red lines:
+
+- AppOS depends on Netdata for collection and probe execution in the single-container runtime, but not for operator-facing status semantics
+- AppOS must not expose Netdata chart names, alarm states, dashboard concepts, or plugin model as product-level API
+- latest-status projection, overview grouping, and status precedence remain AppOS-owned logic even when raw telemetry comes from Netdata
+
 ### Current Server Metrics Chain
 
 The current server-metric implementation is intentionally narrow and push-first:
 
 - Netdata runs on each managed server under systemd
+- AppOS runs one local Netdata process inside the single control-plane container for self-observation
 - Netdata exports selected host charts by Prometheus remote write
-- managed servers push to AppOS `/api/monitor/netdata/write`
+- managed servers and the local control-plane collector push to AppOS `/api/monitor/netdata/write`
 - AppOS public ingress forwards that path to embedded `VictoriaMetrics /api/v1/write`
 - AppOS monitor APIs query VictoriaMetrics for short-window CPU, memory, disk, and network trends
 
-This keeps AppOS as the control and presentation plane while Netdata remains the collector.
+This keeps AppOS as the control and presentation plane while Netdata remains the collector layer.
 
 ### Minimal Domain Flow
 
@@ -177,6 +215,15 @@ Signal relationship rules:
 | latest health result | business store | includes reason and transition time |
 | reachability result | business store | current state first, history optional later |
 | credential validation result | business store | store outcome only, never secret payload |
+
+### Minimal Data Placement
+
+| Data kind | Goes to | Notes |
+|----------|---------|-------|
+| raw host, container, process, and probe telemetry | VictoriaMetrics | raw append-only series from managed-server or local collectors |
+| normalized current target state | latest-status projection in business store | operator-facing `healthy`, `degraded`, `offline`, `unreachable`, `credential_invalid`, `unknown` |
+| compact diagnosis fields | latest-status projection in business store | reason, last checked at, last success, last failure, consecutive failures |
+| Netdata chart, alarm, and cloud-specific metadata | not promoted into business monitoring store | collector-internal detail, not AppOS business status |
 
 ### Domain Guardrails
 

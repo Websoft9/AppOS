@@ -65,8 +65,60 @@ var allowedSeriesQueries = map[string]map[string]metricSeriesDefinition{
 		"memory": metricSelectorDefinition("appos_container_memory_bytes", "bytes"),
 	},
 	TargetTypePlatform: {
-		"cpu":    metricSelectorDefinition("appos_platform_cpu_percent", "percent"),
-		"memory": metricSelectorDefinition("appos_platform_memory_bytes", "bytes"),
+		"cpu": {
+			Unit: "percent",
+			BuildQuery: func(targetType, targetID string) string {
+				if targetID == PlatformTargetAppOSCore {
+					return fmt.Sprintf(`100 - netdata_system_cpu_percentage_average{instance=%q,dimension="idle"}`, PlatformTargetAppOSCore)
+				}
+				return metricSelectorQuery("appos_platform_cpu_percent", targetType, targetID)
+			},
+		},
+		"memory": {
+			Unit: "bytes",
+			BuildQuery: func(targetType, targetID string) string {
+				if targetID == PlatformTargetAppOSCore {
+					return fmt.Sprintf(`netdata_system_ram_MiB_average{instance=%q,dimension="used"} * 1048576`, PlatformTargetAppOSCore)
+				}
+				return metricSelectorQuery("appos_platform_memory_bytes", targetType, targetID)
+			},
+		},
+		"disk": {
+			Unit: "bytes/s",
+			BuildQuery: func(_ string, targetID string) string {
+				if targetID == PlatformTargetAppOSCore {
+					return fmt.Sprintf(`sum(netdata_system_io_KiB_persec_average{instance=%q,dimension=~"reads|writes"}) * 1024`, PlatformTargetAppOSCore)
+				}
+				return ""
+			},
+		},
+		"disk_usage": {
+			Unit: "percent",
+			BuildQuery: func(_ string, targetID string) string {
+				if targetID == PlatformTargetAppOSCore {
+					return fmt.Sprintf(`100 * sum(netdata_disk_space_GiB_average{instance=%q,family="/",dimension="used"}) / sum(netdata_disk_space_GiB_average{instance=%q,family="/",dimension=~"avail|used|reserved_for_root"})`, PlatformTargetAppOSCore, PlatformTargetAppOSCore)
+				}
+				return ""
+			},
+		},
+		"network": {
+			Unit: "bytes/s",
+			BuildQuery: func(_ string, targetID string) string {
+				if targetID == PlatformTargetAppOSCore {
+					return fmt.Sprintf(`sum(netdata_system_net_kilobits_persec_average{instance=%q,dimension=~"received|sent"}) * 125`, PlatformTargetAppOSCore)
+				}
+				return ""
+			},
+		},
+		"network_traffic": {
+			Unit: "GB",
+			BuildQuery: func(_ string, targetID string) string {
+				if targetID == PlatformTargetAppOSCore {
+					return fmt.Sprintf(`sum(netdata_system_net_kilobits_persec_average{instance=%q,dimension=~"received|sent"}) * 125`, PlatformTargetAppOSCore)
+				}
+				return ""
+			},
+		},
 	},
 }
 
@@ -154,6 +206,12 @@ func queryMetricSeriesVM(ctx context.Context, targetType, targetID, window strin
 		if _, ok := definitions[requested]; !ok {
 			return nil, fmt.Errorf("series %q is not allowed for target type %q", requested, targetType)
 		}
+		if targetType == TargetTypePlatform && targetID != PlatformTargetAppOSCore {
+			switch requested {
+			case "disk", "disk_usage", "network", "network_traffic":
+				return nil, fmt.Errorf("series %q is supported only for platform target %q", requested, PlatformTargetAppOSCore)
+			}
+		}
 	}
 	if baseURL == "" {
 		return response, nil
@@ -161,7 +219,7 @@ func queryMetricSeriesVM(ctx context.Context, targetType, targetID, window strin
 	client := &http.Client{Timeout: 5 * time.Second}
 	start := windowSpec.Start
 	end := windowSpec.End
-	if targetType == TargetTypeServer && (containsRequestedSeries(requestedSeries, "network") || containsRequestedSeries(requestedSeries, "network_traffic")) {
+	if supportsNetworkInterfaceSelection(targetType, targetID) && (containsRequestedSeries(requestedSeries, "network") || containsRequestedSeries(requestedSeries, "network_traffic")) {
 		interfaces, err := listNetworkInterfaces(ctx, client, strings.TrimRight(baseURL, "/")+"/api/v1/series", targetID, start, end)
 		if err != nil {
 			return nil, err
@@ -170,6 +228,41 @@ func queryMetricSeriesVM(ctx context.Context, targetType, targetID, window strin
 		response.SelectedNetworkInterface = normalizeNetworkInterface(options.NetworkInterface, interfaces)
 	}
 	for _, requested := range requestedSeries {
+		if requested == "memory" && isNetdataPlatformTarget(targetType, targetID) {
+			usedPoints, err := executeVMQueryRange(
+				ctx,
+				client,
+				strings.TrimRight(baseURL, "/")+"/api/v1/query_range",
+				fmt.Sprintf(`sum(netdata_system_ram_MiB_average{instance=%q,dimension="used"}) * 1048576`, targetID),
+				start,
+				end,
+				windowSpec.Step,
+			)
+			if err != nil {
+				return nil, err
+			}
+			availablePoints, err := executeVMQueryRange(
+				ctx,
+				client,
+				strings.TrimRight(baseURL, "/")+"/api/v1/query_range",
+				fmt.Sprintf(`sum(netdata_system_ram_MiB_average{instance=%q,dimension=~"free|cached|buffers"}) * 1048576`, targetID),
+				start,
+				end,
+				windowSpec.Step,
+			)
+			if err != nil {
+				return nil, err
+			}
+			response.Series = append(response.Series, MetricSeries{
+				Name: "memory",
+				Unit: "bytes",
+				Segments: []MetricSeriesSegment{
+					{Name: "used", Points: usedPoints},
+					{Name: "available", Points: availablePoints},
+				},
+			})
+			continue
+		}
 		if requested == "memory" && targetType == TargetTypeServer {
 			usedPoints, err := executeVMQueryRange(
 				ctx,
@@ -201,6 +294,41 @@ func queryMetricSeriesVM(ctx context.Context, targetType, targetID, window strin
 				Segments: []MetricSeriesSegment{
 					{Name: "used", Points: usedPoints},
 					{Name: "available", Points: availablePoints},
+				},
+			})
+			continue
+		}
+		if requested == "disk" && isNetdataPlatformTarget(targetType, targetID) {
+			readPoints, err := executeVMQueryRange(
+				ctx,
+				client,
+				strings.TrimRight(baseURL, "/")+"/api/v1/query_range",
+				fmt.Sprintf(`sum(netdata_system_io_KiB_persec_average{instance=%q,dimension="reads"}) * 1024`, targetID),
+				start,
+				end,
+				windowSpec.Step,
+			)
+			if err != nil {
+				return nil, err
+			}
+			writePoints, err := executeVMQueryRange(
+				ctx,
+				client,
+				strings.TrimRight(baseURL, "/")+"/api/v1/query_range",
+				fmt.Sprintf(`sum(netdata_system_io_KiB_persec_average{instance=%q,dimension="writes"}) * 1024`, targetID),
+				start,
+				end,
+				windowSpec.Step,
+			)
+			if err != nil {
+				return nil, err
+			}
+			response.Series = append(response.Series, MetricSeries{
+				Name: "disk",
+				Unit: "bytes/s",
+				Segments: []MetricSeriesSegment{
+					{Name: "read", Points: readPoints},
+					{Name: "write", Points: writePoints},
 				},
 			})
 			continue
@@ -240,6 +368,38 @@ func queryMetricSeriesVM(ctx context.Context, targetType, targetID, window strin
 			})
 			continue
 		}
+		if requested == "network" && isNetdataPlatformTarget(targetType, targetID) {
+			selected := response.SelectedNetworkInterface
+			if selected == "" {
+				selected = allNetworkInterfaces
+			}
+			receivedQuery := fmt.Sprintf(`sum(netdata_system_net_kilobits_persec_average{instance=%q,dimension="received"}) * 125`, targetID)
+			sentQuery := fmt.Sprintf(`sum(netdata_system_net_kilobits_persec_average{instance=%q,dimension="sent"}) * 125`, targetID)
+			metadata := map[string]string(nil)
+			if selected != allNetworkInterfaces {
+				receivedQuery = fmt.Sprintf(`sum(netdata_net_net_kilobits_persec_average{instance=%q,device=%q,dimension="received"}) * 125`, targetID, selected)
+				sentQuery = fmt.Sprintf(`sum(netdata_net_net_kilobits_persec_average{instance=%q,device=%q,dimension="sent"}) * 125`, targetID, selected)
+				metadata = map[string]string{"network_interface": selected}
+			}
+			receivedPoints, err := executeVMQueryRange(ctx, client, strings.TrimRight(baseURL, "/")+"/api/v1/query_range", receivedQuery, start, end, windowSpec.Step)
+			if err != nil {
+				return nil, err
+			}
+			sentPoints, err := executeVMQueryRange(ctx, client, strings.TrimRight(baseURL, "/")+"/api/v1/query_range", sentQuery, start, end, windowSpec.Step)
+			if err != nil {
+				return nil, err
+			}
+			response.Series = append(response.Series, MetricSeries{
+				Name: "network",
+				Unit: "bytes/s",
+				Segments: []MetricSeriesSegment{
+					{Name: "in", Points: receivedPoints},
+					{Name: "out", Points: sentPoints},
+				},
+				Metadata: metadata,
+			})
+			continue
+		}
 		if requested == "network" && targetType == TargetTypeServer {
 			selected := response.SelectedNetworkInterface
 			if selected == "" {
@@ -269,6 +429,75 @@ func queryMetricSeriesVM(ctx context.Context, targetType, targetID, window strin
 					{Name: "out", Points: sentPoints},
 				},
 				Metadata: metadata,
+			})
+			continue
+		}
+		if requested == "network_traffic" && isNetdataPlatformTarget(targetType, targetID) {
+			selected := response.SelectedNetworkInterface
+			if selected == "" {
+				selected = allNetworkInterfaces
+			}
+			receivedQuery := fmt.Sprintf(`sum(netdata_system_net_kilobits_persec_average{instance=%q,dimension="received"}) * 125`, targetID)
+			sentQuery := fmt.Sprintf(`sum(netdata_system_net_kilobits_persec_average{instance=%q,dimension="sent"}) * 125`, targetID)
+			metadata := map[string]string(nil)
+			if selected != allNetworkInterfaces {
+				receivedQuery = fmt.Sprintf(`sum(netdata_net_net_kilobits_persec_average{instance=%q,device=%q,dimension="received"}) * 125`, targetID, selected)
+				sentQuery = fmt.Sprintf(`sum(netdata_net_net_kilobits_persec_average{instance=%q,device=%q,dimension="sent"}) * 125`, targetID, selected)
+				metadata = map[string]string{"network_interface": selected}
+			}
+			receivedPoints, err := executeVMQueryRange(ctx, client, strings.TrimRight(baseURL, "/")+"/api/v1/query_range", receivedQuery, start, end, windowSpec.Step)
+			if err != nil {
+				return nil, err
+			}
+			sentPoints, err := executeVMQueryRange(ctx, client, strings.TrimRight(baseURL, "/")+"/api/v1/query_range", sentQuery, start, end, windowSpec.Step)
+			if err != nil {
+				return nil, err
+			}
+			receivedPoints = scalePoints(receivedPoints, float64(windowSpec.Step)/float64(time.Second)/(1024*1024*1024))
+			sentPoints = scalePoints(sentPoints, float64(windowSpec.Step)/float64(time.Second)/(1024*1024*1024))
+			response.Series = append(response.Series, MetricSeries{
+				Name: "network_traffic",
+				Unit: "GB",
+				Segments: []MetricSeriesSegment{
+					{Name: "in", Points: receivedPoints},
+					{Name: "out", Points: sentPoints},
+				},
+				Metadata: metadata,
+			})
+			continue
+		}
+		if requested == "disk_usage" && isNetdataPlatformTarget(targetType, targetID) {
+			usedPoints, err := executeVMQueryRange(
+				ctx,
+				client,
+				strings.TrimRight(baseURL, "/")+"/api/v1/query_range",
+				fmt.Sprintf(`sum(netdata_disk_space_GiB_average{instance=%q,family="/",dimension="used"}) * 1073741824`, targetID),
+				start,
+				end,
+				windowSpec.Step,
+			)
+			if err != nil {
+				return nil, err
+			}
+			freePoints, err := executeVMQueryRange(
+				ctx,
+				client,
+				strings.TrimRight(baseURL, "/")+"/api/v1/query_range",
+				fmt.Sprintf(`sum(netdata_disk_space_GiB_average{instance=%q,family="/",dimension=~"avail|reserved_for_root"}) * 1073741824`, targetID),
+				start,
+				end,
+				windowSpec.Step,
+			)
+			if err != nil {
+				return nil, err
+			}
+			response.Series = append(response.Series, MetricSeries{
+				Name: "disk_usage",
+				Unit: "bytes",
+				Segments: []MetricSeriesSegment{
+					{Name: "used", Points: usedPoints},
+					{Name: "free", Points: freePoints},
+				},
 			})
 			continue
 		}
@@ -351,6 +580,17 @@ func queryMetricSeriesVM(ctx context.Context, targetType, targetID, window strin
 		response.Series = append(response.Series, MetricSeries{Name: requested, Unit: definition.Unit, Points: points, Metadata: metadata})
 	}
 	return response, nil
+}
+
+func isNetdataPlatformTarget(targetType, targetID string) bool {
+	return targetType == TargetTypePlatform && targetID == PlatformTargetAppOSCore
+}
+
+func supportsNetworkInterfaceSelection(targetType, targetID string) bool {
+	if targetType == TargetTypeServer {
+		return true
+	}
+	return isNetdataPlatformTarget(targetType, targetID)
 }
 
 func resolveMetricSeriesWindow(window string, options MetricSeriesQueryOptions, now time.Time) (metricSeriesWindowSpec, error) {
@@ -449,9 +689,13 @@ func metricSelectorDefinition(metric string, unit string) metricSeriesDefinition
 	return metricSeriesDefinition{
 		Unit: unit,
 		BuildQuery: func(targetType, targetID string) string {
-			return fmt.Sprintf(`%s{target_type=%q,target_id=%q}`, metric, targetType, targetID)
+			return metricSelectorQuery(metric, targetType, targetID)
 		},
 	}
+}
+
+func metricSelectorQuery(metric string, targetType string, targetID string) string {
+	return fmt.Sprintf(`%s{target_type=%q,target_id=%q}`, metric, targetType, targetID)
 }
 
 func scalePoints(points [][]float64, multiplier float64) [][]float64 {

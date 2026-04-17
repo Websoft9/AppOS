@@ -67,8 +67,8 @@ so that I can rely on it as a stable entry surface instead of a desktop-only nav
 ### Technical Requirements
 
 - Keep implementation inside the existing dashboard stack: React, Vite, TanStack Router, shadcn/ui, Tailwind CSS 4, and lucide-react. [Source: specs/planning-artifacts/architecture.md#Key Decisions]
-- Continue using the existing `ResourceHub` component as the implementation center for homepage behavior rather than splitting responsive logic across unrelated pages. [Source: dashboard/src/components/resources/ResourceHub.tsx]
-- Preserve the current async count-loading model or improve it without introducing blocking fetch behavior that delays the full page from rendering. [Source: dashboard/src/components/resources/ResourceHub.tsx]
+- Continue using the existing `ResourceHub` component as the implementation center for homepage behavior rather than splitting responsive logic across unrelated pages. [Source: web/src/components/resources/ResourceHub.tsx]
+- Preserve the current async count-loading model or improve it without introducing blocking fetch behavior that delays the full page from rendering. [Source: web/src/components/resources/ResourceHub.tsx]
 - Do not require backend changes for this story. Usability baseline work should remain within the current UI and route architecture. [Source: specs/planning-artifacts/architecture.md#API and Interaction Model]
 
 ### Architecture Compliance
@@ -80,21 +80,21 @@ so that I can rely on it as a stable entry surface instead of a desktop-only nav
 
 ### Library / Framework Requirements
 
-- Preserve current semantic section structure already present in `ResourceHub.tsx`, including `section` landmarks and heading relationships, and strengthen it where useful. [Source: dashboard/src/components/resources/ResourceHub.tsx]
-- Reuse existing focus and interactive styling conventions from the current card-link pattern instead of inventing a new interaction system. [Source: dashboard/src/components/resources/ResourceHub.tsx]
-- Keep action and card composition within existing shadcn/ui primitives such as `Button`, `Card`, and any chooser primitive introduced in Story 8.11. [Source: dashboard/src/components/ui/button.tsx] [Source: dashboard/src/components/ui/card.tsx]
+- Preserve current semantic section structure already present in `ResourceHub.tsx`, including `section` landmarks and heading relationships, and strengthen it where useful. [Source: web/src/components/resources/ResourceHub.tsx]
+- Reuse existing focus and interactive styling conventions from the current card-link pattern instead of inventing a new interaction system. [Source: web/src/components/resources/ResourceHub.tsx]
+- Keep action and card composition within existing shadcn/ui primitives such as `Button`, `Card`, and any chooser primitive introduced in Story 8.11. [Source: web/src/components/ui/button.tsx] [Source: web/src/components/ui/card.tsx]
 - Prefer utility-class refinements and compositional cleanup over large-scale layout rewrites.
 
 ### File Structure Requirements
 
-- Primary implementation file: `dashboard/src/components/resources/ResourceHub.tsx`.
-- Primary regression file: `dashboard/src/components/resources/ResourceHub.test.tsx`.
-- If chooser behavior from Story 8.11 affects focus management or action layout, keep those adjustments co-located with `ResourceHub` or a nearby extracted subcomponent under `dashboard/src/components/resources/`.
-- Route shell file should remain `dashboard/src/routes/_app/_auth/resources/index.tsx` unless a strictly necessary metadata change is identified.
+- Primary implementation file: `web/src/components/resources/ResourceHub.tsx`.
+- Primary regression file: `web/src/components/resources/ResourceHub.test.tsx`.
+- If chooser behavior from Story 8.11 affects focus management or action layout, keep those adjustments co-located with `ResourceHub` or a nearby extracted subcomponent under `web/src/components/resources/`.
+- Route shell file should remain `web/src/routes/_app/_auth/resources/index.tsx` unless a strictly necessary metadata change is identified.
 
 ### Testing Requirements
 
-- Add practical component-level tests for section headings, action reachability, focus-visible or semantic cues, and loading-state hierarchy. [Source: dashboard/src/components/resources/ResourceHub.test.tsx]
+- Add practical component-level tests for section headings, action reachability, focus-visible or semantic cues, and loading-state hierarchy. [Source: web/src/components/resources/ResourceHub.test.tsx]
 - Validate that canonical links remain present and correctly ordered even while counts are loading or unavailable.
 - Manual verification remains appropriate for viewport-specific spacing, contrast perception, and mobile hiding behavior that is awkward to assert in unit tests.
 - Run at least the focused Resource Hub test file after implementation.
@@ -138,9 +138,9 @@ so that I can rely on it as a stable entry surface instead of a desktop-only nav
 - [Source: specs/implementation-artifacts/epic8-resources.md#Phase 2 Canonical Resource Families]
 - [Source: specs/implementation-artifacts/story8.9-resource-hub-information-architecture-alignment.md#Page-Level Hub Specification]
 - [Source: specs/implementation-artifacts/story8.10-resource-hub-canonical-structure.md#Developer Context]
-- [Source: dashboard/src/components/resources/ResourceHub.tsx]
-- [Source: dashboard/src/components/resources/ResourceHub.test.tsx]
-- [Source: dashboard/src/routes/_app/_auth/resources/index.tsx]
+- [Source: web/src/components/resources/ResourceHub.tsx]
+- [Source: web/src/components/resources/ResourceHub.test.tsx]
+- [Source: web/src/routes/_app/_auth/resources/index.tsx]
 
 ## Dev Agent Record
 

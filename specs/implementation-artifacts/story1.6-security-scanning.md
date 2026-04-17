@@ -10,7 +10,7 @@
 ## 验收标准
 - [x] `make sec`: govulncheck（Go CVE）+ npm audit（JS CVE high+）+ gitleaks（密钥泄露检测）
 - [x] `make scan`: trivy 镜像扫描（HIGH/CRITICAL，advisory 模式不阻断）— 通过 Docker 运行，无需安装
-- [x] `make sbom`: syft 生成 SBOM → `sbom.spdx.json`（范围：backend + dashboard/src）
+- [x] `make sbom`: syft 生成 SBOM → `sbom.spdx.json`（范围：backend + web/src）
 - [x] `.golangci.yml`: gosec 纳入 lint 流程，豁免 G304/G115，测试文件仅豁免 errcheck/ineffassign
 - [x] CI `scan` job: trivy SARIF 推送 GitHub Security 标签页，SBOM 推送 GitHub Dependency Graph
 - [x] 工具安装集成到 `make install`（govulncheck/gitleaks/syft；trivy 通过 Docker 运行无需安装）

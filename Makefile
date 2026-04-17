@@ -24,9 +24,9 @@ help:
 	@printf "\033[36mDev:\033[0m\n"
 	@echo "  make install              Install dev dependencies (Go tools, build-essential, npm packages)"
 	@echo "  make tidy                 Tidy Go modules"
-	@echo "  make build                Build all (backend + dashboard)"
+	@echo "  make build                Build all (backend + web)"
 	@echo "  make build backend        Build Go binaries → backend/appos + backend/appos-monitor-agent"
-	@echo "  make build dashboard      Build React app → dashboard/dist"
+	@echo "  make build web            Build React app → web/dist"
 	@echo "  make run                  Copy artifacts + restart services (~10s)"
 	@echo "  make run 9092             Copy artifacts + restart on custom port"
 	@echo "  make redo                 Full rebuild: rm volumes + build + image + start dev"
@@ -34,7 +34,7 @@ help:
 	@printf "\033[36mTesting & Quality:\033[0m\n"
 	@echo "  make test                 Run all tests (Go + JS)"
 	@echo "  make test backend         Run all backend Go tests from backend/"
-	@echo "  make test dashboard       Run dashboard tests from dashboard/"
+	@echo "  make test web             Run web tests from web/"
 	@echo "  make test backend-targeted Run backend routes/secrets/migrations test set"
 	@echo "  make lint                 Run linters (golangci-lint + gosec, eslint)"
 	@echo "  make fmt                  Format code (gofmt, prettier)"
@@ -105,9 +105,9 @@ install:
 		echo "→ Go modules..."; \
 		cd backend && go mod download; \
 	fi
-	@if [ -f "dashboard/package.json" ]; then \
+	@if [ -f "web/package.json" ]; then \
 		echo "→ npm packages..."; \
-		cd dashboard && npm install; \
+		cd web && npm install; \
 	fi
 	@echo "✓ Dependencies installed"
 	@echo ""
@@ -150,10 +150,10 @@ ifeq ($(ARG2),backend)
 	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
 	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos-monitor-agent ./cmd/appos-monitor-agent
 	@echo "✓ Backend built → backend/appos + backend/appos-monitor-agent (statically linked)"
-else ifeq ($(ARG2),dashboard)
-	@echo "Building dashboard..."
-	@cd dashboard && npm run build
-	@echo "✓ Dashboard built → dashboard/dist/"
+else ifeq ($(ARG2),web)
+	@echo "Building web app..."
+	@cd web && npm run build
+	@echo "✓ Web app built → web/dist/"
 else ifeq ($(ARG2),library)
 	@echo "'make build library' is no longer needed - library is downloaded during Docker build (cached)"
 else
@@ -162,8 +162,8 @@ else
 	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
 	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos-monitor-agent ./cmd/appos-monitor-agent
 	@echo "✓ Backend built → backend/appos + backend/appos-monitor-agent"
-	@cd dashboard && npm run build
-	@echo "✓ Dashboard built → dashboard/dist/"
+	@cd web && npm run build
+	@echo "✓ Web app built → web/dist/"
 	@echo "✓ All built"
 endif
 
@@ -184,7 +184,7 @@ run:
 	@echo "Hot reload: copying pre-built artifacts..."
 	@docker cp backend/appos $(CONTAINER):/usr/local/bin/appos
 	@docker cp backend/appos-monitor-agent $(CONTAINER):/usr/local/bin/appos-monitor-agent
-	@docker cp dashboard/dist/. $(CONTAINER):/usr/share/nginx/html/dashboard/
+	@docker cp web/dist/. $(CONTAINER):/usr/share/nginx/html/web/
 	@docker cp build/nginx.conf $(CONTAINER):/etc/nginx/nginx.conf
 	@docker exec $(CONTAINER) nginx -t
 	@docker exec $(CONTAINER) supervisorctl -c /etc/supervisor/supervisord.conf restart appos nginx
@@ -199,10 +199,10 @@ ifeq ($(ARG2),backend)
 	@echo "Running backend tests..."
 	@cd backend && go test ./... -v
 	@echo "✓ Backend tests completed"
-else ifeq ($(ARG2),dashboard)
-	@echo "Running dashboard tests..."
-	@cd dashboard && npm test
-	@echo "✓ Dashboard tests completed"
+else ifeq ($(ARG2),web)
+	@echo "Running web tests..."
+	@cd web && npm test
+	@echo "✓ Web tests completed"
 else ifeq ($(ARG2),backend-targeted)
 	@echo "Running targeted backend tests..."
 	@cd backend && go test ./domain/routes ./domain/secrets ./infra/migrations -v
@@ -213,9 +213,9 @@ else
 		echo "→ Go tests..."; \
 		cd backend && go test ./... -v; \
 	fi
-	@if [ -f "dashboard/package.json" ]; then \
+	@if [ -f "web/package.json" ]; then \
 		echo "→ JS tests..."; \
-		cd dashboard && npm test 2>/dev/null; \
+		cd web && npm test 2>/dev/null; \
 	fi
 	@echo "✓ Tests completed"
 endif
@@ -229,9 +229,9 @@ lint:
 		echo "→ go vet (golangci-lint not installed)..."; \
 		cd backend && go vet ./... || true; \
 	fi
-	@if [ -f "dashboard/node_modules/.bin/eslint" ]; then \
+	@if [ -f "web/node_modules/.bin/eslint" ]; then \
 		echo "→ eslint..."; \
-		cd dashboard && npx eslint src/ || true; \
+		cd web && npx eslint src/ || true; \
 	fi
 	@echo "✓ Linting completed"
 
@@ -262,9 +262,9 @@ fmt:
 		echo "→ gofmt..."; \
 		find backend -name "*.go" -exec gofmt -w {} +; \
 	fi
-	@if [ -f "dashboard/node_modules/.bin/prettier" ]; then \
+	@if [ -f "web/node_modules/.bin/prettier" ]; then \
 		echo "→ prettier..."; \
-		cd dashboard && npx prettier --write "src/**/*.{ts,tsx,css,json}" 2>/dev/null || true; \
+		cd web && npx prettier --write "src/**/*.{ts,tsx,css,json}" 2>/dev/null || true; \
 	fi
 	@echo "✓ Code formatted"
 
@@ -283,8 +283,8 @@ sec:
 	fi
 	@echo ""
 	@echo "→ npm audit (JS CVE scan, high+critical only)..."
-	@if [ -f "dashboard/package.json" ]; then \
-		cd dashboard && npm audit --audit-level=high 2>/dev/null || true; \
+	@if [ -f "web/package.json" ]; then \
+		cd web && npm audit --audit-level=high 2>/dev/null || true; \
 	fi
 	@echo ""
 	@echo "→ gitleaks (secret / credential leak detection)..."
@@ -316,7 +316,7 @@ sbom:
 	@if ! command -v syft >/dev/null 2>&1; then \
 		echo "✗ syft not installed. Run 'make install' first."; exit 1; \
 	fi
-	syft dir:backend dir:dashboard/src -o spdx-json > sbom.spdx.json
+	syft dir:backend dir:web/src -o spdx-json > sbom.spdx.json
 	@echo "✓ SBOM generated → sbom.spdx.json"
 	@wc -l sbom.spdx.json | awk '{print "  Lines: " $$1}'
 
@@ -339,7 +339,7 @@ else ifeq ($(ARG2),build-local)
 	@# Verify artifacts exist
 	@test -f backend/appos || { echo "Error: backend/appos not found. Run 'make build backend' first."; exit 1; }
 	@test -f backend/appos-monitor-agent || { echo "Error: backend/appos-monitor-agent not found. Run 'make build backend' first."; exit 1; }
-	@test -d dashboard/dist || { echo "Error: dashboard/dist/ not found. Run 'make build dashboard' first."; exit 1; }
+	@test -d web/dist || { echo "Error: web/dist/ not found. Run 'make build web' first."; exit 1; }
 	@# Pass host proxy into build (replace 127.0.0.1 with host-gateway for container access)
 	$(eval HOST_PROXY := $(shell \
 		P=$${all_proxy:-$${ALL_PROXY:-$${http_proxy:-$${HTTP_PROXY:-}}}}; \

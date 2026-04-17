@@ -1,23 +1,23 @@
 # ===========================
-# Stage 1: Build Dashboard
+# Stage 1: Build Web App
 # ===========================
-FROM node:24-alpine AS dashboard-builder
+FROM node:24-alpine AS web-builder
 
 WORKDIR /build
-COPY dashboard/package.json dashboard/package-lock.json* ./
+COPY web/package.json web/package-lock.json* ./
 RUN npm ci --silent
-COPY dashboard/ .
+COPY web/ .
 RUN npm run build
 
 # ===========================
 # Node.js 24 Runtime Provider
 # ===========================
-FROM node:24-alpine AS node-provider
+FROM node:24-bookworm-slim AS node-provider
 
 # ===========================
-# Terraform Binary
+# Docker CLI Provider
 # ===========================
-FROM hashicorp/terraform:1.14 AS terraform-bin
+FROM docker:28-cli AS docker-cli-provider
 
 # ===========================
 # VictoriaMetrics Binary
@@ -39,50 +39,43 @@ RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o appos-monitor-agent ./cmd/appos-m
 # ===========================
 # Stage 3: Runtime
 # ===========================
-FROM alpine:3
+FROM netdata/netdata:stable
 
 LABEL maintainer="Websoft9<help@websoft9.com>" \
       org.opencontainers.image.title="AppOS" \
-      org.opencontainers.image.description="All-in-One container: Dashboard + PocketBase Framework (AppOS) + Redis" \
+    org.opencontainers.image.description="All-in-One container: Web app + PocketBase Framework (AppOS) + Redis + VictoriaMetrics + optional Netdata" \
       org.opencontainers.image.vendor="Websoft9" \
       org.opencontainers.image.url="https://www.websoft9.com" \
       org.opencontainers.image.source="https://github.com/websoft9/websoft9"
 
-# Install runtime dependencies (supervisor, docker-cli use latest from Alpine)
-RUN apk add --no-cache \
-    supervisor \
-    redis \
-    curl \
-    unzip \
-    ca-certificates \
-    tzdata \
-    bash \
-    docker-cli \
-    docker-cli-compose \
-    && rm -rf /var/cache/apk/*
-
-# Install nginx 1.28 from nginx.org official Alpine repository
-RUN curl -fsSL https://nginx.org/keys/nginx_signing.rsa.pub \
-        > /etc/apk/keys/nginx_signing.rsa.pub \
-    && ALPINE_MINOR="$(cut -d. -f1,2 /etc/alpine-release)" \
-    && apk add --no-cache \
-        --repository="https://nginx.org/packages/alpine/v${ALPINE_MINOR}/main" \
-        nginx~=1.28 \
-    && rm -f /etc/apk/keys/nginx_signing.rsa.pub
+# Install runtime dependencies on top of the official Netdata runtime.
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        supervisor \
+        redis-server \
+        unzip \
+        ca-certificates \
+        tzdata \
+        bash \
+        nginx \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy Node.js 24 from node-provider
 COPY --from=node-provider /usr/local/bin/node /usr/local/bin/node
 COPY --from=node-provider /usr/local/lib/node_modules /usr/local/lib/node_modules
+COPY --from=docker-cli-provider /usr/local/bin/docker /usr/local/bin/docker
+COPY --from=docker-cli-provider /usr/local/libexec/docker/cli-plugins/docker-compose /usr/local/libexec/docker/cli-plugins/docker-compose
 RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
-RUN npm install -g @mariozechner/pi-coding-agent
+RUN npm install -g @mariozechner/pi-coding-agent \
+    && npm cache clean --force \
+    && rm -rf /root/.npm
 
 # Copy build artifacts
-COPY --from=dashboard-builder /build/dist /usr/share/nginx/html/dashboard
+COPY --from=web-builder /build/dist /usr/share/nginx/html/web
 COPY --from=backend-builder /build/appos /usr/local/bin/appos
 COPY --from=backend-builder /build/appos-monitor-agent /usr/local/bin/appos-monitor-agent
-COPY --from=terraform-bin /bin/terraform /usr/local/bin/terraform
 COPY --from=victoriametrics-bin /victoria-metrics-prod /usr/local/bin/victoria-metrics-prod
 
 # Download Store Library plugin at build time
@@ -93,6 +86,20 @@ RUN set -eux; \
     unzip -q /tmp/library.zip -d /appos; \
     rm /tmp/library.zip
 
+RUN rm -f \
+    /usr/libexec/netdata/plugins.d/otel-plugin \
+    /usr/libexec/netdata/plugins.d/otel-signal-viewer-plugin \
+    /usr/libexec/netdata/plugins.d/network-viewer.plugin \
+    /usr/libexec/netdata/plugins.d/systemd-journal.plugin \
+    /usr/libexec/netdata/plugins.d/systemd-units.plugin \
+    /usr/libexec/netdata/plugins.d/freeipmi.plugin \
+    /usr/libexec/netdata/plugins.d/perf.plugin \
+    /usr/libexec/netdata/plugins.d/slabinfo.plugin \
+    /usr/libexec/netdata/plugins.d/python.d.plugin \
+    /usr/libexec/netdata/plugins.d/charts.d.plugin \
+    /usr/libexec/netdata/plugins.d/ioping.plugin \
+    /usr/libexec/netdata/plugins.d/local-listeners
+
 # Create data directories
 RUN mkdir -p \
     /appos/data/pb/pb_data \
@@ -100,20 +107,30 @@ RUN mkdir -p \
     /appos/data/redis \
     /appos/data/apps \
     /appos/data/pi \
+    /appos/data/netdata \
     /appos/data/victoriametrics \
     /appos/data/workflows \
     /appos/data/templates/apps \
     /appos/data/templates/workflows \
     /appos/data/templates/custom \
     /var/log/supervisor \
+    /var/log/netdata \
     /var/log/nginx \
+    /usr/local/libexec/docker/cli-plugins \
     /etc/nginx/conf.d \
     /run/nginx
+
+RUN touch /etc/netdata/.opt-out-from-anonymous-statistics
 
 # Copy configuration files
 COPY build/supervisord.conf /etc/supervisor/supervisord.conf
 COPY build/nginx.conf /etc/nginx/nginx.conf
+COPY build/netdata/netdata.conf /etc/netdata/netdata.conf
+COPY build/netdata/exporting.conf /etc/netdata/exporting.conf
 COPY --chmod=755 build/entrypoint.sh /entrypoint.sh
+
+RUN mkdir -p /usr/local/share/appos/netdata-defaults \
+    && cp -a /etc/netdata/. /usr/local/share/appos/netdata-defaults/
 
 # Verify critical files
 RUN set -eux; \
@@ -125,7 +142,9 @@ RUN set -eux; \
     nginx -t || { echo "ERROR: nginx config invalid"; exit 1; }
 
 ENV PI_CODING_AGENT_DIR=/appos/data/pi \
-    TSDB_ADDR=http://127.0.0.1:8428
+    TSDB_ADDR=http://127.0.0.1:8428 \
+    DISABLE_TELEMETRY=1 \
+    DO_NOT_TRACK=1
 
 EXPOSE 80
 

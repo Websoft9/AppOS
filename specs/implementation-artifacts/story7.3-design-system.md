@@ -253,7 +253,7 @@ export function ModeToggle() {
 ### File Structure After Completion
 
 ```
-dashboard/src/
+web/src/
 ├── components/
 │   ├── ui/
 │   │   ├── button.tsx           # shadcn/ui Button
@@ -380,24 +380,24 @@ Successfully implemented complete design system foundation with Tailwind CSS v4,
 ### File List
 
 **Created:**
-- `/data/dev/websoft9/dashboard/components.json` - shadcn/ui configuration
-- `/data/dev/websoft9/dashboard/src/components/theme-provider.tsx` - Theme context provider
-- `/data/dev/websoft9/dashboard/src/components/mode-toggle.tsx` - Theme switcher component
-- `/data/dev/websoft9/dashboard/src/components/ui/button.tsx` - shadcn/ui Button (via CLI)
-- `/data/dev/websoft9/dashboard/src/components/ui/dropdown-menu.tsx` - shadcn/ui DropdownMenu (via CLI)
+- `/data/dev/appos/web/components.json` - shadcn/ui configuration
+- `/data/dev/appos/web/src/components/theme-provider.tsx` - Theme context provider
+- `/data/dev/appos/web/src/components/mode-toggle.tsx` - Theme switcher component
+- `/data/dev/appos/web/src/components/ui/button.tsx` - shadcn/ui Button (via CLI)
+- `/data/dev/appos/web/src/components/ui/dropdown-menu.tsx` - shadcn/ui DropdownMenu (via CLI)
 
 **Modified:**
-- `/data/dev/websoft9/dashboard/vite.config.ts` - Added tailwindcss() plugin
-- `/data/dev/websoft9/dashboard/src/index.css` - Complete rewrite with Tailwind v4 + theme variables
-- `/data/dev/websoft9/dashboard/src/lib/utils.ts` - Added cn() utility function
-- `/data/dev/websoft9/dashboard/src/routes/__root.tsx` - Wrapped with ThemeProvider
-- `/data/dev/websoft9/dashboard/src/routes/index.tsx` - Added temporary ModeToggle
-- `/data/dev/websoft9/dashboard/src/routes/_app/login.tsx` - Converted to use shadcn Button
-- `/data/dev/websoft9/dashboard/package.json` - Added dependencies (via npm install)
+- `/data/dev/appos/web/vite.config.ts` - Added tailwindcss() plugin
+- `/data/dev/appos/web/src/index.css` - Complete rewrite with Tailwind v4 + theme variables
+- `/data/dev/appos/web/src/lib/utils.ts` - Added cn() utility function
+- `/data/dev/appos/web/src/routes/__root.tsx` - Wrapped with ThemeProvider
+- `/data/dev/appos/web/src/routes/index.tsx` - Added temporary ModeToggle
+- `/data/dev/appos/web/src/routes/_app/login.tsx` - Converted to use shadcn Button
+- `/data/dev/appos/web/package.json` - Added dependencies (via npm install)
 
 **Deleted:**
-- `/data/dev/websoft9/dashboard/src/App.css` - No longer needed
-- `/data/dev/websoft9/dashboard/src/App.tsx` - Replaced by router in Story 7.2
+- `/data/dev/appos/web/src/App.css` - No longer needed
+- `/data/dev/appos/web/src/App.tsx` - Replaced by router in Story 7.2
 
 **Dependencies Added:**
 - tailwindcss@latest

@@ -35,6 +35,146 @@ func TestQueryMetricSeriesQueriesVictoriaMetricsRangeAPI(t *testing.T) {
 	}
 }
 
+func TestQueryMetricSeriesQueriesNetdataPlatformAppOSCoreCPUExpression(t *testing.T) {
+	var queryString string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		queryString = r.URL.Query().Get("query")
+		_, _ = w.Write([]byte(`{"status":"success","data":{"result":[{"values":[[1713096000,"18.4"]]}]}}`))
+	}))
+	defer server.Close()
+	t.Setenv(EnvVictoriaMetricsURL, server.URL)
+
+	resp, err := QueryMetricSeries(context.Background(), TargetTypePlatform, PlatformTargetAppOSCore, "1h", []string{"cpu"}, MetricSeriesQueryOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if queryString != `100 - netdata_system_cpu_percentage_average{instance="appos-core",dimension="idle"}` {
+		t.Fatalf("unexpected VM query: %s", queryString)
+	}
+	if len(resp.Series) != 1 || len(resp.Series[0].Points) != 1 {
+		t.Fatalf("unexpected series response: %+v", resp)
+	}
+}
+
+func TestQueryMetricSeriesQueriesNetdataPlatformAppOSCoreMemoryExpression(t *testing.T) {
+	queries := make([]string, 0, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		queries = append(queries, r.URL.Query().Get("query"))
+		_, _ = w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
+	}))
+	defer server.Close()
+	t.Setenv(EnvVictoriaMetricsURL, server.URL)
+
+	resp, err := QueryMetricSeries(context.Background(), TargetTypePlatform, PlatformTargetAppOSCore, "1h", []string{"memory"}, MetricSeriesQueryOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queries) != 2 {
+		t.Fatalf("expected two memory queries, got %+v", queries)
+	}
+	if queries[0] != `sum(netdata_system_ram_MiB_average{instance="appos-core",dimension="used"}) * 1048576` {
+		t.Fatalf("unexpected used query: %s", queries[0])
+	}
+	if queries[1] != `sum(netdata_system_ram_MiB_average{instance="appos-core",dimension=~"free|cached|buffers"}) * 1048576` {
+		t.Fatalf("unexpected available query: %s", queries[1])
+	}
+	if len(resp.Series) != 1 || len(resp.Series[0].Segments) != 2 {
+		t.Fatalf("unexpected series response: %+v", resp)
+	}
+}
+
+func TestQueryMetricSeriesUsesAppOSPlatformMetricsForNonCoreTarget(t *testing.T) {
+	var queryString string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		queryString = r.URL.Query().Get("query")
+		_, _ = w.Write([]byte(`{"status":"success","data":{"result":[{"values":[[1713096000,"1"]]}]}}`))
+	}))
+	defer server.Close()
+	t.Setenv(EnvVictoriaMetricsURL, server.URL)
+
+	_, err := QueryMetricSeries(context.Background(), TargetTypePlatform, PlatformTargetScheduler, "1h", []string{"cpu"}, MetricSeriesQueryOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if queryString != `appos_platform_cpu_percent{target_type="platform",target_id="scheduler"}` {
+		t.Fatalf("unexpected VM query: %s", queryString)
+	}
+}
+
+func TestQueryMetricSeriesQueriesNetdataPlatformAppOSCoreDiskExpression(t *testing.T) {
+	queries := make([]string, 0, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		queries = append(queries, r.URL.Query().Get("query"))
+		_, _ = w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
+	}))
+	defer server.Close()
+	t.Setenv(EnvVictoriaMetricsURL, server.URL)
+
+	resp, err := QueryMetricSeries(context.Background(), TargetTypePlatform, PlatformTargetAppOSCore, "1h", []string{"disk"}, MetricSeriesQueryOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queries) != 2 {
+		t.Fatalf("expected two disk queries, got %+v", queries)
+	}
+	if queries[0] != `sum(netdata_system_io_KiB_persec_average{instance="appos-core",dimension="reads"}) * 1024` {
+		t.Fatalf("unexpected read query: %s", queries[0])
+	}
+	if queries[1] != `sum(netdata_system_io_KiB_persec_average{instance="appos-core",dimension="writes"}) * 1024` {
+		t.Fatalf("unexpected write query: %s", queries[1])
+	}
+	if len(resp.Series) != 1 || len(resp.Series[0].Segments) != 2 {
+		t.Fatalf("unexpected disk response: %+v", resp)
+	}
+}
+
+func TestQueryMetricSeriesQueriesNetdataPlatformAppOSCoreNetworkExpression(t *testing.T) {
+	queries := make([]string, 0, 2)
+	var hitSeriesLookup bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/series":
+			hitSeriesLookup = true
+			_, _ = w.Write([]byte(`{"status":"success","data":[{"device":"eth0"},{"device":"ens3"}]}`))
+		default:
+			queries = append(queries, r.URL.Query().Get("query"))
+			_, _ = w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
+		}
+	}))
+	defer server.Close()
+	t.Setenv(EnvVictoriaMetricsURL, server.URL)
+
+	resp, err := QueryMetricSeries(context.Background(), TargetTypePlatform, PlatformTargetAppOSCore, "1h", []string{"network"}, MetricSeriesQueryOptions{NetworkInterface: "eth0"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hitSeriesLookup {
+		t.Fatal("expected network interface lookup")
+	}
+	if len(queries) != 2 {
+		t.Fatalf("expected two network queries, got %+v", queries)
+	}
+	if queries[0] != `sum(netdata_net_net_kilobits_persec_average{instance="appos-core",device="eth0",dimension="received"}) * 125` {
+		t.Fatalf("unexpected received query: %s", queries[0])
+	}
+	if queries[1] != `sum(netdata_net_net_kilobits_persec_average{instance="appos-core",device="eth0",dimension="sent"}) * 125` {
+		t.Fatalf("unexpected sent query: %s", queries[1])
+	}
+	if len(resp.Series) != 1 || len(resp.Series[0].Segments) != 2 {
+		t.Fatalf("unexpected network response: %+v", resp)
+	}
+	if resp.SelectedNetworkInterface != "eth0" || len(resp.AvailableNetworkInterfaces) != 2 {
+		t.Fatalf("unexpected network selector metadata: %+v", resp)
+	}
+}
+
+func TestQueryMetricSeriesRejectsNetdataOnlyPlatformSeriesForNonCoreTarget(t *testing.T) {
+	_, err := QueryMetricSeries(context.Background(), TargetTypePlatform, PlatformTargetScheduler, "1h", []string{"disk"}, MetricSeriesQueryOptions{})
+	if err == nil || !strings.Contains(err.Error(), `supported only for platform target "appos-core"`) {
+		t.Fatalf("expected appos-core-only rejection, got %v", err)
+	}
+}
+
 func TestQueryMetricSeriesQueriesNetdataServerMemoryExpression(t *testing.T) {
 	queries := make([]string, 0, 2)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -22,7 +22,7 @@ so that I can start creating the right resource without taxonomy confusion.
 ## Tasks / Subtasks
 
 - [ ] Replace the current quick-create dropdown with a canonical chooser panel interaction (AC: 1, 2)
-  - [ ] Rework the existing `Add Resource` control in `dashboard/src/components/resources/ResourceHub.tsx` so it opens a lightweight chooser panel instead of a simple dropdown list.
+  - [ ] Rework the existing `Add Resource` control in `web/src/components/resources/ResourceHub.tsx` so it opens a lightweight chooser panel instead of a simple dropdown list.
   - [ ] Keep the chooser visually subordinate to the page shell; do not turn this into a dedicated full-page wizard or route.
   - [ ] Present the five canonical families together in one chooser surface with no extra group-first step.
 - [ ] Define canonical family options, helper copy, and inline examples (AC: 2, 3, 4)
@@ -34,7 +34,7 @@ so that I can start creating the right resource without taxonomy confusion.
   - [ ] Normalize create-entry behavior so all four destination pages can honor the same create handoff contract, rather than only some routes supporting `?create=1`.
   - [ ] Keep transitional routing compatibility only where necessary, but maintain canonical user-facing wording throughout the chooser.
 - [ ] Add focused regression coverage for chooser behavior and route handoff (AC: 1, 2, 3, 4, 5, 6)
-  - [ ] Extend `dashboard/src/components/resources/ResourceHub.test.tsx` to cover chooser open/close behavior, canonical option copy, and inline example toggles.
+  - [ ] Extend `web/src/components/resources/ResourceHub.test.tsx` to cover chooser open/close behavior, canonical option copy, and inline example toggles.
   - [ ] Add or update route-level tests for family pages that must now respond consistently to create-entry handoff.
   - [ ] Verify keyboard and focus-return behavior in component tests where practical.
 
@@ -64,8 +64,8 @@ so that I can start creating the right resource without taxonomy confusion.
 ### Technical Requirements
 
 - Keep implementation inside the existing dashboard frontend stack: React, Vite, TanStack Router, shadcn/ui, Tailwind CSS 4, and lucide-react. [Source: specs/planning-artifacts/architecture.md#Key Decisions]
-- Reuse existing UI primitives already present in the repo such as dialog, sheet, collapsible, dropdown-menu, button, and card before introducing any new dependency. [Source: dashboard/src/components/ui/dialog.tsx] [Source: dashboard/src/components/ui/sheet.tsx] [Source: dashboard/src/components/ui/collapsible.tsx]
-- Preserve the existing Resource Hub route entry at `dashboard/src/routes/_app/_auth/resources/index.tsx`; the chooser should remain a component-level interaction on the homepage rather than a new route. [Source: dashboard/src/routes/_app/_auth/resources/index.tsx]
+- Reuse existing UI primitives already present in the repo such as dialog, sheet, collapsible, dropdown-menu, button, and card before introducing any new dependency. [Source: web/src/components/ui/dialog.tsx] [Source: web/src/components/ui/sheet.tsx] [Source: web/src/components/ui/collapsible.tsx]
+- Preserve the existing Resource Hub route entry at `web/src/routes/_app/_auth/resources/index.tsx`; the chooser should remain a component-level interaction on the homepage rather than a new route. [Source: web/src/routes/_app/_auth/resources/index.tsx]
 - Do not require backend contract changes for this story. The main change is UI flow and route handoff consistency for existing create surfaces. [Source: specs/planning-artifacts/architecture.md#API and Interaction Model]
 
 ### Architecture Compliance
@@ -77,22 +77,22 @@ so that I can start creating the right resource without taxonomy confusion.
 
 ### Library / Framework Requirements
 
-- The current `ResourceHub` already uses `Button`, `Card`, `DropdownMenu`, and TanStack Router navigation. Extend or replace this implementation rather than creating a parallel resource-entry abstraction. [Source: dashboard/src/components/resources/ResourceHub.tsx]
-- If the chooser needs expandable example rows, prefer existing Radix-backed primitives already wrapped in the repo, such as `Collapsible`, rather than a custom disclosure system. [Source: dashboard/src/components/ui/collapsible.tsx]
-- If the chooser needs stronger focus trapping and focus return guarantees than the current dropdown provides, prefer the existing dialog or sheet primitives already available in the codebase. [Source: dashboard/src/components/ui/dialog.tsx] [Source: dashboard/src/components/ui/sheet.tsx]
-- Preserve TanStack Router navigation patterns and use the same route destinations already used by the hub cards. [Source: dashboard/src/components/resources/ResourceHub.tsx] [Source: dashboard/src/routes/_app/_auth/resources/index.tsx]
+- The current `ResourceHub` already uses `Button`, `Card`, `DropdownMenu`, and TanStack Router navigation. Extend or replace this implementation rather than creating a parallel resource-entry abstraction. [Source: web/src/components/resources/ResourceHub.tsx]
+- If the chooser needs expandable example rows, prefer existing Radix-backed primitives already wrapped in the repo, such as `Collapsible`, rather than a custom disclosure system. [Source: web/src/components/ui/collapsible.tsx]
+- If the chooser needs stronger focus trapping and focus return guarantees than the current dropdown provides, prefer the existing dialog or sheet primitives already available in the codebase. [Source: web/src/components/ui/dialog.tsx] [Source: web/src/components/ui/sheet.tsx]
+- Preserve TanStack Router navigation patterns and use the same route destinations already used by the hub cards. [Source: web/src/components/resources/ResourceHub.tsx] [Source: web/src/routes/_app/_auth/resources/index.tsx]
 
 ### File Structure Requirements
 
-- Primary homepage interaction file: `dashboard/src/components/resources/ResourceHub.tsx`.
-- Primary chooser regression file: `dashboard/src/components/resources/ResourceHub.test.tsx`.
-- Likely route files needing create-entry normalization: `dashboard/src/routes/_app/_auth/resources/servers.tsx`, `dashboard/src/routes/_app/_auth/resources/service-instances.tsx`, `dashboard/src/routes/_app/_auth/resources/ai-providers.tsx`, `dashboard/src/routes/_app/_auth/resources/connectors.tsx`, and `dashboard/src/routes/_app/_auth/resources/platform-accounts.tsx`.
-- If a chooser subcomponent is extracted for maintainability, keep it under `dashboard/src/components/resources/` rather than introducing a separate feature area.
+- Primary homepage interaction file: `web/src/components/resources/ResourceHub.tsx`.
+- Primary chooser regression file: `web/src/components/resources/ResourceHub.test.tsx`.
+- Likely route files needing create-entry normalization: `web/src/routes/_app/_auth/resources/servers.tsx`, `web/src/routes/_app/_auth/resources/service-instances.tsx`, `web/src/routes/_app/_auth/resources/ai-providers.tsx`, `web/src/routes/_app/_auth/resources/connectors.tsx`, and `web/src/routes/_app/_auth/resources/platform-accounts.tsx`.
+- If a chooser subcomponent is extracted for maintainability, keep it under `web/src/components/resources/` rather than introducing a separate feature area.
 
 ### Testing Requirements
 
-- Add focused component-level regression coverage for chooser open state, canonical family labels, helper copy, example expansion, keyboard dismissal, and direct create routing. [Source: dashboard/src/components/resources/ResourceHub.test.tsx]
-- Add or update route-level tests so all destination pages respond consistently to create-entry handoff, especially where only `servers` currently appears to read `search.create`. [Source: dashboard/src/routes/_app/_auth/resources/servers.tsx] [Source: dashboard/src/routes/_app/_auth/resources/-service-instances.test.tsx] [Source: dashboard/src/routes/_app/_auth/resources/-platform-accounts.test.tsx] [Source: dashboard/src/routes/_app/_auth/resources/-connectors.test.tsx]
+- Add focused component-level regression coverage for chooser open state, canonical family labels, helper copy, example expansion, keyboard dismissal, and direct create routing. [Source: web/src/components/resources/ResourceHub.test.tsx]
+- Add or update route-level tests so all destination pages respond consistently to create-entry handoff, especially where only `servers` currently appears to read `search.create`. [Source: web/src/routes/_app/_auth/resources/servers.tsx] [Source: web/src/routes/_app/_auth/resources/-service-instances.test.tsx] [Source: web/src/routes/_app/_auth/resources/-platform-accounts.test.tsx] [Source: web/src/routes/_app/_auth/resources/-connectors.test.tsx]
 - Prefer targeted component and route tests over broad end-to-end coverage for this story.
 
 ### Previous Story Intelligence
@@ -114,7 +114,7 @@ so that I can start creating the right resource without taxonomy confusion.
 ### Latest Technical Information
 
 - No external web research is required for this story because the work stays inside the existing frontend stack and current TanStack Router + shadcn/ui patterns.
-- Use the project's wrapped Radix primitives already present in `dashboard/src/components/ui/` instead of adding a new overlay library.
+- Use the project's wrapped Radix primitives already present in `web/src/components/ui/` instead of adding a new overlay library.
 
 ### Project Structure Notes
 
@@ -134,13 +134,13 @@ so that I can start creating the right resource without taxonomy confusion.
 - [Source: specs/implementation-artifacts/epic8-resources.md#Phase 2 Canonical Resource Families]
 - [Source: specs/implementation-artifacts/story8.9-resource-hub-information-architecture-alignment.md#Add Resource Flow Contract]
 - [Source: specs/implementation-artifacts/story8.10-resource-hub-canonical-structure.md#Dev Notes]
-- [Source: dashboard/src/components/resources/ResourceHub.tsx]
-- [Source: dashboard/src/components/resources/ResourceHub.test.tsx]
-- [Source: dashboard/src/routes/_app/_auth/resources/index.tsx]
-- [Source: dashboard/src/routes/_app/_auth/resources/servers.tsx]
-- [Source: dashboard/src/routes/_app/_auth/resources/service-instances.tsx]
-- [Source: dashboard/src/routes/_app/_auth/resources/connectors.tsx]
-- [Source: dashboard/src/routes/_app/_auth/resources/platform-accounts.tsx]
+- [Source: web/src/components/resources/ResourceHub.tsx]
+- [Source: web/src/components/resources/ResourceHub.test.tsx]
+- [Source: web/src/routes/_app/_auth/resources/index.tsx]
+- [Source: web/src/routes/_app/_auth/resources/servers.tsx]
+- [Source: web/src/routes/_app/_auth/resources/service-instances.tsx]
+- [Source: web/src/routes/_app/_auth/resources/connectors.tsx]
+- [Source: web/src/routes/_app/_auth/resources/platform-accounts.tsx]
 
 ## Dev Agent Record
 

@@ -29,7 +29,7 @@ As a developer, I want simplified Makefile commands, so that I don't need to rem
 make install              # Install dev dependencies (Go tools, npm packages)
 make tidy                 # Tidy Go modules
 make build backend        # Build Go binary → backend/appos
-make build dashboard      # Build React app → dashboard/dist
+make build web            # Build React app → web/dist
 make run                  # Copy artifacts + restart (default port 9091)
 make run 9092             # Copy artifacts + restart on port 9092
 ```
@@ -81,7 +81,7 @@ make help                 # Show all commands
 
 ```bash
 make build backend        # Compiles Go
-make build dashboard      # Builds React
+make build web            # Builds React
 make image build          # Production image
 make image build-local    # Dev image
 ```
@@ -214,8 +214,8 @@ make install
 make build backend
 ls backend/appos          # Should exist (PocketBase framework binary)
 
-make build dashboard
-ls dashboard/dist/        # Should contain index.html
+make build web
+ls web/dist/              # Should contain index.html
 ```
 
 ### Image Build

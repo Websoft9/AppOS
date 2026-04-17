@@ -110,12 +110,12 @@ func resolveStoreDir() (string, error) {
 	}
 
 	wd, _ := os.Getwd()
-	candidates := []string{"/usr/share/nginx/html/dashboard/store"}
+	candidates := []string{"/usr/share/nginx/html/web/store"}
 	base := wd
 	for range 6 {
 		candidates = append(candidates,
-			filepath.Join(base, "dashboard", "public", "store"),
-			filepath.Join(base, "dashboard", "dist", "store"),
+			filepath.Join(base, "web", "public", "store"),
+			filepath.Join(base, "web", "dist", "store"),
 		)
 		parent := filepath.Dir(base)
 		if parent == base {

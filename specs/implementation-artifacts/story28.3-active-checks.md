@@ -309,7 +309,7 @@ Similarly, scheduling should reuse the existing cron and worker infrastructure a
 
 - `cd /data/dev/appos/backend && go test ./domain/monitor ./domain/worker`
 - `cd /data/dev/appos/backend && go test ./domain/routes ./platform/hooks ./cmd/appos`
-- `cd /data/dev/appos/dashboard && npm test -- --run src/routes/_app/_auth/resources/-service-instances.test.tsx`
+- `cd /data/dev/appos/web && npm test -- --run src/routes/_app/_auth/resources/-service-instances.test.tsx`
 
 ## File List
 
@@ -328,5 +328,5 @@ Similarly, scheduling should reuse the existing cron and worker infrastructure a
 - `backend/platform/hooks/cron.go`
 - `backend/platform/hooks/hooks.go`
 - `backend/cmd/appos/main.go`
-- `dashboard/src/routes/_app/_auth/resources/service-instances.tsx`
-- `dashboard/src/routes/_app/_auth/resources/-service-instances.test.tsx`
+- `web/src/routes/_app/_auth/resources/service-instances.tsx`
+- `web/src/routes/_app/_auth/resources/-service-instances.test.tsx`

@@ -40,10 +40,10 @@ components:
       value: unknown
     availability_probe:
       type: file_exists
-      path: /usr/share/nginx/html/dashboard/index.html
+      path: /usr/share/nginx/html/web/index.html
     update_probe:
       type: file_mtime
-      path: /usr/share/nginx/html/dashboard/index.html
+      path: /usr/share/nginx/html/web/index.html
     operations:
       start: false
       stop: false

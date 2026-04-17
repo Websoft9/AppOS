@@ -10,6 +10,9 @@ mkdir -p \
     /appos/data/redis \
     /appos/data/apps \
     /appos/data/pi \
+    /appos/data/netdata/etc \
+    /appos/data/netdata/lib \
+    /appos/data/netdata/cache \
     /appos/data/victoriametrics \
     /appos/data/workflows \
     /appos/data/templates/apps \
@@ -21,10 +24,25 @@ chmod -R 755 /appos/data
 
 # Create log directories
 mkdir -p /var/log/supervisor
+mkdir -p /var/log/netdata
 mkdir -p /var/log/nginx
 mkdir -p /run/nginx
 
+if [ ! -f /appos/data/netdata/etc/netdata.conf ]; then
+  cp -a /usr/local/share/appos/netdata-defaults/. /appos/data/netdata/etc/
+fi
+
+# Refresh the AppOS-managed remote write config on every startup so stale volumes
+# do not keep exporting with missing hostname or chart filters.
+cp /usr/local/share/appos/netdata-defaults/exporting.conf /appos/data/netdata/etc/exporting.conf
+
+rm -rf /etc/netdata /var/lib/netdata /var/cache/netdata
+ln -s /appos/data/netdata/etc /etc/netdata
+ln -s /appos/data/netdata/lib /var/lib/netdata
+ln -s /appos/data/netdata/cache /var/cache/netdata
+
 echo "==> Data directories ready"
+echo "==> Embedded Netdata configured: /appos/data/netdata/{etc,lib,cache}"
 
 # Initialize superuser based on INIT_MODE
 # - auto (default): create superuser from env vars

@@ -78,22 +78,22 @@ so that I can quickly understand the resource map and enter the correct destinat
 
 ### Library / Framework Requirements
 
-- Reuse existing shadcn/ui primitives already used in the component: `Button`, `Card`, `CardContent`, and dropdown primitives. [Source: dashboard/src/components/resources/ResourceHub.tsx]
-- Preserve TanStack Router navigation patterns already used in `dashboard/src/routes/_app/_auth/resources/index.tsx` and `useNavigate` inside `ResourceHub.tsx`. [Source: dashboard/src/routes/_app/_auth/resources/index.tsx] [Source: dashboard/src/components/resources/ResourceHub.tsx]
-- Keep lucide-react icons for consistency with the current resource cards. [Source: dashboard/src/components/resources/ResourceHub.tsx]
+- Reuse existing shadcn/ui primitives already used in the component: `Button`, `Card`, `CardContent`, and dropdown primitives. [Source: web/src/components/resources/ResourceHub.tsx]
+- Preserve TanStack Router navigation patterns already used in `web/src/routes/_app/_auth/resources/index.tsx` and `useNavigate` inside `ResourceHub.tsx`. [Source: web/src/routes/_app/_auth/resources/index.tsx] [Source: web/src/components/resources/ResourceHub.tsx]
+- Keep lucide-react icons for consistency with the current resource cards. [Source: web/src/components/resources/ResourceHub.tsx]
 - Prefer strengthening current card semantics over introducing a new component framework or custom navigation abstraction.
 
 ### File Structure Requirements
 
-- Primary implementation file: `dashboard/src/components/resources/ResourceHub.tsx`.
-- Primary regression file: `dashboard/src/components/resources/ResourceHub.test.tsx`.
-- Route entry should remain `dashboard/src/routes/_app/_auth/resources/index.tsx` unless a change is strictly necessary.
-- Family destination routes already exist under `dashboard/src/routes/_app/_auth/resources/` and should remain the navigation targets for the canonical cards.
+- Primary implementation file: `web/src/components/resources/ResourceHub.tsx`.
+- Primary regression file: `web/src/components/resources/ResourceHub.test.tsx`.
+- Route entry should remain `web/src/routes/_app/_auth/resources/index.tsx` unless a change is strictly necessary.
+- Family destination routes already exist under `web/src/routes/_app/_auth/resources/` and should remain the navigation targets for the canonical cards.
 - Do not scatter homepage structure logic into unrelated resource page files unless needed for a route constant or shared type.
 
 ### Testing Requirements
 
-- Keep or improve coverage for canonical section titles, canonical helper copy, and card counts. [Source: dashboard/src/components/resources/ResourceHub.test.tsx]
+- Keep or improve coverage for canonical section titles, canonical helper copy, and card counts. [Source: web/src/components/resources/ResourceHub.test.tsx]
 - Add coverage for full-card navigation behavior and stronger entry semantics.
 - Prefer focused component tests over broad end-to-end work for this story.
 - Run at least the focused Resource Hub test file after implementation.
@@ -140,9 +140,9 @@ so that I can quickly understand the resource map and enter the correct destinat
 - [Source: specs/planning-artifacts/architecture.md#API and Interaction Model]
 - [Source: specs/implementation-artifacts/epic8-resources.md#Phase 2 Canonical Resource Families]
 - [Source: specs/implementation-artifacts/story8.9-resource-hub-information-architecture-alignment.md#Page-Level Hub Specification]
-- [Source: dashboard/src/components/resources/ResourceHub.tsx]
-- [Source: dashboard/src/components/resources/ResourceHub.test.tsx]
-- [Source: dashboard/src/routes/_app/_auth/resources/index.tsx]
+- [Source: web/src/components/resources/ResourceHub.tsx]
+- [Source: web/src/components/resources/ResourceHub.test.tsx]
+- [Source: web/src/routes/_app/_auth/resources/index.tsx]
 
 ## Dev Agent Record
 

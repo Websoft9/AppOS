@@ -119,14 +119,20 @@ func TestPlatformObserverCollectWritesPlatformMetrics(t *testing.T) {
 	if len(captured) == 0 {
 		t.Fatal("expected platform metrics to be written")
 	}
+	foundGoroutines := false
 	foundCPU := false
 	for _, point := range captured {
+		if point.Series == "appos_platform_goroutines" {
+			foundGoroutines = true
+		}
 		if point.Series == "appos_platform_cpu_percent" {
 			foundCPU = true
-			break
 		}
 	}
-	if !foundCPU {
-		t.Fatalf("expected appos_platform_cpu_percent in %+v", captured)
+	if !foundGoroutines {
+		t.Fatalf("expected appos_platform_goroutines in %+v", captured)
+	}
+	if foundCPU {
+		t.Fatalf("did not expect appos_platform_cpu_percent in %+v", captured)
 	}
 }

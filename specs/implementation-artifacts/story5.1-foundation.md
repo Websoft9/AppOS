@@ -42,7 +42,7 @@ Filter logic: primary match → check `product.catalogCollection.items[*].catalo
 ## Key Design Decisions
 
 - **UI**: shadcn/ui components + Tailwind CSS — consistent with Dashboard design system
-- **Routing**: `dashboard/src/routes/_app/_auth/store/index.tsx` (TanStack Router file-based)
+- **Routing**: `web/src/routes/_app/_auth/store/index.tsx` (TanStack Router file-based)
 - **Data**: TanStack Query with `staleTime: 60 * 60 * 1000` (1h in-memory cache)
 - **i18n**: react-i18next, namespace `store`
 
@@ -70,18 +70,18 @@ Filter logic: primary match → check `product.catalogCollection.items[*].catalo
 
 ### File List
 
-- `dashboard/src/lib/store-types.ts` [NEW]
-- `dashboard/src/lib/store-api.ts` [NEW]
-- `dashboard/src/lib/i18n.ts` [NEW]
-- `dashboard/src/locales/en/store.json` [NEW]
-- `dashboard/src/locales/zh/store.json` [NEW]
-- `dashboard/src/locales/en/common.json` [NEW]
-- `dashboard/src/locales/zh/common.json` [NEW]
-- `dashboard/src/components/store/AppIcon.tsx` [NEW]
-- `dashboard/src/components/store/AppCard.tsx` [NEW]
-- `dashboard/src/components/store/CategoryFilter.tsx` [NEW]
-- `dashboard/src/components/store/StorePagination.tsx` [NEW]
-- `dashboard/src/routes/_app/_auth/store/index.tsx` [NEW]
-- `dashboard/src/main.tsx` [MODIFIED]
-- `dashboard/src/routeTree.gen.ts` [AUTO-GENERATED]
-- `dashboard/package.json` [MODIFIED — added 4 packages]
+- `web/src/lib/store-types.ts` [NEW]
+- `web/src/lib/store-api.ts` [NEW]
+- `web/src/lib/i18n.ts` [NEW]
+- `web/src/locales/en/store.json` [NEW]
+- `web/src/locales/zh/store.json` [NEW]
+- `web/src/locales/en/common.json` [NEW]
+- `web/src/locales/zh/common.json` [NEW]
+- `web/src/components/store/AppIcon.tsx` [NEW]
+- `web/src/components/store/AppCard.tsx` [NEW]
+- `web/src/components/store/CategoryFilter.tsx` [NEW]
+- `web/src/components/store/StorePagination.tsx` [NEW]
+- `web/src/routes/_app/_auth/store/index.tsx` [NEW]
+- `web/src/main.tsx` [MODIFIED]
+- `web/src/routeTree.gen.ts` [AUTO-GENERATED]
+- `web/package.json` [MODIFIED — added 4 packages]

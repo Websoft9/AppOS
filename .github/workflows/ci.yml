@@ -29,10 +29,10 @@ jobs:
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: dashboard/package-lock.json
+          cache-dependency-path: web/package-lock.json
 
       - name: Install frontend deps
-        run: cd dashboard && npm ci
+        run: cd web && npm ci
 
       - name: golangci-lint (incl. gosec)
         uses: golangci/golangci-lint-action@v6
@@ -42,7 +42,7 @@ jobs:
           args: --config ../.golangci.yml --timeout 5m
 
       - name: ESLint
-        run: cd dashboard && npx eslint src/
+        run: cd web && npx eslint src/
 
   # ─── Test ────────────────────────────────────────────────────────────────────
   test:
@@ -62,16 +62,16 @@ jobs:
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: dashboard/package-lock.json
+          cache-dependency-path: web/package-lock.json
 
       - name: Install frontend deps
-        run: cd dashboard && npm ci
+        run: cd web && npm ci
 
       - name: Go tests
         run: cd backend && go test ./... -v
 
       - name: JS tests
-        run: cd dashboard && npm test
+        run: cd web && npm test
 
   # ─── Security ────────────────────────────────────────────────────────────────
   sec:
@@ -94,7 +94,7 @@ jobs:
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: dashboard/package-lock.json
+          cache-dependency-path: web/package-lock.json
 
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
@@ -104,10 +104,10 @@ jobs:
         continue-on-error: true   # advisory; upstream CVEs may have no fix yet
 
       - name: Install frontend deps
-        run: cd dashboard && npm ci
+        run: cd web && npm ci
 
       - name: npm audit (JS CVE, high+critical)
-        run: cd dashboard && npm audit --audit-level=high
+        run: cd web && npm audit --audit-level=high
         continue-on-error: true   # advisory; doesn't block merge
 
       - name: gitleaks (secret leak detection)

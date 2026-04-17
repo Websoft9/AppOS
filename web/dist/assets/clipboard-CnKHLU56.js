@@ -1,0 +1,2 @@
+async function n(t,c){try{return await navigator.clipboard.writeText(t),!0}catch{}if(c?.current)try{const e=c.current;return e.focus(),e.setSelectionRange(0,e.value.length),document.execCommand("copy")}catch{}try{const e=document.createElement("textarea");e.value=t,e.style.cssText="position:fixed;top:-9999px;left:-9999px;",document.body.appendChild(e),e.focus(),e.select();const o=document.execCommand("copy");return document.body.removeChild(e),o}catch{return!1}}export{n as c};
+//# sourceMappingURL=clipboard-CnKHLU56.js.map
