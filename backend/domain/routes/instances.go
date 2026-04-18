@@ -8,7 +8,7 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/audit"
-	"github.com/websoft9/appos/backend/domain/monitor"
+	monitorchecks "github.com/websoft9/appos/backend/domain/monitor/signals/checks"
 	"github.com/websoft9/appos/backend/domain/resource/accounts"
 	"github.com/websoft9/appos/backend/domain/resource/instances"
 	"github.com/websoft9/appos/backend/domain/secrets"
@@ -461,7 +461,7 @@ func instanceSnapshotMap(snap *instances.Snapshot) map[string]any {
 }
 
 func instanceReachabilityResponse(item *instances.Instance) map[string]any {
-	result := monitor.ProbeInstanceReachability(item)
+	result := monitorchecks.ProbeInstanceReachability(item)
 	response := map[string]any{
 		"id":     item.ID(),
 		"status": result.Status,

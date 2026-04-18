@@ -9,6 +9,9 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/monitor"
+	monitormetrics "github.com/websoft9/appos/backend/domain/monitor/metrics"
+	agentsignals "github.com/websoft9/appos/backend/domain/monitor/signals/agent"
+	monitorstatus "github.com/websoft9/appos/backend/domain/monitor/status"
 )
 
 func registerMonitorRoutes(se *core.ServeEvent) {
@@ -34,7 +37,7 @@ func handleMonitorMetrics(e *core.RequestEvent) error {
 	if err != nil {
 		return apis.NewUnauthorizedError("missing monitor token", err)
 	}
-	authenticatedServerID, err := monitor.ValidateAgentToken(e.App, token)
+	authenticatedServerID, err := agentsignals.ValidateAgentToken(e.App, token)
 	if err != nil {
 		return apis.NewUnauthorizedError("invalid monitor token", err)
 	}
@@ -61,14 +64,14 @@ func handleMonitorMetrics(e *core.RequestEvent) error {
 	if body.ServerID != authenticatedServerID {
 		return apis.NewForbiddenError("server ownership mismatch", nil)
 	}
-	if len(body.Items) > monitor.MetricsBatchLimit {
+	if len(body.Items) > monitormetrics.MetricsBatchLimit {
 		return e.BadRequestError("metrics batch too large", nil)
 	}
 	reportedAt, err := time.Parse(time.RFC3339, body.ReportedAt)
 	if err != nil {
 		return e.BadRequestError("reportedAt must be RFC3339", err)
 	}
-	points := make([]monitor.MetricPoint, 0, len(body.Items))
+	points := make([]monitormetrics.MetricPoint, 0, len(body.Items))
 	for _, item := range body.Items {
 		observedAt := reportedAt
 		if strings.TrimSpace(item.ObservedAt) != "" {
@@ -90,14 +93,14 @@ func handleMonitorMetrics(e *core.RequestEvent) error {
 		if labels["target_type"] == monitor.TargetTypeServer && labels["target_id"] != body.ServerID {
 			return e.BadRequestError("server metric targetId must match serverId", nil)
 		}
-		points = append(points, monitor.MetricPoint{
+		points = append(points, monitormetrics.MetricPoint{
 			Series:     strings.TrimSpace(item.Series),
 			Value:      item.Value,
 			Labels:     labels,
 			ObservedAt: observedAt,
 		})
 	}
-	if err := monitor.WriteMetricPoints(e.Request.Context(), points); err != nil {
+	if err := monitormetrics.WriteMetricPoints(e.Request.Context(), points); err != nil {
 		return e.BadRequestError("failed to ingest metrics", err)
 	}
 	return e.JSON(http.StatusAccepted, map[string]any{"ok": true, "accepted": len(points)})
@@ -108,7 +111,7 @@ func handleMonitorRuntimeStatus(e *core.RequestEvent) error {
 	if err != nil {
 		return apis.NewUnauthorizedError("missing monitor token", err)
 	}
-	authenticatedServerID, err := monitor.ValidateAgentToken(e.App, token)
+	authenticatedServerID, err := agentsignals.ValidateAgentToken(e.App, token)
 	if err != nil {
 		return apis.NewUnauthorizedError("invalid monitor token", err)
 	}
@@ -152,11 +155,8 @@ func handleMonitorRuntimeStatus(e *core.RequestEvent) error {
 	if err != nil {
 		return e.NotFoundError("server not found", err)
 	}
-	accepted := 0
+	items := make([]agentsignals.RuntimeStatusItem, 0, len(body.Items))
 	for _, item := range body.Items {
-		if strings.TrimSpace(item.TargetType) != monitor.TargetTypeServer || strings.TrimSpace(item.TargetID) != body.ServerID {
-			return e.BadRequestError("runtime-status currently supports only server targets matching serverId", nil)
-		}
 		observedAt := reportedAt
 		if strings.TrimSpace(item.ObservedAt) != "" {
 			observedAt, err = time.Parse(time.RFC3339, item.ObservedAt)
@@ -164,120 +164,37 @@ func handleMonitorRuntimeStatus(e *core.RequestEvent) error {
 				return e.BadRequestError("observedAt must be RFC3339", err)
 			}
 		}
-		summary := monitor.LoadExistingSummary(e.App, monitor.TargetTypeServer, body.ServerID)
-		summary["runtime_state"] = strings.TrimSpace(item.RuntimeState)
-		summary["containers_running"] = item.Containers.Running
-		summary["containers_restarting"] = item.Containers.Restarting
-		summary["containers_exited"] = item.Containers.Exited
-		summary["app_count"] = len(item.Apps)
-		if len(item.Apps) > 0 {
-			apps := make([]map[string]any, 0, len(item.Apps))
-			for _, appItem := range item.Apps {
-				appID := strings.TrimSpace(appItem.AppID)
-				appRuntimeState := strings.TrimSpace(appItem.RuntimeState)
-				apps = append(apps, map[string]any{
-					"app_id":        appID,
-					"runtime_state": appRuntimeState,
-				})
-				if appID == "" {
-					continue
-				}
-				appDisplayName := appID
-				if appRecord, findErr := e.App.FindRecordById("app_instances", appID); findErr == nil {
-					if name := strings.TrimSpace(appRecord.GetString("name")); name != "" {
-						appDisplayName = name
-					}
-				}
-				appOutcome := monitor.AppHealthOutcomeFromRuntimeState(appRuntimeState)
-				appEntry := monitor.ResolveAppBaselineTarget()
-				appStatus := appEntry.AppHealthStatusFor(appOutcome)
-				appReason := appEntry.AppHealthReasonFor(appOutcome, "")
-				appFailures := 0
-				appLastSuccessAt := (*time.Time)(nil)
-				appLastFailureAt := (*time.Time)(nil)
-				if appStatus == monitor.StatusHealthy {
-					appLastSuccessAt = &observedAt
-				} else if appStatus == monitor.StatusDegraded {
-					appFailures = 1
-					appLastFailureAt = &observedAt
-				}
-				appSummary := monitor.LoadExistingSummary(e.App, monitor.TargetTypeApp, appID)
-				appSummary["runtime_state"] = appRuntimeState
-				appSummary["server_id"] = body.ServerID
-				monitor.ApplyReasonCode(appSummary, appEntry.AppHealthReasonCodeFor(appOutcome, ""))
-				_, err = monitor.UpsertLatestStatus(e.App, monitor.LatestStatusUpsert{
-					TargetType:              monitor.TargetTypeApp,
-					TargetID:                appID,
-					DisplayName:             appDisplayName,
-					Status:                  appStatus,
-					Reason:                  appReason,
-					SignalSource:            monitor.SignalSourceAgent,
-					LastTransitionAt:        observedAt,
-					LastSuccessAt:           appLastSuccessAt,
-					LastFailureAt:           appLastFailureAt,
-					LastCheckedAt:           &observedAt,
-					LastReportedAt:          &observedAt,
-					ConsecutiveFailures:     &appFailures,
-					Summary:                 appSummary,
-					StatusPriorityMap:       appEntry.StatusPriority,
-					PreserveStrongerFailure: true,
-				})
-				if err != nil {
-					return e.InternalServerError("failed to persist app runtime summary", err)
-				}
-			}
-			summary["apps"] = apps
-		} else {
-			delete(summary, "apps")
+		apps := make([]agentsignals.RuntimeAppStatus, 0, len(item.Apps))
+		for _, appItem := range item.Apps {
+			apps = append(apps, agentsignals.RuntimeAppStatus{
+				AppID:        strings.TrimSpace(appItem.AppID),
+				RuntimeState: strings.TrimSpace(appItem.RuntimeState),
+			})
 		}
-
-		status := monitor.StatusUnknown
-		reason := "runtime summary reported"
-		switch strings.ToLower(strings.TrimSpace(item.RuntimeState)) {
-		case "running", "healthy":
-			status = monitor.StatusHealthy
-			reason = ""
-		case "degraded", "restarting":
-			status = monitor.StatusDegraded
-			reason = "runtime degraded"
-		case "stopped", "stopping", "exited":
-			status = monitor.StatusUnknown
-			reason = "runtime not running"
-		}
-		failures := 0
-		lastSuccessAt := (*time.Time)(nil)
-		lastFailureAt := (*time.Time)(nil)
-		if status == monitor.StatusHealthy {
-			lastSuccessAt = &observedAt
-		} else if status == monitor.StatusDegraded {
-			failures = 1
-			lastFailureAt = &observedAt
-		}
-		serverEntry, ok, resolveErr := monitor.ResolveTargetRegistryEntry(monitor.TargetTypeServer, "", "")
-		if resolveErr != nil || !ok {
-			serverEntry = monitor.TargetRegistryEntry{}
-		}
-		_, err = monitor.UpsertLatestStatus(e.App, monitor.LatestStatusUpsert{
-			TargetType:              monitor.TargetTypeServer,
-			TargetID:                body.ServerID,
-			DisplayName:             server.GetString("name"),
-			Status:                  status,
-			Reason:                  reason,
-			SignalSource:            monitor.SignalSourceAgent,
-			LastTransitionAt:        observedAt,
-			LastSuccessAt:           lastSuccessAt,
-			LastFailureAt:           lastFailureAt,
-			LastCheckedAt:           &observedAt,
-			LastReportedAt:          &observedAt,
-			ConsecutiveFailures:     &failures,
-			Summary:                 summary,
-			StatusPriorityMap:       serverEntry.StatusPriority,
-			PreserveStrongerFailure: true,
+		items = append(items, agentsignals.RuntimeStatusItem{
+			TargetType:   strings.TrimSpace(item.TargetType),
+			TargetID:     strings.TrimSpace(item.TargetID),
+			RuntimeState: strings.TrimSpace(item.RuntimeState),
+			ObservedAt:   observedAt,
+			Containers: agentsignals.RuntimeContainerSummary{
+				Running:    item.Containers.Running,
+				Restarting: item.Containers.Restarting,
+				Exited:     item.Containers.Exited,
+			},
+			Apps: apps,
 		})
-		if err != nil {
-			return e.InternalServerError("failed to persist runtime summary", err)
+	}
+	accepted, err := agentsignals.IngestRuntimeStatus(e.App, agentsignals.RuntimeStatusIngest{
+		ServerID:   body.ServerID,
+		ServerName: server.GetString("name"),
+		ReportedAt: reportedAt,
+		Items:      items,
+	})
+	if err != nil {
+		if err == agentsignals.ErrRuntimeStatusTargetMismatch {
+			return e.BadRequestError(err.Error(), nil)
 		}
-		accepted++
+		return e.InternalServerError("failed to persist runtime summary", err)
 	}
 	return e.JSON(http.StatusAccepted, map[string]any{"ok": true, "accepted": accepted})
 }
@@ -288,7 +205,7 @@ func handleMonitorAgentToken(e *core.RequestEvent) error {
 		return e.NotFoundError("server not found", err)
 	}
 	rotate := strings.EqualFold(strings.TrimSpace(e.Request.URL.Query().Get("rotate")), "true")
-	token, changed, err := monitor.GetOrIssueAgentToken(e.App, server.Id, rotate)
+	token, changed, err := agentsignals.GetOrIssueAgentToken(e.App, server.Id, rotate)
 	if err != nil {
 		return e.InternalServerError("failed to issue monitor token", err)
 	}
@@ -305,7 +222,7 @@ func handleMonitorAgentSetup(e *core.RequestEvent) error {
 	if err != nil {
 		return e.NotFoundError("server not found", err)
 	}
-	token, _, err := monitor.GetOrIssueAgentToken(e.App, server.Id, false)
+	token, _, err := agentsignals.GetOrIssueAgentToken(e.App, server.Id, false)
 	if err != nil {
 		return e.InternalServerError("failed to load monitor token", err)
 	}
@@ -324,7 +241,7 @@ func handleMonitorHeartbeat(e *core.RequestEvent) error {
 	if err != nil {
 		return apis.NewUnauthorizedError("missing monitor token", err)
 	}
-	authenticatedServerID, err := monitor.ValidateAgentToken(e.App, token)
+	authenticatedServerID, err := agentsignals.ValidateAgentToken(e.App, token)
 	if err != nil {
 		return apis.NewUnauthorizedError("invalid monitor token", err)
 	}
@@ -358,19 +275,8 @@ func handleMonitorHeartbeat(e *core.RequestEvent) error {
 	if err != nil {
 		return e.BadRequestError("reportedAt must be RFC3339", err)
 	}
-	now := time.Now().UTC()
-	serverEntry, ok, resolveErr := monitor.ResolveTargetRegistryEntry(monitor.TargetTypeServer, "", "")
-	if resolveErr != nil || !ok {
-		serverEntry = monitor.TargetRegistryEntry{}
-	}
-	accepted := 0
+	items := make([]agentsignals.HeartbeatItem, 0, len(body.Items))
 	for _, item := range body.Items {
-		if item.TargetType != monitor.TargetTypeServer {
-			return e.BadRequestError("first slice only supports server heartbeat targets", nil)
-		}
-		if strings.TrimSpace(item.TargetID) == "" || item.TargetID != body.ServerID {
-			return e.BadRequestError("targetId must match serverId for server heartbeats", nil)
-		}
 		observedAt := reportedAt
 		if strings.TrimSpace(item.ObservedAt) != "" {
 			observedAt, err = time.Parse(time.RFC3339, item.ObservedAt)
@@ -378,50 +284,33 @@ func handleMonitorHeartbeat(e *core.RequestEvent) error {
 				return e.BadRequestError("observedAt must be RFC3339", err)
 			}
 		}
-		projection := monitor.EvaluateHeartbeat(observedAt, now)
-		summary := map[string]any{
-			"heartbeat_state": projection.HeartbeatState,
-		}
-		monitor.ApplyReasonCode(summary, projection.ReasonCode)
-		if strings.TrimSpace(body.AgentVersion) != "" {
-			summary["agent_version"] = body.AgentVersion
-		}
-		failures := 0
-		lastSuccessAt := (*time.Time)(nil)
-		lastFailureAt := (*time.Time)(nil)
-		if projection.Status == monitor.StatusHealthy {
-			lastSuccessAt = &observedAt
-		} else {
-			failures = 1
-			nowUTC := now.UTC()
-			lastFailureAt = &nowUTC
-		}
-		_, err = monitor.UpsertLatestStatus(e.App, monitor.LatestStatusUpsert{
-			TargetType:              monitor.TargetTypeServer,
-			TargetID:                body.ServerID,
-			DisplayName:             server.GetString("name"),
-			Status:                  projection.Status,
-			Reason:                  projection.Reason,
-			SignalSource:            monitor.SignalSourceAgent,
-			LastTransitionAt:        now,
-			LastSuccessAt:           lastSuccessAt,
-			LastFailureAt:           lastFailureAt,
-			LastReportedAt:          &observedAt,
-			ConsecutiveFailures:     &failures,
-			Summary:                 summary,
-			StatusPriorityMap:       serverEntry.StatusPriority,
-			PreserveStrongerFailure: true,
+		items = append(items, agentsignals.HeartbeatItem{
+			TargetType: strings.TrimSpace(item.TargetType),
+			TargetID:   strings.TrimSpace(item.TargetID),
+			ObservedAt: observedAt,
 		})
-		if err != nil {
+	}
+	accepted, err := agentsignals.IngestHeartbeat(e.App, agentsignals.HeartbeatIngest{
+		ServerID:     body.ServerID,
+		ServerName:   server.GetString("name"),
+		AgentVersion: body.AgentVersion,
+		ReportedAt:   reportedAt,
+		ReceivedAt:   time.Now().UTC(),
+		Items:        items,
+	})
+	if err != nil {
+		switch err {
+		case agentsignals.ErrHeartbeatTargetTypeUnsupported, agentsignals.ErrHeartbeatTargetMismatch:
+			return e.BadRequestError(err.Error(), nil)
+		default:
 			return e.InternalServerError("failed to persist latest status", err)
 		}
-		accepted++
 	}
 	return e.JSON(http.StatusAccepted, map[string]any{"ok": true, "accepted": accepted})
 }
 
 func handleMonitorOverview(e *core.RequestEvent) error {
-	overview, err := monitor.BuildOverview(e.App)
+	overview, err := monitorstatus.BuildOverview(e.App)
 	if err != nil {
 		return e.InternalServerError("failed to build overview", err)
 	}
@@ -441,7 +330,7 @@ func handleMonitorTargetSeries(e *core.RequestEvent) error {
 	if err != nil {
 		return e.BadRequestError("invalid endAt", err)
 	}
-	options := monitor.MetricSeriesQueryOptions{
+	options := monitormetrics.MetricSeriesQueryOptions{
 		NetworkInterface: strings.TrimSpace(e.Request.URL.Query().Get("networkInterface")),
 		StartAt:          startAt,
 		EndAt:            endAt,
@@ -450,7 +339,7 @@ func handleMonitorTargetSeries(e *core.RequestEvent) error {
 	if raw := strings.TrimSpace(e.Request.URL.Query().Get("series")); raw != "" {
 		requestedSeries = append(requestedSeries, raw)
 	}
-	response, err := monitor.QueryMetricSeries(
+	response, err := monitormetrics.QueryMetricSeries(
 		e.Request.Context(),
 		e.Request.PathValue("targetType"),
 		e.Request.PathValue("targetId"),
@@ -477,7 +366,7 @@ func parseMonitorSeriesTimeParam(value string) (*time.Time, error) {
 }
 
 func handleMonitorTargetStatus(e *core.RequestEvent) error {
-	response, err := monitor.GetTargetStatus(
+	response, err := monitorstatus.GetTargetStatus(
 		e.App,
 		e.Request.PathValue("targetType"),
 		e.Request.PathValue("targetId"),

@@ -15,6 +15,9 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/monitor"
+	monitormetrics "github.com/websoft9/appos/backend/domain/monitor/metrics"
+	"github.com/websoft9/appos/backend/domain/monitor/persistence"
+	agentsignals "github.com/websoft9/appos/backend/domain/monitor/signals/agent"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/infra/collections"
 )
@@ -244,7 +247,7 @@ func TestMonitorHeartbeatIngestCreatesLatestStatus(t *testing.T) {
 	defer te.cleanup()
 
 	server := createMonitorServer(t, te, "prod-01")
-	token, _, err := monitor.GetOrIssueAgentToken(te.app, server.Id, false)
+	token, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,7 +276,7 @@ func TestMonitorOverviewReturnsProjectedOfflineHeartbeat(t *testing.T) {
 	server := createMonitorServer(t, te, "prod-01")
 	now := time.Now().UTC()
 	zeroFailures := 0
-	if _, err := monitor.UpsertLatestStatus(te.app, monitor.LatestStatusUpsert{
+	if _, err := persistence.UpsertLatestStatus(te.app, persistence.LatestStatusUpsert{
 		TargetType:          monitor.TargetTypeServer,
 		TargetID:            server.Id,
 		DisplayName:         server.GetString("name"),
@@ -318,7 +321,7 @@ func TestMonitorTargetStatusReturnsDetail(t *testing.T) {
 	server := createMonitorServer(t, te, "prod-01")
 	zeroFailures := 0
 	now := time.Now().UTC()
-	if _, err := monitor.UpsertLatestStatus(te.app, monitor.LatestStatusUpsert{
+	if _, err := persistence.UpsertLatestStatus(te.app, persistence.LatestStatusUpsert{
 		TargetType:          monitor.TargetTypeServer,
 		TargetID:            server.Id,
 		DisplayName:         server.GetString("name"),
@@ -360,7 +363,7 @@ func TestMonitorTargetStatusSynthesizesServerDetailWithoutHeartbeat(t *testing.T
 	defer te.cleanup()
 
 	server := createMonitorServer(t, te, "test")
-	if _, _, err := monitor.GetOrIssueAgentToken(te.app, server.Id, false); err != nil {
+	if _, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -426,12 +429,12 @@ func TestMonitorMetricsIngestWritesAllowedSeries(t *testing.T) {
 	defer te.cleanup()
 
 	server := createMonitorServer(t, te, "prod-01")
-	token, _, err := monitor.GetOrIssueAgentToken(te.app, server.Id, false)
+	token, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var captured []monitor.MetricPoint
-	restore := monitor.SetMetricWriteFuncForTest(func(_ context.Context, points []monitor.MetricPoint) error {
+	var captured []monitormetrics.MetricPoint
+	restore := monitormetrics.SetMetricWriteFuncForTest(func(_ context.Context, points []monitormetrics.MetricPoint) error {
 		captured = append(captured, points...)
 		return nil
 	})
@@ -456,7 +459,7 @@ func TestMonitorMetricsIngestRejectsUnknownSeries(t *testing.T) {
 	defer te.cleanup()
 
 	server := createMonitorServer(t, te, "prod-01")
-	token, _, err := monitor.GetOrIssueAgentToken(te.app, server.Id, false)
+	token, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -475,13 +478,13 @@ func TestMonitorRuntimeStatusIngestMergesServerSummary(t *testing.T) {
 	server := createMonitorServer(t, te, "prod-01")
 	appOne := createMonitorApp(t, te, "app-1-monitor-key", "Demo App", server.Id)
 	appTwo := createMonitorApp(t, te, "app-2-monitor-key", "Demo Worker", server.Id)
-	token, _, err := monitor.GetOrIssueAgentToken(te.app, server.Id, false)
+	token, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
 	zeroFailures := 0
-	if _, err := monitor.UpsertLatestStatus(te.app, monitor.LatestStatusUpsert{
+	if _, err := persistence.UpsertLatestStatus(te.app, persistence.LatestStatusUpsert{
 		TargetType:          monitor.TargetTypeServer,
 		TargetID:            server.Id,
 		DisplayName:         server.GetString("name"),
@@ -506,7 +509,7 @@ func TestMonitorRuntimeStatusIngestMergesServerSummary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	summary, err := monitor.SummaryFromRecord(record)
+	summary, err := persistence.SummaryFromRecord(record)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -533,7 +536,7 @@ func TestMonitorRuntimeStatusIngestMergesServerSummary(t *testing.T) {
 	if appRecord.GetString("status") != monitor.StatusDegraded {
 		t.Fatalf("expected degraded app status from runtime projection, got %q", appRecord.GetString("status"))
 	}
-	appSummary, err := monitor.SummaryFromRecord(appRecord)
+	appSummary, err := persistence.SummaryFromRecord(appRecord)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -547,7 +550,7 @@ func TestMonitorRuntimeStatusRejectsMismatchedTarget(t *testing.T) {
 	defer te.cleanup()
 
 	server := createMonitorServer(t, te, "prod-01")
-	token, _, err := monitor.GetOrIssueAgentToken(te.app, server.Id, false)
+	token, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -564,18 +567,18 @@ func TestMonitorTargetSeriesReturnsShortWindowData(t *testing.T) {
 	defer te.cleanup()
 
 	server := createMonitorServer(t, te, "prod-01")
-	restore := monitor.SetMetricQueryFuncForTest(func(_ context.Context, targetType, targetID, window string, seriesNames []string, options monitor.MetricSeriesQueryOptions) (*monitor.MetricSeriesResponse, error) {
+	restore := monitormetrics.SetMetricQueryFuncForTest(func(_ context.Context, targetType, targetID, window string, seriesNames []string, options monitormetrics.MetricSeriesQueryOptions) (*monitormetrics.MetricSeriesResponse, error) {
 		if targetType != monitor.TargetTypeServer || targetID != server.Id || window != "1h" {
 			t.Fatalf("unexpected series query params: %s %s %s %+v", targetType, targetID, window, seriesNames)
 		}
 		if options.NetworkInterface != "" {
 			t.Fatalf("unexpected options: %+v", options)
 		}
-		return &monitor.MetricSeriesResponse{
+		return &monitormetrics.MetricSeriesResponse{
 			TargetType: targetType,
 			TargetID:   targetID,
 			Window:     window,
-			Series: []monitor.MetricSeries{{
+			Series: []monitormetrics.MetricSeries{{
 				Name:   "cpu",
 				Unit:   "percent",
 				Points: [][]float64{{1713096000, 32.1}, {1713096060, 30.8}},
@@ -588,7 +591,7 @@ func TestMonitorTargetSeriesReturnsShortWindowData(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
-	var resp monitor.MetricSeriesResponse
+	var resp monitormetrics.MetricSeriesResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatal(err)
 	}
@@ -602,14 +605,14 @@ func TestMonitorAppTargetSeriesReturnsShortWindowData(t *testing.T) {
 	defer te.cleanup()
 
 	appRecord := createMonitorApp(t, te, "app-1-monitor-key", "Demo App", "local")
-	restore := monitor.SetMetricQueryFuncForTest(func(_ context.Context, targetType, targetID, window string, seriesNames []string, options monitor.MetricSeriesQueryOptions) (*monitor.MetricSeriesResponse, error) {
+	restore := monitormetrics.SetMetricQueryFuncForTest(func(_ context.Context, targetType, targetID, window string, seriesNames []string, options monitormetrics.MetricSeriesQueryOptions) (*monitormetrics.MetricSeriesResponse, error) {
 		if targetType != monitor.TargetTypeApp || targetID != appRecord.Id || window != "1h" {
 			t.Fatalf("unexpected app series query params: %s %s %s %+v", targetType, targetID, window, seriesNames)
 		}
 		if options.NetworkInterface != "" {
 			t.Fatalf("unexpected options: %+v", options)
 		}
-		return &monitor.MetricSeriesResponse{TargetType: targetType, TargetID: targetID, Window: window, Series: []monitor.MetricSeries{{Name: "memory", Unit: "bytes", Points: [][]float64{{1713096000, 104857600}}}}}, nil
+		return &monitormetrics.MetricSeriesResponse{TargetType: targetType, TargetID: targetID, Window: window, Series: []monitormetrics.MetricSeries{{Name: "memory", Unit: "bytes", Points: [][]float64{{1713096000, 104857600}}}}}, nil
 	})
 	defer restore()
 	rec := te.doMonitor(t, http.MethodGet, "/api/monitor/targets/app/"+appRecord.Id+"/series?window=1h&series=memory", "", te.token)
@@ -625,7 +628,7 @@ func TestMonitorTargetSeriesParsesCustomRange(t *testing.T) {
 	server := createMonitorServer(t, te, "prod-custom")
 	startAt := "2026-04-14T08:00:00Z"
 	endAt := "2026-04-14T20:00:00Z"
-	restore := monitor.SetMetricQueryFuncForTest(func(_ context.Context, targetType, targetID, window string, seriesNames []string, options monitor.MetricSeriesQueryOptions) (*monitor.MetricSeriesResponse, error) {
+	restore := monitormetrics.SetMetricQueryFuncForTest(func(_ context.Context, targetType, targetID, window string, seriesNames []string, options monitormetrics.MetricSeriesQueryOptions) (*monitormetrics.MetricSeriesResponse, error) {
 		if targetType != monitor.TargetTypeServer || targetID != server.Id || window != "custom" {
 			t.Fatalf("unexpected custom series query params: %s %s %s %+v", targetType, targetID, window, seriesNames)
 		}
@@ -635,14 +638,14 @@ func TestMonitorTargetSeriesParsesCustomRange(t *testing.T) {
 		if options.StartAt.Format(time.RFC3339) != startAt || options.EndAt.Format(time.RFC3339) != endAt {
 			t.Fatalf("unexpected custom range values: %+v", options)
 		}
-		return &monitor.MetricSeriesResponse{
+		return &monitormetrics.MetricSeriesResponse{
 			TargetType:   targetType,
 			TargetID:     targetID,
 			Window:       window,
 			RangeStartAt: startAt,
 			RangeEndAt:   endAt,
 			StepSeconds:  600,
-			Series: []monitor.MetricSeries{{
+			Series: []monitormetrics.MetricSeries{{
 				Name:   "cpu",
 				Unit:   "percent",
 				Points: [][]float64{{1713081600, 12.1}, {1713124800, 18.4}},

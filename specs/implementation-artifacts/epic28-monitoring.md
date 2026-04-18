@@ -60,14 +60,13 @@ The epic defines four operator-facing monitoring areas:
 Internal implementation should still keep one `monitor` bounded context.
 Within that context, the recommended split is:
 
-- shared contract at root: target model, signal model, status semantics, target registry
-- `status`: latest-status projection and health adjudication
-- `timeseries`: operator-facing metric and trend queries for server, container, app, and platform runtime surfaces
-- `ingest`: pushed signal normalization such as agent heartbeat, runtime summary, and metrics envelope handling
-- `checks`: AppOS-owned active checks such as reachability, credential validation, and selected health probes
-- `selfobs`: AppOS self-observation signal production
+- shared contract at root: target model, canonical signal event, status semantics, target registry
+- `signals`: normalize all incoming monitor signals into one canonical event model
+- `status`: consume canonical signal events and own latest-status projection, precedence, and transitions
 
-The TSDB adapter is infrastructure, not a monitor subdomain. It should stay behind an infra-facing port so monitor owns semantics and presentation while storage details remain replaceable.
+Inside `signals`, source-specific code stays as adapters such as `agent`, `probes`, and `platform`.
+`status` should be the sole writer of the latest-status projection.
+The TSDB adapter remains infrastructure, not a monitor subdomain.
 
 Distributed tracing remains out of scope for Epic 28 and should be treated as a future independent observability context rather than a child of `monitor`.
 
@@ -97,33 +96,25 @@ The product should read primarily from normalized status projections rather than
 ### High-Level Architecture
 
 ```text
-signal producers
-  |
-  +-- managed server agent -------------------+
-  |                                           |
-  +-- AppOS active checks ------------------+ |
-  |                                         | |
-  v                                         v v
-ingest routes / scheduled jobs / worker execution
-        |
-        v
-     monitoring domain core
-     - signal normalization
-     - check policy
-     - latest-status projection
-        |
-     +-------+------------------+
-     |                          |
-     v                          v
-business store                time-series store
-- latest status               - host metrics
-- reasons                     - container metrics
-- summaries                   - short-window trends
-     |                          |
-     +------------+-------------+
-             |
-             v
-        overview + detail surfaces
+signal sources
+  - managed server agent
+  - AppOS probes
+  - AppOS platform observer
+         |
+         v
+      signals
+  - source adapters
+  - canonical normalization
+     |                  |
+     v                  v
+ status            TSDB adapter
+  - precedence          |
+  - transitions         v
+  - latest-status   time-series store
+    projection
+     |
+     v
+business store + overview/detail surfaces
 ```
 
 ### Collection Substrate
@@ -229,6 +220,8 @@ Signal relationship rules:
 
 - Monitoring stores validation outcomes, not secret material.
 - Monitoring reads canonical target identity from existing domains; it does not create parallel server, app, or resource registries.
+- `signals` adapters must resolve raw source IDs to canonical target identities before emitting events to `status`.
+- Check scheduling stays entirely within `signals` adapters; `status` remains a passive, schedule-ignorant consumer.
 - Logs and traces are not required for epic completion.
 - Historical check history may be shallow in MVP as long as the latest status is reliable.
 - Detailed target taxonomy, status fields, persistence schema, and precedence rules are owned by Story 28.1.
@@ -240,7 +233,7 @@ Signal relationship rules:
 ### 28.1 Monitoring Domain Foundation
 
 - Define canonical monitor target types: `server`, `app`, `resource`, `platform`
-- Define canonical signal types: `metric`, `heartbeat`, `health_check`, `availability_check`
+- Define canonical signal types: `app_health`, `heartbeat`, `reachability`, `credential`
 - Define normalized status projection with states such as `healthy`, `degraded`, `offline`, `unreachable`, `credential_invalid`
 - Persist latest status snapshot and last failure reason per target
 

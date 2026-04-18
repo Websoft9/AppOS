@@ -5,8 +5,8 @@ import (
 	"log"
 
 	"github.com/websoft9/appos/backend/domain/certs"
-	"github.com/websoft9/appos/backend/domain/monitor"
 	"github.com/websoft9/appos/backend/domain/routes"
+	monitorplatform "github.com/websoft9/appos/backend/domain/monitor/signals/platform"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/domain/terminal"
 	"github.com/websoft9/appos/backend/domain/worker"
@@ -34,9 +34,9 @@ func main() {
 
 	// Initialize Asynq worker (created once, shared across app lifecycle)
 	w := worker.New(app)
-	platformObserver := monitor.NewPlatformObserver(app, func() monitor.RuntimeSnapshot {
+	platformObserver := monitorplatform.NewPlatformObserver(app, func() monitorplatform.RuntimeSnapshot {
 		snap := w.Snapshot()
-		return monitor.RuntimeSnapshot{
+		return monitorplatform.RuntimeSnapshot{
 			StartedAt:         snap.StartedAt,
 			WorkerRunning:     snap.ServerRunning,
 			SchedulerRunning:  snap.SchedulerRunning,

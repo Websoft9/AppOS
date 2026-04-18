@@ -1,2 +1,0 @@
-import{r as i,j as t}from"./react-vendor-C__Egzja.js";import{aM as o}from"./index-eGHt45we.js";var s=Object.freeze({position:"absolute",border:0,width:1,height:1,padding:0,margin:-1,overflow:"hidden",clip:"rect(0, 0, 0, 0)",whiteSpace:"nowrap",wordWrap:"normal"}),d="VisuallyHidden",a=i.forwardRef((r,e)=>t.jsx(o.span,{...r,ref:e,style:{...s,...r.style}}));a.displayName=d;var p=a;export{p as R,s as V};
-//# sourceMappingURL=index-CeYh3MGg.js.map

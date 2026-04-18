@@ -90,6 +90,13 @@ function formatLabel(value: string): string {
     .join(' ')
 }
 
+function shouldHideSegmentStroke(seriesName: string, segmentName: string): boolean {
+  return (
+    (seriesName === 'memory' && segmentName === 'available')
+    || (seriesName === 'disk_usage' && segmentName === 'free')
+  )
+}
+
 function getRangeDurationMs(window: string, rangeStartAt?: string, rangeEndAt?: string): number {
   const rangeStart = rangeStartAt ? new Date(rangeStartAt) : null
   const rangeEnd = rangeEndAt ? new Date(rangeEndAt) : null
@@ -304,17 +311,18 @@ export function TimeSeriesChart({ name, unit, window, rangeStartAt, rangeEndAt, 
           segments.map(segment => {
             const segmentPalette = SEGMENT_PALETTE[name]?.[segment.name] ?? palette
             const gradientId = `monitor-series-${name}-${segment.name}`
+            const hideStroke = shouldHideSegmentStroke(name, segment.name)
             return (
               <Area
                 key={segment.name}
                 type="monotone"
                 dataKey={segment.name}
                 stackId={shouldStackSegments ? `${name}-stack` : undefined}
-                stroke={segmentPalette.stroke}
+                stroke={hideStroke ? 'none' : segmentPalette.stroke}
                 strokeWidth={1.75}
                 fill={`url(#${gradientId})`}
                 dot={false}
-                activeDot={{ r: 3, strokeWidth: 0, fill: segmentPalette.stroke }}
+                activeDot={hideStroke ? false : { r: 3, strokeWidth: 0, fill: segmentPalette.stroke }}
                 isAnimationActive={false}
               />
             )
