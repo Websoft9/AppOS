@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/websoft9/appos/backend/cmd/appos/bootstrap"
 	"github.com/websoft9/appos/backend/domain/certs"
-	"github.com/websoft9/appos/backend/domain/routes"
 	monitorplatform "github.com/websoft9/appos/backend/domain/monitor/signals/platform"
+	"github.com/websoft9/appos/backend/domain/routes"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/domain/terminal"
 	"github.com/websoft9/appos/backend/domain/worker"
-	"github.com/websoft9/appos/backend/platform/hooks"
 
 	// Register custom PocketBase migrations (Epic 8: Resource Store)
 	_ "github.com/websoft9/appos/backend/infra/migrations"
@@ -55,7 +55,7 @@ func main() {
 	})
 
 	// Register event hooks
-	hooks.Register(app, w.Client())
+	bootstrap.Register(app, w.Client())
 
 	// Start Asynq worker when PocketBase starts serving
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {

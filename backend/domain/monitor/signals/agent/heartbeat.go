@@ -46,7 +46,7 @@ func IngestHeartbeat(app core.App, input HeartbeatIngest) (int, error) {
 		if observedAt.IsZero() {
 			observedAt = input.ReportedAt
 		}
-		projection := monitorstatus.EvaluateHeartbeat(observedAt, now)
+		projection := monitorstatus.EvaluateHeartbeat(serverEntry, observedAt, now)
 		summary := map[string]any{
 			"heartbeat_state": projection.HeartbeatState,
 		}

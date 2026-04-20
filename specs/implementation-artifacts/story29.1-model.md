@@ -1,15 +1,16 @@
 # Story 29.1: Model
 
-**Epic**: Epic 29 - Server Base
+**Epic**: Epic 29 - Software Delivery
 **Status**: Proposed | **Priority**: P1 | **Depends on**: Epic 12, Epic 20
 
 ## Objective
 
-Freeze the minimal domain contract for AppOS-managed server base components.
+Freeze the minimal domain contract for AppOS-managed software delivery components.
 
 ## Scope
 
-- define canonical component keys
+- define canonical component keys and delivery target vocabulary
+- keep one identity model shared by `local` and `server` targets
 - define installed, preflight, and verification states
 - define inventory and action response shapes
 - define audit action names
@@ -42,15 +43,23 @@ Freeze the minimal domain contract for AppOS-managed server base components.
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/api/servers/{serverId}/base-environment` | list components |
-| GET | `/api/servers/{serverId}/base-environment/{componentKey}` | read one component |
-| POST | `/api/servers/{serverId}/base-environment/{componentKey}/install` | install component |
-| POST | `/api/servers/{serverId}/base-environment/{componentKey}/upgrade` | upgrade component |
-| POST | `/api/servers/{serverId}/base-environment/{componentKey}/verify` | verify component |
+| GET | `/api/servers/{serverId}/software` | list components |
+| GET | `/api/servers/{serverId}/software/{componentKey}` | read one component |
+| POST | `/api/servers/{serverId}/software/{componentKey}/install` | install component |
+| POST | `/api/servers/{serverId}/software/{componentKey}/upgrade` | upgrade component |
+| POST | `/api/servers/{serverId}/software/{componentKey}/verify` | verify component |
+| GET | `/api/servers/{serverId}/software/capabilities` | list target capability status |
+| GET | `/api/software/local` | list AppOS-local software inventory |
+| GET | `/api/software/local/{componentKey}` | read one AppOS-local component |
+
+Rules:
+
+- keep `component_key` as the canonical field name; do not rename it to `software_key`
+- this story defines a shared model for `local` and `server` targets, but the MVP HTTP surface remains server-scoped
 
 ### DTOs
 
-#### `ServerBaseComponentSummary`
+#### `SoftwareComponentSummary`
 
 | Field | Type |
 |------|------|
@@ -62,35 +71,30 @@ Freeze the minimal domain contract for AppOS-managed server base components.
 | `packaged_version` | string |
 | `verification_state` | `healthy` \| `degraded` \| `unknown` |
 | `available_actions` | string[] |
-| `last_action` | `ServerBaseLastAction` |
+| `last_action` | `SoftwareDeliveryLastAction` |
 
-#### `ServerBaseComponentDetail`
+#### `SoftwareComponentDetail`
 
-`ServerBaseComponentDetail` extends `ServerBaseComponentSummary` with:
+`SoftwareComponentDetail` extends `SoftwareComponentSummary` with:
 
 | Field | Type |
 |------|------|
 | `service_name` | string |
 | `binary_path` | string |
 | `config_path` | string |
-| `preflight` | `ServerBasePreflightResult` |
-| `verification` | `ServerBaseVerificationResult` |
+| `preflight` | `TargetReadinessResult` |
+| `verification` | `SoftwareVerificationResult` |
 
-#### `ServerBaseActionResponse`
+#### `AsyncCommandResponse`
 
 | Field | Type |
 |------|------|
-| `component_key` | string |
-| `action` | `install` \| `upgrade` \| `verify` |
-| `result` | `success` \| `failed` |
-| `installed_state` | string |
-| `detected_version` | string |
-| `packaged_version` | string |
-| `verification_state` | string |
+| `accepted` | bool |
+| `operation_id` | string |
+| `phase` | `accepted` \| `preflight` \| `executing` \| `verifying` \| `succeeded` \| `failed` \| `attention_required` |
 | `message` | string |
-| `output` | string |
 
-#### `ServerBasePreflightResult`
+#### `TargetReadinessResult`
 
 | Field | Type |
 |------|------|
@@ -98,9 +102,10 @@ Freeze the minimal domain contract for AppOS-managed server base components.
 | `os_supported` | bool |
 | `privilege_ok` | bool |
 | `network_ok` | bool |
+| `dependency_ready` | bool |
 | `issues` | string[] |
 
-#### `ServerBaseVerificationResult`
+#### `SoftwareVerificationResult`
 
 | Field | Type |
 |------|------|
@@ -109,7 +114,7 @@ Freeze the minimal domain contract for AppOS-managed server base components.
 | `reason` | string |
 | `details` | object |
 
-#### `ServerBaseLastAction`
+#### `SoftwareDeliveryLastAction`
 
 | Field | Type |
 |------|------|
@@ -143,23 +148,34 @@ Freeze the minimal domain contract for AppOS-managed server base components.
 
 ```json
 {
-	"component_key": "monitor-agent",
-	"action": "install",
-	"result": "success",
-	"installed_state": "installed",
-	"detected_version": "1.45.3",
-	"packaged_version": "1.45.3",
-	"verification_state": "healthy",
-	"message": "Netdata agent installed and verified",
-	"output": "..."
+	"accepted": true,
+	"operation_id": "swop_01JQ2ABCDEF0123456789XYZ",
+	"phase": "accepted",
+	"message": "software action queued"
 }
 ```
 
 ### Audit Actions
 
-- `server.serverbase.install`
-- `server.serverbase.upgrade`
-- `server.serverbase.verify`
+- `server.software.install`
+- `server.software.upgrade`
+- `server.software.verify`
+- `server.software.repair`
+
+## Tasks / Subtasks
+
+- [x] Task 1: Align model.go with story contract
+  - [x] 1.1 rename `Operation` → `SoftwareDeliveryOperation` to match DTO name
+  - [x] 1.2 verify all DTO fields and types match story contract exactly
+- [x] Task 2: Add cross-domain capability interfaces (`interfaces.go`)
+  - [x] 2.1 `CapabilityQuerier` interface (ListCapabilities, GetCapabilityStatus, IsCapabilityReady)
+  - [x] 2.2 `CapabilityCommander` interface (EnsureCapability, UpgradeCapability, VerifyCapability)
+- [x] Task 3: Add domain event constants (`events.go`)
+  - [x] 3.1 event name constants for SoftwareCapabilityReady, Degraded, ActionSucceeded, ActionFailed
+- [x] Task 4: Write comprehensive tests (`model_test.go`)
+  - [x] 4.1 constant value tests (guard against typos)
+  - [x] 4.2 JSON marshaling tests (verify output shape matches story contract)
+  - [x] 4.3 interface compilation test (CapabilityQuerier, CapabilityCommander)
 
 ## Cross-Domain Contract
 
@@ -194,15 +210,15 @@ External domains should call capability contracts, not component contracts.
 
 | Event | Trigger |
 |------|---------|
-| `ServerBaseCapabilityReady` | capability reaches ready state |
-| `ServerBaseCapabilityDegraded` | capability verification becomes degraded |
-| `ServerBaseActionSucceeded` | install / upgrade / verify succeeds |
-| `ServerBaseActionFailed` | install / upgrade / verify fails |
+| `SoftwareCapabilityReady` | capability reaches ready state |
+| `SoftwareCapabilityDegraded` | capability verification becomes degraded |
+| `SoftwareActionSucceeded` | install / upgrade / verify succeeds |
+| `SoftwareActionFailed` | install / upgrade / verify fails |
 
 Rule:
 
 - external domains must not depend on `component_key`, `template_kind`, `script_url`, or execution commands
-- these remain internal to Server Base
+- these remain internal to Software Delivery
 
 ## Interaction Policy
 
@@ -250,7 +266,7 @@ Final outcome should be read from status projection or emitted events, not from 
 
 ### Suggested Operation DTO
 
-#### `ServerBaseOperation`
+#### `SoftwareDeliveryOperation`
 
 | Field | Type |
 |------|------|
@@ -294,7 +310,7 @@ Must remain separate from Lifecycle domain:
 
 ### Relationship to App Lifecycle Runner
 
-Server Base async work should be adjacent to the App Lifecycle execution model, but not inside the same domain runner.
+Software Delivery async work should be adjacent to the App Lifecycle execution model, but not inside the same domain runner.
 
 Shared:
 
@@ -313,7 +329,7 @@ Not shared:
 ### Recommendation
 
 - reuse the async substrate
-- keep Server Base command handling and execution flow in its own domain service
+- keep Software Delivery command handling and execution flow in its own domain service
 - if AppOS later introduces a platform-wide long-running operation model, both domains may converge on the same generic operation envelope without merging runners
 
 ## Tasks / Subtasks
@@ -339,17 +355,57 @@ Not shared:
 
 ## Suggested Files
 
-- `backend/domain/serverbase/templates.yaml`
-- `backend/domain/serverbase/catalog.yaml`
+- `backend/domain/software/templates.yaml`
+- `backend/domain/software/catalog.yaml`
 
 ## Acceptance Criteria
 
-- [ ] component keys are fixed as `docker`, `monitor-agent`, `control-agent`, `reverse-proxy`
-- [ ] one shared response shape exists for list, detail, install, upgrade, verify
-- [ ] preflight and verification states are explicit and operator-readable
-- [ ] audit naming is stable across all component actions
+- [x] component keys are fixed as `docker`, `monitor-agent`, `control-agent`, `reverse-proxy`
+- [x] one shared response shape exists for list, detail, install, upgrade, verify
+- [x] preflight and verification states are explicit and operator-readable
+- [x] audit naming is stable across all component actions
 
 ## Notes
 
 - this story freezes naming and contract first
+
+## Dev Agent Record
+
+### Implementation Plan
+
+- Task 1: Rename Operation → SoftwareDeliveryOperation in model.go; verify all fields
+- Task 2: Create interfaces.go with CapabilityQuerier and CapabilityCommander
+- Task 3: Create events.go with domain event name constants
+- Task 4: Create model_test.go with constant, JSON marshaling, and interface tests
+
+### Debug Log
+
+<!-- Agent adds debug notes here during implementation -->
+
+### Completion Notes
+
+- **Task 1**: Renamed `Operation` → `SoftwareDeliveryOperation` in `model.go`; all DTO fields verified against story contract.
+- **Task 2**: Created `interfaces.go` with `CapabilityStatus`, `CapabilityQuerier`, and `CapabilityCommander` Go interfaces; follow-up implementation now lives behind `backend/domain/software/service`.
+- **Task 3**: Created `events.go` with 4 domain event name constants using `software.<subject>.<verb>` naming.
+- **Task 4**: Created `model_test.go` with 15 tests — constant values, JSON field presence, JSON value correctness, and interface compilation. All 15 pass. Zero regressions across full backend build.
+
+## File List
+
+- `backend/domain/software/model.go`
+- `backend/domain/software/interfaces.go`
+- `backend/domain/software/events.go`
+- `backend/domain/software/model_test.go`
+
+## Change Log
+
+- 2026-04-20: Story 29.1 implemented by Dev Agent
+  - `model.go`: renamed `Operation` → `SoftwareDeliveryOperation`
+	- `interfaces.go`: created with `CapabilityStatus`, `CapabilityQuerier`, `CapabilityCommander`
+	- `service/service.go`: concrete capability query/command implementation plus target inventory projection writes
+  - `events.go`: created with 4 domain event constants
+  - `model_test.go`: created with 15 tests (all pass)
+
+## Status
+
+review
 - no UI is required in this story

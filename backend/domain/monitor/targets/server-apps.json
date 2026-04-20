@@ -3,7 +3,7 @@
     "id": "server-heartbeat-default",
     "targetType": "server",
     "signalSources": ["agent"],
-    "enabledChecks": ["heartbeat"],
+    "enabledChecks": ["heartbeat", "runtime_summary"],
     "statusPriority": {
       "credential_invalid": 5,
       "unreachable": 4,
@@ -28,6 +28,24 @@
           "stale": "heartbeat_stale",
           "offline": "heartbeat_missing",
           "unknown": "heartbeat_unknown"
+        }
+      },
+      "runtime_summary": {
+        "statusMap": {
+          "healthy": "healthy",
+          "degraded": "degraded",
+          "stopped": "unknown",
+          "unknown": "unknown"
+        },
+        "reasonMap": {
+          "degraded": "runtime degraded",
+          "stopped": "runtime not running",
+          "unknown": "runtime summary reported"
+        },
+        "reasonCodeMap": {
+          "degraded": "runtime_degraded",
+          "stopped": "runtime_not_running",
+          "unknown": "runtime_summary_unknown"
         }
       }
     }

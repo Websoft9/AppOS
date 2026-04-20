@@ -12,8 +12,8 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
-	comp "github.com/websoft9/appos/backend/platform/components"
-	"github.com/websoft9/appos/backend/platform/supervisor"
+	comp "github.com/websoft9/appos/backend/domain/components"
+	"github.com/websoft9/appos/backend/infra/supervisor"
 )
 
 type componentInventoryItem struct {

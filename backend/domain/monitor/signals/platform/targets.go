@@ -7,8 +7,8 @@ import (
 
 	"github.com/websoft9/appos/backend/domain/monitor"
 	monitormetrics "github.com/websoft9/appos/backend/domain/monitor/metrics"
-	monitstatus "github.com/websoft9/appos/backend/domain/monitor/status"
-	"github.com/websoft9/appos/backend/platform/supervisor"
+	monitorstatus "github.com/websoft9/appos/backend/domain/monitor/status"
+	"github.com/websoft9/appos/backend/infra/supervisor"
 )
 
 func (o *PlatformObserver) collectAppCoreTarget(now time.Time, snapshot RuntimeSnapshot, resource supervisor.ResourceInfo, mem runtime.MemStats) ([]monitormetrics.MetricPoint, error) {
@@ -24,7 +24,7 @@ func (o *PlatformObserver) collectAppCoreTarget(now time.Time, snapshot RuntimeS
 		"gc_cycles":        mem.NumGC,
 		"last_gc_at":       formatUnixNano(mem.LastGC),
 	}
-	if err := monitstatus.ProjectPlatformLatestStatus(o.app, now, PlatformTargetAppOSCore, "AppOS Core", monitor.SignalSourceSelf, monitor.StatusHealthy, "", appCoreSummary); err != nil {
+	if err := monitorstatus.ProjectPlatformLatestStatus(o.app, now, PlatformTargetAppOSCore, "AppOS Core", monitor.SignalSourceSelf, monitor.StatusHealthy, "", appCoreSummary); err != nil {
 		return nil, err
 	}
 	points := []monitormetrics.MetricPoint{
@@ -59,7 +59,7 @@ func (o *PlatformObserver) collectWorkerTarget(now time.Time, snapshot RuntimeSn
 		"dispatch_age_seconds": secondsSince(now, snapshot.LastDispatchAt),
 		"last_dispatch_error":  emptyToNil(snapshot.LastDispatchError),
 	}
-	if err := monitstatus.ProjectPlatformLatestStatus(o.app, now, PlatformTargetWorker, "Worker", monitor.SignalSourceSelf, workerStatus, workerReason, workerSummary); err != nil {
+	if err := monitorstatus.ProjectPlatformLatestStatus(o.app, now, PlatformTargetWorker, "Worker", monitor.SignalSourceSelf, workerStatus, workerReason, workerSummary); err != nil {
 		return nil, err
 	}
 	points := []monitormetrics.MetricPoint{
@@ -96,7 +96,7 @@ func (o *PlatformObserver) collectSchedulerTarget(now time.Time, snapshot Runtim
 		"dispatch_age_seconds": secondsSince(now, snapshot.LastDispatchAt),
 		"last_dispatch_error":  emptyToNil(snapshot.LastDispatchError),
 	}
-	if err := monitstatus.ProjectPlatformLatestStatus(o.app, now, PlatformTargetScheduler, "Scheduler", monitor.SignalSourceSelf, schedulerStatus, schedulerReason, schedulerSummary); err != nil {
+	if err := monitorstatus.ProjectPlatformLatestStatus(o.app, now, PlatformTargetScheduler, "Scheduler", monitor.SignalSourceSelf, schedulerStatus, schedulerReason, schedulerSummary); err != nil {
 		return nil, err
 	}
 	points := []monitormetrics.MetricPoint{

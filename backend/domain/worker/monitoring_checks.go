@@ -10,6 +10,7 @@ import (
 	"github.com/hibiken/asynq"
 	monitorchecks "github.com/websoft9/appos/backend/domain/monitor/signals/checks"
 	monitorstatus "github.com/websoft9/appos/backend/domain/monitor/status"
+	persistence "github.com/websoft9/appos/backend/infra/persistence"
 )
 
 const TaskMonitorReachabilitySweep = "monitor:reachability_sweep"
@@ -87,7 +88,7 @@ func (w *Worker) handleMonitorReachabilitySweep(_ context.Context, t *asynq.Task
 			return err
 		}
 	}
-	return monitorchecks.RunInstanceReachabilitySweep(w.app, time.Now().UTC())
+	return monitorchecks.RunInstanceReachabilitySweep(w.app, persistence.NewInstanceRepository(w.app), time.Now().UTC())
 }
 
 func (w *Worker) handleMonitorHeartbeatFreshness(_ context.Context, t *asynq.Task) error {
@@ -107,5 +108,5 @@ func (w *Worker) handleMonitorCredentialSweep(_ context.Context, t *asynq.Task) 
 			return err
 		}
 	}
-	return monitorchecks.RunInstanceCredentialSweep(w.app, time.Now().UTC())
+	return monitorchecks.RunInstanceCredentialSweep(w.app, persistence.NewInstanceRepository(w.app), time.Now().UTC())
 }

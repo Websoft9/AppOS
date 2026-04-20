@@ -19,6 +19,7 @@ import { ResourcePage, type Column, type FieldDef } from '@/components/resources
 import { TunnelSetupWizard } from '@/components/servers/TunnelSetupWizard'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { MonitorTargetPanel } from '@/components/monitor/MonitorTargetPanel'
+import { ServerSoftwarePanel } from '@/components/servers/ServerSoftwarePanel'
 import { pb } from '@/lib/pb'
 import {
   checkServerStatus as pingServerStatus,
@@ -397,7 +398,7 @@ export function ServersPage() {
             onValueChange={value => {
               void navigate({
                 to: '/resources/servers',
-                search: prev => ({ ...prev, tab: value as 'detail' | 'monitor' | 'runtime' | 'tunnel' }),
+                search: prev => ({ ...prev, tab: value as 'detail' | 'monitor' | 'runtime' | 'tunnel' | 'software' }),
               })
             }}
           >
@@ -406,6 +407,7 @@ export function ServersPage() {
               {isTunnel ? <TabsTrigger value="tunnel">Tunnel</TabsTrigger> : null}
               <TabsTrigger value="monitor">Monitor</TabsTrigger>
               <TabsTrigger value="runtime">Runtime</TabsTrigger>
+              <TabsTrigger value="software">Software</TabsTrigger>
             </TabsList>
 
             <TabsContent value="detail" className="mt-4">
@@ -522,6 +524,10 @@ export function ServersPage() {
               <div className="rounded-lg border bg-muted/10 p-4 text-sm text-muted-foreground">
                 Runtime details can later include active sessions, deployed workloads, and process information for {String(item.name || item.id)}.
               </div>
+            </TabsContent>
+
+            <TabsContent value="software" className="mt-4">
+              <ServerSoftwarePanel serverId={String(item.id || '')} />
             </TabsContent>
           </Tabs>
         </div>
@@ -919,7 +925,7 @@ export const Route = createFileRoute('/_app/_auth/resources/servers')({
     edit: typeof search.edit === 'string' ? search.edit : undefined,
     server: typeof search.server === 'string' ? search.server : undefined,
     tab:
-      search.tab === 'detail' || search.tab === 'monitor' || search.tab === 'runtime' || search.tab === 'tunnel'
+      search.tab === 'detail' || search.tab === 'monitor' || search.tab === 'runtime' || search.tab === 'tunnel' || search.tab === 'software'
         ? search.tab
         : undefined,
   }),

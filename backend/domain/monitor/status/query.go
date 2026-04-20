@@ -7,13 +7,13 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/monitor"
-	"github.com/websoft9/appos/backend/domain/monitor/persistence"
+	"github.com/websoft9/appos/backend/domain/monitor/status/store"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/infra/collections"
 )
 
 func BuildOverview(app core.App) (*OverviewResponse, error) {
-	records, err := app.FindRecordsByFilter(collections.MonitorLatestStatus, "", "-updated", 500, 0)
+	records, err := app.FindRecordsByFilter(collections.MonitorLatestStatus, "", "-updated", 0, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +31,7 @@ func BuildOverview(app core.App) (*OverviewResponse, error) {
 		if _, ok := counts[status]; ok {
 			counts[status]++
 		}
-		summary, err := persistence.SummaryFromRecord(record)
+		summary, err := store.SummaryFromRecord(record)
 		if err != nil {
 			return nil, err
 		}
@@ -70,12 +70,12 @@ func GetTargetStatus(app core.App, targetType, targetID string) (*TargetStatusRe
 			case monitor.TargetTypeServer:
 				return synthesizeServerTargetStatus(app, targetID)
 			case monitor.TargetTypeApp:
-				return synthesizeAppTargetStatus(app, targetID)
+				return synthesizeAppTargetStatus(app, targetID, monitor.ResolveAppBaselineTarget())
 			}
 		}
 		return nil, err
 	}
-	summary, err := persistence.SummaryFromRecord(record)
+	summary, err := store.SummaryFromRecord(record)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +156,7 @@ func synthesizeServerTargetStatus(app core.App, targetID string) (*TargetStatusR
 	}, nil
 }
 
-func synthesizeAppTargetStatus(app core.App, targetID string) (*TargetStatusResponse, error) {
+func synthesizeAppTargetStatus(app core.App, targetID string, appEntry monitor.TargetRegistryEntry) (*TargetStatusResponse, error) {
 	appRecord, err := app.FindRecordById("app_instances", targetID)
 	if err != nil {
 		return nil, err
@@ -174,7 +174,6 @@ func synthesizeAppTargetStatus(app core.App, targetID string) (*TargetStatusResp
 			runtimeStatus = "error"
 		}
 	}
-	appEntry := monitor.ResolveAppBaselineTarget()
 	outcome := monitor.AppHealthOutcomeFromRuntimeState(runtimeStatus)
 	status := appEntry.AppHealthStatusFor(outcome)
 	reason := appEntry.AppHealthReasonFor(outcome, healthSummary)

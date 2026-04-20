@@ -1023,6 +1023,43 @@ func TestEnvSetVarsSecretExpandHidesPayload(t *testing.T) {
 	}
 }
 
+func TestSoftwareInventorySnapshotsCollectionFields(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Cleanup()
+
+	col, err := app.FindCollectionByNameOrId("software_inventory_snapshots")
+	if err != nil {
+		t.Fatal("software_inventory_snapshots collection not found:", err)
+	}
+
+	assertFieldExists(t, col, "target_type", core.FieldTypeSelect, true)
+	assertFieldExists(t, col, "target_id", core.FieldTypeText, true)
+	assertFieldExists(t, col, "component_key", core.FieldTypeText, true)
+	assertFieldExists(t, col, "label", core.FieldTypeText, true)
+	assertFieldExists(t, col, "template_kind", core.FieldTypeText, true)
+	assertFieldExists(t, col, "installed_state", core.FieldTypeSelect, true)
+	assertFieldExists(t, col, "detected_version", core.FieldTypeText, false)
+	assertFieldExists(t, col, "packaged_version", core.FieldTypeText, false)
+	assertFieldExists(t, col, "verification_state", core.FieldTypeSelect, true)
+	assertFieldExists(t, col, "service_name", core.FieldTypeText, false)
+	assertFieldExists(t, col, "binary_path", core.FieldTypeText, false)
+	assertFieldExists(t, col, "preflight_json", core.FieldTypeJSON, false)
+	assertFieldExists(t, col, "verification_json", core.FieldTypeJSON, false)
+	assertFieldExists(t, col, "last_action_json", core.FieldTypeJSON, false)
+	assertFieldExists(t, col, "created", core.FieldTypeAutodate, false)
+	assertFieldExists(t, col, "updated", core.FieldTypeAutodate, false)
+
+	if col.ListRule == nil || col.ViewRule == nil {
+		t.Fatal("software_inventory_snapshots should allow authenticated reads")
+	}
+	if col.CreateRule != nil || col.UpdateRule != nil || col.DeleteRule != nil {
+		t.Fatal("software_inventory_snapshots writes must remain backend-only")
+	}
+}
+
 func TestSecretsPolicySeedExists(t *testing.T) {
 	app, err := tests.NewTestApp()
 	if err != nil {

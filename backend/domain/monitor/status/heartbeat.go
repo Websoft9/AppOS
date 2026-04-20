@@ -5,15 +5,11 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/monitor"
-	"github.com/websoft9/appos/backend/domain/monitor/persistence"
+	"github.com/websoft9/appos/backend/domain/monitor/status/store"
 	"github.com/websoft9/appos/backend/infra/collections"
 )
 
-func EvaluateHeartbeat(observedAt, now time.Time) HeartbeatProjection {
-	serverEntry, ok, err := monitor.ResolveTargetRegistryEntry(monitor.TargetTypeServer, "", "")
-	if err != nil || !ok {
-		serverEntry = monitor.TargetRegistryEntry{}
-	}
+func EvaluateHeartbeat(targetEntry monitor.TargetRegistryEntry, observedAt, now time.Time) HeartbeatProjection {
 	age := now.Sub(observedAt)
 	if age < 0 {
 		age = 0
@@ -21,25 +17,25 @@ func EvaluateHeartbeat(observedAt, now time.Time) HeartbeatProjection {
 	switch {
 	case age > monitor.OfflineHeartbeatThreshold:
 		return HeartbeatProjection{
-			Status:         serverEntry.HeartbeatStatusFor(monitor.HeartbeatStateOffline),
-			Reason:         serverEntry.HeartbeatReasonFor(monitor.HeartbeatStateOffline, ""),
-			ReasonCode:     serverEntry.HeartbeatReasonCodeFor(monitor.HeartbeatStateOffline, ""),
+			Status:         targetEntry.HeartbeatStatusFor(monitor.HeartbeatStateOffline),
+			Reason:         targetEntry.HeartbeatReasonFor(monitor.HeartbeatStateOffline, ""),
+			ReasonCode:     targetEntry.HeartbeatReasonCodeFor(monitor.HeartbeatStateOffline, ""),
 			HeartbeatState: monitor.HeartbeatStateOffline,
 			ObservedAt:     observedAt,
 		}
 	case age > monitor.StaleHeartbeatThreshold:
 		return HeartbeatProjection{
-			Status:         serverEntry.HeartbeatStatusFor(monitor.HeartbeatStateStale),
-			Reason:         serverEntry.HeartbeatReasonFor(monitor.HeartbeatStateStale, ""),
-			ReasonCode:     serverEntry.HeartbeatReasonCodeFor(monitor.HeartbeatStateStale, ""),
+			Status:         targetEntry.HeartbeatStatusFor(monitor.HeartbeatStateStale),
+			Reason:         targetEntry.HeartbeatReasonFor(monitor.HeartbeatStateStale, ""),
+			ReasonCode:     targetEntry.HeartbeatReasonCodeFor(monitor.HeartbeatStateStale, ""),
 			HeartbeatState: monitor.HeartbeatStateStale,
 			ObservedAt:     observedAt,
 		}
 	default:
 		return HeartbeatProjection{
-			Status:         serverEntry.HeartbeatStatusFor(monitor.HeartbeatStateFresh),
+			Status:         targetEntry.HeartbeatStatusFor(monitor.HeartbeatStateFresh),
 			Reason:         "",
-			ReasonCode:     serverEntry.HeartbeatReasonCodeFor(monitor.HeartbeatStateFresh, ""),
+			ReasonCode:     targetEntry.HeartbeatReasonCodeFor(monitor.HeartbeatStateFresh, ""),
 			HeartbeatState: monitor.HeartbeatStateFresh,
 			ObservedAt:     observedAt,
 		}
@@ -55,7 +51,7 @@ func RefreshHeartbeatFreshness(app core.App, now time.Time) error {
 		collections.MonitorLatestStatus,
 		"target_type = {:targetType} && signal_source = {:signalSource}",
 		"",
-		500,
+		0,
 		0,
 		map[string]any{"targetType": monitor.TargetTypeServer, "signalSource": monitor.SignalSourceAgent},
 	)
@@ -68,11 +64,11 @@ func RefreshHeartbeatFreshness(app core.App, now time.Time) error {
 			continue
 		}
 		observedAt := value.Time()
-		projection := EvaluateHeartbeat(observedAt, now)
+		projection := EvaluateHeartbeat(serverEntry, observedAt, now)
 		if monitor.IsStrongerFailure(record.GetString("status"), projection.Status, serverEntry.StatusPriority) {
 			continue
 		}
-		summary, err := persistence.SummaryFromRecord(record)
+		summary, err := store.SummaryFromRecord(record)
 		if err != nil {
 			return err
 		}
@@ -80,7 +76,7 @@ func RefreshHeartbeatFreshness(app core.App, now time.Time) error {
 			summary = map[string]any{}
 		}
 		summary["heartbeat_state"] = projection.HeartbeatState
-		persistence.ApplyReasonCode(summary, projection.ReasonCode)
+		store.ApplyReasonCode(summary, projection.ReasonCode)
 
 		failures := record.GetInt("consecutive_failures")
 		lastFailureAt := (*time.Time)(nil)
@@ -93,7 +89,7 @@ func RefreshHeartbeatFreshness(app core.App, now time.Time) error {
 			nowUTC := now.UTC()
 			lastFailureAt = &nowUTC
 		}
-		_, err = persistence.UpsertLatestStatus(app, persistence.LatestStatusUpsert{
+		_, err = store.UpsertLatestStatus(app, store.LatestStatusUpsert{
 			TargetType:              record.GetString("target_type"),
 			TargetID:                record.GetString("target_id"),
 			DisplayName:             record.GetString("display_name"),

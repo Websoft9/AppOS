@@ -9,6 +9,8 @@ info:
 tags:
   - name: Actions
     description: "Lifecycle action APIs for install inputs, action history, execution detail, and logs."
+  - name: AI Providers
+    description: "AI provider template discovery and managed AI provider CRUD APIs."
   - name: Apps
     description: "Installed app inventory and lifecycle APIs backed by compose projects."
   - name: Auth
@@ -29,6 +31,8 @@ tags:
     description: "Exposure inventory and app-scoped publication inspection APIs."
   - name: IaC
     description: "Infrastructure-as-Code workspace and template file operations."
+  - name: Monitoring
+    description: "Monitoring overview, target status and series queries, server agent bootstrap, agent ingest APIs, and Netdata remote-write ingress."
   - name: Pipelines
     description: "Pipeline run inventory and detail APIs for lifecycle-native execution tracking."
   - name: Provider Accounts
@@ -694,6 +698,179 @@ paths:
           required: true
           schema:
             type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/ai-providers:
+    get:
+      tags: [AI Providers]
+      summary: Get ai providers
+      operationId: get_api_ai-providers
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    post:
+      tags: [AI Providers]
+      summary: Create or execute ai providers
+      operationId: post_api_ai-providers
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/ai-providers/templates:
+    get:
+      tags: [AI Providers]
+      summary: Get ai providers templates
+      operationId: get_api_ai-providers_templates
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/ai-providers/templates/{id}:
+    get:
+      tags: [AI Providers]
+      summary: Get ai providers templates by id
+      operationId: get_api_ai-providers_templates_id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/ai-providers/{id}:
+    delete:
+      tags: [AI Providers]
+      summary: Delete ai providers by id
+      operationId: delete_api_ai-providers_id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    get:
+      tags: [AI Providers]
+      summary: Get ai providers by id
+      operationId: get_api_ai-providers_id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    put:
+      tags: [AI Providers]
+      summary: Update ai providers by id
+      operationId: put_api_ai-providers_id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
       security:
         - bearerAuth: []  # superuser required
       responses:
@@ -5321,6 +5498,233 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
+  /api/monitor/ingest/heartbeat:
+    post:
+      tags: [Monitoring]
+      summary: Create or execute monitor ingest heartbeat
+      operationId: post_api_monitor_ingest_heartbeat
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security: []  # public
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+  /api/monitor/ingest/metrics:
+    post:
+      tags: [Monitoring]
+      summary: Create or execute monitor ingest metrics
+      operationId: post_api_monitor_ingest_metrics
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security: []  # public
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+  /api/monitor/ingest/runtime-status:
+    post:
+      tags: [Monitoring]
+      summary: Create or execute monitor ingest runtime status
+      operationId: post_api_monitor_ingest_runtime-status
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security: []  # public
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+  /api/monitor/overview:
+    get:
+      tags: [Monitoring]
+      summary: Get monitor overview
+      operationId: get_api_monitor_overview
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/monitor/servers/{id}/agent-setup:
+    get:
+      tags: [Monitoring]
+      summary: Get monitor servers by id agent setup
+      operationId: get_api_monitor_servers_id_agent-setup
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/monitor/servers/{id}/agent-token:
+    post:
+      tags: [Monitoring]
+      summary: Create or execute monitor servers by id agent token
+      operationId: post_api_monitor_servers_id_agent-token
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: rotate
+          in: query
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/monitor/targets/{targetType}/{targetId}:
+    get:
+      tags: [Monitoring]
+      summary: Get monitor targets by targetType by targetId
+      operationId: get_api_monitor_targets_targettype_targetid
+      parameters:
+        - name: targetType
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: targetId
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/monitor/targets/{targetType}/{targetId}/series:
+    get:
+      tags: [Monitoring]
+      summary: Get monitor targets by targetType by targetId series
+      operationId: get_api_monitor_targets_targettype_targetid_series
+      parameters:
+        - name: targetType
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: targetId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: endAt
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: networkInterface
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: series
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: startAt
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: window
+          in: query
+          required: false
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/pipelines:
     get:
       tags: [Pipelines]

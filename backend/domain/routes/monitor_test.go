@@ -16,7 +16,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/monitor"
 	monitormetrics "github.com/websoft9/appos/backend/domain/monitor/metrics"
-	"github.com/websoft9/appos/backend/domain/monitor/persistence"
+	"github.com/websoft9/appos/backend/domain/monitor/status/store"
 	agentsignals "github.com/websoft9/appos/backend/domain/monitor/signals/agent"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/infra/collections"
@@ -276,7 +276,7 @@ func TestMonitorOverviewReturnsProjectedOfflineHeartbeat(t *testing.T) {
 	server := createMonitorServer(t, te, "prod-01")
 	now := time.Now().UTC()
 	zeroFailures := 0
-	if _, err := persistence.UpsertLatestStatus(te.app, persistence.LatestStatusUpsert{
+	if _, err := store.UpsertLatestStatus(te.app, store.LatestStatusUpsert{
 		TargetType:          monitor.TargetTypeServer,
 		TargetID:            server.Id,
 		DisplayName:         server.GetString("name"),
@@ -321,7 +321,7 @@ func TestMonitorTargetStatusReturnsDetail(t *testing.T) {
 	server := createMonitorServer(t, te, "prod-01")
 	zeroFailures := 0
 	now := time.Now().UTC()
-	if _, err := persistence.UpsertLatestStatus(te.app, persistence.LatestStatusUpsert{
+	if _, err := store.UpsertLatestStatus(te.app, store.LatestStatusUpsert{
 		TargetType:          monitor.TargetTypeServer,
 		TargetID:            server.Id,
 		DisplayName:         server.GetString("name"),
@@ -484,7 +484,7 @@ func TestMonitorRuntimeStatusIngestMergesServerSummary(t *testing.T) {
 	}
 	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
 	zeroFailures := 0
-	if _, err := persistence.UpsertLatestStatus(te.app, persistence.LatestStatusUpsert{
+	if _, err := store.UpsertLatestStatus(te.app, store.LatestStatusUpsert{
 		TargetType:          monitor.TargetTypeServer,
 		TargetID:            server.Id,
 		DisplayName:         server.GetString("name"),
@@ -509,7 +509,7 @@ func TestMonitorRuntimeStatusIngestMergesServerSummary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	summary, err := persistence.SummaryFromRecord(record)
+	summary, err := store.SummaryFromRecord(record)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -536,7 +536,7 @@ func TestMonitorRuntimeStatusIngestMergesServerSummary(t *testing.T) {
 	if appRecord.GetString("status") != monitor.StatusDegraded {
 		t.Fatalf("expected degraded app status from runtime projection, got %q", appRecord.GetString("status"))
 	}
-	appSummary, err := persistence.SummaryFromRecord(appRecord)
+	appSummary, err := store.SummaryFromRecord(appRecord)
 	if err != nil {
 		t.Fatal(err)
 	}

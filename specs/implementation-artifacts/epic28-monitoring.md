@@ -6,6 +6,8 @@
 
 Establish a minimal monitoring domain for AppOS that gives operators one place to judge runtime health across servers, applications, resources, and AppOS itself.
 
+**Scope note**: Monitor observes the runtime state of running software (is it alive, is it healthy). Version detection, install, upgrade, and repair of those same software components are owned by Software Delivery (Epic 29), not Monitor.
+
 This epic adopts a push-first hybrid model:
 
 - managed servers run a systemd agent that pushes host, container, and app heartbeat signals to AppOS

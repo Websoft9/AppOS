@@ -6,6 +6,7 @@ const (
 	CheckKindHeartbeat    = "heartbeat"
 	CheckKindCredential   = "credential"
 	CheckKindAppHealth    = "app_health"
+	CheckKindRuntime      = "runtime_summary"
 	CheckKindReachability = "reachability"
 )
 
@@ -35,11 +36,18 @@ type AppHealthTargetPolicy struct {
 	ReasonCodeMap map[string]string `json:"reasonCodeMap,omitempty"`
 }
 
+type RuntimeSummaryTargetPolicy struct {
+	StatusMap     map[string]string `json:"statusMap,omitempty"`
+	ReasonMap     map[string]string `json:"reasonMap,omitempty"`
+	ReasonCodeMap map[string]string `json:"reasonCodeMap,omitempty"`
+}
+
 type TargetCheckPolicies struct {
-	Reachability *ReachabilityTargetPolicy `json:"reachability,omitempty"`
-	Credential   *CredentialTargetPolicy   `json:"credential,omitempty"`
-	Heartbeat    *HeartbeatTargetPolicy    `json:"heartbeat,omitempty"`
-	AppHealth    *AppHealthTargetPolicy    `json:"app_health,omitempty"`
+	Reachability *ReachabilityTargetPolicy   `json:"reachability,omitempty"`
+	Credential   *CredentialTargetPolicy     `json:"credential,omitempty"`
+	Heartbeat    *HeartbeatTargetPolicy      `json:"heartbeat,omitempty"`
+	AppHealth    *AppHealthTargetPolicy      `json:"app_health,omitempty"`
+	Runtime      *RuntimeSummaryTargetPolicy `json:"runtime_summary,omitempty"`
 }
 
 type TargetRegistryEntry struct {

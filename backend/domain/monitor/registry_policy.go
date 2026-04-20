@@ -128,8 +128,32 @@ func (e TargetRegistryEntry) AppHealthReasonCodeFor(outcome string, fallback str
 	return reasonCodeForOutcome(policy.ReasonCodeMap, outcome, fallback, defaultReasonCodeForAppHealthOutcome)
 }
 
+func (e TargetRegistryEntry) RuntimeStatusFor(outcome string) string {
+	policy := e.Checks.Runtime
+	if policy == nil {
+		return defaultStatusForRuntimeSummaryOutcome(outcome)
+	}
+	return statusForOutcome(policy.StatusMap, outcome, defaultStatusForRuntimeSummaryOutcome)
+}
+
+func (e TargetRegistryEntry) RuntimeReasonFor(outcome string, fallback string) string {
+	policy := e.Checks.Runtime
+	if policy == nil {
+		return reasonForOutcome(nil, outcome, fallback, defaultReasonForRuntimeSummaryOutcome)
+	}
+	return reasonForOutcome(policy.ReasonMap, outcome, fallback, defaultReasonForRuntimeSummaryOutcome)
+}
+
+func (e TargetRegistryEntry) RuntimeReasonCodeFor(outcome string, fallback string) string {
+	policy := e.Checks.Runtime
+	if policy == nil {
+		return reasonCodeForOutcome(nil, outcome, fallback, defaultReasonCodeForRuntimeSummaryOutcome)
+	}
+	return reasonCodeForOutcome(policy.ReasonCodeMap, outcome, fallback, defaultReasonCodeForRuntimeSummaryOutcome)
+}
+
 func (e TargetRegistryEntry) StatusPriorityFor(status string) int {
-        return StatusPriorityWithMap(status, e.StatusPriority)
+	return StatusPriorityWithMap(status, e.StatusPriority)
 }
 
 func ResolveAppBaselineTarget() TargetRegistryEntry {
@@ -148,6 +172,19 @@ func AppHealthOutcomeFromRuntimeState(runtimeState string) string {
 		return StatusDegraded
 	case "stopped", "stopping", "exited":
 		return StatusOffline
+	default:
+		return StatusUnknown
+	}
+}
+
+func RuntimeSummaryOutcomeFromRuntimeState(runtimeState string) string {
+	switch strings.TrimSpace(strings.ToLower(runtimeState)) {
+	case "running", "healthy":
+		return StatusHealthy
+	case "degraded", "restarting":
+		return StatusDegraded
+	case "stopped", "stopping", "exited":
+		return "stopped"
 	default:
 		return StatusUnknown
 	}

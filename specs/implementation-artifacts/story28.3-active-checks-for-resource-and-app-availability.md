@@ -301,6 +301,8 @@ Similarly, scheduling should reuse the existing cron and worker infrastructure a
 - Moved initial `reachability` and `credential` status mappings into the monitoring target registry overlay so target policies, not hardcoded switch branches, define outcome-to-status projection.
 - Updated heartbeat freshness projection to consume the server baseline registry mapping, so `fresh/stale/offline` heartbeat outcomes now follow monitoring target policy instead of a hardcoded status switch.
 - Updated app target synthesis and runtime-status projection to consume the app baseline registry mapping, so app-health status derivation now follows monitoring target policy instead of route/service-local switches.
+- Made that app baseline consumption explicit by resolving the baseline registry entry at the caller and passing it into both runtime ingest and fallback synthesis helpers, so future projection changes cannot silently fall back to helper-local baseline resolution.
+- Added an explicit `runtime_summary` policy to the server baseline registry entry and switched server runtime-status projection to consume it, so server runtime outcome-to-status/reason mapping now also lives in monitoring target policy instead of an agent-local switch.
 - Moved initial status precedence into monitoring target registry entries so current resource/server/app projections can preserve stronger failures using target policy instead of only a global hardcoded priority table.
 - Moved initial failure-reason defaults into monitoring target registry policies so heartbeat, reachability, credential, and app-health projections now share target-defined fallback reason semantics instead of scattered hardcoded strings.
 

@@ -7,11 +7,10 @@ import (
 	"github.com/websoft9/appos/backend/domain/monitor"
 	monitorstatus "github.com/websoft9/appos/backend/domain/monitor/status"
 	"github.com/websoft9/appos/backend/domain/resource/instances"
-	persistence "github.com/websoft9/appos/backend/infra/persistence"
 )
 
-func RunInstanceReachabilitySweep(app core.App, now time.Time) error {
-	items, err := instances.List(persistence.NewInstanceRepository(app), nil)
+func RunInstanceReachabilitySweep(app core.App, repo instances.Repository, now time.Time) error {
+	items, err := instances.List(repo, nil)
 	if err != nil {
 		return err
 	}

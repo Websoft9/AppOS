@@ -58,7 +58,7 @@ This table is the baseline mapping of domain boundaries, product modules, and ca
 | Resource | Server Terminal Operations | Terminal, Server Shell | Current | `TerminalSession` | `TerminalSession`, `ExecSession`, `ShellProfile` |
 | Resource | Server File Operations | Server Files, SFTP, File Browser | Current | `RemoteFileSession` | `RemoteFile`, `TransferJob`, `DirectoryEntry` |
 | Resource | Server Service Operations | Components, Services, Service Logs, Systemd Diagnostics | Current | `ServiceTarget` | `ServiceStatus`, `ServiceLogView`, `ServiceAction` |
-| Resource | Server Base Management | Server Base, Runtime Prerequisites, Agent Install / Upgrade | Planned | `ServerBaseComponent` | `ServerBaseComponent`, `ComponentVersion`, `InstallPolicy`, `UpgradePlan` |
+| Resource | Software Delivery | Software Components, Runtime Prerequisites, Agent Install / Upgrade | Planned | `SoftwareComponent` | `SoftwareComponent`, `ComponentVersion`, `InstallPolicy`, `UpgradePlan` |
 | Resource | Server Container Operations | Docker, Containers, Compose, Exec | Current | `RuntimeContainer` | `ContainerRef`, `ComposeProject`, `ContainerAction` |
 | Resource | Database Resources | Databases, Database Bindings | Current + Planned | `DatabaseResource` | `DatabaseResource`, `DatabaseCredentialRef`, `DatabaseEndpoint` |
 | Resource | AI Provider Resources | AI Providers, Hosted AI Providers, Local AI Providers | Planned | `AIProvider` | `AIProvider`, `ProviderModelProfile`, `ProviderCredentialRef` |
@@ -201,7 +201,7 @@ Rules:
 
 - Application lifecycle actions: install, start, stop, redeploy, upgrade, and recover.
 - Unified resource operations: terminal, file, service diagnostics, and container operations from one operator surface.
-- Server base management: detect, install, upgrade, and validate host-level runtime prerequisites such as Docker, monitoring agent, control agent, and reverse proxy.
+- Software delivery: detect, install, upgrade, repair, and validate AppOS-managed runtime prerequisites such as Docker, monitoring agent, control agent, and reverse proxy.
 - Operational visibility: app and platform health, logs, events, and status views.
 - Runtime configuration assets: IaC workspace, shared envs, credentials, certificates, and required runtime settings.
 
@@ -266,7 +266,7 @@ Rules:
 ### FR-2 Resource Operations Surface
 
 - Users can access terminal, file, service, and container operations from one product surface.
-- Users can inspect and trigger install or upgrade flows for AppOS-managed server base components on a server.
+- Users can inspect and trigger software delivery flows for AppOS-managed software components on a server.
 - The system supports both local and remotely managed targets.
 - The system returns command output, state, or error detail appropriate to the selected operation.
 

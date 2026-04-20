@@ -269,6 +269,23 @@ groups:
         - provider_accounts.go
       nativeRefs: []
 
+  - group: AI Providers
+    description: AI provider template discovery and managed AI provider CRUD APIs.
+    apiType: Ext
+    extSurface:
+      - GET /api/ai-providers/templates
+      - GET /api/ai-providers/templates/{id}
+      - GET /api/ai-providers
+      - GET /api/ai-providers/{id}
+      - POST /api/ai-providers
+      - PUT /api/ai-providers/{id}
+      - DELETE /api/ai-providers/{id}
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - ai_providers.go
+      nativeRefs: []
+
   - group: Service Instances
     description: Service instance catalog and template APIs for managed external services.
     apiType: Ext
@@ -358,6 +375,25 @@ groups:
         - server_ops.go
       nativeRefs:
         - https://pocketbase.io/docs/api-records/#crud-actions
+
+  - group: Monitoring
+    description: Monitoring overview, target status and series queries, server agent bootstrap, agent ingest APIs, and Netdata remote-write ingress.
+    apiType: Ext
+    extSurface:
+      - GET /api/monitor/overview
+      - GET /api/monitor/targets/{targetType}/{targetId}
+      - GET /api/monitor/targets/{targetType}/{targetId}/series
+      - POST /api/monitor/servers/{id}/agent-token
+      - GET /api/monitor/servers/{id}/agent-setup
+      - POST /api/monitor/ingest/metrics
+      - POST /api/monitor/ingest/heartbeat
+      - POST /api/monitor/ingest/runtime-status
+      - POST /api/monitor/netdata/write
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - monitor.go
+      nativeRefs: []
 
   - group: Terminal
     description: Interactive terminal and remote file APIs for SSH, Docker exec, SFTP, and local shell sessions.

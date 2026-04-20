@@ -253,6 +253,23 @@ var entryCatalog = []EntrySchema{
 			{ID: "shareDefaultMinutes", Label: "Share Default Minutes", Type: "integer"},
 		},
 	},
+	{
+		ID:          "software-config",
+		Title:       "Software Config",
+		Description: "Configuration for AppOS-managed software components.",
+		Section:     SectionSystem,
+		Source:      SourceCustom,
+		Module:      "software",
+		Key:         "config",
+		Fields: []FieldSchema{
+			{
+				ID:       "controlAgentInstallerUrl",
+				Label:    "Control Agent Installer URL",
+				Type:     "url",
+				HelpText: "URL of the AppOS control-agent installer script. Resolved at execution time by the software delivery executor.",
+			},
+		},
+	},
 }
 
 var customSettingDefaults = map[string]map[string]any{
@@ -288,6 +305,9 @@ var customSettingDefaults = map[string]map[string]any{
 	"topic/share": {
 		"shareMaxMinutes":     60,
 		"shareDefaultMinutes": 30,
+	},
+	"software/config": {
+		"controlAgentInstallerUrl": "",
 	},
 }
 

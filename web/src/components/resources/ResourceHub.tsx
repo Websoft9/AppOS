@@ -12,6 +12,7 @@ import {
   Loader2,
   ChevronRight,
   Layers,
+  HardDrive,
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { Button } from '@/components/ui/button'
@@ -73,6 +74,17 @@ const RUNTIME_INFRASTRUCTURE: ResourceDef[] = [
     createDescription: 'MySQL, PostgreSQL, Redis, Kafka, and S3-backed application dependencies.',
     exampleItems: ['Database', 'Cache', 'Queue', 'Object Storage'],
     apiPath: '/api/instances',
+  },
+  {
+    key: 'local-software',
+    title: 'Local Software',
+    description: 'AppOS-local runtime binaries and supervisord-managed components installed on this host.',
+    icon: <HardDrive className="h-5 w-5" />,
+    href: '/resources/local-software',
+    createLabel: 'Inspect AppOS-local software inventory',
+    createDescription: 'Built-in runtimes, bundled binaries, and supervisord-managed services on the AppOS host.',
+    exampleItems: ['AppOS', 'Nginx', 'Redis', 'Docker CLI', 'Netdata'],
+    apiPath: '/api/software/local',
   },
 ]
 
@@ -152,7 +164,13 @@ export function ResourceHub() {
       }
       return pb
         .send<unknown[]>(r.apiPath ?? '', {})
-        .then(data => ({ key: r.key, count: Array.isArray(data) ? data.length : 0 }))
+        .then(data => {
+          if (Array.isArray(data)) return { key: r.key, count: data.length }
+          if (data && typeof data === 'object' && Array.isArray((data as { items?: unknown[] }).items)) {
+            return { key: r.key, count: (data as { items: unknown[] }).items.length }
+          }
+          return { key: r.key, count: 0 }
+        })
         .catch(() => ({ key: r.key, count: 0 }))
     })
     Promise.allSettled(promises).then(results => {

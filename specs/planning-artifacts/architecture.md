@@ -55,7 +55,7 @@ PocketBase built-ins provide auth, CRUD, realtime, admin UI, middleware, cron, a
 Custom Go code owns AppOS-specific behavior:
 
 - app lifecycle and Docker actions
-- server base capability management for server prerequisites
+- software delivery capability management for server prerequisites
 - gateway and domain binding management
 - terminal and remote operations
 - backup and restore
@@ -129,11 +129,11 @@ Configuration:
 2. AppOS validates, persists, and versions the change.
 3. Apply, rollback, or follow-up execution runs synchronously or through a job, depending on cost.
 
-Server base capability management:
+Software delivery capability management:
 
 1. Dashboard or CLI reads capability readiness synchronously.
-2. If a prerequisite is missing, API accepts an async command such as ensure, upgrade, or verify.
-3. A Server Base domain worker executes preflight, command execution, and verification.
+2. If a prerequisite is missing, API accepts an async command such as install, upgrade, verify, or repair.
+3. A Software Delivery domain worker executes preflight, command execution, and verification.
 4. Status projection, audit, and events expose the final outcome to dependent domains.
 
 Terminal:
@@ -173,12 +173,12 @@ Shared across domains:
 Kept separate by domain:
 
 - App Lifecycle runner remains app- and release-oriented
-- Server Base runner remains server-capability-oriented
+- Software Delivery runner remains server-capability-oriented
 
 Implication:
 
-- Server Base may reuse the same queue and worker process model as App Lifecycle
-- Server Base should keep its own command handlers, operation DTOs, and phase semantics
+- Software Delivery may reuse the same queue and worker process model as App Lifecycle
+- Software Delivery should keep its own command handlers, operation DTOs, and phase semantics
 
 ## Complexity Assessment
 

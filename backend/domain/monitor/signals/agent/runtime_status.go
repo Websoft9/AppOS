@@ -38,6 +38,11 @@ type RuntimeAppStatus struct {
 
 func IngestRuntimeStatus(app core.App, input RuntimeStatusIngest) (int, error) {
 	serverID := strings.TrimSpace(input.ServerID)
+	appEntry := monitor.ResolveAppBaselineTarget()
+	serverEntry, ok, err := monitor.ResolveTargetRegistryEntry(monitor.TargetTypeServer, "", "")
+	if err != nil || !ok {
+		serverEntry = monitor.TargetRegistryEntry{}
+	}
 	accepted := 0
 	for _, item := range input.Items {
 		if strings.TrimSpace(item.TargetType) != monitor.TargetTypeServer || strings.TrimSpace(item.TargetID) != serverID {
@@ -67,7 +72,7 @@ func IngestRuntimeStatus(app core.App, input RuntimeStatusIngest) (int, error) {
 				if appID == "" {
 					continue
 				}
-				if err := applyAppRuntimeStatus(app, serverID, appID, appRuntimeState, observedAt); err != nil {
+				if err := applyAppRuntimeStatus(app, appEntry, serverID, appID, appRuntimeState, observedAt); err != nil {
 					return accepted, err
 				}
 			}
@@ -76,7 +81,7 @@ func IngestRuntimeStatus(app core.App, input RuntimeStatusIngest) (int, error) {
 			delete(serverSummary, "apps")
 		}
 
-		if err := monitorstatus.ApplySignalEvent(app, buildServerRuntimeEvent(input.ServerName, serverID, strings.TrimSpace(item.RuntimeState), observedAt, serverSummary)); err != nil {
+		if err := monitorstatus.ApplySignalEvent(app, buildServerRuntimeEvent(serverEntry, input.ServerName, serverID, strings.TrimSpace(item.RuntimeState), observedAt, serverSummary)); err != nil {
 			return accepted, err
 		}
 		accepted++
@@ -84,14 +89,21 @@ func IngestRuntimeStatus(app core.App, input RuntimeStatusIngest) (int, error) {
 	return accepted, nil
 }
 
-func applyAppRuntimeStatus(app core.App, serverID, appID, runtimeState string, observedAt time.Time) error {
+func applyAppRuntimeStatus(app core.App, appEntry monitor.TargetRegistryEntry, serverID, appID, runtimeState string, observedAt time.Time) error {
 	appDisplayName := appID
 	if appRecord, err := app.FindRecordById("app_instances", appID); err == nil {
 		if name := strings.TrimSpace(appRecord.GetString("name")); name != "" {
 			appDisplayName = name
 		}
 	}
-	appEntry := monitor.ResolveAppBaselineTarget()
+	appSummary := monitorstatus.LoadExistingSummary(app, monitor.TargetTypeApp, appID)
+	appSummary["runtime_state"] = runtimeState
+	appSummary["server_id"] = serverID
+	event := buildAppRuntimeEvent(appEntry, appDisplayName, serverID, appID, runtimeState, observedAt, appSummary)
+	return monitorstatus.ApplySignalEvent(app, event)
+}
+
+func buildAppRuntimeEvent(appEntry monitor.TargetRegistryEntry, appDisplayName, serverID, appID, runtimeState string, observedAt time.Time, summary map[string]any) monitor.CanonicalSignalEvent {
 	outcome := monitor.AppHealthOutcomeFromRuntimeState(runtimeState)
 	appStatus := appEntry.AppHealthStatusFor(outcome)
 	appReason := appEntry.AppHealthReasonFor(outcome, "")
@@ -104,11 +116,8 @@ func applyAppRuntimeStatus(app core.App, serverID, appID, runtimeState string, o
 		appFailures = 1
 		appLastFailureAt = &observedAt
 	}
-	appSummary := monitorstatus.LoadExistingSummary(app, monitor.TargetTypeApp, appID)
-	appSummary["runtime_state"] = runtimeState
-	appSummary["server_id"] = serverID
-	monitorstatus.ApplyReasonCode(appSummary, appEntry.AppHealthReasonCodeFor(outcome, ""))
-	err := monitorstatus.ApplySignalEvent(app, monitor.CanonicalSignalEvent{
+	monitorstatus.ApplyReasonCode(summary, appEntry.AppHealthReasonCodeFor(outcome, ""))
+	return monitor.CanonicalSignalEvent{
 		TargetType:              monitor.TargetTypeApp,
 		TargetID:                appID,
 		DisplayName:             appDisplayName,
@@ -121,27 +130,17 @@ func applyAppRuntimeStatus(app core.App, serverID, appID, runtimeState string, o
 		LastCheckedAt:           &observedAt,
 		LastReportedAt:          &observedAt,
 		ConsecutiveFailures:     &appFailures,
-		Summary:                 appSummary,
+		Summary:                 summary,
 		StatusPriorityMap:       appEntry.StatusPriority,
 		PreserveStrongerFailure: true,
-	})
-	return err
+	}
 }
 
-func buildServerRuntimeEvent(serverName, serverID, runtimeState string, observedAt time.Time, summary map[string]any) monitor.CanonicalSignalEvent {
-	status := monitor.StatusUnknown
-	reason := "runtime summary reported"
-	switch strings.ToLower(strings.TrimSpace(runtimeState)) {
-	case "running", "healthy":
-		status = monitor.StatusHealthy
-		reason = ""
-	case "degraded", "restarting":
-		status = monitor.StatusDegraded
-		reason = "runtime degraded"
-	case "stopped", "stopping", "exited":
-		status = monitor.StatusUnknown
-		reason = "runtime not running"
-	}
+func buildServerRuntimeEvent(serverEntry monitor.TargetRegistryEntry, serverName, serverID, runtimeState string, observedAt time.Time, summary map[string]any) monitor.CanonicalSignalEvent {
+	outcome := monitor.RuntimeSummaryOutcomeFromRuntimeState(runtimeState)
+	status := serverEntry.RuntimeStatusFor(outcome)
+	reason := serverEntry.RuntimeReasonFor(outcome, "")
+	monitorstatus.ApplyReasonCode(summary, serverEntry.RuntimeReasonCodeFor(outcome, ""))
 	failures := 0
 	lastSuccessAt := (*time.Time)(nil)
 	lastFailureAt := (*time.Time)(nil)
@@ -150,10 +149,6 @@ func buildServerRuntimeEvent(serverName, serverID, runtimeState string, observed
 	} else if status == monitor.StatusDegraded {
 		failures = 1
 		lastFailureAt = &observedAt
-	}
-	serverEntry, ok, err := monitor.ResolveTargetRegistryEntry(monitor.TargetTypeServer, "", "")
-	if err != nil || !ok {
-		serverEntry = monitor.TargetRegistryEntry{}
 	}
 	return monitor.CanonicalSignalEvent{
 		TargetType:              monitor.TargetTypeServer,

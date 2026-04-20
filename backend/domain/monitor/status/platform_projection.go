@@ -4,12 +4,12 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/domain/monitor/persistence"
+	"github.com/websoft9/appos/backend/domain/monitor/status/store"
 )
 
 func ProjectPlatformLatestStatus(app core.App, now time.Time, targetID, displayName, signalSource, status, reason string, summary map[string]any) error {
         failures, lastSuccessAt, lastFailureAt := SingleObservationFailureState(status, "healthy", now)
-	_, err := persistence.UpsertLatestStatus(app, persistence.LatestStatusUpsert{
+	_, err := store.UpsertLatestStatus(app, store.LatestStatusUpsert{
 		TargetType:              "platform",
 		TargetID:                targetID,
 		DisplayName:             displayName,

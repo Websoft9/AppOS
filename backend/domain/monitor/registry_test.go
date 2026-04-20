@@ -77,11 +77,17 @@ func TestResolveTargetRegistryEntryMatchesServerAndAppBaselines(t *testing.T) {
 	if !containsNormalized(serverEntry.EnabledChecks, CheckKindHeartbeat) {
 		t.Fatalf("expected heartbeat check for server baseline, got %+v", serverEntry.EnabledChecks)
 	}
+	if !containsNormalized(serverEntry.EnabledChecks, CheckKindRuntime) {
+		t.Fatalf("expected runtime_summary check for server baseline, got %+v", serverEntry.EnabledChecks)
+	}
 	if !containsNormalized(serverEntry.SignalSources, SignalSourceAgent) {
 		t.Fatalf("expected agent signal source for server baseline, got %+v", serverEntry.SignalSources)
 	}
 	if serverEntry.Checks.Heartbeat == nil || serverEntry.Checks.Heartbeat.StatusMap["offline"] != StatusOffline {
 		t.Fatalf("expected server heartbeat status map, got %+v", serverEntry.Checks.Heartbeat)
+	}
+	if serverEntry.Checks.Runtime == nil || serverEntry.Checks.Runtime.StatusMap["stopped"] != StatusUnknown {
+		t.Fatalf("expected server runtime status map, got %+v", serverEntry.Checks.Runtime)
 	}
 	if got := serverEntry.StatusPriorityFor(StatusOffline); got != 2 {
 		t.Fatalf("expected server offline priority 2, got %d", got)
@@ -94,6 +100,21 @@ func TestResolveTargetRegistryEntryMatchesServerAndAppBaselines(t *testing.T) {
 	}
 	if got := serverEntry.HeartbeatReasonCodeFor(HeartbeatStateOffline, ""); got != "heartbeat_missing" {
 		t.Fatalf("expected offline heartbeat reason code from registry, got %q", got)
+	}
+	if got := serverEntry.RuntimeStatusFor("stopped"); got != StatusUnknown {
+		t.Fatalf("expected stopped runtime outcome to map to unknown, got %q", got)
+	}
+	if got := serverEntry.RuntimeReasonFor("stopped", ""); got != "runtime not running" {
+		t.Fatalf("expected stopped runtime reason from registry, got %q", got)
+	}
+	if got := serverEntry.RuntimeReasonCodeFor("stopped", ""); got != "runtime_not_running" {
+		t.Fatalf("expected stopped runtime reason code from registry, got %q", got)
+	}
+	if got := RuntimeSummaryOutcomeFromRuntimeState("restarting"); got != StatusDegraded {
+		t.Fatalf("expected restarting runtime to map to degraded outcome, got %q", got)
+	}
+	if got := RuntimeSummaryOutcomeFromRuntimeState("stopped"); got != "stopped" {
+		t.Fatalf("expected stopped runtime to map to stopped outcome, got %q", got)
 	}
 
 	appEntry, ok, err := ResolveTargetRegistryEntry(TargetTypeApp, "", "")

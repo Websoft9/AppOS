@@ -18,6 +18,7 @@
 //   - /api/ext/iac        — IaC file management (Epic 14, superuser-only)
 //   - /api/tunnel         — tunnel setup and operations APIs (Epic 16)
 //   - /api/servers        — Server catalog: ops, ports, systemd (Epic 20)
+//   - /api/software       — AppOS-local software inventory APIs
 //   - /api/terminal       — Interactive terminal sessions: SSH, Docker, SFTP, local (Epic 20)
 package routes
 
@@ -77,6 +78,10 @@ func Register(se *core.ServeEvent) {
 	servers := se.Router.Group("/api/servers")
 	servers.Bind(apis.RequireAuth())
 
+	// AppOS-local software inventory routes
+	softwareGroup := se.Router.Group("/api/software")
+	softwareGroup.Bind(apis.RequireAuth())
+
 	// Terminal session routes (SSH PTY, Docker exec, SFTP, local)
 	terminalGroup := se.Router.Group("/api/terminal")
 	terminalGroup.Bind(wsTokenAuth())
@@ -100,6 +105,8 @@ func Register(se *core.ServeEvent) {
 	registerExposureRoutes(deployments)
 	registerIaCRoutes(g)
 	registerServerRoutes(servers)
+	registerSoftwareRoutes(servers)
+	registerLocalSoftwareRoutes(softwareGroup)
 	registerTerminalRoutes(terminalGroup)
 	registerTunnelRoutes(se)
 	registerMonitorRoutes(se)

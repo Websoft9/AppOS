@@ -5,22 +5,22 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/websoft9/appos/backend/domain/monitor/persistence"
+	"github.com/websoft9/appos/backend/domain/monitor/status/store"
 	"github.com/websoft9/appos/backend/domain/resource/instances"
 )
 
 func LoadResourceCheckSummary(app core.App, targetType, targetID, checkKind, registryEntryID, resourceKind, templateID, endpoint string) map[string]any {
-	return persistence.LoadResourceCheckSummary(app, targetType, targetID, checkKind, registryEntryID, resourceKind, templateID, endpoint)
+	return store.LoadResourceCheckSummary(app, targetType, targetID, checkKind, registryEntryID, resourceKind, templateID, endpoint)
 }
 
 func ApplyReasonCode(summary map[string]any, reasonCode string) {
-	persistence.ApplyReasonCode(summary, reasonCode)
+	store.ApplyReasonCode(summary, reasonCode)
 }
 
 func ProjectResourceCheckLatestStatus(app core.App, targetType, targetID, displayName, signalSource, checkKind string, status string, reason string, summary map[string]any, statusPriorityMap map[string]int, now time.Time) error {
 	failures, lastSuccessAt, lastFailureAt := ResourceCheckFailureState(app, targetType, targetID, status, now)
 
-	_, err := persistence.UpsertLatestStatus(app, persistence.LatestStatusUpsert{
+	_, err := store.UpsertLatestStatus(app, store.LatestStatusUpsert{
 		TargetType:              targetType,
 		TargetID:                targetID,
 		DisplayName:             displayName,
@@ -40,11 +40,11 @@ func ProjectResourceCheckLatestStatus(app core.App, targetType, targetID, displa
 }
 
 func ResourceCheckFailureState(app core.App, targetType, targetID, status string, now time.Time) (int, *time.Time, *time.Time) {
-        return FailureStateFromPrevious(persistence.PreviousFailureCount(app, targetType, targetID), status, "healthy", now)
+        return FailureStateFromPrevious(store.PreviousFailureCount(app, targetType, targetID), status, "healthy", now)
 }
 
 func PreserveStrongerFailureFromOtherCheck(app core.App, targetType, targetID, checkKind string) bool {
-	return persistence.HasDifferentCheckKind(app, targetType, targetID, checkKind)
+	return store.HasDifferentCheckKind(app, targetType, targetID, checkKind)
 }
 
 func firstNonEmpty(values ...string) string {

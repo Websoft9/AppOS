@@ -309,6 +309,11 @@ Do not persist:
 
 ## Implementation Notes
 
+As-built note:
+
+- heartbeat freshness projection now uses registry-backed heartbeat mapping at projection time rather than resolving the server baseline inside the projection helper itself
+- `signals/agent` passes the resolved target registry entry into heartbeat evaluation so the freshness-to-status mapping stays aligned with the canonical monitoring registry contract
+
 - Keep payload shape compact and batch-friendly.
 - Reuse existing secret-management and setup-route patterns where helpful, but keep monitoring token lifecycle separate from tunnel lifecycle.
 - Do not introduce a full Prometheus-compatible scrape surface in this story.

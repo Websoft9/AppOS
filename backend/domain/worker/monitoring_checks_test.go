@@ -10,7 +10,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/domain/monitor"
-	"github.com/websoft9/appos/backend/domain/monitor/persistence"
+	"github.com/websoft9/appos/backend/domain/monitor/status/store"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/infra/collections"
 
@@ -54,7 +54,7 @@ func TestHandleMonitorReachabilitySweepProjectsInstanceStatuses(t *testing.T) {
 	if got := reachableStatus.GetString("status"); got != monitor.StatusHealthy {
 		t.Fatalf("expected reachable status healthy, got %q", got)
 	}
-	reachableSummary, err := persistence.SummaryFromRecord(reachableStatus)
+	reachableSummary, err := store.SummaryFromRecord(reachableStatus)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestHandleMonitorReachabilitySweepProjectsInstanceStatuses(t *testing.T) {
 	if offlineStatus.GetString("signal_source") != monitor.SignalSourceAppOS {
 		t.Fatalf("expected appos active check source, got %q", offlineStatus.GetString("signal_source"))
 	}
-	offlineSummary, err := persistence.SummaryFromRecord(offlineStatus)
+	offlineSummary, err := store.SummaryFromRecord(offlineStatus)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +144,7 @@ func TestHandleMonitorHeartbeatFreshnessProjectsOfflineStatus(t *testing.T) {
 	if got := record.GetString("status"); got != monitor.StatusOffline {
 		t.Fatalf("expected offline status, got %q", got)
 	}
-	summary, err := persistence.SummaryFromRecord(record)
+	summary, err := store.SummaryFromRecord(record)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +190,7 @@ func TestHandleMonitorCredentialSweepProjectsCredentialInvalidWhenSecretMissing(
 	if got := status.GetString("status"); got != monitor.StatusCredentialInvalid {
 		t.Fatalf("expected credential_invalid status, got %q", got)
 	}
-	summary, err := persistence.SummaryFromRecord(status)
+	summary, err := store.SummaryFromRecord(status)
 	if err != nil {
 		t.Fatal(err)
 	}

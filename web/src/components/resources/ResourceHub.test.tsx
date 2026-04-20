@@ -67,6 +67,9 @@ describe('ResourceHub', () => {
       if (path === '/api/provider-accounts') {
         return Promise.resolve([{ id: 'acct-1' }])
       }
+      if (path === '/api/software/local') {
+        return Promise.resolve({ items: [{ id: 'local-1' }, { id: 'local-2' }] })
+      }
       if (path === '/api/connectors?kind=rest_api,webhook,mcp,smtp,registry,dns') {
         return Promise.resolve([{ id: 'conn-1' }, { id: 'conn-2' }, { id: 'conn-3' }])
       }
@@ -90,12 +93,13 @@ describe('ResourceHub', () => {
       )
     ).toBeInTheDocument()
     expect(screen.getByText('2 grouped areas')).toBeInTheDocument()
-    expect(screen.getByText('5 canonical families')).toBeInTheDocument()
+    expect(screen.getByText('6 canonical families')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Runtime Infrastructure' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'External Integrations' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Additional Resources' })).not.toBeInTheDocument()
 
     expect(screen.getAllByText('Service Instances').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Local Software').length).toBeGreaterThan(0)
     expect(screen.getAllByText('AI Providers').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Platform Accounts').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Connectors').length).toBeGreaterThan(0)
@@ -111,6 +115,9 @@ describe('ResourceHub', () => {
       screen.getByText(
         'Runtime dependencies required for application startup, including databases, middleware, and storage instances such as MySQL, PostgreSQL, Redis, Kafka, and S3.'
       )
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('AppOS-local runtime binaries and supervisord-managed components installed on this host.')
     ).toBeInTheDocument()
     expect(
       screen.getByText('How platform connects to AI providers, external platforms, APIs, and cloud services.')
@@ -134,6 +141,9 @@ describe('ResourceHub', () => {
         screen.getAllByText('2 items').length
       ).toBeGreaterThan(0)
       expect(
+        screen.getAllByText('2 items').length
+      ).toBeGreaterThan(0)
+      expect(
         screen.getAllByText('1 items').length
       ).toBeGreaterThan(0)
     })
@@ -147,6 +157,10 @@ describe('ResourceHub', () => {
     expect(screen.getByRole('link', { name: /Service Instances/i })).toHaveAttribute(
       'href',
       '/resources/service-instances'
+    )
+    expect(screen.getByRole('link', { name: /Local Software/i })).toHaveAttribute(
+      'href',
+      '/resources/local-software'
     )
     expect(screen.getByRole('link', { name: /AI Providers/i })).toHaveAttribute(
       'href',
@@ -185,12 +199,16 @@ describe('ResourceHub', () => {
     expect(within(dialog).getByText('External Integrations')).toBeInTheDocument()
     expect(within(dialog).getByText('Servers')).toBeInTheDocument()
     expect(within(dialog).getByText('Service Instances')).toBeInTheDocument()
+    expect(within(dialog).getByText('Local Software')).toBeInTheDocument()
     expect(within(dialog).getByText('AI Providers')).toBeInTheDocument()
     expect(within(dialog).getByText('Connectors')).toBeInTheDocument()
     expect(within(dialog).getByText('Platform Accounts')).toBeInTheDocument()
     expect(within(dialog).getByText('Linux hosts, SSH targets, and deployment nodes.')).toBeInTheDocument()
     expect(
       within(dialog).getByText('MySQL, PostgreSQL, Redis, Kafka, and S3-backed application dependencies.')
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByText('Built-in runtimes, bundled binaries, and supervisord-managed services on the AppOS host.')
     ).toBeInTheDocument()
     expect(
       within(dialog).getByText('OpenAI, Anthropic, OpenRouter, Ollama, and similar AI providers.')
@@ -200,6 +218,7 @@ describe('ResourceHub', () => {
     ).toBeInTheDocument()
     expect(within(dialog).getByText('Database')).toBeInTheDocument()
     expect(within(dialog).getByText('Cache')).toBeInTheDocument()
+    expect(within(dialog).getByText('Docker CLI')).toBeInTheDocument()
     expect(within(dialog).queryByRole('button', { name: /Add Now/i })).toBeNull()
 
     const serviceInstanceCard = within(dialog)

@@ -9,7 +9,6 @@ import (
 	monitorstatus "github.com/websoft9/appos/backend/domain/monitor/status"
 	"github.com/websoft9/appos/backend/domain/resource/instances"
 	"github.com/websoft9/appos/backend/domain/secrets"
-	persistence "github.com/websoft9/appos/backend/infra/persistence"
 )
 
 type CredentialCheckResult struct {
@@ -20,8 +19,8 @@ type CredentialCheckResult struct {
 	ObservedValueKey   string
 }
 
-func RunInstanceCredentialSweep(app core.App, now time.Time) error {
-	items, err := instances.List(persistence.NewInstanceRepository(app), nil)
+func RunInstanceCredentialSweep(app core.App, repo instances.Repository, now time.Time) error {
+	items, err := instances.List(repo, nil)
 	if err != nil {
 		return err
 	}

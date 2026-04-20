@@ -35,6 +35,11 @@ func normalizeTargetRegistryEntry(entry TargetRegistryEntry) (TargetRegistryEntr
 		entry.Checks.AppHealth.ReasonMap = normalizeReasonMap(entry.Checks.AppHealth.ReasonMap)
 		entry.Checks.AppHealth.ReasonCodeMap = normalizeReasonMap(entry.Checks.AppHealth.ReasonCodeMap)
 	}
+	if entry.Checks.Runtime != nil {
+		entry.Checks.Runtime.StatusMap = normalizeStatusMap(entry.Checks.Runtime.StatusMap)
+		entry.Checks.Runtime.ReasonMap = normalizeReasonMap(entry.Checks.Runtime.ReasonMap)
+		entry.Checks.Runtime.ReasonCodeMap = normalizeReasonMap(entry.Checks.Runtime.ReasonCodeMap)
+	}
 	if entry.ID == "" {
 		return TargetRegistryEntry{}, fmt.Errorf("registry entry id is required")
 	}

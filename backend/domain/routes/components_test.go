@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/pocketbase/pocketbase/apis"
-	comp "github.com/websoft9/appos/backend/platform/components"
+	comp "github.com/websoft9/appos/backend/domain/components"
 )
 
 func (te *testEnv) doComponents(t *testing.T, method, url, body string, authenticated bool) *httptest.ResponseRecorder {

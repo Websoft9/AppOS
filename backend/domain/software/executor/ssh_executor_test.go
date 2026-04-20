@@ -1,0 +1,377 @@
+package executor
+
+import (
+	"context"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/websoft9/appos/backend/domain/software"
+	"github.com/websoft9/appos/backend/domain/terminal"
+)
+
+// ─── Helper builders ──────────────────────────────────────────────────────────
+
+func packageTemplate(pkg, svc string) software.ResolvedTemplate {
+	return software.ResolvedTemplate{
+		ComponentKey: software.ComponentKey("docker"),
+		TemplateKind: software.TemplateKindPackage,
+		Detect: software.DetectSpec{
+			VersionCommand: "docker --version",
+			InstalledHint:  []string{"command -v docker"},
+		},
+		Preflight: software.PreflightSpec{
+			RequireRoot:    true,
+			RequireNetwork: false,
+			SupportedOS:    []string{"ubuntu", "debian"},
+		},
+		Install: software.InstallSpec{
+			Strategy:    "package",
+			PackageName: pkg,
+		},
+		Upgrade: software.UpgradeSpec{
+			Strategy:    "package",
+			PackageName: pkg,
+		},
+		Verify: software.VerifySpec{
+			Strategy:    "systemd",
+			ServiceName: svc,
+		},
+		Repair: software.RepairSpec{Strategy: "reinstall"},
+	}
+}
+
+func scriptTemplate(url, svc string) software.ResolvedTemplate {
+	return software.ResolvedTemplate{
+		ComponentKey: software.ComponentKey("monitor-agent"),
+		TemplateKind: software.TemplateKindScript,
+		Detect: software.DetectSpec{
+			VersionCommand: "netdata -V",
+			InstalledHint:  []string{"command -v netdata"},
+		},
+		Preflight: software.PreflightSpec{
+			RequireRoot:    true,
+			RequireNetwork: true,
+			SupportedOS:    []string{"ubuntu"},
+		},
+		Install: software.InstallSpec{
+			Strategy:  "script",
+			ScriptURL: url,
+		},
+		Upgrade: software.UpgradeSpec{
+			Strategy:  "script",
+			ScriptURL: url,
+			Args:      []string{"--upgrade"},
+		},
+		Verify: software.VerifySpec{
+			Strategy:    "systemd",
+			ServiceName: svc,
+		},
+		Repair: software.RepairSpec{Strategy: "reinstall"},
+	}
+}
+
+// ─── buildScriptCommand ───────────────────────────────────────────────────────
+
+func TestBuildScriptCommand_NoArgs(t *testing.T) {
+	cmd := buildScriptCommand("https://example.com/install.sh", nil)
+	if cmd == "" {
+		t.Fatal("expected non-empty command")
+	}
+	// Must contain the URL (shell-quoted)
+	if !containsSubstring(cmd, "'https://example.com/install.sh'") {
+		t.Errorf("expected shell-quoted URL in command, got: %s", cmd)
+	}
+	// Must contain set -eu
+	if !containsSubstring(cmd, "set -eu") {
+		t.Errorf("expected set -eu in command, got: %s", cmd)
+	}
+	// Must clean up temp file
+	if !containsSubstring(cmd, "trap") {
+		t.Errorf("expected trap cleanup in command, got: %s", cmd)
+	}
+}
+
+func TestBuildScriptCommand_WithArgs(t *testing.T) {
+	cmd := buildScriptCommand("https://example.com/install.sh", []string{"--upgrade", "--channel=stable"})
+	if !containsSubstring(cmd, "'--upgrade'") {
+		t.Errorf("expected --upgrade arg in command, got: %s", cmd)
+	}
+	if !containsSubstring(cmd, "'--channel=stable'") {
+		t.Errorf("expected --channel=stable arg in command, got: %s", cmd)
+	}
+}
+
+func TestBuildScriptCommand_ShellQuotesURL(t *testing.T) {
+	// URL must be shell-quoted to prevent injection even from catalog metadata
+	cmd := buildScriptCommand("https://example.com/path with spaces/install.sh", nil)
+	if !containsSubstring(cmd, "'https://example.com/path with spaces/install.sh'") {
+		t.Errorf("expected properly quoted URL, got: %s", cmd)
+	}
+}
+
+// ─── withSudo ─────────────────────────────────────────────────────────────────
+
+func TestWithSudo_ContainsFallback(t *testing.T) {
+	cmd := withSudo("apt-get install -y docker")
+	// Must attempt sudo first, then fall back
+	if !containsSubstring(cmd, "sudo -n") {
+		t.Errorf("expected sudo attempt, got: %s", cmd)
+	}
+	// Must have the sh -c fallback
+	if !containsSubstring(cmd, "sh -c") {
+		t.Errorf("expected sh -c fallback, got: %s", cmd)
+	}
+}
+
+// ─── firstLine ────────────────────────────────────────────────────────────────
+
+func TestFirstLine_SingleLine(t *testing.T) {
+	if got := firstLine("hello"); got != "hello" {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestFirstLine_MultiLine(t *testing.T) {
+	if got := firstLine("\nfirst\nsecond"); got != "first" {
+		t.Errorf("got %q, expected %q", got, "first")
+	}
+}
+
+func TestFirstLine_Empty(t *testing.T) {
+	if got := firstLine(""); got != "" {
+		t.Errorf("got %q", got)
+	}
+}
+
+// ─── Detect ───────────────────────────────────────────────────────────────────
+
+func TestDetect_InstalledWithVersion(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	callCount := 0
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		callCount++
+		if containsSubstring(cmd, "command -v") {
+			return "/usr/bin/docker", nil // hint satisfied
+		}
+		return "Docker version 24.0.5, build abc123", nil // version command
+	}
+
+	tpl := packageTemplate("docker.io", "docker.service")
+	ex := &SSHExecutor{}
+	state, version, err := ex.Detect(context.Background(), "", tpl)
+	if err != nil {
+		t.Fatalf("Detect error: %v", err)
+	}
+	if state != software.InstalledStateInstalled {
+		t.Errorf("expected installed, got %q", state)
+	}
+	if !containsSubstring(version, "Docker version") {
+		t.Errorf("expected version string, got %q", version)
+	}
+}
+
+func TestDetect_NotInstalled(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, _ string, _ time.Duration) (string, error) {
+		return "", ErrCommandFailed
+	}
+
+	tpl := packageTemplate("docker.io", "docker.service")
+	ex := &SSHExecutor{}
+	state, version, err := ex.Detect(context.Background(), "", tpl)
+	if err != nil {
+		t.Fatalf("Detect error: %v", err)
+	}
+	if state != software.InstalledStateNotInstalled {
+		t.Errorf("expected not_installed, got %q", state)
+	}
+	if version != "" {
+		t.Errorf("expected empty version, got %q", version)
+	}
+}
+
+// ─── Verify strategy routing ─────────────────────────────────────────────────
+
+func TestVerify_UnknownStrategy_ReturnsError(t *testing.T) {
+	ex := &SSHExecutor{}
+	tpl := packageTemplate("docker.io", "docker.service")
+	tpl.Verify.Strategy = "unknown-strategy"
+	_, err := ex.Verify(context.Background(), "", tpl)
+	if err == nil {
+		t.Fatal("expected error for unknown verify strategy")
+	}
+}
+
+// ─── Install strategy routing ─────────────────────────────────────────────────
+
+func TestInstall_EmptyStrategy_ReturnsError(t *testing.T) {
+	ex := &SSHExecutor{}
+	tpl := packageTemplate("docker.io", "docker.service")
+	tpl.Install.Strategy = ""
+	_, err := ex.Install(context.Background(), "srv-1", tpl)
+	if err == nil {
+		t.Fatal("expected error for empty install strategy")
+	}
+}
+
+func TestInstall_ScriptWithEmptyURL_ReturnsError(t *testing.T) {
+	ex := &SSHExecutor{}
+	tpl := scriptTemplate("", "netdata.service")
+	_, err := ex.Install(context.Background(), "srv-1", tpl)
+	if err == nil {
+		t.Fatal("expected error when script_url is empty")
+	}
+}
+
+func TestUpgrade_EmptyStrategy_ReturnsError(t *testing.T) {
+	ex := &SSHExecutor{}
+	tpl := packageTemplate("docker.io", "docker.service")
+	tpl.Upgrade.Strategy = ""
+	_, err := ex.Upgrade(context.Background(), "srv-1", tpl)
+	if err == nil {
+		t.Fatal("expected error for empty upgrade strategy")
+	}
+}
+
+// ─── Repair strategy routing ─────────────────────────────────────────────────
+
+func TestRepair_UnknownStrategy_ReturnsError(t *testing.T) {
+	ex := &SSHExecutor{}
+	tpl := packageTemplate("docker.io", "docker.service")
+	tpl.Repair.Strategy = "unknown"
+	_, err := ex.Repair(context.Background(), "srv-1", tpl)
+	if err == nil {
+		t.Fatal("expected error for unknown repair strategy")
+	}
+}
+
+// ─── verifySystemd ─────────────────────────────────────────────────────────────
+
+func TestVerifySystemd_ActiveService_ReturnsHealthy(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		if containsSubstring(cmd, "is-active") {
+			return "active", nil
+		}
+		// installed_hint
+		if containsSubstring(cmd, "command -v") {
+			return "/usr/bin/docker", nil
+		}
+		return "Docker version 24.0.5", nil
+	}
+
+	tpl := packageTemplate("docker.io", "docker.service")
+	ex := &SSHExecutor{}
+	detail, err := ex.verifySystemd(context.Background(), tpl)
+	if err != nil {
+		t.Fatalf("verifySystemd error: %v", err)
+	}
+	if detail.VerificationState != software.VerificationStateHealthy {
+		t.Errorf("expected healthy, got %q", detail.VerificationState)
+	}
+}
+
+func TestVerifySystemd_InactiveService_ReturnsDegraded(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		if containsSubstring(cmd, "is-active") {
+			return "inactive", nil
+		}
+		return "", ErrCommandFailed
+	}
+
+	tpl := packageTemplate("docker.io", "docker.service")
+	ex := &SSHExecutor{}
+	detail, err := ex.verifySystemd(context.Background(), tpl)
+	if err != nil {
+		t.Fatalf("verifySystemd error: %v", err)
+	}
+	if detail.VerificationState != software.VerificationStateDegraded {
+		t.Errorf("expected degraded, got %q", detail.VerificationState)
+	}
+}
+
+// ─── RunPreflight ─────────────────────────────────────────────────────────────
+
+func TestRunPreflight_AllDimensionsOK(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		if containsSubstring(cmd, "/etc/os-release") {
+			return "ubuntu", nil
+		}
+		if containsSubstring(cmd, "id -u") {
+			return "0", nil
+		}
+		if containsSubstring(cmd, "get.docker.com") {
+			return "", nil
+		}
+		return "", nil
+	}
+
+	tpl := packageTemplate("docker.io", "docker.service")
+	tpl.Preflight.RequireNetwork = true
+	ex := &SSHExecutor{}
+	result, err := ex.RunPreflight(context.Background(), "", tpl)
+	if err != nil {
+		t.Fatalf("RunPreflight error: %v", err)
+	}
+	if !result.OK {
+		t.Errorf("expected OK preflight, issues: %v", result.Issues)
+	}
+}
+
+func TestRunPreflight_UnsupportedOS_NotOK(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		if containsSubstring(cmd, "/etc/os-release") {
+			return "alpine", nil // not in supported list
+		}
+		if containsSubstring(cmd, "id -u") {
+			return "0", nil
+		}
+		return "", nil
+	}
+
+	tpl := packageTemplate("docker.io", "docker.service")
+	ex := &SSHExecutor{}
+	result, err := ex.RunPreflight(context.Background(), "", tpl)
+	if err != nil {
+		t.Fatalf("RunPreflight error: %v", err)
+	}
+	if result.OK {
+		t.Error("expected preflight to fail for unsupported OS")
+	}
+	if result.OSSupported {
+		t.Error("expected OSSupported=false")
+	}
+}
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
+func containsSubstring(s, sub string) bool {
+	return len(sub) > 0 && len(s) >= len(sub) &&
+		func() bool {
+			for i := 0; i <= len(s)-len(sub); i++ {
+				if s[i:i+len(sub)] == sub {
+					return true
+				}
+			}
+			return false
+		}()
+}
+
+// ErrCommandFailed is a sentinel error used in tests to simulate SSH command failures.
+var ErrCommandFailed = fmt.Errorf("command failed")

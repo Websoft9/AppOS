@@ -149,3 +149,42 @@ func defaultReasonCodeForAppHealthOutcome(outcome string) string {
 		return "app_monitoring_pending"
 	}
 }
+
+func defaultStatusForRuntimeSummaryOutcome(outcome string) string {
+	switch outcome {
+	case StatusHealthy:
+		return StatusHealthy
+	case StatusDegraded:
+		return StatusDegraded
+	case "stopped":
+		return StatusUnknown
+	default:
+		return StatusUnknown
+	}
+}
+
+func defaultReasonForRuntimeSummaryOutcome(outcome string) string {
+	switch outcome {
+	case StatusHealthy:
+		return ""
+	case StatusDegraded:
+		return "runtime degraded"
+	case "stopped":
+		return "runtime not running"
+	default:
+		return "runtime summary reported"
+	}
+}
+
+func defaultReasonCodeForRuntimeSummaryOutcome(outcome string) string {
+	switch outcome {
+	case StatusHealthy:
+		return ""
+	case StatusDegraded:
+		return "runtime_degraded"
+	case "stopped":
+		return "runtime_not_running"
+	default:
+		return "runtime_summary_unknown"
+	}
+}

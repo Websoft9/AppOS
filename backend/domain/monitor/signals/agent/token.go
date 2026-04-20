@@ -58,7 +58,7 @@ func ValidateAgentToken(app core.App, plaintext string) (string, error) {
 		"secrets",
 		"created_source = {:source} && template_id = {:template} && type = {:type}",
 		"",
-		500,
+		0,
 		0,
 		map[string]any{
 			"source":   secrets.CreatedSourceSystem,

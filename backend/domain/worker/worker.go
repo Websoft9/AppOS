@@ -173,6 +173,10 @@ func (w *Worker) Start() {
 	mux.HandleFunc(TaskDeleteApp, w.handleDeleteApp)
 	mux.HandleFunc(TaskBackupCreate, w.handleBackupCreate)
 	mux.HandleFunc(TaskBackupRestore, w.handleBackupRestore)
+	mux.HandleFunc(TaskSoftwareInstall, w.handleSoftwareAction)
+	mux.HandleFunc(TaskSoftwareUpgrade, w.handleSoftwareAction)
+	mux.HandleFunc(TaskSoftwareVerify, w.handleSoftwareAction)
+	mux.HandleFunc(TaskSoftwareRepair, w.handleSoftwareAction)
 	w.startLifecycleScheduler()
 
 	go func() {

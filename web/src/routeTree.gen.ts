@@ -44,6 +44,7 @@ import { Route as AppAuthResourcesServiceInstancesRouteImport } from './routes/_
 import { Route as AppAuthResourcesServersRouteImport } from './routes/_app/_auth/resources/servers'
 import { Route as AppAuthResourcesScriptsRouteImport } from './routes/_app/_auth/resources/scripts'
 import { Route as AppAuthResourcesPlatformAccountsRouteImport } from './routes/_app/_auth/resources/platform-accounts'
+import { Route as AppAuthResourcesLocalSoftwareRouteImport } from './routes/_app/_auth/resources/local-software'
 import { Route as AppAuthResourcesConnectorsRouteImport } from './routes/_app/_auth/resources/connectors'
 import { Route as AppAuthResourcesAiProvidersRouteImport } from './routes/_app/_auth/resources/ai-providers'
 import { Route as AppAuthGroupsIdRouteImport } from './routes/_app/_auth/groups.$id'
@@ -235,6 +236,12 @@ const AppAuthResourcesPlatformAccountsRoute =
     path: '/resources/platform-accounts',
     getParentRoute: () => AppAuthRoute,
   } as any)
+const AppAuthResourcesLocalSoftwareRoute =
+  AppAuthResourcesLocalSoftwareRouteImport.update({
+    id: '/resources/local-software',
+    path: '/resources/local-software',
+    getParentRoute: () => AppAuthRoute,
+  } as any)
 const AppAuthResourcesConnectorsRoute =
   AppAuthResourcesConnectorsRouteImport.update({
     id: '/resources/connectors',
@@ -358,6 +365,7 @@ export interface FileRoutesByFullPath {
   '/groups/$id': typeof AppAuthGroupsIdRoute
   '/resources/ai-providers': typeof AppAuthResourcesAiProvidersRoute
   '/resources/connectors': typeof AppAuthResourcesConnectorsRoute
+  '/resources/local-software': typeof AppAuthResourcesLocalSoftwareRoute
   '/resources/platform-accounts': typeof AppAuthResourcesPlatformAccountsRoute
   '/resources/scripts': typeof AppAuthResourcesScriptsRoute
   '/resources/servers': typeof AppAuthResourcesServersRoute
@@ -405,6 +413,7 @@ export interface FileRoutesByTo {
   '/groups/$id': typeof AppAuthGroupsIdRoute
   '/resources/ai-providers': typeof AppAuthResourcesAiProvidersRoute
   '/resources/connectors': typeof AppAuthResourcesConnectorsRoute
+  '/resources/local-software': typeof AppAuthResourcesLocalSoftwareRoute
   '/resources/platform-accounts': typeof AppAuthResourcesPlatformAccountsRoute
   '/resources/scripts': typeof AppAuthResourcesScriptsRoute
   '/resources/servers': typeof AppAuthResourcesServersRoute
@@ -459,6 +468,7 @@ export interface FileRoutesById {
   '/_app/_auth/groups/$id': typeof AppAuthGroupsIdRoute
   '/_app/_auth/resources/ai-providers': typeof AppAuthResourcesAiProvidersRoute
   '/_app/_auth/resources/connectors': typeof AppAuthResourcesConnectorsRoute
+  '/_app/_auth/resources/local-software': typeof AppAuthResourcesLocalSoftwareRoute
   '/_app/_auth/resources/platform-accounts': typeof AppAuthResourcesPlatformAccountsRoute
   '/_app/_auth/resources/scripts': typeof AppAuthResourcesScriptsRoute
   '/_app/_auth/resources/servers': typeof AppAuthResourcesServersRoute
@@ -511,6 +521,7 @@ export interface FileRouteTypes {
     | '/groups/$id'
     | '/resources/ai-providers'
     | '/resources/connectors'
+    | '/resources/local-software'
     | '/resources/platform-accounts'
     | '/resources/scripts'
     | '/resources/servers'
@@ -558,6 +569,7 @@ export interface FileRouteTypes {
     | '/groups/$id'
     | '/resources/ai-providers'
     | '/resources/connectors'
+    | '/resources/local-software'
     | '/resources/platform-accounts'
     | '/resources/scripts'
     | '/resources/servers'
@@ -611,6 +623,7 @@ export interface FileRouteTypes {
     | '/_app/_auth/groups/$id'
     | '/_app/_auth/resources/ai-providers'
     | '/_app/_auth/resources/connectors'
+    | '/_app/_auth/resources/local-software'
     | '/_app/_auth/resources/platform-accounts'
     | '/_app/_auth/resources/scripts'
     | '/_app/_auth/resources/servers'
@@ -881,6 +894,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthResourcesPlatformAccountsRouteImport
       parentRoute: typeof AppAuthRoute
     }
+    '/_app/_auth/resources/local-software': {
+      id: '/_app/_auth/resources/local-software'
+      path: '/resources/local-software'
+      fullPath: '/resources/local-software'
+      preLoaderRoute: typeof AppAuthResourcesLocalSoftwareRouteImport
+      parentRoute: typeof AppAuthRoute
+    }
     '/_app/_auth/resources/connectors': {
       id: '/_app/_auth/resources/connectors'
       path: '/resources/connectors'
@@ -1108,6 +1128,7 @@ interface AppAuthRouteChildren {
   AppAuthTopicsRoute: typeof AppAuthTopicsRouteWithChildren
   AppAuthResourcesAiProvidersRoute: typeof AppAuthResourcesAiProvidersRoute
   AppAuthResourcesConnectorsRoute: typeof AppAuthResourcesConnectorsRoute
+  AppAuthResourcesLocalSoftwareRoute: typeof AppAuthResourcesLocalSoftwareRoute
   AppAuthResourcesPlatformAccountsRoute: typeof AppAuthResourcesPlatformAccountsRoute
   AppAuthResourcesScriptsRoute: typeof AppAuthResourcesScriptsRoute
   AppAuthResourcesServersRoute: typeof AppAuthResourcesServersRoute
@@ -1136,6 +1157,7 @@ const AppAuthRouteChildren: AppAuthRouteChildren = {
   AppAuthTopicsRoute: AppAuthTopicsRouteWithChildren,
   AppAuthResourcesAiProvidersRoute: AppAuthResourcesAiProvidersRoute,
   AppAuthResourcesConnectorsRoute: AppAuthResourcesConnectorsRoute,
+  AppAuthResourcesLocalSoftwareRoute: AppAuthResourcesLocalSoftwareRoute,
   AppAuthResourcesPlatformAccountsRoute: AppAuthResourcesPlatformAccountsRoute,
   AppAuthResourcesScriptsRoute: AppAuthResourcesScriptsRoute,
   AppAuthResourcesServersRoute: AppAuthResourcesServersRoute,

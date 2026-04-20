@@ -8,7 +8,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	monitormetrics "github.com/websoft9/appos/backend/domain/monitor/metrics"
-	"github.com/websoft9/appos/backend/platform/supervisor"
+	"github.com/websoft9/appos/backend/infra/supervisor"
 )
 
 func NewPlatformObserver(app core.App, snapshotFn func() RuntimeSnapshot) *PlatformObserver {

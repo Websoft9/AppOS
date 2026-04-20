@@ -7,7 +7,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/audit"
-	"github.com/websoft9/appos/backend/platform/supervisor"
+	"github.com/websoft9/appos/backend/infra/supervisor"
 )
 
 func newSupervisorClient() *supervisor.Client {

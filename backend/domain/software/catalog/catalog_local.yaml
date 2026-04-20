@@ -1,0 +1,81 @@
+components:
+  # ── Supervisord-managed services ────────────────────────────────────────────
+  # These components are pre-installed in the AppOS container image and managed
+  # by supervisord. Software Delivery detects version and verifies program state.
+  # service_name matches the supervisord [program:xxx] name.
+
+  # Nginx — reverse proxy routing external traffic to apps.
+  - component_key: reverse-proxy
+    target_type: local
+    label: Nginx
+    template_ref: binary-supervisor
+    binary: nginx
+    service_name: nginx  # [program:nginx] in supervisord.conf
+    default_actions:
+      - verify
+
+  # Redis — session store and internal pub/sub bus.
+  - component_key: redis
+    target_type: local
+    label: Redis
+    template_ref: binary-supervisor
+    binary: redis-server
+    service_name: redis  # [program:redis] in supervisord.conf
+    default_actions:
+      - verify
+
+  # VictoriaMetrics — embedded time-series database for metrics storage.
+  - component_key: victoria-metrics
+    target_type: local
+    label: VictoriaMetrics
+    template_ref: binary-supervisor
+    binary: victoria-metrics-prod
+    service_name: victoriametrics  # [program:victoriametrics] in supervisord.conf
+    default_actions:
+      - verify
+
+  # Netdata — monitoring agent that collects host metrics.
+  # Software Delivery tracks install state; Monitor domain owns runtime health observation.
+  - component_key: netdata
+    target_type: local
+    label: Netdata
+    template_ref: binary-supervisor
+    binary: netdata
+    service_name: netdata  # [program:netdata] in supervisord.conf
+    default_actions:
+      - verify
+
+  # AppOS backend — the PocketBase-based backend binary.
+  - component_key: appos
+    target_type: local
+    label: AppOS Backend
+    template_ref: binary-supervisor
+    binary: appos
+    service_name: appos  # [program:appos] in supervisord.conf
+    default_actions:
+      - verify
+
+  # ── Standalone binaries (no associated service) ──────────────────────────────
+  # These are CLI tools or runtimes copied into the image. Software Delivery
+  # performs version detection only; there is no service state to verify.
+
+  # Docker CLI — communicates with the host Docker daemon via mounted socket.
+  # Only the CLI is present in the container (from docker:28-cli); no daemon.
+  - component_key: docker
+    target_type: local
+    label: Docker CLI
+    template_ref: binary-detect
+    binary: docker
+    service_name: ""
+    default_actions:
+      - verify
+
+  # Node.js — JavaScript runtime used by the coding agent (pi).
+  - component_key: node
+    target_type: local
+    label: Node.js
+    template_ref: binary-detect
+    binary: node
+    service_name: ""
+    default_actions:
+      - verify

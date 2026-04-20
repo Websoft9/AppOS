@@ -1,0 +1,103 @@
+templates:
+  # package-systemd: installs via the OS package manager and verifies via systemd.
+  # Used for server components distributed as standard OS packages.
+  package-systemd:
+    template_kind: package
+    detect:
+      version_command: "{{binary}} --version"
+      installed_hint:
+        - "command -v {{binary}}"
+    preflight:
+      require_root: true
+      require_network: false
+      supported_os:
+        - ubuntu
+        - debian
+        - rocky
+    install:
+      strategy: package
+      package_name: "{{package_name}}"
+    upgrade:
+      strategy: package
+      package_name: "{{package_name}}"
+    verify:
+      strategy: systemd
+      service_name: "{{service_name}}"
+    repair:
+      strategy: reinstall  # re-run install then verify
+
+  # script-systemd: installs via a remote shell script and verifies via systemd.
+  # Used for server components distributed as vendor-provided install scripts.
+  script-systemd:
+    template_kind: script
+    detect:
+      version_command: "{{binary}} --version"
+      installed_hint:
+        - "command -v {{binary}}"
+    preflight:
+      require_root: true
+      require_network: true
+      supported_os:
+        - ubuntu
+        - debian
+        - rocky
+    install:
+      strategy: script
+      script_url: "{{script_url}}"
+      args: []
+    upgrade:
+      strategy: script
+      script_url: "{{script_url}}"
+      args:
+        - --upgrade
+    verify:
+      strategy: systemd
+      service_name: "{{service_name}}"
+    repair:
+      strategy: reinstall  # re-run install then verify
+
+  # binary-supervisor: pre-installed binary managed by supervisord inside the AppOS container.
+  # Software Delivery detects the version and verifies the supervisord program state.
+  # No install or upgrade — these components are baked into the container image.
+  # Repair restarts the supervisord program.
+  binary-supervisor:
+    template_kind: binary
+    detect:
+      version_command: "{{binary}} --version"
+      installed_hint:
+        - "command -v {{binary}}"
+    preflight:
+      require_root: false
+      require_network: false
+      supported_os: []  # container-internal: OS-agnostic
+    install:
+      strategy: ""
+    upgrade:
+      strategy: ""
+    verify:
+      strategy: supervisor
+      service_name: "{{service_name}}"  # supervisord program name, e.g., "nginx"
+    repair:
+      strategy: supervisor-restart  # supervisorctl restart {{service_name}}
+
+  # binary-detect: standalone binary with no associated service (e.g., Docker CLI, Node.js).
+  # Software Delivery detects the binary and version only. No service verification or repair.
+  binary-detect:
+    template_kind: binary
+    detect:
+      version_command: "{{binary}} --version"
+      installed_hint:
+        - "command -v {{binary}}"
+    preflight:
+      require_root: false
+      require_network: false
+      supported_os: []  # container-internal: OS-agnostic
+    install:
+      strategy: ""
+    upgrade:
+      strategy: ""
+    verify:
+      strategy: detect  # command -v {{binary}} only; no service to check
+      service_name: ""
+    repair:
+      strategy: ""  # not applicable for standalone binaries
