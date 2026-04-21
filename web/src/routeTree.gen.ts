@@ -40,6 +40,7 @@ import { Route as AppAuthGroupsIndexRouteImport } from './routes/_app/_auth/grou
 import { Route as AppAuthDeployIndexRouteImport } from './routes/_app/_auth/deploy.index'
 import { Route as AppAuthTopicsIdRouteImport } from './routes/_app/_auth/topics.$id'
 import { Route as AppAuthResourcesTunnelsRouteImport } from './routes/_app/_auth/resources/tunnels'
+import { Route as AppAuthResourcesSupportedSoftwareRouteImport } from './routes/_app/_auth/resources/supported-software'
 import { Route as AppAuthResourcesServiceInstancesRouteImport } from './routes/_app/_auth/resources/service-instances'
 import { Route as AppAuthResourcesServersRouteImport } from './routes/_app/_auth/resources/servers'
 import { Route as AppAuthResourcesScriptsRouteImport } from './routes/_app/_auth/resources/scripts'
@@ -214,6 +215,12 @@ const AppAuthResourcesTunnelsRoute = AppAuthResourcesTunnelsRouteImport.update({
   path: '/resources/tunnels',
   getParentRoute: () => AppAuthRoute,
 } as any)
+const AppAuthResourcesSupportedSoftwareRoute =
+  AppAuthResourcesSupportedSoftwareRouteImport.update({
+    id: '/resources/supported-software',
+    path: '/resources/supported-software',
+    getParentRoute: () => AppAuthRoute,
+  } as any)
 const AppAuthResourcesServiceInstancesRoute =
   AppAuthResourcesServiceInstancesRouteImport.update({
     id: '/resources/service-instances',
@@ -370,6 +377,7 @@ export interface FileRoutesByFullPath {
   '/resources/scripts': typeof AppAuthResourcesScriptsRoute
   '/resources/servers': typeof AppAuthResourcesServersRoute
   '/resources/service-instances': typeof AppAuthResourcesServiceInstancesRoute
+  '/resources/supported-software': typeof AppAuthResourcesSupportedSoftwareRoute
   '/resources/tunnels': typeof AppAuthResourcesTunnelsRoute
   '/topics/$id': typeof AppAuthTopicsIdRoute
   '/deploy/': typeof AppAuthDeployIndexRoute
@@ -418,6 +426,7 @@ export interface FileRoutesByTo {
   '/resources/scripts': typeof AppAuthResourcesScriptsRoute
   '/resources/servers': typeof AppAuthResourcesServersRoute
   '/resources/service-instances': typeof AppAuthResourcesServiceInstancesRoute
+  '/resources/supported-software': typeof AppAuthResourcesSupportedSoftwareRoute
   '/resources/tunnels': typeof AppAuthResourcesTunnelsRoute
   '/topics/$id': typeof AppAuthTopicsIdRoute
   '/deploy': typeof AppAuthDeployIndexRoute
@@ -473,6 +482,7 @@ export interface FileRoutesById {
   '/_app/_auth/resources/scripts': typeof AppAuthResourcesScriptsRoute
   '/_app/_auth/resources/servers': typeof AppAuthResourcesServersRoute
   '/_app/_auth/resources/service-instances': typeof AppAuthResourcesServiceInstancesRoute
+  '/_app/_auth/resources/supported-software': typeof AppAuthResourcesSupportedSoftwareRoute
   '/_app/_auth/resources/tunnels': typeof AppAuthResourcesTunnelsRoute
   '/_app/_auth/topics/$id': typeof AppAuthTopicsIdRoute
   '/_app/_auth/deploy/': typeof AppAuthDeployIndexRoute
@@ -526,6 +536,7 @@ export interface FileRouteTypes {
     | '/resources/scripts'
     | '/resources/servers'
     | '/resources/service-instances'
+    | '/resources/supported-software'
     | '/resources/tunnels'
     | '/topics/$id'
     | '/deploy/'
@@ -574,6 +585,7 @@ export interface FileRouteTypes {
     | '/resources/scripts'
     | '/resources/servers'
     | '/resources/service-instances'
+    | '/resources/supported-software'
     | '/resources/tunnels'
     | '/topics/$id'
     | '/deploy'
@@ -628,6 +640,7 @@ export interface FileRouteTypes {
     | '/_app/_auth/resources/scripts'
     | '/_app/_auth/resources/servers'
     | '/_app/_auth/resources/service-instances'
+    | '/_app/_auth/resources/supported-software'
     | '/_app/_auth/resources/tunnels'
     | '/_app/_auth/topics/$id'
     | '/_app/_auth/deploy/'
@@ -864,6 +877,13 @@ declare module '@tanstack/react-router' {
       path: '/resources/tunnels'
       fullPath: '/resources/tunnels'
       preLoaderRoute: typeof AppAuthResourcesTunnelsRouteImport
+      parentRoute: typeof AppAuthRoute
+    }
+    '/_app/_auth/resources/supported-software': {
+      id: '/_app/_auth/resources/supported-software'
+      path: '/resources/supported-software'
+      fullPath: '/resources/supported-software'
+      preLoaderRoute: typeof AppAuthResourcesSupportedSoftwareRouteImport
       parentRoute: typeof AppAuthRoute
     }
     '/_app/_auth/resources/service-instances': {
@@ -1133,6 +1153,7 @@ interface AppAuthRouteChildren {
   AppAuthResourcesScriptsRoute: typeof AppAuthResourcesScriptsRoute
   AppAuthResourcesServersRoute: typeof AppAuthResourcesServersRoute
   AppAuthResourcesServiceInstancesRoute: typeof AppAuthResourcesServiceInstancesRoute
+  AppAuthResourcesSupportedSoftwareRoute: typeof AppAuthResourcesSupportedSoftwareRoute
   AppAuthResourcesTunnelsRoute: typeof AppAuthResourcesTunnelsRoute
   AppAuthResourcesIndexRoute: typeof AppAuthResourcesIndexRoute
   AppAuthStoreIndexRoute: typeof AppAuthStoreIndexRoute
@@ -1162,6 +1183,8 @@ const AppAuthRouteChildren: AppAuthRouteChildren = {
   AppAuthResourcesScriptsRoute: AppAuthResourcesScriptsRoute,
   AppAuthResourcesServersRoute: AppAuthResourcesServersRoute,
   AppAuthResourcesServiceInstancesRoute: AppAuthResourcesServiceInstancesRoute,
+  AppAuthResourcesSupportedSoftwareRoute:
+    AppAuthResourcesSupportedSoftwareRoute,
   AppAuthResourcesTunnelsRoute: AppAuthResourcesTunnelsRoute,
   AppAuthResourcesIndexRoute: AppAuthResourcesIndexRoute,
   AppAuthStoreIndexRoute: AppAuthStoreIndexRoute,

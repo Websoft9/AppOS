@@ -2,7 +2,7 @@
 
 ## Overview
 
-**Platform-level shared resource management** — servers, secrets, env groups, databases, cloud accounts, certificates, connectors, and scripts that can be referenced by multiple applications. Resources are platform-defined (not user-extensible), each with its own PocketBase Collection and migration. Apps reference resources; they don't own them.
+**Platform-level shared resource management** — Resources is the shared platform entry for runtime infrastructure, shared assets, software delivery visibility, and external integrations. Resources are platform-defined (not user-extensible); apps and workflows consume them by reference instead of owning them.
 
 > Env Groups detail spec: see [Epic 24](epic24-shared-envs.md)
 
@@ -12,6 +12,19 @@ This epic now covers both:
 
 1. the delivered Phase 1 Resource Store foundation
 2. the next-stage resource taxonomy refactor that introduces canonical `Service Instances`, `AI Providers`, `Platform Accounts`, and `Connectors`
+
+## Current Frontend Presentation
+
+The current frontend presents `Resources` as a grouped hub, not as a flat inventory list.
+
+| Section | Current families |
+| --- | --- |
+| `Runtime Infrastructure` | `Servers`, `Service Instances` |
+| `Shared Assets` | `Shared Envs`, `Scripts` |
+| `Software Delivery` | `Supported Software` |
+| `External Integrations` | `AI Providers`, `Connectors`, `Platform Accounts` |
+
+This presentation is intentionally user-facing. It groups platform-shared objects by operator intent, not by backend package layout.
 
 Companion ADR for the next-stage taxonomy: [specs/adr/resource-taxonomy-instance-connector.md](specs/adr/resource-taxonomy-instance-connector.md)
 
@@ -140,9 +153,9 @@ The remaining sections in this part of the document preserve the original Phase 
 
 Current canonical naming for connection-oriented resources is split between `AI Providers`, surfaced at `/resources/ai-providers` and `/api/ai-providers`, and `Connectors`, surfaced at `/resources/connectors` and `/api/connectors`.
 
-### Frontend Navigation
+### Legacy Frontend Navigation
 
-Resource Store uses a **two-level sidebar menu**:
+The following flat menu is preserved as historical Phase 1 reference only. Current frontend presentation uses the grouped `Resources` hub above.
 
 ```
 Resources (一级)

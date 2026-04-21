@@ -139,7 +139,7 @@ describe('Sidebar', () => {
     expect(assignMock).toHaveBeenCalledWith('/groups')
   })
 
-  it('shows Scripts under Collaboration', () => {
+  it('does not show Scripts under Collaboration', () => {
     pathname = '/groups'
     assignMock.mockReset()
 
@@ -149,7 +149,7 @@ describe('Sidebar', () => {
     const collaborationTrigger = within(workspaceNav).getByText('Collaboration')
 
     expect(collaborationTrigger).toBeInTheDocument()
-    expect(within(workspaceNav).getByRole('link', { name: 'Scripts' })).toBeInTheDocument()
+    expect(within(workspaceNav).queryByRole('link', { name: 'Scripts' })).toBeNull()
   })
 
   it('opens Credentials and navigates to Secrets when clicked from a collapsed state', () => {
@@ -158,7 +158,7 @@ describe('Sidebar', () => {
 
     render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
 
-    const adminNav = screen.getAllByLabelText('Admin navigation')[0]
+    const adminNav = screen.getAllByLabelText('Platform navigation')[0]
     const credentialsTrigger = within(adminNav).getByText('Credentials').closest('button')
 
     expect(credentialsTrigger).not.toBeNull()
@@ -168,13 +168,23 @@ describe('Sidebar', () => {
     expect(assignMock).toHaveBeenCalledWith('/secrets')
   })
 
+  it('does not show Shared Envs under Credentials', () => {
+    pathname = '/secrets'
+    assignMock.mockReset()
+
+    render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
+
+    const platformNav = screen.getAllByLabelText('Platform navigation')[0]
+    expect(within(platformNav).queryByRole('link', { name: 'Shared Envs' })).toBeNull()
+  })
+
   it('opens System and navigates to Status when clicked from a collapsed state', () => {
     pathname = '/overview'
     assignMock.mockReset()
 
     render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
 
-    const adminNav = screen.getAllByLabelText('Admin navigation')[0]
+    const adminNav = screen.getAllByLabelText('Platform navigation')[0]
     const systemTrigger = within(adminNav).getByText('System').closest('button')
 
     expect(systemTrigger).not.toBeNull()
@@ -182,6 +192,26 @@ describe('Sidebar', () => {
     fireEvent.click(systemTrigger as HTMLButtonElement)
 
     expect(assignMock).toHaveBeenCalledWith('/status')
+  })
+
+  it('shows Audit before Logs and Orchestration Files after System Crons under the System section for superusers', () => {
+    pathname = '/status'
+    assignMock.mockReset()
+
+    render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
+
+    const adminNav = screen.getAllByLabelText('Platform navigation')[0]
+    const links = within(adminNav)
+      .getAllByRole('link')
+      .map(link => link.textContent?.trim())
+      .filter((label): label is string => Boolean(label))
+
+    expect(within(adminNav).getByRole('link', { name: 'System Crons' })).toBeInTheDocument()
+    expect(within(adminNav).getByRole('link', { name: 'Orchestration Files' })).toBeInTheDocument()
+    expect(within(adminNav).getByRole('link', { name: 'Audit' })).toBeInTheDocument()
+    expect(within(adminNav).getByRole('link', { name: 'Logs' })).toBeInTheDocument()
+    expect(links.indexOf('Audit')).toBeLessThan(links.indexOf('Logs'))
+    expect(links.indexOf('System Crons')).toBeLessThan(links.indexOf('Orchestration Files'))
   })
 
   it('closes the mobile drawer when a child link is clicked', () => {

@@ -126,7 +126,7 @@ interface SummaryStats {
   pending: number
 }
 
-function AuditPage() {
+export function AuditPage() {
   const isSuperuser = pb.authStore.record?.collectionName === '_superusers'
 
   const [logs, setLogs] = useState<AuditLog[]>([])
@@ -220,21 +220,23 @@ function AuditPage() {
         <h2 className="text-2xl font-bold">Audit</h2>
         <div className="flex items-center gap-1">
           {isSuperuser && (
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/logs">
-                <FileText className="h-4 w-4 mr-1" /> Logs
+            <Button variant="outline" size="icon" asChild>
+              <Link to="/logs" aria-label="Open logs" title="Logs">
+                <FileText className="h-4 w-4" />
               </Link>
             </Button>
           )}
           <Button
-            variant="ghost"
-            size="sm"
+            variant="outline"
+            size="icon"
+            aria-label="Refresh audit"
+            title="Refresh"
             onClick={() => {
               fetchLogs(page, filterAction, filterStatus, sortParam, pageSize)
               fetchSummary()
             }}
           >
-            <RefreshCw className="h-4 w-4 mr-1" /> Refresh
+            <RefreshCw className="h-4 w-4" />
           </Button>
         </div>
       </div>
@@ -318,20 +320,6 @@ function AuditPage() {
           ))}
         </select>
 
-        <select
-          className={selectClass}
-          value={pageSize}
-          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-            setPageSize(Number(e.target.value))
-            setPage(1)
-          }}
-        >
-          {PAGE_SIZE_OPTIONS.map(n => (
-            <option key={n} value={n}>
-              {n} / page
-            </option>
-          ))}
-        </select>
       </div>
 
       {/* Error banner */}
@@ -342,16 +330,16 @@ function AuditPage() {
       )}
 
       {/* Table */}
-      <div className="relative rounded-md border">
+      <div className="relative">
         {loading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-md bg-background/60">
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         )}
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-8" />
+              <TableHead className="w-8 pr-0" />
               <TableHead>
                 <SortHeader
                   field="created"
@@ -433,7 +421,7 @@ function AuditPage() {
                       if (hasDetail) setExpandedId(expandedId === log.id ? null : log.id)
                     }}
                   >
-                    <TableCell className="pr-0">
+                    <TableCell className="w-8 pr-0">
                       {hasDetail &&
                         (expandedId === log.id ? (
                           <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -488,7 +476,21 @@ function AuditPage() {
         <span className="text-sm text-muted-foreground">
           Page {page} of {totalPages}
         </span>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <select
+            className={selectClass}
+            value={pageSize}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+              setPageSize(Number(e.target.value))
+              setPage(1)
+            }}
+          >
+            {PAGE_SIZE_OPTIONS.map(n => (
+              <option key={n} value={n}>
+                {n} / page
+              </option>
+            ))}
+          </select>
           <Button
             variant="outline"
             size="sm"

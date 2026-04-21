@@ -12,7 +12,8 @@ import {
   Loader2,
   ChevronRight,
   Layers,
-  HardDrive,
+  FileCode2,
+  Wrench,
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { Button } from '@/components/ui/button'
@@ -35,6 +36,7 @@ interface ResourceDef {
   description: string
   icon: React.ReactNode
   href: string
+  readOnly?: boolean
   createLabel?: string
   createDescription?: string
   exampleItems?: string[]
@@ -75,16 +77,30 @@ const RUNTIME_INFRASTRUCTURE: ResourceDef[] = [
     exampleItems: ['Database', 'Cache', 'Queue', 'Object Storage'],
     apiPath: '/api/instances',
   },
+]
+
+const SHARED_ASSETS: ResourceDef[] = [
   {
-    key: 'local-software',
-    title: 'Local Software',
-    description: 'AppOS-local runtime binaries and supervisord-managed components installed on this host.',
-    icon: <HardDrive className="h-5 w-5" />,
-    href: '/resources/local-software',
-    createLabel: 'Inspect AppOS-local software inventory',
-    createDescription: 'Built-in runtimes, bundled binaries, and supervisord-managed services on the AppOS host.',
-    exampleItems: ['AppOS', 'Nginx', 'Redis', 'Docker CLI', 'Netdata'],
-    apiPath: '/api/software/local',
+    key: 'shared-envs',
+    title: 'Shared Envs',
+    description: 'Reusable shared environment sets and variables that can be mapped across apps.',
+    icon: <Layers className="h-5 w-5" />,
+    href: '/shared-envs',
+    createLabel: 'Create a shared environment set',
+    createDescription: 'Reusable environment variable sets shared across apps and workflows.',
+    exampleItems: ['Runtime Variables', 'Secrets Mapping', 'Shared Defaults'],
+    countQuery: { collection: 'env_sets' },
+  },
+  {
+    key: 'scripts',
+    title: 'Scripts',
+    description: 'Reusable automation scripts for operations, recovery steps, and repeatable tasks.',
+    icon: <FileCode2 className="h-5 w-5" />,
+    href: '/resources/scripts',
+    createLabel: 'Add an automation script',
+    createDescription: 'Reusable automation scripts for operational tasks and workflows.',
+    exampleItems: ['Health Check', 'Backup', 'Cleanup'],
+    apiPath: '/api/ext/resources/scripts',
   },
 ]
 
@@ -104,11 +120,13 @@ const EXTERNAL_INTEGRATIONS: ResourceDef[] = [
   {
     key: 'connectors',
     title: 'Connectors',
-    description: 'SMTP, DNS, webhook, MCP, registry, and other reusable external capability connections.',
+    description:
+      'SMTP, DNS, webhook, MCP, registry, and other reusable external capability connections.',
     icon: <Plug className="h-5 w-5" />,
     href: '/resources/connectors',
     createLabel: 'Configure an external connection',
-    createDescription: 'SMTP, DNS, webhook, MCP, registry, and other reusable external connections.',
+    createDescription:
+      'SMTP, DNS, webhook, MCP, registry, and other reusable external connections.',
     exampleItems: ['REST API', 'Webhook', 'MCP', 'SMTP', 'Registry', 'DNS'],
     apiPath: '/api/connectors?kind=rest_api,webhook,mcp,smtp,registry,dns',
   },
@@ -125,22 +143,56 @@ const EXTERNAL_INTEGRATIONS: ResourceDef[] = [
   },
 ]
 
+const SOFTWARE_DELIVERY: ResourceDef[] = [
+  {
+    key: 'supported-software',
+    title: 'Supported Software',
+    description:
+      'Read-only AppOS-managed server software catalog for discovery, onboarding, and pre-connection planning.',
+    icon: <Wrench className="h-5 w-5" />,
+    href: '/resources/supported-software',
+    readOnly: true,
+    exampleItems: ['Docker', 'Nginx', 'Netdata Agent', 'AppOS Control Agent'],
+    apiPath: '/api/software/server-catalog',
+  },
+]
+
 const RESOURCE_SECTIONS: ResourceSection[] = [
   {
     key: 'runtime-infrastructure',
     title: 'Runtime Infrastructure',
-    description: 'Where applications run and the startup-critical dependencies they cannot run without.',
+    description:
+      'Where applications run and the startup-critical dependencies they cannot run without.',
     resources: RUNTIME_INFRASTRUCTURE,
+  },
+  {
+    key: 'shared-assets',
+    title: 'Shared Assets',
+    description: 'Reusable shared environment sets and scripts that support multiple applications.',
+    resources: SHARED_ASSETS,
+  },
+  {
+    key: 'software-delivery',
+    title: 'Software Delivery',
+    description:
+      'What AppOS can manage on remote servers before any server is connected or selected.',
+    resources: SOFTWARE_DELIVERY,
   },
   {
     key: 'external-integrations',
     title: 'External Integrations',
-    description: 'How platform connects to AI providers, external platforms, APIs, and cloud services.',
+    description:
+      'How platform connects to AI providers, external platforms, APIs, and cloud services.',
     resources: EXTERNAL_INTEGRATIONS,
   },
 ]
 
-const ALL_RESOURCES = [...RUNTIME_INFRASTRUCTURE, ...EXTERNAL_INTEGRATIONS]
+const ALL_RESOURCES = [
+  ...RUNTIME_INFRASTRUCTURE,
+  ...SHARED_ASSETS,
+  ...SOFTWARE_DELIVERY,
+  ...EXTERNAL_INTEGRATIONS,
+]
 
 // ─── Component ───────────────────────────────────────────
 
@@ -166,7 +218,11 @@ export function ResourceHub() {
         .send<unknown[]>(r.apiPath ?? '', {})
         .then(data => {
           if (Array.isArray(data)) return { key: r.key, count: data.length }
-          if (data && typeof data === 'object' && Array.isArray((data as { items?: unknown[] }).items)) {
+          if (
+            data &&
+            typeof data === 'object' &&
+            Array.isArray((data as { items?: unknown[] }).items)
+          ) {
             return { key: r.key, count: (data as { items: unknown[] }).items.length }
           }
           return { key: r.key, count: 0 }
@@ -195,7 +251,8 @@ export function ResourceHub() {
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold tracking-tight">Resources</h1>
           <p className="text-muted-foreground mt-1">
-            Shared platform resources for where Applications run, what they depend on, and how AppOS connects outward.
+            Shared platform resources for where Applications run, what they depend on, and how AppOS
+            connects outward.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span className="rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 font-medium text-foreground/80">
@@ -227,14 +284,18 @@ export function ResourceHub() {
       <Dialog open={createChooserOpen} onOpenChange={setCreateChooserOpen}>
         <DialogContent className="sm:max-w-2xl" aria-describedby={undefined}>
           <DialogHeader className="text-left">
-            <DialogTitle className="text-2xl font-semibold tracking-tight">Add Resource</DialogTitle>
+            <DialogTitle className="text-2xl font-semibold tracking-tight">
+              Add Resource
+            </DialogTitle>
           </DialogHeader>
 
           <div className="max-h-[70vh] space-y-6 overflow-y-auto pr-1">
             {RESOURCE_SECTIONS.map(section => (
               <section key={section.key} className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-base font-semibold tracking-tight text-foreground">{section.title}</h3>
+                  <h3 className="text-base font-semibold tracking-tight text-foreground">
+                    {section.title}
+                  </h3>
                   <Tooltip delayDuration={100}>
                     <TooltipTrigger asChild>
                       <button
@@ -252,42 +313,42 @@ export function ResourceHub() {
                 </div>
 
                 <div className="space-y-3">
-                  {section.resources.map(r => (
-                    <button
-                      key={r.key}
-                      type="button"
-                      onClick={() => goToCreate(r.href)}
-                      className="block w-full rounded-xl border border-border/70 bg-background p-4 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                    >
-                      <div className="flex min-w-0 gap-3">
-                        <div className="mt-0.5 shrink-0 text-muted-foreground">
-                          {r.icon}
-                        </div>
-                        <div className="min-w-0 space-y-2">
-                          <div>
-                            <p className="text-base font-medium leading-tight">{r.title}</p>
-                            <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                              {r.createDescription ?? r.description}
-                            </p>
+                  {section.resources.map(r =>
+                    r.readOnly ? null : (
+                      <button
+                        key={r.key}
+                        type="button"
+                        onClick={() => goToCreate(r.href)}
+                        className="block w-full rounded-xl border border-border/70 bg-background p-4 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                      >
+                        <div className="flex min-w-0 gap-3">
+                          <div className="mt-0.5 shrink-0 text-muted-foreground">{r.icon}</div>
+                          <div className="min-w-0 space-y-2">
+                            <div>
+                              <p className="text-base font-medium leading-tight">{r.title}</p>
+                              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                                {r.createDescription ?? r.description}
+                              </p>
+                            </div>
+                            {r.exampleItems && r.exampleItems.length > 0 && (
+                              <ul className="flex flex-wrap gap-2">
+                                {r.exampleItems.map(example => (
+                                  <li
+                                    key={example}
+                                    className={cn(
+                                      'rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground'
+                                    )}
+                                  >
+                                    {example}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
                           </div>
-                          {r.exampleItems && r.exampleItems.length > 0 && (
-                            <ul className="flex flex-wrap gap-2">
-                              {r.exampleItems.map(example => (
-                                <li
-                                  key={example}
-                                  className={cn(
-                                    'rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground'
-                                  )}
-                                >
-                                  {example}
-                                </li>
-                              ))}
-                            </ul>
-                          )}
                         </div>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    )
+                  )}
                 </div>
               </section>
             ))}
@@ -354,7 +415,10 @@ export function ResourceHub() {
                       </div>
                     </div>
 
-                    <p id={`${r.key}-description`} className="text-xs text-muted-foreground leading-relaxed mt-3 pl-7">
+                    <p
+                      id={`${r.key}-description`}
+                      className="text-xs text-muted-foreground leading-relaxed mt-3 pl-7"
+                    >
                       {r.description}
                     </p>
                   </CardContent>

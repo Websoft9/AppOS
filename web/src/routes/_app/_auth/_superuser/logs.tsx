@@ -1,6 +1,14 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
-import React, { useState, useEffect, useCallback } from 'react'
-import { ChevronDown, ChevronRight, RefreshCw, Loader2, ArrowLeft } from 'lucide-react'
+import { createFileRoute } from '@tanstack/react-router'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import {
+  ChevronDown,
+  ChevronRight,
+  RefreshCw,
+  Loader2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+} from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -31,6 +39,10 @@ interface LogsResponse {
   items: LogEntry[]
 }
 
+type StatusFilter = 'all' | '2xx' | '3xx' | '4xx' | '5xx' | 'none'
+type SortField = 'created' | 'execTime'
+type SortDir = 'asc' | 'desc'
+
 // ─── Constants ───────────────────────────────────────────
 
 // slog levels: DEBUG=-4, INFO=0, WARN=4, ERROR=8
@@ -43,6 +55,14 @@ const LEVEL_OPTIONS = [
 ]
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
+const STATUS_OPTIONS: Array<{ label: string; value: StatusFilter }> = [
+  { label: 'All status', value: 'all' },
+  { label: '2xx', value: '2xx' },
+  { label: '3xx', value: '3xx' },
+  { label: '4xx', value: '4xx' },
+  { label: '5xx', value: '5xx' },
+  { label: 'No status', value: 'none' },
+]
 
 // ─── Helpers ─────────────────────────────────────────────
 
@@ -90,9 +110,67 @@ function buildFilter(level: string, search: string): string {
   return parts.join(' && ')
 }
 
+function getStatusCode(log: LogEntry): number | null {
+  const status = log.data?.status
+  return typeof status === 'number' && Number.isFinite(status) ? status : null
+}
+
+function getExecTime(log: LogEntry): number | null {
+  const execTime = log.data?.execTime
+  return typeof execTime === 'number' && Number.isFinite(execTime) ? execTime : null
+}
+
+function matchesStatusFilter(log: LogEntry, filter: StatusFilter): boolean {
+  const status = getStatusCode(log)
+  if (filter === 'all') return true
+  if (filter === 'none') return status === null
+  if (status === null) return false
+  if (filter === '2xx') return status >= 200 && status < 300
+  if (filter === '3xx') return status >= 300 && status < 400
+  if (filter === '4xx') return status >= 400 && status < 500
+  return status >= 500 && status < 600
+}
+
+function SortableHeader({
+  label,
+  field,
+  sortField,
+  sortDir,
+  onToggle,
+  className = '',
+}: {
+  label: string
+  field: SortField
+  sortField: SortField
+  sortDir: SortDir
+  onToggle: (field: SortField) => void
+  className?: string
+}) {
+  const active = sortField === field
+
+  return (
+    <button
+      type="button"
+      className={`inline-flex items-center gap-1.5 hover:text-foreground ${className}`.trim()}
+      onClick={() => onToggle(field)}
+    >
+      <span>{label}</span>
+      {active ? (
+        sortDir === 'asc' ? (
+          <ArrowUp className="h-3.5 w-3.5" />
+        ) : (
+          <ArrowDown className="h-3.5 w-3.5" />
+        )
+      ) : (
+        <ArrowUpDown className="h-3.5 w-3.5 opacity-45" />
+      )}
+    </button>
+  )
+}
+
 // ─── Component ───────────────────────────────────────────
 
-function LogsPage() {
+export function LogsPage() {
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -100,10 +178,12 @@ function LogsPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [filterLevel, setFilterLevel] = useState('')
-  const [filterSearch, setFilterSearch] = useState('')
+  const [filterStatus, setFilterStatus] = useState<StatusFilter>('all')
   const [searchInput, setSearchInput] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [pageSize, setPageSize] = useState(20)
+  const [sortField, setSortField] = useState<SortField>('created')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
 
   const fetchLogs = useCallback(
     async (p: number, level: string, search: string, perPage: number) => {
@@ -136,12 +216,36 @@ function LogsPage() {
   )
 
   useEffect(() => {
-    fetchLogs(page, filterLevel, filterSearch, pageSize)
-  }, [page, filterLevel, filterSearch, pageSize, fetchLogs])
+    const timer = window.setTimeout(() => {
+      void fetchLogs(page, filterLevel, searchInput, pageSize)
+    }, 250)
+    return () => window.clearTimeout(timer)
+  }, [page, filterLevel, searchInput, pageSize, fetchLogs])
 
-  const applySearch = () => {
-    setFilterSearch(searchInput)
-    setPage(1)
+  const visibleLogs = useMemo(() => {
+    const filtered = logs.filter(log => matchesStatusFilter(log, filterStatus))
+    return [...filtered].sort((left, right) => {
+      if (sortField === 'created') {
+        const leftTime = new Date(left.created).getTime()
+        const rightTime = new Date(right.created).getTime()
+        return sortDir === 'asc' ? leftTime - rightTime : rightTime - leftTime
+      }
+
+      const leftExec = getExecTime(left)
+      const rightExec = getExecTime(right)
+      const normalizedLeft = leftExec ?? (sortDir === 'asc' ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY)
+      const normalizedRight = rightExec ?? (sortDir === 'asc' ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY)
+      return sortDir === 'asc' ? normalizedLeft - normalizedRight : normalizedRight - normalizedLeft
+    })
+  }, [filterStatus, logs, sortDir, sortField])
+
+  function toggleSort(field: SortField) {
+    if (sortField === field) {
+      setSortDir(current => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+    setSortField(field)
+    setSortDir(field === 'created' ? 'desc' : 'asc')
   }
 
   const selectClass =
@@ -150,22 +254,19 @@ function LogsPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <Link
-            to="/audit"
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
           <h2 className="text-2xl font-bold">Logs</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Browse runtime and request logs.</p>
         </div>
         <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => fetchLogs(page, filterLevel, filterSearch, pageSize)}
+          variant="outline"
+          size="icon"
+          title="Refresh"
+          aria-label="Refresh logs"
+          onClick={() => fetchLogs(page, filterLevel, searchInput, pageSize)}
         >
-          <RefreshCw className="h-4 w-4 mr-1" /> Refresh
+          <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
 
@@ -186,36 +287,31 @@ function LogsPage() {
           ))}
         </select>
 
-        <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder="Search message or URL…"
-            value={searchInput}
-            className={`${selectClass} min-w-64`}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchInput(e.target.value)}
-            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-              if (e.key === 'Enter') applySearch()
-            }}
-          />
-          <Button variant="outline" size="sm" onClick={applySearch}>
-            Search
-          </Button>
-        </div>
-
         <select
           className={selectClass}
-          value={pageSize}
+          value={filterStatus}
           onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-            setPageSize(Number(e.target.value))
+            setFilterStatus(e.target.value as StatusFilter)
             setPage(1)
           }}
         >
-          {PAGE_SIZE_OPTIONS.map(n => (
-            <option key={n} value={n}>
-              {n} / page
+          {STATUS_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
             </option>
           ))}
         </select>
+
+        <input
+          type="text"
+          placeholder="Search logs"
+          value={searchInput}
+          className={`${selectClass} min-w-64`}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+            setSearchInput(e.target.value)
+            setPage(1)
+          }}
+        />
       </div>
 
       {/* Error */}
@@ -226,38 +322,55 @@ function LogsPage() {
       )}
 
       {/* Table */}
-      <div className="relative rounded-md border">
+      <div className="relative">
         {loading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-md bg-background/60">
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         )}
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-8" />
-              <TableHead className="whitespace-nowrap">Time</TableHead>
+              <TableHead className="w-8 pr-0 pl-3" />
+              <TableHead className="whitespace-nowrap">
+                <SortableHeader
+                  label="Time"
+                  field="created"
+                  sortField={sortField}
+                  sortDir={sortDir}
+                  onToggle={toggleSort}
+                />
+              </TableHead>
               <TableHead className="w-24">Level</TableHead>
               <TableHead>Message / URL</TableHead>
               <TableHead className="w-20 text-right">Status</TableHead>
-              <TableHead className="w-24 text-right">Exec (ms)</TableHead>
+              <TableHead className="w-24 text-right">
+                <SortableHeader
+                  label="Exec"
+                  field="execTime"
+                  sortField={sortField}
+                  sortDir={sortDir}
+                  onToggle={toggleSort}
+                  className="justify-end"
+                />
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {logs.length === 0 && (
+            {visibleLogs.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                   {loading ? 'Loading…' : 'No log entries found.'}
                 </TableCell>
               </TableRow>
             )}
-            {logs.map(log => {
+            {visibleLogs.map(log => {
               const isRequest = log.data?.type === 'request'
               const hasData = log.data && Object.keys(log.data).length > 0
               const url = log.data?.url as string | undefined
               const method = log.data?.method as string | undefined
-              const status = log.data?.status as number | undefined
-              const execTime = log.data?.execTime as number | undefined
+              const status = getStatusCode(log)
+              const execTime = getExecTime(log)
               const primaryText = isRequest && url ? `${method ?? ''} ${url}` : log.message || '—'
 
               return (
@@ -268,7 +381,7 @@ function LogsPage() {
                       if (hasData) setExpandedId(expandedId === log.id ? null : log.id)
                     }}
                   >
-                    <TableCell className="pr-0 pl-3">
+                    <TableCell className="w-8 pr-0 pl-3">
                       {hasData &&
                         (expandedId === log.id ? (
                           <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -324,7 +437,21 @@ function LogsPage() {
         <span className="text-sm text-muted-foreground">
           Page {page} of {totalPages}
         </span>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <select
+            className={selectClass}
+            value={pageSize}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+              setPageSize(Number(e.target.value))
+              setPage(1)
+            }}
+          >
+            {PAGE_SIZE_OPTIONS.map(n => (
+              <option key={n} value={n}>
+                {n} / page
+              </option>
+            ))}
+          </select>
           <Button
             variant="outline"
             size="sm"

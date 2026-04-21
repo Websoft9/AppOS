@@ -240,7 +240,7 @@ const TreeItem = memo(function TreeItem({
 
 // ─── FilesPage ────────────────────────────────────────────────────────────────
 
-function FilesPage() {
+export function FilesPage() {
   const { path: initialPath, root: rootParam } = Route.useSearch()
   const navigate = Route.useNavigate()
 
@@ -449,26 +449,47 @@ function FilesPage() {
   const language = selectedPath ? detectLanguage(selectedPath.split('/').pop() ?? '') : 'plaintext'
   const filename = selectedPath ? selectedPath.split('/').pop() : null
 
+  const refreshWorkspace = useCallback(() => {
+    setRoots(effectiveRoots.map(r => ({ ...r })))
+    setExpandedPaths(new Set())
+    setLoadingPaths(new Set())
+    setErrorPaths(new Set())
+    setFileError(null)
+    setSaveError(null)
+    if (selectedPath) {
+      void openFile({
+        name: selectedPath.split('/').pop() ?? selectedPath,
+        path: selectedPath,
+        type: 'file',
+      })
+    }
+  }, [effectiveRoots, openFile, selectedPath])
+
   return (
-    <div className="flex h-[calc(100vh-var(--header-height))] overflow-hidden">
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Orchestration Files</h1>
+          <p className="mt-1 text-muted-foreground">
+            Browse and edit AppOS orchestration files for apps, workflows, and templates.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="icon"
+          aria-label="Refresh orchestration files"
+          title="Refresh"
+          onClick={refreshWorkspace}
+        >
+          <RefreshCw className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <div className="flex h-[calc(100vh-var(--header-height)-5.5rem)] overflow-hidden rounded-lg border bg-background">
       {/* ── File Tree Sidebar ──────────────────────────────────────────────── */}
       <aside className="flex w-60 shrink-0 flex-col border-r bg-muted/30">
-        <div className="flex items-center justify-between border-b px-3 py-2">
+        <div className="flex min-h-11 items-center border-b px-3">
           <span className="text-sm font-medium">Files</span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            title="Reload tree"
-            onClick={() => {
-              setRoots(effectiveRoots.map(r => ({ ...r })))
-              setExpandedPaths(new Set())
-              setLoadingPaths(new Set())
-              setErrorPaths(new Set())
-            }}
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-          </Button>
         </div>
         <ScrollArea className="flex-1">
           <div className="py-1">
@@ -492,11 +513,11 @@ function FilesPage() {
       {/* ── Editor Area ───────────────────────────────────────────────────── */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Editor toolbar */}
-        <div className="flex items-center justify-between border-b bg-background px-4 py-2">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex min-h-11 items-center justify-between border-b bg-background px-4">
+          <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
             {filename ? (
               <>
-                <span>{selectedPath}</span>
+                <span className="truncate">{selectedPath}</span>
                 {isDirty && (
                   <span className="h-2 w-2 rounded-full bg-orange-400" title="Unsaved changes" />
                 )}
@@ -507,6 +528,7 @@ function FilesPage() {
           </div>
           <Button
             size="sm"
+            className="h-8"
             onClick={handleSave}
             disabled={!selectedPath || !isDirty || saving || loadingFile}
           >
@@ -586,6 +608,7 @@ function FilesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
     </div>
   )
 }

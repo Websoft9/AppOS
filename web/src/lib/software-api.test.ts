@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  getSupportedServerSoftware,
   getLocalSoftwareComponent,
   getSoftwareComponent,
   getSoftwareOperation,
   invokeSoftwareAction,
   listLocalSoftwareComponents,
+  listSupportedServerSoftware,
   listSoftwareCapabilities,
   listSoftwareComponents,
   listSoftwareOperations,
@@ -26,11 +28,18 @@ describe('listSoftwareOperations', () => {
   it('fetches operations for a server without component filter', async () => {
     sendMock.mockResolvedValue({ items: [] })
     await expect(listSoftwareOperations('srv1')).resolves.toEqual([])
-    expect(sendMock).toHaveBeenCalledWith('/api/servers/srv1/software/operations', { method: 'GET' })
+    expect(sendMock).toHaveBeenCalledWith('/api/servers/srv1/software/operations', {
+      method: 'GET',
+    })
   })
 
   it('appends component query param when provided', async () => {
-    const op = { id: 'op1', component_key: 'docker', phase: 'succeeded', terminal_status: 'success' }
+    const op = {
+      id: 'op1',
+      component_key: 'docker',
+      phase: 'succeeded',
+      terminal_status: 'success',
+    }
     sendMock.mockResolvedValue({ items: [op] })
     const result = await listSoftwareOperations('srv1', 'docker')
     expect(result).toHaveLength(1)
@@ -89,10 +98,9 @@ describe('getSoftwareComponent', () => {
     }
     sendMock.mockResolvedValue(component)
     await expect(getSoftwareComponent('srv1', 'reverse-proxy')).resolves.toEqual(component)
-    expect(sendMock).toHaveBeenCalledWith(
-      '/api/servers/srv1/software/reverse-proxy',
-      { method: 'GET' }
-    )
+    expect(sendMock).toHaveBeenCalledWith('/api/servers/srv1/software/reverse-proxy', {
+      method: 'GET',
+    })
   })
 })
 
@@ -132,6 +140,47 @@ describe('local software inventory', () => {
   })
 })
 
+describe('supported server software catalog', () => {
+  beforeEach(() => {
+    sendMock.mockReset()
+  })
+
+  it('fetches supported server software entries', async () => {
+    const component = {
+      component_key: 'docker',
+      label: 'Docker',
+      capability: 'container_runtime',
+      template_kind: 'package',
+      supported_actions: ['install', 'upgrade', 'verify'],
+      description: 'Docker is supported by AppOS.',
+    }
+    sendMock.mockResolvedValue({ items: [component] })
+    await expect(listSupportedServerSoftware()).resolves.toEqual([component])
+    expect(sendMock).toHaveBeenCalledWith('/api/software/server-catalog', { method: 'GET' })
+  })
+
+  it('fetches one supported server software entry by key', async () => {
+    const component = {
+      component_key: 'reverse-proxy',
+      label: 'Nginx',
+      capability: 'reverse_proxy',
+      template_kind: 'package',
+      supported_actions: ['install', 'upgrade', 'verify'],
+      description: 'Nginx is supported by AppOS.',
+    }
+    sendMock.mockResolvedValue(component)
+    await expect(getSupportedServerSoftware('reverse-proxy')).resolves.toEqual(component)
+    expect(sendMock).toHaveBeenCalledWith('/api/software/server-catalog/reverse-proxy', {
+      method: 'GET',
+    })
+  })
+
+  it('returns empty array when supported server software list response omits items', async () => {
+    sendMock.mockResolvedValue({})
+    await expect(listSupportedServerSoftware()).resolves.toEqual([])
+  })
+})
+
 describe('listSoftwareCapabilities', () => {
   beforeEach(() => {
     sendMock.mockReset()
@@ -153,7 +202,9 @@ describe('listSoftwareCapabilities', () => {
     }
     sendMock.mockResolvedValue({ items: [capability] })
     await expect(listSoftwareCapabilities('srv1')).resolves.toEqual([capability])
-    expect(sendMock).toHaveBeenCalledWith('/api/servers/srv1/software/capabilities', { method: 'GET' })
+    expect(sendMock).toHaveBeenCalledWith('/api/servers/srv1/software/capabilities', {
+      method: 'GET',
+    })
   })
 
   it('returns empty array when items is missing from capability response', async () => {
@@ -177,10 +228,9 @@ describe('getSoftwareOperation', () => {
     }
     sendMock.mockResolvedValue(op)
     await expect(getSoftwareOperation('srv1', 'op1')).resolves.toEqual(op)
-    expect(sendMock).toHaveBeenCalledWith(
-      '/api/servers/srv1/software/operations/op1',
-      { method: 'GET' }
-    )
+    expect(sendMock).toHaveBeenCalledWith('/api/servers/srv1/software/operations/op1', {
+      method: 'GET',
+    })
   })
 })
 
@@ -196,18 +246,16 @@ describe('invokeSoftwareAction', () => {
       accepted: true,
       operation_id: 'op1',
     })
-    expect(sendMock).toHaveBeenCalledWith(
-      '/api/servers/srv1/software/docker/install',
-      { method: 'POST' }
-    )
+    expect(sendMock).toHaveBeenCalledWith('/api/servers/srv1/software/docker/install', {
+      method: 'POST',
+    })
   })
 
   it('encodes component keys that contain special characters', async () => {
     sendMock.mockResolvedValue({ accepted: true })
     await invokeSoftwareAction('srv1', 'reverse-proxy', 'verify')
-    expect(sendMock).toHaveBeenCalledWith(
-      '/api/servers/srv1/software/reverse-proxy/verify',
-      { method: 'POST' }
-    )
+    expect(sendMock).toHaveBeenCalledWith('/api/servers/srv1/software/reverse-proxy/verify', {
+      method: 'POST',
+    })
   })
 })

@@ -100,6 +100,15 @@ export interface AsyncCommandResponse {
   message?: string
 }
 
+export interface SupportedServerSoftwareEntry {
+  component_key: string
+  label: string
+  capability?: string
+  supported_actions: SoftwareActionType[]
+  template_kind: TemplateKind
+  description: string
+}
+
 // ─── Path Helpers ─────────────────────────────────────────────────────────────
 
 function softwareBasePath(serverId: string): string {
@@ -108,6 +117,10 @@ function softwareBasePath(serverId: string): string {
 
 function localSoftwareBasePath(): string {
   return '/api/software/local'
+}
+
+function supportedServerCatalogBasePath(): string {
+  return '/api/software/server-catalog'
 }
 
 // ─── API Functions ────────────────────────────────────────────────────────────
@@ -122,7 +135,9 @@ export async function listSoftwareOperations(
   return response.items ?? []
 }
 
-export async function listSoftwareComponents(serverId: string): Promise<SoftwareComponentSummary[]> {
+export async function listSoftwareComponents(
+  serverId: string
+): Promise<SoftwareComponentSummary[]> {
   const response = await pb.send<{ items: SoftwareComponentSummary[] }>(
     softwareBasePath(serverId),
     { method: 'GET' }
@@ -147,9 +162,30 @@ export async function listLocalSoftwareComponents(): Promise<SoftwareComponentSu
   return response.items ?? []
 }
 
-export async function getLocalSoftwareComponent(componentKey: string): Promise<SoftwareComponentDetail> {
+export async function getLocalSoftwareComponent(
+  componentKey: string
+): Promise<SoftwareComponentDetail> {
   return pb.send<SoftwareComponentDetail>(
     `${localSoftwareBasePath()}/${encodeURIComponent(componentKey)}`,
+    { method: 'GET' }
+  )
+}
+
+export async function listSupportedServerSoftware(): Promise<SupportedServerSoftwareEntry[]> {
+  const response = await pb.send<{ items: SupportedServerSoftwareEntry[] }>(
+    supportedServerCatalogBasePath(),
+    {
+      method: 'GET',
+    }
+  )
+  return response.items ?? []
+}
+
+export async function getSupportedServerSoftware(
+  componentKey: string
+): Promise<SupportedServerSoftwareEntry> {
+  return pb.send<SupportedServerSoftwareEntry>(
+    `${supportedServerCatalogBasePath()}/${encodeURIComponent(componentKey)}`,
     { method: 'GET' }
   )
 }
@@ -166,10 +202,9 @@ export async function getSoftwareOperation(
   serverId: string,
   operationId: string
 ): Promise<SoftwareOperation> {
-  return pb.send<SoftwareOperation>(
-    `${softwareBasePath(serverId)}/operations/${operationId}`,
-    { method: 'GET' }
-  )
+  return pb.send<SoftwareOperation>(`${softwareBasePath(serverId)}/operations/${operationId}`, {
+    method: 'GET',
+  })
 }
 
 export async function invokeSoftwareAction(

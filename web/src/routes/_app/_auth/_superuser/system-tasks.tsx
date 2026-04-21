@@ -497,11 +497,17 @@ export function SystemCronsContent() {
 
   return (
     <div>
-      {/* Toolbar */}
-      <div className="flex items-center justify-end gap-2 mb-3">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">System Crons</h1>
+          <p className="mt-1 text-muted-foreground">
+            Native cron jobs registered in PocketBase. Manage schedules via PocketBase Admin.
+          </p>
+        </div>
         <Button
           variant="outline"
           size="icon"
+          aria-label="Refresh system crons"
           title="Refresh"
           onClick={fetchJobs}
           disabled={loading}
@@ -650,15 +656,5 @@ export function SystemCronsContent() {
 }
 
 function SystemCronsPage() {
-  return (
-    <div>
-      <div className="mb-4">
-        <h1 className="text-2xl font-bold tracking-tight">System Crons</h1>
-        <p className="text-muted-foreground mt-1">
-          Native cron jobs registered in PocketBase. Manage schedules via PocketBase Admin.
-        </p>
-      </div>
-      <SystemCronsContent />
-    </div>
-  )
+  return <SystemCronsContent />
 }

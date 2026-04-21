@@ -14,7 +14,6 @@ import {
   TerminalSquare,
   KeyRound,
   MessageSquare,
-  FileCode,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -88,12 +87,6 @@ const workspaceGroup: NavGroup = {
       children: [
         { id: 'groups', label: 'Groups', href: '/groups' },
         { id: 'topics', label: 'Topics', href: '/topics' },
-        {
-          id: 'scripts',
-          label: 'Scripts',
-          href: '/resources/scripts',
-          icon: <FileCode className="h-4 w-4" />,
-        },
       ],
     },
     { id: 'space', label: 'Space', icon: <FolderOpen className="h-5 w-5" />, href: '/space' },
@@ -115,9 +108,10 @@ const systemNavItem: NavItem = {
   children: [
     { id: 'status', label: 'Status', href: '/status' },
     { id: 'tunnels', label: 'Tunnels', href: '/tunnels' },
-    { id: 'logs', label: 'Logs', href: '/logs' },
     { id: 'audit', label: 'Audit', href: '/audit' },
-    { id: 'iac', label: 'IaC Browser', href: '/iac' },
+    { id: 'logs', label: 'Logs', href: '/logs' },
+    { id: 'system-tasks', label: 'System Crons', href: '/system-tasks' },
+    { id: 'iac', label: 'Orchestration Files', href: '/iac' },
   ],
 }
 
@@ -163,11 +157,6 @@ const credentialsNavItem: NavItem = {
       label: 'Certificates',
       href: '/certificates',
     },
-    {
-      id: 'credentials-shared-envs',
-      label: 'Shared Envs',
-      href: '/shared-envs',
-    },
   ],
 }
 
@@ -176,7 +165,7 @@ export function buildNavGroups(isSuperuser: boolean): NavGroup[] {
     workspaceGroup,
     {
       id: 'admin',
-      label: 'Admin',
+      label: 'Platform',
       items: isSuperuser
         ? [systemNavItem, resourcesNavItem, credentialsNavItem, usersNavItem, settingsNavItem]
         : [systemNavItemBasic, resourcesNavItem],

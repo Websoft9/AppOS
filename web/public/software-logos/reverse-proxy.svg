@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" fill="none">
+  <rect width="96" height="96" rx="24" fill="url(#proxy-bg)"/>
+  <defs>
+    <linearGradient id="proxy-bg" x1="8" y1="8" x2="88" y2="88" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#22C55E"/>
+      <stop offset="1" stop-color="#166534"/>
+    </linearGradient>
+  </defs>
+  <path d="M48 18L72 28V48C72 62.56 61.856 75.882 48 79C34.144 75.882 24 62.56 24 48V28L48 18Z" fill="white" fill-opacity="0.16"/>
+  <path d="M34 56H56.5C61.194 56 65 52.194 65 47.5C65 42.806 61.194 39 56.5 39H37" stroke="white" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M49 32L37 39L49 46" stroke="white" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="24" y="27" fill="white" fill-opacity="0.88" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700">RP</text>
+</svg>

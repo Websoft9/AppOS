@@ -1,0 +1,2 @@
+import{j as e}from"./react-vendor-AUwL6HVX.js";import"./monaco-vendor-w6PwaWGP.js";function r(){return e.jsxs("div",{className:"p-4",children:[e.jsx("h1",{className:"text-xl font-semibold",children:"Environment"}),e.jsx("p",{className:"mt-2 text-sm text-muted-foreground",children:"Placeholder entry. This page is managed by a future epic."})]})}export{r as component};
+//# sourceMappingURL=env-vars-CpdoNB8T.js.map

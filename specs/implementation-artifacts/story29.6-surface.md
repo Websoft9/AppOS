@@ -17,6 +17,7 @@ Expose one minimal server-scoped surface for software delivery management.
 
 Follow-up note:
 - AppOS-local software is now surfaced separately from Resources as a dedicated read-only inventory page; it is still intentionally excluded from the Server Detail Software tab
+- server-target supported software discovery should be handled by Story 29.4a as a separate read-only Resources surface; this story remains strictly server-scoped and operational
 
 ## UX Reference
 
@@ -29,6 +30,7 @@ Use the compact list-with-actions pattern already established in the Services ta
 - action buttons (`Install`, `Upgrade`, `Verify`, `Repair`) disabled when already in-progress or not available per `available_actions`
 
 Do not introduce a new sidebar entry or top-level navigation item.
+Do not turn this surface into a support catalog or product-discovery page.
 
 ## UI Contract
 

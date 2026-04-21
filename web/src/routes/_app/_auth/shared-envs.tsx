@@ -1,5 +1,5 @@
 import { type FormEvent, Fragment, useCallback, useEffect, useMemo, useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import {
   ArrowDown,
   ArrowUp,
@@ -435,7 +435,14 @@ function SharedEnvsPage() {
     <div className="space-y-4 p-4 cursor-default">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
+        <div className="space-y-2">
+          <Link
+            to="/resources"
+            search={{} as never}
+            className="inline-flex text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            &lt; Resources
+          </Link>
           <h1 className="text-2xl font-bold tracking-tight">Shared Envs</h1>
           <p className="text-muted-foreground mt-1">
             Reusable environment variable sets for apps and workflows.

@@ -28,6 +28,9 @@ func registerSoftwareRoutes(servers *router.RouterGroup[*core.RequestEvent]) {
 // registerLocalSoftwareRoutes mounts the AppOS-local software inventory routes under
 // /api/software/local.
 func registerLocalSoftwareRoutes(api *router.RouterGroup[*core.RequestEvent]) {
+	api.GET("/server-catalog", handleSupportedServerCatalogList)
+	api.GET("/server-catalog/{componentKey}", handleSupportedServerCatalogGet)
+
 	local := api.Group("/local")
 	local.GET("", handleLocalSoftwareComponentList)
 	local.GET("/{componentKey}", handleLocalSoftwareComponentGet)
@@ -361,4 +364,49 @@ func handleLocalSoftwareComponentGet(e *core.RequestEvent) error {
 		TargetType:              item.Entry.TargetType,
 		LastOperation:           item.LastOperation,
 	})
+}
+
+// @Summary List supported server-target software
+// @Description Returns the AppOS-managed server software catalog as a read-only discovery surface.
+// @Tags Software
+// @Security BearerAuth
+// @Success 200 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/software/server-catalog [get]
+func handleSupportedServerCatalogList(e *core.RequestEvent) error {
+	items, err := swservice.New(e.App, asynqClient).ListSupportedServerCatalog(e.Request.Context())
+	if err != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{
+			"error":   "catalog_load_failed",
+			"message": err.Error(),
+		})
+	}
+	return e.JSON(http.StatusOK, map[string]any{"items": items})
+}
+
+// @Summary Get one supported server-target software entry
+// @Description Returns one read-only AppOS-managed server software catalog entry.
+// @Tags Software
+// @Security BearerAuth
+// @Param componentKey path string true "Component key"
+// @Success 200 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/software/server-catalog/{componentKey} [get]
+func handleSupportedServerCatalogGet(e *core.RequestEvent) error {
+	componentKey := software.ComponentKey(e.Request.PathValue("componentKey"))
+	item, err := swservice.New(e.App, asynqClient).GetSupportedServerCatalogEntry(e.Request.Context(), componentKey)
+	if err != nil {
+		status := http.StatusInternalServerError
+		errorCode := "catalog_load_failed"
+		if strings.Contains(err.Error(), "not found in supported server catalog") {
+			status = http.StatusNotFound
+			errorCode = "component_not_found"
+		}
+		return e.JSON(status, map[string]any{
+			"error":   errorCode,
+			"message": err.Error(),
+		})
+	}
+	return e.JSON(http.StatusOK, item)
 }

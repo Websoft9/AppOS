@@ -112,6 +112,8 @@ Managed capabilities currently include:
 | POST | `/api/servers/{serverId}/software/{componentKey}/upgrade` | upgrade component |
 | POST | `/api/servers/{serverId}/software/{componentKey}/verify` | verify component |
 | GET | `/api/servers/{serverId}/software/capabilities` | list target capability status |
+| GET | `/api/software/server-catalog` | list read-only server-target catalog entries |
+| GET | `/api/software/server-catalog/{componentKey}` | read one server-target catalog entry |
 | GET | `/api/software/local` | list AppOS-local software inventory |
 | GET | `/api/software/local/{componentKey}` | read one AppOS-local component |
 
@@ -147,6 +149,13 @@ Notes:
 
 - register AppOS-managed software components as catalog entries
 - keep component expansion data-driven
+
+### 29.4a Supported Software Surface
+
+- expose one read-only `Supported Software` page for server-target software
+- keep software support discoverable before any server is connected
+- separate `supported catalog` from `installed inventory`
+- place it under `Resources` as a lightweight software-delivery entry
 
 ### 29.5 Target Readiness
 

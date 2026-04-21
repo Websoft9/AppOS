@@ -104,6 +104,8 @@ describe('TunnelsPage', () => {
     render(<TunnelsPage />)
 
     expect(await screen.findByText('Pending setup tunnel')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Refresh tunnels' })).toBeInTheDocument()
+    expect(screen.queryByText('Refresh')).not.toBeInTheDocument()
     expect(screen.getAllByText('Waiting').length).toBeGreaterThan(0)
     expect(screen.getByText('All status')).toBeInTheDocument()
   })

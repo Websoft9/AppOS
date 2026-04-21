@@ -260,6 +260,13 @@ Signal relationship rules:
 - Show current state, last success, last failure, failure reason, and short-window metric trend
 - Keep the UI diagnostic-first, not dashboard-heavy
 
+### 28.5 Platform Status Frontend Page
+
+- Converge `System > Status` into one platform-first operator page
+- Lead with one explicit platform availability conclusion
+- Keep infrastructure trends and active services visible on the main page
+- Keep platform targets as supporting control-plane evidence, not the main surface
+
 ---
 
 ## Acceptance Criteria
@@ -320,6 +327,7 @@ Exact route placement can still shift during implementation, but the separation 
 - `story28.2-agent-ingestion.md`
 - `story28.3-active-checks.md`
 - `story28.4-operator-surfaces.md`
+- `story28.5-platform-status-frontend.md`
 
 ---
 
@@ -346,6 +354,7 @@ Implement this epic in the following order:
 2. `28.2 Agent Ingestion and Metrics Pipeline`
 3. `28.3 Active Checks for Resource and App Availability`
 4. `28.4 Minimal Operator Surfaces`
+5. `28.5 Platform Status Frontend Page`
 
 Reasoning:
 
@@ -353,6 +362,7 @@ Reasoning:
 - 28.2 establishes the first write path and TSDB boundary.
 - 28.3 adds AppOS-owned judgment so monitoring does not depend only on self-report.
 - 28.4 should consume stable read contracts instead of inventing UI-specific logic.
+- 28.5 converges the operator-facing platform status experience into one simple page after the monitor contracts are stable.
 
 ## First Delivery Slice
 

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/software"
@@ -292,5 +293,223 @@ func TestSoftwareInventoryRoutesExposeFlatServerAndLocalScopes(t *testing.T) {
 	}
 	if body["target_type"] != "local" {
 		t.Fatalf("expected local target_type local, got %#v", body["target_type"])
+	}
+}
+
+func TestSupportedServerCatalogRoutesExposeReadOnlyCatalogSurface(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doSoftware(t, http.MethodGet, "/api/software/server-catalog", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected supported server catalog list 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := parseJSON(t, rec)
+	items, ok := body["items"].([]any)
+	if !ok || len(items) == 0 {
+		t.Fatalf("expected supported server catalog items, got %#v", body["items"])
+	}
+	first, ok := items[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected first supported software entry object, got %#v", items[0])
+	}
+	if _, ok := first["installed_state"]; ok {
+		t.Fatalf("supported server catalog should not expose installed_state, got %#v", first["installed_state"])
+	}
+	if _, ok := first["verification_state"]; ok {
+		t.Fatalf("supported server catalog should not expose verification_state, got %#v", first["verification_state"])
+	}
+	if _, ok := first["supported_actions"].([]any); !ok {
+		t.Fatalf("expected supported_actions array, got %#v", first["supported_actions"])
+	}
+	if first["description"] == "" {
+		t.Fatalf("expected supported software description, got %#v", first["description"])
+	}
+
+	rec = te.doSoftware(t, http.MethodGet, "/api/software/server-catalog/docker", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected supported server catalog detail 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body = parseJSON(t, rec)
+	if body["component_key"] != "docker" {
+		t.Fatalf("expected docker supported software detail, got %#v", body["component_key"])
+	}
+	if body["capability"] != "container_runtime" {
+		t.Fatalf("expected capability container_runtime, got %#v", body["capability"])
+	}
+
+	rec = te.doSoftware(t, http.MethodGet, "/api/software/server-catalog/not-a-component", "", true)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected missing supported server catalog detail 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body = parseJSON(t, rec)
+	if body["error"] != "component_not_found" {
+		t.Fatalf("expected component_not_found error, got %#v", body["error"])
+	}
+}
+
+func TestSoftwareOperationGetReturns404ForMissingOrMismatchedServer(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	col, err := te.app.FindCollectionByNameOrId(collections.SoftwareOperations)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := core.NewRecord(col)
+	record.Set("server_id", "srv-1")
+	record.Set("component_key", "docker")
+	record.Set("action", "verify")
+	record.Set("phase", "accepted")
+	record.Set("terminal_status", "none")
+	if err := te.app.Save(record); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := te.doSoftware(t, http.MethodGet, "/api/servers/srv-2/software/operations/"+record.Id, "", true)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected mismatched server operation detail to return 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := parseJSON(t, rec)
+	if body["error"] != "operation_not_found" {
+		t.Fatalf("expected operation_not_found error, got %#v", body["error"])
+	}
+
+	rec = te.doSoftware(t, http.MethodGet, "/api/servers/srv-1/software/operations/missing-op", "", true)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected missing operation detail to return 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSoftwareOperationListSupportsComponentFilter(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	col, err := te.app.FindCollectionByNameOrId(collections.SoftwareOperations)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range []struct {
+		serverID     string
+		componentKey string
+	}{
+		{serverID: "srv-1", componentKey: "docker"},
+		{serverID: "srv-1", componentKey: "monitor-agent"},
+		{serverID: "srv-2", componentKey: "docker"},
+	} {
+		record := core.NewRecord(col)
+		record.Set("server_id", item.serverID)
+		record.Set("component_key", item.componentKey)
+		record.Set("action", "verify")
+		record.Set("phase", "accepted")
+		record.Set("terminal_status", "none")
+		if err := te.app.Save(record); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	rec := te.doSoftware(t, http.MethodGet, "/api/servers/srv-1/software/operations?component=docker", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected filtered operation list 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := parseJSON(t, rec)
+	items, ok := body["items"].([]any)
+	if !ok {
+		t.Fatalf("expected operations items payload, got %#v", body["items"])
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected exactly one filtered operation, got %d", len(items))
+	}
+	item, ok := items[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected operation object, got %#v", items[0])
+	}
+	if item["component_key"] != "docker" {
+		t.Fatalf("expected docker operation, got %#v", item["component_key"])
+	}
+	if item["server_id"] != "srv-1" {
+		t.Fatalf("expected srv-1 operation, got %#v", item["server_id"])
+	}
+}
+
+func TestSoftwareComponentRoutesReturn404ForUnknownComponent(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doSoftware(t, http.MethodGet, "/api/servers/srv-1/software/not-a-component", "", true)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected unknown server component to return 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := parseJSON(t, rec)
+	if body["error"] != "component_not_found" {
+		t.Fatalf("expected component_not_found for server component, got %#v", body["error"])
+	}
+
+	rec = te.doSoftware(t, http.MethodGet, "/api/software/local/not-a-component", "", true)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected unknown local component to return 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body = parseJSON(t, rec)
+	if body["error"] != "component_not_found" {
+		t.Fatalf("expected component_not_found for local component, got %#v", body["error"])
+	}
+}
+
+func TestSoftwareComponentActionRejectsInvalidActionAndMissingQueue(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doSoftware(t, http.MethodPost, "/api/servers/srv-1/software/docker/not-real", "{}", true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid action to return 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := parseJSON(t, rec)
+	if body["error"] != "invalid_action" {
+		t.Fatalf("expected invalid_action error, got %#v", body["error"])
+	}
+
+	oldClient := asynqClient
+	asynqClient = nil
+	defer func() { asynqClient = oldClient }()
+
+	rec = te.doSoftware(t, http.MethodPost, "/api/servers/srv-1/software/docker/install", "{}", true)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected missing queue to return 503, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body = parseJSON(t, rec)
+	if body["error"] != "queue_unavailable" {
+		t.Fatalf("expected queue_unavailable error, got %#v", body["error"])
+	}
+}
+
+func TestSoftwareComponentActionReturnsConflictWhenOperationInFlight(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	oldClient := asynqClient
+	asynqClient = &asynq.Client{}
+	defer func() { asynqClient = oldClient }()
+
+	col, err := te.app.FindCollectionByNameOrId(collections.SoftwareOperations)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := core.NewRecord(col)
+	record.Set("server_id", "srv-1")
+	record.Set("component_key", "docker")
+	record.Set("action", "install")
+	record.Set("phase", "executing")
+	record.Set("terminal_status", "none")
+	if err := te.app.Save(record); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := te.doSoftware(t, http.MethodPost, "/api/servers/srv-1/software/docker/install", "{}", true)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected in-flight operation to return 409, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := parseJSON(t, rec)
+	if body["error"] != "operation_in_flight" {
+		t.Fatalf("expected operation_in_flight error, got %#v", body["error"])
 	}
 }

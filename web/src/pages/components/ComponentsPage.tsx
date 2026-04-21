@@ -27,73 +27,17 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { pb } from '@/lib/pb'
-
-type ComponentItem = {
-  id: string
-  name: string
-  version: string
-  available: boolean
-  updated_at: string
-}
-
-type ServiceItem = {
-  name: string
-  state: string
-  pid: number
-  uptime: number
-  cpu: number
-  memory: number
-  last_detected_at: string
-  log_available: boolean
-}
-
-type ServiceLogResponse = {
-  name: string
-  stream: 'stdout' | 'stderr'
-  content: string
-  truncated: boolean
-  last_detected_at: string
-}
-
-function formatTime(value?: string): string {
-  if (!value) return '-'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString()
-}
-
-function formatUptime(seconds: number): string {
-  if (seconds <= 0) return '-'
-  const d = Math.floor(seconds / 86400)
-  const h = Math.floor((seconds % 86400) / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  if (d > 0) return `${d}d ${h}h`
-  if (h > 0) return `${h}h ${m}m`
-  return `${m}m`
-}
-
-function formatMemory(bytes: number): string {
-  if (bytes <= 0) return '-'
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function serviceVariant(state: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-  switch (state) {
-    case 'running':
-      return 'default'
-    case 'stopped':
-    case 'missing':
-      return 'secondary'
-    case 'fatal':
-    case 'exited':
-    case 'unknown':
-      return 'destructive'
-    default:
-      return 'outline'
-  }
-}
+import {
+  fetchActiveServices,
+  fetchInstalledComponents,
+  fetchServiceLogs,
+  formatComponentStatusTime,
+  formatServiceMemory,
+  formatServiceUptime,
+  serviceVariant,
+  type ComponentItem,
+  type ServiceItem,
+} from './component-status-shared'
 
 export function ComponentsPage() {
   const [tab, setTab] = useState<'components' | 'services'>('components')
@@ -120,9 +64,7 @@ export function ComponentsPage() {
     }
     setComponentsLoading(true)
     try {
-      const url = force ? '/api/components?force=1' : '/api/components'
-      const data = await pb.send<ComponentItem[]>(url, { method: 'GET' })
-      setComponents(Array.isArray(data) ? data : [])
+      setComponents(await fetchInstalledComponents(force))
       setComponentsError('')
     } catch (err) {
       setComponentsError(err instanceof Error ? err.message : 'Failed to load components')
@@ -133,8 +75,7 @@ export function ComponentsPage() {
 
   const fetchServices = useCallback(async () => {
     try {
-      const data = await pb.send<ServiceItem[]>('/api/components/services', { method: 'GET' })
-      setServices(Array.isArray(data) ? data : [])
+      setServices(await fetchActiveServices())
       setServicesError('')
     } catch (err) {
       setServicesError(err instanceof Error ? err.message : 'Failed to load services')
@@ -153,10 +94,7 @@ export function ComponentsPage() {
       lastDetectedAt: '',
     })
     try {
-      const data = await pb.send<ServiceLogResponse>(
-        `/api/components/services/${encodeURIComponent(name)}/logs?stream=${stream}&tail=200`,
-        { method: 'GET' }
-      )
+      const data = await fetchServiceLogs(name, stream)
       setLogDialog({
         name,
         stream,
@@ -273,7 +211,7 @@ export function ComponentsPage() {
                       Version {component.version || 'unknown'}
                     </p>
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Updated {formatTime(component.updated_at)}
+                      Updated {formatComponentStatusTime(component.updated_at)}
                     </p>
                   </article>
                 ))}
@@ -327,13 +265,13 @@ export function ComponentsPage() {
                         : '-'}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                      {formatMemory(service.memory)}
+                      {formatServiceMemory(service.memory)}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
-                      {formatUptime(service.uptime)}
+                      {formatServiceUptime(service.uptime)}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
-                      {formatTime(service.last_detected_at)}
+                      {formatComponentStatusTime(service.last_detected_at)}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
@@ -360,7 +298,7 @@ export function ComponentsPage() {
             <DialogTitle>Service Logs: {logDialog?.name}</DialogTitle>
             <DialogDescription>
               {logDialog?.lastDetectedAt
-                ? `Last detected ${formatTime(logDialog.lastDetectedAt)}`
+                ? `Last detected ${formatComponentStatusTime(logDialog.lastDetectedAt)}`
                 : 'Diagnostic logs for the selected service'}
             </DialogDescription>
           </DialogHeader>
@@ -464,9 +402,7 @@ export function InstalledComponentsContent() {
     }
     setLoading(true)
     try {
-      const url = force ? '/api/components?force=1' : '/api/components'
-      const data = await pb.send<ComponentItem[]>(url, { method: 'GET' })
-      setComponents(Array.isArray(data) ? data : [])
+      setComponents(await fetchInstalledComponents(force))
       setError('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load components')
@@ -519,7 +455,7 @@ export function InstalledComponentsContent() {
                   Version {component.version || 'unknown'}
                 </p>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Updated {formatTime(component.updated_at)}
+                  Updated {formatComponentStatusTime(component.updated_at)}
                 </p>
               </article>
             ))}
@@ -567,8 +503,7 @@ export function ActiveServicesContent() {
 
   const fetchServices = useCallback(async () => {
     try {
-      const data = await pb.send<ServiceItem[]>('/api/components/services', { method: 'GET' })
-      setServices(Array.isArray(data) ? data : [])
+      setServices(await fetchActiveServices())
       setError('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load services')
@@ -580,10 +515,7 @@ export function ActiveServicesContent() {
   const openLogs = useCallback(async (name: string, stream: 'stdout' | 'stderr' = 'stdout') => {
     setLogDialog({ name, stream, content: '', loading: true, truncated: false, lastDetectedAt: '' })
     try {
-      const data = await pb.send<ServiceLogResponse>(
-        `/api/components/services/${encodeURIComponent(name)}/logs?stream=${stream}&tail=200`,
-        { method: 'GET' }
-      )
+      const data = await fetchServiceLogs(name, stream)
       setLogDialog({
         name,
         stream,
@@ -714,13 +646,13 @@ export function ActiveServicesContent() {
                     : '-'}
                 </TableCell>
                 <TableCell className="hidden md:table-cell">
-                  {formatMemory(service.memory)}
+                  {formatServiceMemory(service.memory)}
                 </TableCell>
                 <TableCell className="hidden lg:table-cell">
-                  {formatUptime(service.uptime)}
+                  {formatServiceUptime(service.uptime)}
                 </TableCell>
                 <TableCell className="hidden lg:table-cell">
-                  {formatTime(service.last_detected_at)}
+                  {formatComponentStatusTime(service.last_detected_at)}
                 </TableCell>
                 <TableCell className="text-right">
                   <Button
@@ -745,7 +677,7 @@ export function ActiveServicesContent() {
             <DialogTitle>Service Logs: {logDialog?.name}</DialogTitle>
             <DialogDescription>
               {logDialog?.lastDetectedAt
-                ? `Last detected ${formatTime(logDialog.lastDetectedAt)}`
+                ? `Last detected ${formatComponentStatusTime(logDialog.lastDetectedAt)}`
                 : 'Diagnostic logs for the selected service'}
             </DialogDescription>
           </DialogHeader>

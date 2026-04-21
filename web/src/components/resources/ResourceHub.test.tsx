@@ -70,6 +70,16 @@ describe('ResourceHub', () => {
       if (path === '/api/software/local') {
         return Promise.resolve({ items: [{ id: 'local-1' }, { id: 'local-2' }] })
       }
+      if (path === '/api/software/server-catalog') {
+        return Promise.resolve({
+          items: [
+            { id: 'supported-1' },
+            { id: 'supported-2' },
+            { id: 'supported-3' },
+            { id: 'supported-4' },
+          ],
+        })
+      }
       if (path === '/api/connectors?kind=rest_api,webhook,mcp,smtp,registry,dns') {
         return Promise.resolve([{ id: 'conn-1' }, { id: 'conn-2' }, { id: 'conn-3' }])
       }
@@ -92,14 +102,18 @@ describe('ResourceHub', () => {
         'Shared platform resources for where Applications run, what they depend on, and how AppOS connects outward.'
       )
     ).toBeInTheDocument()
-    expect(screen.getByText('2 grouped areas')).toBeInTheDocument()
-    expect(screen.getByText('6 canonical families')).toBeInTheDocument()
+    expect(screen.getByText('4 grouped areas')).toBeInTheDocument()
+    expect(screen.getByText('8 canonical families')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Runtime Infrastructure' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Shared Assets' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Software Delivery' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'External Integrations' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Additional Resources' })).not.toBeInTheDocument()
 
     expect(screen.getAllByText('Service Instances').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Local Software').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Shared Envs').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Scripts').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Supported Software').length).toBeGreaterThan(0)
     expect(screen.getAllByText('AI Providers').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Platform Accounts').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Connectors').length).toBeGreaterThan(0)
@@ -117,10 +131,34 @@ describe('ResourceHub', () => {
       )
     ).toBeInTheDocument()
     expect(
-      screen.getByText('AppOS-local runtime binaries and supervisord-managed components installed on this host.')
+      screen.getByText(
+        'Reusable shared environment sets and scripts that support multiple applications.'
+      )
     ).toBeInTheDocument()
     expect(
-      screen.getByText('How platform connects to AI providers, external platforms, APIs, and cloud services.')
+      screen.getByText(
+        'Reusable shared environment sets and variables that can be mapped across apps.'
+      )
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Reusable automation scripts for operations, recovery steps, and repeatable tasks.'
+      )
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'What AppOS can manage on remote servers before any server is connected or selected.'
+      )
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Read-only AppOS-managed server software catalog for discovery, onboarding, and pre-connection planning.'
+      )
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'How platform connects to AI providers, external platforms, APIs, and cloud services.'
+      )
     ).toBeInTheDocument()
     expect(
       screen.getByText(
@@ -134,18 +172,10 @@ describe('ResourceHub', () => {
     ).toBeInTheDocument()
 
     await waitFor(() => {
-      expect(
-        screen.getAllByText('3 items').length
-      ).toBeGreaterThan(0)
-      expect(
-        screen.getAllByText('2 items').length
-      ).toBeGreaterThan(0)
-      expect(
-        screen.getAllByText('2 items').length
-      ).toBeGreaterThan(0)
-      expect(
-        screen.getAllByText('1 items').length
-      ).toBeGreaterThan(0)
+      expect(screen.getAllByText('3 items').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('2 items').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('2 items').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('1 items').length).toBeGreaterThan(0)
     })
 
     expect(screen.getAllByText('Open family').length).toBeGreaterThan(0)
@@ -158,9 +188,14 @@ describe('ResourceHub', () => {
       'href',
       '/resources/service-instances'
     )
-    expect(screen.getByRole('link', { name: /Local Software/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /Shared Envs/i })).toHaveAttribute('href', '/shared-envs')
+    expect(screen.getByRole('link', { name: /Scripts/i })).toHaveAttribute(
       'href',
-      '/resources/local-software'
+      '/resources/scripts'
+    )
+    expect(screen.getByRole('link', { name: /Supported Software/i })).toHaveAttribute(
+      'href',
+      '/resources/supported-software'
     )
     expect(screen.getByRole('link', { name: /AI Providers/i })).toHaveAttribute(
       'href',
@@ -179,7 +214,10 @@ describe('ResourceHub', () => {
   it('shows intent-first create actions mapped to current routes', async () => {
     render(<ResourceHub />)
 
-    expect(screen.getByRole('link', { name: /Resource Groups/i })).toHaveAttribute('href', '/groups')
+    expect(screen.getByRole('link', { name: /Resource Groups/i })).toHaveAttribute(
+      'href',
+      '/groups'
+    )
     expect(screen.getByRole('button', { name: /Add Resource/i })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Add Resource/i }))
@@ -196,34 +234,50 @@ describe('ResourceHub', () => {
       )
     ).not.toBeInTheDocument()
     expect(within(dialog).getByText('Runtime Infrastructure')).toBeInTheDocument()
+    expect(within(dialog).getByText('Shared Assets')).toBeInTheDocument()
+    expect(within(dialog).getByText('Software Delivery')).toBeInTheDocument()
     expect(within(dialog).getByText('External Integrations')).toBeInTheDocument()
     expect(within(dialog).getByText('Servers')).toBeInTheDocument()
     expect(within(dialog).getByText('Service Instances')).toBeInTheDocument()
-    expect(within(dialog).getByText('Local Software')).toBeInTheDocument()
+    expect(within(dialog).getByText('Shared Envs')).toBeInTheDocument()
+    expect(within(dialog).getByText('Scripts')).toBeInTheDocument()
+    expect(within(dialog).queryByText('Supported Software')).toBeNull()
     expect(within(dialog).getByText('AI Providers')).toBeInTheDocument()
     expect(within(dialog).getByText('Connectors')).toBeInTheDocument()
     expect(within(dialog).getByText('Platform Accounts')).toBeInTheDocument()
-    expect(within(dialog).getByText('Linux hosts, SSH targets, and deployment nodes.')).toBeInTheDocument()
     expect(
-      within(dialog).getByText('MySQL, PostgreSQL, Redis, Kafka, and S3-backed application dependencies.')
+      within(dialog).getByText('Linux hosts, SSH targets, and deployment nodes.')
     ).toBeInTheDocument()
     expect(
-      within(dialog).getByText('Built-in runtimes, bundled binaries, and supervisord-managed services on the AppOS host.')
+      within(dialog).getByText(
+        'MySQL, PostgreSQL, Redis, Kafka, and S3-backed application dependencies.'
+      )
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByText(
+        'Reusable environment variable sets shared across apps and workflows.'
+      )
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByText(
+        'Reusable automation scripts for operational tasks and workflows.'
+      )
     ).toBeInTheDocument()
     expect(
       within(dialog).getByText('OpenAI, Anthropic, OpenRouter, Ollama, and similar AI providers.')
     ).toBeInTheDocument()
     expect(
-      within(dialog).getByText('AWS, Azure, Google Cloud, GitHub, Cloudflare, and similar platforms.')
+      within(dialog).getByText(
+        'AWS, Azure, Google Cloud, GitHub, Cloudflare, and similar platforms.'
+      )
     ).toBeInTheDocument()
     expect(within(dialog).getByText('Database')).toBeInTheDocument()
     expect(within(dialog).getByText('Cache')).toBeInTheDocument()
-    expect(within(dialog).getByText('Docker CLI')).toBeInTheDocument()
+    expect(within(dialog).getByText('Runtime Variables')).toBeInTheDocument()
+    expect(within(dialog).getByText('Health Check')).toBeInTheDocument()
     expect(within(dialog).queryByRole('button', { name: /Add Now/i })).toBeNull()
 
-    const serviceInstanceCard = within(dialog)
-      .getByText('Service Instances')
-      .closest('button')
+    const serviceInstanceCard = within(dialog).getByText('Service Instances').closest('button')
 
     expect(serviceInstanceCard).not.toBeNull()
 

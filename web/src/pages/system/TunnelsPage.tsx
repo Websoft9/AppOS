@@ -657,7 +657,7 @@ export function TunnelsPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Tunnels</h1>
           <p className="text-muted-foreground mt-1">
@@ -666,13 +666,19 @@ export function TunnelsPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => void loadOverview()} disabled={loading}>
+          <Button
+            variant="outline"
+            size="icon"
+            title="Refresh"
+            aria-label="Refresh tunnels"
+            onClick={() => void loadOverview()}
+            disabled={loading}
+          >
             {loading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <RefreshCw className="mr-2 h-4 w-4" />
+              <RefreshCw className="h-4 w-4" />
             )}
-            Refresh
           </Button>
         </div>
       </div>
