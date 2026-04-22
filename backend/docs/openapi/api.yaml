@@ -8167,6 +8167,48 @@ paths:
             summary: Get servers by serverId ops systemd services
             tags:
                 - Servers
+    /api/servers/local/docker-bridge:
+        get:
+            operationId: get_api_servers_local_docker-bridge
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get servers local docker bridge
+            tags:
+                - Servers
+    /api/servers/view:
+        get:
+            operationId: get_api_servers_view
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get servers view
+            tags:
+                - Servers
     /api/settings:
         get:
             operationId: pb_settings_get

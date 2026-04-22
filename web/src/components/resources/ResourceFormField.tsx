@@ -75,7 +75,7 @@ export function ResourceFormField({
       : field.type
     : field.type
   const isUploadable = effectiveType === 'file-textarea' || !!field.fileAccept
-  const renderLabel = effectiveType !== 'boolean'
+  const renderLabel = effectiveType !== 'boolean' && !field.hideLabel
 
   return (
     <div key={field.key} className="space-y-1.5">

@@ -1,12 +1,16 @@
 package routes
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/pocketbase/pocketbase/apis"
+	servers "github.com/websoft9/appos/backend/domain/resource/servers"
+	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
 )
 
 // doServer performs a server route request using the testEnv helper from resources_test.go.
@@ -36,6 +40,342 @@ func (te *testEnv) doServer(t *testing.T, method, url, body string, authenticate
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	return rec
+}
+
+func TestLocalDockerBridgeRequiresAuth(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doServer(t, http.MethodGet, "/api/servers/local/docker-bridge", "", false)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestLocalDockerBridgeReturnsAddress(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	originalLookup := dockerBridgeIPv4Lookup
+	originalGatewayLookup := dockerBridgeGatewayLookup
+	dockerBridgeIPv4Lookup = func(name string) (string, error) {
+		if name != "docker0" {
+			t.Fatalf("expected docker0 lookup, got %s", name)
+		}
+		return "172.17.0.1", nil
+	}
+	defer func() {
+		dockerBridgeIPv4Lookup = originalLookup
+		dockerBridgeGatewayLookup = originalGatewayLookup
+	}()
+	dockerBridgeGatewayLookup = func(_ context.Context) (string, error) {
+		t.Fatal("gateway lookup should not run when docker0 succeeds")
+		return "", nil
+	}
+
+	rec := te.doServer(t, http.MethodGet, "/api/servers/local/docker-bridge", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Interface string `json:"interface"`
+		Address   string `json:"address"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if payload.Interface != "docker0" || payload.Address != "172.17.0.1" {
+		t.Fatalf("unexpected payload: %+v", payload)
+	}
+}
+
+func TestLocalDockerBridgeFallsBackToBridgeGateway(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	originalLookup := dockerBridgeIPv4Lookup
+	originalGatewayLookup := dockerBridgeGatewayLookup
+	dockerBridgeIPv4Lookup = func(name string) (string, error) {
+		if name != "docker0" {
+			t.Fatalf("expected docker0 lookup, got %s", name)
+		}
+		return "", http.ErrNoLocation
+	}
+	defer func() {
+		dockerBridgeIPv4Lookup = originalLookup
+		dockerBridgeGatewayLookup = originalGatewayLookup
+	}()
+	dockerBridgeGatewayLookup = func(_ context.Context) (string, error) {
+		return "172.17.0.1", nil
+	}
+
+	rec := te.doServer(t, http.MethodGet, "/api/servers/local/docker-bridge", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Interface string `json:"interface"`
+		Address   string `json:"address"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if payload.Interface != "bridge" || payload.Address != "172.17.0.1" {
+		t.Fatalf("unexpected bridge fallback payload: %+v", payload)
+	}
+}
+
+func TestLocalDockerBridgeFallsBackToLoopback(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	originalLookup := dockerBridgeIPv4Lookup
+	originalGatewayLookup := dockerBridgeGatewayLookup
+	dockerBridgeIPv4Lookup = func(name string) (string, error) {
+		if name != "docker0" {
+			t.Fatalf("expected docker0 lookup, got %s", name)
+		}
+		return "", http.ErrNoLocation
+	}
+	defer func() {
+		dockerBridgeIPv4Lookup = originalLookup
+		dockerBridgeGatewayLookup = originalGatewayLookup
+	}()
+	dockerBridgeGatewayLookup = func(_ context.Context) (string, error) {
+		return "", http.ErrUseLastResponse
+	}
+
+	rec := te.doServer(t, http.MethodGet, "/api/servers/local/docker-bridge", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Interface string `json:"interface"`
+		Address   string `json:"address"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if payload.Interface != "loopback" || payload.Address != "127.0.0.1" {
+		t.Fatalf("unexpected loopback fallback payload: %+v", payload)
+	}
+}
+
+func TestServersViewRequiresAuth(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doServer(t, http.MethodGet, "/api/servers/view", "", false)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
+	ensureConnectorSecretRuntime(t)
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	originalProbe := directServerAccessProbe
+	directServerAccessProbe = func(host string, port int) directAccessProbeResult {
+		if host == "10.0.0.1" && port == 22 {
+			return directAccessProbeResult{
+				Access: servers.AccessView{
+					Status:    "available",
+					Reason:    "",
+					CheckedAt: "2026-04-22T10:00:00Z",
+					Source:    "tcp_probe",
+				},
+				LatencyMS: 12,
+			}
+		}
+		return directAccessProbeResult{
+			Access: servers.AccessView{
+				Status:    "unavailable",
+				Reason:    "tcp_connect_failed",
+				CheckedAt: "2026-04-22T10:00:00Z",
+				Source:    "tcp_probe",
+			},
+			Detail: "dial tcp failed",
+		}
+	}
+	t.Cleanup(func() {
+		directServerAccessProbe = originalProbe
+	})
+
+	secret := createRouteSecret(t, te, "global", "")
+	owner, err := te.app.FindFirstRecordByData("_superusers", "email", "admin@test.com")
+	if err != nil {
+		t.Fatalf("find seeded superuser: %v", err)
+	}
+
+	direct := createServerRecord(t, te, "direct-a", "10.0.0.1", 22, "root", "password")
+	direct.Set("connect_type", "direct")
+	direct.Set("credential", secret.Id)
+	direct.Set("created_by", owner.Id)
+	if err := te.app.Save(direct); err != nil {
+		t.Fatal(err)
+	}
+
+	tunnel := createTunnelServerRecord(t, te, "tunnel-b")
+	tunnel.Set("credential", secret.Id)
+	tunnel.Set("created_by", owner.Id)
+	tunnel.Set("tunnel_status", "online")
+	tunnel.Set("tunnel_connected_at", "2026-04-22 10:00:00.000Z")
+	tunnel.Set("tunnel_last_seen", "2026-04-22 10:00:00.000Z")
+	if err := te.app.Save(tunnel); err != nil {
+		t.Fatal(err)
+	}
+
+	tunnelSessions = tunnelcore.NewRegistry()
+	t.Cleanup(func() {
+		tunnelSessions = nil
+	})
+
+	rec := te.doServer(t, http.MethodGet, "/api/servers/view", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []struct {
+			ID             string `json:"id"`
+			Name           string `json:"name"`
+			CreatedByName  string `json:"created_by_name"`
+			CredentialType string `json:"credential_type"`
+			Access         struct {
+				Status string `json:"status"`
+				Reason string `json:"reason"`
+				Source string `json:"source"`
+			} `json:"access"`
+			Tunnel *struct {
+				State   string `json:"state"`
+				Status  string `json:"status"`
+				Waiting bool   `json:"waiting_for_first_connect"`
+			} `json:"tunnel"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if len(payload.Items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(payload.Items))
+	}
+
+	byName := make(map[string]struct {
+		ID             string
+		CreatedByName  string
+		CredentialType string
+		AccessStatus   string
+		AccessReason   string
+		AccessSource   string
+		TunnelState    string
+		TunnelStatus   string
+		TunnelWaiting  bool
+	})
+	for _, item := range payload.Items {
+		entry := struct {
+			ID             string
+			CreatedByName  string
+			CredentialType string
+			AccessStatus   string
+			AccessReason   string
+			AccessSource   string
+			TunnelState    string
+			TunnelStatus   string
+			TunnelWaiting  bool
+		}{
+			ID:             item.ID,
+			CreatedByName:  item.CreatedByName,
+			CredentialType: item.CredentialType,
+			AccessStatus:   item.Access.Status,
+			AccessReason:   item.Access.Reason,
+			AccessSource:   item.Access.Source,
+		}
+		if item.Tunnel != nil {
+			entry.TunnelState = item.Tunnel.State
+			entry.TunnelStatus = item.Tunnel.Status
+			entry.TunnelWaiting = item.Tunnel.Waiting
+		}
+		byName[item.Name] = entry
+	}
+
+	if got := byName["direct-a"]; got.AccessStatus != "available" || got.AccessSource != "tcp_probe" {
+		t.Fatalf("unexpected direct access payload: %#v", got)
+	}
+	if got := byName["direct-a"]; got.CredentialType != "Password" {
+		t.Fatalf("expected direct credential type Password, got %#v", got)
+	}
+	if got := byName["direct-a"]; got.CreatedByName != "admin@test.com" {
+		t.Fatalf("expected direct created_by_name admin@test.com, got %#v", got)
+	}
+	if got := byName["direct-a"]; got.TunnelState != "" {
+		t.Fatalf("expected no tunnel payload for direct server, got %#v", got)
+	}
+
+	if got := byName["tunnel-b"]; got.AccessStatus != "available" || got.AccessSource != "tunnel_runtime" {
+		t.Fatalf("unexpected tunnel access payload: %#v", got)
+	}
+	if got := byName["tunnel-b"]; got.TunnelState != "ready" || got.TunnelStatus != "online" || got.TunnelWaiting {
+		t.Fatalf("unexpected tunnel state payload: %#v", got)
+	}
+	if got := byName["tunnel-b"]; got.CredentialType != "Password" {
+		t.Fatalf("expected tunnel credential type Password, got %#v", got)
+	}
+}
+
+func TestServersViewMarksTunnelSetupRequired(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	tunnel := createTunnelServerRecord(t, te, "tunnel-setup")
+	tunnel.Set("tunnel_status", "offline")
+	if err := te.app.Save(tunnel); err != nil {
+		t.Fatal(err)
+	}
+
+	tunnelSessions = tunnelcore.NewRegistry()
+	t.Cleanup(func() {
+		tunnelSessions = nil
+	})
+
+	rec := te.doServer(t, http.MethodGet, "/api/servers/view", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []struct {
+			Name   string `json:"name"`
+			Access struct {
+				Status string `json:"status"`
+				Reason string `json:"reason"`
+			} `json:"access"`
+			Tunnel *struct {
+				State   string `json:"state"`
+				Waiting bool   `json:"waiting_for_first_connect"`
+			} `json:"tunnel"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if len(payload.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(payload.Items))
+	}
+	item := payload.Items[0]
+	if item.Name != "tunnel-setup" {
+		t.Fatalf("unexpected item name: %#v", item)
+	}
+	if item.Access.Status != "unavailable" || item.Access.Reason != "waiting_for_first_connect" {
+		t.Fatalf("unexpected setup-required access payload: %#v", item)
+	}
+	if item.Tunnel == nil || item.Tunnel.State != "setup_required" || !item.Tunnel.Waiting {
+		t.Fatalf("unexpected setup-required tunnel payload: %#v", item)
+	}
 }
 
 // doTerminal performs a terminal route request using the testEnv helper from resources_test.go.

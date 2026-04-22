@@ -1,13 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Check, Pencil } from 'lucide-react'
+import { Check, Loader2, Pencil } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { ResourcePage, type Column, type FieldDef } from '@/components/resources/ResourcePage'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { SecretCredentialField } from '@/components/secrets/SecretCredentialField'
+import { SecretForm, type SecretTemplate } from '@/components/secrets/SecretForm'
 import { pb } from '@/lib/pb'
 
 type InstanceRecord = {
@@ -580,6 +589,16 @@ export function ServiceInstancesPage() {
   const [secretAddOption, setSecretAddOption] = useState<
     ((id: string, label: string) => void) | null
   >(null)
+  const [secretEditOpen, setSecretEditOpen] = useState(false)
+  const [secretEditLoading, setSecretEditLoading] = useState(false)
+  const [secretEditSaving, setSecretEditSaving] = useState(false)
+  const [secretEditError, setSecretEditError] = useState('')
+  const [secretEditId, setSecretEditId] = useState('')
+  const [secretEditName, setSecretEditName] = useState('')
+  const [secretEditDescription, setSecretEditDescription] = useState('')
+  const [secretEditTemplateId, setSecretEditTemplateId] = useState('')
+  const [secretEditPayload, setSecretEditPayload] = useState<Record<string, string>>({})
+  const [secretEditTemplates, setSecretEditTemplates] = useState<SecretTemplate[]>([])
 
   useEffect(() => {
     void (async () => {
@@ -656,15 +675,91 @@ export function ServiceInstancesPage() {
     []
   )
 
-  const openSecretEditor = useCallback((secretId: string) => {
-    const targetUrl = new URL('/secrets', window.location.origin)
-    targetUrl.searchParams.set('id', secretId)
-    targetUrl.searchParams.set('edit', secretId)
-    const opened = window.open(targetUrl.toString(), '_blank', 'noopener,noreferrer')
-    if (!opened) {
-      window.location.assign(targetUrl.toString())
+  const loadAllowedSecretTemplates = useCallback(async () => {
+    const data = await pb.send<SecretTemplate[]>('/api/secrets/templates', { method: 'GET' })
+    return (Array.isArray(data) ? data : [])
+      .filter(template => SECRET_TEMPLATE_IDS.has(template.id))
+      .map(template => ({
+        ...template,
+        label: SECRET_TEMPLATE_LABELS[template.id] ?? template.label,
+      }))
+  }, [])
+
+  const openSecretEditor = useCallback(
+    async (secretId: string) => {
+      setSecretEditOpen(true)
+      setSecretEditLoading(true)
+      setSecretEditSaving(false)
+      setSecretEditError('')
+      setSecretEditId(secretId)
+      setSecretEditPayload({})
+
+      try {
+        const [secret, templates] = await Promise.all([
+          pb.collection('secrets').getOne(secretId),
+          loadAllowedSecretTemplates(),
+        ])
+
+        setSecretEditTemplates(templates)
+        setSecretEditName(String(secret.name ?? ''))
+        setSecretEditDescription(String(secret.description ?? ''))
+        setSecretEditTemplateId(String(secret.template_id ?? ''))
+      } catch (error) {
+        setSecretEditError(error instanceof Error ? error.message : 'Failed to load secret')
+      } finally {
+        setSecretEditLoading(false)
+      }
+    },
+    [loadAllowedSecretTemplates]
+  )
+
+  const closeSecretEditor = useCallback((open: boolean) => {
+    setSecretEditOpen(open)
+    if (!open) {
+      setSecretEditLoading(false)
+      setSecretEditSaving(false)
+      setSecretEditError('')
+      setSecretEditId('')
+      setSecretEditName('')
+      setSecretEditDescription('')
+      setSecretEditTemplateId('')
+      setSecretEditPayload({})
+      setSecretEditTemplates([])
     }
   }, [])
+
+  const handleSecretEditSave = useCallback(async () => {
+    if (!secretEditId) {
+      return
+    }
+    if (!secretEditName.trim()) {
+      setSecretEditError('Name is required')
+      return
+    }
+
+    setSecretEditSaving(true)
+    setSecretEditError('')
+    try {
+      await pb.collection('secrets').update(secretEditId, {
+        name: secretEditName.trim(),
+        description: secretEditDescription.trim(),
+      })
+
+      const payloadHasValues = Object.values(secretEditPayload).some(value => value.trim() !== '')
+      if (payloadHasValues) {
+        await pb.send(`/api/secrets/${secretEditId}/payload`, {
+          method: 'PUT',
+          body: { payload: secretEditPayload },
+        })
+      }
+
+      closeSecretEditor(false)
+    } catch (error) {
+      setSecretEditError(error instanceof Error ? error.message : 'Failed to update secret')
+    } finally {
+      setSecretEditSaving(false)
+    }
+  }, [closeSecretEditor, secretEditDescription, secretEditId, secretEditName, secretEditPayload])
 
   const renderDatabaseCredentialField = useCallback(
     ({
@@ -1133,6 +1228,88 @@ export function ServiceInstancesPage() {
           secretAddOption?.(id, label)
         }}
       />
+
+      <Dialog open={secretEditOpen} onOpenChange={closeSecretEditor}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Secret</DialogTitle>
+            <DialogDescription>
+              Update the selected Secret without leaving service instance editing.
+            </DialogDescription>
+          </DialogHeader>
+
+          {secretEditLoading ? (
+            <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading secret...
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label
+                  htmlFor="instance-secret-edit-name"
+                  className="text-sm font-medium text-foreground"
+                >
+                  Name <span className="text-destructive">*</span>
+                </label>
+                <input
+                  id="instance-secret-edit-name"
+                  type="text"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={secretEditName}
+                  onChange={event => setSecretEditName(event.target.value)}
+                  required
+                />
+              </div>
+
+              <SecretForm
+                templates={secretEditTemplates}
+                templateId={secretEditTemplateId}
+                payload={secretEditPayload}
+                onTemplateChange={() => {}}
+                onPayloadChange={(key, value) => {
+                  setSecretEditPayload(prev => ({ ...prev, [key]: value }))
+                }}
+                disableTemplateChange
+              />
+
+              <div className="space-y-2">
+                <label
+                  htmlFor="instance-secret-edit-description"
+                  className="text-sm font-medium text-foreground"
+                >
+                  Description
+                </label>
+                <input
+                  id="instance-secret-edit-description"
+                  type="text"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={secretEditDescription}
+                  onChange={event => setSecretEditDescription(event.target.value)}
+                />
+              </div>
+
+              {secretEditError ? <p className="text-sm text-destructive">{secretEditError}</p> : null}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => closeSecretEditor(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                void handleSecretEditSave()
+              }}
+              disabled={secretEditLoading || secretEditSaving}
+            >
+              {secretEditSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Save Secret
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

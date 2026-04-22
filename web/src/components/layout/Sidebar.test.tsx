@@ -7,6 +7,7 @@ let isDesktop = true
 let sidebarOpen = false
 const assignMock = vi.fn()
 const setSidebarOpenMock = vi.fn()
+const toggleSidebarMock = vi.fn()
 
 vi.mock('./sidebar-navigation', () => ({
   navigateSidebarHref: (...args: unknown[]) => assignMock(...args),
@@ -36,7 +37,7 @@ vi.mock('@/contexts/LayoutContext', () => ({
     sidebarCollapsed: false,
     sidebarOpen,
     setSidebarOpen: setSidebarOpenMock,
-    toggleSidebar: vi.fn(),
+    toggleSidebar: toggleSidebarMock,
     isDesktop,
   }),
 }))
@@ -52,6 +53,7 @@ afterEach(() => {
   isDesktop = true
   sidebarOpen = false
   setSidebarOpenMock.mockReset()
+  toggleSidebarMock.mockReset()
 })
 
 describe('Sidebar', () => {
@@ -226,5 +228,33 @@ describe('Sidebar', () => {
     fireEvent.click(screen.getByRole('link', { name: 'My Apps' }))
 
     expect(setSidebarOpenMock).toHaveBeenCalledWith(false)
+  })
+
+  it('toggles the desktop sidebar when the blank sidebar area is clicked', () => {
+    pathname = '/overview'
+
+    render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
+
+    fireEvent.click(screen.getByTestId('sidebar-blank-area'))
+
+    expect(toggleSidebarMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the pointer cursor on the blank sidebar area', () => {
+    pathname = '/overview'
+
+    render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
+
+    expect(screen.getByTestId('sidebar-blank-area')).toHaveClass('cursor-pointer')
+  })
+
+  it('does not toggle the desktop sidebar when an interactive nav item is double-clicked', () => {
+    pathname = '/overview'
+
+    render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
+
+    fireEvent.doubleClick(screen.getByRole('link', { name: 'Overview' }))
+
+    expect(toggleSidebarMock).not.toHaveBeenCalled()
   })
 })

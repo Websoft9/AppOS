@@ -766,3 +766,43 @@ func TestTunnelSetupScriptRateLimiter(t *testing.T) {
 		t.Fatal("expected rate limiting after burst, but all requests succeeded")
 	}
 }
+
+func TestTunnelSetupScriptReturnsShellForPayloadBackedToken(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	setupScriptLimiters = sync.Map{}
+	tunnelTokenCache = sync.Map{}
+	server := createTunnelServerRecord(t, te, "setup-script-1")
+	createTunnelTokenSecret(t, te, server.Id, "setup-token-123")
+
+	r, err := apis.NewRouter(te.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.GET("/tunnel/setup/{token}", func(e *core.RequestEvent) error {
+		return handleTunnelSetupScript(e)
+	})
+	mux, err := r.BuildMux()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/tunnel/setup/setup-token-123", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if contentType := rec.Header().Get("Content-Type"); !strings.Contains(contentType, "text/x-sh") {
+		t.Fatalf("expected shell content type, got %q", contentType)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "#!/bin/bash") {
+		t.Fatalf("expected shell script body, got %q", body)
+	}
+	if !strings.Contains(body, "setup-token-123") {
+		t.Fatalf("expected token in shell script, got %q", body)
+	}
+}

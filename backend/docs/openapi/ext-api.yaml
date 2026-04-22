@@ -6089,6 +6089,46 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/servers/local/docker-bridge:
+    get:
+      tags: [Servers]
+      summary: Get servers local docker bridge
+      operationId: get_api_servers_local_docker-bridge
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/servers/view:
+    get:
+      tags: [Servers]
+      summary: Get servers view
+      operationId: get_api_servers_view
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/servers/{serverId}/ops/connectivity:
     get:
       tags: [Servers]

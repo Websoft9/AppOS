@@ -30,7 +30,7 @@ func (r tunnelRepository) findTunnelTokenSecret(managedServerID string) (*core.R
 func (r tunnelRepository) findTunnelTokenSecrets() ([]*core.Record, error) {
 	return r.app.FindRecordsByFilter(
 		"secrets",
-		"type = 'tunnel_token' && value != ''",
+		"type = 'tunnel_token' && (payload_encrypted != '' || value != '')",
 		"", 0, 0,
 	)
 }

@@ -433,8 +433,8 @@ Establish the `servers` collection and its full CRUD surface. This is a pure dat
 
 **Frontend:**
 - Route: `/resources/servers` (list) + `/resources/servers/new` + `/resources/servers/:id`
-- List page: name, host, port, connect_type, credential columns; row actions Edit / Delete
-- Form: all fields with credential picker (filtered to `template_id ∈ {single_value, ssh_key}`, `status = active`)
+- List page: name, host, port, connect_type, credential columns; shared `Access` column for current usability across both direct and tunnel servers; tunnel-only `Tunnel` column for onboarding/readiness state; row actions Edit / Delete
+- Form: all fields with credential picker (filtered to `template_id ∈ {single_value, ssh_key}`, `status = active`); `Connection Type` should be presented as two parallel choice cards with concise AppOS-oriented helper copy rather than a plain dropdown
 - Tunnel server field shown only when `connect_type = tunnel` (conditional field visibility)
 
 ---

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"regexp"
 	"strings"
@@ -167,22 +166,13 @@ func handleServerConnectivity(e *core.RequestEvent) error {
 		response["latency_ms"] = time.Since(start).Milliseconds()
 		return e.JSON(http.StatusOK, response)
 	default:
-		host := ms.Host
-		port := ms.Port
-		if strings.TrimSpace(host) == "" {
-			response["reason"] = "server host is empty"
+		probe := directServerAccessProbe(ms.Host, ms.Port)
+		if probe.Access.Status != "available" {
+			response["reason"] = probe.Detail
 			return e.JSON(http.StatusOK, response)
 		}
-		addr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
-		start := time.Now()
-		conn, dialErr := net.DialTimeout("tcp", addr, 5*time.Second)
-		if dialErr != nil {
-			response["reason"] = dialErr.Error()
-			return e.JSON(http.StatusOK, response)
-		}
-		_ = conn.Close()
 		response["status"] = "online"
-		response["latency_ms"] = time.Since(start).Milliseconds()
+		response["latency_ms"] = probe.LatencyMS
 		return e.JSON(http.StatusOK, response)
 	}
 }

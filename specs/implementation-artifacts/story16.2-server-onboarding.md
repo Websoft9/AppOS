@@ -348,22 +348,13 @@ On connected: show success state 2 s, then close.
 On unmount: pb.collection("servers").unsubscribe(id)
 ```
 
-#### Servers list — tunnel_status badge
+#### Servers list — tunnel entry state
 
-In `servers.tsx` columns, add a `tunnel_status` column rendered only for tunnel servers:
+The server list column model is owned by Story 20.1 (Server Registry). For tunnel onboarding, this story contributes the tunnel-specific lifecycle signal only:
 
-```tsx
-{
-  key: "tunnel_status",
-  label: "Tunnel",
-  render: (v, row) => {
-    if (row.connect_type !== "tunnel") return null
-    return <Badge variant={v === "online" ? "success" : "secondary"}>
-      {v === "online" ? "Online" : "Offline"}
-    </Badge>
-  }
-}
-```
+- tunnel servers should expose a tunnel-specific list indicator through the `Tunnel` column defined in Story 20.1
+- this indicator is for onboarding/readiness state, not for generic cross-type availability
+- generic availability remains in the shared `Access` column owned by the Server Registry story
 
 #### Token rotation — in server detail / edit dialog
 

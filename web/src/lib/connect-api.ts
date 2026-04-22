@@ -194,6 +194,11 @@ export interface ReleaseServerPortResponse {
   after?: ServerPortOccupancy
 }
 
+export interface LocalDockerBridgeResponse {
+  interface: string
+  address: string
+}
+
 // ─── SFTP operations ──────────────────────────────────────────────────────────
 
 function terminalSftpBasePath(serverId: string): string {
@@ -205,6 +210,13 @@ export async function sftpList(serverId: string, path: string): Promise<SFTPList
     `${terminalSftpBasePath(serverId)}/list?path=${encodeURIComponent(path)}`,
     {}
   )
+}
+
+export async function getLocalDockerBridgeAddress(): Promise<string> {
+  const response = await pb.send<LocalDockerBridgeResponse>('/api/servers/local/docker-bridge', {
+    method: 'GET',
+  })
+  return String(response.address ?? '')
 }
 
 export function sftpDownloadUrl(serverId: string, path: string): string {

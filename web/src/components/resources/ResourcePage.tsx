@@ -60,7 +60,6 @@ import {
 } from '@/components/ui/alert-dialog'
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -355,6 +354,10 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
     (config.pageSizeSelectorPlacement ?? 'header') === 'header'
   const showFooterPageSizeSelector =
     (config.pageSizeSelectorPlacement ?? 'header') === 'footer'
+  const paginationPlacement = config.paginationPlacement ?? 'footer'
+  const paginationVariant = config.paginationVariant ?? 'default'
+  const showHeaderPagination = paginationPlacement === 'header'
+  const showFooterPagination = paginationPlacement === 'footer'
   const showPaginationSummary = config.paginationSummary ?? true
   const showListControlsBorder = config.listControlsBorder ?? true
   const showListControlsReset = config.listControlsShowReset ?? true
@@ -504,6 +507,19 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
     fetchItems()
   }, [fetchItems])
 
+  const previousRefreshKeyRef = useRef(config.refreshKey)
+  useEffect(() => {
+    if (config.refreshKey === undefined) {
+      previousRefreshKeyRef.current = config.refreshKey
+      return
+    }
+    if (config.refreshKey === previousRefreshKeyRef.current) {
+      return
+    }
+    previousRefreshKeyRef.current = config.refreshKey
+    void fetchItems()
+  }, [config.refreshKey, fetchItems])
+
   useEffect(() => {
     setPage(1)
   }, [searchQuery, pageSize, excludedFilters, showFavoritesOnly])
@@ -639,7 +655,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
       setCreateSelectionOpen(true)
       return
     }
-    openCreateForm()
+    openCreateForm(config.initialCreateData?.() ?? {})
   }
 
   function openEditDialog(item: Record<string, unknown>) {
@@ -765,6 +781,16 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
     setFormError('')
 
     try {
+      const validationMessage = config.validateForm?.({
+        formData,
+        editingItem,
+        activeFields,
+      })
+      if (validationMessage) {
+        setFormError(validationMessage)
+        return
+      }
+
       const payload = { ...formData }
       for (const field of activeFields) {
         if (field.readOnly) {
@@ -908,17 +934,18 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
             {options.map(option => {
               const checked = !excluded.has(option.value)
               return (
-                <DropdownMenuCheckboxItem
+                <label
                   key={option.value}
-                  checked={checked}
-                  className="px-2"
-                  onSelect={event => event.preventDefault()}
-                  onCheckedChange={value =>
-                    toggleFilterValue(column.key, option.value, value === true)
-                  }
+                  className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted"
                 >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={value =>
+                      toggleFilterValue(column.key, option.value, value === true)
+                    }
+                  />
                   <span>{option.label}</span>
-                </DropdownMenuCheckboxItem>
+                </label>
               )
             })}
           </div>
@@ -955,6 +982,74 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
           <span>{column.label}</span>
         )}
         {hasFilter ? renderFilterMenu(column) : null}
+      </div>
+    )
+  }
+
+  function renderPaginationControls() {
+    if (processedItems.length === 0 || totalPages <= 1 || paginationPlacement === 'none') {
+      return null
+    }
+
+    if (paginationVariant === 'minimal') {
+      return (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <button
+            type="button"
+            className="rounded px-1 py-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+            disabled={page <= 1}
+            onClick={() => setPage(page - 1)}
+            aria-label="Previous page"
+          >
+            {'<'}
+          </button>
+          <span className="min-w-5 text-center font-medium text-foreground">{page}</span>
+          <button
+            type="button"
+            className="rounded px-1 py-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+            disabled={page >= totalPages}
+            onClick={() => setPage(page + 1)}
+            aria-label="Next page"
+          >
+            {'>'}
+          </button>
+        </div>
+      )
+    }
+
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        {showPaginationSummary && (
+          <span>
+            {processedItems.length} total · Page {page} of {totalPages}
+          </span>
+        )}
+        {showFooterPageSizeSelector && (
+          <select
+            value={pageSize}
+            onChange={event => setPageSize(Number(event.target.value))}
+            className={INPUT_CLASS}
+          >
+            {(config.pageSizeOptions ?? [10, 20, 50]).map(option => (
+              <option key={option} value={option}>
+                {option} / page
+              </option>
+            ))}
+          </select>
+        )}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page >= totalPages}
+            onClick={() => setPage(page + 1)}
+          >
+            Next
+          </Button>
+        </div>
       </div>
     )
   }
@@ -1161,7 +1256,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
               </label>
             )}
           </div>
-          {(showHeaderPageSizeSelector || showListControlsReset) && (
+          {(showHeaderPageSizeSelector || showListControlsReset || showHeaderPagination) && (
             <div className="flex items-center gap-2 self-end sm:self-auto">
               {showHeaderPageSizeSelector && (
                 <select
@@ -1181,6 +1276,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                   Reset
                 </Button>
               )}
+              {showHeaderPagination ? renderPaginationControls() : null}
             </div>
           )}
         </div>
@@ -1443,45 +1539,13 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
         </Card>
       )}
 
-      {processedItems.length > 0 && totalPages > 1 && (
-        <div className="flex items-center justify-end gap-2 text-sm text-muted-foreground">
-          {showPaginationSummary && (
-            <span>
-              {processedItems.length} total · Page {page} of {totalPages}
-            </span>
-          )}
-          {showFooterPageSizeSelector && (
-            <select
-              value={pageSize}
-              onChange={event => setPageSize(Number(event.target.value))}
-              className={INPUT_CLASS}
-            >
-              {(config.pageSizeOptions ?? [10, 20, 50]).map(option => (
-                <option key={option} value={option}>
-                  {option} / page
-                </option>
-              ))}
-            </select>
-          )}
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => setPage(page + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
-      )}
+      {showFooterPagination ? renderPaginationControls() : null}
 
       {config.renderDetailPanel && selectedDetailItem && (
-        <div className="rounded-xl border bg-background p-5 shadow-sm">
-          {config.renderDetailPanel(selectedDetailItem, fetchItems)}
+        <div className={cn('border-t-2 border-border/70 pt-6', config.detailPanelWrapperClassName)}>
+          <div className={cn('rounded-xl border bg-background p-5 shadow-sm', config.detailPanelClassName)}>
+            {config.renderDetailPanel(selectedDetailItem, fetchItems)}
+          </div>
         </div>
       )}
 

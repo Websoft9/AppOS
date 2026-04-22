@@ -183,4 +183,42 @@ describe('ResourcePage list controls', () => {
     expect(await screen.findByText('Choose a Product')).toBeInTheDocument()
     expect(screen.getByText('MySQL')).toBeInTheDocument()
   })
+
+  it('re-fetches items when refreshKey changes', async () => {
+    function RefreshHarness() {
+      const [refreshKey, setRefreshKey] = useState(0)
+      const listItems = vi.fn(async () =>
+        refreshKey === 0
+          ? [{ id: 'server-1', name: 'alpha' }]
+          : [{ id: 'server-1', name: 'alpha-online' }]
+      )
+
+      const config: ResourcePageConfig = {
+        title: 'Servers',
+        apiPath: '/api/collections/servers/records',
+        listItems,
+        refreshKey,
+        fields: [{ key: 'name', label: 'Name', type: 'text', required: true }],
+        columns: [{ key: 'name', label: 'Name' }],
+        wrapTableInCard: false,
+      }
+
+      return (
+        <>
+          <button type="button" onClick={() => setRefreshKey(1)}>
+            Trigger refresh
+          </button>
+          <ResourcePage config={config} />
+        </>
+      )
+    }
+
+    render(<RefreshHarness />)
+
+    expect(await screen.findByText('alpha')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Trigger refresh' }))
+
+    expect(await screen.findByText('alpha-online')).toBeInTheDocument()
+  })
 })

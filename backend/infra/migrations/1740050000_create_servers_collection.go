@@ -39,7 +39,7 @@ func init() {
 		})
 		servers.Fields.Add(&core.TextField{
 			Name:     "host",
-			Required: true,
+			Required: false,
 		})
 		servers.Fields.Add(&core.NumberField{
 			Name:    "port",

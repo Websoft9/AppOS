@@ -357,7 +357,7 @@ func TestServersCollectionFields(t *testing.T) {
 	}
 
 	assertFieldExists(t, col, "name", core.FieldTypeText, true)
-	assertFieldExists(t, col, "host", core.FieldTypeText, true)
+	assertFieldExists(t, col, "host", core.FieldTypeText, false)
 	assertFieldExists(t, col, "port", core.FieldTypeNumber, false)
 	assertFieldExists(t, col, "user", core.FieldTypeText, true)
 	// auth_type removed in migration 1762700000 — credential type is inferred from secret.template_id

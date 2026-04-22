@@ -1,9 +1,13 @@
-import { useRef, useState, type ReactNode } from 'react'
-import { Upload } from 'lucide-react'
+import { useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Eye, EyeOff, Upload } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
+
+const FIXED_TEXTAREA_STYLE: CSSProperties = {
+  fieldSizing: 'fixed',
+}
 
 export interface SecretTemplateField {
   key: string
@@ -111,6 +115,7 @@ export function SecretForm({
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   const [uploadError, setUploadError] = useState<string>('')
+  const [revealedFields, setRevealedFields] = useState<Record<string, boolean>>({})
 
   function handleFileUpload(fieldKey: string, file: File) {
     setUploadError('')
@@ -156,9 +161,6 @@ export function SecretForm({
             </option>
           ))}
         </select>
-        {selectedTemplate?.description && (
-          <p className="text-sm text-muted-foreground">{selectedTemplate.description}</p>
-        )}
       </div>
 
       {selectedTemplate && (
@@ -168,6 +170,7 @@ export function SecretForm({
             const isTextarea = field.type === 'textarea'
             const inputId = `secret-form-${templateId}-${field.key}`
             const fieldAccessory = renderFieldAccessory?.(field)
+            const isRevealed = Boolean(revealedFields[inputId])
             return (
               <div key={field.key} className="space-y-2">
                 <Label htmlFor={inputId}>
@@ -181,19 +184,38 @@ export function SecretForm({
                     value={payload[field.key] ?? ''}
                     onChange={e => onPayloadChange(field.key, e.target.value)}
                     rows={6}
-                    className="font-mono text-xs"
+                    style={FIXED_TEXTAREA_STYLE}
+                    className="min-h-32 max-h-80 resize-y overflow-auto font-mono text-xs"
                     placeholder={field.upload ? 'Paste content or upload a file...' : ''}
                   />
                 ) : (
                   <div className="flex items-center gap-2">
-                    <Input
-                      id={inputId}
-                      type={isPassword ? 'password' : 'text'}
-                      required={field.required}
-                      value={payload[field.key] ?? ''}
-                      onChange={e => onPayloadChange(field.key, e.target.value)}
-                      className="flex-1"
-                    />
+                    <div className="relative flex-1">
+                      <Input
+                        id={inputId}
+                        type={isPassword && !isRevealed ? 'password' : 'text'}
+                        required={field.required}
+                        value={payload[field.key] ?? ''}
+                        onChange={e => onPayloadChange(field.key, e.target.value)}
+                        className={isPassword ? 'pr-10' : undefined}
+                      />
+                      {isPassword ? (
+                        <button
+                          type="button"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                          title={isRevealed ? 'Hide value' : 'Show value'}
+                          onClick={() =>
+                            setRevealedFields(prev => ({ ...prev, [inputId]: !prev[inputId] }))
+                          }
+                        >
+                          {isRevealed ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </button>
+                      ) : null}
+                    </div>
                     {fieldAccessory ? <div className="shrink-0">{fieldAccessory}</div> : null}
                   </div>
                 )}

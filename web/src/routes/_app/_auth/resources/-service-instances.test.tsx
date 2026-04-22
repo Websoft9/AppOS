@@ -5,6 +5,8 @@ import { ServiceInstancesPage } from './service-instances'
 
 const sendMock = vi.fn()
 const createSecretMock = vi.fn()
+const getSecretMock = vi.fn()
+const updateSecretMock = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute:
@@ -27,6 +29,8 @@ vi.mock('@/lib/pb', () => ({
       }
       return {
         create: (...args: unknown[]) => createSecretMock(...args),
+        getOne: (...args: unknown[]) => getSecretMock(...args),
+        update: (...args: unknown[]) => updateSecretMock(...args),
       }
     },
   },
@@ -36,7 +40,16 @@ describe('ServiceInstancesPage', () => {
   beforeEach(() => {
     sendMock.mockReset()
     createSecretMock.mockReset()
+    getSecretMock.mockReset()
+    updateSecretMock.mockReset()
     createSecretMock.mockResolvedValue({ id: 'secret-created' })
+    getSecretMock.mockResolvedValue({
+      id: 'secret-1',
+      name: 'db-password',
+      description: 'existing description',
+      template_id: 'single_value',
+    })
+    updateSecretMock.mockResolvedValue({ id: 'secret-1' })
 
     sendMock.mockImplementation(
       (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
@@ -370,9 +383,9 @@ describe('ServiceInstancesPage', () => {
       )
     ).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'mysql-prod-password' } })
+    fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'mysql-prod-password' } })
     fireEvent.change(screen.getByLabelText('Value *'), { target: { value: 's3cr3t' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Create Secret' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create Credential' }))
 
     await waitFor(() => {
       expect(createSecretMock).toHaveBeenCalledWith({
@@ -382,6 +395,118 @@ describe('ServiceInstancesPage', () => {
         scope: 'global',
         payload: { value: 's3cr3t' },
       })
+    })
+  })
+
+  it('edits an existing secret inline without navigating away', async () => {
+    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+      if (path === '/api/instances/templates') {
+        return Promise.resolve([
+          {
+            id: 'generic-mysql',
+            category: 'database',
+            kind: 'mysql',
+            title: 'Generic MySQL',
+            commonFieldDefaults: { username: 'root' },
+            fields: [
+              { id: 'database', label: 'Database', type: 'text', required: true, default: 'MySQL' },
+              { id: 'ssl_ca_certificate', label: 'SSL Root CA Certificate', type: 'text' },
+            ],
+          },
+        ])
+      }
+      if (path === '/api/secrets/templates') {
+        return Promise.resolve([
+          {
+            id: 'single_value',
+            label: 'Single Value',
+            fields: [{ key: 'value', label: 'Value', type: 'password', required: true }],
+          },
+        ])
+      }
+      if (path === '/api/instances' && (!options?.method || options.method === 'GET')) {
+        return Promise.resolve([
+          {
+            id: 'instance-1',
+            created: '2026-04-11T08:30:00Z',
+            updated: '2026-04-11T09:45:00Z',
+            name: 'mysql-prod',
+            kind: 'mysql',
+            template_id: 'generic-mysql',
+            endpoint: 'db.example.com:3306',
+            credential: 'secret-1',
+            config: {
+              database: 'appdb',
+              username: 'root',
+              ssl_enabled: true,
+            },
+          },
+        ])
+      }
+      if (path.startsWith('/api/collections/monitor_latest_status/records?')) {
+        return Promise.resolve({ items: [] })
+      }
+      if (path.startsWith('/api/collections/secrets/records?filter=')) {
+        return Promise.resolve({ items: [{ id: 'secret-1', name: 'db-password' }] })
+      }
+      if (path === '/api/provider-accounts') {
+        return Promise.resolve([])
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === "/api/collections/certificates/records?filter=(status='active')&sort=name") {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === '/api/secrets/secret-1/payload') {
+        return Promise.resolve({ ok: true })
+      }
+      return Promise.resolve([])
+    })
+
+    render(<ServiceInstancesPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('mysql-prod')).toBeInTheDocument()
+    })
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(await screen.findByText('Edit'))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Edit Secret' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Secret' }))
+
+    expect(await screen.findByText('Update the selected Secret without leaving service instance editing.')).toBeInTheDocument()
+    expect(getSecretMock).toHaveBeenCalledWith('secret-1')
+
+    fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'db-password-updated' } })
+    fireEvent.change(screen.getByLabelText('Description'), {
+      target: { value: 'updated description' },
+    })
+    fireEvent.change(screen.getByLabelText('Value *'), { target: { value: 'new-secret-value' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Secret' }))
+
+    await waitFor(() => {
+      expect(updateSecretMock).toHaveBeenCalledWith('secret-1', {
+        name: 'db-password-updated',
+        description: 'updated description',
+      })
+    })
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/secrets/secret-1/payload', {
+        method: 'PUT',
+        body: { payload: { value: 'new-secret-value' } },
+      })
+    })
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText('Update the selected Secret without leaving service instance editing.')
+      ).not.toBeInTheDocument()
     })
   })
 

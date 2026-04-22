@@ -145,19 +145,12 @@ export function SecretCreateDialog({
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="shared-secret-name">Name</Label>
+              <Label htmlFor="shared-secret-name">Name *</Label>
               <Input
                 id="shared-secret-name"
                 value={name}
                 onChange={event => setName(event.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="shared-secret-description">Description</Label>
-              <Input
-                id="shared-secret-description"
-                value={secretDescription}
-                onChange={event => setSecretDescription(event.target.value)}
+                required
               />
             </div>
 
@@ -187,6 +180,15 @@ export function SecretCreateDialog({
               }
             />
 
+            <div className="space-y-2">
+              <Label htmlFor="shared-secret-description">Description</Label>
+              <Input
+                id="shared-secret-description"
+                value={secretDescription}
+                onChange={event => setSecretDescription(event.target.value)}
+              />
+            </div>
+
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
 
@@ -195,7 +197,7 @@ export function SecretCreateDialog({
               Cancel
             </Button>
             <Button type="button" onClick={() => void handleCreate()} disabled={saving}>
-              Create Secret
+              Create Credential
             </Button>
           </DialogFooter>
         </DialogContent>

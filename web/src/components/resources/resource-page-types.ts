@@ -51,6 +51,7 @@ export interface FieldDef {
   options?: SelectOption[]
   defaultValue?: unknown
   hidden?: boolean
+  hideLabel?: boolean
   header?: boolean
   advanced?: boolean
   helpText?: string
@@ -116,6 +117,8 @@ export interface ResourcePageConfig {
   listControlsShowReset?: boolean
   pageSizeSelectorPlacement?: 'header' | 'footer' | 'none'
   paginationSummary?: boolean
+  paginationPlacement?: 'header' | 'footer' | 'none'
+  paginationVariant?: 'default' | 'minimal'
   createSelection?: {
     title: string
     description?: string
@@ -143,6 +146,12 @@ export interface ResourcePageConfig {
     description?: ReactNode
     hideSelectedProductSummary?: boolean
   }
+  initialCreateData?: () => Record<string, unknown>
+  validateForm?: (ctx: {
+    formData: Record<string, unknown>
+    editingItem: Record<string, unknown> | null
+    activeFields: FieldDef[]
+  }) => string | null
   resolveFields?: (ctx: {
     formData: Record<string, unknown>
     editingItem: Record<string, unknown> | null
@@ -167,11 +176,14 @@ export interface ResourcePageConfig {
   selectedItemId?: string
   onSelectItem?: (item: Record<string, unknown> | null) => void
   renderDetailPanel?: (item: Record<string, unknown>, refreshList: () => Promise<void>) => ReactNode
+  detailPanelWrapperClassName?: string
+  detailPanelClassName?: string
   resourceType?: string
   listItems?: () => Promise<Record<string, unknown>[]>
   createItem?: (payload: Record<string, unknown>) => Promise<Record<string, unknown>>
   updateItem?: (id: string, payload: Record<string, unknown>) => Promise<void>
   deleteItem?: (id: string) => Promise<void>
+  refreshKey?: number
   resetFormButtonLabel?: string
   initialEditId?: string
   onInitialEditHandled?: () => void

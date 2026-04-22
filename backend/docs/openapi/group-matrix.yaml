@@ -346,6 +346,8 @@ groups:
     apiType: Mixed
     extSurface:
       - GET /api/ext/docker/servers
+      - GET /api/servers/view
+      - GET /api/servers/local/docker-bridge
       - GET /api/servers/{serverId}/ops/connectivity
       - POST /api/servers/{serverId}/ops/power
       - GET /api/servers/{serverId}/ops/ports
@@ -373,6 +375,7 @@ groups:
         - docker.go
         - server.go
         - server_ops.go
+        - server_view.go
       nativeRefs:
         - https://pocketbase.io/docs/api-records/#crud-actions
 

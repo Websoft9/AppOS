@@ -11,6 +11,7 @@ interface SetupInfo {
 interface Props {
   serverId: string
   onClose: () => void
+  onConnected?: (serverId: string) => void
 }
 
 // Module-level constant — no reason to recreate on every render.
@@ -23,8 +24,7 @@ rm -f /etc/systemd/system/appos-tunnel.service
 systemctl daemon-reload
 echo "Done: appos-tunnel service removed."`
 
-export function TunnelSetupWizard({ serverId, onClose }: Props) {
-  const [token, setToken] = useState<string | null>(null)
+export function TunnelSetupWizard({ serverId, onClose, onConnected }: Props) {
   const [setup, setSetup] = useState<SetupInfo | null>(null)
   const [status, setStatus] = useState<'waiting' | 'connected' | 'error'>('waiting')
   const statusRef = useRef<'waiting' | 'connected' | 'error'>('waiting')
@@ -58,7 +58,6 @@ export function TunnelSetupWizard({ serverId, onClose }: Props) {
         }
 
         if (cancelled) return
-        setToken(setupRes.token ?? null)
         setSetup(setupRes)
       } catch (e) {
         if (!cancelled) {
@@ -83,6 +82,7 @@ export function TunnelSetupWizard({ serverId, onClose }: Props) {
         const rec = ev.record as Record<string, unknown>
         if (rec.tunnel_status === 'online' && statusRef.current !== 'connected') {
           setStatus('connected')
+          onConnected?.(serverId)
           // Auto-close after 2 s
           closeTimerRef.current = setTimeout(() => onClose(), 2000)
         }
@@ -101,7 +101,7 @@ export function TunnelSetupWizard({ serverId, onClose }: Props) {
         .unsubscribe(serverId)
         .catch(() => {})
     }
-  }, [serverId, onClose])
+  }, [serverId, onClose, onConnected])
 
   // ── Copy helper (with HTTP fallback) ─────────────────────────────────────
   function copy(text: string, key: string) {
@@ -201,25 +201,6 @@ export function TunnelSetupWizard({ serverId, onClose }: Props) {
                 </button>
               </div>
             </div>
-
-            {/* Token (for reference) */}
-            {token && (
-              <div className="space-y-1">
-                <label className="text-sm font-medium">Token</label>
-                <div className="relative">
-                  <pre className="text-xs bg-muted rounded-md px-4 py-3 overflow-x-auto pr-20 font-mono break-all whitespace-pre-wrap">
-                    {token}
-                  </pre>
-                  <button
-                    onClick={() => copy(token, 'token')}
-                    className="absolute right-2 top-2 text-xs px-2 py-1 rounded bg-background border border-input hover:bg-accent"
-                  >
-                    {copied === 'token' ? 'Copied!' : 'Copy'}
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* Uninstall script */}
             <details className="group">
               <summary className="text-sm font-medium cursor-pointer text-muted-foreground hover:text-foreground select-none">

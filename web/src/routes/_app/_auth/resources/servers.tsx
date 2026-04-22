@@ -1,7 +1,7 @@
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo, type ReactNode } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
-import { PlugZap, Loader2, Cable, Link as LinkIcon, RotateCcw, Power, RefreshCw } from 'lucide-react'
+import { PlugZap, Loader2, Cable, Link as LinkIcon, RotateCcw, Power, RefreshCw, CircleHelp } from 'lucide-react'
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import {
   Dialog,
@@ -18,11 +18,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ResourcePage, type Column, type FieldDef } from '@/components/resources/ResourcePage'
 import { TunnelSetupWizard } from '@/components/servers/TunnelSetupWizard'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
+import { SecretForm, type SecretTemplate } from '@/components/secrets/SecretForm'
 import { MonitorTargetPanel } from '@/components/monitor/MonitorTargetPanel'
 import { ServerSoftwarePanel } from '@/components/servers/ServerSoftwarePanel'
+import { useAuth } from '@/contexts/AuthContext'
+import { formatCreator } from '@/lib/groups'
 import { pb } from '@/lib/pb'
+import { cn } from '@/lib/utils'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   checkServerStatus as pingServerStatus,
+  getLocalDockerBridgeAddress,
   getSystemdStatus,
   installMonitorAgent,
   serverPower,
@@ -40,11 +46,92 @@ function buildDefaultCredentialSecretName() {
   return `server-credential-${Date.now().toString().slice(-6)}`
 }
 
+function buildDefaultServerName() {
+  return `server-${Date.now().toString().slice(-6)}`
+}
+
+function HelpPopoverButton({
+  label,
+  children,
+}: {
+  label: string
+  children: ReactNode
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          className="inline-flex h-5 w-5 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none"
+        >
+          <CircleHelp className="h-3.5 w-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="right"
+        align="start"
+        sideOffset={10}
+        className="w-64 text-xs leading-5"
+      >
+        {children}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function normalizePort(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') {
+    return null
+  }
+
+  const parsed = typeof value === 'number' ? value : Number(value)
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
+    return null
+  }
+
+  return parsed
+}
+
+function asObject(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>
+  }
+  return null
+}
+
+function isNonEmptyDateValue(value: unknown): boolean {
+  return typeof value === 'string' ? value.trim() !== '' : Boolean(value)
+}
+
+function tunnelNeedsSetup(item: Record<string, unknown>): boolean {
+  if (item.connect_type !== 'tunnel') return false
+  const tunnel = asObject(item.tunnel)
+  if (tunnel) {
+    return String(tunnel.state ?? '') === 'setup_required'
+  }
+  return !isNonEmptyDateValue(item.tunnel_connected_at) &&
+    !isNonEmptyDateValue(item.tunnel_last_seen) &&
+    !isNonEmptyDateValue(item.tunnel_disconnect_at)
+}
+
+function accessLabel(status: string): string {
+  if (status === 'online') return 'Available'
+  if (status === 'offline') return 'Unavailable'
+  return 'Unknown'
+}
+
 function formatSecretLabel(raw: Record<string, unknown>): string {
   const name = String(raw.name ?? raw.id)
   const tid = String(raw.template_id ?? '')
   const alias = TEMPLATE_ALIASES[tid]
   return alias ? `${name}  (${alias})` : name
+}
+
+function tunnelStateLabel(state: string): string {
+  if (state === 'setup_required') return 'Setup Required'
+  if (state === 'paused') return 'Paused'
+  return 'Ready'
 }
 
 function parseTunnelServices(value: unknown): Array<{ service_name: string; tunnel_port: number }> {
@@ -61,20 +148,103 @@ function parseTunnelServices(value: unknown): Array<{ service_name: string; tunn
   return []
 }
 
+async function listServerItems(currentUserId?: string, currentUserEmail?: string) {
+  const response = await pb.send<{ items?: Array<Record<string, unknown>> }>('/api/servers/view', {
+	method: 'GET',
+  })
+  return (response.items ?? []).map(item => {
+    const createdBy = String(item.created_by ?? '')
+    const createdByName = String(item.created_by_name ?? '').trim()
+    return {
+      ...item,
+      created_by_display:
+        createdByName || formatCreator(createdBy, currentUserId, currentUserEmail),
+    }
+  })
+}
+
 const fields: FieldDef[] = [
   {
     key: 'connect_type',
     label: 'Connection Type',
     type: 'select',
+    hideLabel: true,
     options: [
       { label: 'Direct SSH', value: 'direct' },
       { label: 'Reverse Tunnel', value: 'tunnel' },
     ],
     defaultValue: 'direct',
+    render: ({ field, value, setValue, updateField }) => {
+      const options = field.options ?? []
+      const currentValue = String(value || field.defaultValue || 'direct')
+      const descriptions: Record<string, string> = {
+        direct: 'AppOS reaches this server over SSH.',
+        tunnel: 'Server connects back from a private network.',
+      }
+
+      return (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-foreground">Connection Type</label>
+            <HelpPopoverButton label="Connection type help">
+              Choose how the managed server connects to AppOS.
+            </HelpPopoverButton>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {options.map(option => {
+              const selected = option.value === currentValue
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  className={cn(
+                    'cursor-pointer select-none rounded-2xl border px-4 py-4 text-left transition-colors',
+                    selected
+                      ? 'border-foreground bg-accent/40 shadow-sm'
+                      : 'border-border bg-background hover:bg-muted/50'
+                  )}
+                  onMouseDown={event => event.preventDefault()}
+                  onClick={event => {
+                    if (option.value !== 'direct') {
+                      updateField('use_local_host', false)
+                    }
+                    setValue(option.value)
+                    event.currentTarget.blur()
+                  }}
+                >
+                  <div className="flex items-center gap-3 text-sm font-medium text-foreground">
+                    <span
+                      className={cn(
+                        'flex h-4 w-4 items-center justify-center rounded-full border',
+                        selected ? 'border-foreground' : 'border-muted-foreground/50'
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'h-2 w-2 rounded-full bg-foreground transition-opacity',
+                          selected ? 'opacity-100' : 'opacity-0'
+                        )}
+                      />
+                    </span>
+                    {option.label}
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-muted-foreground md:whitespace-nowrap">
+                    {descriptions[option.value]}
+                  </p>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )
+    },
   },
   { key: 'name', label: 'Name', type: 'text', required: true, placeholder: 'my-server' },
-  { key: 'host', label: 'Host', type: 'text', placeholder: '192.168.1.1' },
-  { key: 'port', label: 'Port', type: 'number', defaultValue: 22 },
+  { key: 'host', label: 'Host', type: 'text', placeholder: '192.168.1.1', showWhen: { field: 'connect_type', values: ['direct'] } },
+  { key: 'use_local_host', label: 'Use local host', type: 'boolean', hidden: true, defaultValue: false },
+  { key: 'port', label: 'Port', type: 'number', defaultValue: 22, showWhen: { field: 'connect_type', values: ['direct'] } },
   { key: 'user', label: 'User', type: 'text', required: true, placeholder: 'root' },
   {
     key: 'credential',
@@ -90,8 +260,10 @@ const fields: FieldDef[] = [
 
 export function ServersPage() {
   const { create, returnGroup, returnType, edit, server, tab } = Route.useSearch()
+  const { user } = useAuth()
   const autoCreate = create === '1' || !!returnGroup
   const navigate = Route.useNavigate()
+  const [listRefreshKey, setListRefreshKey] = useState(0)
   const [wizardServerId, setWizardServerId] = useState<string | null>(null)
   const [checkingIds, setCheckingIds] = useState<Set<string>>(new Set())
   const [connectingOpen, setConnectingOpen] = useState(false)
@@ -106,21 +278,80 @@ export function ServersPage() {
   const [pingResults, setPingResults] = useState<Record<string, 'online' | 'offline'>>({})
 
   const [secretDialogOpen, setSecretDialogOpen] = useState(false)
+  const [dockerBridgeHost, setDockerBridgeHost] = useState('')
+  const [dockerBridgeLoading, setDockerBridgeLoading] = useState(false)
+  const [dockerBridgeError, setDockerBridgeError] = useState('')
   const [secretAddOption, setSecretAddOption] = useState<
     ((id: string, label: string) => void) | null
   >(null)
+  const [secretEditOpen, setSecretEditOpen] = useState(false)
+  const [secretEditLoading, setSecretEditLoading] = useState(false)
+  const [secretEditSaving, setSecretEditSaving] = useState(false)
+  const [secretEditError, setSecretEditError] = useState('')
+  const [secretEditId, setSecretEditId] = useState('')
+  const [secretEditName, setSecretEditName] = useState('')
+  const [secretEditDescription, setSecretEditDescription] = useState('')
+  const [secretEditTemplateId, setSecretEditTemplateId] = useState('')
+  const [secretEditPayload, setSecretEditPayload] = useState<Record<string, string>>({})
+  const [secretEditTemplates, setSecretEditTemplates] = useState<SecretTemplate[]>([])
   const defaultCredentialSecretName = useCallback(() => buildDefaultCredentialSecretName(), [])
+
+  const loadAllowedSecretTemplates = useCallback(async () => {
+    const data = await pb.send<SecretTemplate[]>('/api/secrets/templates', { method: 'GET' })
+    return (Array.isArray(data) ? data : [])
+      .filter(template => ALLOWED_TEMPLATES.has(template.id))
+      .map(template => ({
+        ...template,
+        label: TEMPLATE_ALIASES[template.id] ?? template.label,
+      }))
+  }, [])
+
+  const loadDockerBridgeHost = useCallback(async () => {
+    setDockerBridgeLoading(true)
+    setDockerBridgeError('')
+    try {
+      const address = await getLocalDockerBridgeAddress()
+      setDockerBridgeHost(address)
+      return address
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load docker0 address'
+      setDockerBridgeError(message)
+      return ''
+    } finally {
+      setDockerBridgeLoading(false)
+    }
+  }, [])
+
+  function sanitizeServerPayload(payload: Record<string, unknown>): Record<string, unknown> {
+    const next = { ...payload }
+    delete next.use_local_host
+      if (String(next.connect_type ?? 'direct') === 'tunnel') {
+        delete next.host
+        delete next.port
+      }
+    return next
+  }
 
   const getStatusValue = useCallback(
     (item: Record<string, unknown>) => {
       const id = String(item.id ?? '')
       if (pingResults[id]) return pingResults[id]
-      const raw = String(item.tunnel_status ?? '').toLowerCase()
-      if (raw === 'online' || raw === 'offline') return raw
+      const access = asObject(item.access)
+      const raw = String(access?.status ?? '').toLowerCase()
+      if (raw === 'available') return 'online'
+      if (raw === 'unavailable') return 'offline'
       return item.connect_type === 'tunnel' ? 'offline' : 'unknown'
     },
     [pingResults]
   )
+
+  const getTunnelValue = useCallback((item: Record<string, unknown>) => {
+    if (item.connect_type !== 'tunnel') return 'none'
+    const tunnel = asObject(item.tunnel)
+    const raw = String(tunnel?.state ?? '').toLowerCase()
+    if (raw === 'setup_required' || raw === 'paused' || raw === 'ready') return raw
+    return tunnelNeedsSetup(item) ? 'setup_required' : 'ready'
+  }, [])
 
   const openSecretDialog = useCallback(
     (callbacks: { addOption: (id: string, label: string) => void }) => {
@@ -130,15 +361,81 @@ export function ServersPage() {
     []
   )
 
-  const openSecretEditor = useCallback((secretId: string) => {
-    const targetUrl = new URL('/secrets', window.location.origin)
-    targetUrl.searchParams.set('id', secretId)
-    targetUrl.searchParams.set('edit', secretId)
-    const opened = window.open(targetUrl.toString(), '_blank', 'noopener,noreferrer')
-    if (!opened) {
-      window.location.assign(targetUrl.toString())
+  const openSecretEditor = useCallback(
+    async (secretId: string) => {
+      setSecretEditOpen(true)
+      setSecretEditLoading(true)
+      setSecretEditSaving(false)
+      setSecretEditError('')
+      setSecretEditId(secretId)
+      setSecretEditPayload({})
+
+      try {
+        const [secret, templates] = await Promise.all([
+          pb.collection('secrets').getOne(secretId),
+          loadAllowedSecretTemplates(),
+        ])
+
+        setSecretEditTemplates(templates)
+        setSecretEditName(String(secret.name ?? ''))
+        setSecretEditDescription(String(secret.description ?? ''))
+        setSecretEditTemplateId(String(secret.template_id ?? ''))
+      } catch (error) {
+        setSecretEditError(error instanceof Error ? error.message : 'Failed to load secret')
+      } finally {
+        setSecretEditLoading(false)
+      }
+    },
+    [loadAllowedSecretTemplates]
+  )
+
+  const closeSecretEditor = useCallback((open: boolean) => {
+    setSecretEditOpen(open)
+    if (!open) {
+      setSecretEditLoading(false)
+      setSecretEditSaving(false)
+      setSecretEditError('')
+      setSecretEditId('')
+      setSecretEditName('')
+      setSecretEditDescription('')
+      setSecretEditTemplateId('')
+      setSecretEditPayload({})
+      setSecretEditTemplates([])
     }
   }, [])
+
+  const handleSecretEditSave = useCallback(async () => {
+    if (!secretEditId) {
+      return
+    }
+    if (!secretEditName.trim()) {
+      setSecretEditError('Name is required')
+      return
+    }
+
+    setSecretEditSaving(true)
+    setSecretEditError('')
+    try {
+      await pb.collection('secrets').update(secretEditId, {
+        name: secretEditName.trim(),
+        description: secretEditDescription.trim(),
+      })
+
+      const payloadHasValues = Object.values(secretEditPayload).some(value => value.trim() !== '')
+      if (payloadHasValues) {
+        await pb.send(`/api/secrets/${secretEditId}/payload`, {
+          method: 'PUT',
+          body: { payload: secretEditPayload },
+        })
+      }
+
+      closeSecretEditor(false)
+    } catch (error) {
+      setSecretEditError(error instanceof Error ? error.message : 'Failed to update secret')
+    } finally {
+      setSecretEditSaving(false)
+    }
+  }, [closeSecretEditor, secretEditDescription, secretEditId, secretEditName, secretEditPayload])
 
   // Build fields (credential's create button needs component-level handler)
   const serverFields = useMemo<FieldDef[]>(
@@ -148,7 +445,7 @@ export function ServersPage() {
           ? {
               ...f,
               relationCreateButton: {
-                label: 'Create new credential secret',
+                label: 'New credential',
                 onClick: openSecretDialog,
               },
               relationEditButton: {
@@ -156,9 +453,73 @@ export function ServersPage() {
                 onClick: openSecretEditor,
               },
             }
+          : f.key === 'host'
+            ? {
+                ...f,
+                hideLabel: true,
+                render: ({ inputId, value, formData, setValue, updateField }) => {
+                  const isDirect = String(formData.connect_type ?? 'direct') === 'direct'
+                  const useLocalHost = Boolean(formData.use_local_host)
+                  const hostRequired = !String(formData.connect_type ?? 'direct').startsWith('tunnel')
+
+                  return (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <label htmlFor={inputId} className="text-sm font-medium text-foreground">
+                            {f.label}
+                            {hostRequired ? <span className="ml-1 text-destructive">*</span> : null}
+                          </label>
+                          <HelpPopoverButton label="Host help">
+                            Enter the IP address or domain name of the server managed by AppOS.
+                          </HelpPopoverButton>
+                        </div>
+                        {isDirect ? (
+                          <label className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-xs text-muted-foreground">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-input"
+                              checked={useLocalHost}
+                              onChange={async event => {
+                                const checked = event.target.checked
+                                updateField('use_local_host', checked)
+                                if (!checked) {
+                                  setDockerBridgeError('')
+                                  return
+                                }
+                                const address = dockerBridgeHost || (await loadDockerBridgeHost())
+                                if (address) {
+                                  setValue(address)
+                                } else {
+                                  updateField('use_local_host', false)
+                                }
+                              }}
+                            />
+                            <span>{dockerBridgeLoading ? 'Loading...' : 'Local host'}</span>
+                          </label>
+                        ) : null}
+                      </div>
+
+                      <input
+                        id={inputId}
+                        type="text"
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                        value={String(value ?? '')}
+                        onChange={event => setValue(event.target.value)}
+                        placeholder={f.placeholder}
+                        required={hostRequired}
+                      />
+
+                      {isDirect && dockerBridgeError ? (
+                        <p className="text-xs text-destructive">{dockerBridgeError}</p>
+                      ) : null}
+                    </div>
+                  )
+                },
+              }
           : f
       ),
-    [openSecretDialog, openSecretEditor]
+    [dockerBridgeError, dockerBridgeHost, dockerBridgeLoading, loadDockerBridgeHost, openSecretDialog, openSecretEditor]
   )
   const checkServerStatus = useCallback(async (item: Record<string, unknown>) => {
     const id = String(item.id)
@@ -292,6 +653,20 @@ export function ServersPage() {
       ],
       render: v => <Badge variant="outline">{v === 'tunnel' ? 'Tunnel' : 'Direct'}</Badge>,
     },
+    {
+      key: 'credential_type',
+      label: 'Credential',
+      searchable: true,
+      sortable: true,
+      filterOptions: Object.entries(TEMPLATE_ALIASES).map(([, label]) => ({
+        label,
+        value: label,
+      })),
+      render: value => {
+        const label = String(value ?? '').trim()
+        return label ? <Badge variant="secondary">{label}</Badge> : <span className="text-muted-foreground">—</span>
+      },
+    },
     { key: 'host', label: 'Host', searchable: true, sortable: true },
     {
       key: 'port',
@@ -301,72 +676,74 @@ export function ServersPage() {
     },
     { key: 'user', label: 'User', searchable: true, sortable: true },
     {
-      key: 'tunnel_status',
-      label: 'Status',
+      key: 'created_by_display',
+      label: 'Created by',
+      searchable: true,
+      sortable: true,
+      render: value => String(value || '—'),
+    },
+    {
+      key: 'access',
+      label: 'Access',
       filterOptions: [
-        { label: 'Online', value: 'online' },
-        { label: 'Offline', value: 'offline' },
+        { label: 'Available', value: 'online' },
+        { label: 'Unavailable', value: 'offline' },
         { label: 'Unknown', value: 'unknown' },
       ],
       filterValue: row => getStatusValue(row),
-      render: (v, row) => {
+      render: (_value, row) => {
         const id = String(row.id ?? '')
-        const ct = row.connect_type
         const checking = checkingIds.has(id)
 
-        // Local ping result takes priority over DB value
+        // Local ping result takes priority over backend value
         const local = pingResults[id]
-        const status = local ?? (ct === 'tunnel' ? (v as string) : undefined)
+        const status = local ?? getStatusValue(row)
 
-        if (ct === 'tunnel') {
-          return (
-            <button
-              type="button"
-              className="inline-flex"
-              title="Click to check status"
-              onClick={() => {
-                void checkServerStatus(row)
-              }}
-              disabled={checking}
-            >
-              {checking ? (
-                <Badge variant="outline">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                </Badge>
-              ) : status === 'online' ? (
-                <Badge variant="default">Online</Badge>
-              ) : (
-                <Badge variant="secondary">Offline</Badge>
-              )}
-            </button>
-          )
-        }
-
-        if (status === 'online') {
-          return <Badge variant="default">Online</Badge>
-        }
-        if (status === 'offline') {
-          return <Badge variant="secondary">Offline</Badge>
-        }
-        return <span className="text-muted-foreground">—</span>
+        return (
+          <button
+            type="button"
+            className="inline-flex"
+            title="Click to check access"
+            onClick={() => {
+              void checkServerStatus(row)
+            }}
+            disabled={checking}
+          >
+            {checking ? (
+              <Badge variant="outline">
+                <Loader2 className="h-3 w-3 animate-spin" />
+              </Badge>
+            ) : status === 'online' ? (
+              <Badge variant="default">{accessLabel(status)}</Badge>
+            ) : status === 'offline' ? (
+              <Badge variant="secondary">{accessLabel(status)}</Badge>
+            ) : (
+              <Badge variant="outline">{accessLabel(status)}</Badge>
+            )}
+          </button>
+        )
       },
     },
     {
-      key: 'tunnel_services',
-      label: 'Tunnel Ports',
-      searchable: true,
-      render: (v, row) => {
+      key: 'tunnel',
+      label: 'Tunnel',
+      filterOptions: [
+        { label: 'Setup Required', value: 'setup_required' },
+        { label: 'Paused', value: 'paused' },
+        { label: 'Ready', value: 'ready' },
+      ],
+      filterValue: row => getTunnelValue(row),
+      render: (_value, row) => {
         if (row.connect_type !== 'tunnel') {
           return <span className="text-muted-foreground">—</span>
         }
-        const services = parseTunnelServices(v)
-        if (!services.length) {
-          return <span className="text-muted-foreground">—</span>
-        }
-        return (
-          <span className="text-xs tabular-nums">
-            {services.map(s => `${s.service_name}:${s.tunnel_port}`).join('  ')}
-          </span>
+        const state = getTunnelValue(row)
+        return state === 'setup_required' ? (
+          <Badge variant="outline">{tunnelStateLabel(state)}</Badge>
+        ) : state === 'paused' ? (
+          <Badge variant="secondary">{tunnelStateLabel(state)}</Badge>
+        ) : (
+          <Badge variant="secondary">{tunnelStateLabel(state)}</Badge>
         )
       },
     },
@@ -377,8 +754,12 @@ export function ServersPage() {
       const isTunnel = item.connect_type === 'tunnel'
       const requestedTab = tab ?? 'detail'
       const detailTab = requestedTab === 'tunnel' && !isTunnel ? 'detail' : requestedTab
-      const services = parseTunnelServices(item.tunnel_services)
+      const tunnel = asObject(item.tunnel)
+      const services = parseTunnelServices(tunnel?.services ?? item.tunnel_services)
       const status = getStatusValue(item)
+      const tunnelState = getTunnelValue(item)
+      const detailTabTriggerClassName =
+        'h-9 flex-none rounded-md border-0 px-3 py-2 text-sm text-muted-foreground shadow-none after:hidden hover:bg-muted/60 hover:text-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground'
       const recordFields = [
         ['ID', String(item.id || '—')],
         ['Created', String(item.created || '—')],
@@ -386,7 +767,7 @@ export function ServersPage() {
       ]
       return (
         <div className="space-y-4">
-          <div className="border-b pb-4">
+          <div>
             <h2 className="text-xl font-semibold tracking-tight">
               {String(item.name || 'Unnamed Server')}
               <span className="ml-2 text-sm font-normal text-muted-foreground">{String(item.id || '')}</span>
@@ -402,15 +783,30 @@ export function ServersPage() {
               })
             }}
           >
-            <TabsList>
-              <TabsTrigger value="detail">Detail</TabsTrigger>
-              {isTunnel ? <TabsTrigger value="tunnel">Tunnel</TabsTrigger> : null}
-              <TabsTrigger value="monitor">Monitor</TabsTrigger>
-              <TabsTrigger value="runtime">Runtime</TabsTrigger>
-              <TabsTrigger value="software">Software</TabsTrigger>
+            <TabsList
+              variant="line"
+              className="justify-start rounded-none border-b border-border/50 px-0 pb-2"
+            >
+              <TabsTrigger value="detail" className={detailTabTriggerClassName}>
+                Detail
+              </TabsTrigger>
+              {isTunnel ? (
+                <TabsTrigger value="tunnel" className={detailTabTriggerClassName}>
+                  Tunnel
+                </TabsTrigger>
+              ) : null}
+              <TabsTrigger value="monitor" className={detailTabTriggerClassName}>
+                Monitor
+              </TabsTrigger>
+              <TabsTrigger value="runtime" className={detailTabTriggerClassName}>
+                Runtime
+              </TabsTrigger>
+              <TabsTrigger value="software" className={detailTabTriggerClassName}>
+                Software
+              </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="detail" className="mt-4">
+            <TabsContent value="detail" className="pt-4">
               <div className="grid gap-4 lg:grid-cols-2">
                 <div className="rounded-lg border bg-muted/10 p-4">
                   <h3 className="text-sm font-semibold">Overview</h3>
@@ -420,9 +816,15 @@ export function ServersPage() {
                       <dd className="mt-1">{isTunnel ? 'Reverse Tunnel' : 'Direct SSH'}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Status</dt>
-                      <dd className="mt-1">{status === 'unknown' ? 'Unknown' : status === 'online' ? 'Online' : 'Offline'}</dd>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Access</dt>
+                      <dd className="mt-1">{accessLabel(status)}</dd>
                     </div>
+                    {isTunnel ? (
+                      <div>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Tunnel</dt>
+                        <dd className="mt-1">{tunnelStateLabel(tunnelState)}</dd>
+                      </div>
+                    ) : null}
                     <div>
                       <dt className="text-xs uppercase tracking-wide text-muted-foreground">Host</dt>
                       <dd className="mt-1 break-all font-mono text-xs">{String(item.host || '—')}</dd>
@@ -471,18 +873,22 @@ export function ServersPage() {
             </TabsContent>
 
             {isTunnel ? (
-              <TabsContent value="tunnel" className="mt-4">
+              <TabsContent value="tunnel" className="pt-4">
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
                   <div className="rounded-lg border bg-muted/10 p-4">
-                    <h3 className="text-sm font-semibold">Tunnel Status</h3>
+                    <h3 className="text-sm font-semibold">Tunnel</h3>
                     <dl className="mt-4 space-y-4 text-sm">
                       <div>
                         <dt className="text-xs uppercase tracking-wide text-muted-foreground">Connection Mode</dt>
                         <dd className="mt-1">Reverse Tunnel</dd>
                       </div>
                       <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Status</dt>
-                        <dd className="mt-1">{status === 'online' ? 'Online' : 'Offline'}</dd>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Access</dt>
+                        <dd className="mt-1">{accessLabel(status)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">State</dt>
+                        <dd className="mt-1">{tunnelStateLabel(tunnelState)}</dd>
                       </div>
                     </dl>
                   </div>
@@ -506,7 +912,7 @@ export function ServersPage() {
               </TabsContent>
             ) : null}
 
-            <TabsContent value="monitor" className="mt-4">
+            <TabsContent value="monitor" className="pt-4">
               <div className="space-y-4">
                 <ServerMonitorAgentCard
                   serverId={String(item.id || '')}
@@ -520,20 +926,20 @@ export function ServersPage() {
               </div>
             </TabsContent>
 
-            <TabsContent value="runtime" className="mt-4">
+            <TabsContent value="runtime" className="pt-4">
               <div className="rounded-lg border bg-muted/10 p-4 text-sm text-muted-foreground">
                 Runtime details can later include active sessions, deployed workloads, and process information for {String(item.name || item.id)}.
               </div>
             </TabsContent>
 
-            <TabsContent value="software" className="mt-4">
+            <TabsContent value="software" className="pt-4">
               <ServerSoftwarePanel serverId={String(item.id || '')} />
             </TabsContent>
           </Tabs>
         </div>
       )
     },
-    [getStatusValue, navigate, tab]
+    [getStatusValue, getTunnelValue, navigate, tab]
   )
 
   const renderExtraActions = useCallback(
@@ -566,7 +972,7 @@ export function ServersPage() {
           {isTunnel && (
             <DropdownMenuItem onClick={() => setWizardServerId(id)}>
               <Cable className="h-4 w-4" />
-              Connect Setup
+              Tunnel Setup
             </DropdownMenuItem>
           )}
           <DropdownMenuItem onClick={() => handlePowerRequest(item, 'restart')}>
@@ -615,20 +1021,64 @@ export function ServersPage() {
           headerFilters: true,
           listControlsBorder: false,
           listControlsShowReset: false,
-          pageSizeSelectorPlacement: 'footer',
+          pageSizeSelectorPlacement: 'none',
+          paginationPlacement: 'header',
+          paginationVariant: 'minimal',
           paginationSummary: false,
+          dialogContentClassName: 'sm:max-w-4xl',
           resourceType: 'server',
           parentNav: { label: 'Resources', href: '/resources' },
-          listItems: async () => await pb.collection('servers').getFullList({ sort: 'name' }),
-          createItem: async payload => await pb.collection('servers').create(payload),
+          listItems: () => listServerItems(user?.id, String(user?.email ?? '')),
+          createItem: async payload =>
+            await pb.collection('servers').create({
+              ...sanitizeServerPayload(payload),
+              created_by: String(user?.id ?? ''),
+            }),
           updateItem: async (id, payload) => {
-            await pb.collection('servers').update(id, payload)
+            await pb.collection('servers').update(id, sanitizeServerPayload(payload))
           },
           deleteItem: async id => {
             await pb.collection('servers').delete(id)
           },
+          refreshKey: listRefreshKey,
           columns,
           fields: serverFields,
+          initialCreateData: () => ({
+            name: buildDefaultServerName(),
+            connect_type: 'direct',
+            use_local_host: false,
+          }),
+          validateForm: ({ formData }) => {
+            const isTunnel = String(formData.connect_type ?? 'direct') === 'tunnel'
+            const name = String(formData.name ?? '').trim()
+            const user = String(formData.user ?? '').trim()
+            const host = String(formData.host ?? '').trim()
+            const port = normalizePort(formData.port)
+
+            if (!name) return 'Name is required'
+            if (!user) return 'User is required'
+            if (!isTunnel && !host) return 'Host is required for Direct SSH connections'
+            if (!isTunnel && port === null) return 'Port is required for Direct SSH connections'
+            return null
+          },
+          resolveFields: ({ formData }) => {
+            const isTunnel = String(formData.connect_type ?? 'direct') === 'tunnel'
+            return serverFields.map(field => {
+              if (field.key === 'host') {
+                return {
+                  ...field,
+                  required: !isTunnel,
+                }
+              }
+              if (field.key === 'port') {
+                return {
+                  ...field,
+                  required: !isTunnel,
+                }
+              }
+              return field
+            })
+          },
           autoCreate,
           showRefreshButton: true,
           wrapTableInCard: false,
@@ -638,7 +1088,13 @@ export function ServersPage() {
           selectedItemId: server,
           onSelectItem: handleSelectServer,
           renderDetailPanel,
+          detailPanelWrapperClassName: 'border-t border-border/50 pt-5',
+          detailPanelClassName: 'rounded-none border-0 bg-transparent p-0 shadow-none',
           initialEditId: edit,
+          dialogHeader: ({ editingItem, title, description }) => ({
+            title: editingItem ? title : 'Add Server',
+            description,
+          }),
           onInitialEditHandled: () => {
             if (!edit) return
             void navigate({
@@ -669,7 +1125,11 @@ export function ServersPage() {
         }}
       />
       {wizardServerId && (
-        <TunnelSetupWizard serverId={wizardServerId} onClose={() => setWizardServerId(null)} />
+        <TunnelSetupWizard
+          serverId={wizardServerId}
+          onConnected={() => setListRefreshKey(current => current + 1)}
+          onClose={() => setWizardServerId(null)}
+        />
       )}
 
       <Dialog open={connectingOpen} onOpenChange={setConnectingOpen}>
@@ -735,8 +1195,8 @@ export function ServersPage() {
       <SecretCreateDialog
         open={secretDialogOpen}
         onOpenChange={setSecretDialogOpen}
-        title="Create Credential Secret"
-        description="Choose a type and fill in the credential details."
+        title="Create Credential"
+        description="Create a reusable credential and attach it to this server."
         allowedTemplateIds={Array.from(ALLOWED_TEMPLATES)}
         templateLabels={TEMPLATE_ALIASES}
         defaultTemplateId="single_value"
@@ -746,6 +1206,83 @@ export function ServersPage() {
           secretAddOption?.(id, label)
         }}
       />
+
+      <Dialog open={secretEditOpen} onOpenChange={closeSecretEditor}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Credential</DialogTitle>
+            <DialogDescription>Update the selected Secret without leaving server editing.</DialogDescription>
+          </DialogHeader>
+
+          {secretEditLoading ? (
+            <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading secret...
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="server-secret-edit-name" className="text-sm font-medium text-foreground">
+                  Name <span className="text-destructive">*</span>
+                </label>
+                <input
+                  id="server-secret-edit-name"
+                  type="text"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={secretEditName}
+                  onChange={event => setSecretEditName(event.target.value)}
+                  required
+                />
+              </div>
+
+              <SecretForm
+                templates={secretEditTemplates}
+                templateId={secretEditTemplateId}
+                payload={secretEditPayload}
+                onTemplateChange={() => {}}
+                onPayloadChange={(key, value) => {
+                  setSecretEditPayload(prev => ({ ...prev, [key]: value }))
+                }}
+                disableTemplateChange
+              />
+
+              <div className="space-y-2">
+                <label
+                  htmlFor="server-secret-edit-description"
+                  className="text-sm font-medium text-foreground"
+                >
+                  Description
+                </label>
+                <input
+                  id="server-secret-edit-description"
+                  type="text"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={secretEditDescription}
+                  onChange={event => setSecretEditDescription(event.target.value)}
+                />
+              </div>
+
+              {secretEditError ? <p className="text-sm text-destructive">{secretEditError}</p> : null}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => closeSecretEditor(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                void handleSecretEditSave()
+              }}
+              disabled={secretEditLoading || secretEditSaving}
+            >
+              {secretEditSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Save Credential
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

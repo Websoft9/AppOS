@@ -354,6 +354,10 @@ export function Sidebar({ groups }: SidebarProps) {
   const isSuperuser = user?.collectionName === '_superusers'
   const resolvedGroups = useMemo(() => groups ?? buildNavGroups(isSuperuser), [groups, isSuperuser])
 
+  const handleBackgroundClick = () => {
+    toggleSidebar()
+  }
+
   // Mobile/Tablet: Sheet drawer
   if (!isDesktop) {
     return (
@@ -388,10 +392,18 @@ export function Sidebar({ groups }: SidebarProps) {
         sidebarCollapsed ? 'w-[var(--sidebar-width-collapsed)]' : 'w-[var(--sidebar-width)]'
       )}
       style={{ gridArea: 'sidebar' }}
+      data-testid="app-sidebar"
     >
       {/* Nav groups */}
-      <div className="flex-1 py-3 overflow-y-auto">
-        <SidebarNav groups={resolvedGroups} collapsed={sidebarCollapsed} />
+      <div className="flex-1 overflow-y-auto py-3">
+        <div className="flex min-h-full flex-col">
+          <SidebarNav groups={resolvedGroups} collapsed={sidebarCollapsed} />
+          <div
+            className="min-h-6 flex-1 cursor-pointer"
+            onClick={handleBackgroundClick}
+            data-testid="sidebar-blank-area"
+          />
+        </div>
       </div>
 
       {/* Collapse toggle at bottom */}
