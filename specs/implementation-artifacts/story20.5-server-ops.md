@@ -9,13 +9,14 @@ This story adds minimal server operations in the Server runtime domain:
 - power actions: restart / shutdown
 - systemd service discovery
 - single service status and logs
-- lightweight UI entry points in Resource list and Terminal workspace
+- terminal workspace operation entry points and server-ops integration
 
 Resources CRUD stays in Epic 8 (`/api/collections/servers/records*`).
 
 ## UI Scope
 
-- On server resource list page, add `Restart` and `Shutdown` in row actions.
+- Canonical server list/detail UI placement now lives in [story20.6-server-ui.md](story20.6-server-ui.md).
+- This story only retains server-ops actions exposed through that surface, such as `Restart`, `Shutdown`, and connectivity-check integration.
 - Terminal operations are grouped under a top `Action` menu (right of `Docker`): `Run Script`, `Inspect Ports`, `Manage Services`.
 - `Port Inspector` dialog shows occupied/reserved ports, PID as dedicated column, compact table without horizontal scrolling, sorting, and per-row `Release` action.
 - `Release` uses confirmation dialog with optional force checkbox and danger warning; execution shows progress state.
@@ -51,7 +52,7 @@ All routes are under `/api/servers/{serverId}/ops`.
 
 ## Frontend Integration
 
-- Resource servers page action menu calls `POST /servers/{serverId}/ops/power`.
+- Resource servers page action menu calls `POST /servers/{serverId}/ops/power`, but row placement and naming are governed by [story20.6-server-ui.md](story20.6-server-ui.md).
 - Terminal page `Port Inspector` dialog calls:
   - list: `/servers/{serverId}/ops/ports`
   - release: `POST /servers/{serverId}/ops/ports/{port}/release`
@@ -86,7 +87,8 @@ All routes are under `/api/servers/{serverId}/ops`.
 - No arbitrary command passthrough.
 - Only allowlisted operations are exposed.
 - Keep route shape consistent with `/api/servers/{serverId}/ops/*` design.
-- Keep UX in existing pages and one modal only (no additional view hierarchy).
+- Keep terminal ops UX in existing pages and one modal only (no additional view hierarchy).
+- Follow Story 20.6 for server list/detail placement, naming, and primary-action hierarchy.
 
 ## Out of Scope
 

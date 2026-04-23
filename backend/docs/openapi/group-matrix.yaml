@@ -346,7 +346,7 @@ groups:
     apiType: Mixed
     extSurface:
       - GET /api/ext/docker/servers
-      - GET /api/servers/view
+      - GET /api/servers/connection
       - GET /api/servers/local/docker-bridge
       - GET /api/servers/{serverId}/ops/connectivity
       - POST /api/servers/{serverId}/ops/power

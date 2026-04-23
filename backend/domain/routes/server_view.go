@@ -56,7 +56,7 @@ var directServerAccessProbe = probeDirectServerAccess
 // @Success 200 {object} map[string]any "items: server registry view rows"
 // @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]any
-// @Router /api/servers/view [get]
+// @Router /api/servers/connection [get]
 func handleServersView(e *core.RequestEvent) error {
 	records, err := e.App.FindAllRecords("servers")
 	if err != nil {

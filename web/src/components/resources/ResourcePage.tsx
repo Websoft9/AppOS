@@ -65,7 +65,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { type PBList, pbFilterValue } from '@/lib/groups'
+import { getDrawerTierStyle } from '@/lib/drawer-tiers'
 import { cn } from '@/lib/utils'
 import { ResourceFormField } from './ResourceFormField'
 import type {
@@ -359,6 +361,16 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   const showHeaderPagination = paginationPlacement === 'header'
   const showFooterPagination = paginationPlacement === 'footer'
   const showPaginationSummary = config.paginationSummary ?? true
+  const pageSizeOptions = config.pageSizeOptions ?? [10, 20, 50]
+  const paginationTotalLabel = config.paginationTotalLabel?.(processedItems.length)
+  const detailPresentation = config.detailPresentation ?? 'inline'
+  const detailDrawerSide = config.detailDrawerSide ?? 'right'
+  const detailDrawerTitle = config.detailDrawerTitle ?? `${config.title.replace(/s$/, '')} Detail`
+  const detailDrawerTier = config.detailDrawerTier ?? 'lg'
+  const showInlinePageSizeSelector =
+    paginationVariant === 'minimal' &&
+    ((showHeaderPagination && showHeaderPageSizeSelector) ||
+      (showFooterPagination && showFooterPageSizeSelector))
   const showListControlsBorder = config.listControlsBorder ?? true
   const showListControlsReset = config.listControlsShowReset ?? true
   const favoriteActionPlacement = config.favoriteActionPlacement ?? 'beforeExtraActions'
@@ -986,56 +998,74 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
     )
   }
 
+  function renderPageSizeSelector(className?: string) {
+    return (
+      <select
+        value={pageSize}
+        onChange={event => setPageSize(Number(event.target.value))}
+        className={cn(INPUT_CLASS, 'h-8 w-auto py-1 pr-8 text-sm', className)}
+        aria-label="Rows per page"
+      >
+        {pageSizeOptions.map(option => (
+          <option key={option} value={option}>
+            {option} / page
+          </option>
+        ))}
+      </select>
+    )
+  }
+
   function renderPaginationControls() {
-    if (processedItems.length === 0 || totalPages <= 1 || paginationPlacement === 'none') {
+    if (paginationPlacement === 'none') {
       return null
     }
 
     if (paginationVariant === 'minimal') {
+      if (processedItems.length === 0) return null
       return (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <button
-            type="button"
-            className="rounded px-1 py-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-            disabled={page <= 1}
-            onClick={() => setPage(page - 1)}
-            aria-label="Previous page"
-          >
-            {'<'}
-          </button>
-          <span className="min-w-5 text-center font-medium text-foreground">{page}</span>
-          <button
-            type="button"
-            className="rounded px-1 py-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-            disabled={page >= totalPages}
-            onClick={() => setPage(page + 1)}
-            aria-label="Next page"
-          >
-            {'>'}
-          </button>
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          {paginationTotalLabel ? (
+            <span className="whitespace-nowrap">{paginationTotalLabel}</span>
+          ) : showPaginationSummary ? (
+            <span className="whitespace-nowrap">{processedItems.length} total</span>
+          ) : null}
+          {showInlinePageSizeSelector ? renderPageSizeSelector() : null}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              className="rounded p-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="min-w-5 text-center font-medium text-foreground">{page}</span>
+            <button
+              type="button"
+              className="rounded p-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+              disabled={page >= totalPages}
+              onClick={() => setPage(page + 1)}
+              aria-label="Next page"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       )
     }
 
+    // default full pager — only render when there's something to page through
+    if (processedItems.length === 0 || totalPages <= 1) return null
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        {showPaginationSummary && (
+        {(paginationTotalLabel || showPaginationSummary) && (
           <span>
-            {processedItems.length} total · Page {page} of {totalPages}
+            {paginationTotalLabel ?? `${processedItems.length} total`} · Page {page} of {totalPages}
           </span>
         )}
         {showFooterPageSizeSelector && (
-          <select
-            value={pageSize}
-            onChange={event => setPageSize(Number(event.target.value))}
-            className={INPUT_CLASS}
-          >
-            {(config.pageSizeOptions ?? [10, 20, 50]).map(option => (
-              <option key={option} value={option}>
-                {option} / page
-              </option>
-            ))}
-          </select>
+          renderPageSizeSelector('h-9')
         )}
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
@@ -1196,7 +1226,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
         >
           <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
             {searchableColumns.length > 0 && (
-              <div className="relative w-full sm:max-w-sm">
+              <div className={cn('relative', config.searchContainerClassName ?? 'w-full sm:max-w-sm')}>
                 <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   value={searchQuery}
@@ -1258,19 +1288,9 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
           </div>
           {(showHeaderPageSizeSelector || showListControlsReset || showHeaderPagination) && (
             <div className="flex items-center gap-2 self-end sm:self-auto">
-              {showHeaderPageSizeSelector && (
-                <select
-                  value={pageSize}
-                  onChange={event => setPageSize(Number(event.target.value))}
-                  className={INPUT_CLASS}
-                >
-                  {(config.pageSizeOptions ?? [10, 20, 50]).map(option => (
-                    <option key={option} value={option}>
-                      {option} / page
-                    </option>
-                  ))}
-                </select>
-              )}
+              {showHeaderPageSizeSelector && paginationVariant !== 'minimal'
+                ? renderPageSizeSelector('h-9')
+                : null}
               {showListControlsReset && (
                 <Button variant="ghost" size="sm" onClick={resetListControls}>
                   Reset
@@ -1318,7 +1338,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                   {config.columns.map(col => (
                     <TableHead key={col.key}>{renderColumnHeader(col)}</TableHead>
                   ))}
-                  <TableHead className="w-[72px] text-right">Actions</TableHead>
+                  <TableHead className={config.primaryAction ? 'w-[220px] text-right' : 'w-[72px] text-right'}>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1352,13 +1372,17 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                       </TableCell>
                     ))}
                     <TableCell className="text-right whitespace-nowrap">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" title="More actions">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                      <div className="flex items-center justify-end gap-2">
+                        {config.primaryAction?.(item, () => {
+                          void fetchItems()
+                        })}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" title="More actions">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
                           {favoriteActionPlacement === 'beforeExtraActions' && config.favoriteStorageKey && (
                             <>
                               <DropdownMenuItem onClick={() => toggleFavorite(String(item.id ?? ''))}>
@@ -1402,8 +1426,9 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                             <Trash2 className="h-4 w-4" />
                             Delete
                           </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1441,7 +1466,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                     {config.columns.map(col => (
                       <TableHead key={col.key}>{renderColumnHeader(col)}</TableHead>
                     ))}
-                    <TableHead className="w-[72px] text-right">Actions</TableHead>
+                    <TableHead className={config.primaryAction ? 'w-[220px] text-right' : 'w-[72px] text-right'}>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1477,13 +1502,17 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                         </TableCell>
                       ))}
                       <TableCell className="text-right whitespace-nowrap">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" title="More actions">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                        <div className="flex items-center justify-end gap-2">
+                          {config.primaryAction?.(item, () => {
+                            void fetchItems()
+                          })}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" title="More actions">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
                             {favoriteActionPlacement === 'beforeExtraActions' && config.favoriteStorageKey && (
                               <>
                                 <DropdownMenuItem onClick={() => toggleFavorite(String(item.id ?? ''))}>
@@ -1527,8 +1556,9 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                               <Trash2 className="h-4 w-4" />
                               Delete
                             </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1541,12 +1571,32 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
 
       {showFooterPagination ? renderPaginationControls() : null}
 
-      {config.renderDetailPanel && selectedDetailItem && (
+      {config.renderDetailPanel && selectedDetailItem && detailPresentation === 'inline' && (
         <div className={cn('border-t-2 border-border/70 pt-6', config.detailPanelWrapperClassName)}>
           <div className={cn('rounded-xl border bg-background p-5 shadow-sm', config.detailPanelClassName)}>
             {config.renderDetailPanel(selectedDetailItem, fetchItems)}
           </div>
         </div>
+      )}
+
+      {config.renderDetailPanel && detailPresentation === 'drawer' && (
+        <Sheet
+          open={selectedDetailItem !== null}
+          onOpenChange={open => {
+            if (!open) {
+              config.onSelectItem?.(null)
+            }
+          }}
+        >
+          <SheetContent
+            side={detailDrawerSide}
+            className={cn('overflow-y-auto p-6', config.detailDrawerClassName)}
+            style={getDrawerTierStyle(detailDrawerTier)}
+          >
+            <SheetTitle className="sr-only">{detailDrawerTitle}</SheetTitle>
+            {selectedDetailItem ? config.renderDetailPanel(selectedDetailItem, fetchItems) : null}
+          </SheetContent>
+        </Sheet>
       )}
 
       {/* Batch assign toolbar */}

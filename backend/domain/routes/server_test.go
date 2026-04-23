@@ -168,7 +168,7 @@ func TestServersViewRequiresAuth(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	rec := te.doServer(t, http.MethodGet, "/api/servers/view", "", false)
+	rec := te.doServer(t, http.MethodGet, "/api/servers/connection", "", false)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -235,7 +235,7 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 		tunnelSessions = nil
 	})
 
-	rec := te.doServer(t, http.MethodGet, "/api/servers/view", "", true)
+	rec := te.doServer(t, http.MethodGet, "/api/servers/connection", "", true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -342,7 +342,7 @@ func TestServersViewMarksTunnelSetupRequired(t *testing.T) {
 		tunnelSessions = nil
 	})
 
-	rec := te.doServer(t, http.MethodGet, "/api/servers/view", "", true)
+	rec := te.doServer(t, http.MethodGet, "/api/servers/connection", "", true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}

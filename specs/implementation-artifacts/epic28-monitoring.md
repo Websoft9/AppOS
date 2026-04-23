@@ -10,7 +10,7 @@ Establish a minimal monitoring domain for AppOS that gives operators one place t
 
 This epic adopts a push-first hybrid model:
 
-- managed servers run a systemd agent that pushes host, container, and app heartbeat signals to AppOS
+- managed servers run `appos-agent` as the control-plane agent; it coordinates local collectors, normalizes selected facts and signals, and pushes them to AppOS
 - AppOS executes monitoring-owned active checks for reachability, credential usability, and selected health probes
 - high-frequency metrics use a dedicated time-series store
 - latest status, check results, and operator-facing summaries remain in the business data store
@@ -78,7 +78,7 @@ Distributed tracing remains out of scope for Epic 28 and should be treated as a 
 
 **Collection model**:
 
-- `agent push`: host metrics, container metrics, app heartbeat, local runtime summary
+- `collector + agent push`: Netdata collects host telemetry and low-frequency host facts; `appos-agent` filters and normalizes the selected output, then pushes heartbeat, runtime summary, and product-shaped facts to AppOS
 - `AppOS active check`: scheduled reachability checks, credential checks, selected app health probes, AppOS self-observation
 
 Active checks are owned by the `monitoring` domain even when target identity comes from resource, app, or server domains.
@@ -126,8 +126,10 @@ AppOS runs as a single container that includes PocketBase, Asynq, VictoriaMetric
 Within that shape, Netdata is acceptable as a collection substrate, but not as the monitoring authority.
 
 - managed-server Netdata remains the primary collector for remote host, container, and application-adjacent telemetry
+- managed-server Netdata may also collect low-frequency host facts such as OS, kernel, and architecture when available locally
 - control-plane Netdata is required for AppOS self-observation and is limited to probes against targets that are local to the control-plane environment
 - both collectors write raw telemetry into `VictoriaMetrics`
+- `appos-agent` is the coordinator on the managed server: it reads collector output, filters it, normalizes it into AppOS contracts, and reports it upstream
 - the AppOS monitoring domain keeps ownership of target identity, signal normalization, status adjudication, latest-status projection, and notification orchestration
 
 Operational constraints:
@@ -135,11 +137,13 @@ Operational constraints:
 - local Netdata in the AppOS container is required and starts by default with AppOS
 - Netdata local alerts, notifications, and cloud claim should be disabled
 - Netdata should be treated as collector and exporter only; business status does not come from Netdata alarm state
+- low-frequency host facts may originate from Netdata, but AppOS persists only `appos-agent`-normalized facts rather than collector-native field shapes
 
 Netdata usage red lines:
 
 - AppOS depends on Netdata for collection and probe execution in the single-container runtime, but not for operator-facing status semantics
 - AppOS must not expose Netdata chart names, alarm states, dashboard concepts, or plugin model as product-level API
+- host facts stored in AppOS must use AppOS-owned field names and live on the canonical server record rather than in collector-specific storage
 - latest-status projection, overview grouping, and status precedence remain AppOS-owned logic even when raw telemetry comes from Netdata
 
 ### Current Server Metrics Chain
@@ -147,11 +151,15 @@ Netdata usage red lines:
 The current server-metric implementation is intentionally narrow and push-first:
 
 - Netdata runs on each managed server under systemd
+- Netdata may collect both time-series telemetry and low-frequency host facts on the managed server
+- `appos-agent` reads the selected collector output, normalizes it, and separates facts from metrics before upstream reporting
 - AppOS runs one local Netdata process inside the single control-plane container for self-observation
 - Netdata exports selected host charts by Prometheus remote write
 - managed servers and the local control-plane collector push to AppOS `/api/monitor/netdata/write`
 - AppOS public ingress forwards that path to embedded `VictoriaMetrics /api/v1/write`
 - AppOS monitor APIs query VictoriaMetrics for short-window CPU, memory, disk, and network trends
+
+Low-frequency host facts are not treated as TSDB series. After normalization by `appos-agent`, they are stored on the server business record such as `server.facts_json`.
 
 This keeps AppOS as the control and presentation plane while Netdata remains the collector layer.
 
@@ -204,6 +212,7 @@ Signal relationship rules:
 | host metrics | VictoriaMetrics | append-only metric series |
 | container metrics | VictoriaMetrics | append-only metric series |
 | AppOS self metrics | VictoriaMetrics | append-only metric series |
+| low-frequency host facts | server business record | normalized facts such as OS, kernel, architecture, CPU, and total memory |
 | latest heartbeat | business store | one latest state per target |
 | latest health result | business store | includes reason and transition time |
 | reachability result | business store | current state first, history optional later |
@@ -214,6 +223,7 @@ Signal relationship rules:
 | Data kind | Goes to | Notes |
 |----------|---------|-------|
 | raw host, container, process, and probe telemetry | VictoriaMetrics | raw append-only series from managed-server or local collectors |
+| normalized low-frequency host facts | canonical server record in business store | persisted as AppOS-owned facts such as `server.facts_json`, not TSDB samples |
 | normalized current target state | latest-status projection in business store | operator-facing `healthy`, `degraded`, `offline`, `unreachable`, `credential_invalid`, `unknown` |
 | compact diagnosis fields | latest-status projection in business store | reason, last checked at, last success, last failure, consecutive failures |
 | Netdata chart, alarm, and cloud-specific metadata | not promoted into business monitoring store | collector-internal detail, not AppOS business status |
@@ -242,8 +252,10 @@ Signal relationship rules:
 ### 28.2 Agent Ingestion and Metrics Pipeline
 
 - Standardize the managed-server metrics collector contract with Netdata running under systemd
+- Clarify that Netdata may provide both metrics and low-frequency host facts, while `appos-agent` normalizes and reports AppOS-owned payloads
 - Add ingestion endpoints for metrics, heartbeat, and runtime summary
 - Store host and container metrics in `VictoriaMetrics`
+- Store normalized host facts on the canonical server record such as `server.facts_json`
 - Record agent freshness and stale-heartbeat detection in the business store
 
 ### 28.3 Active Checks for Resource and App Availability

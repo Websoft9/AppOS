@@ -6089,11 +6089,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-  /api/servers/local/docker-bridge:
+  /api/servers/connection:
     get:
       tags: [Servers]
-      summary: Get servers local docker bridge
-      operationId: get_api_servers_local_docker-bridge
+      summary: Get servers connection
+      operationId: get_api_servers_connection
       security:
         - bearerAuth: []  # superuser required
       responses:
@@ -6109,11 +6109,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-  /api/servers/view:
+  /api/servers/local/docker-bridge:
     get:
       tags: [Servers]
-      summary: Get servers view
-      operationId: get_api_servers_view
+      summary: Get servers local docker bridge
+      operationId: get_api_servers_local_docker-bridge
       security:
         - bearerAuth: []  # superuser required
       responses:

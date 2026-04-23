@@ -7,13 +7,14 @@
 
 ## Objective
 
-Add the minimal ingestion path for managed servers so AppOS can receive host metrics, container metrics, heartbeat, and runtime summary from a systemd-managed agent.
+Add the minimal ingestion path for managed servers so AppOS can receive host metrics, low-frequency host facts, heartbeat, and runtime summary from a systemd-managed agent.
 
 ## Scope
 
 - Define authenticated ingest contract for server agent
-- Add ingest endpoints for metrics, heartbeat, and runtime summary
+- Add ingest endpoints for metrics, facts, heartbeat, and runtime summary
 - Store high-frequency metrics in `VictoriaMetrics`
+- Store normalized low-frequency host facts on the canonical server record such as `server.facts_json`
 - Update latest-status projection with heartbeat freshness and runtime summary
 
 ## First Slice Note
@@ -27,7 +28,7 @@ For the first implementation pass, narrow Story 28.2 to:
 - `server` heartbeat first, `platform` self-observation may be local-only
 - freshness evaluation into `healthy`, `offline`, or `unknown`
 
-Metrics ingest and runtime summary ingest remain in Story 28.2, but should land after heartbeat-first validation succeeds.
+Facts ingest, metrics ingest, and runtime summary ingest remain in Story 28.2, but should land after heartbeat-first validation succeeds.
 
 ## Authentication Draft
 
@@ -113,6 +114,7 @@ Guardrails:
 ## API
 
 - `POST /api/monitor/ingest/metrics`
+- `POST /api/monitor/ingest/facts`
 - `POST /api/monitor/ingest/heartbeat`
 - `POST /api/monitor/ingest/runtime-status`
 
@@ -144,6 +146,47 @@ MVP rules:
 - ignore or reject unknown series families
 - write metrics to `VictoriaMetrics`
 - do not mirror raw metric points into PocketBase collections
+
+### `POST /api/monitor/ingest/facts`
+
+Purpose: receive normalized low-frequency host facts selected by `appos-agent` from collector output such as Netdata.
+
+Suggested `items` payload shape:
+
+```json
+[
+	{
+		"targetType": "server",
+		"targetId": "srv_xxx",
+		"facts": {
+			"os": {
+				"family": "linux",
+				"distribution": "ubuntu",
+				"version": "24.04"
+			},
+			"kernel": {
+				"release": "6.8.0-31-generic"
+			},
+			"architecture": "arm64",
+			"cpu": {
+				"cores": 4
+			},
+			"memory": {
+				"total_bytes": 8589934592
+			}
+		},
+		"observedAt": "2026-04-14T12:00:00Z"
+	}
+]
+```
+
+MVP rules:
+
+- facts are low-frequency snapshots, not time-series samples
+- Netdata may be the source collector, but payload field names must already be normalized to AppOS-owned shape before persistence
+- upsert normalized facts onto the canonical server record such as `server.facts_json`
+- do not persist collector-native fact payloads or plugin metadata verbatim
+- facts ingest must remain server-scoped in MVP
 
 ### `POST /api/monitor/ingest/heartbeat`
 
@@ -286,12 +329,14 @@ This story should not create a raw-ingest collection by default.
 Persist only:
 
 - latest status updates in `monitor_latest_status`
+- normalized host facts on the canonical server record such as `server.facts_json`
 - optional recent diagnostic check records later in `monitor_check_results`
 - agent token material in existing `secrets` collection
 
 Do not persist:
 
 - raw metric batches in PocketBase
+- raw collector fact payloads in PocketBase
 - verbose runtime payload history in PocketBase
 - a dedicated `monitor_agents` collection unless operations later prove it necessary
 
@@ -299,13 +344,14 @@ Do not persist:
 
 - [ ] AC1: AppOS accepts authenticated ingest requests from managed servers.
 - [ ] AC2: Host and container metrics are written to the dedicated time-series backend, not the primary business store.
-- [ ] AC3: Heartbeat ingest updates freshness state for the related target.
-- [ ] AC4: Stale or missing heartbeat can transition a target to `offline` through the latest-status projection.
-- [ ] AC5: Runtime summary payloads can attach minimal container and app runtime state to the target summary without requiring log ingestion.
-- [ ] AC6: Agent authentication uses a dedicated per-server monitoring token rather than coupling ingest trust to unrelated access tokens.
-- [ ] AC7: Ingest payloads use a compact common envelope with bounded batch semantics.
-- [ ] AC8: Unknown or disallowed metric families are rejected or ignored by an explicit allowlist policy.
-- [ ] AC9: The MVP setup flow can generate a token and return enough config material to install a systemd-managed agent manually.
+- [ ] AC3: Normalized low-frequency host facts can be ingested and persisted onto the canonical server record such as `server.facts_json`.
+- [ ] AC4: Heartbeat ingest updates freshness state for the related target.
+- [ ] AC5: Stale or missing heartbeat can transition a target to `offline` through the latest-status projection.
+- [ ] AC6: Runtime summary payloads can attach minimal container and app runtime state to the target summary without requiring log ingestion.
+- [ ] AC7: Agent authentication uses a dedicated per-server monitoring token rather than coupling ingest trust to unrelated access tokens.
+- [ ] AC8: Ingest payloads use a compact common envelope with bounded batch semantics.
+- [ ] AC9: Unknown or disallowed metric families are rejected or ignored by an explicit allowlist policy.
+- [ ] AC10: The MVP setup flow can generate a token and return enough config material to install a systemd-managed agent manually.
 
 ## Implementation Notes
 
@@ -315,6 +361,7 @@ As-built note:
 - `signals/agent` passes the resolved target registry entry into heartbeat evaluation so the freshness-to-status mapping stays aligned with the canonical monitoring registry contract
 
 - Keep payload shape compact and batch-friendly.
+- Treat Netdata as an allowed fact source, but keep AppOS field naming and persistence shape independent from collector-native schemas.
 - Reuse existing secret-management and setup-route patterns where helpful, but keep monitoring token lifecycle separate from tunnel lifecycle.
 - Do not introduce a full Prometheus-compatible scrape surface in this story.
 - Keep TSDB access behind a writer adapter so VictoriaMetrics remains an implementation detail outside the monitoring domain boundary.

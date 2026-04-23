@@ -81,9 +81,31 @@ function TestHarness() {
         ],
       },
     ],
+    primaryAction: item => <button type="button">Open {String(item.name)}</button>,
     selectedItemId: selectedId,
     onSelectItem: item => setSelectedId(item ? String(item.id) : undefined),
     renderDetailPanel: item => <div>Detail for {String(item.name)}</div>,
+  }
+
+  return <ResourcePage config={config} />
+}
+
+function DrawerHarness() {
+  const [selectedId, setSelectedId] = useState<string | undefined>()
+
+  const config: ResourcePageConfig = {
+    title: 'Servers',
+    apiPath: '/api/collections/servers/records',
+    listItems: async () => items,
+    fields: [{ key: 'name', label: 'Name', type: 'text', required: true }],
+    columns: [{ key: 'name', label: 'Name' }],
+    wrapTableInCard: false,
+    selectedItemId: selectedId,
+    onSelectItem: item => setSelectedId(item ? String(item.id) : undefined),
+    renderDetailPanel: item => <div>Drawer detail for {String(item.name)}</div>,
+    detailPresentation: 'drawer',
+    detailDrawerTier: 'lg',
+    detailDrawerTitle: 'Server Detail',
   }
 
   return <ResourcePage config={config} />
@@ -95,6 +117,7 @@ describe('ResourcePage list controls', () => {
     render(<TestHarness />)
 
     await screen.findByText('alpha')
+    expect(screen.getByRole('button', { name: 'Open alpha' })).toBeInTheDocument()
     expect(screen.getByText('beta')).toBeInTheDocument()
     expect(screen.queryByText('gamma')).not.toBeInTheDocument()
 
@@ -148,6 +171,23 @@ describe('ResourcePage list controls', () => {
     await waitFor(() => {
       expect(screen.getByText('beta')).toBeInTheDocument()
       expect(screen.queryByText('alpha')).not.toBeInTheDocument()
+    })
+  })
+
+  it('supports drawer-based detail presentation with shared tier styling', async () => {
+    render(<DrawerHarness />)
+
+    await screen.findByText('alpha')
+
+    fireEvent.click(screen.getByText('alpha'))
+
+    expect(await screen.findByText('Drawer detail for alpha')).toBeInTheDocument()
+
+    const drawer = document.querySelector('[data-slot="sheet-content"]')
+    expect(drawer).not.toBeNull()
+    expect(drawer).toHaveStyle({
+      width: 'min(896px, calc(100vw - 2rem))',
+      maxWidth: 'min(896px, calc(100vw - 2rem))',
     })
   })
 

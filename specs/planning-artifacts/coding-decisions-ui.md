@@ -26,6 +26,25 @@ Standardize dialog widths by content type. Override with `className` on `<Dialog
 - Mobile fallback is handled by shadcn's `max-w-[calc(100%-2rem)]`
 - Prefer the smallest tier that avoids horizontal scrolling or cramped content
 
+### Drawer Size Tiers{#drawer-sizes}
+
+Standardize side-drawer widths by tier name. For drawers built with `<SheetContent>`, prefer a shared tier token over ad hoc pixel values.
+
+| Tier | Target Width | Implementation Contract | Use Case |
+|------|--------------|-------------------------|----------|
+| **sm** | 384px | `width/max-width: min(384px, calc(100vw - 2rem))` | Lightweight metadata, confirmations, short read-only panels |
+| **md** | 672px | `width/max-width: min(672px, calc(100vw - 2rem))` | Multi-section detail panels, compact editors |
+| **lg** | 896px | `width/max-width: min(896px, calc(100vw - 2rem))` | Server/resource detail drawers, command surfaces, wide metadata panels |
+| **xl** | 1152px | `width/max-width: min(1152px, calc(100vw - 2rem))` | Complex multi-column side workspaces |
+| **full** | ~90vw | `width/max-width: min(90vw, calc(100vw - 2rem))` | Large inspectors, log viewers, near-fullscreen side panels |
+
+- Default drawer side is `right` unless the workflow specifically benefits from left anchoring.
+- Drawer width should be chosen by tier name only. Future implementations should use a shared prop or mapping such as `drawerTier="lg"`, not hardcoded per-page width values.
+- Because the base `SheetContent` side variants may include width caps such as `sm:max-w-sm`, width tiers must be applied in a way that reliably overrides those defaults. Use a shared style map or helper when necessary.
+- Standard drawer surface: `overflow-y-auto`, full-height side panel, standard content padding (`p-6` desktop, reduce only when density is required).
+- Use `lg` as the default for detail drawers when the content includes tabs, actions, or 3-column metadata.
+- Prefer `md` for simple read-only detail drawers and `xl` or `full` only when smaller tiers would force horizontal scrolling.
+
 ### Page Header{#page-header}
 
 All list and index pages use the same header pattern:
@@ -48,7 +67,11 @@ For standard list/index pages, use this minimal interaction pattern by default:
   - Show a rotatable `>` icon before name text.
   - Click toggles expanded details under the same row.
   - Expanded content should include full `ID` and key metadata.
-5. Row actions are shown in a three-dot (`⋮`) dropdown menu, not as always-visible inline buttons.
+5. Row secondary actions are shown in a three-dot (`⋮`) dropdown menu, not as always-visible inline buttons.
+6. Exception: when a page has a dedicated detail surface and a lifecycle-driven next-step model, it may show exactly one inline primary action plus one three-dot (`⋮`) menu.
+  - In this exception pattern, `Name` or equivalent identity cell remains the detail entry.
+  - The inline primary action must be the best next step, not a duplicate detail link.
+  - Use this pattern only when the page would otherwise force users to choose between multiple equally prominent actions.
 
 Keep the page visually minimal: no extra chrome, no redundant columns, no duplicate actions.
 

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import type { DrawerTier } from '@/lib/drawer-tiers'
 
 export interface RelCreateField {
   key: string
@@ -109,6 +110,7 @@ export interface ResourcePageConfig {
   createButtonLabel?: string
   createButtonShowIcon?: boolean
   searchPlaceholder?: string
+  searchContainerClassName?: string
   pageSize?: number
   pageSizeOptions?: number[]
   defaultSort?: { key: string; dir: 'asc' | 'desc' }
@@ -117,6 +119,7 @@ export interface ResourcePageConfig {
   listControlsShowReset?: boolean
   pageSizeSelectorPlacement?: 'header' | 'footer' | 'none'
   paginationSummary?: boolean
+  paginationTotalLabel?: (totalCount: number) => ReactNode
   paginationPlacement?: 'header' | 'footer' | 'none'
   paginationVariant?: 'default' | 'minimal'
   createSelection?: {
@@ -172,12 +175,18 @@ export interface ResourcePageConfig {
     items: Record<string, unknown>[]
     refreshList: () => Promise<void>
   }) => Promise<void> | void
+  primaryAction?: (item: Record<string, unknown>, refreshList: () => void) => ReactNode
   extraActions?: (item: Record<string, unknown>, refreshList: () => void) => ReactNode
   selectedItemId?: string
   onSelectItem?: (item: Record<string, unknown> | null) => void
   renderDetailPanel?: (item: Record<string, unknown>, refreshList: () => Promise<void>) => ReactNode
+  detailPresentation?: 'inline' | 'drawer'
   detailPanelWrapperClassName?: string
   detailPanelClassName?: string
+  detailDrawerTitle?: ReactNode
+  detailDrawerTier?: DrawerTier
+  detailDrawerSide?: 'left' | 'right'
+  detailDrawerClassName?: string
   resourceType?: string
   listItems?: () => Promise<Record<string, unknown>[]>
   createItem?: (payload: Record<string, unknown>) => Promise<Record<string, unknown>>

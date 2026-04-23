@@ -78,7 +78,7 @@ describe('ServersPage layout', () => {
     getLocalDockerBridgeAddressMock.mockReset()
     searchState = {}
     sendMock.mockImplementation((path: string) => {
-      if (path === '/api/servers/view') {
+      if (path === '/api/servers/connection') {
         return Promise.resolve({
           items: [
             {
@@ -169,16 +169,14 @@ describe('ServersPage layout', () => {
 
     expect(screen.queryByRole('link', { name: 'Resources' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Add Server' })).toBeInTheDocument()
-    expect(screen.getByText('Password')).toBeInTheDocument()
-    expect(screen.getByText('owner@example.com')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Filter Credential' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Filter Access' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Filter Status' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Filter Mode' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Filter Connection' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Filter Credential' })).toBeNull()
   })
 
   it('shows the minimal pager beside search when multiple pages exist', async () => {
     sendMock.mockImplementation((path: string) => {
-      if (path === '/api/servers/view') {
+      if (path === '/api/servers/connection') {
         return Promise.resolve({
           items: Array.from({ length: 11 }, (_, index) => ({
             id: `server-${index + 1}`,
@@ -216,14 +214,19 @@ describe('ServersPage layout', () => {
     render(<ServersPage />)
 
     expect(await screen.findByText('server-1')).toBeInTheDocument()
+    expect(screen.getByText('Total 11 servers')).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Rows per page' })).toHaveValue('10')
+    expect(screen.getByRole('option', { name: '10 / page' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '50 / page' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '100 / page' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Previous page' })).toBeInTheDocument()
     expect(screen.getByText('1')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Next page' })).toBeInTheDocument()
   })
 
-  it('renders Access and Tunnel columns with the accepted meanings', async () => {
+  it('renders the unified Connection column and lifecycle primary actions', async () => {
     sendMock.mockImplementation((path: string) => {
-      if (path === '/api/servers/view') {
+      if (path === '/api/servers/connection') {
         return Promise.resolve({
           items: [
             {
@@ -281,8 +284,10 @@ describe('ServersPage layout', () => {
     render(<ServersPage />)
 
     expect(await screen.findByText('alpha')).toBeInTheDocument()
-    expect(screen.getAllByText('Unknown').length).toBeGreaterThan(0)
-    expect(screen.getByText('Setup Required')).toBeInTheDocument()
+    expect(screen.getByText('Awaiting Connection')).toBeInTheDocument()
+    expect(screen.getByText('Not Configured')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Test Connection' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start Setup' })).toBeInTheDocument()
   })
 
   it('places favorite below shutdown in the actions menu', async () => {
@@ -300,9 +305,8 @@ describe('ServersPage layout', () => {
   })
 
   it('shows the tunnel tab only for tunnel-connected servers', async () => {
-    searchState = { server: 'server-1', tab: 'detail' }
     sendMock.mockImplementation((path: string) => {
-      if (path === '/api/servers/view') {
+      if (path === '/api/servers/connection') {
         return Promise.resolve({
           items: [
             {
@@ -352,16 +356,22 @@ describe('ServersPage layout', () => {
 
     render(<ServersPage />)
 
+    await waitFor(() => expect(screen.getByText('alpha')).toBeInTheDocument())
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Detail' }))
+
     expect(await screen.findByRole('tab', { name: 'Tunnel' })).toBeInTheDocument()
     expect(screen.getByRole('tablist')).toHaveClass('border-b')
-    expect(screen.getByText('Record Fields')).toBeInTheDocument()
-    expect(screen.queryByText('Connection')).not.toBeInTheDocument()
+    expect(screen.getByText('Overview')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Connection' })).toBeInTheDocument()
   })
 
   it('hides the tunnel tab for direct servers', async () => {
-    searchState = { server: 'server-1', tab: 'detail' }
-
     render(<ServersPage />)
+
+    await waitFor(() => expect(screen.getByText('alpha')).toBeInTheDocument())
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Detail' }))
 
     await waitFor(() => {
       expect(screen.getByText('Overview')).toBeInTheDocument()
