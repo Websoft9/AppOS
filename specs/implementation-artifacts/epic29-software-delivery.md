@@ -132,40 +132,33 @@ Notes:
 
 ## Stories
 
-### 29.1 Model
+The epic now uses five canonical story documents. Earlier split stories 29.1-29.7 are treated as source material that has been consolidated into the reorganized set below.
 
-- define core language for software component, target, capability, template, and snapshot
+Legacy implementation history from the superseded split stories is preserved in `specs/implementation-artifacts/epic29-legacy-implementation-record.md`.
 
-### 29.2 Boundary
+### 29.1 Software Contract and Catalog
 
-- classify current `components` and software-delivery execution responsibilities into `catalog`, `inventory`, `provisioning`, and `target-readiness`
+- define the shared software-delivery language across catalog, inventory, provisioning, and target-readiness
+- consolidate boundary, template, and catalog rules into one canonical contract story
+- keep component identity, template kinds, capability mapping, and initial managed catalog entries explicit
 
-### 29.3 Template
+### 29.2 Software Lifecycle Execution
 
-- define template schema and executor contract
-- keep install, upgrade, verify, and repair flows template-driven
+- define readiness evaluation, lifecycle task types, async execution flow, persistence, and operation state
+- keep install, upgrade, verify, repair, and uninstall behavior routed through the shared worker contract
+- preserve phase tracking and audit expectations for long-running execution
 
-### 29.4 Catalog
+### 29.3 Server Software Operational Surface
 
-- register AppOS-managed software components as catalog entries
-- keep component expansion data-driven
+- expose the server-scoped `Software` tab for installed state, readiness, last result, and supported lifecycle actions
+- keep the UI operational, compact, and strictly scoped to the current server
 
-### 29.4a Supported Software Surface
+### 29.4 Supported Software Discovery Surface
 
-- expose one read-only `Supported Software` page for server-target software
-- keep software support discoverable before any server is connected
-- separate `supported catalog` from `installed inventory`
-- place it under `Resources` as a lightweight software-delivery entry
+- expose the read-only `Supported Software` page for server-target software under `Resources`
+- separate support discovery from installed inventory and server operations
 
-### 29.5 Target Readiness
+### 29.5 Local Software Inventory Surface
 
-- define capability readiness queries for each delivery target
-- preserve OS, privilege, and network preflight as explicit readiness signals
-
-### 29.6 Surface
-
-- expose one minimal software delivery surface for installed state, readiness, and actions
-
-### 29.7 Worker
-
-- wire install, upgrade, verify, and repair actions through Asynq worker with full phase tracking and audit output
+- expose the read-only AppOS-local software inventory under `Resources`
+- keep AppOS-local inventory first-class without mixing it into server operations or discovery surfaces

@@ -112,6 +112,8 @@ export interface ResourcePageConfig {
   searchPlaceholder?: string
   searchContainerClassName?: string
   pageSize?: number
+  pageSizeValue?: number
+  onPageSizeChange?: (pageSize: number) => void
   pageSizeOptions?: number[]
   defaultSort?: { key: string; dir: 'asc' | 'desc' }
   headerFilters?: boolean
@@ -122,6 +124,11 @@ export interface ResourcePageConfig {
   paginationTotalLabel?: (totalCount: number) => ReactNode
   paginationPlacement?: 'header' | 'footer' | 'none'
   paginationVariant?: 'default' | 'minimal'
+  headerTrailingControls?: (ctx: {
+    pageSize: number
+    setPageSize: (pageSize: number) => void
+    totalCount: number
+  }) => ReactNode
   createSelection?: {
     title: string
     description?: string
@@ -177,6 +184,8 @@ export interface ResourcePageConfig {
   }) => Promise<void> | void
   primaryAction?: (item: Record<string, unknown>, refreshList: () => void) => ReactNode
   extraActions?: (item: Record<string, unknown>, refreshList: () => void) => ReactNode
+  actionsAlign?: 'left' | 'right'
+  actionsMenuAlign?: 'start' | 'end'
   selectedItemId?: string
   onSelectItem?: (item: Record<string, unknown> | null) => void
   renderDetailPanel?: (item: Record<string, unknown>, refreshList: () => Promise<void>) => ReactNode

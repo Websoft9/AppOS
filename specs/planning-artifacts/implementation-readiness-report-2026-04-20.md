@@ -24,12 +24,12 @@
 | Document | File |
 |---|---|
 | Epic | `specs/implementation-artifacts/epic29-software-delivery.md` |
-| Story 29.1 | `specs/implementation-artifacts/story29.1-model.md` |
-| Story 29.2 | `specs/implementation-artifacts/story29.2-boundary.md` |
-| Story 29.3 | `specs/implementation-artifacts/story29.3-template.md` |
-| Story 29.4 | `specs/implementation-artifacts/story29.4-catalog.md` |
-| Story 29.5 | `specs/implementation-artifacts/story29.5-target-readiness.md` |
-| Story 29.6 | `specs/implementation-artifacts/story29.6-surface.md` |
+| Story 29.1 | `specs/implementation-artifacts/story29.1-software-contract-and-catalog.md` |
+| Story 29.2 | `specs/implementation-artifacts/story29.2-software-lifecycle-execution.md` |
+| Story 29.3 | `specs/implementation-artifacts/story29.3-server-software-operational-surface.md` |
+| Story 29.4 | `specs/implementation-artifacts/story29.4-supported-software-discovery-surface.md` |
+| Story 29.5 | `specs/implementation-artifacts/story29.5-local-software-inventory-surface.md` |
+| Legacy Implementation Record | `specs/implementation-artifacts/epic29-legacy-implementation-record.md` |
 
 **No duplicate documents found. No missing required planning documents.**
 
@@ -200,7 +200,7 @@ All critical and medium issues identified in the initial assessment have been re
 | C1 | DTO naming ambiguity | `model.go` updated to use Software Delivery domain names consistently: `SoftwareComponentSummary`, `SoftwareComponentDetail`, `SoftwareActionResponse`, `SoftwareDeliveryLastAction`, `TargetReadinessResult`, `SoftwareVerificationResult` |
 | C2 | `dependency_ready` field missing | Added `DependencyReady bool` to `TargetReadinessResult` in `model.go` and to the DTO table in Story 29.1 |
 | C3 | control-agent installer URL placeholder | `catalog.yaml` updated: `script_url` is now empty with a comment directing the executor to read `software.control_agent_installer_url` system setting. Story 29.4 adds Task 4 to register the setting. |
-| M1 | No async worker story | Created `story29.7-worker.md` covering Asynq task types, phase-step loop, `software_operations` collection, operation query routes, and tests |
+| M1 | No async worker story | Canonical Story 29.2 now carries the async worker contract; detailed prior implementation record is preserved in `epic29-legacy-implementation-record.md` |
 | M2 | Audit action rename not planned | `model.go` constants updated to `server.software.*`. Story 29.2 Task 4 added to cover the rename plan and migration note. `AuditActionRepair` added. |
 | M3 | Epic 28 dependency direction unclear | Removed Epic 28 from Epic 29 `Depends on` — Monitor is a consumer of Software Delivery output, not a prerequisite |
 | M4 | Package naming decision undocumented | Epic 29 now has an explicit "Package Naming Decision" section: the domain package is `domain/software` and all types use the Software Delivery naming scheme |

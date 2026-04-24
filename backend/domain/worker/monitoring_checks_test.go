@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -208,6 +209,81 @@ func TestEnqueueMonitorCredentialSweepRequiresClient(t *testing.T) {
 	}
 }
 
+func TestHandleMonitorAppHealthSweepProjectsAppStatuses(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Cleanup()
+
+	healthy := seedAppInstanceRecord(t, app, "healthy-app", "running", "healthy")
+	degraded := seedAppInstanceRecord(t, app, "degraded-app", "running", "degraded")
+	offline := seedAppInstanceRecord(t, app, "offline-app", "stopped", "stopped")
+
+	w := New(app)
+	task, err := NewMonitorAppHealthSweepTask()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.handleMonitorAppHealthSweep(context.Background(), task); err != nil {
+		t.Fatal(err)
+	}
+
+	healthyStatus := loadTargetLatestStatus(t, app, monitor.TargetTypeApp, healthy.Id)
+	if got := healthyStatus.GetString("status"); got != monitor.StatusHealthy {
+		t.Fatalf("expected healthy app status healthy, got %q", got)
+	}
+	healthySummary, err := store.SummaryFromRecord(healthyStatus)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if healthySummary["check_kind"] != monitor.CheckKindAppHealth {
+		t.Fatalf("expected app_health check kind, got %+v", healthySummary)
+	}
+	if _, ok := healthySummary["reason_code"]; ok {
+		t.Fatalf("expected healthy app summary to omit reason_code, got %+v", healthySummary)
+	}
+
+	degradedStatus := loadTargetLatestStatus(t, app, monitor.TargetTypeApp, degraded.Id)
+	if got := degradedStatus.GetString("status"); got != monitor.StatusDegraded {
+		t.Fatalf("expected degraded app status degraded, got %q", got)
+	}
+	degradedSummary, err := store.SummaryFromRecord(degradedStatus)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if degradedSummary["reason_code"] != "app_runtime_unhealthy" {
+		t.Fatalf("expected app_runtime_unhealthy reason_code, got %+v", degradedSummary)
+	}
+
+	offlineStatus := loadTargetLatestStatus(t, app, monitor.TargetTypeApp, offline.Id)
+	if got := offlineStatus.GetString("status"); got != monitor.StatusOffline {
+		t.Fatalf("expected offline app status offline, got %q", got)
+	}
+	if offlineStatus.GetString("signal_source") != monitor.SignalSourceAppOS {
+		t.Fatalf("expected appos active check source, got %q", offlineStatus.GetString("signal_source"))
+	}
+	if offlineStatus.GetInt("consecutive_failures") != 1 {
+		t.Fatalf("expected offline app consecutive_failures 1, got %d", offlineStatus.GetInt("consecutive_failures"))
+	}
+	offlineSummary, err := store.SummaryFromRecord(offlineStatus)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if offlineSummary["reason_code"] != "app_not_running" {
+		t.Fatalf("expected app_not_running reason_code, got %+v", offlineSummary)
+	}
+	if offlineSummary["runtime_status"] != "stopped" {
+		t.Fatalf("expected stopped runtime_status in summary, got %+v", offlineSummary)
+	}
+}
+
+func TestEnqueueMonitorAppHealthSweepRequiresClient(t *testing.T) {
+	if err := EnqueueMonitorAppHealthSweep(nil); err == nil {
+		t.Fatal("expected nil client error")
+	}
+}
+
 func seedInstanceRecord(t *testing.T, app core.App, name string, kind string, endpoint string) *core.Record {
 	t.Helper()
 	col, err := app.FindCollectionByNameOrId(collections.Instances)
@@ -226,12 +302,42 @@ func seedInstanceRecord(t *testing.T, app core.App, name string, kind string, en
 	return rec
 }
 
+func seedAppInstanceRecord(t *testing.T, app core.App, name string, runtimeStatus string, healthSummary string) *core.Record {
+	t.Helper()
+	col, err := app.FindCollectionByNameOrId("app_instances")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := core.NewRecord(col)
+	rec.Set("key", name+"-key")
+	rec.Set("name", name)
+	rec.Set("server_id", "srv-1")
+	rec.Set("runtime_status", runtimeStatus)
+	rec.Set("health_summary", healthSummary)
+	rec.Set("publication_summary", "published")
+	rec.Set("lifecycle_state", "running_healthy")
+	rec.Set("desired_state", "running")
+	if strings.EqualFold(runtimeStatus, "stopped") {
+		rec.Set("lifecycle_state", "stopped")
+		rec.Set("desired_state", "stopped")
+	}
+	if err := app.Save(rec); err != nil {
+		t.Fatal(err)
+	}
+	return rec
+}
+
 func loadLatestStatus(t *testing.T, app core.App, targetID string) *core.Record {
+	t.Helper()
+	return loadTargetLatestStatus(t, app, monitor.TargetTypeResource, targetID)
+}
+
+func loadTargetLatestStatus(t *testing.T, app core.App, targetType string, targetID string) *core.Record {
 	t.Helper()
 	record, err := app.FindFirstRecordByFilter(
 		collections.MonitorLatestStatus,
 		"target_type = {:targetType} && target_id = {:targetID}",
-		map[string]any{"targetType": monitor.TargetTypeResource, "targetID": targetID},
+		map[string]any{"targetType": targetType, "targetID": targetID},
 	)
 	if err != nil {
 		t.Fatal(err)

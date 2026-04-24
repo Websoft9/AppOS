@@ -25,6 +25,11 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import {
+  getServerConnectionPresentation,
+  type ServerConnectionFacts,
+  type ServerConnectionPresentationSpec,
+} from '@/components/servers/server-connection-presentation'
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -90,6 +95,11 @@ type AppDisplayMetadata = {
   icon: string
   label: string
   tags: string[]
+}
+
+type AppServerConnectionRecord = ServerConnectionFacts & {
+  id?: unknown
+  name?: unknown
 }
 
 const DISPLAY_METADATA_STORAGE_PREFIX = 'app-detail-display:'
@@ -160,8 +170,7 @@ export function AppDetailPage({ appId }: { appId: string }) {
     savedAt?: string
     sourceAction?: string
   }>({ available: false })
-  const [serverHost, setServerHost] = useState('')
-  const [serverName, setServerName] = useState('')
+  const [serverConnectionRecord, setServerConnectionRecord] = useState<AppServerConnectionRecord | null>(null)
   const [accessUsernameDraft, setAccessUsernameDraft] = useState('')
   const [accessSecretHintDraft, setAccessSecretHintDraft] = useState('')
   const [accessRetrievalMethodDraft, setAccessRetrievalMethodDraft] = useState('')
@@ -527,24 +536,23 @@ export function AppDetailPage({ appId }: { appId: string }) {
 
   useEffect(() => {
     if (!app?.server_id || app.server_id === 'local') {
-      setServerHost('')
-      setServerName('')
+      setServerConnectionRecord(null)
       return
     }
     let cancelled = false
     void pb
-      .send<Record<string, unknown>>(`/api/collections/servers/records/${app.server_id}`, {
+      .send<{ items?: AppServerConnectionRecord[] } | AppServerConnectionRecord[]>(`/api/servers/connection`, {
         method: 'GET',
       })
       .then(response => {
         if (cancelled) return
-        setServerHost(typeof response.host === 'string' ? response.host : '')
-        setServerName(typeof response.name === 'string' ? response.name : '')
+        const items = Array.isArray(response) ? response : Array.isArray(response.items) ? response.items : []
+        const matched = items.find(item => String(item.id ?? '') === app.server_id) ?? null
+        setServerConnectionRecord(matched)
       })
       .catch(() => {
         if (cancelled) return
-        setServerHost('')
-        setServerName('')
+        setServerConnectionRecord(null)
       })
     return () => {
       cancelled = true
@@ -848,15 +856,20 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const canRestartAction = Boolean(app) && normalizedRuntimeStatus === 'running'
   const primaryExposure = exposures.find(item => item.is_primary)
   const currentRelease = releases.find(item => item.is_active)
+  const serverConnectionPresentation = useMemo<ServerConnectionPresentationSpec | null>(() => {
+    if (!serverConnectionRecord) return null
+    return getServerConnectionPresentation(serverConnectionRecord)
+  }, [serverConnectionRecord])
   const domainExposure = primaryExposure?.domain
     ? primaryExposure
     : exposures.find(item => item.domain)
   const exposurePath = primaryExposure?.path || ''
   const effectiveServerHost = useMemo(() => {
-    if (serverHost.trim()) return serverHost.trim()
+    const host = typeof serverConnectionRecord?.host === 'string' ? serverConnectionRecord.host.trim() : ''
+    if (host) return host
     if (app?.server_id === 'local' && typeof window !== 'undefined') return window.location.hostname
     return ''
-  }, [app?.server_id, serverHost])
+  }, [app?.server_id, serverConnectionRecord])
   const primaryDomainUrl = useMemo(() => {
     if (!domainExposure?.domain) return ''
     const scheme = domainExposure.certificate_id ? 'https' : 'http'
@@ -1003,7 +1016,10 @@ export function AppDetailPage({ appId }: { appId: string }) {
     })
   }, [dataVolumes, projectNameCandidates])
   const latestScopedAction = scopedActions[0]
-  const serverDisplayName = serverName || app?.server_id || 'local'
+  const serverDisplayName =
+    (typeof serverConnectionRecord?.name === 'string' && serverConnectionRecord.name.trim()) ||
+    app?.server_id ||
+    'local'
   const canOpenServerDetail = Boolean(app?.server_id && app.server_id !== 'local')
   const canOpenServerWorkspace = Boolean(app?.server_id && app.server_id !== 'local')
   const iacDirectoryPath = app?.iac_path ? parentDir(app.iac_path) : ''
@@ -1304,6 +1320,7 @@ export function AppDetailPage({ appId }: { appId: string }) {
             openServerDetail={openServerDetail}
             primaryExposure={primaryExposure}
             exposures={exposures}
+            serverConnectionPresentation={serverConnectionPresentation}
             openOperationStatus={openOperationStatus}
             setTab={setTab}
             displaySection={{

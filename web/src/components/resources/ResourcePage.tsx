@@ -169,7 +169,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   const [sortKey, setSortKey] = useState<string | null>(config.defaultSort?.key ?? null)
   const [sortDir, setSortDir] = useState<SortDir>(config.defaultSort?.dir ?? 'asc')
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(config.pageSize ?? 10)
+  const [internalPageSize, setInternalPageSize] = useState(config.pageSize ?? 10)
   const [excludedFilters, setExcludedFilters] = useState<Record<string, Set<string>>>({})
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(() =>
     readFavoriteIds(config.favoriteStorageKey)
@@ -335,6 +335,25 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
     sortKey,
   ])
 
+  const pageSize = config.pageSizeValue ?? internalPageSize
+  const actionsAlign = config.actionsAlign ?? 'right'
+  const actionsMenuAlign = config.actionsMenuAlign ?? 'end'
+  const actionsHeaderClassName = config.primaryAction
+    ? `w-[220px] ${actionsAlign === 'left' ? 'text-left' : 'text-right'}`
+    : `w-[72px] ${actionsAlign === 'left' ? 'text-left' : 'text-right'}`
+  const actionsCellClassName = `${actionsAlign === 'left' ? 'text-left' : 'text-right'} whitespace-nowrap`
+  const actionsContentClassName = `flex w-full items-center gap-2 ${actionsAlign === 'left' ? 'justify-between' : 'justify-end'}`
+  const actionsPrimarySlotClassName = actionsAlign === 'left' ? 'min-w-0 flex-1 text-left' : ''
+  const actionsMenuSlotClassName = actionsAlign === 'left' ? 'flex w-9 shrink-0 justify-end' : ''
+  const setPageSize = useCallback(
+    (nextPageSize: number) => {
+      if (config.pageSizeValue === undefined) {
+        setInternalPageSize(nextPageSize)
+      }
+      config.onPageSizeChange?.(nextPageSize)
+    },
+    [config.onPageSizeChange, config.pageSizeValue]
+  )
   const totalPages = Math.max(1, Math.ceil(processedItems.length / pageSize))
   const pagedItems = useMemo(() => {
     const start = (page - 1) * pageSize
@@ -363,6 +382,11 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   const showPaginationSummary = config.paginationSummary ?? true
   const pageSizeOptions = config.pageSizeOptions ?? [10, 20, 50]
   const paginationTotalLabel = config.paginationTotalLabel?.(processedItems.length)
+  const headerTrailingControls = config.headerTrailingControls?.({
+    pageSize,
+    setPageSize,
+    totalCount: processedItems.length,
+  })
   const detailPresentation = config.detailPresentation ?? 'inline'
   const detailDrawerSide = config.detailDrawerSide ?? 'right'
   const detailDrawerTitle = config.detailDrawerTitle ?? `${config.title.replace(/s$/, '')} Detail`
@@ -1286,7 +1310,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
               </label>
             )}
           </div>
-          {(showHeaderPageSizeSelector || showListControlsReset || showHeaderPagination) && (
+          {(showHeaderPageSizeSelector || showListControlsReset || showHeaderPagination || headerTrailingControls) && (
             <div className="flex items-center gap-2 self-end sm:self-auto">
               {showHeaderPageSizeSelector && paginationVariant !== 'minimal'
                 ? renderPageSizeSelector('h-9')
@@ -1297,6 +1321,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                 </Button>
               )}
               {showHeaderPagination ? renderPaginationControls() : null}
+              {headerTrailingControls}
             </div>
           )}
         </div>
@@ -1338,7 +1363,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                   {config.columns.map(col => (
                     <TableHead key={col.key}>{renderColumnHeader(col)}</TableHead>
                   ))}
-                  <TableHead className={config.primaryAction ? 'w-[220px] text-right' : 'w-[72px] text-right'}>Actions</TableHead>
+                  <TableHead className={actionsHeaderClassName}>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1371,18 +1396,21 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                         {col.render ? col.render(item[col.key], item) : String(item[col.key] ?? '')}
                       </TableCell>
                     ))}
-                    <TableCell className="text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-2">
-                        {config.primaryAction?.(item, () => {
-                          void fetchItems()
-                        })}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" title="More actions">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                    <TableCell className={actionsCellClassName}>
+                      <div className={actionsContentClassName}>
+                        <div className={actionsPrimarySlotClassName}>
+                          {config.primaryAction?.(item, () => {
+                            void fetchItems()
+                          })}
+                        </div>
+                        <div className={actionsMenuSlotClassName}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" title="More actions">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align={actionsMenuAlign}>
                           {favoriteActionPlacement === 'beforeExtraActions' && config.favoriteStorageKey && (
                             <>
                               <DropdownMenuItem onClick={() => toggleFavorite(String(item.id ?? ''))}>
@@ -1426,8 +1454,9 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                             <Trash2 className="h-4 w-4" />
                             Delete
                           </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -1466,7 +1495,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                     {config.columns.map(col => (
                       <TableHead key={col.key}>{renderColumnHeader(col)}</TableHead>
                     ))}
-                    <TableHead className={config.primaryAction ? 'w-[220px] text-right' : 'w-[72px] text-right'}>Actions</TableHead>
+                    <TableHead className={actionsHeaderClassName}>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1501,18 +1530,21 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                             : String(item[col.key] ?? '')}
                         </TableCell>
                       ))}
-                      <TableCell className="text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-2">
-                          {config.primaryAction?.(item, () => {
-                            void fetchItems()
-                          })}
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" title="More actions">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
+                      <TableCell className={actionsCellClassName}>
+                        <div className={actionsContentClassName}>
+                          <div className={actionsPrimarySlotClassName}>
+                            {config.primaryAction?.(item, () => {
+                              void fetchItems()
+                            })}
+                          </div>
+                          <div className={actionsMenuSlotClassName}>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" title="More actions">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align={actionsMenuAlign}>
                             {favoriteActionPlacement === 'beforeExtraActions' && config.favoriteStorageKey && (
                               <>
                                 <DropdownMenuItem onClick={() => toggleFavorite(String(item.id ?? ''))}>
@@ -1556,8 +1588,9 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                               <Trash2 className="h-4 w-4" />
                               Delete
                             </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
                         </div>
                       </TableCell>
                     </TableRow>

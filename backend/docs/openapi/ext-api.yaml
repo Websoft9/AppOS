@@ -5498,6 +5498,25 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
+  /api/monitor/ingest/facts:
+    post:
+      tags: [Monitoring]
+      summary: Create or execute monitor ingest facts
+      operationId: post_api_monitor_ingest_facts
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security: []  # public
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
   /api/monitor/ingest/heartbeat:
     post:
       tags: [Monitoring]

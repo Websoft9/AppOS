@@ -406,6 +406,105 @@ describe('AppDetailPage', () => {
     expect(screen.getByText('Artifact: apps/source-build-demo:candidate')).toBeInTheDocument()
   })
 
+  it('reuses the shared server connection presentation in the app overview access snapshot', async () => {
+    appDetailResponse = {
+      ...appDetailResponse,
+      server_id: 'server-1',
+    }
+
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, string> }) => {
+        if (path === '/api/apps/app-1' && options?.method === 'GET') {
+          return Promise.resolve(appDetailResponse)
+        }
+        if (path === '/api/apps/app-1/releases' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/apps/app-1/exposures' && options?.method === 'GET') {
+          return Promise.resolve([
+            {
+              id: 'exposure-1',
+              app_id: 'app-1',
+              domain: 'demo.example.com',
+              is_primary: true,
+              target_port: 443,
+              certificate_id: 'cert-1',
+              publication_state: 'published',
+              health_state: 'healthy',
+              updated: '2026-04-01T10:00:00Z',
+            },
+          ])
+        }
+        if (path === '/api/servers/connection' && options?.method === 'GET') {
+          return Promise.resolve({
+            items: [
+              {
+                id: 'server-1',
+                name: 'Remote Demo Server',
+                connect_type: 'direct',
+                host: '10.0.0.8',
+                port: 22,
+                user: 'root',
+                credential: 'secret-1',
+                credential_type: 'Password',
+                created: '2026-04-01T09:00:00Z',
+                updated: '2026-04-01T10:00:00Z',
+                access: {
+                  status: 'available',
+                  reason: '',
+                  checked_at: '2026-04-01T10:00:00Z',
+                  source: 'probe',
+                },
+              },
+            ],
+          })
+        }
+        if (path === '/api/actions' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/instances' && options?.method === 'GET') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/ext/docker/containers' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/ext/docker/volumes' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET') {
+          return Promise.resolve({ output: '' })
+        }
+        if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
+          return Promise.resolve({
+            id: 'app-1',
+            name: 'Demo App',
+            server_id: 'server-1',
+            project_dir: '/tmp/demo-app',
+            runtime_status: 'running',
+            output: '',
+          })
+        }
+        if (path === '/api/ext/backup/list' && options?.method === 'GET') {
+          return Promise.resolve({ message: 'not implemented' })
+        }
+        return Promise.resolve({})
+      }
+    )
+
+    render(<AppDetailPage appId="app-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
+    })
+
+    expect(screen.getByText('Server: Remote Demo Server')).toBeInTheDocument()
+    expect(screen.getByText('Connection summary: SSH access is reachable.')).toBeInTheDocument()
+    expect(screen.getByText('Endpoint: 10.0.0.8:22')).toBeInTheDocument()
+    expect(screen.getByText('Next server step: Open Terminal')).toBeInTheDocument()
+    expect(screen.getByText('Certificate summary: bound')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open server detail' })).toBeInTheDocument()
+  })
+
   it('opens a release detail dialog from the lineage section', async () => {
     sendMock.mockImplementation(
       (path: string, options?: { method?: string; body?: Record<string, string> }) => {

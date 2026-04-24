@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -124,6 +125,19 @@ type runtimeStatusPayload struct {
 	ServerID   string                     `json:"serverId"`
 	ReportedAt string                     `json:"reportedAt"`
 	Items      []runtimeStatusPayloadItem `json:"items"`
+}
+
+type factsPayload struct {
+	ServerID   string             `json:"serverId"`
+	ReportedAt string             `json:"reportedAt"`
+	Items      []factsPayloadItem `json:"items"`
+}
+
+type factsPayloadItem struct {
+	TargetType string         `json:"targetType"`
+	TargetID   string         `json:"targetId"`
+	Facts      map[string]any `json:"facts"`
+	ObservedAt string         `json:"observedAt"`
 }
 
 type runtimeStatusPayloadItem struct {
@@ -253,6 +267,10 @@ func (a *agent) runCycle(ctx context.Context) error {
 	if runtimeErr != nil {
 		log.Printf("runtime snapshot degraded: %v", runtimeErr)
 	}
+	facts, factsErr := a.collectFacts(ctx, now)
+	if factsErr != nil {
+		log.Printf("facts collection degraded: %v", factsErr)
+	}
 	metrics, metricErr := a.collectMetrics(ctx, now)
 	if metricErr != nil {
 		return metricErr
@@ -265,6 +283,11 @@ func (a *agent) runCycle(ctx context.Context) error {
 	}
 	if err := a.sendRuntimeStatus(ctx, now, runtimeState); err != nil {
 		return err
+	}
+	if len(facts) > 0 {
+		if err := a.sendFacts(ctx, now, facts); err != nil {
+			log.Printf("facts upload degraded: %v", err)
+		}
 	}
 	return nil
 }
@@ -343,6 +366,43 @@ func (a *agent) sendRuntimeStatus(ctx context.Context, observedAt time.Time, sta
 	return a.postJSON(ctx, "/runtime-status", payload)
 }
 
+func (a *agent) collectFacts(ctx context.Context, observedAt time.Time) (map[string]any, error) {
+	_ = observedAt
+	facts := map[string]any{
+		"architecture": runtime.GOARCH,
+		"cpu": map[string]any{
+			"cores": runtime.NumCPU(),
+		},
+	}
+	if osFacts := readOSReleaseFacts(); len(osFacts) > 0 {
+		facts["os"] = osFacts
+	}
+	if kernelRelease := readKernelRelease(ctx); kernelRelease != "" {
+		facts["kernel"] = map[string]any{"release": kernelRelease}
+	}
+	if totalBytes, err := readMemoryTotalBytes(); err == nil && totalBytes > 0 {
+		facts["memory"] = map[string]any{"total_bytes": totalBytes}
+	}
+	if len(facts) == 0 {
+		return nil, fmt.Errorf("no facts available")
+	}
+	return facts, nil
+}
+
+func (a *agent) sendFacts(ctx context.Context, observedAt time.Time, facts map[string]any) error {
+	payload := factsPayload{
+		ServerID:   a.config.ServerID,
+		ReportedAt: observedAt.Format(time.RFC3339),
+		Items: []factsPayloadItem{{
+			TargetType: serverTargetType,
+			TargetID:   a.config.ServerID,
+			Facts:      facts,
+			ObservedAt: observedAt.Format(time.RFC3339),
+		}},
+	}
+	return a.postJSON(ctx, "/facts", payload)
+}
+
 func (a *agent) postJSON(ctx context.Context, suffix string, payload any) error {
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -397,6 +457,76 @@ func readMemoryUsedBytes() (uint64, error) {
 		availableKB = 0
 	}
 	return (totalKB - availableKB) * 1024, nil
+}
+
+func readMemoryTotalBytes() (uint64, error) {
+	data, err := os.ReadFile("/proc/meminfo")
+	if err != nil {
+		return 0, err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 || strings.TrimSuffix(fields[0], ":") != "MemTotal" {
+			continue
+		}
+		value, err := strconv.ParseUint(fields[1], 10, 64)
+		if err != nil {
+			return 0, err
+		}
+		return value * 1024, nil
+	}
+	return 0, fmt.Errorf("meminfo missing MemTotal")
+}
+
+func readOSReleaseFacts() map[string]any {
+	data, err := os.ReadFile("/etc/os-release")
+	if err != nil {
+		return nil
+	}
+	values := make(map[string]string)
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, raw, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		values[strings.TrimSpace(key)] = strings.Trim(strings.TrimSpace(raw), `"`)
+	}
+	result := map[string]any{}
+	if value := strings.ToLower(strings.TrimSpace(values["ID_LIKE"])); value != "" {
+		parts := strings.Fields(value)
+		if len(parts) > 0 {
+			result["family"] = parts[0]
+		}
+	}
+	if result["family"] == nil {
+		if value := strings.ToLower(strings.TrimSpace(values["ID"])); value != "" {
+			result["family"] = value
+		}
+	}
+	if value := strings.TrimSpace(values["ID"]); value != "" {
+		result["distribution"] = strings.ToLower(value)
+	}
+	if value := strings.TrimSpace(values["VERSION_ID"]); value != "" {
+		result["version"] = value
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+func readKernelRelease(ctx context.Context) string {
+	commandCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	output, err := exec.CommandContext(commandCtx, "uname", "-r").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
 }
 
 func (s *cpuSampler) Percent(ctx context.Context) (float64, error) {

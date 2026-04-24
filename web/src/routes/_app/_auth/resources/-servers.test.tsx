@@ -12,6 +12,14 @@ const updateSecretMock = vi.fn()
 const getLocalDockerBridgeAddressMock = vi.fn()
 let searchState: Record<string, unknown> = {}
 
+function isSecretSummaryRequest(path: string) {
+  return path.startsWith('/api/collections/secrets/records?') && path.includes('fields=id%2Ctemplate_id')
+}
+
+function isMonitorSummaryRequest(path: string) {
+  return path.startsWith('/api/collections/monitor_latest_status/records?')
+}
+
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (config: Record<string, unknown>) => ({
     ...config,
@@ -92,14 +100,20 @@ describe('ServersPage layout', () => {
               created_by_name: 'owner@example.com',
               credential: 'secret-1',
               credential_type: 'Password',
+              facts_json: {
+                os: { family: 'linux', distribution: 'ubuntu', version: '24.04' },
+                kernel: { release: '6.8.0' },
+                architecture: 'amd64',
+                cpu: { cores: 4 },
+                memory: { total_bytes: 8589934592 },
+              },
+              facts_observed_at: '2026-04-16T01:02:03Z',
               access: { status: 'unknown', reason: '', checked_at: '', source: 'derived' },
             },
           ],
         })
       }
-      if (
-        path === '/api/collections/secrets/records?perPage=500&fields=id,name,template_id&filter=(id=\'secret-1\')'
-      ) {
+      if (isSecretSummaryRequest(path)) {
         return Promise.resolve({
           items: [
             {
@@ -109,6 +123,9 @@ describe('ServersPage layout', () => {
             },
           ],
         })
+      }
+      if (isMonitorSummaryRequest(path)) {
+        return Promise.resolve({ items: [] })
       }
       if (
         path ===
@@ -123,6 +140,20 @@ describe('ServersPage layout', () => {
             },
           ],
         })
+      }
+      if (isSecretSummaryRequest(path)) {
+        return Promise.resolve({
+          items: [
+            {
+              id: 'secret-1',
+              name: 'ops-password',
+              template_id: 'single_value',
+            },
+          ],
+        })
+      }
+      if (isMonitorSummaryRequest(path)) {
+        return Promise.resolve({ items: [] })
       }
       if (path === '/api/collections/groups/records?perPage=500&sort=name') {
         return Promise.resolve({ items: [] })
@@ -171,7 +202,12 @@ describe('ServersPage layout', () => {
     expect(screen.getByRole('button', { name: 'Add Server' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Filter Mode' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Filter Connection' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Filter User' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Filter Secret Type' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Filter Credential' })).toBeNull()
+    expect(screen.getByRole('columnheader', { name: 'Actions' })).toHaveClass('text-left')
+    expect(screen.getAllByRole('button', { name: 'More actions' })[0].closest('td')).toHaveClass('text-left')
+    expect(screen.getByText('ubuntu 24.04 · amd64')).toBeInTheDocument()
   })
 
   it('shows the minimal pager beside search when multiple pages exist', async () => {
@@ -191,6 +227,9 @@ describe('ServersPage layout', () => {
             access: { status: 'unknown', reason: '', checked_at: '', source: 'derived' },
           })),
         })
+      }
+      if (isMonitorSummaryRequest(path)) {
+        return Promise.resolve({ items: [] })
       }
       if (path === '/api/collections/groups/records?perPage=500&sort=name') {
         return Promise.resolve({ items: [] })
@@ -214,14 +253,86 @@ describe('ServersPage layout', () => {
     render(<ServersPage />)
 
     expect(await screen.findByText('server-1')).toBeInTheDocument()
-    expect(screen.getByText('Total 11 servers')).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Rows per page' })).toHaveValue('10')
-    expect(screen.getByRole('option', { name: '10 / page' })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: '50 / page' })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: '100 / page' })).toBeInTheDocument()
+    expect(screen.getByText('Total 11 items')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Previous page' })).toBeInTheDocument()
     expect(screen.getByText('1')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Next page' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'List settings' })).toBeInTheDocument()
+  })
+
+  it('moves page size and optional column visibility into list settings', async () => {
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/servers/connection') {
+        return Promise.resolve({
+          items: Array.from({ length: 11 }, (_, index) => ({
+            id: `server-${index + 1}`,
+            name: `server-${index + 1}`,
+            connect_type: 'direct',
+            host: `10.0.0.${index + 1}`,
+            port: 22,
+            user: 'root',
+            created_by: 'user-1',
+            created_by_name: 'owner@example.com',
+            credential_type: 'Password',
+            access: { status: 'unknown', reason: '', checked_at: '', source: 'derived' },
+          })),
+        })
+      }
+      if (isMonitorSummaryRequest(path)) {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === '/api/servers/local/docker-bridge') {
+        return Promise.resolve({ interface: 'docker0', address: '172.17.0.1' })
+      }
+      if (path === '/api/secrets/templates') {
+        return Promise.resolve([
+          {
+            id: 'single_value',
+            label: 'Password',
+            description: 'Single secret value',
+            fields: [{ key: 'value', label: 'Secret Value', type: 'password', required: true }],
+          },
+        ])
+      }
+      return Promise.resolve([])
+    })
+
+    render(<ServersPage />)
+
+    expect(await screen.findByText('server-1')).toBeInTheDocument()
+    expect(screen.getByText('server-10')).toBeInTheDocument()
+    expect(screen.queryByText('server-11')).toBeNull()
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'List settings' }))
+
+    expect(await screen.findByRole('menuitemradio', { name: '10 / page' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Host' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Monitor' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitemcheckbox', { name: 'User' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Secret Type' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('menuitemradio', { name: '50 / page' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('server-11')).toBeInTheDocument()
+    })
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'List settings' }))
+    fireEvent.click(await screen.findByRole('menuitemcheckbox', { name: 'Host' }))
+
+    await waitFor(() => {
+      expect(screen.queryByRole('columnheader', { name: 'Host' })).toBeNull()
+    })
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'List settings' }))
+    fireEvent.click(await screen.findByRole('menuitemcheckbox', { name: 'Monitor' }))
+
+    await waitFor(() => {
+      expect(screen.queryByRole('columnheader', { name: 'Monitor' })).toBeNull()
+    })
   })
 
   it('renders the unified Connection column and lifecycle primary actions', async () => {
@@ -286,8 +397,143 @@ describe('ServersPage layout', () => {
     expect(await screen.findByText('alpha')).toBeInTheDocument()
     expect(screen.getByText('Awaiting Connection')).toBeInTheDocument()
     expect(screen.getByText('Not Configured')).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'User' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Secret Type' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Monitor' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Host' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Test Connection' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Start Setup' })).toBeInTheDocument()
+  })
+
+  it('filters rows by user', async () => {
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/servers/connection') {
+        return Promise.resolve({
+          items: [
+            {
+              id: 'server-1',
+              name: 'alpha',
+              connect_type: 'direct',
+              host: '10.0.0.1',
+              port: 22,
+              user: 'root',
+              access: { status: 'available', reason: '', checked_at: '2026-04-16T01:00:00Z', source: 'ssh_probe' },
+            },
+            {
+              id: 'server-2',
+              name: 'beta',
+              connect_type: 'direct',
+              host: '10.0.0.2',
+              port: 22,
+              user: 'ubuntu',
+              access: { status: 'available', reason: '', checked_at: '2026-04-16T01:00:00Z', source: 'ssh_probe' },
+            },
+          ],
+        })
+      }
+      if (isMonitorSummaryRequest(path)) {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === '/api/servers/local/docker-bridge') {
+        return Promise.resolve({ interface: 'docker0', address: '172.17.0.1' })
+      }
+      if (path === '/api/secrets/templates') {
+        return Promise.resolve([
+          {
+            id: 'single_value',
+            label: 'Password',
+            description: 'Single secret value',
+            fields: [{ key: 'value', label: 'Secret Value', type: 'password', required: true }],
+          },
+        ])
+      }
+      return Promise.resolve([])
+    })
+
+    render(<ServersPage />)
+
+    expect(await screen.findByText('alpha')).toBeInTheDocument()
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Filter User' }))
+    fireEvent.click((await screen.findAllByText('ubuntu')).at(-1) as HTMLElement)
+
+    await waitFor(() => {
+      expect(screen.getByText('alpha')).toBeInTheDocument()
+      expect(screen.queryByText('beta')).toBeNull()
+    })
+  })
+
+  it('filters rows by secret type and shows a monitor shortcut when monitoring exists', async () => {
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/servers/connection') {
+        return Promise.resolve({
+          items: [
+            {
+              id: 'server-1',
+              name: 'alpha',
+              connect_type: 'direct',
+              host: '10.0.0.1',
+              port: 22,
+              user: 'root',
+              credential: 'secret-1',
+              credential_type: 'Password',
+              access: { status: 'available', reason: '', checked_at: '2026-04-16T01:00:00Z', source: 'ssh_probe' },
+            },
+            {
+              id: 'server-2',
+              name: 'beta',
+              connect_type: 'direct',
+              host: '10.0.0.2',
+              port: 22,
+              user: 'ubuntu',
+              credential: 'secret-2',
+              credential_type: 'SSH Key',
+              access: { status: 'available', reason: '', checked_at: '2026-04-16T01:00:00Z', source: 'ssh_probe' },
+            },
+          ],
+        })
+      }
+      if (isMonitorSummaryRequest(path)) {
+        return Promise.resolve({
+          items: [
+            { target_id: 'server-1', status: 'online', reason: 'netdata ready', last_checked_at: '2026-04-16T01:02:00Z' },
+          ],
+        })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === '/api/servers/local/docker-bridge') {
+        return Promise.resolve({ interface: 'docker0', address: '172.17.0.1' })
+      }
+      if (path === '/api/secrets/templates') {
+        return Promise.resolve([
+          {
+            id: 'single_value',
+            label: 'Password',
+            description: 'Single secret value',
+            fields: [{ key: 'value', label: 'Secret Value', type: 'password', required: true }],
+          },
+        ])
+      }
+      return Promise.resolve([])
+    })
+
+    render(<ServersPage />)
+
+    expect(await screen.findByText('alpha')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open monitor for alpha' })).toBeInTheDocument()
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Filter Secret Type' }))
+    fireEvent.click((await screen.findAllByText('SSH Key')).at(-1) as HTMLElement)
+
+    await waitFor(() => {
+      expect(screen.getByText('alpha')).toBeInTheDocument()
+      expect(screen.queryByText('beta')).toBeNull()
+    })
   })
 
   it('places favorite below shutdown in the actions menu', async () => {
@@ -299,12 +545,16 @@ describe('ServersPage layout', () => {
 
     fireEvent.pointerDown(screen.getAllByRole('button', { name: 'More actions' })[0])
 
+    expect(await screen.findByText('View Details')).toBeInTheDocument()
+    expect(screen.getByText('View Connection')).toBeInTheDocument()
     const menuText = (await screen.findByText('Restart')).parentElement?.parentElement?.textContent ?? ''
     expect(menuText.indexOf('Restart')).toBeLessThan(menuText.indexOf('Shutdown'))
     expect(menuText.indexOf('Shutdown')).toBeLessThan(menuText.indexOf('Add Favorite'))
   })
 
-  it('shows the tunnel tab only for tunnel-connected servers', async () => {
+  it('folds tunnel details into the Connection tab and removes the tunnel tab', async () => {
+    searchState = { server: 'server-1', tab: 'connection' }
+
     sendMock.mockImplementation((path: string) => {
       if (path === '/api/servers/connection') {
         return Promise.resolve({
@@ -332,6 +582,9 @@ describe('ServersPage layout', () => {
           ],
         })
       }
+      if (isMonitorSummaryRequest(path)) {
+        return Promise.resolve({ items: [] })
+      }
       if (path === '/api/collections/groups/records?perPage=500&sort=name') {
         return Promise.resolve({ items: [] })
       }
@@ -356,14 +609,16 @@ describe('ServersPage layout', () => {
 
     render(<ServersPage />)
 
-    await waitFor(() => expect(screen.getByText('alpha')).toBeInTheDocument())
-    fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }))
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Detail' }))
-
-    expect(await screen.findByRole('tab', { name: 'Tunnel' })).toBeInTheDocument()
-    expect(screen.getByRole('tablist')).toHaveClass('border-b')
-    expect(screen.getByText('Overview')).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Connection' })).toBeInTheDocument()
+    expect(await screen.findByRole('tab', { name: 'Connection' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Tunnel' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Server actions' })).toBeInTheDocument()
+    expect(await screen.findByText('Connection Summary')).toBeInTheDocument()
+    expect(screen.getByText('Primary Next Step')).toBeInTheDocument()
+    expect(screen.getByText('Mode-Specific Setup or Recovery')).toBeInTheDocument()
+    expect(screen.getByText('Tunnel Services')).toBeInTheDocument()
+    expect(screen.getByText('Port 2201')).toBeInTheDocument()
+    expect(screen.getByText('Diagnostics')).toBeInTheDocument()
+    expect(screen.getByText('Activity Timeline')).toBeInTheDocument()
   })
 
   it('hides the tunnel tab for direct servers', async () => {
@@ -371,13 +626,30 @@ describe('ServersPage layout', () => {
 
     await waitFor(() => expect(screen.getByText('alpha')).toBeInTheDocument())
     fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }))
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Detail' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'View Details' }))
 
     await waitFor(() => {
       expect(screen.getByText('Overview')).toBeInTheDocument()
     })
+    expect(screen.getByRole('button', { name: 'Server actions' })).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: 'Tunnel' })).toBeNull()
     expect(screen.queryByText('Tunnel Services')).toBeNull()
+  })
+
+  it('shows collected host facts in the overview tab', async () => {
+    render(<ServersPage />)
+
+    await waitFor(() => expect(screen.getByText('alpha')).toBeInTheDocument())
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'View Details' }))
+
+    expect(await screen.findByText('Operating System')).toBeInTheDocument()
+    expect(screen.getByText('ubuntu 24.04')).toBeInTheDocument()
+    expect(screen.getByText('6.8.0')).toBeInTheDocument()
+    expect(screen.getByText('amd64')).toBeInTheDocument()
+    expect(screen.getByText('4')).toBeInTheDocument()
+    expect(screen.getByText('8.0 GiB')).toBeInTheDocument()
+    expect(screen.getByText(new Date('2026-04-16T01:02:03Z').toLocaleString())).toBeInTheDocument()
   })
 
   it('edits the selected credential secret without leaving the server dialog', async () => {

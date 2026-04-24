@@ -50,7 +50,7 @@ type directAccessProbeResult struct {
 var directServerAccessProbe = probeDirectServerAccess
 
 // @Summary List server view items
-// @Description Returns the server registry read model used by the UI, including backend-derived access and tunnel state. Superuser only.
+// @Description Returns the server registry read model used by the UI, including unified connection aggregate facts plus access and tunnel diagnostics. Superuser only.
 // @Tags Servers
 // @Security BearerAuth
 // @Success 200 {object} map[string]any "items: server registry view rows"
@@ -109,6 +109,7 @@ func handleServersView(e *core.RequestEvent) error {
 			if item.ConnectType == string(servers.ConnectionModeDirect) {
 				item.Access = directServerAccessProbe(item.Host, item.Port).Access
 			}
+			item.Connection = servers.BuildConnectionView(item)
 			items[index] = item
 		}(idx, record)
 	}

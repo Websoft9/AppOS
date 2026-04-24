@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -27,9 +28,83 @@ func registerMonitorRoutes(se *core.ServeEvent) {
 	bootstrap.GET("/servers/{id}/agent-setup", handleMonitorAgentSetup)
 
 	ingest := se.Router.Group("/api/monitor/ingest")
+	ingest.POST("/facts", handleMonitorFacts)
 	ingest.POST("/metrics", handleMonitorMetrics)
 	ingest.POST("/heartbeat", handleMonitorHeartbeat)
 	ingest.POST("/runtime-status", handleMonitorRuntimeStatus)
+}
+
+func handleMonitorFacts(e *core.RequestEvent) error {
+	token, err := monitorBearerToken(e.Request.Header.Get("Authorization"))
+	if err != nil {
+		return apis.NewUnauthorizedError("missing monitor token", err)
+	}
+	authenticatedServerID, err := agentsignals.ValidateAgentToken(e.App, token)
+	if err != nil {
+		return apis.NewUnauthorizedError("invalid monitor token", err)
+	}
+
+	var body struct {
+		ServerID   string `json:"serverId"`
+		ReportedAt string `json:"reportedAt"`
+		Items      []struct {
+			TargetType string         `json:"targetType"`
+			TargetID   string         `json:"targetId"`
+			Facts      map[string]any `json:"facts"`
+			ObservedAt string         `json:"observedAt"`
+		} `json:"items"`
+	}
+	if err := e.BindBody(&body); err != nil {
+		return e.BadRequestError("invalid body", err)
+	}
+	if strings.TrimSpace(body.ServerID) == "" || strings.TrimSpace(body.ReportedAt) == "" || len(body.Items) == 0 {
+		return e.BadRequestError("serverId, reportedAt, and items are required", nil)
+	}
+	if body.ServerID != authenticatedServerID {
+		return apis.NewForbiddenError("server ownership mismatch", nil)
+	}
+	if len(body.Items) > agentsignals.FactsBatchLimit {
+		return e.BadRequestError("facts batch too large", nil)
+	}
+	reportedAt, err := time.Parse(time.RFC3339, body.ReportedAt)
+	if err != nil {
+		return e.BadRequestError("reportedAt must be RFC3339", err)
+	}
+	server, err := findMonitorServer(e.App, body.ServerID)
+	if err != nil {
+		return e.NotFoundError("server not found", err)
+	}
+	items := make([]agentsignals.FactsItem, 0, len(body.Items))
+	for _, item := range body.Items {
+		observedAt := reportedAt
+		if strings.TrimSpace(item.ObservedAt) != "" {
+			observedAt, err = time.Parse(time.RFC3339, item.ObservedAt)
+			if err != nil {
+				return e.BadRequestError("observedAt must be RFC3339", err)
+			}
+		}
+		items = append(items, agentsignals.FactsItem{
+			TargetType: strings.TrimSpace(item.TargetType),
+			TargetID:   strings.TrimSpace(item.TargetID),
+			Facts:      item.Facts,
+			ObservedAt: observedAt,
+		})
+	}
+	accepted, err := agentsignals.IngestFacts(e.App, agentsignals.FactsIngest{
+		ServerID:   body.ServerID,
+		ServerName: server.GetString("name"),
+		ReportedAt: reportedAt,
+		Items:      items,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, agentsignals.ErrFactsTargetTypeUnsupported), errors.Is(err, agentsignals.ErrFactsTargetMismatch), errors.Is(err, agentsignals.ErrFactsPayloadInvalid):
+			return e.BadRequestError(err.Error(), nil)
+		default:
+			return e.InternalServerError("failed to persist server facts", err)
+		}
+	}
+	return e.JSON(http.StatusAccepted, map[string]any{"ok": true, "accepted": accepted})
 }
 
 func handleMonitorMetrics(e *core.RequestEvent) error {

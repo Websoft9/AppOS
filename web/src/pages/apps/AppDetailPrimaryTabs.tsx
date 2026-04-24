@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { Loader2, RefreshCw, Search } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -43,6 +44,7 @@ export function AppDetailOverviewTab({
   openServerDetail,
   primaryExposure,
   exposures,
+  serverConnectionPresentation,
   openOperationStatus,
   setTab,
   displaySection,
@@ -192,6 +194,28 @@ export function AppDetailOverviewTab({
             <div>Primary exposure: {primaryExposure?.domain || primaryExposure?.path || '-'}</div>
             <div>Exposure count: {exposures.length}</div>
             <div>Server: {serverDisplayName}</div>
+            {serverConnectionPresentation ? (
+              <>
+                <div className="flex items-center gap-2 text-foreground">
+                  <span>Connection:</span>
+                  <Badge
+                    variant={
+                      serverConnectionPresentation.state === 'online'
+                        ? 'default'
+                        : serverConnectionPresentation.state === 'paused' ||
+                            serverConnectionPresentation.state === 'needs_attention'
+                          ? 'secondary'
+                          : 'outline'
+                    }
+                  >
+                    {serverConnectionPresentation.stateLabel}
+                  </Badge>
+                </div>
+                <div>Connection summary: {serverConnectionPresentation.reason}</div>
+                <div>Endpoint: {serverConnectionPresentation.endpointSummary}</div>
+                <div>Next server step: {serverConnectionPresentation.primaryAction.label}</div>
+              </>
+            ) : null}
             {canOpenServerDetail ? (
               <Button
                 variant="link"
@@ -202,7 +226,9 @@ export function AppDetailOverviewTab({
                 Open server detail
               </Button>
             ) : null}
-            <div>Certificate summary: not connected yet</div>
+            <div>
+              Certificate summary: {primaryExposure?.certificate_id ? 'bound' : 'not bound'}
+            </div>
           </CardContent>
         </Card>
         <Card>

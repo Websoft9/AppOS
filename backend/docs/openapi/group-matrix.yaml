@@ -388,6 +388,7 @@ groups:
       - GET /api/monitor/targets/{targetType}/{targetId}/series
       - POST /api/monitor/servers/{id}/agent-token
       - GET /api/monitor/servers/{id}/agent-setup
+      - POST /api/monitor/ingest/facts
       - POST /api/monitor/ingest/metrics
       - POST /api/monitor/ingest/heartbeat
       - POST /api/monitor/ingest/runtime-status

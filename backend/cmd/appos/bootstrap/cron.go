@@ -16,6 +16,7 @@ const componentsInventoryCronJobID = "appos_components_inventory_probe"
 const monitorReachabilityCronJobID = "monitor_reachability_checks"
 const monitorHeartbeatFreshnessCronJobID = "monitor_heartbeat_freshness"
 const monitorCredentialCronJobID = "monitor_credential_checks"
+const monitorAppHealthCronJobID = "monitor_app_health_checks"
 
 func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 	app.Cron().MustAdd(
@@ -57,6 +58,16 @@ func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 		"*/5 * * * *",
 		cronutil.Wrap(app, monitorCredentialCronJobID, func() {
 			if err := worker.EnqueueMonitorCredentialSweep(asynqClient); err != nil {
+				panic(err)
+			}
+		}),
+	)
+
+	app.Cron().MustAdd(
+		monitorAppHealthCronJobID,
+		"*/1 * * * *",
+		cronutil.Wrap(app, monitorAppHealthCronJobID, func() {
+			if err := worker.EnqueueMonitorAppHealthSweep(asynqClient); err != nil {
 				panic(err)
 			}
 		}),

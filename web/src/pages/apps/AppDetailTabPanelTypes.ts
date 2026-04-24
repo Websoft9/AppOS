@@ -1,4 +1,5 @@
 import type { MutableRefObject, RefObject } from 'react'
+import type { ServerConnectionPresentationSpec } from '@/components/servers/server-connection-presentation'
 import type { ActionRecord } from '@/pages/deploy/actions/action-types'
 import type {
   BackupProjection,
@@ -33,6 +34,7 @@ export type OverviewTabProps = {
   openServerDetail: () => void
   primaryExposure?: AppExposure
   exposures: AppExposure[]
+  serverConnectionPresentation: ServerConnectionPresentationSpec | null
   openOperationStatus: () => void
   setTab: (value: string) => void
   displaySection: DisplaySectionProps

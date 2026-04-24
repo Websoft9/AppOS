@@ -101,10 +101,12 @@ The recommended default columns are:
 1. `Name`
 2. `Mode`
 3. `Connection`
-4. `Endpoint`
-5. `Identity`
-6. `Last Activity`
-7. `Action`
+4. `Monitor`
+5. `Host`
+6. `User`
+7. `Secret Type`
+8. `Last Activity`
+9. `Action`
 
 ### Column meanings
 
@@ -125,20 +127,33 @@ It should show:
 - status label
 - one short reason line
 
-#### `Endpoint`
+#### `Host`
 
-Mode-aware destination summary:
+Mode-aware host summary:
 
-- Direct SSH: `host:port`
-- Tunnel: `via <tunnel server>`
+- Direct SSH: host only, without port
+- Tunnel: `via AppOS tunnel`
 
-#### `Identity`
+This column should remain optional in list settings.
 
-Compact operator-facing identity summary, such as:
+#### `User`
 
-- `root · SSH Key`
-- `ubuntu · Password`
-- `root · Tunnel`
+Operator login identity, such as `root` or `ubuntu`.
+
+Rules:
+
+- this column should remain optional in list settings
+- it should support list filtering
+
+#### `Secret Type`
+
+Credential kind used by the server, such as `Password` or `SSH Key`.
+
+Rules:
+
+- this column should remain optional in list settings
+- it should support list filtering
+- it should describe the credential type, not the concrete secret name
 
 #### `Last Activity`
 
@@ -148,9 +163,27 @@ Mode-aware recency signal:
 - last successful check
 - last seen time
 
+#### `Monitor`
+
+Compact monitoring presence signal.
+
+Rules:
+
+- show a lightweight icon when the server already has monitoring state
+- icon entry should lead operators toward the `Monitor` detail tab
+- when the server is not yet under monitoring, keep the cell visually quiet
+- this column should remain optional in list settings
+
 #### `Action`
 
-Exactly one primary button plus one overflow menu.
+Exactly one primary text link plus one overflow menu.
+
+Rules:
+
+- the primary action should read like inline text rather than a filled button
+- the primary action text should use the main action area of the cell and stay left-aligned
+- the overflow menu trigger should occupy only a compact trailing area on the right side of the same cell
+- the overflow menu should remain a separate control with left-aligned menu content
 
 ## Connection States
 
@@ -237,10 +270,9 @@ Recommended tabs:
 
 1. `Overview`
 2. `Connection`
-3. `Tunnel` (tunnel servers only)
-4. `Monitor`
-5. `Runtime`
-6. `Software`
+3. `Monitor`
+4. `Runtime`
+5. `Software`
 
 ### Tab responsibilities
 
@@ -271,11 +303,7 @@ It owns:
 
 It must not be named `Setup`, because setup is only one part of the lifecycle.
 
-#### `Tunnel`
-
-Tunnel-only runtime detail tab.
-
-It is for mapped services and tunnel runtime specifics, not the primary lifecycle explanation.
+Tunnel-specific runtime details, including mapped services, should live inside `Connection` rather than in a separate tab.
 
 #### `Monitor`, `Runtime`, `Software`
 
@@ -408,11 +436,11 @@ Story 20.5 still owns the backend and terminal workspace operations. Within the 
 - [ ] AC3: `Name` opens detail `Overview`; `Connection` opens detail `Connection`.
 - [ ] AC4: The list page does not use inline row expansion.
 - [ ] AC5: The create/edit form presents `Connection Type` as decision cards.
-- [ ] AC6: The detail page exposes `Overview` and `Connection` as distinct tabs, with `Tunnel` shown only for tunnel-backed servers.
+- [ ] AC6: The detail page exposes `Overview` and `Connection` as distinct tabs, with tunnel-specific details folded into `Connection`.
 - [ ] AC7: The `Connection` tab follows the section order defined in this story.
 - [ ] AC8: `Open Terminal` is the only workspace-entry label on the list/detail surface.
 - [ ] AC9: `Restart` and `Shutdown` remain available as secondary actions without competing with the lifecycle primary action.
-- [ ] AC10: Tunnel mapped services and other implementation details stay out of the main list scan.
+- [ ] AC10: Tunnel mapped services and other implementation details stay out of the main list scan while remaining available inside `Connection`.
 
 ## Guardrails
 
@@ -658,7 +686,7 @@ If user-facing labels change, translation coverage must be updated alongside the
 
 - Story 20.1 remains the source of truth for registry data shape and form field dependencies.
 - Story 20.5 remains the source of truth for server ops APIs and terminal workspace ops flows.
-- The current `/api/servers/connection` backend read model may still expose `access` and `tunnel` facts separately; the UI contract defined here is responsible for mapping those backend facts into the unified `Connection` presentation.
+- `/api/servers/connection` should expose `connection.state_code`, `connection.reason_code`, and `connection.config_ready` as the primary lifecycle aggregate. `access` and `tunnel` remain supporting diagnostics for evidence, timeline, and fallback behavior.
 - This story becomes the UI contract the frontend should follow when implementing `/resources/servers` list and detail surfaces.
 
 ## Dev Agent Record

@@ -151,6 +151,9 @@ MVP rules:
 
 Purpose: receive normalized low-frequency host facts selected by `appos-agent` from collector output such as Netdata.
 
+Facts ingest is a server-scoped snapshot write, not a patch stream.
+The agent must send AppOS-owned canonical field names, and the backend must persist the latest accepted snapshot onto the canonical server record.
+
 Suggested `items` payload shape:
 
 ```json
@@ -184,9 +187,32 @@ MVP rules:
 
 - facts are low-frequency snapshots, not time-series samples
 - Netdata may be the source collector, but payload field names must already be normalized to AppOS-owned shape before persistence
+- facts ingest is server-scoped only in MVP: `targetType` must be `server` and `targetId` must equal authenticated `serverId`
+- batch size should be `1` in MVP so one request writes one canonical server snapshot
 - upsert normalized facts onto the canonical server record such as `server.facts_json`
+- facts writes replace the previous snapshot for that server instead of merging partial payloads
+- store the accepted snapshot observation time separately on the server record such as `server.facts_observed_at`
 - do not persist collector-native fact payloads or plugin metadata verbatim
-- facts ingest must remain server-scoped in MVP
+- unknown top-level fact groups should be rejected or dropped by explicit allowlist policy rather than silently persisted
+
+MVP canonical fact allowlist:
+
+- `os.family`
+- `os.distribution`
+- `os.version`
+- `kernel.release`
+- `architecture`
+- `cpu.cores`
+- `memory.total_bytes`
+
+Not in MVP facts payloads:
+
+- full CPU model strings
+- network interface inventory
+- disk inventory
+- Netdata plugin metadata
+- raw container facts
+- collector-native payload passthrough
 
 ### `POST /api/monitor/ingest/heartbeat`
 
@@ -330,6 +356,7 @@ Persist only:
 
 - latest status updates in `monitor_latest_status`
 - normalized host facts on the canonical server record such as `server.facts_json`
+- latest facts observation time on the canonical server record such as `server.facts_observed_at`
 - optional recent diagnostic check records later in `monitor_check_results`
 - agent token material in existing `secrets` collection
 
@@ -344,14 +371,17 @@ Do not persist:
 
 - [ ] AC1: AppOS accepts authenticated ingest requests from managed servers.
 - [ ] AC2: Host and container metrics are written to the dedicated time-series backend, not the primary business store.
-- [ ] AC3: Normalized low-frequency host facts can be ingested and persisted onto the canonical server record such as `server.facts_json`.
-- [ ] AC4: Heartbeat ingest updates freshness state for the related target.
-- [ ] AC5: Stale or missing heartbeat can transition a target to `offline` through the latest-status projection.
-- [ ] AC6: Runtime summary payloads can attach minimal container and app runtime state to the target summary without requiring log ingestion.
-- [ ] AC7: Agent authentication uses a dedicated per-server monitoring token rather than coupling ingest trust to unrelated access tokens.
-- [ ] AC8: Ingest payloads use a compact common envelope with bounded batch semantics.
-- [ ] AC9: Unknown or disallowed metric families are rejected or ignored by an explicit allowlist policy.
-- [ ] AC10: The MVP setup flow can generate a token and return enough config material to install a systemd-managed agent manually.
+- [ ] AC3: AppOS accepts authenticated `POST /api/monitor/ingest/facts` requests that are scoped to the token-owning server only.
+- [ ] AC4: Normalized low-frequency host facts can be ingested and persisted onto the canonical server record in `server.facts_json`, with `server.facts_observed_at` updated from the accepted snapshot.
+- [ ] AC5: Facts ingest writes replace the previous facts snapshot for that server instead of merging partial collector payloads.
+- [ ] AC6: Facts ingest accepts only the MVP canonical fact allowlist and does not persist collector-native field names or plugin metadata verbatim.
+- [ ] AC7: Heartbeat ingest updates freshness state for the related target.
+- [ ] AC8: Stale or missing heartbeat can transition a target to `offline` through the latest-status projection.
+- [ ] AC9: Runtime summary payloads can attach minimal container and app runtime state to the target summary without requiring log ingestion.
+- [ ] AC10: Agent authentication uses a dedicated per-server monitoring token rather than coupling ingest trust to unrelated access tokens.
+- [ ] AC11: Ingest payloads use a compact common envelope with bounded batch semantics.
+- [ ] AC12: Unknown or disallowed metric families are rejected or ignored by an explicit allowlist policy.
+- [ ] AC13: The MVP setup flow can generate a token and return enough config material to install a systemd-managed agent manually.
 
 ## Implementation Notes
 
@@ -363,6 +393,9 @@ As-built note:
 - Keep payload shape compact and batch-friendly.
 - Treat Netdata as an allowed fact source, but keep AppOS field naming and persistence shape independent from collector-native schemas.
 - Reuse existing secret-management and setup-route patterns where helpful, but keep monitoring token lifecycle separate from tunnel lifecycle.
+- Facts ingest should be implemented only after adding server schema fields for `facts_json` and `facts_observed_at`.
+- Facts route tests should cover server ownership mismatch, invalid target type, invalid target id, replace-not-merge semantics, and allowlist enforcement before implementation is marked complete.
+- Agent-side facts collection should not block heartbeat delivery; facts failures may be logged and retried on the next cycle while heartbeat remains the primary freshness signal.
 - Do not introduce a full Prometheus-compatible scrape surface in this story.
 - Keep TSDB access behind a writer adapter so VictoriaMetrics remains an implementation detail outside the monitoring domain boundary.
 - Prefer one agent per server. Multi-agent fan-in on the same server is out of scope for MVP.
@@ -370,14 +403,46 @@ As-built note:
 ## File Targets
 
 - backend ingest routes under `/api/monitor/ingest/*`
+- backend migration for server facts fields
 - backend time-series write adapter
+- backend facts persistence updater for canonical server records
 - backend projection updater for heartbeat freshness
 - backend OpenAPI docs for ingest endpoints
 - bootstrap route or service for monitoring agent token/setup generation
 - secret lookup helper for monitor-agent token validation
+- backend route tests for facts ingest
+- agent facts collection and `/facts` post path
 
 ## Out of Scope
 
 - Active checks
 - Overview UI
 - Alerting
+
+## Dev Agent Record
+
+### Completion Notes
+
+- Added `servers.facts_json` and `servers.facts_observed_at` as the canonical persistence target for low-frequency server facts snapshots.
+- Implemented `POST /api/monitor/ingest/facts` with bearer-token ownership validation, one-item MVP batch enforcement, and server-scoped target validation.
+- Added `signals/agent` facts normalization and allowlist enforcement for `os`, `kernel`, `architecture`, `cpu.cores`, and `memory.total_bytes`.
+- Implemented replace-not-merge facts persistence onto the server record.
+- Extended `appos-monitor-agent` to collect a minimal canonical facts snapshot from local OS/runtime state and post it to `/facts` without blocking heartbeat when facts collection or upload degrades.
+- Added monitor route coverage for facts happy path, ownership mismatch, allowlist rejection, replace semantics, and batch size enforcement.
+
+### Tests Run
+
+- `cd /data/dev/appos/backend && go test ./infra/migrations`
+- `cd /data/dev/appos/backend && go test ./domain/routes`
+- `cd /data/dev/appos/backend && go test ./domain/monitor/signals/agent ./cmd/appos-monitor-agent`
+
+### File List
+
+- `backend/infra/migrations/1765500000_add_server_monitor_facts.go`
+- `backend/infra/migrations/migrations_test.go`
+- `backend/domain/monitor/signals/agent/errors.go`
+- `backend/domain/monitor/signals/agent/facts.go`
+- `backend/domain/routes/monitor.go`
+- `backend/domain/routes/monitor_test.go`
+- `backend/cmd/appos-monitor-agent/main.go`
+- `specs/implementation-artifacts/story28.2-agent-ingestion.md`

@@ -471,6 +471,123 @@ func TestMonitorMetricsIngestRejectsUnknownSeries(t *testing.T) {
 	}
 }
 
+func TestMonitorFactsIngestWritesServerRecord(t *testing.T) {
+	te := newMonitorTestEnv(t)
+	defer te.cleanup()
+
+	server := createMonitorServer(t, te, "prod-01")
+	token, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	observedAt := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
+	observedAtRaw := observedAt.Format(time.RFC3339)
+	body := `{"serverId":"` + server.Id + `","reportedAt":"` + observedAtRaw + `","items":[{"targetType":"server","targetId":"` + server.Id + `","observedAt":"` + observedAtRaw + `","facts":{"os":{"family":"linux","distribution":"ubuntu","version":"24.04"},"kernel":{"release":"6.8.0"},"architecture":"amd64","cpu":{"cores":4},"memory":{"total_bytes":8589934592}}}]}`
+	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/facts", body, "Bearer "+token)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d: %s", rec.Code, rec.Body.String())
+	}
+	stored, err := te.app.FindRecordById("servers", server.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	facts := mustRouteJSONMap(t, stored.Get("facts_json"))
+	if facts["architecture"] != "amd64" {
+		t.Fatalf("expected architecture amd64, got %+v", facts)
+	}
+	osFacts := mustRouteJSONMap(t, facts["os"])
+	if osFacts["distribution"] != "ubuntu" {
+		t.Fatalf("expected normalized os facts, got %+v", facts)
+	}
+	if got := stored.GetDateTime("facts_observed_at").Time().UTC().Format(time.RFC3339); got != observedAtRaw {
+		t.Fatalf("expected facts_observed_at %q, got %q", observedAtRaw, got)
+	}
+}
+
+func TestMonitorFactsIngestRejectsOwnershipMismatch(t *testing.T) {
+	te := newMonitorTestEnv(t)
+	defer te.cleanup()
+
+	server := createMonitorServer(t, te, "prod-01")
+	other := createMonitorServer(t, te, "prod-02")
+	token, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nowRaw := time.Now().UTC().Format(time.RFC3339)
+	body := `{"serverId":"` + other.Id + `","reportedAt":"` + nowRaw + `","items":[{"targetType":"server","targetId":"` + other.Id + `","facts":{"architecture":"amd64"}}]}`
+	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/facts", body, "Bearer "+token)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestMonitorFactsIngestRejectsAllowlistViolation(t *testing.T) {
+	te := newMonitorTestEnv(t)
+	defer te.cleanup()
+
+	server := createMonitorServer(t, te, "prod-01")
+	token, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nowRaw := time.Now().UTC().Format(time.RFC3339)
+	body := `{"serverId":"` + server.Id + `","reportedAt":"` + nowRaw + `","items":[{"targetType":"server","targetId":"` + server.Id + `","facts":{"os":{"family":"linux"},"netdata":{"plugin":"system-info"}}}]}`
+	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/facts", body, "Bearer "+token)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestMonitorFactsIngestReplacesPreviousSnapshot(t *testing.T) {
+	te := newMonitorTestEnv(t)
+	defer te.cleanup()
+
+	server := createMonitorServer(t, te, "prod-01")
+	token, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstAt := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC).Format(time.RFC3339)
+	secondAt := time.Date(2026, 4, 14, 12, 5, 0, 0, time.UTC).Format(time.RFC3339)
+	firstBody := `{"serverId":"` + server.Id + `","reportedAt":"` + firstAt + `","items":[{"targetType":"server","targetId":"` + server.Id + `","facts":{"os":{"family":"linux","distribution":"ubuntu"},"kernel":{"release":"6.8.0"}}}]}`
+	if rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/facts", firstBody, "Bearer "+token); rec.Code != http.StatusAccepted {
+		t.Fatalf("expected first request 202, got %d: %s", rec.Code, rec.Body.String())
+	}
+	secondBody := `{"serverId":"` + server.Id + `","reportedAt":"` + secondAt + `","items":[{"targetType":"server","targetId":"` + server.Id + `","facts":{"architecture":"arm64","cpu":{"cores":8}}}]}`
+	if rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/facts", secondBody, "Bearer "+token); rec.Code != http.StatusAccepted {
+		t.Fatalf("expected second request 202, got %d: %s", rec.Code, rec.Body.String())
+	}
+	stored, err := te.app.FindRecordById("servers", server.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	facts := mustRouteJSONMap(t, stored.Get("facts_json"))
+	if _, ok := facts["os"]; ok {
+		t.Fatalf("expected replaced facts snapshot without os, got %+v", facts)
+	}
+	if facts["architecture"] != "arm64" {
+		t.Fatalf("expected replaced facts snapshot, got %+v", facts)
+	}
+}
+
+func TestMonitorFactsIngestRejectsBatchLargerThanOne(t *testing.T) {
+	te := newMonitorTestEnv(t)
+	defer te.cleanup()
+
+	server := createMonitorServer(t, te, "prod-01")
+	token, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nowRaw := time.Now().UTC().Format(time.RFC3339)
+	body := `{"serverId":"` + server.Id + `","reportedAt":"` + nowRaw + `","items":[{"targetType":"server","targetId":"` + server.Id + `","facts":{"architecture":"amd64"}},{"targetType":"server","targetId":"` + server.Id + `","facts":{"architecture":"arm64"}}]}`
+	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/facts", body, "Bearer "+token)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestMonitorRuntimeStatusIngestMergesServerSummary(t *testing.T) {
 	te := newMonitorTestEnv(t)
 	defer te.cleanup()

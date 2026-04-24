@@ -363,6 +363,8 @@ func TestServersCollectionFields(t *testing.T) {
 	// auth_type removed in migration 1762700000 — credential type is inferred from secret.template_id
 	assertFieldExists(t, col, "credential", core.FieldTypeRelation, false)
 	assertFieldExists(t, col, "description", core.FieldTypeText, false)
+	assertFieldExists(t, col, "facts_json", core.FieldTypeJSON, false)
+	assertFieldExists(t, col, "facts_observed_at", core.FieldTypeDate, false)
 
 	// Verify credential relation points to secrets
 	assertRelationTarget(t, app, col, "credential", "secrets")

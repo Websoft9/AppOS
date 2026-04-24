@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect, useMemo, type ReactNode } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
-import { PlugZap, Loader2, Cable, Link as LinkIcon, RotateCcw, Power, RefreshCw, CircleHelp, PanelRight, MoreVertical } from 'lucide-react'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { PlugZap, Loader2, Cable, Link as LinkIcon, RotateCcw, Power, RefreshCw, CircleHelp, PanelRight, MoreVertical, SlidersHorizontal, Activity } from 'lucide-react'
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import {
   Dialog,
   DialogContent,
@@ -21,6 +21,13 @@ import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { SecretForm, type SecretTemplate } from '@/components/secrets/SecretForm'
 import { MonitorTargetPanel } from '@/components/monitor/MonitorTargetPanel'
 import { ServerSoftwarePanel } from '@/components/servers/ServerSoftwarePanel'
+import {
+  getServerConnectionPresentation,
+  type ServerConnectionActionId,
+  type ServerConnectionActionSpec,
+  type ServerConnectionPresentationSpec,
+  type ServerDetailTab,
+} from '@/components/servers/server-connection-presentation'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatCreator } from '@/lib/groups'
 import { pb } from '@/lib/pb'
@@ -41,6 +48,7 @@ const TEMPLATE_ALIASES: Record<string, string> = {
   ssh_key: 'SSH Key',
 }
 const ALLOWED_TEMPLATES = new Set(Object.keys(TEMPLATE_ALIASES))
+const SERVER_STATUS_REFRESH_BATCH_SIZE = 5
 
 function buildDefaultCredentialSecretName() {
   return `server-credential-${Date.now().toString().slice(-6)}`
@@ -48,6 +56,17 @@ function buildDefaultCredentialSecretName() {
 
 function buildDefaultServerName() {
   return `server-${Date.now().toString().slice(-6)}`
+}
+
+async function runBatched<T>(items: T[], batchSize: number, worker: (item: T) => Promise<void>) {
+  if (batchSize < 1) {
+    throw new Error('batchSize must be at least 1')
+  }
+
+  for (let index = 0; index < items.length; index += batchSize) {
+    const batch = items.slice(index, index + batchSize)
+    await Promise.all(batch.map(item => worker(item)))
+  }
 }
 
 function HelpPopoverButton({
@@ -134,28 +153,6 @@ function tunnelStateLabel(state: string): string {
   return 'Ready'
 }
 
-type ServerConnectionState =
-  | 'not_configured'
-  | 'awaiting_connection'
-  | 'online'
-  | 'paused'
-  | 'needs_attention'
-
-function connectionStateLabel(state: ServerConnectionState): string {
-  switch (state) {
-    case 'not_configured':
-      return 'Not Configured'
-    case 'awaiting_connection':
-      return 'Awaiting Connection'
-    case 'online':
-      return 'Online'
-    case 'paused':
-      return 'Paused'
-    case 'needs_attention':
-      return 'Needs Attention'
-  }
-}
-
 function formatTimestamp(value: unknown): string {
   if (typeof value !== 'string' || value.trim() === '') {
     return '—'
@@ -165,6 +162,92 @@ function formatTimestamp(value: unknown): string {
     return String(value)
   }
   return parsed.toLocaleString()
+}
+
+type ServerFactsView = {
+  operatingSystem: string
+  kernelRelease: string
+  architecture: string
+  cpuCores: string
+  memoryTotal: string
+  observedAt: string
+  hasFacts: boolean
+}
+
+function asNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
+  }
+  return null
+}
+
+function formatBytes(value: unknown): string {
+  const bytes = asNumber(value)
+  if (bytes === null || bytes < 0) {
+    return '—'
+  }
+  if (bytes === 0) {
+    return '0 B'
+  }
+
+  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB']
+  let size = bytes
+  let unitIndex = 0
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024
+    unitIndex += 1
+  }
+
+  const digits = size >= 10 || unitIndex === 0 ? 0 : 1
+  return `${size.toFixed(digits)} ${units[unitIndex]}`
+}
+
+function normalizeServerFacts(item: Record<string, unknown>): ServerFactsView {
+  const facts = asObject(item.facts_json)
+  const osFacts = asObject(facts?.os)
+  const kernelFacts = asObject(facts?.kernel)
+  const cpuFacts = asObject(facts?.cpu)
+  const memoryFacts = asObject(facts?.memory)
+
+  const osParts = [
+    String(osFacts?.distribution ?? '').trim(),
+    String(osFacts?.version ?? '').trim(),
+  ].filter(Boolean)
+  const operatingSystem = osParts.length > 0
+    ? osParts.join(' ')
+    : String(osFacts?.family ?? '').trim() || '—'
+
+  const cpuCores = asNumber(cpuFacts?.cores)
+  const observedAtRaw = String(item.facts_observed_at ?? '').trim()
+  const hasFacts = Boolean(
+    facts && Object.keys(facts).length > 0 || observedAtRaw
+  )
+
+  return {
+    operatingSystem,
+    kernelRelease: String(kernelFacts?.release ?? '').trim() || '—',
+    architecture: String(facts?.architecture ?? '').trim() || '—',
+    cpuCores: cpuCores === null ? '—' : String(cpuCores),
+    memoryTotal: formatBytes(memoryFacts?.total_bytes),
+    observedAt: formatTimestamp(observedAtRaw),
+    hasFacts,
+  }
+}
+
+function compactHostFactsSummary(item: Record<string, unknown>): string {
+  const facts = normalizeServerFacts(item)
+  if (!facts.hasFacts) {
+    return ''
+  }
+
+  const parts = [facts.operatingSystem, facts.architecture].filter(value => value && value !== '—')
+  return parts.join(' · ')
 }
 
 function parseTunnelServices(value: unknown): Array<{ service_name: string; tunnel_port: number }> {
@@ -181,19 +264,74 @@ function parseTunnelServices(value: unknown): Array<{ service_name: string; tunn
   return []
 }
 
-async function listServerItems(currentUserId?: string, currentUserEmail?: string) {
-  const response = await pb.send<{ items?: Array<Record<string, unknown>> }>('/api/servers/connection', {
-	method: 'GET',
-  })
-  return (response.items ?? []).map(item => {
-    const createdBy = String(item.created_by ?? '')
-    const createdByName = String(item.created_by_name ?? '').trim()
-    return {
-      ...item,
-      created_by_display:
-        createdByName || formatCreator(createdBy, currentUserId, currentUserEmail),
-    }
-  })
+function hostSummary(item: Record<string, unknown>): string {
+  if (String(item.connect_type ?? '') === 'tunnel') {
+    return 'via AppOS tunnel'
+  }
+  return String(item.host ?? '').trim() || '—'
+}
+
+type MonitorLatestStatusRecord = {
+  target_id?: string
+  status?: string
+  reason?: string | null
+  last_checked_at?: string | null
+}
+
+function buildServerConnectionFacts(item: Record<string, unknown>, accessStatusOverride?: 'online' | 'offline') {
+  return {
+    connect_type: item.connect_type,
+    host: item.host,
+    port: item.port,
+    user: item.user,
+    credential: item.credential,
+    credential_type: item.credential_type,
+    created: item.created,
+    updated: item.updated,
+    connection: item.connection,
+    access: item.access,
+    tunnel: item.tunnel,
+    access_status_override: accessStatusOverride,
+  }
+}
+
+function readCachedConnectionPresentation(item: Record<string, unknown>): ServerConnectionPresentationSpec | null {
+  const cached = asObject(item.connection_presentation)
+  if (!cached) {
+    return null
+  }
+
+  return cached as unknown as ServerConnectionPresentationSpec
+}
+
+function mapServerListItem(
+  item: Record<string, unknown>,
+  currentUserId: string | undefined,
+  currentUserEmail: string | undefined,
+  monitorByTargetId: Map<string, MonitorLatestStatusRecord>
+) {
+  const createdBy = String(item.created_by ?? '')
+  const createdByName = String(item.created_by_name ?? '').trim()
+  const serverId = String(item.id ?? '').trim()
+  const monitor = serverId ? monitorByTargetId.get(serverId) : undefined
+  const credentialType = String(item.credential_type ?? '').trim()
+  const connectionPresentation = getServerConnectionPresentation(buildServerConnectionFacts(item))
+
+  return {
+    ...item,
+    created_by_display:
+      createdByName || formatCreator(createdBy, currentUserId, currentUserEmail),
+    connection_presentation: connectionPresentation,
+    connection_state: connectionPresentation.state,
+    connection_state_label: connectionPresentation.stateLabel,
+    connection_reason: connectionPresentation.reason,
+    connection_last_activity_at: connectionPresentation.lastActivityAt,
+    connection_last_activity_label: connectionPresentation.lastActivityLabel,
+    secret_type_label: credentialType,
+    monitor_status: String(monitor?.status ?? ''),
+    monitor_reason: String(monitor?.reason ?? ''),
+    monitor_last_checked_at: String(monitor?.last_checked_at ?? ''),
+  }
 }
 
 const fields: FieldDef[] = [
@@ -299,6 +437,10 @@ export function ServersPage() {
   const [listRefreshKey, setListRefreshKey] = useState(0)
   const [wizardServerId, setWizardServerId] = useState<string | null>(null)
   const [selectedServerId, setSelectedServerId] = useState<string | undefined>(server)
+  const [serverPageSize, setServerPageSize] = useState(10)
+  const [visibleOptionalColumns, setVisibleOptionalColumns] = useState<Set<string>>(
+    () => new Set(['host_summary', 'monitor_status', 'user', 'secret_type_label'])
+  )
   const [checkingIds, setCheckingIds] = useState<Set<string>>(new Set())
   const [connectingOpen, setConnectingOpen] = useState(false)
   const [connectingTarget, setConnectingTarget] = useState('')
@@ -387,91 +529,21 @@ export function ServersPage() {
     return tunnelNeedsSetup(item) ? 'setup_required' : 'ready'
   }, [])
 
-  const getConnectionState = useCallback(
-    (item: Record<string, unknown>): ServerConnectionState => {
-      const isTunnel = item.connect_type === 'tunnel'
-      const access = asObject(item.access)
-      const status = getStatusValue(item)
-      const tunnelState = getTunnelValue(item)
-
-      if (isTunnel) {
-        if (tunnelState === 'setup_required') return 'not_configured'
-        if (tunnelState === 'paused') return 'paused'
-        if (status === 'online') return 'online'
-        if (String(access?.reason ?? '') === 'waiting_for_first_connect') return 'awaiting_connection'
-        return 'needs_attention'
-      }
-
-      const hasConfig =
-        String(item.host ?? '').trim() !== '' &&
-        normalizePort(item.port) !== null &&
-        String(item.user ?? '').trim() !== '' &&
-        String(item.credential ?? '').trim() !== ''
-
-      if (!hasConfig) return 'not_configured'
-      if (status === 'online') return 'online'
-      if (status === 'offline') return 'needs_attention'
-      return 'awaiting_connection'
-    },
-    [getStatusValue, getTunnelValue]
-  )
-
-  const getConnectionReason = useCallback(
+  const getConnectionPresentation = useCallback(
     (item: Record<string, unknown>) => {
-      const state = getConnectionState(item)
-      const access = asObject(item.access)
-      const tunnel = asObject(item.tunnel)
-      const reason = String(access?.reason ?? '')
-
-      if (state === 'not_configured') {
-        return item.connect_type === 'tunnel'
-          ? 'Tunnel setup has not started.'
-          : 'Complete SSH details before verification.'
-      }
-      if (state === 'awaiting_connection') {
-        return item.connect_type === 'tunnel'
-          ? 'Waiting for the first tunnel callback.'
-          : 'Configuration is ready for verification.'
-      }
-      if (state === 'online') {
-        return item.connect_type === 'tunnel'
-          ? 'Tunnel session is active.'
-          : 'SSH access is reachable.'
-      }
-      if (state === 'paused') {
-        return 'Reconnect is intentionally paused.'
+      const id = String(item.id ?? '')
+      const override = pingResults[id]
+      if (!override) {
+        const cached = readCachedConnectionPresentation(item)
+        if (cached) {
+          return cached
+        }
       }
 
-      if (reason === 'tcp_connect_failed') return 'AppOS cannot reach this server.'
-      if (reason === 'server_host_empty') return 'Server host is missing.'
-      if (reason === 'tunnel_offline') return 'Tunnel session is offline.'
-
-      return String(tunnel?.reason ?? '').trim() || 'This connection needs attention.'
+      return getServerConnectionPresentation(buildServerConnectionFacts(item, override))
     },
-    [getConnectionState]
+    [pingResults]
   )
-
-  const getEndpointSummary = useCallback((item: Record<string, unknown>) => {
-    if (item.connect_type === 'tunnel') {
-      return 'via AppOS tunnel'
-    }
-    const host = String(item.host ?? '').trim()
-    const port = normalizePort(item.port)
-    if (!host) return '—'
-    return `${host}:${port ?? 22}`
-  }, [])
-
-  const getIdentitySummary = useCallback((item: Record<string, unknown>) => {
-    const user = String(item.user ?? '').trim() || '—'
-    const credentialType = String(item.credential_type ?? '').trim() || (item.connect_type === 'tunnel' ? 'Tunnel' : 'Credential')
-    return `${user} · ${credentialType}`
-  }, [])
-
-  const getLastActivityLabel = useCallback((item: Record<string, unknown>) => {
-    const access = asObject(item.access)
-    const tunnel = asObject(item.tunnel)
-    return formatTimestamp(access?.checked_at ?? tunnel?.last_seen ?? tunnel?.connected_at)
-  }, [])
 
   const openSecretDialog = useCallback(
     (callbacks: { addOption: (id: string, label: string) => void }) => {
@@ -756,6 +828,29 @@ export function ServersPage() {
     [navigate]
   )
 
+  const executePrimaryAction = useCallback(
+    (item: Record<string, unknown>, kind: ServerConnectionActionId) => {
+      if (kind === 'open_terminal') {
+        void handleConnect(item)
+        return
+      }
+      if (kind === 'test_connection') {
+        void checkServerStatus(item)
+        return
+      }
+      if (kind === 'tunnel_setup') {
+        setWizardServerId(String(item.id ?? ''))
+        return
+      }
+      if (kind === 'edit_server') {
+        handleEditServer(item)
+        return
+      }
+      handleOpenServer(item, 'connection')
+    },
+    [checkServerStatus, handleConnect, handleEditServer, handleOpenServer]
+  )
+
   const handleSelectServer = useCallback(
     (item: Record<string, unknown> | null) => {
       const currentServerId = selectedServerId ?? server
@@ -772,109 +867,288 @@ export function ServersPage() {
     setSelectedServerId(server)
   }, [server])
 
-  const columns: Column[] = [
-    {
-      key: 'name',
-      label: 'Name',
-      searchable: true,
-      sortable: true,
-      render: (value, row) => {
-        const id = String(row.id ?? '')
-        const selected = server === id
-        return (
-          <button
-            type="button"
-            className="cursor-pointer text-left font-medium text-primary underline-offset-4 hover:underline"
-            onClick={event => {
-              event.stopPropagation()
-              handleOpenServer(row, 'overview')
-            }}
-          >
-            <span>{String(value || '—')}</span>
-            <span className="sr-only">{selected ? 'Overview already open' : 'Open overview'}</span>
-          </button>
-        )
-      },
-    },
-    {
-      key: 'connect_type',
-      label: 'Mode',
-      filterOptions: [
-        { label: 'Direct SSH', value: 'direct' },
-        { label: 'Reverse Tunnel', value: 'tunnel' },
-      ],
-      render: v => <Badge variant="outline">{v === 'tunnel' ? 'Tunnel' : 'Direct SSH'}</Badge>,
-    },
-    {
-      key: 'connection',
-      label: 'Connection',
-      filterOptions: [
-        { label: 'Not Configured', value: 'not_configured' },
-        { label: 'Awaiting Connection', value: 'awaiting_connection' },
-        { label: 'Online', value: 'online' },
-        { label: 'Paused', value: 'paused' },
-        { label: 'Needs Attention', value: 'needs_attention' },
-      ],
-      filterValue: row => getConnectionState(row),
-      render: (_value, row) => {
-        const state = getConnectionState(row)
-        const reason = getConnectionReason(row)
-        const badgeVariant = state === 'online' ? 'default' : state === 'paused' || state === 'needs_attention' ? 'secondary' : 'outline'
+  const listItems = useCallback(async () => {
+    const [serverResponse, monitorResponse] = await Promise.all([
+      pb.send<{ items?: Array<Record<string, unknown>> }>('/api/servers/connection', {
+        method: 'GET',
+      }),
+      pb.send<{ items?: MonitorLatestStatusRecord[] }>(
+        `/api/collections/monitor_latest_status/records?${new URLSearchParams({
+          perPage: '500',
+          sort: '-updated',
+          fields: 'target_id,status,reason,last_checked_at',
+          filter: `(target_type='server')`,
+        }).toString()}`,
+        { method: 'GET' }
+      ),
+    ])
 
-        return (
-          <button
-            type="button"
-            className="inline-flex text-left"
-            title="Open connection details"
-            onClick={event => {
-              event.stopPropagation()
-              handleOpenServer(row, 'connection')
-            }}
-          >
-            <div className="space-y-1">
-              <Badge variant={badgeVariant}>{connectionStateLabel(state)}</Badge>
-              <div className="max-w-56 text-xs text-muted-foreground">{reason}</div>
-            </div>
-          </button>
-        )
+    const items = serverResponse.items ?? []
+
+    const monitorByTargetId = new Map(
+      Array.isArray(monitorResponse?.items)
+        ? monitorResponse.items
+            .map(record => [String(record.target_id ?? '').trim(), record] as const)
+            .filter(([targetId]) => Boolean(targetId))
+        : []
+    )
+
+    return items.map(item =>
+      mapServerListItem(item, user?.id, String(user?.email ?? ''), monitorByTargetId)
+    )
+  }, [user?.email, user?.id])
+
+  const allColumns = useMemo<Column[]>(
+    () => [
+      {
+        key: 'name',
+        label: 'Name',
+        searchable: true,
+        sortable: true,
+        render: (value, row) => {
+          const id = String(row.id ?? '')
+          const selected = server === id
+          return (
+            <button
+              type="button"
+              className="cursor-pointer text-left font-medium text-primary underline-offset-4 hover:underline"
+              onClick={event => {
+                event.stopPropagation()
+                handleOpenServer(row, 'overview')
+              }}
+            >
+              <span>{String(value || '—')}</span>
+              <span className="sr-only">{selected ? 'Overview already open' : 'Open overview'}</span>
+            </button>
+          )
+        },
       },
-    },
-    {
-      key: 'endpoint',
-      label: 'Endpoint',
-      searchable: true,
-      render: (_value, row) => <span>{getEndpointSummary(row)}</span>,
-    },
-    {
-      key: 'identity',
-      label: 'Identity',
-      searchable: true,
-      render: (_value, row) => <span>{getIdentitySummary(row)}</span>,
-    },
-    {
-      key: 'last_activity',
-      label: 'Last Activity',
-      sortable: true,
-      sortValue: row => String(asObject(row.access)?.checked_at ?? asObject(row.tunnel)?.last_seen ?? asObject(row.tunnel)?.connected_at ?? ''),
-      render: (_value, row) => <span>{getLastActivityLabel(row)}</span>,
-    },
-  ]
+      {
+        key: 'connect_type',
+        label: 'Mode',
+        filterOptions: [
+          { label: 'Direct SSH', value: 'direct' },
+          { label: 'Reverse Tunnel', value: 'tunnel' },
+        ],
+        render: v => <Badge variant="outline">{v === 'tunnel' ? 'Tunnel' : 'Direct SSH'}</Badge>,
+      },
+      {
+        key: 'connection',
+        label: 'Connection',
+        filterOptions: [
+          { label: 'Not Configured', value: 'not_configured' },
+          { label: 'Awaiting Connection', value: 'awaiting_connection' },
+          { label: 'Online', value: 'online' },
+          { label: 'Paused', value: 'paused' },
+          { label: 'Needs Attention', value: 'needs_attention' },
+        ],
+        filterValue: row => String(row.connection_state ?? '').trim() || getConnectionPresentation(row).state,
+        render: (_value, row) => {
+          const id = String(row.id ?? '')
+          const override = pingResults[id]
+          const presentation = !override
+            ? {
+                state: String(row.connection_state ?? '').trim() || 'awaiting_connection',
+                stateLabel: String(row.connection_state_label ?? '').trim() || 'Awaiting Connection',
+                reason: String(row.connection_reason ?? '').trim() || 'Configuration is ready for verification.',
+              }
+            : getConnectionPresentation(row)
+          const state = presentation.state
+          const badgeVariant = state === 'online' ? 'default' : state === 'paused' || state === 'needs_attention' ? 'secondary' : 'outline'
+
+          return (
+            <button
+              type="button"
+              className="inline-flex text-left"
+              title="Open connection details"
+              onClick={event => {
+                event.stopPropagation()
+                handleOpenServer(row, 'connection')
+              }}
+            >
+              <div className="space-y-1">
+                <Badge variant={badgeVariant}>{presentation.stateLabel}</Badge>
+                <div className="max-w-56 text-xs text-muted-foreground">{presentation.reason}</div>
+              </div>
+            </button>
+          )
+        },
+      },
+      {
+        key: 'monitor_status',
+        label: 'Monitor',
+        sortable: true,
+        sortValue: row => String(row.monitor_last_checked_at ?? row.monitor_status ?? ''),
+        render: (value, row) => {
+          const status = String(value ?? '').trim()
+          if (!status) {
+            return <span className="text-muted-foreground">-</span>
+          }
+
+          const name = String(row.name || row.id || 'server')
+          const reason = String(row.monitor_reason ?? '').trim()
+          return (
+            <button
+              type="button"
+              className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground"
+              aria-label={`Open monitor for ${name}`}
+              title={reason ? `Monitoring active: ${status}. ${reason}` : `Monitoring active: ${status}`}
+              onClick={event => {
+                event.stopPropagation()
+                handleOpenServer(row, 'monitor')
+              }}
+            >
+              <Activity className="h-4 w-4" />
+            </button>
+          )
+        },
+      },
+      {
+        key: 'host_summary',
+        label: 'Host',
+        searchable: true,
+        render: (_value, row) => {
+          const factsSummary = compactHostFactsSummary(row)
+          return (
+            <div className="space-y-1">
+              <div>{hostSummary(row)}</div>
+              {factsSummary ? (
+                <div className="text-xs text-muted-foreground">{factsSummary}</div>
+              ) : null}
+            </div>
+          )
+        },
+      },
+      {
+        key: 'user',
+        label: 'User',
+        searchable: true,
+        filterValue: row => String(row.user ?? '').trim() || null,
+        render: value => <span>{String(value || '—')}</span>,
+      },
+      {
+        key: 'secret_type_label',
+        label: 'Secret Type',
+        searchable: true,
+        filterValue: row => String(row.secret_type_label ?? '').trim() || null,
+        render: value => {
+          const secretType = String(value ?? '').trim()
+
+          if (!secretType) {
+            return <span className="text-muted-foreground">—</span>
+          }
+
+          return <span>{secretType}</span>
+        },
+      },
+      {
+        key: 'last_activity',
+        label: 'Last Activity',
+        sortable: true,
+        sortValue: row => String(row.connection_last_activity_at ?? '').trim() || getConnectionPresentation(row).lastActivityAt,
+        render: (_value, row) => {
+          const id = String(row.id ?? '')
+          const override = pingResults[id]
+          const label = !override
+            ? String(row.connection_last_activity_label ?? '').trim() || '—'
+            : getConnectionPresentation(row).lastActivityLabel
+          return <span>{label}</span>
+        },
+      },
+    ],
+    [getConnectionPresentation, handleOpenServer, pingResults, server]
+  )
+
+  const columns = useMemo(
+    () =>
+      allColumns.filter(column => {
+        if (
+          column.key === 'host_summary' ||
+          column.key === 'monitor_status' ||
+          column.key === 'user' ||
+          column.key === 'secret_type_label'
+        ) {
+          return visibleOptionalColumns.has(column.key)
+        }
+        return true
+      }),
+    [allColumns, visibleOptionalColumns]
+  )
+
+  const toggleOptionalColumn = useCallback((columnKey: 'host_summary' | 'monitor_status' | 'user' | 'secret_type_label', checked: boolean) => {
+    setVisibleOptionalColumns(prev => {
+      const next = new Set(prev)
+      if (checked) {
+        next.add(columnKey)
+      } else {
+        next.delete(columnKey)
+      }
+      return next
+    })
+  }, [])
+
+  const renderListSettings = useCallback(
+    ({ pageSize, setPageSize }: { pageSize: number; setPageSize: (pageSize: number) => void }) => (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" title="List settings" aria-label="List settings">
+            <SlidersHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuLabel>Rows per page</DropdownMenuLabel>
+          <DropdownMenuRadioGroup value={String(pageSize)} onValueChange={value => setPageSize(Number(value))}>
+            {[10, 50, 100].map(option => (
+              <DropdownMenuRadioItem key={option} value={String(option)}>
+                {option} / page
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>Columns</DropdownMenuLabel>
+          <DropdownMenuCheckboxItem
+            checked={visibleOptionalColumns.has('host_summary')}
+            onCheckedChange={checked => toggleOptionalColumn('host_summary', checked === true)}
+          >
+            Host
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem
+            checked={visibleOptionalColumns.has('monitor_status')}
+            onCheckedChange={checked => toggleOptionalColumn('monitor_status', checked === true)}
+          >
+            Monitor
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem
+            checked={visibleOptionalColumns.has('user')}
+            onCheckedChange={checked => toggleOptionalColumn('user', checked === true)}
+          >
+            User
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem
+            checked={visibleOptionalColumns.has('secret_type_label')}
+            onCheckedChange={checked => toggleOptionalColumn('secret_type_label', checked === true)}
+          >
+            Secret Type
+          </DropdownMenuCheckboxItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ),
+    [toggleOptionalColumn, visibleOptionalColumns]
+  )
 
   const renderDetailPanel = useCallback(
     (item: Record<string, unknown>) => {
       const isTunnel = item.connect_type === 'tunnel'
       const requestedTab = tab ?? 'overview'
       const detailTab =
-        requestedTab === 'tunnel' && !isTunnel ? 'overview' :
+        requestedTab === 'tunnel' ? 'connection' :
         requestedTab === 'detail' ? 'overview' : requestedTab
       const tunnel = asObject(item.tunnel)
       const services = parseTunnelServices(tunnel?.services ?? item.tunnel_services)
       const status = getStatusValue(item)
       const tunnelState = getTunnelValue(item)
-      const connectionState = getConnectionState(item)
-      const connectionReason = getConnectionReason(item)
-      const endpointSummary = getEndpointSummary(item)
-      const lastActivity = getLastActivityLabel(item)
+      const presentation = getConnectionPresentation(item)
+      const facts = normalizeServerFacts(item)
       const credentialType = String(item.credential_type || '—')
       const credentialId = String(item.credential || '')
       const createdBy = String(item.created_by_display || item.created_by || '—')
@@ -884,53 +1158,11 @@ export function ServersPage() {
       const isTunnelAction = item.connect_type === 'tunnel'
       return (
         <div className="space-y-4">
-          {/* Sheet header: name + actions */}
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <h2 className="text-xl font-semibold tracking-tight">
-                {String(item.name || 'Unnamed Server')}
-              </h2>
-              <p className="mt-0.5 font-mono text-xs text-muted-foreground">{id}</p>
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="shrink-0 gap-1.5">
-                  <MoreVertical className="h-4 w-4" />
-                  Actions
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => { void handleConnect(item) }}>
-                  <LinkIcon className="h-4 w-4" />
-                  Open Terminal
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  disabled={checkingIds.has(id)}
-                  onClick={() => { void checkServerStatus(item) }}
-                >
-                  {checkingIds.has(id) ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <PlugZap className="h-4 w-4" />
-                  )}
-                  Test Connection
-                </DropdownMenuItem>
-                {isTunnelAction && (
-                  <DropdownMenuItem onClick={() => setWizardServerId(id)}>
-                    <Cable className="h-4 w-4" />
-                    Tunnel Setup
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onClick={() => handlePowerRequest(item, 'restart')}>
-                  <RotateCcw className="h-4 w-4" />
-                  Restart
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handlePowerRequest(item, 'shutdown')}>
-                  <Power className="h-4 w-4" />
-                  Shutdown
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold tracking-tight">
+              {String(item.name || 'Unnamed Server')}
+            </h2>
+            <p className="mt-0.5 font-mono text-xs text-muted-foreground">{id}</p>
           </div>
 
           <Tabs
@@ -938,36 +1170,71 @@ export function ServersPage() {
             onValueChange={value => {
               void navigate({
                 to: '/resources/servers',
-                search: prev => ({ ...prev, tab: value as 'overview' | 'monitor' | 'runtime' | 'tunnel' | 'software' }),
+                search: prev => ({ ...prev, tab: value as ServerDetailTab }),
               })
             }}
             className="gap-4"
           >
-            <TabsList
-              variant="line"
-              className="h-auto w-full justify-start gap-7 rounded-none border-b border-border/40 px-0 pb-0"
-            >
-              <TabsTrigger value="overview" className={detailTabTriggerClassName}>
-                Overview
-              </TabsTrigger>
-              <TabsTrigger value="connection" className={detailTabTriggerClassName}>
-                Connection
-              </TabsTrigger>
-              {isTunnel ? (
-                <TabsTrigger value="tunnel" className={detailTabTriggerClassName}>
-                  Tunnel
+            <div className="flex items-end justify-between gap-4 border-b border-border/40">
+              <TabsList
+                variant="line"
+                className="h-auto w-full justify-start gap-7 rounded-none border-0 px-0 pb-0"
+              >
+                <TabsTrigger value="overview" className={detailTabTriggerClassName}>
+                  Overview
                 </TabsTrigger>
-              ) : null}
-              <TabsTrigger value="monitor" className={detailTabTriggerClassName}>
-                Monitor
-              </TabsTrigger>
-              <TabsTrigger value="runtime" className={detailTabTriggerClassName}>
-                Runtime
-              </TabsTrigger>
-              <TabsTrigger value="software" className={detailTabTriggerClassName}>
-                Software
-              </TabsTrigger>
-            </TabsList>
+                <TabsTrigger value="connection" className={detailTabTriggerClassName}>
+                  Connection
+                </TabsTrigger>
+                <TabsTrigger value="monitor" className={detailTabTriggerClassName}>
+                  Monitor
+                </TabsTrigger>
+                <TabsTrigger value="runtime" className={detailTabTriggerClassName}>
+                  Runtime
+                </TabsTrigger>
+                <TabsTrigger value="software" className={detailTabTriggerClassName}>
+                  Software
+                </TabsTrigger>
+              </TabsList>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="mb-2 shrink-0" aria-label="Server actions" title="Server actions">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => { void handleConnect(item) }}>
+                    <LinkIcon className="h-4 w-4" />
+                    Open Terminal
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={checkingIds.has(id)}
+                    onClick={() => { void checkServerStatus(item) }}
+                  >
+                    {checkingIds.has(id) ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <PlugZap className="h-4 w-4" />
+                    )}
+                    Test Connection
+                  </DropdownMenuItem>
+                  {isTunnelAction && (
+                    <DropdownMenuItem onClick={() => setWizardServerId(id)}>
+                      <Cable className="h-4 w-4" />
+                      Tunnel Setup
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={() => handlePowerRequest(item, 'restart')}>
+                    <RotateCcw className="h-4 w-4" />
+                    Restart
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handlePowerRequest(item, 'shutdown')}>
+                    <Power className="h-4 w-4" />
+                    Shutdown
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
 
             <TabsContent value="overview" className="pt-4">
               <dl className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2 xl:grid-cols-3">
@@ -1049,6 +1316,34 @@ export function ServersPage() {
                   <dt className="text-xs uppercase tracking-wide text-muted-foreground">Updated</dt>
                   <dd className="mt-1">{String(item.updated || '—')}</dd>
                 </div>
+                {facts.hasFacts ? (
+                  <>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Operating System</dt>
+                      <dd className="mt-1">{facts.operatingSystem}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Kernel</dt>
+                      <dd className="mt-1">{facts.kernelRelease}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Architecture</dt>
+                      <dd className="mt-1">{facts.architecture}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">CPU Cores</dt>
+                      <dd className="mt-1">{facts.cpuCores}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Memory</dt>
+                      <dd className="mt-1">{facts.memoryTotal}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Facts Observed</dt>
+                      <dd className="mt-1">{facts.observedAt}</dd>
+                    </div>
+                  </>
+                ) : null}
                 {item.description ? (
                   <div className="sm:col-span-2 xl:col-span-3">
                     <dt className="text-xs uppercase tracking-wide text-muted-foreground">Description</dt>
@@ -1063,73 +1358,185 @@ export function ServersPage() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Connection Summary</CardTitle>
-                    <CardDescription>{connectionReason}</CardDescription>
+                    <CardDescription>{presentation.reason}</CardDescription>
                   </CardHeader>
                   <CardContent className="grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
                     <div>
                       <div className="text-xs uppercase tracking-wide text-muted-foreground">Mode</div>
-                      <div className="mt-1">{isTunnel ? 'Tunnel' : 'Direct SSH'}</div>
+                      <div className="mt-1">{presentation.modeLabel}</div>
                     </div>
                     <div>
                       <div className="text-xs uppercase tracking-wide text-muted-foreground">Connection Status</div>
                       <div className="mt-1">
-                        <Badge variant={connectionState === 'online' ? 'default' : connectionState === 'paused' || connectionState === 'needs_attention' ? 'secondary' : 'outline'}>
-                          {connectionStateLabel(connectionState)}
+                        <Badge variant={presentation.state === 'online' ? 'default' : presentation.state === 'paused' || presentation.state === 'needs_attention' ? 'secondary' : 'outline'}>
+                          {presentation.stateLabel}
                         </Badge>
                       </div>
                     </div>
                     <div>
                       <div className="text-xs uppercase tracking-wide text-muted-foreground">Last Check or Last Seen</div>
-                      <div className="mt-1">{lastActivity}</div>
+                      <div className="mt-1">{presentation.lastActivityLabel}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Primary Action</div>
+                      <div className="mt-1">
+                        <Button size="sm" onClick={() => executePrimaryAction(item, presentation.primaryAction.id)}>
+                          {presentation.primaryAction.label}
+                        </Button>
+                      </div>
                     </div>
                     <div className="sm:col-span-2 xl:col-span-3">
                       <div className="text-xs uppercase tracking-wide text-muted-foreground">Current Endpoint</div>
-                      <div className="mt-1">{endpointSummary}</div>
+                      <div className="mt-1">{presentation.endpointSummary}</div>
                     </div>
                   </CardContent>
                 </Card>
-              </div>
-            </TabsContent>
 
-            {isTunnel ? (
-              <TabsContent value="tunnel" className="pt-4">
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
-                  <div>
-                    <h3 className="text-sm font-semibold">Tunnel</h3>
-                    <dl className="mt-4 space-y-4 text-sm">
-                      <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Connection Mode</dt>
-                        <dd className="mt-1">Reverse Tunnel</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Access</dt>
-                        <dd className="mt-1">{accessLabel(status)}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">State</dt>
-                        <dd className="mt-1">{tunnelStateLabel(tunnelState)}</dd>
-                      </div>
-                    </dl>
-                  </div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Primary Next Step</CardTitle>
+                    <CardDescription>{presentation.primaryActionDescription}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex flex-wrap gap-2">
+                      <Button onClick={() => executePrimaryAction(item, presentation.primaryAction.id)}>
+                        {presentation.primaryAction.label}
+                      </Button>
+                      {presentation.secondaryActions.map(action => (
+                        <Button
+                          key={action.label}
+                          variant="outline"
+                          onClick={() => handleOpenServer(item, action.tab)}
+                        >
+                          {action.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
 
-                  <div>
-                    <h3 className="text-sm font-semibold">Tunnel Services</h3>
-                    {services.length === 0 ? (
-                      <p className="mt-3 text-sm text-muted-foreground">No tunnel service mapping exposed for this server.</p>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Mode-Specific Setup or Recovery</CardTitle>
+                    <CardDescription>
+                      {isTunnel
+                        ? 'Tunnel lifecycle guidance covers setup, runtime session, and recovery.'
+                        : 'Direct SSH lifecycle guidance covers configuration, verification, and recovery.'}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-4 lg:grid-cols-3">
+                    {isTunnel ? (
+                      <>
+                        <div className="rounded-xl border p-4 text-sm">
+                          <div className="font-medium">Setup</div>
+                          <div className="mt-2 text-muted-foreground">{presentation.state === 'not_configured' ? 'Tunnel setup has not started yet.' : 'Tunnel setup is already prepared in AppOS.'}</div>
+                        </div>
+                        <div className="rounded-xl border p-4 text-sm">
+                          <div className="font-medium">Runtime Session</div>
+                          <div className="mt-2 text-muted-foreground">State: {tunnelStateLabel(tunnelState)} · Last seen: {formatTimestamp(tunnel?.last_seen)}</div>
+                        </div>
+                        <div className="rounded-xl border p-4 text-sm">
+                          <div className="font-medium">Recovery</div>
+                          <div className="mt-2 text-muted-foreground">{String(tunnel?.reason ?? '').trim() || 'No tunnel-specific recovery issue is currently reported.'}</div>
+                        </div>
+                      </>
                     ) : (
-                      <div className="mt-4 grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
-                        {services.map(service => (
-                          <div key={`${service.service_name}:${service.tunnel_port}`}>
-                            <div className="text-xs uppercase tracking-wide text-muted-foreground">{service.service_name}</div>
-                            <div className="mt-1 font-medium">Port {service.tunnel_port}</div>
+                      <>
+                        <div className="rounded-xl border p-4 text-sm">
+                          <div className="font-medium">Configuration</div>
+                          <div className="mt-2 text-muted-foreground">Host {String(item.host || '—')} · Port {String(item.port || '22')} · User {String(item.user || '—')}</div>
+                        </div>
+                        <div className="rounded-xl border p-4 text-sm">
+                          <div className="font-medium">Verification</div>
+                          <div className="mt-2 text-muted-foreground">Latest check: {presentation.lastActivityLabel} · Source: {presentation.diagnostics.evidenceSource}</div>
+                        </div>
+                        <div className="rounded-xl border p-4 text-sm">
+                          <div className="font-medium">Recovery</div>
+                          <div className="mt-2 text-muted-foreground">{presentation.state === 'needs_attention' ? presentation.reason : 'No SSH recovery action is currently required.'}</div>
+                        </div>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {isTunnel ? (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Tunnel Services</CardTitle>
+                      <CardDescription>Service mappings exposed through this tunnel connection.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {services.length === 0 ? (
+                        <div className="text-sm text-muted-foreground">No tunnel service mapping exposed for this server.</div>
+                      ) : (
+                        <div className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
+                          {services.map(service => (
+                            <div key={`${service.service_name}:${service.tunnel_port}`}>
+                              <div className="text-xs uppercase tracking-wide text-muted-foreground">{service.service_name}</div>
+                              <div className="mt-1 font-medium">Port {service.tunnel_port}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ) : null}
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Diagnostics</CardTitle>
+                    <CardDescription>Evidence that supports the current recommendation.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Latest Check Result</div>
+                      <div className="mt-1">{presentation.diagnostics.latestCheckResult}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Evidence Source</div>
+                      <div className="mt-1">{presentation.diagnostics.evidenceSource}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Latest Failure Reason</div>
+                      <div className="mt-1">{presentation.diagnostics.latestFailureReason}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Latest Tunnel Callback or Heartbeat</div>
+                      <div className="mt-1">{presentation.diagnostics.latestTunnelCallbackOrHeartbeat}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Pause Until</div>
+                      <div className="mt-1">{presentation.diagnostics.pauseUntil}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Current Reason</div>
+                      <div className="mt-1">{presentation.diagnostics.currentReason}</div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Activity Timeline</CardTitle>
+                    <CardDescription>Compact lifecycle milestones for this server.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {presentation.timeline.length === 0 ? (
+                      <div className="text-sm text-muted-foreground">No lifecycle events are available yet.</div>
+                    ) : (
+                      <div className="space-y-3">
+                        {presentation.timeline.map(event => (
+                          <div key={`${event.label}:${event.at}`} className="flex items-start justify-between gap-4 rounded-xl border px-4 py-3 text-sm">
+                            <div className="font-medium">{event.label}</div>
+                            <div className="text-muted-foreground">{event.at}</div>
                           </div>
                         ))}
                       </div>
                     )}
-                  </div>
-                </div>
-              </TabsContent>
-            ) : null}
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
 
             <TabsContent value="monitor" className="pt-4">
               <div className="space-y-4">
@@ -1158,101 +1565,124 @@ export function ServersPage() {
         </div>
       )
     },
-    [checkingIds, checkServerStatus, getConnectionReason, getConnectionState, getEndpointSummary, getLastActivityLabel, getStatusValue, getTunnelValue, handleConnect, handlePowerRequest, navigate, tab]
+    [checkingIds, checkServerStatus, executePrimaryAction, getConnectionPresentation, getStatusValue, getTunnelValue, handleConnect, handleOpenServer, handlePowerRequest, navigate, tab]
   )
 
-  const renderExtraActions = useCallback(
-    (item: Record<string, unknown>) => {
-      const id = String(item.id)
-      const isTunnel = item.connect_type === 'tunnel'
-      return (
-        <>
-          <DropdownMenuItem onClick={() => handleSelectServer(item)}>
-            <PanelRight className="h-4 w-4" />
-            Detail
-          </DropdownMenuItem>
+  const renderConnectionActionItem = useCallback(
+    (item: Record<string, unknown>, action: ServerConnectionActionSpec) => {
+      const id = String(item.id ?? '')
+      const checking = action.id === 'test_connection' && checkingIds.has(id)
+
+      if (action.id === 'test_connection') {
+        return (
           <DropdownMenuItem
+            key={action.id}
+            disabled={checking}
             onClick={() => {
-              void handleConnect(item)
+              executePrimaryAction(item, action.id)
             }}
           >
-            <LinkIcon className="h-4 w-4" />
-            Open Terminal
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={checkingIds.has(id)}
-            onClick={() => {
-              void checkServerStatus(item)
-            }}
-          >
-            {checkingIds.has(id) ? (
+            {checking ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <PlugZap className="h-4 w-4" />
             )}
-            Test Connection
+            {action.label}
           </DropdownMenuItem>
-          {isTunnel && (
-            <DropdownMenuItem onClick={() => setWizardServerId(id)}>
-              <Cable className="h-4 w-4" />
-              Tunnel Setup
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem onClick={() => handlePowerRequest(item, 'restart')}>
-            <RotateCcw className="h-4 w-4" />
-            Restart
+        )
+      }
+
+      if (action.id === 'view_connection' || action.id === 'view_details') {
+        return (
+          <DropdownMenuItem
+            key={action.id}
+            onClick={() => {
+              handleOpenServer(item, action.tab ?? 'overview')
+            }}
+          >
+            <PanelRight className="h-4 w-4" />
+            {action.label}
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => handlePowerRequest(item, 'shutdown')}>
-            <Power className="h-4 w-4" />
-            Shutdown
+        )
+      }
+
+      if (action.id === 'view_checklist' || action.id === 'tunnel_setup') {
+        return (
+          <DropdownMenuItem
+            key={action.id}
+            onClick={() => {
+              executePrimaryAction(item, 'tunnel_setup')
+            }}
+          >
+            <Cable className="h-4 w-4" />
+            {action.label}
           </DropdownMenuItem>
+        )
+      }
+
+      if (action.id === 'restart' || action.id === 'shutdown') {
+        const powerAction = action.id
+        return (
+          <DropdownMenuItem
+            key={powerAction}
+            onClick={() => {
+              handlePowerRequest(item, powerAction)
+            }}
+          >
+            {powerAction === 'restart' ? <RotateCcw className="h-4 w-4" /> : <Power className="h-4 w-4" />}
+            {action.label}
+          </DropdownMenuItem>
+        )
+      }
+
+      return (
+        <DropdownMenuItem
+          key={action.id}
+          onClick={() => {
+            executePrimaryAction(item, action.id)
+          }}
+        >
+          <LinkIcon className="h-4 w-4" />
+          {action.label}
+        </DropdownMenuItem>
+      )
+    },
+    [checkingIds, executePrimaryAction, handleOpenServer, handlePowerRequest]
+  )
+
+  const renderExtraActions = useCallback(
+    (item: Record<string, unknown>) => {
+      const presentation = getConnectionPresentation(item)
+      return (
+        <>
+          {presentation.stateActions.map(action => renderConnectionActionItem(item, action))}
+          {presentation.toolActions.length > 0 ? <DropdownMenuSeparator /> : null}
+          {presentation.toolActions.map(action => renderConnectionActionItem(item, action))}
         </>
       )
     },
-    [checkingIds, checkServerStatus, handleConnect, handlePowerRequest, handleSelectServer]
+    [getConnectionPresentation, renderConnectionActionItem]
   )
 
   const renderPrimaryAction = useCallback(
     (item: Record<string, unknown>) => {
-      const state = getConnectionState(item)
-      const isTunnel = item.connect_type === 'tunnel'
-      const label = (() => {
-        if (state === 'online') return 'Open Terminal'
-        if (state === 'paused') return 'Resume Access'
-        if (state === 'not_configured') return isTunnel ? 'Start Setup' : 'Complete Setup'
-        if (state === 'awaiting_connection') return isTunnel ? 'Continue Setup' : 'Test Connection'
-        return isTunnel ? 'View Issue' : 'Fix Configuration'
-      })()
+      const presentation = getConnectionPresentation(item)
 
       return (
         <Button
+          variant="link"
           size="sm"
+          className="h-auto justify-start px-0 py-0 text-left"
           onClick={event => {
             event.stopPropagation()
-            if (state === 'online') {
-              void handleConnect(item)
-              return
-            }
-            if (isTunnel && (state === 'not_configured' || state === 'awaiting_connection' || state === 'paused')) {
-              setWizardServerId(String(item.id ?? ''))
-              return
-            }
-            if (!isTunnel && (state === 'not_configured' || state === 'needs_attention')) {
-              handleEditServer(item)
-              return
-            }
-            if (!isTunnel && state === 'awaiting_connection') {
-              void checkServerStatus(item)
-              return
-            }
-            handleOpenServer(item, 'connection')
+            executePrimaryAction(item, presentation.primaryAction.id)
           }}
         >
-          {label}
+          {presentation.primaryAction.label}
         </Button>
       )
     },
-    [checkServerStatus, getConnectionState, handleConnect, handleEditServer, handleOpenServer]
+    [executePrimaryAction, getConnectionPresentation]
   )
 
   const refreshAllStatuses = useCallback(
@@ -1263,7 +1693,7 @@ export function ServersPage() {
       items: Record<string, unknown>[]
       refreshList: () => Promise<void>
     }) => {
-      await Promise.all(items.map(item => checkServerStatus(item)))
+      await runBatched(items, SERVER_STATUS_REFRESH_BATCH_SIZE, checkServerStatus)
       await refreshList()
     },
     [checkServerStatus]
@@ -1283,21 +1713,26 @@ export function ServersPage() {
           searchPlaceholder: 'Search server',
           searchContainerClassName: 'w-full sm:w-52',
           pageSize: 10,
+          pageSizeValue: serverPageSize,
+          onPageSizeChange: setServerPageSize,
           pageSizeOptions: [10, 50, 100],
           defaultSort: { key: 'name', dir: 'asc' },
           headerFilters: true,
           listControlsBorder: false,
           listControlsShowReset: false,
-          pageSizeSelectorPlacement: 'header',
+          pageSizeSelectorPlacement: 'none',
           paginationPlacement: 'header',
           paginationVariant: 'minimal',
           paginationSummary: false,
+          headerTrailingControls: renderListSettings,
           paginationTotalLabel: totalCount =>
-            `Total ${totalCount} server${totalCount === 1 ? '' : 's'}`,
+            `Total ${totalCount} items`,
           dialogContentClassName: 'sm:max-w-4xl',
           resourceType: 'server',
+          actionsAlign: 'left',
+          actionsMenuAlign: 'start',
           parentNav: { label: 'Resources', href: '/resources' },
-          listItems: () => listServerItems(user?.id, String(user?.email ?? '')),
+          listItems,
           createItem: async payload =>
             await pb.collection('servers').create({
               ...sanitizeServerPayload(payload),

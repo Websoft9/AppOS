@@ -7116,6 +7116,26 @@ paths:
             summary: Get instance template
             tags:
                 - Service Instances
+    /api/monitor/ingest/facts:
+        post:
+            operationId: post_api_monitor_ingest_facts
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+            security: []
+            summary: Create or execute monitor ingest facts
+            tags:
+                - Monitoring
     /api/monitor/ingest/heartbeat:
         post:
             operationId: post_api_monitor_ingest_heartbeat

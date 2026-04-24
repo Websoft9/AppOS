@@ -216,6 +216,24 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 	direct.Set("connect_type", "direct")
 	direct.Set("credential", secret.Id)
 	direct.Set("created_by", owner.Id)
+	direct.Set("facts_json", map[string]any{
+		"os": map[string]any{
+			"family":       "linux",
+			"distribution": "ubuntu",
+			"version":      "24.04",
+		},
+		"kernel": map[string]any{
+			"release": "6.8.0",
+		},
+		"architecture": "amd64",
+		"cpu": map[string]any{
+			"cores": float64(4),
+		},
+		"memory": map[string]any{
+			"total_bytes": float64(8589934592),
+		},
+	})
+	direct.Set("facts_observed_at", "2026-04-22 10:30:00.000Z")
 	if err := te.app.Save(direct); err != nil {
 		t.Fatal(err)
 	}
@@ -246,6 +264,13 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 			Name           string `json:"name"`
 			CreatedByName  string `json:"created_by_name"`
 			CredentialType string `json:"credential_type"`
+			FactsJSON      map[string]any `json:"facts_json"`
+			FactsObservedAt string `json:"facts_observed_at"`
+			Connection     struct {
+				StateCode   string `json:"state_code"`
+				ReasonCode  string `json:"reason_code"`
+				ConfigReady bool   `json:"config_ready"`
+			} `json:"connection"`
 			Access         struct {
 				Status string `json:"status"`
 				Reason string `json:"reason"`
@@ -269,6 +294,9 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 		ID             string
 		CreatedByName  string
 		CredentialType string
+		ConnectionState string
+		ConnectionReason string
+		ConfigReady    bool
 		AccessStatus   string
 		AccessReason   string
 		AccessSource   string
@@ -281,6 +309,9 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 			ID             string
 			CreatedByName  string
 			CredentialType string
+			ConnectionState string
+			ConnectionReason string
+			ConfigReady    bool
 			AccessStatus   string
 			AccessReason   string
 			AccessSource   string
@@ -291,6 +322,9 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 			ID:             item.ID,
 			CreatedByName:  item.CreatedByName,
 			CredentialType: item.CredentialType,
+			ConnectionState: item.Connection.StateCode,
+			ConnectionReason: item.Connection.ReasonCode,
+			ConfigReady:    item.Connection.ConfigReady,
 			AccessStatus:   item.Access.Status,
 			AccessReason:   item.Access.Reason,
 			AccessSource:   item.Access.Source,
@@ -306,6 +340,9 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 	if got := byName["direct-a"]; got.AccessStatus != "available" || got.AccessSource != "tcp_probe" {
 		t.Fatalf("unexpected direct access payload: %#v", got)
 	}
+	if got := byName["direct-a"]; got.ConnectionState != "online" || got.ConnectionReason != "" || !got.ConfigReady {
+		t.Fatalf("unexpected direct connection payload: %#v", got)
+	}
 	if got := byName["direct-a"]; got.CredentialType != "Password" {
 		t.Fatalf("expected direct credential type Password, got %#v", got)
 	}
@@ -315,9 +352,31 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 	if got := byName["direct-a"]; got.TunnelState != "" {
 		t.Fatalf("expected no tunnel payload for direct server, got %#v", got)
 	}
+	for _, item := range payload.Items {
+		if item.Name != "direct-a" {
+			continue
+		}
+		if item.FactsObservedAt != "2026-04-22T10:30:00Z" {
+			t.Fatalf("expected direct facts_observed_at, got %#v", item.FactsObservedAt)
+		}
+		if item.FactsJSON["architecture"] != "amd64" {
+			t.Fatalf("expected direct facts_json architecture, got %#v", item.FactsJSON)
+		}
+		osFacts, ok := item.FactsJSON["os"].(map[string]any)
+		if !ok || osFacts["distribution"] != "ubuntu" {
+			t.Fatalf("expected direct os facts, got %#v", item.FactsJSON)
+		}
+		memoryFacts, ok := item.FactsJSON["memory"].(map[string]any)
+		if !ok || memoryFacts["total_bytes"] != float64(8589934592) {
+			t.Fatalf("expected direct memory facts, got %#v", item.FactsJSON)
+		}
+	}
 
 	if got := byName["tunnel-b"]; got.AccessStatus != "available" || got.AccessSource != "tunnel_runtime" {
 		t.Fatalf("unexpected tunnel access payload: %#v", got)
+	}
+	if got := byName["tunnel-b"]; got.ConnectionState != "online" || got.ConnectionReason != "" || !got.ConfigReady {
+		t.Fatalf("unexpected tunnel connection payload: %#v", got)
 	}
 	if got := byName["tunnel-b"]; got.TunnelState != "ready" || got.TunnelStatus != "online" || got.TunnelWaiting {
 		t.Fatalf("unexpected tunnel state payload: %#v", got)
@@ -350,6 +409,11 @@ func TestServersViewMarksTunnelSetupRequired(t *testing.T) {
 	var payload struct {
 		Items []struct {
 			Name   string `json:"name"`
+			Connection struct {
+				StateCode   string `json:"state_code"`
+				ReasonCode  string `json:"reason_code"`
+				ConfigReady bool   `json:"config_ready"`
+			} `json:"connection"`
 			Access struct {
 				Status string `json:"status"`
 				Reason string `json:"reason"`
@@ -372,6 +436,9 @@ func TestServersViewMarksTunnelSetupRequired(t *testing.T) {
 	}
 	if item.Access.Status != "unavailable" || item.Access.Reason != "waiting_for_first_connect" {
 		t.Fatalf("unexpected setup-required access payload: %#v", item)
+	}
+	if item.Connection.StateCode != "not_configured" || item.Connection.ReasonCode != "config_incomplete" || item.Connection.ConfigReady {
+		t.Fatalf("unexpected setup-required connection payload: %#v", item)
 	}
 	if item.Tunnel == nil || item.Tunnel.State != "setup_required" || !item.Tunnel.Waiting {
 		t.Fatalf("unexpected setup-required tunnel payload: %#v", item)

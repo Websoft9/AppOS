@@ -305,12 +305,17 @@ Similarly, scheduling should reuse the existing cron and worker infrastructure a
 - Added an explicit `runtime_summary` policy to the server baseline registry entry and switched server runtime-status projection to consume it, so server runtime outcome-to-status/reason mapping now also lives in monitoring target policy instead of an agent-local switch.
 - Moved initial status precedence into monitoring target registry entries so current resource/server/app projections can preserve stronger failures using target policy instead of only a global hardcoded priority table.
 - Moved initial failure-reason defaults into monitoring target registry policies so heartbeat, reachability, credential, and app-health projections now share target-defined fallback reason semantics instead of scattered hardcoded strings.
+- Added the first scheduled `app_health` active-check loop through `monitor_app_health_checks` cron + Asynq worker wiring.
+- Implemented an AppOS-owned app-health sweep that projects `app_instances` runtime and health summaries into `monitor_latest_status` with registry-defined app-health status and reason mapping.
+- Added worker coverage for healthy, degraded, and offline app-health projections plus enqueue guardrails for the new task.
 
 ### Tests Run
 
 - `cd /data/dev/appos/backend && go test ./domain/monitor ./domain/worker`
 - `cd /data/dev/appos/backend && go test ./domain/routes ./platform/hooks ./cmd/appos`
 - `cd /data/dev/appos/web && npm test -- --run src/routes/_app/_auth/resources/-service-instances.test.tsx`
+- `cd /data/dev/appos/backend && go test ./domain/worker`
+- `cd /data/dev/appos/backend && go test ./domain/monitor/... ./cmd/appos/...`
 
 ## File List
 
@@ -318,11 +323,13 @@ Similarly, scheduling should reuse the existing cron and worker infrastructure a
 - `backend/domain/monitor/target_registry.go`
 - `backend/domain/monitor/credential.go`
 - `backend/domain/monitor/credential_test.go`
+- `backend/domain/monitor/signals/checks/app_health_sweep.go`
 - `backend/domain/monitor/target_registry_test.go`
 - `backend/domain/monitor/targets/resource-instances.json`
 - `backend/domain/monitor/targets/server-apps.json`
 - `backend/domain/routes/instances.go`
 - `backend/domain/routes/monitor_test.go`
+- `backend/cmd/appos/bootstrap/cron.go`
 - `backend/domain/worker/monitoring_checks.go`
 - `backend/domain/worker/monitoring_checks_test.go`
 - `backend/domain/worker/worker.go`

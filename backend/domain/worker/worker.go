@@ -164,6 +164,7 @@ func (w *Worker) Start() {
 
 	mux := asynq.NewServeMux()
 	mux.HandleFunc(TaskDeployApp, w.handleDeployApp)
+	mux.HandleFunc(TaskMonitorAppHealthSweep, w.handleMonitorAppHealthSweep)
 	mux.HandleFunc(TaskMonitorCredentialSweep, w.handleMonitorCredentialSweep)
 	mux.HandleFunc(TaskMonitorHeartbeatFreshness, w.handleMonitorHeartbeatFreshness)
 	mux.HandleFunc(TaskMonitorReachabilitySweep, w.handleMonitorReachabilitySweep)
