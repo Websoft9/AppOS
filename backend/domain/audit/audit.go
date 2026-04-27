@@ -11,15 +11,17 @@ import (
 )
 
 const (
-	StatusPending = "pending"
-	StatusSuccess = "success"
-	StatusFailed  = "failed"
+	StatusPending           = "pending"
+	StatusSuccess           = "success"
+	StatusFailed            = "failed"
+	StatusAttentionRequired = "attention_required"
 )
 
 var validStatuses = map[string]bool{
-	StatusPending: true,
-	StatusSuccess: true,
-	StatusFailed:  true,
+	StatusPending:           true,
+	StatusSuccess:           true,
+	StatusFailed:            true,
+	StatusAttentionRequired: true,
 }
 
 // Entry holds all fields for a single audit record.
@@ -37,7 +39,7 @@ type Entry struct {
 	ResourceID string
 	// ResourceName is the human-readable label of the affected resource.
 	ResourceName string
-	// Status must be one of StatusPending, StatusSuccess, or StatusFailed.
+	// Status must be one of StatusPending, StatusSuccess, StatusFailed, or StatusAttentionRequired.
 	Status string
 	// IP is the client's source IP address (from RealIP / trusted proxy headers).
 	// Empty for operations originating from async workers (no HTTP context).

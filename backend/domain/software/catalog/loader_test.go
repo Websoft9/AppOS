@@ -51,9 +51,9 @@ func TestRepairStepPresent(t *testing.T) {
 	}
 }
 
-// TestPreflightOSSupportNonEmpty verifies server templates declare at least one supported OS.
+// TestPreflightVerifiedOSNonEmpty verifies server templates declare at least one verified OS baseline.
 // binary-supervisor and binary-detect are OS-agnostic by design (container-internal) and are skipped.
-func TestPreflightOSSupportNonEmpty(t *testing.T) {
+func TestPreflightVerifiedOSNonEmpty(t *testing.T) {
 	reg, err := catalog.LoadTemplateRegistry()
 	if err != nil {
 		t.Fatalf("LoadTemplateRegistry: %v", err)
@@ -62,8 +62,8 @@ func TestPreflightOSSupportNonEmpty(t *testing.T) {
 		if tpl.TemplateKind == software.TemplateKindBinary {
 			continue // local detection templates are OS-agnostic by design
 		}
-		if len(tpl.Preflight.SupportedOS) == 0 {
-			t.Errorf("template %q has empty supported_os", name)
+		if len(tpl.Preflight.VerifiedOS) == 0 {
+			t.Errorf("template %q has empty verified_os", name)
 		}
 	}
 }
@@ -135,9 +135,9 @@ func TestServerCatalogEntriesHaveValidTemplateRefs(t *testing.T) {
 	}
 }
 
-// TestServerCatalogDefaultActionsAreValid verifies that all default_actions in server catalog
+// TestServerCatalogSupportedActionsAreValid verifies that all supported_actions in server catalog
 // entries use known Action constants.
-func TestServerCatalogDefaultActionsAreValid(t *testing.T) {
+func TestServerCatalogSupportedActionsAreValid(t *testing.T) {
 	cat, err := catalog.LoadServerCatalog()
 	if err != nil {
 		t.Fatalf("LoadServerCatalog: %v", err)
@@ -145,11 +145,15 @@ func TestServerCatalogDefaultActionsAreValid(t *testing.T) {
 	validActions := map[software.Action]bool{
 		software.ActionInstall: true,
 		software.ActionUpgrade: true,
+		software.ActionStart: true,
+		software.ActionStop: true,
+		software.ActionRestart: true,
 		software.ActionVerify:  true,
-		software.ActionRepair:  true,
+		software.ActionReinstall: true,
+		software.ActionUninstall: true,
 	}
 	for _, entry := range cat.Components {
-		for _, a := range entry.DefaultActions {
+		for _, a := range entry.SupportedActions {
 			if !validActions[a] {
 				t.Errorf("server catalog entry %q has invalid action %q", entry.ComponentKey, a)
 			}
@@ -175,6 +179,29 @@ func TestServerCatalogCapabilityComponentMapConsistency(t *testing.T) {
 	}
 }
 
+// TestServerCatalogDeclaredCapabilitiesAreInCanonicalMap verifies the reverse invariant:
+// every server catalog entry that declares a capability must be present in CapabilityComponentMap
+// with the same component key.
+func TestServerCatalogDeclaredCapabilitiesAreInCanonicalMap(t *testing.T) {
+	cat, err := catalog.LoadServerCatalog()
+	if err != nil {
+		t.Fatalf("LoadServerCatalog: %v", err)
+	}
+	for _, entry := range cat.Components {
+		if entry.Capability == "" {
+			continue
+		}
+		mappedKey, ok := software.CapabilityComponentMap[entry.Capability]
+		if !ok {
+			t.Errorf("server catalog entry %q declares capability %q that is absent from CapabilityComponentMap", entry.ComponentKey, entry.Capability)
+			continue
+		}
+		if mappedKey != entry.ComponentKey {
+			t.Errorf("server catalog entry %q declares capability %q but CapabilityComponentMap points to %q", entry.ComponentKey, entry.Capability, mappedKey)
+		}
+	}
+}
+
 // TestServerCatalogEntriesHaveRequiredFields verifies that every server catalog entry has
 // a non-empty label, template_ref, and binary field.
 func TestServerCatalogEntriesHaveRequiredFields(t *testing.T) {
@@ -192,8 +219,36 @@ func TestServerCatalogEntriesHaveRequiredFields(t *testing.T) {
 		if entry.Binary == "" {
 			t.Errorf("server catalog entry %q has empty binary", entry.ComponentKey)
 		}
-		if len(entry.DefaultActions) == 0 {
-			t.Errorf("server catalog entry %q has no default_actions", entry.ComponentKey)
+		if len(entry.SupportedActions) == 0 {
+			t.Errorf("server catalog entry %q has no supported_actions", entry.ComponentKey)
+		}
+		if entry.Description == "" {
+			t.Errorf("server catalog entry %q has empty description", entry.ComponentKey)
+		}
+		if len(entry.ReadinessRequirements) == 0 {
+			t.Errorf("server catalog entry %q has no readiness_requirements", entry.ComponentKey)
+		}
+		if len(entry.Visibility) == 0 {
+			t.Errorf("server catalog entry %q has no visibility metadata", entry.ComponentKey)
+		}
+	}
+}
+
+func TestServerCatalogVisibilityIncludesDiscovery(t *testing.T) {
+	cat, err := catalog.LoadServerCatalog()
+	if err != nil {
+		t.Fatalf("LoadServerCatalog: %v", err)
+	}
+	for _, entry := range cat.Components {
+		found := false
+		for _, visibility := range entry.Visibility {
+			if visibility == software.CatalogVisibilitySupportedSoftwareDiscovery {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("server catalog entry %q must be visible in supported-software discovery", entry.ComponentKey)
 		}
 	}
 }
@@ -259,16 +314,16 @@ func TestLocalCatalogEntriesHaveTargetTypeLocal(t *testing.T) {
 	}
 }
 
-// TestLocalCatalogDefaultActionsVerifyOnly verifies that local catalog entries only
-// expose verify (no install, upgrade, or repair) since these components are pre-installed.
-func TestLocalCatalogDefaultActionsVerifyOnly(t *testing.T) {
+// TestLocalCatalogSupportedActionsVerifyOnly verifies that local catalog entries only
+// expose verify (no install, upgrade, reinstall, or uninstall) since these components are pre-installed.
+func TestLocalCatalogSupportedActionsVerifyOnly(t *testing.T) {
 	cat, err := catalog.LoadLocalCatalog()
 	if err != nil {
 		t.Fatalf("LoadLocalCatalog: %v", err)
 	}
 	for _, entry := range cat.Components {
-		for _, a := range entry.DefaultActions {
-			if a == software.ActionInstall || a == software.ActionUpgrade || a == software.ActionRepair {
+		for _, a := range entry.SupportedActions {
+			if a == software.ActionInstall || a == software.ActionUpgrade || a == software.ActionReinstall || a == software.ActionUninstall {
 				t.Errorf("local catalog entry %q declares action %q; local entries should only expose verify",
 					entry.ComponentKey, a)
 			}
@@ -290,6 +345,35 @@ func TestLocalCatalogEntriesHaveValidTemplateRefs(t *testing.T) {
 	for _, entry := range cat.Components {
 		if _, ok := reg.Templates[entry.TemplateRef]; !ok {
 			t.Errorf("local catalog entry %q references unknown template_ref %q", entry.ComponentKey, entry.TemplateRef)
+		}
+	}
+}
+
+func TestLocalCatalogEntriesExposeCanonicalMetadata(t *testing.T) {
+	cat, err := catalog.LoadLocalCatalog()
+	if err != nil {
+		t.Fatalf("LoadLocalCatalog: %v", err)
+	}
+	for _, entry := range cat.Components {
+		if entry.Description == "" {
+			t.Errorf("local catalog entry %q has empty description", entry.ComponentKey)
+		}
+		if len(entry.ReadinessRequirements) == 0 {
+			t.Errorf("local catalog entry %q has no readiness_requirements", entry.ComponentKey)
+		}
+		if len(entry.Visibility) == 0 {
+			t.Errorf("local catalog entry %q has no visibility metadata", entry.ComponentKey)
+		}
+
+		found := false
+		for _, visibility := range entry.Visibility {
+			if visibility == software.CatalogVisibilityLocalInventory {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("local catalog entry %q must be visible in local inventory", entry.ComponentKey)
 		}
 	}
 }
@@ -333,6 +417,15 @@ func TestResolveTemplatePlaceholders(t *testing.T) {
 	}
 	if strings.Contains(resolved.Install.PackageName, "{{") {
 		t.Errorf("install package_name still has unresolved placeholder: %q", resolved.Install.PackageName)
+	}
+	if len(resolved.Install.PackageNames) != 5 {
+		t.Fatalf("expected resolved install package_names for docker, got %v", resolved.Install.PackageNames)
+	}
+	if resolved.Install.PackageRepoProfile != "docker-ce" {
+		t.Fatalf("expected docker package repo profile, got %q", resolved.Install.PackageRepoProfile)
+	}
+	if strings.Contains(resolved.Uninstall.PackageName, "{{") {
+		t.Errorf("uninstall package_name still has unresolved placeholder: %q", resolved.Uninstall.PackageName)
 	}
 	if strings.Contains(resolved.Verify.ServiceName, "{{") {
 		t.Errorf("verify service_name still has unresolved placeholder: %q", resolved.Verify.ServiceName)

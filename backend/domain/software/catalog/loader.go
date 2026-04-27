@@ -1,7 +1,7 @@
 // Package catalog loads and resolves Software Delivery component templates and catalogs.
 //
 // The catalog subdomain owns two static registries:
-//   - templates.yaml: named delivery templates (detect, preflight, install, upgrade, verify, repair steps)
+//   - templates.yaml: named delivery templates (detect, preflight, install, upgrade, uninstall, verify, repair steps)
 //   - catalog_local.yaml: components managed on the local AppOS host (detect + verify only)
 //   - catalog_server.yaml: components deployed to managed remote servers (full lifecycle)
 //
@@ -28,10 +28,51 @@ var embeddedLocalCatalog []byte
 //go:embed catalog_server.yaml
 var embeddedServerCatalog []byte
 
+var validCatalogVisibility = map[software.CatalogVisibility]struct{}{
+	software.CatalogVisibilityServerOperations:           {},
+	software.CatalogVisibilitySupportedSoftwareDiscovery: {},
+	software.CatalogVisibilityLocalInventory:             {},
+}
+
 func validateCatalogEntries(cat software.ComponentCatalog, catalogName string) error {
 	for _, entry := range cat.Components {
 		if entry.ComponentKey.IsReservedRouteKey() {
 			return fmt.Errorf("%s: component_key %q is reserved by the flat /software route family", catalogName, entry.ComponentKey)
+		}
+		if entry.Label == "" {
+			return fmt.Errorf("%s: component %q missing label", catalogName, entry.ComponentKey)
+		}
+		if entry.TemplateRef == "" {
+			return fmt.Errorf("%s: component %q missing template_ref", catalogName, entry.ComponentKey)
+		}
+		if entry.Binary == "" {
+			return fmt.Errorf("%s: component %q missing binary", catalogName, entry.ComponentKey)
+		}
+		if entry.Description == "" {
+			return fmt.Errorf("%s: component %q missing description", catalogName, entry.ComponentKey)
+		}
+		if len(entry.ReadinessRequirements) == 0 {
+			return fmt.Errorf("%s: component %q missing readiness_requirements", catalogName, entry.ComponentKey)
+		}
+		if len(entry.Visibility) == 0 {
+			return fmt.Errorf("%s: component %q missing visibility", catalogName, entry.ComponentKey)
+		}
+		for _, visibility := range entry.Visibility {
+			if _, ok := validCatalogVisibility[visibility]; !ok {
+				return fmt.Errorf("%s: component %q has unknown visibility %q", catalogName, entry.ComponentKey, visibility)
+			}
+		}
+		if len(entry.SupportedActions) == 0 {
+			return fmt.Errorf("%s: component %q missing supported_actions", catalogName, entry.ComponentKey)
+		}
+		if entry.Capability != "" {
+			mappedKey, ok := software.CapabilityComponentMap[entry.Capability]
+			if !ok {
+				return fmt.Errorf("%s: component %q declares capability %q that is absent from CapabilityComponentMap", catalogName, entry.ComponentKey, entry.Capability)
+			}
+			if mappedKey != entry.ComponentKey {
+				return fmt.Errorf("%s: component %q declares capability %q but CapabilityComponentMap points to %q", catalogName, entry.ComponentKey, entry.Capability, mappedKey)
+			}
 		}
 	}
 	return nil
@@ -48,7 +89,7 @@ func LoadTemplateRegistry() (software.TemplateRegistry, error) {
 
 // LoadLocalCatalog parses the embedded catalog_local.yaml and returns the local-target catalog.
 // Local catalog entries represent components installed on the AppOS host; they support
-// detect and verify actions only. Install, upgrade, and repair are not managed by Software Delivery
+// detect and verify actions only. Install, upgrade, and reinstall are not managed by Software Delivery
 // for local targets.
 func LoadLocalCatalog() (software.ComponentCatalog, error) {
 	var cat software.ComponentCatalog
@@ -63,7 +104,7 @@ func LoadLocalCatalog() (software.ComponentCatalog, error) {
 
 // LoadServerCatalog parses the embedded catalog_server.yaml and returns the server-target catalog.
 // Server catalog entries represent components deployed to managed remote servers and support
-// the full Software Delivery lifecycle: install, upgrade, verify, and repair.
+// the full Software Delivery lifecycle: install, upgrade, uninstall, verify, and reinstall.
 func LoadServerCatalog() (software.ComponentCatalog, error) {
 	var cat software.ComponentCatalog
 	if err := yaml.Unmarshal(embeddedServerCatalog, &cat); err != nil {
@@ -85,6 +126,7 @@ func ResolveTemplate(entry software.CatalogEntry, tpl software.ComponentTemplate
 		"binary":       entry.Binary,
 		"package_name": entry.PackageName,
 		"service_name": entry.ServiceName,
+		"script_path":  entry.ScriptPath,
 		"script_url":   entry.ScriptURL,
 	}
 	sub := func(s string) string {
@@ -119,22 +161,37 @@ func ResolveTemplate(entry software.CatalogEntry, tpl software.ComponentTemplate
 		},
 		Preflight: tpl.Preflight,
 		Install: software.InstallSpec{
-			Strategy:    tpl.Install.Strategy,
-			PackageName: sub(tpl.Install.PackageName),
-			ScriptURL:   sub(tpl.Install.ScriptURL),
-			Args:        subSlice(tpl.Install.Args),
+			Strategy:           tpl.Install.Strategy,
+			PackageName:        sub(tpl.Install.PackageName),
+			PackageNames:       append([]string(nil), entry.PackageNames...),
+			PackageRepoProfile: entry.PackageRepoProfile,
+			ScriptPath:         sub(tpl.Install.ScriptPath),
+			ScriptURL:          sub(tpl.Install.ScriptURL),
+			Args:               subSlice(tpl.Install.Args),
 		},
 		Upgrade: software.UpgradeSpec{
-			Strategy:    tpl.Upgrade.Strategy,
-			PackageName: sub(tpl.Upgrade.PackageName),
-			ScriptURL:   sub(tpl.Upgrade.ScriptURL),
-			Args:        subSlice(tpl.Upgrade.Args),
+			Strategy:           tpl.Upgrade.Strategy,
+			PackageName:        sub(tpl.Upgrade.PackageName),
+			PackageNames:       append([]string(nil), entry.PackageNames...),
+			PackageRepoProfile: entry.PackageRepoProfile,
+			ScriptPath:         sub(tpl.Upgrade.ScriptPath),
+			ScriptURL:          sub(tpl.Upgrade.ScriptURL),
+			Args:               subSlice(tpl.Upgrade.Args),
+		},
+		Uninstall: software.UninstallSpec{
+			Strategy:           tpl.Uninstall.Strategy,
+			PackageName:        sub(tpl.Uninstall.PackageName),
+			PackageNames:       append([]string(nil), entry.PackageNames...),
+			PackageRepoProfile: entry.PackageRepoProfile,
+			ScriptPath:         sub(tpl.Uninstall.ScriptPath),
+			ScriptURL:          sub(tpl.Uninstall.ScriptURL),
+			Args:               subSlice(tpl.Uninstall.Args),
 		},
 		Verify: software.VerifySpec{
 			Strategy:    tpl.Verify.Strategy,
 			ServiceName: sub(tpl.Verify.ServiceName),
 		},
-		Repair:         repair,
-		DefaultActions: entry.DefaultActions,
+		Repair:           repair,
+		SupportedActions: entry.SupportedActions,
 	}
 }

@@ -11,7 +11,13 @@ components:
     template_ref: binary-supervisor
     binary: nginx
     service_name: nginx  # [program:nginx] in supervisord.conf
-    default_actions:
+    description: Bundled reverse proxy service inside the AppOS runtime.
+    readiness_requirements:
+      - bundled_with_appos
+      - supervisor_process
+    visibility:
+      - local_inventory
+    supported_actions:
       - verify
 
   # Redis — session store and internal pub/sub bus.
@@ -21,7 +27,13 @@ components:
     template_ref: binary-supervisor
     binary: redis-server
     service_name: redis  # [program:redis] in supervisord.conf
-    default_actions:
+    description: Bundled Redis service inside the AppOS runtime.
+    readiness_requirements:
+      - bundled_with_appos
+      - supervisor_process
+    visibility:
+      - local_inventory
+    supported_actions:
       - verify
 
   # VictoriaMetrics — embedded time-series database for metrics storage.
@@ -31,7 +43,13 @@ components:
     template_ref: binary-supervisor
     binary: victoria-metrics-prod
     service_name: victoriametrics  # [program:victoriametrics] in supervisord.conf
-    default_actions:
+    description: Bundled metrics storage service inside the AppOS runtime.
+    readiness_requirements:
+      - bundled_with_appos
+      - supervisor_process
+    visibility:
+      - local_inventory
+    supported_actions:
       - verify
 
   # Netdata — monitoring agent that collects host metrics.
@@ -42,7 +60,13 @@ components:
     template_ref: binary-supervisor
     binary: netdata
     service_name: netdata  # [program:netdata] in supervisord.conf
-    default_actions:
+    description: Bundled monitoring agent service inside the AppOS runtime.
+    readiness_requirements:
+      - bundled_with_appos
+      - supervisor_process
+    visibility:
+      - local_inventory
+    supported_actions:
       - verify
 
   # AppOS backend — the PocketBase-based backend binary.
@@ -52,7 +76,13 @@ components:
     template_ref: binary-supervisor
     binary: appos
     service_name: appos  # [program:appos] in supervisord.conf
-    default_actions:
+    description: Bundled AppOS backend service inside the runtime container.
+    readiness_requirements:
+      - bundled_with_appos
+      - supervisor_process
+    visibility:
+      - local_inventory
+    supported_actions:
       - verify
 
   # ── Standalone binaries (no associated service) ──────────────────────────────
@@ -67,7 +97,13 @@ components:
     template_ref: binary-detect
     binary: docker
     service_name: ""
-    default_actions:
+    description: Bundled Docker CLI used by AppOS to talk to the host daemon.
+    readiness_requirements:
+      - bundled_with_appos
+      - docker_socket_access
+    visibility:
+      - local_inventory
+    supported_actions:
       - verify
 
   # Node.js — JavaScript runtime used by the coding agent (pi).
@@ -77,5 +113,11 @@ components:
     template_ref: binary-detect
     binary: node
     service_name: ""
-    default_actions:
+    description: Bundled Node.js runtime used by AppOS agent tooling.
+    readiness_requirements:
+      - bundled_with_appos
+      - binary_available
+    visibility:
+      - local_inventory
+    supported_actions:
       - verify

@@ -25,18 +25,30 @@ const (
 	TaskSoftwareInstall = "software:install"
 	// TaskSoftwareUpgrade is the Asynq task type for a software upgrade action.
 	TaskSoftwareUpgrade = "software:upgrade"
+	// TaskSoftwareStart is the Asynq task type for a software start action.
+	TaskSoftwareStart = "software:start"
+	// TaskSoftwareStop is the Asynq task type for a software stop action.
+	TaskSoftwareStop = "software:stop"
+	// TaskSoftwareRestart is the Asynq task type for a software restart action.
+	TaskSoftwareRestart = "software:restart"
 	// TaskSoftwareVerify is the Asynq task type for a software verify action.
 	TaskSoftwareVerify = "software:verify"
-	// TaskSoftwareRepair is the Asynq task type for a software repair action.
-	TaskSoftwareRepair = "software:repair"
+	// TaskSoftwareReinstall is the Asynq task type for a software reinstall action.
+	TaskSoftwareReinstall = "software:reinstall"
+	// TaskSoftwareUninstall is the Asynq task type for a software uninstall action.
+	TaskSoftwareUninstall = "software:uninstall"
 )
 
 // softwareTaskTypeByAction maps Action → Asynq task type name.
 var softwareTaskTypeByAction = map[software.Action]string{
-	software.ActionInstall: TaskSoftwareInstall,
-	software.ActionUpgrade: TaskSoftwareUpgrade,
-	software.ActionVerify:  TaskSoftwareVerify,
-	software.ActionRepair:  TaskSoftwareRepair,
+	software.ActionInstall:   TaskSoftwareInstall,
+	software.ActionUpgrade:   TaskSoftwareUpgrade,
+	software.ActionStart:     TaskSoftwareStart,
+	software.ActionStop:      TaskSoftwareStop,
+	software.ActionRestart:   TaskSoftwareRestart,
+	software.ActionVerify:    TaskSoftwareVerify,
+	software.ActionReinstall: TaskSoftwareReinstall,
+	software.ActionUninstall: TaskSoftwareUninstall,
 }
 
 // ─── Payload ─────────────────────────────────────────────
@@ -52,6 +64,8 @@ type SoftwareActionPayload struct {
 }
 
 var ErrSoftwareOperationInFlight = errors.New("software operation already in flight")
+var ErrSoftwareComponentNotFound = errors.New("software component not found in server catalog")
+var ErrSoftwareActionUnsupported = errors.New("software action unsupported for component")
 
 // ─── Constructors ─────────────────────────────────────────
 
@@ -114,6 +128,9 @@ func PrepareSoftwareOperation(app core.App, serverID string, componentKey softwa
 	if strings.TrimSpace(string(action)) == "" {
 		return nil, fmt.Errorf("action is required")
 	}
+	if err := validateSoftwareActionSupport(componentKey, action); err != nil {
+		return nil, err
+	}
 	inFlight, err := hasSoftwareOperationInFlight(app, serverID, string(componentKey))
 	if err != nil {
 		return nil, err
@@ -126,6 +143,25 @@ func PrepareSoftwareOperation(app core.App, serverID string, componentKey softwa
 		ComponentKey: componentKey,
 		Action:       action,
 	})
+}
+
+func validateSoftwareActionSupport(componentKey software.ComponentKey, action software.Action) error {
+	cat, err := swcatalog.LoadServerCatalog()
+	if err != nil {
+		return fmt.Errorf("load server catalog: %w", err)
+	}
+	for _, entry := range cat.Components {
+		if entry.ComponentKey != componentKey {
+			continue
+		}
+		for _, supported := range entry.SupportedActions {
+			if supported == action {
+				return nil
+			}
+		}
+		return fmt.Errorf("%w: component %q does not expose action %q", ErrSoftwareActionUnsupported, componentKey, action)
+	}
+	return fmt.Errorf("%w: component %q", ErrSoftwareComponentNotFound, componentKey)
 }
 
 // ─── Phase Ordering ───────────────────────────────────────
@@ -274,23 +310,60 @@ func (w *Worker) advanceSoftwarePhase(record *core.Record, phase software.Operat
 }
 
 // failSoftwareOperation records a terminal failure on the operation.
-func (w *Worker) failSoftwareOperation(record *core.Record, reason string) {
+func (w *Worker) failSoftwareOperation(record *core.Record, failurePhase software.OperationPhase, failureCode software.FailureCode, reason string) {
 	record.Set("phase", string(software.OperationPhaseFailed))
 	record.Set("terminal_status", string(software.TerminalStatusFailed))
+	if failurePhase != "" {
+		record.Set("failure_phase", string(failurePhase))
+	}
+	if failureCode != "" {
+		record.Set("failure_code", string(failureCode))
+	}
 	record.Set("failure_reason", reason)
 	if err := w.app.Save(record); err != nil {
 		log.Printf("software operation %s: save failure state: %v", record.Id, err)
 	}
 }
 
-func (w *Worker) failSoftwareOperationWithAudit(record *core.Record, payload SoftwareActionPayload, reason string) {
-	w.failSoftwareOperation(record, reason)
+func (w *Worker) failSoftwareOperationWithAudit(record *core.Record, payload SoftwareActionPayload, failurePhase software.OperationPhase, failureCode software.FailureCode, reason string) {
+	w.failSoftwareOperation(record, failurePhase, failureCode, reason)
 	w.writeSoftwareAudit(record, payload, "failed")
 }
 
-func (w *Worker) failSoftwareOperationAndRefreshSnapshot(ctx context.Context, record *core.Record, payload SoftwareActionPayload, reason string, entry software.CatalogEntry, resolved software.ResolvedTemplate, executor software.ComponentExecutor) {
-	w.failSoftwareOperationWithAudit(record, payload, reason)
+func (w *Worker) failSoftwareOperationAndRefreshSnapshot(ctx context.Context, record *core.Record, payload SoftwareActionPayload, failurePhase software.OperationPhase, failureCode software.FailureCode, reason string, entry software.CatalogEntry, resolved software.ResolvedTemplate, executor software.ComponentExecutor) {
+	w.failSoftwareOperationWithAudit(record, payload, failurePhase, failureCode, reason)
 	w.refreshSoftwareSnapshot(ctx, record, payload, entry, resolved, executor)
+}
+
+func (w *Worker) markSoftwareOperationAttentionRequired(record *core.Record, failurePhase software.OperationPhase, failureCode software.FailureCode, reason string) {
+	record.Set("phase", string(software.OperationPhaseAttentionRequired))
+	record.Set("terminal_status", string(software.TerminalStatusAttentionRequired))
+	if failurePhase != "" {
+		record.Set("failure_phase", string(failurePhase))
+	}
+	if failureCode != "" {
+		record.Set("failure_code", string(failureCode))
+	}
+	record.Set("failure_reason", reason)
+	if err := w.app.Save(record); err != nil {
+		log.Printf("software operation %s: save attention_required state: %v", record.Id, err)
+	}
+}
+
+func (w *Worker) markSoftwareOperationAttentionRequiredAndRefreshSnapshot(ctx context.Context, record *core.Record, payload SoftwareActionPayload, failurePhase software.OperationPhase, failureCode software.FailureCode, reason string, entry software.CatalogEntry, resolved software.ResolvedTemplate, executor software.ComponentExecutor) {
+	w.markSoftwareOperationAttentionRequired(record, failurePhase, failureCode, reason)
+	w.writeSoftwareAudit(record, payload, "attention_required")
+	w.refreshSoftwareSnapshot(ctx, record, payload, entry, resolved, executor)
+}
+
+func classifyVerificationFailure(action software.Action, err error) software.FailureCode {
+	if action == software.ActionUninstall {
+		return software.FailureCodeUninstallTruthMismatch
+	}
+	if err != nil && err.Error() == "component is degraded" {
+		return software.FailureCodeVerificationDegraded
+	}
+	return software.FailureCodeVerificationError
 }
 
 // succeedSoftwareOperation records a terminal success on the operation.
@@ -308,6 +381,40 @@ func (w *Worker) succeedSoftwareOperationAndRefreshSnapshot(ctx context.Context,
 	w.refreshSoftwareSnapshot(ctx, record, payload, entry, resolved, executor)
 }
 
+func (w *Worker) verifySoftwareActionOutcome(ctx context.Context, serverID string, action software.Action, resolved software.ResolvedTemplate, executor software.ComponentExecutor) error {
+	switch action {
+	case software.ActionInstall, software.ActionUpgrade, software.ActionStart, software.ActionRestart, software.ActionReinstall, software.ActionVerify:
+		detail, err := executor.Verify(ctx, serverID, resolved)
+		if err != nil {
+			return err
+		}
+		if detail.VerificationState == software.VerificationStateDegraded {
+			return fmt.Errorf("component is degraded")
+		}
+		return nil
+	case software.ActionStop:
+		detail, err := executor.Verify(ctx, serverID, resolved)
+		if err != nil {
+			return err
+		}
+		if detail.VerificationState == software.VerificationStateHealthy {
+			return fmt.Errorf("component is still active")
+		}
+		return nil
+	case software.ActionUninstall:
+		installedState, _, err := executor.Detect(ctx, serverID, resolved)
+		if err != nil {
+			return err
+		}
+		if installedState == software.InstalledStateInstalled {
+			return fmt.Errorf("component is still detected as installed")
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported verification action: %q", action)
+	}
+}
+
 // runSoftwarePhaseLoop implements the phase-step loop for a single software delivery operation.
 func (w *Worker) runSoftwarePhaseLoop(ctx context.Context, record *core.Record, payload SoftwareActionPayload) {
 	serverID := payload.ServerID
@@ -319,12 +426,12 @@ func (w *Worker) runSoftwarePhaseLoop(ctx context.Context, record *core.Record, 
 
 	cat, err := swcatalog.LoadServerCatalog()
 	if err != nil {
-		w.failSoftwareOperationWithAudit(record, payload, fmt.Sprintf("load catalog: %v", err))
+		w.failSoftwareOperationWithAudit(record, payload, software.OperationPhasePreflight, software.FailureCodePreflightError, fmt.Sprintf("load catalog: %v", err))
 		return
 	}
 	reg, err := swcatalog.LoadTemplateRegistry()
 	if err != nil {
-		w.failSoftwareOperationWithAudit(record, payload, fmt.Sprintf("load template registry: %v", err))
+		w.failSoftwareOperationWithAudit(record, payload, software.OperationPhasePreflight, software.FailureCodePreflightError, fmt.Sprintf("load template registry: %v", err))
 		return
 	}
 
@@ -336,13 +443,13 @@ func (w *Worker) runSoftwarePhaseLoop(ctx context.Context, record *core.Record, 
 		}
 	}
 	if string(entry.ComponentKey) == "" {
-		w.failSoftwareOperationWithAudit(record, payload, fmt.Sprintf("component %q not found in catalog", componentKey))
+		w.failSoftwareOperationWithAudit(record, payload, software.OperationPhasePreflight, software.FailureCodePreflightError, fmt.Sprintf("component %q not found in catalog", componentKey))
 		return
 	}
 
 	tpl, ok := reg.Templates[entry.TemplateRef]
 	if !ok {
-		w.failSoftwareOperationWithAudit(record, payload, fmt.Sprintf("template_ref %q not in registry", entry.TemplateRef))
+		w.failSoftwareOperationWithAudit(record, payload, software.OperationPhasePreflight, software.FailureCodePreflightError, fmt.Sprintf("template_ref %q not in registry", entry.TemplateRef))
 		return
 	}
 
@@ -350,48 +457,55 @@ func (w *Worker) runSoftwarePhaseLoop(ctx context.Context, record *core.Record, 
 
 	executor, exErr := softwareExecutorFactory(w.app, serverID, payload.UserID)
 	if exErr != nil {
-		w.failSoftwareOperationWithAudit(record, payload, fmt.Sprintf("create executor: %v", exErr))
+		w.failSoftwareOperationWithAudit(record, payload, software.OperationPhasePreflight, software.FailureCodePreflightError, fmt.Sprintf("create executor: %v", exErr))
 		return
 	}
 
 	readiness, err := executor.RunPreflight(ctx, serverID, resolved)
 	if err != nil {
-		w.failSoftwareOperationAndRefreshSnapshot(ctx, record, payload, fmt.Sprintf("run preflight: %v", err), entry, resolved, executor)
+		w.failSoftwareOperationAndRefreshSnapshot(ctx, record, payload, software.OperationPhasePreflight, software.FailureCodePreflightError, fmt.Sprintf("run preflight: %v", err), entry, resolved, executor)
 		return
 	}
 	if !readiness.OK {
-		w.failSoftwareOperationAndRefreshSnapshot(ctx, record, payload, fmt.Sprintf("preflight failed: %v", readiness.Issues), entry, resolved, executor)
+		w.failSoftwareOperationAndRefreshSnapshot(ctx, record, payload, software.OperationPhasePreflight, software.FailureCodePreflightBlocked, fmt.Sprintf("preflight failed: %v", readiness.Issues), entry, resolved, executor)
 		return
 	}
 
 	// ── Phase: Executing ─────────────────────────────────
 	w.advanceSoftwarePhase(record, software.OperationPhaseExecuting)
 
-	var detail software.SoftwareComponentDetail
 	switch action {
 	case software.ActionInstall:
-		detail, err = executor.Install(ctx, serverID, resolved)
+		_, err = executor.Install(ctx, serverID, resolved)
 	case software.ActionUpgrade:
-		detail, err = executor.Upgrade(ctx, serverID, resolved)
+		_, err = executor.Upgrade(ctx, serverID, resolved)
+	case software.ActionStart:
+		_, err = executor.Start(ctx, serverID, resolved)
+	case software.ActionStop:
+		_, err = executor.Stop(ctx, serverID, resolved)
+	case software.ActionRestart:
+		_, err = executor.Restart(ctx, serverID, resolved)
+	case software.ActionUninstall:
+		_, err = executor.Uninstall(ctx, serverID, resolved)
 	case software.ActionVerify:
-		detail, err = executor.Verify(ctx, serverID, resolved)
-	case software.ActionRepair:
-		detail, err = executor.Repair(ctx, serverID, resolved)
+		err = nil
+	case software.ActionReinstall:
+		_, err = executor.Reinstall(ctx, serverID, resolved)
 	default:
-		w.failSoftwareOperationWithAudit(record, payload, fmt.Sprintf("unsupported action: %q", action))
+		w.failSoftwareOperationWithAudit(record, payload, software.OperationPhaseExecuting, software.FailureCodeExecutionError, fmt.Sprintf("unsupported action: %q", action))
 		return
 	}
 
 	if err != nil {
-		w.failSoftwareOperationAndRefreshSnapshot(ctx, record, payload, fmt.Sprintf("execute %q: %v", action, err), entry, resolved, executor)
+		w.failSoftwareOperationAndRefreshSnapshot(ctx, record, payload, software.OperationPhaseExecuting, software.FailureCodeExecutionError, fmt.Sprintf("execute %q: %v", action, err), entry, resolved, executor)
 		return
 	}
 
 	// ── Phase: Verifying ─────────────────────────────────
 	w.advanceSoftwarePhase(record, software.OperationPhaseVerifying)
 
-	if detail.VerificationState == software.VerificationStateDegraded {
-		w.failSoftwareOperationAndRefreshSnapshot(ctx, record, payload, "post-action verification failed: component is degraded", entry, resolved, executor)
+	if err := w.verifySoftwareActionOutcome(ctx, serverID, action, resolved, executor); err != nil {
+		w.markSoftwareOperationAttentionRequiredAndRefreshSnapshot(ctx, record, payload, software.OperationPhaseVerifying, classifyVerificationFailure(action, err), fmt.Sprintf("post-action verification failed: %v", err), entry, resolved, executor)
 		return
 	}
 
@@ -410,7 +524,7 @@ func (w *Worker) refreshSoftwareSnapshot(ctx context.Context, record *core.Recor
 		TemplateKind:      resolved.TemplateKind,
 		InstalledState:    software.InstalledStateUnknown,
 		VerificationState: software.VerificationStateUnknown,
-		AvailableActions:  entry.DefaultActions,
+		AvailableActions:  entry.SupportedActions,
 	}
 	detail := software.SoftwareComponentDetail{
 		SoftwareComponentSummary: summary,
@@ -494,6 +608,9 @@ func terminalActionResult(status software.TerminalStatus) string {
 	if status == software.TerminalStatusFailed {
 		return "failed"
 	}
+	if status == software.TerminalStatusAttentionRequired {
+		return "attention_required"
+	}
 	return "pending"
 }
 
@@ -502,10 +619,14 @@ func terminalActionResult(status software.TerminalStatus) string {
 // The audit record is always written after the terminal state is persisted.
 func (w *Worker) writeSoftwareAudit(record *core.Record, payload SoftwareActionPayload, result string) {
 	auditActions := map[software.Action]string{
-		software.ActionInstall: software.AuditActionInstall,
-		software.ActionUpgrade: software.AuditActionUpgrade,
-		software.ActionVerify:  software.AuditActionVerify,
-		software.ActionRepair:  software.AuditActionRepair,
+		software.ActionInstall:   software.AuditActionInstall,
+		software.ActionUpgrade:   software.AuditActionUpgrade,
+		software.ActionStart:     software.AuditActionStart,
+		software.ActionStop:      software.AuditActionStop,
+		software.ActionRestart:   software.AuditActionRestart,
+		software.ActionVerify:    software.AuditActionVerify,
+		software.ActionReinstall: software.AuditActionReinstall,
+		software.ActionUninstall: software.AuditActionUninstall,
 	}
 	auditAction, ok := auditActions[payload.Action]
 	if !ok {
@@ -513,9 +634,14 @@ func (w *Worker) writeSoftwareAudit(record *core.Record, payload SoftwareActionP
 		return
 	}
 
+	userID := strings.TrimSpace(payload.UserID)
+	if userID == "" {
+		userID = "unknown"
+	}
+
 	if err := func() error {
 		audit.Write(w.app, audit.Entry{
-			UserID:       payload.UserID,
+			UserID:       userID,
 			UserEmail:    payload.UserEmail,
 			Action:       auditAction,
 			ResourceType: "server_component",

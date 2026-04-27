@@ -47,13 +47,17 @@ func (te *testEnv) doSoftware(t *testing.T, method, url, body string, authentica
 }
 
 // TestValidSoftwareActionsMap verifies that the validSoftwareActions map covers
-// all four Action constants and maps to the correct values.
+// all supported Action constants and maps to the correct values.
 func TestValidSoftwareActionsMap(t *testing.T) {
 	expected := map[string]software.Action{
-		"install": software.ActionInstall,
-		"upgrade": software.ActionUpgrade,
-		"verify":  software.ActionVerify,
-		"repair":  software.ActionRepair,
+		"install":   software.ActionInstall,
+		"upgrade":   software.ActionUpgrade,
+		"start":     software.ActionStart,
+		"stop":      software.ActionStop,
+		"restart":   software.ActionRestart,
+		"verify":    software.ActionVerify,
+		"reinstall": software.ActionReinstall,
+		"uninstall": software.ActionUninstall,
 	}
 	for key, want := range expected {
 		got, ok := validSoftwareActions[key]
@@ -325,6 +329,12 @@ func TestSupportedServerCatalogRoutesExposeReadOnlyCatalogSurface(t *testing.T) 
 	if first["description"] == "" {
 		t.Fatalf("expected supported software description, got %#v", first["description"])
 	}
+	if _, ok := first["readiness_requirements"].([]any); !ok {
+		t.Fatalf("expected readiness_requirements array, got %#v", first["readiness_requirements"])
+	}
+	if _, ok := first["visibility"].([]any); !ok {
+		t.Fatalf("expected visibility array, got %#v", first["visibility"])
+	}
 
 	rec = te.doSoftware(t, http.MethodGet, "/api/software/server-catalog/docker", "", true)
 	if rec.Code != http.StatusOK {
@@ -336,6 +346,12 @@ func TestSupportedServerCatalogRoutesExposeReadOnlyCatalogSurface(t *testing.T) 
 	}
 	if body["capability"] != "container_runtime" {
 		t.Fatalf("expected capability container_runtime, got %#v", body["capability"])
+	}
+	if _, ok := body["readiness_requirements"].([]any); !ok {
+		t.Fatalf("expected detail readiness_requirements array, got %#v", body["readiness_requirements"])
+	}
+	if _, ok := body["visibility"].([]any); !ok {
+		t.Fatalf("expected detail visibility array, got %#v", body["visibility"])
 	}
 
 	rec = te.doSoftware(t, http.MethodGet, "/api/software/server-catalog/not-a-component", "", true)

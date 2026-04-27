@@ -23,13 +23,19 @@ func packageTemplate(pkg, svc string) software.ResolvedTemplate {
 		Preflight: software.PreflightSpec{
 			RequireRoot:    true,
 			RequireNetwork: false,
-			SupportedOS:    []string{"ubuntu", "debian"},
+			VerifiedOS:     []string{"ubuntu", "debian"},
+			ServiceManager: "systemd",
+			PackageManager: "apt",
 		},
 		Install: software.InstallSpec{
 			Strategy:    "package",
 			PackageName: pkg,
 		},
 		Upgrade: software.UpgradeSpec{
+			Strategy:    "package",
+			PackageName: pkg,
+		},
+		Uninstall: software.UninstallSpec{
 			Strategy:    "package",
 			PackageName: pkg,
 		},
@@ -52,7 +58,8 @@ func scriptTemplate(url, svc string) software.ResolvedTemplate {
 		Preflight: software.PreflightSpec{
 			RequireRoot:    true,
 			RequireNetwork: true,
-			SupportedOS:    []string{"ubuntu"},
+			VerifiedOS:     []string{"ubuntu"},
+			ServiceManager: "systemd",
 		},
 		Install: software.InstallSpec{
 			Strategy:  "script",
@@ -62,6 +69,11 @@ func scriptTemplate(url, svc string) software.ResolvedTemplate {
 			Strategy:  "script",
 			ScriptURL: url,
 			Args:      []string{"--upgrade"},
+		},
+		Uninstall: software.UninstallSpec{
+			Strategy:  "script",
+			ScriptURL: url,
+			Args:      []string{"--uninstall"},
 		},
 		Verify: software.VerifySpec{
 			Strategy:    "systemd",
@@ -107,6 +119,19 @@ func TestBuildScriptCommand_ShellQuotesURL(t *testing.T) {
 	cmd := buildScriptCommand("https://example.com/path with spaces/install.sh", nil)
 	if !containsSubstring(cmd, "'https://example.com/path with spaces/install.sh'") {
 		t.Errorf("expected properly quoted URL, got: %s", cmd)
+	}
+}
+
+func TestBuildManagedScriptCommand_EmbeddedScript(t *testing.T) {
+	cmd, err := buildManagedScriptCommand("docker-install.sh", "", nil)
+	if err != nil {
+		t.Fatalf("buildManagedScriptCommand error: %v", err)
+	}
+	if !containsSubstring(cmd, "APPOS_EMBEDDED_SCRIPT") {
+		t.Fatalf("expected embedded script heredoc command, got: %s", cmd)
+	}
+	if !containsSubstring(cmd, "docker-install") {
+		t.Fatalf("expected embedded docker-install.sh contents, got: %s", cmd)
 	}
 }
 
@@ -228,6 +253,67 @@ func TestInstall_ScriptWithEmptyURL_ReturnsError(t *testing.T) {
 	}
 }
 
+func TestInstall_ScriptWithEmbeddedPath(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		if containsSubstring(cmd, "APPOS_EMBEDDED_SCRIPT") {
+			return "", nil
+		}
+		if containsSubstring(cmd, "is-active") {
+			t.Fatalf("install should not run verification command inside executing phase: %s", cmd)
+		}
+		return "", nil
+	}
+
+	ex := &SSHExecutor{}
+	tpl := packageTemplate("docker-ce", "docker.service")
+	tpl.Install.Strategy = "script"
+	tpl.Install.ScriptPath = "docker-install.sh"
+	detail, err := ex.Install(context.Background(), "srv-1", tpl)
+	if err != nil {
+		t.Fatalf("Install error: %v", err)
+	}
+	if detail.VerificationState != "" {
+		t.Fatalf("expected no verification result during install execution, got %q", detail.VerificationState)
+	}
+	if detail.ServiceName != "docker.service" {
+		t.Fatalf("expected service name to survive execution detail, got %q", detail.ServiceName)
+	}
+}
+
+func TestReinstall_DoesNotVerifyDuringExecution(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		if containsSubstring(cmd, "is-active") {
+			t.Fatalf("repair should not run verification command inside executing phase: %s", cmd)
+		}
+		if containsSubstring(cmd, "apt-get install") {
+			return "", nil
+		}
+		if containsSubstring(cmd, "command -v apt-get") {
+			return "apt-get", nil
+		}
+		if containsSubstring(cmd, "/etc/os-release") {
+			return "ubuntu", nil
+		}
+		return "", nil
+	}
+
+	ex := &SSHExecutor{}
+	tpl := packageTemplate("docker.io", "docker.service")
+	detail, err := ex.Reinstall(context.Background(), "srv-1", tpl)
+	if err != nil {
+		t.Fatalf("Reinstall error: %v", err)
+	}
+	if detail.VerificationState != "" {
+		t.Fatalf("expected no verification result during reinstall execution, got %q", detail.VerificationState)
+	}
+}
+
 func TestUpgrade_EmptyStrategy_ReturnsError(t *testing.T) {
 	ex := &SSHExecutor{}
 	tpl := packageTemplate("docker.io", "docker.service")
@@ -238,15 +324,34 @@ func TestUpgrade_EmptyStrategy_ReturnsError(t *testing.T) {
 	}
 }
 
-// ─── Repair strategy routing ─────────────────────────────────────────────────
+func TestUninstall_EmptyStrategy_ReturnsError(t *testing.T) {
+	ex := &SSHExecutor{}
+	tpl := packageTemplate("docker.io", "docker.service")
+	tpl.Uninstall.Strategy = ""
+	_, err := ex.Uninstall(context.Background(), "srv-1", tpl)
+	if err == nil {
+		t.Fatal("expected error for empty uninstall strategy")
+	}
+}
 
-func TestRepair_UnknownStrategy_ReturnsError(t *testing.T) {
+func TestUninstall_ScriptWithEmptyURL_ReturnsError(t *testing.T) {
+	ex := &SSHExecutor{}
+	tpl := scriptTemplate("", "netdata.service")
+	_, err := ex.Uninstall(context.Background(), "srv-1", tpl)
+	if err == nil {
+		t.Fatal("expected error when script_url is empty for uninstall")
+	}
+}
+
+// ─── Reinstall strategy routing ─────────────────────────────────────────────
+
+func TestReinstall_UnknownStrategy_ReturnsError(t *testing.T) {
 	ex := &SSHExecutor{}
 	tpl := packageTemplate("docker.io", "docker.service")
 	tpl.Repair.Strategy = "unknown"
-	_, err := ex.Repair(context.Background(), "srv-1", tpl)
+	_, err := ex.Reinstall(context.Background(), "srv-1", tpl)
 	if err == nil {
-		t.Fatal("expected error for unknown repair strategy")
+		t.Fatal("expected error for unknown reinstall strategy")
 	}
 }
 
@@ -310,6 +415,12 @@ func TestRunPreflight_AllDimensionsOK(t *testing.T) {
 		if containsSubstring(cmd, "/etc/os-release") {
 			return "ubuntu", nil
 		}
+		if containsSubstring(cmd, "systemctl") {
+			return "", nil
+		}
+		if containsSubstring(cmd, "apt-get") {
+			return "", nil
+		}
 		if containsSubstring(cmd, "id -u") {
 			return "0", nil
 		}
@@ -331,13 +442,53 @@ func TestRunPreflight_AllDimensionsOK(t *testing.T) {
 	}
 }
 
-func TestRunPreflight_UnsupportedOS_NotOK(t *testing.T) {
+func TestRunPreflight_UnverifiedOS_WarnsButStaysOK(t *testing.T) {
 	orig := executeSSHCommand
 	defer func() { executeSSHCommand = orig }()
 
 	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
 		if containsSubstring(cmd, "/etc/os-release") {
 			return "alpine", nil // not in supported list
+		}
+		if containsSubstring(cmd, "systemctl") {
+			return "", nil
+		}
+		if containsSubstring(cmd, "apt-get") {
+			return "", nil
+		}
+		if containsSubstring(cmd, "id -u") {
+			return "0", nil
+		}
+		return "", nil
+	}
+
+	tpl := packageTemplate("docker.io", "docker.service")
+	ex := &SSHExecutor{}
+	result, err := ex.RunPreflight(context.Background(), "", tpl)
+	if err != nil {
+		t.Fatalf("RunPreflight error: %v", err)
+	}
+	if result.OSSupported {
+		t.Error("expected OSSupported=false")
+	}
+	if !result.OK {
+		t.Error("expected preflight to remain OK when only the verified OS baseline does not match")
+	}
+}
+
+func TestRunPreflight_MissingPackageManager_NotOK(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		if containsSubstring(cmd, "/etc/os-release") {
+			return "ubuntu", nil
+		}
+		if containsSubstring(cmd, "systemctl") {
+			return "", nil
+		}
+		if containsSubstring(cmd, "apt-get") {
+			return "", ErrCommandFailed
 		}
 		if containsSubstring(cmd, "id -u") {
 			return "0", nil
@@ -352,10 +503,82 @@ func TestRunPreflight_UnsupportedOS_NotOK(t *testing.T) {
 		t.Fatalf("RunPreflight error: %v", err)
 	}
 	if result.OK {
-		t.Error("expected preflight to fail for unsupported OS")
+		t.Error("expected preflight to fail when required package manager is unavailable")
 	}
-	if result.OSSupported {
-		t.Error("expected OSSupported=false")
+	if result.PackageManagerOK {
+		t.Error("expected PackageManagerOK=false")
+	}
+}
+
+func TestRunPreflight_NativePackageManagerOKWithDnf(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		if containsSubstring(cmd, "/etc/os-release") {
+			return "amzn", nil
+		}
+		if containsSubstring(cmd, "systemctl") {
+			return "", nil
+		}
+		if containsSubstring(cmd, "apt-get") {
+			return "", ErrCommandFailed
+		}
+		if containsSubstring(cmd, "dnf") {
+			return "dnf", nil
+		}
+		if containsSubstring(cmd, "id -u") {
+			return "0", nil
+		}
+		return "", nil
+	}
+
+	tpl := packageTemplate("docker-ce", "docker.service")
+	tpl.Preflight.PackageManager = "native"
+	tpl.Preflight.VerifiedOS = []string{"amzn"}
+	ex := &SSHExecutor{}
+	result, err := ex.RunPreflight(context.Background(), "", tpl)
+	if err != nil {
+		t.Fatalf("RunPreflight error: %v", err)
+	}
+	if !result.OK {
+		t.Fatalf("expected preflight OK with dnf available, issues: %v", result.Issues)
+	}
+	if !result.PackageManagerOK {
+		t.Fatal("expected PackageManagerOK=true for native package manager with dnf")
+	}
+}
+
+func TestBuildPackageActionCommand_AmznDockerCEUpgrade(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		switch {
+		case containsSubstring(cmd, "/etc/os-release"):
+			return "amzn", nil
+		case containsSubstring(cmd, "apt-get"):
+			return "", ErrCommandFailed
+		case containsSubstring(cmd, "command -v dnf"):
+			return "dnf", nil
+		default:
+			return "", nil
+		}
+	}
+
+	ex := &SSHExecutor{}
+	cmd, err := ex.buildPackageActionCommand(context.Background(), "upgrade", "docker-ce", []string{"docker-ce", "docker-ce-cli"}, dockerCEPackageRepoProfile)
+	if err != nil {
+		t.Fatalf("buildPackageActionCommand error: %v", err)
+	}
+	if !containsSubstring(cmd, "config-manager addrepo") {
+		t.Fatalf("expected repo bootstrap in amzn docker-ce command, got: %s", cmd)
+	}
+	if !containsSubstring(cmd, "sed -i 's|\\$releasever|9|g'") {
+		t.Fatalf("expected releasever rewrite in amzn docker-ce command, got: %s", cmd)
+	}
+	if !containsSubstring(cmd, "dnf upgrade -y 'docker-ce' 'docker-ce-cli' --enablerepo='docker-ce-stable'") {
+		t.Fatalf("unexpected dnf upgrade command: %s", cmd)
 	}
 }
 

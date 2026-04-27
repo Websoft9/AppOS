@@ -78,7 +78,8 @@ func TestAuditConstantsUseSoftwarePrefix(t *testing.T) {
 		{AuditActionInstall, "server.software.install"},
 		{AuditActionUpgrade, "server.software.upgrade"},
 		{AuditActionVerify, "server.software.verify"},
-		{AuditActionRepair, "server.software.repair"},
+		{AuditActionReinstall, "server.software.reinstall"},
+		{AuditActionUninstall, "server.software.uninstall"},
 	}
 	for _, c := range cases {
 		if c.got != c.want {

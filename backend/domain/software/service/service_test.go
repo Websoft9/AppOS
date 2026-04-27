@@ -24,6 +24,14 @@ type fakeComponentExecutor struct {
 	installErr    error
 	upgradeDetail software.SoftwareComponentDetail
 	upgradeErr    error
+	startDetail   software.SoftwareComponentDetail
+	startErr      error
+	stopDetail    software.SoftwareComponentDetail
+	stopErr       error
+	restartDetail software.SoftwareComponentDetail
+	restartErr    error
+	uninstallDetail software.SoftwareComponentDetail
+	uninstallErr    error
 	repairDetail  software.SoftwareComponentDetail
 	repairErr     error
 }
@@ -44,11 +52,27 @@ func (f *fakeComponentExecutor) Upgrade(context.Context, string, software.Resolv
 	return f.upgradeDetail, f.upgradeErr
 }
 
+func (f *fakeComponentExecutor) Start(context.Context, string, software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+	return f.startDetail, f.startErr
+}
+
+func (f *fakeComponentExecutor) Stop(context.Context, string, software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+	return f.stopDetail, f.stopErr
+}
+
+func (f *fakeComponentExecutor) Restart(context.Context, string, software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+	return f.restartDetail, f.restartErr
+}
+
+func (f *fakeComponentExecutor) Uninstall(context.Context, string, software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+	return f.uninstallDetail, f.uninstallErr
+}
+
 func (f *fakeComponentExecutor) Verify(context.Context, string, software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
 	return f.verifyDetail, f.verifyErr
 }
 
-func (f *fakeComponentExecutor) Repair(context.Context, string, software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+func (f *fakeComponentExecutor) Reinstall(context.Context, string, software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
 	return f.repairDetail, f.repairErr
 }
 
@@ -89,7 +113,7 @@ func TestBuildComputedComponentsProjectsSnapshotRecord(t *testing.T) {
 		TemplateRef:    "tpl-docker",
 		Binary:         "docker",
 		ServiceName:    "docker",
-		DefaultActions: []software.Action{software.ActionInstall, software.ActionVerify},
+		SupportedActions: []software.Action{software.ActionInstall, software.ActionVerify},
 	}
 	cat := software.ComponentCatalog{Components: []software.CatalogEntry{entry}}
 	reg := software.TemplateRegistry{Templates: map[string]software.ComponentTemplate{
@@ -102,6 +126,8 @@ func TestBuildComputedComponentsProjectsSnapshotRecord(t *testing.T) {
 			Action:         software.ActionVerify,
 			Phase:          software.OperationPhaseSucceeded,
 			TerminalStatus: software.TerminalStatusSuccess,
+			FailurePhase:   software.OperationPhaseVerifying,
+			FailureCode:    software.FailureCodeVerificationDegraded,
 			UpdatedAt:      "2026-04-20 10:00:00.000Z",
 		},
 	}
@@ -182,17 +208,31 @@ func decodeJSONObject(t *testing.T, value any) map[string]any {
 
 func TestLastActionFromOperationMapsTerminalStatus(t *testing.T) {
 	action := lastActionFromOperation(&OperationSummary{
-		Action:         software.ActionRepair,
+		Action:         software.ActionReinstall,
 		TerminalStatus: software.TerminalStatusFailed,
 		UpdatedAt:      "2026-04-20 10:00:00.000Z",
 	})
 	if action == nil {
 		t.Fatal("expected last action summary")
 	}
-	if action.Action != string(software.ActionRepair) {
-		t.Fatalf("expected repair action, got %q", action.Action)
+	if action.Action != string(software.ActionReinstall) {
+		t.Fatalf("expected reinstall action, got %q", action.Action)
 	}
 	if action.Result != "failed" {
 		t.Fatalf("expected failed result, got %q", action.Result)
+	}
+}
+
+func TestLastActionFromOperationMapsAttentionRequired(t *testing.T) {
+	action := lastActionFromOperation(&OperationSummary{
+		Action:         software.ActionVerify,
+		TerminalStatus: software.TerminalStatusAttentionRequired,
+		UpdatedAt:      "2026-04-20 10:00:00.000Z",
+	})
+	if action == nil {
+		t.Fatal("expected last action summary")
+	}
+	if action.Result != "attention_required" {
+		t.Fatalf("expected attention_required result, got %q", action.Result)
 	}
 }

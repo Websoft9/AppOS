@@ -115,8 +115,12 @@ func TestActionConstants(t *testing.T) {
 	}{
 		{ActionInstall, "install"},
 		{ActionUpgrade, "upgrade"},
+		{ActionStart, "start"},
+		{ActionStop, "stop"},
+		{ActionRestart, "restart"},
 		{ActionVerify, "verify"},
-		{ActionRepair, "repair"},
+		{ActionReinstall, "reinstall"},
+		{ActionUninstall, "uninstall"},
 	}
 	for _, c := range cases {
 		if string(c.got) != c.want {
@@ -153,10 +157,31 @@ func TestTerminalStatusConstants(t *testing.T) {
 		{TerminalStatusNone, "none"},
 		{TerminalStatusSuccess, "success"},
 		{TerminalStatusFailed, "failed"},
+		{TerminalStatusAttentionRequired, "attention_required"},
 	}
 	for _, c := range cases {
 		if string(c.got) != c.want {
 			t.Errorf("TerminalStatus: got %q, want %q", c.got, c.want)
+		}
+	}
+}
+
+func TestFailureCodeConstants(t *testing.T) {
+	cases := []struct {
+		got  FailureCode
+		want string
+	}{
+		{FailureCodeEnqueueError, "enqueue_error"},
+		{FailureCodePreflightError, "preflight_error"},
+		{FailureCodePreflightBlocked, "preflight_blocked"},
+		{FailureCodeExecutionError, "execution_error"},
+		{FailureCodeVerificationDegraded, "verification_degraded"},
+		{FailureCodeVerificationError, "verification_error"},
+		{FailureCodeUninstallTruthMismatch, "uninstall_truth_mismatch"},
+	}
+	for _, c := range cases {
+		if string(c.got) != c.want {
+			t.Errorf("FailureCode: got %q, want %q", c.got, c.want)
 		}
 	}
 }
@@ -169,8 +194,12 @@ func TestAuditActionConstants(t *testing.T) {
 	}{
 		{"Install", AuditActionInstall, "server.software.install"},
 		{"Upgrade", AuditActionUpgrade, "server.software.upgrade"},
+		{"Start", AuditActionStart, "server.software.start"},
+		{"Stop", AuditActionStop, "server.software.stop"},
+		{"Restart", AuditActionRestart, "server.software.restart"},
 		{"Verify", AuditActionVerify, "server.software.verify"},
-		{"Repair", AuditActionRepair, "server.software.repair"},
+		{"Reinstall", AuditActionReinstall, "server.software.reinstall"},
+		{"Uninstall", AuditActionUninstall, "server.software.uninstall"},
 	}
 	for _, c := range cases {
 		if c.got != c.want {
@@ -234,12 +263,14 @@ func TestSoftwareComponentSummaryJSON(t *testing.T) {
 
 func TestTargetReadinessResultJSON(t *testing.T) {
 	r := TargetReadinessResult{
-		OK:              true,
-		OSSupported:     true,
-		PrivilegeOK:     true,
-		NetworkOK:       true,
-		DependencyReady: true,
-		Issues:          nil,
+		OK:               true,
+		OSSupported:      true,
+		PrivilegeOK:      true,
+		NetworkOK:        true,
+		DependencyReady:  true,
+		ServiceManagerOK: true,
+		PackageManagerOK: true,
+		Issues:           nil,
 	}
 
 	data, err := json.Marshal(r)
@@ -252,7 +283,7 @@ func TestTargetReadinessResultJSON(t *testing.T) {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 
-	for _, key := range []string{"ok", "os_supported", "privilege_ok", "network_ok", "dependency_ready"} {
+	for _, key := range []string{"ok", "os_supported", "privilege_ok", "network_ok", "dependency_ready", "service_manager_ok", "package_manager_ok"} {
 		if _, ok := m[key]; !ok {
 			t.Errorf("missing JSON key %q in TargetReadinessResult", key)
 		}
@@ -272,6 +303,8 @@ func TestSoftwareDeliveryOperationJSON(t *testing.T) {
 		Action:         ActionInstall,
 		Phase:          OperationPhaseAccepted,
 		TerminalStatus: TerminalStatusNone,
+		FailurePhase:   OperationPhaseVerifying,
+		FailureCode:    FailureCodeVerificationDegraded,
 		CreatedAt:      "2026-04-20T00:00:00Z",
 		UpdatedAt:      "2026-04-20T00:00:00Z",
 	}
@@ -288,7 +321,7 @@ func TestSoftwareDeliveryOperationJSON(t *testing.T) {
 
 	for _, key := range []string{
 		"operation_id", "server_id", "capability", "component_key",
-		"action", "phase", "terminal_status", "created_at", "updated_at",
+		"action", "phase", "terminal_status", "failure_phase", "failure_code", "created_at", "updated_at",
 	} {
 		if _, ok := m[key]; !ok {
 			t.Errorf("missing JSON key %q in SoftwareDeliveryOperation", key)
@@ -297,6 +330,12 @@ func TestSoftwareDeliveryOperationJSON(t *testing.T) {
 
 	if m["phase"] != "accepted" {
 		t.Errorf("phase: got %v, want accepted", m["phase"])
+	}
+	if m["failure_phase"] != "verifying" {
+		t.Errorf("failure_phase: got %v, want verifying", m["failure_phase"])
+	}
+	if m["failure_code"] != "verification_degraded" {
+		t.Errorf("failure_code: got %v, want verification_degraded", m["failure_code"])
 	}
 }
 
@@ -341,6 +380,25 @@ func TestEventConstants(t *testing.T) {
 	for _, c := range cases {
 		if c.got != c.want {
 			t.Errorf("Event constant: got %q, want %q", c.got, c.want)
+		}
+	}
+}
+
+func TestReadinessIssueCodeConstants(t *testing.T) {
+	cases := []struct {
+		got  ReadinessIssueCode
+		want string
+	}{
+		{ReadinessIssueOSNotSupported, "os_not_supported"},
+		{ReadinessIssuePrivilegeRequired, "privilege_required"},
+		{ReadinessIssueNetworkRequired, "network_required"},
+		{ReadinessIssueDependencyMissing, "dependency_missing"},
+		{ReadinessIssueServiceManagerMissing, "service_manager_missing"},
+		{ReadinessIssuePackageManagerMissing, "package_manager_missing"},
+	}
+	for _, c := range cases {
+		if string(c.got) != c.want {
+			t.Errorf("ReadinessIssueCode: got %q, want %q", c.got, c.want)
 		}
 	}
 }

@@ -51,6 +51,22 @@ func ensureSoftwareOperationsCollection(app core.App) error {
 		string(software.TerminalStatusNone),
 		string(software.TerminalStatusSuccess),
 		string(software.TerminalStatusFailed),
+		string(software.TerminalStatusAttentionRequired),
+	}
+	failurePhases := []string{
+		string(software.OperationPhaseAccepted),
+		string(software.OperationPhasePreflight),
+		string(software.OperationPhaseExecuting),
+		string(software.OperationPhaseVerifying),
+	}
+	failureCodes := []string{
+		string(software.FailureCodeEnqueueError),
+		string(software.FailureCodePreflightError),
+		string(software.FailureCodePreflightBlocked),
+		string(software.FailureCodeExecutionError),
+		string(software.FailureCodeVerificationDegraded),
+		string(software.FailureCodeVerificationError),
+		string(software.FailureCodeUninstallTruthMismatch),
 	}
 
 	addFieldIfMissing(col, &core.TextField{Name: "server_id", Required: true, Max: 200})
@@ -59,6 +75,8 @@ func ensureSoftwareOperationsCollection(app core.App) error {
 	addFieldIfMissing(col, &core.TextField{Name: "action", Required: true, Max: 50})
 	addFieldIfMissing(col, &core.SelectField{Name: "phase", Required: true, MaxSelect: 1, Values: phases})
 	addFieldIfMissing(col, &core.SelectField{Name: "terminal_status", Required: true, MaxSelect: 1, Values: terminalStatuses})
+	addFieldIfMissing(col, &core.SelectField{Name: "failure_phase", MaxSelect: 1, Values: failurePhases})
+	addFieldIfMissing(col, &core.SelectField{Name: "failure_code", MaxSelect: 1, Values: failureCodes})
 	addFieldIfMissing(col, &core.TextField{Name: "failure_reason", Max: 1000})
 	addFieldIfMissing(col, &core.AutodateField{Name: "created", OnCreate: true})
 	addFieldIfMissing(col, &core.AutodateField{Name: "updated", OnCreate: true, OnUpdate: true})

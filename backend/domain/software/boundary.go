@@ -6,7 +6,7 @@
 //
 //   - catalog        — what software AppOS manages (component identity, template refs)
 //   - inventory      — what software is installed on each delivery target
-//   - provisioning   — how software is installed, upgraded, verified, and repaired
+//   - provisioning   — how software is installed, upgraded, verified, and reinstalled
 //   - target-readiness — whether the target environment satisfies required capabilities
 //
 // # Target Types
@@ -16,21 +16,21 @@
 //   - local  — AppOS runtime install: components in the AppOS container (nginx,
 //              redis, docker, supervisor). Static state: version and availability.
 //   - server — managed remote servers registered in the server catalog.
-//              Full workflow: install, upgrade, verify, repair.
+//              Full workflow: install, upgrade, verify, reinstall.
 //
 // # Ownership Rules
 //
 // Software Delivery OWNS (for both target types):
 //   - managed component identity (catalog)
 //   - installed component inventory per target (inventory)
-//   - install, upgrade, verify, and repair workflows (provisioning)
+//   - install, upgrade, verify, and reinstall workflows (provisioning)
 //   - OS, privilege, network, and dependency readiness checks (target-readiness)
 //
 // For ALL target types (local and server), the domain split is:
 //
 //   Software Delivery owns (regardless of whether the component is running):
 //     - installed component identity, version, and availability (inventory)
-//     - install, upgrade, verify, and repair workflows (provisioning)
+//     - install, upgrade, verify, and reinstall workflows (provisioning)
 //     - OS, privilege, network, and dependency readiness checks (target-readiness)
 //
 //   Monitor owns (for the same software, only its runtime observation):
@@ -71,7 +71,7 @@ const (
 	// SubdomainInventory owns the installed component snapshot for each delivery target.
 	SubdomainInventory Subdomain = "inventory"
 
-	// SubdomainProvisioning owns install, upgrade, verify, and repair workflows.
+	// SubdomainProvisioning owns install, upgrade, verify, and reinstall workflows.
 	SubdomainProvisioning Subdomain = "provisioning"
 
 	// SubdomainTargetReadiness owns OS, privilege, network, and dependency readiness checks

@@ -177,7 +177,8 @@ func (w *Worker) Start() {
 	mux.HandleFunc(TaskSoftwareInstall, w.handleSoftwareAction)
 	mux.HandleFunc(TaskSoftwareUpgrade, w.handleSoftwareAction)
 	mux.HandleFunc(TaskSoftwareVerify, w.handleSoftwareAction)
-	mux.HandleFunc(TaskSoftwareRepair, w.handleSoftwareAction)
+	mux.HandleFunc(TaskSoftwareReinstall, w.handleSoftwareAction)
+	mux.HandleFunc(TaskSoftwareUninstall, w.handleSoftwareAction)
 	w.startLifecycleScheduler()
 
 	go func() {

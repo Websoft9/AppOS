@@ -14,6 +14,8 @@ func TestReadinessIssueCodeConstants(t *testing.T) {
 		software.ReadinessIssuePrivilegeRequired,
 		software.ReadinessIssueNetworkRequired,
 		software.ReadinessIssueDependencyMissing,
+		software.ReadinessIssueServiceManagerMissing,
+		software.ReadinessIssuePackageManagerMissing,
 	}
 	for _, code := range codes {
 		if code == "" {
@@ -27,12 +29,16 @@ func TestEvaluateReadiness_AllClear(t *testing.T) {
 	preflight := software.PreflightSpec{
 		RequireRoot:    true,
 		RequireNetwork: true,
-		SupportedOS:    []string{"ubuntu", "debian"},
+		VerifiedOS:     []string{"ubuntu", "debian"},
+		ServiceManager: "systemd",
+		PackageManager: "apt",
 	}
 	target := software.TargetInfo{
-		OS:        "ubuntu",
-		HasRoot:   true,
-		NetworkOK: true,
+		OS:             "ubuntu",
+		HasRoot:        true,
+		NetworkOK:      true,
+		ServiceManager: "systemd",
+		PackageManager: "apt",
 	}
 	result := readiness.EvaluateReadiness(preflight, target, true)
 
@@ -51,6 +57,12 @@ func TestEvaluateReadiness_AllClear(t *testing.T) {
 	if !result.DependencyReady {
 		t.Error("expected DependencyReady=true")
 	}
+	if !result.ServiceManagerOK {
+		t.Error("expected ServiceManagerOK=true")
+	}
+	if !result.PackageManagerOK {
+		t.Error("expected PackageManagerOK=true")
+	}
 	if len(result.Issues) != 0 {
 		t.Errorf("expected no issues, got %v", result.Issues)
 	}
@@ -59,16 +71,16 @@ func TestEvaluateReadiness_AllClear(t *testing.T) {
 // TestEvaluateReadiness_OSNotSupported verifies that an unsupported OS produces an issue.
 func TestEvaluateReadiness_OSNotSupported(t *testing.T) {
 	preflight := software.PreflightSpec{
-		SupportedOS: []string{"ubuntu", "debian"},
+		VerifiedOS: []string{"ubuntu", "debian"},
 	}
 	target := software.TargetInfo{OS: "windows"}
 	result := readiness.EvaluateReadiness(preflight, target, true)
 
-	if result.OK {
-		t.Error("expected OK=false for unsupported OS")
-	}
 	if result.OSSupported {
 		t.Error("expected OSSupported=false for windows")
+	}
+	if !result.OK {
+		t.Error("expected OK=true when OS is only outside the verified baseline")
 	}
 	if len(result.Issues) == 0 {
 		t.Error("expected at least one issue for unsupported OS")
@@ -78,7 +90,7 @@ func TestEvaluateReadiness_OSNotSupported(t *testing.T) {
 // TestEvaluateReadiness_OSCaseInsensitive verifies that OS matching is case-insensitive.
 func TestEvaluateReadiness_OSCaseInsensitive(t *testing.T) {
 	preflight := software.PreflightSpec{
-		SupportedOS: []string{"Ubuntu"},
+		VerifiedOS: []string{"Ubuntu"},
 	}
 	target := software.TargetInfo{OS: "ubuntu", HasRoot: true, NetworkOK: true}
 	result := readiness.EvaluateReadiness(preflight, target, true)
@@ -88,17 +100,17 @@ func TestEvaluateReadiness_OSCaseInsensitive(t *testing.T) {
 	}
 }
 
-// TestEvaluateReadiness_EmptyOSSupportedListAcceptsAny verifies that when SupportedOS is
-// empty (no restriction), any OS is accepted.
-func TestEvaluateReadiness_EmptyOSSupportedListAcceptsAny(t *testing.T) {
+// TestEvaluateReadiness_EmptyVerifiedOSListAcceptsAny verifies that when VerifiedOS is
+// empty (no explicit verified baseline), any OS is accepted.
+func TestEvaluateReadiness_EmptyVerifiedOSListAcceptsAny(t *testing.T) {
 	preflight := software.PreflightSpec{
-		SupportedOS: []string{},
+		VerifiedOS: []string{},
 	}
 	target := software.TargetInfo{OS: "arch", HasRoot: true, NetworkOK: true}
 	result := readiness.EvaluateReadiness(preflight, target, true)
 
 	if !result.OSSupported {
-		t.Error("expected OSSupported=true when SupportedOS is empty")
+		t.Error("expected OSSupported=true when VerifiedOS is empty")
 	}
 }
 
@@ -106,7 +118,7 @@ func TestEvaluateReadiness_EmptyOSSupportedListAcceptsAny(t *testing.T) {
 func TestEvaluateReadiness_PrivilegeRequired(t *testing.T) {
 	preflight := software.PreflightSpec{
 		RequireRoot: true,
-		SupportedOS: []string{"ubuntu"},
+		VerifiedOS:  []string{"ubuntu"},
 	}
 	target := software.TargetInfo{OS: "ubuntu", HasRoot: false, NetworkOK: true}
 	result := readiness.EvaluateReadiness(preflight, target, true)
@@ -126,7 +138,7 @@ func TestEvaluateReadiness_PrivilegeRequired(t *testing.T) {
 func TestEvaluateReadiness_NetworkRequired(t *testing.T) {
 	preflight := software.PreflightSpec{
 		RequireNetwork: true,
-		SupportedOS:    []string{"ubuntu"},
+		VerifiedOS:     []string{"ubuntu"},
 	}
 	target := software.TargetInfo{OS: "ubuntu", HasRoot: true, NetworkOK: false}
 	result := readiness.EvaluateReadiness(preflight, target, true)
@@ -142,7 +154,7 @@ func TestEvaluateReadiness_NetworkRequired(t *testing.T) {
 // TestEvaluateReadiness_DependencyNotReady verifies that a missing dependency produces an issue.
 func TestEvaluateReadiness_DependencyNotReady(t *testing.T) {
 	preflight := software.PreflightSpec{
-		SupportedOS: []string{"ubuntu"},
+		VerifiedOS: []string{"ubuntu"},
 	}
 	target := software.TargetInfo{OS: "ubuntu", HasRoot: true, NetworkOK: true}
 	result := readiness.EvaluateReadiness(preflight, target, false)
@@ -163,16 +175,18 @@ func TestEvaluateReadiness_MultipleIssues(t *testing.T) {
 	preflight := software.PreflightSpec{
 		RequireRoot:    true,
 		RequireNetwork: true,
-		SupportedOS:    []string{"ubuntu"},
+		VerifiedOS:     []string{"ubuntu"},
+		ServiceManager: "systemd",
+		PackageManager: "apt",
 	}
-	target := software.TargetInfo{OS: "centos", HasRoot: false, NetworkOK: false}
+	target := software.TargetInfo{OS: "centos", HasRoot: false, NetworkOK: false, ServiceManager: "sysvinit", PackageManager: "yum"}
 	result := readiness.EvaluateReadiness(preflight, target, false)
 
 	if result.OK {
 		t.Error("expected OK=false for multiple failures")
 	}
-	if len(result.Issues) < 4 {
-		t.Errorf("expected at least 4 issues (os, privilege, network, dependency), got %d: %v", len(result.Issues), result.Issues)
+	if len(result.Issues) < 6 {
+		t.Errorf("expected at least 6 issues (os baseline, privilege, network, dependency, service manager, package manager), got %d: %v", len(result.Issues), result.Issues)
 	}
 }
 
@@ -181,7 +195,7 @@ func TestEvaluateReadiness_MultipleIssues(t *testing.T) {
 func TestEvaluateReadiness_NoRootRequiredPassesWithoutRoot(t *testing.T) {
 	preflight := software.PreflightSpec{
 		RequireRoot: false,
-		SupportedOS: []string{"ubuntu"},
+		VerifiedOS:  []string{"ubuntu"},
 	}
 	target := software.TargetInfo{OS: "ubuntu", HasRoot: false, NetworkOK: true}
 	result := readiness.EvaluateReadiness(preflight, target, true)
@@ -191,5 +205,44 @@ func TestEvaluateReadiness_NoRootRequiredPassesWithoutRoot(t *testing.T) {
 	}
 	if !result.OK {
 		t.Error("expected OK=true when no root is required")
+	}
+}
+
+func TestEvaluateReadiness_MissingServiceManagerBlocksOK(t *testing.T) {
+	preflight := software.PreflightSpec{ServiceManager: "systemd"}
+	target := software.TargetInfo{ServiceManager: "sysvinit"}
+	result := readiness.EvaluateReadiness(preflight, target, true)
+
+	if result.OK {
+		t.Error("expected OK=false when service manager requirement is unmet")
+	}
+	if result.ServiceManagerOK {
+		t.Error("expected ServiceManagerOK=false")
+	}
+}
+
+func TestEvaluateReadiness_MissingPackageManagerBlocksOK(t *testing.T) {
+	preflight := software.PreflightSpec{PackageManager: "apt"}
+	target := software.TargetInfo{PackageManager: "dnf"}
+	result := readiness.EvaluateReadiness(preflight, target, true)
+
+	if result.OK {
+		t.Error("expected OK=false when package manager requirement is unmet")
+	}
+	if result.PackageManagerOK {
+		t.Error("expected PackageManagerOK=false")
+	}
+}
+
+func TestEvaluateReadiness_NativePackageManagerAcceptsAnyDetectedManager(t *testing.T) {
+	preflight := software.PreflightSpec{PackageManager: "native"}
+	target := software.TargetInfo{PackageManager: "dnf"}
+	result := readiness.EvaluateReadiness(preflight, target, true)
+
+	if !result.OK {
+		t.Fatalf("expected OK=true when any native package manager is available, got issues: %v", result.Issues)
+	}
+	if !result.PackageManagerOK {
+		t.Fatal("expected PackageManagerOK=true for native package manager")
 	}
 }

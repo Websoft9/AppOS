@@ -1,7 +1,7 @@
 # Story 29.4: Supported Software Discovery Surface
 
 **Epic**: Epic 29 - Software Delivery
-**Status**: Proposed | **Priority**: P1 | **Depends on**: Story 29.1
+**Status**: done | **Priority**: P1 | **Depends on**: Story 29.1
 
 ## Objective
 
@@ -73,18 +73,18 @@ This surface already exists in first-pass form, so this story should be treated 
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Align supported-software DTOs with the canonical catalog contract
-	- [ ] 1.1 expose supported lifecycle actions consistently
-	- [ ] 1.2 keep capability and template metadata readable for operators
-	- [ ] 1.3 ensure descriptions remain short and avoid App Store ambiguity
-- [ ] Task 2: Keep the Resource Hub integration lightweight
-	- [ ] 2.1 preserve a dedicated software-oriented section
-	- [ ] 2.2 keep `Supported Software` read-only with no `Add Resource` CTA
-	- [ ] 2.3 keep card copy explicit that this is support scope, not installation state
-- [ ] Task 3: Validate the separation from operational UI
-	- [ ] 3.1 point users toward Server Detail for actions
-	- [ ] 3.2 avoid leaking readiness, inventory, or operation history into this page
-	- [ ] 3.3 keep frontend tests independent from connected-server state
+- [x] Task 1: Align supported-software DTOs with the canonical catalog contract
+	- [x] 1.1 expose supported lifecycle actions consistently
+	- [x] 1.2 keep capability and template metadata readable for operators
+	- [x] 1.3 ensure descriptions remain short and avoid App Store ambiguity
+- [x] Task 2: Keep the Resource Hub integration lightweight
+	- [x] 2.1 preserve a dedicated software-oriented section
+	- [x] 2.2 keep `Supported Software` read-only with no `Add Resource` CTA
+	- [x] 2.3 keep card copy explicit that this is support scope, not installation state
+- [x] Task 3: Validate the separation from operational UI
+	- [x] 3.1 point users toward Server Detail for actions
+	- [x] 3.2 avoid leaking readiness, inventory, or operation history into this page
+	- [x] 3.3 keep frontend tests independent from connected-server state
 
 ## Guardrails
 

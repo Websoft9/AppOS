@@ -24,7 +24,7 @@ func init() {
 			Name:      "status",
 			Required:  true,
 			MaxSelect: 1,
-			Values:    []string{"pending", "success", "failed"},
+			Values:    []string{"pending", "success", "failed", "attention_required"},
 		})
 		col.Fields.Add(&core.TextField{Name: "ip"})
 		col.Fields.Add(&core.JSONField{Name: "detail"})

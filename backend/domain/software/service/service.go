@@ -22,6 +22,8 @@ type OperationSummary struct {
 	Action         software.Action         `json:"action"`
 	Phase          software.OperationPhase `json:"phase"`
 	TerminalStatus software.TerminalStatus `json:"terminal_status"`
+	FailurePhase   software.OperationPhase `json:"failure_phase,omitempty"`
+	FailureCode    software.FailureCode    `json:"failure_code,omitempty"`
 	FailureReason  string                  `json:"failure_reason,omitempty"`
 	UpdatedAt      string                  `json:"updated_at"`
 }
@@ -163,7 +165,7 @@ func (s *Service) EnsureCapability(ctx context.Context, serverID string, capabil
 	}
 	action := software.ActionInstall
 	if status.InstalledState == software.InstalledStateInstalled {
-		action = software.ActionRepair
+		action = software.ActionReinstall
 	}
 	return s.enqueueCapabilityAction(ctx, serverID, capability, action)
 }
@@ -219,6 +221,8 @@ func (s *Service) loadLatestOperations(serverID string) map[string]*OperationSum
 			Action:         software.Action(r.GetString("action")),
 			Phase:          software.OperationPhase(r.GetString("phase")),
 			TerminalStatus: software.TerminalStatus(r.GetString("terminal_status")),
+			FailurePhase:   software.OperationPhase(r.GetString("failure_phase")),
+			FailureCode:    software.FailureCode(r.GetString("failure_code")),
 			FailureReason:  r.GetString("failure_reason"),
 			UpdatedAt:      r.GetString("updated"),
 		}
@@ -249,7 +253,7 @@ func (s *Service) buildComputedComponents(
 			TemplateKind:      resolved.TemplateKind,
 			InstalledState:    software.InstalledStateUnknown,
 			VerificationState: software.VerificationStateUnknown,
-			AvailableActions:  entry.DefaultActions,
+			AvailableActions:  entry.SupportedActions,
 		}
 		detail := software.SoftwareComponentDetail{
 			SoftwareComponentSummary: summary,
@@ -370,6 +374,8 @@ func lastActionFromOperation(op *OperationSummary) *software.SoftwareDeliveryLas
 		result = "success"
 	case software.TerminalStatusFailed:
 		result = "failed"
+	case software.TerminalStatusAttentionRequired:
+		result = "attention_required"
 	}
 	return &software.SoftwareDeliveryLastAction{
 		Action: string(op.Action),

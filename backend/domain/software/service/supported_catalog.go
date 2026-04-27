@@ -3,19 +3,20 @@ package service
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/websoft9/appos/backend/domain/software"
 	swcatalog "github.com/websoft9/appos/backend/domain/software/catalog"
 )
 
 type SupportedServerCatalogEntry struct {
-	ComponentKey     software.ComponentKey `json:"component_key"`
-	Label            string                `json:"label"`
-	Capability       string                `json:"capability,omitempty"`
-	SupportedActions []software.Action     `json:"supported_actions"`
-	TemplateKind     software.TemplateKind `json:"template_kind"`
-	Description      string                `json:"description"`
+	ComponentKey          software.ComponentKey        `json:"component_key"`
+	Label                 string                       `json:"label"`
+	Capability            software.Capability         `json:"capability,omitempty"`
+	SupportedActions      []software.Action            `json:"supported_actions"`
+	TemplateKind          software.TemplateKind        `json:"template_kind"`
+	Description           string                       `json:"description"`
+	ReadinessRequirements []string                     `json:"readiness_requirements"`
+	Visibility            []software.CatalogVisibility `json:"visibility"`
 }
 
 func (s *Service) ListSupportedServerCatalog(_ context.Context) ([]SupportedServerCatalogEntry, error) {
@@ -31,14 +32,23 @@ func (s *Service) ListSupportedServerCatalog(_ context.Context) ([]SupportedServ
 			return nil, fmt.Errorf("template ref not found: %s", entry.TemplateRef)
 		}
 		resolved := swcatalog.ResolveTemplate(entry, tpl)
-		capability := capabilityForComponent(entry.ComponentKey)
+		capability := entry.Capability
+		mappedCapability := capabilityForComponent(entry.ComponentKey)
+		if capability == "" {
+			capability = mappedCapability
+		}
+		if mappedCapability != "" && capability != mappedCapability {
+			return nil, fmt.Errorf("catalog capability mismatch for %s: catalog=%s map=%s", entry.ComponentKey, capability, mappedCapability)
+		}
 		items = append(items, SupportedServerCatalogEntry{
-			ComponentKey:     entry.ComponentKey,
-			Label:            entry.Label,
-			Capability:       string(capability),
-			SupportedActions: entry.DefaultActions,
-			TemplateKind:     resolved.TemplateKind,
-			Description:      supportedCatalogDescription(entry, resolved.TemplateKind, capability),
+			ComponentKey:          entry.ComponentKey,
+			Label:                 entry.Label,
+			Capability:            capability,
+			SupportedActions:      entry.SupportedActions,
+			TemplateKind:          resolved.TemplateKind,
+			Description:           entry.Description,
+			ReadinessRequirements: append([]string(nil), entry.ReadinessRequirements...),
+			Visibility:            append([]software.CatalogVisibility(nil), entry.Visibility...),
 		})
 	}
 
@@ -65,17 +75,4 @@ func capabilityForComponent(componentKey software.ComponentKey) software.Capabil
 		}
 	}
 	return ""
-}
-
-func supportedCatalogDescription(entry software.CatalogEntry, templateKind software.TemplateKind, capability software.Capability) string {
-	templateLabel := string(templateKind)
-	if capability == "" {
-		return fmt.Sprintf("%s is supported by AppOS as a server-target component using the %s delivery template.", entry.Label, templateLabel)
-	}
-	return fmt.Sprintf(
-		"%s is supported by AppOS for the %s capability using the %s delivery template.",
-		entry.Label,
-		strings.ReplaceAll(string(capability), "_", " "),
-		templateLabel,
-	)
 }

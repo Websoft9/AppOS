@@ -1,7 +1,7 @@
 # Story 29.5: Local Software Inventory Surface
 
 **Epic**: Epic 29 - Software Delivery
-**Status**: Proposed | **Priority**: P1 | **Depends on**: Story 29.1
+**Status**: done | **Priority**: P1 | **Depends on**: Story 29.1
 
 ## Objective
 
@@ -78,18 +78,18 @@ This page already exists in lightweight form, so the work here is to formalize a
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Keep the local inventory contract aligned with the shared software vocabulary
-	- [ ] 1.1 normalize field naming with server inventory where possible
-	- [ ] 1.2 keep local-only explanatory copy concise and platform-oriented
-	- [ ] 1.3 ensure verification and installed-state semantics remain truthful
-- [ ] Task 2: Preserve the product boundary for AppOS-local inventory
-	- [ ] 2.1 keep navigation under `Resources`
-	- [ ] 2.2 keep the page read-only in this epic split
-	- [ ] 2.3 avoid mixing server operational controls into local inventory rows
-- [ ] Task 3: Validate with focused backend and frontend tests
-	- [ ] 3.1 route tests for list/detail behavior and literal path stability
-	- [ ] 3.2 API-client tests for local inventory DTO stability
-	- [ ] 3.3 page tests for read-only rendering and empty-state behavior
+- [x] Task 1: Keep the local inventory contract aligned with the shared software vocabulary
+	- [x] 1.1 normalize field naming with server inventory where possible
+	- [x] 1.2 keep local-only explanatory copy concise and platform-oriented
+	- [x] 1.3 ensure verification and installed-state semantics remain truthful
+- [x] Task 2: Preserve the product boundary for AppOS-local inventory
+	- [x] 2.1 keep navigation under `Resources`
+	- [x] 2.2 keep the page read-only in this epic split
+	- [x] 2.3 avoid mixing server operational controls into local inventory rows
+- [x] Task 3: Validate with focused backend and frontend tests
+	- [x] 3.1 route tests for list/detail behavior and literal path stability
+	- [x] 3.2 API-client tests for local inventory DTO stability
+	- [x] 3.3 page tests for read-only rendering and empty-state behavior
 
 ## Guardrails
 

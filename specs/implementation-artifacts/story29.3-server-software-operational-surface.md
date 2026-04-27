@@ -1,7 +1,7 @@
 # Story 29.3: Server Software Operational Surface
 
 **Epic**: Epic 29 - Software Delivery
-**Status**: Proposed | **Priority**: P1 | **Depends on**: Story 29.1, Story 29.2
+**Status**: in-progress | **Priority**: P1 | **Depends on**: Story 29.1, Story 29.2
 
 ## Objective
 
@@ -80,21 +80,26 @@ This story should refine and complete that operational surface against the new l
 ## Tasks / Subtasks
 
 - [ ] Task 1: Align frontend types and action rendering with the reorganized contract
-	- [ ] 1.1 ensure `available_actions` can drive all supported lifecycle buttons, including uninstall when applicable
+	- [x] 1.1 ensure `available_actions` can drive all supported lifecycle buttons, including uninstall when applicable
 	- [ ] 1.2 keep action enablement tied to in-progress state and backend truth
-	- [ ] 1.3 keep version, verification, and last-action rendering consistent across rows
+	- [x] 1.3 keep version, verification, and last-action rendering consistent across rows
 - [ ] Task 2: Complete server detail operational UX
-	- [ ] 2.1 preserve tab placement inside Server Detail
-	- [ ] 2.2 render readable readiness issues and degraded-state context
-	- [ ] 2.3 show accepted, running, succeeded, and failed action feedback clearly
-- [ ] Task 3: Keep server-scope boundaries explicit
-	- [ ] 3.1 do not mix AppOS-local inventory into this surface
-	- [ ] 3.2 point discovery use cases to Supported Software rather than overloading this tab
-	- [ ] 3.3 keep capability and inventory diagnostics centered on the selected server only
+	- [x] 2.1 preserve tab placement inside Server Detail
+	- [x] 2.2 render readable readiness issues and degraded-state context
+	- [x] 2.3 show accepted, running, succeeded, and failed action feedback clearly
+- [x] Task 3: Keep server-scope boundaries explicit
+	- [x] 3.1 do not mix AppOS-local inventory into this surface
+	- [x] 3.2 point discovery use cases to Supported Software rather than overloading this tab
+	- [x] 3.3 keep capability and inventory diagnostics centered on the selected server only
 - [ ] Task 4: Validate with focused frontend tests
 	- [ ] 4.1 row rendering and action-state tests
 	- [ ] 4.2 readiness and degraded-state presentation tests
 	- [ ] 4.3 uninstall-button visibility tests when catalog metadata supports it
+
+## Current Gaps
+
+- action buttons are not yet trimmed by readiness-aware backend truth; they mainly follow in-flight state and raw `available_actions`
+- frontend tests do not yet explicitly cover uninstall visibility or readiness-driven disablement
 
 ## Guardrails
 

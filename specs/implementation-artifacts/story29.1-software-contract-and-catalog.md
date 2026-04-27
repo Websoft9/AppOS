@@ -1,7 +1,7 @@
 # Story 29.1: Software Contract and Catalog
 
 **Epic**: Epic 29 - Software Delivery
-**Status**: Proposed | **Priority**: P1 | **Depends on**: Epic 12, Epic 20
+**Status**: review | **Priority**: P1 | **Depends on**: Epic 12, Epic 20
 
 ## Objective
 
@@ -101,7 +101,7 @@ External domains should call capability contracts, not component contracts.
 | `template_kind` | `package` or `script` |
 | `display_name` | operator-facing name |
 | `detect` | installed-state and version detection |
-| `preflight` | OS, privilege, and network checks |
+| `preflight` | verified OS baseline plus privilege, network, and runtime capability checks |
 | `install` | install step definition |
 | `upgrade` | upgrade step definition |
 | `verify` | post-action verification |
@@ -127,26 +127,26 @@ Each catalog entry must define at least:
 |------|-------|
 | `component_key` | canonical identity used by API, worker, snapshot, and UI |
 | `label` | operator-facing name |
-| `target_scope` | `server` or `local` |
+| `target_type` | `server` or `local`; canonical code and persistence field name |
 | `capability` | mapped managed capability when applicable |
 | `template_kind` | executor strategy family |
 | `supported_actions` | lifecycle actions allowed for this component |
 | `description` | short operator-facing support note |
-| `readiness_requirements` | OS, privilege, network, or dependency expectations |
+| `readiness_requirements` | verified baseline, privilege, network, runtime capability, or dependency expectations |
 | `visibility` | whether the component appears in server operations, supported-software discovery, local inventory, or multiple surfaces |
 
 ### Initial Catalog Set
 
 | Component Key | Label | Template Ref | Template Kind | Verification Focus | Default Actions |
 |--------------|-------|--------------|---------------|--------------------|-----------------|
-| `docker` | Docker | `package-systemd` | `package` | binary version and daemon readiness | `install`, `upgrade`, `verify` |
-| `reverse-proxy` | Reverse Proxy | `package-systemd` | `package` | package version and service readiness | `install`, `upgrade`, `verify` |
-| `monitor-agent` | Netdata Agent | `script-systemd` | `script` | binary version and service readiness | `install`, `upgrade`, `verify` |
-| `control-agent` | AppOS Control Agent | `script-systemd` | `script` | binary version and service readiness | `install`, `upgrade`, `verify` |
+| `docker` | Docker | `package-systemd` | `package` | binary version and daemon readiness | `install`, `upgrade`, `verify`, `uninstall` |
+| `reverse-proxy` | Reverse Proxy | `package-systemd` | `package` | package version and service readiness | `install`, `upgrade`, `verify`, `uninstall` |
+| `monitor-agent` | Netdata Agent | `script-systemd` | `script` | binary version and service readiness | `install`, `upgrade`, `verify`, `uninstall` |
+| `control-agent` | AppOS Control Agent | `script-systemd` | `script` | binary version and service readiness | `install`, `upgrade`, `verify`, `uninstall` |
 
 Rules:
 
-- shared component definitions stay singular; target placement is expressed through target-scope metadata rather than duplicated component definitions
+- shared component definitions stay singular; target placement is expressed through `target_type` metadata rather than duplicated component definitions
 - `control-agent` installer URL is resolved from trusted system settings at execution time, not hardcoded in catalog data
 - adding a new component should require catalog registration, not a new route family or a new planning story
 
@@ -278,26 +278,26 @@ This story should therefore consolidate and formalize the contract instead of re
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Consolidate the shared software-delivery vocabulary
-	- [ ] 1.1 freeze canonical target scopes, component identity, capability mapping, and lifecycle action names
-	- [ ] 1.2 define which fields are mandatory on every catalog entry
-	- [ ] 1.3 define how supported actions, audit names, and DTO field names are represented and consumed
-- [ ] Task 2: Normalize the catalog contract
-	- [ ] 2.1 align server and local catalog metadata under one schema
-	- [ ] 2.2 encode discovery visibility and operational visibility explicitly
-	- [ ] 2.3 preserve initial catalog coverage for Docker, reverse proxy, monitor agent, and control agent
-	- [ ] 2.4 define uninstall support as metadata, not ad hoc UI branching
-- [ ] Task 3: Freeze cross-domain boundaries
-	- [ ] 3.1 define the Software Delivery versus Monitor split in story language and API language
-	- [ ] 3.2 define capability-facing contract for external consumers
-	- [ ] 3.3 preserve subdomain mapping for catalog, inventory, provisioning, and target-readiness
-	- [ ] 3.4 define audit action naming for all lifecycle operations
-- [ ] Task 4: Add contract validation coverage
-	- [ ] 4.1 backend tests for DTO and catalog shape stability
-	- [ ] 4.2 backend tests for template schema validity and placeholder safety
-	- [ ] 4.3 backend tests for capability map and required catalog coverage
-	- [ ] 4.4 route tests that guard canonical field names and literal paths
-	- [ ] 4.5 frontend type tests or API-client tests that guard against schema drift
+- [x] Task 1: Consolidate the shared software-delivery vocabulary
+	- [x] 1.1 freeze canonical target scopes, component identity, capability mapping, and lifecycle action names
+	- [x] 1.2 define which fields are mandatory on every catalog entry
+	- [x] 1.3 define how supported actions, audit names, and DTO field names are represented and consumed
+- [x] Task 2: Normalize the catalog contract
+	- [x] 2.1 align server and local catalog metadata under one schema
+	- [x] 2.2 encode discovery visibility and operational visibility explicitly
+	- [x] 2.3 preserve initial catalog coverage for Docker, reverse proxy, monitor agent, and control agent
+	- [x] 2.4 define uninstall support as metadata, not ad hoc UI branching
+- [x] Task 3: Freeze cross-domain boundaries
+	- [x] 3.1 define the Software Delivery versus Monitor split in story language and API language
+	- [x] 3.2 define capability-facing contract for external consumers
+	- [x] 3.3 preserve subdomain mapping for catalog, inventory, provisioning, and target-readiness
+	- [x] 3.4 define audit action naming for all lifecycle operations
+- [x] Task 4: Add contract validation coverage
+	- [x] 4.1 backend tests for DTO and catalog shape stability
+	- [x] 4.2 backend tests for template schema validity and placeholder safety
+	- [x] 4.3 backend tests for capability map and required catalog coverage
+	- [x] 4.4 route tests that guard canonical field names and literal paths
+	- [x] 4.5 frontend type tests or API-client tests that guard against schema drift
 
 ## Guardrails
 
@@ -321,3 +321,39 @@ This story should therefore consolidate and formalize the contract instead of re
 
 - this story is the contract and catalog foundation for the rest of the reorganized Epic 29 set
 - later stories should consume this contract rather than redefining component metadata locally
+
+## Dev Agent Record
+
+### Agent Model Used
+
+GPT-5.4
+
+### Debug Log References
+
+- `go test ./domain/software/catalog ./domain/routes -run 'ServerCatalog|LocalCatalog|SupportedServerCatalog' -count=1`
+- `go test ./domain/software/... ./domain/routes -run 'Software|Catalog|Boundary' -count=1`
+- `npm test -- --run src/lib/software-api.test.ts`
+
+### Completion Notes List
+
+- Added canonical catalog metadata fields for capability, description, readiness requirements, and visibility to both server and local catalogs.
+- Exposed supported server catalog metadata directly from catalog entries so discovery surfaces consume metadata instead of hardcoded descriptions.
+- Preserved the existing server/local shared vocabulary and boundary tests while tightening route and API-client coverage for the supported catalog shape.
+- Implementation continues to use `target_type` in code for the `server` and `local` scope split.
+
+### File List
+
+- `backend/domain/software/model.go`
+- `backend/domain/software/catalog/loader.go`
+- `backend/domain/software/catalog/catalog_server.yaml`
+- `backend/domain/software/catalog/catalog_local.yaml`
+- `backend/domain/software/catalog/loader_test.go`
+- `backend/domain/software/service/supported_catalog.go`
+- `backend/domain/routes/software_test.go`
+- `web/src/lib/software-api.ts`
+- `web/src/lib/software-api.test.ts`
+- `specs/implementation-artifacts/story29.1-software-contract-and-catalog.md`
+
+## Change Log
+
+- 2026-04-26: completed the canonical catalog metadata implementation, expanded supported catalog API shape, and synchronized story status/tasks to review.

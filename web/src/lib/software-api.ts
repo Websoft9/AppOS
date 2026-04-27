@@ -5,10 +5,11 @@ import { pb } from '@/lib/pb'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type SoftwareActionType = 'install' | 'upgrade' | 'verify' | 'repair'
+export type SoftwareActionType = 'install' | 'upgrade' | 'verify' | 'repair' | 'uninstall'
 export type InstalledState = 'installed' | 'not_installed' | 'unknown'
 export type VerificationState = 'healthy' | 'degraded' | 'unknown'
 export type TemplateKind = 'package' | 'script' | 'binary'
+export type CatalogVisibility = 'server_operations' | 'supported_software_discovery' | 'local_inventory'
 
 export type OperationPhase =
   | 'accepted'
@@ -107,6 +108,8 @@ export interface SupportedServerSoftwareEntry {
   supported_actions: SoftwareActionType[]
   template_kind: TemplateKind
   description: string
+  readiness_requirements: string[]
+  visibility: CatalogVisibility[]
 }
 
 // ─── Path Helpers ─────────────────────────────────────────────────────────────

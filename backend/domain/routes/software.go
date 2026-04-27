@@ -108,19 +108,23 @@ func escapeSoftwareFilterValue(v string) string {
 
 // validSoftwareActions maps URL action path segments to their software.Action constants.
 var validSoftwareActions = map[string]software.Action{
-	"install": software.ActionInstall,
-	"upgrade": software.ActionUpgrade,
-	"verify":  software.ActionVerify,
-	"repair":  software.ActionRepair,
+	"install":   software.ActionInstall,
+	"upgrade":   software.ActionUpgrade,
+	"start":     software.ActionStart,
+	"stop":      software.ActionStop,
+	"restart":   software.ActionRestart,
+	"verify":    software.ActionVerify,
+	"reinstall": software.ActionReinstall,
+	"uninstall": software.ActionUninstall,
 }
 
 // @Summary Invoke a software delivery action
-// @Description Enqueues an async software delivery action (install, upgrade, verify, repair) for a component on the given server.
+// @Description Enqueues an async software delivery action (install, upgrade, start, stop, restart, verify, reinstall, uninstall) for a component on the given server.
 // @Tags Software
 // @Security BearerAuth
 // @Param serverId path string true "Server ID"
 // @Param componentKey path string true "Component key (e.g. docker, monitor-agent)"
-// @Param action path string true "Action name: install | upgrade | verify | repair"
+// @Param action path string true "Action name: install | upgrade | start | stop | restart | verify | reinstall | uninstall"
 // @Success 202 {object} map[string]any
 // @Failure 400 {object} map[string]any "invalid action"
 // @Failure 503 {object} map[string]any "queue not configured"
@@ -134,7 +138,7 @@ func handleSoftwareComponentAction(e *core.RequestEvent) error {
 	if !ok {
 		return e.JSON(http.StatusBadRequest, map[string]any{
 			"error":   "invalid_action",
-			"message": "action must be one of: install, upgrade, verify, repair",
+			"message": "action must be one of: install, upgrade, start, stop, restart, verify, reinstall, uninstall",
 		})
 	}
 
@@ -150,6 +154,18 @@ func handleSoftwareComponentAction(e *core.RequestEvent) error {
 		if errors.Is(err, worker.ErrSoftwareOperationInFlight) {
 			return e.JSON(http.StatusConflict, map[string]any{
 				"error":   "operation_in_flight",
+				"message": err.Error(),
+			})
+		}
+		if errors.Is(err, worker.ErrSoftwareComponentNotFound) {
+			return e.JSON(http.StatusNotFound, map[string]any{
+				"error":   "component_not_found",
+				"message": err.Error(),
+			})
+		}
+		if errors.Is(err, worker.ErrSoftwareActionUnsupported) {
+			return e.JSON(http.StatusBadRequest, map[string]any{
+				"error":   "action_not_supported",
 				"message": err.Error(),
 			})
 		}
@@ -179,6 +195,8 @@ func handleSoftwareComponentAction(e *core.RequestEvent) error {
 func markSoftwareOperationEnqueueFailed(e *core.RequestEvent, record *core.Record, enqueueErr error) {
 	record.Set("phase", string(software.OperationPhaseFailed))
 	record.Set("terminal_status", string(software.TerminalStatusFailed))
+	record.Set("failure_phase", string(software.OperationPhaseAccepted))
+	record.Set("failure_code", string(software.FailureCodeEnqueueError))
 	record.Set("failure_reason", "enqueue failed: "+enqueueErr.Error())
 	if err := e.App.Save(record); err != nil {
 		e.App.Logger().Error("save failed software operation after enqueue error", "operation_id", record.Id, "err", err)
@@ -191,6 +209,8 @@ type softwareLastOpSummary struct {
 	Action         software.Action         `json:"action"`
 	Phase          software.OperationPhase `json:"phase"`
 	TerminalStatus software.TerminalStatus `json:"terminal_status"`
+	FailurePhase   software.OperationPhase `json:"failure_phase,omitempty"`
+	FailureCode    software.FailureCode    `json:"failure_code,omitempty"`
 	FailureReason  string                  `json:"failure_reason,omitempty"`
 	UpdatedAt      string                  `json:"updated_at"`
 }

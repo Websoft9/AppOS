@@ -130,6 +130,18 @@ Notes:
 - keep long-running action execution separate from lifecycle release execution
 - let monitor consume installed snapshots and action outcomes, but do not fold runtime observation into this domain
 
+## Lifecycle Phase Model
+
+| Phase | Semantics |
+|-------|-----------|
+| `accepted` | request accepted and operation created |
+| `preflight` | readiness and execution prerequisites evaluated |
+| `executing` | primary action work runs |
+| `verifying` | post-action state is confirmed |
+| `succeeded` | terminal success |
+| `failed` | terminal failure |
+| `attention_required` | terminal state requiring operator review |
+
 ## Stories
 
 The epic now uses five canonical story documents. Earlier split stories 29.1-29.7 are treated as source material that has been consolidated into the reorganized set below.

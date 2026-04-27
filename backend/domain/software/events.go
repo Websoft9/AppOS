@@ -15,11 +15,11 @@ const (
 	// EventSoftwareCapabilityDegraded is published when capability verification returns degraded.
 	EventSoftwareCapabilityDegraded = "software.capability.degraded"
 
-	// EventSoftwareActionSucceeded is published when an install, upgrade, verify, or repair
+	// EventSoftwareActionSucceeded is published when an install, upgrade, verify, or reinstall
 	// action completes with terminal_status=success.
 	EventSoftwareActionSucceeded = "software.action.succeeded"
 
-	// EventSoftwareActionFailed is published when an install, upgrade, verify, or repair
+	// EventSoftwareActionFailed is published when an install, upgrade, verify, or reinstall
 	// action reaches terminal_status=failed.
 	EventSoftwareActionFailed = "software.action.failed"
 )

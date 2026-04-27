@@ -160,6 +160,27 @@ func TestAppOperationsCollectionFields(t *testing.T) {
 	}
 }
 
+func TestAuditLogsCollectionFields(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Cleanup()
+
+	col, err := app.FindCollectionByNameOrId("audit_logs")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertFieldExists(t, col, "user_id", core.FieldTypeText, true)
+	assertFieldExists(t, col, "action", core.FieldTypeText, true)
+	assertFieldExists(t, col, "status", core.FieldTypeSelect, true)
+	assertSelectFieldValues(t, col, "status", []string{"pending", "success", "failed", "attention_required"})
+	if col.ListRule == nil || col.ViewRule == nil {
+		t.Fatal("audit_logs should be readable by owner or superuser")
+	}
+}
+
 func TestAppReleasesCollectionFields(t *testing.T) {
 	app, err := tests.NewTestApp()
 	if err != nil {

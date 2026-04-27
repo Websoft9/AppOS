@@ -50,9 +50,10 @@ func (e *LocalExecutor) Detect(ctx context.Context, _ string, tpl software.Resol
 
 func (e *LocalExecutor) RunPreflight(_ context.Context, _ string, tpl software.ResolvedTemplate) (software.TargetReadinessResult, error) {
 	target := software.TargetInfo{
-		OS:        strings.ToLower(runtime.GOOS),
-		HasRoot:   os.Geteuid() == 0,
-		NetworkOK: true,
+		OS:             strings.ToLower(runtime.GOOS),
+		HasRoot:        os.Geteuid() == 0,
+		NetworkOK:      true,
+		ServiceManager: "supervisor",
 	}
 	return swreadiness.EvaluateReadiness(tpl.Preflight, target, true), nil
 }
@@ -63,6 +64,22 @@ func (e *LocalExecutor) Install(_ context.Context, _ string, tpl software.Resolv
 
 func (e *LocalExecutor) Upgrade(_ context.Context, _ string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
 	return software.SoftwareComponentDetail{}, fmt.Errorf("component %s does not support upgrade on local target", tpl.ComponentKey)
+}
+
+func (e *LocalExecutor) Start(_ context.Context, _ string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+	return software.SoftwareComponentDetail{}, fmt.Errorf("component %s does not support start on local target", tpl.ComponentKey)
+}
+
+func (e *LocalExecutor) Stop(_ context.Context, _ string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+	return software.SoftwareComponentDetail{}, fmt.Errorf("component %s does not support stop on local target", tpl.ComponentKey)
+}
+
+func (e *LocalExecutor) Restart(_ context.Context, _ string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+	return software.SoftwareComponentDetail{}, fmt.Errorf("component %s does not support restart on local target", tpl.ComponentKey)
+}
+
+func (e *LocalExecutor) Uninstall(_ context.Context, _ string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+	return software.SoftwareComponentDetail{}, fmt.Errorf("component %s does not support uninstall on local target", tpl.ComponentKey)
 }
 
 func (e *LocalExecutor) Verify(ctx context.Context, _ string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
@@ -103,7 +120,7 @@ func (e *LocalExecutor) Verify(ctx context.Context, _ string, tpl software.Resol
 	}
 }
 
-func (e *LocalExecutor) Repair(ctx context.Context, _ string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+func (e *LocalExecutor) Reinstall(ctx context.Context, _ string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
 	switch tpl.Repair.Strategy {
 	case "supervisor-restart":
 		if _, err := executeLocalCommand(ctx,
@@ -114,9 +131,9 @@ func (e *LocalExecutor) Repair(ctx context.Context, _ string, tpl software.Resol
 		}
 		return e.Verify(ctx, "", tpl)
 	case "":
-		return software.SoftwareComponentDetail{}, fmt.Errorf("component %s does not support repair on local target", tpl.ComponentKey)
+		return software.SoftwareComponentDetail{}, fmt.Errorf("component %s does not support reinstall on local target", tpl.ComponentKey)
 	default:
-		return software.SoftwareComponentDetail{}, fmt.Errorf("unsupported repair strategy %q for local component %s", tpl.Repair.Strategy, tpl.ComponentKey)
+		return software.SoftwareComponentDetail{}, fmt.Errorf("unsupported reinstall strategy %q for local component %s", tpl.Repair.Strategy, tpl.ComponentKey)
 	}
 }
 

@@ -58,11 +58,11 @@ type TemplateResolver interface {
 	Resolve(key ComponentKey) (ResolvedTemplate, error)
 }
 
-// ComponentExecutor runs the four template-driven execution flows against a target host.
+// ComponentExecutor runs the template-driven execution flows against a target host.
 //
 // All methods accept a ResolvedTemplate (produced by TemplateResolver) and return
 // a SoftwareComponentDetail reflecting the component state after execution.
-// Implementations must be idempotent: calling Install or Repair on a component that
+// Implementations must be idempotent: calling Install or Reinstall on a component that
 // is already in a healthy installed state must not fail or degrade the component.
 type ComponentExecutor interface {
 	// Detect runs the detection step and returns the current installed state and version.
@@ -72,17 +72,30 @@ type ComponentExecutor interface {
 	// A non-ok result does not indicate an executor error; the caller decides whether to proceed.
 	RunPreflight(ctx context.Context, serverID string, tpl ResolvedTemplate) (TargetReadinessResult, error)
 
-	// Install executes the install step then verify, and returns the resulting component detail.
-	// Idempotent: if the component is already installed and healthy, returns the current state.
+	// Install executes the install step and returns execution detail from the primary action.
+	// Post-action truth must be evaluated separately via Verify or Detect by the caller.
 	Install(ctx context.Context, serverID string, tpl ResolvedTemplate) (SoftwareComponentDetail, error)
 
-	// Upgrade executes the upgrade step then verify, and returns the resulting component detail.
+		// Upgrade executes the upgrade step and returns execution detail from the primary action.
 	Upgrade(ctx context.Context, serverID string, tpl ResolvedTemplate) (SoftwareComponentDetail, error)
+
+		// Start starts the managed runtime service and returns execution detail from the control action.
+		Start(ctx context.Context, serverID string, tpl ResolvedTemplate) (SoftwareComponentDetail, error)
+
+		// Stop stops the managed runtime service and returns execution detail from the control action.
+		Stop(ctx context.Context, serverID string, tpl ResolvedTemplate) (SoftwareComponentDetail, error)
+
+		// Restart restarts the managed runtime service and returns execution detail from the control action.
+		Restart(ctx context.Context, serverID string, tpl ResolvedTemplate) (SoftwareComponentDetail, error)
+
+		// Uninstall executes the uninstall step and returns execution detail from the primary action.
+	// Idempotent: if the component is already absent, returns the current absent state unchanged.
+	Uninstall(ctx context.Context, serverID string, tpl ResolvedTemplate) (SoftwareComponentDetail, error)
 
 	// Verify executes the verify step and returns the current component state.
 	Verify(ctx context.Context, serverID string, tpl ResolvedTemplate) (SoftwareComponentDetail, error)
 
-	// Repair re-executes the install step then verify, and returns the resulting component detail.
+	// Reinstall re-executes the primary reinstall step and returns execution detail.
 	// If the component is already healthy, returns the current healthy state unchanged.
-	Repair(ctx context.Context, serverID string, tpl ResolvedTemplate) (SoftwareComponentDetail, error)
+	Reinstall(ctx context.Context, serverID string, tpl ResolvedTemplate) (SoftwareComponentDetail, error)
 }

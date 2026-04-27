@@ -42,6 +42,14 @@ const (
 	CapabilityReverseProxy     Capability = "reverse_proxy"
 )
 
+type CatalogVisibility string
+
+const (
+	CatalogVisibilityServerOperations           CatalogVisibility = "server_operations"
+	CatalogVisibilitySupportedSoftwareDiscovery CatalogVisibility = "supported_software_discovery"
+	CatalogVisibilityLocalInventory             CatalogVisibility = "local_inventory"
+)
+
 type InstalledState string
 
 const (
@@ -61,10 +69,14 @@ const (
 type Action string
 
 const (
-	ActionInstall Action = "install"
-	ActionUpgrade Action = "upgrade"
-	ActionVerify  Action = "verify"
-	ActionRepair  Action = "repair"
+	ActionInstall   Action = "install"
+	ActionUpgrade   Action = "upgrade"
+	ActionStart     Action = "start"
+	ActionStop      Action = "stop"
+	ActionRestart   Action = "restart"
+	ActionVerify    Action = "verify"
+	ActionReinstall Action = "reinstall"
+	ActionUninstall Action = "uninstall"
 )
 
 // TargetType identifies the delivery target class for a software component.
@@ -79,7 +91,7 @@ const (
 	TargetTypeLocal TargetType = "local"
 
 	// TargetTypeServer is a managed remote server registered in the server catalog.
-	// Software Delivery owns install, upgrade, verify, and repair workflows for
+	// Software Delivery owns install, upgrade, verify, and reinstall workflows for
 	// all components on server targets.
 	TargetTypeServer TargetType = "server"
 )
@@ -99,16 +111,33 @@ const (
 type TerminalStatus string
 
 const (
-	TerminalStatusNone    TerminalStatus = "none"
-	TerminalStatusSuccess TerminalStatus = "success"
-	TerminalStatusFailed  TerminalStatus = "failed"
+	TerminalStatusNone              TerminalStatus = "none"
+	TerminalStatusSuccess           TerminalStatus = "success"
+	TerminalStatusFailed            TerminalStatus = "failed"
+	TerminalStatusAttentionRequired TerminalStatus = "attention_required"
+)
+
+type FailureCode string
+
+const (
+	FailureCodeEnqueueError            FailureCode = "enqueue_error"
+	FailureCodePreflightError          FailureCode = "preflight_error"
+	FailureCodePreflightBlocked        FailureCode = "preflight_blocked"
+	FailureCodeExecutionError          FailureCode = "execution_error"
+	FailureCodeVerificationDegraded    FailureCode = "verification_degraded"
+	FailureCodeVerificationError       FailureCode = "verification_error"
+	FailureCodeUninstallTruthMismatch  FailureCode = "uninstall_truth_mismatch"
 )
 
 const (
-	AuditActionInstall = "server.software.install"
-	AuditActionUpgrade = "server.software.upgrade"
-	AuditActionVerify  = "server.software.verify"
-	AuditActionRepair  = "server.software.repair"
+	AuditActionInstall   = "server.software.install"
+	AuditActionUpgrade   = "server.software.upgrade"
+	AuditActionStart     = "server.software.start"
+	AuditActionStop      = "server.software.stop"
+	AuditActionRestart   = "server.software.restart"
+	AuditActionVerify    = "server.software.verify"
+	AuditActionReinstall = "server.software.reinstall"
+	AuditActionUninstall = "server.software.uninstall"
 )
 
 type SoftwareDeliveryLastAction struct {
@@ -118,12 +147,14 @@ type SoftwareDeliveryLastAction struct {
 }
 
 type TargetReadinessResult struct {
-	OK              bool     `json:"ok"`
-	OSSupported     bool     `json:"os_supported"`
-	PrivilegeOK     bool     `json:"privilege_ok"`
-	NetworkOK       bool     `json:"network_ok"`
-	DependencyReady bool     `json:"dependency_ready"`
-	Issues          []string `json:"issues,omitempty"`
+	OK               bool     `json:"ok"`
+	OSSupported      bool     `json:"os_supported"`
+	PrivilegeOK      bool     `json:"privilege_ok"`
+	NetworkOK        bool     `json:"network_ok"`
+	DependencyReady  bool     `json:"dependency_ready"`
+	ServiceManagerOK bool     `json:"service_manager_ok"`
+	PackageManagerOK bool     `json:"package_manager_ok"`
+	Issues           []string `json:"issues,omitempty"`
 }
 
 type SoftwareVerificationResult struct {
@@ -174,6 +205,8 @@ type SoftwareDeliveryOperation struct {
 	Action         Action         `json:"action"`
 	Phase          OperationPhase `json:"phase"`
 	TerminalStatus TerminalStatus `json:"terminal_status"`
+	FailurePhase   OperationPhase `json:"failure_phase,omitempty"`
+	FailureCode    FailureCode    `json:"failure_code,omitempty"`
 	FailureReason  string         `json:"failure_reason,omitempty"`
 	CreatedAt      string         `json:"created_at"`
 	UpdatedAt      string         `json:"updated_at"`
@@ -198,23 +231,42 @@ type DetectSpec struct {
 type PreflightSpec struct {
 	RequireRoot    bool     `yaml:"require_root"`
 	RequireNetwork bool     `yaml:"require_network"`
-	SupportedOS    []string `yaml:"supported_os"`
+	VerifiedOS     []string `yaml:"verified_os"`
+	ServiceManager string   `yaml:"service_manager"`
+	PackageManager string   `yaml:"package_manager"`
 }
 
 // InstallSpec defines the install step.
 type InstallSpec struct {
-	Strategy    string   `yaml:"strategy"`
-	PackageName string   `yaml:"package_name"`
-	ScriptURL   string   `yaml:"script_url"`
-	Args        []string `yaml:"args"`
+	Strategy           string   `yaml:"strategy"`
+	PackageName        string   `yaml:"package_name"`
+	PackageNames       []string `yaml:"package_names"`
+	PackageRepoProfile string   `yaml:"package_repo_profile"`
+	ScriptPath         string   `yaml:"script_path"`
+	ScriptURL          string   `yaml:"script_url"`
+	Args               []string `yaml:"args"`
 }
 
 // UpgradeSpec defines the upgrade step.
 type UpgradeSpec struct {
-	Strategy    string   `yaml:"strategy"`
-	PackageName string   `yaml:"package_name"`
-	ScriptURL   string   `yaml:"script_url"`
-	Args        []string `yaml:"args"`
+	Strategy           string   `yaml:"strategy"`
+	PackageName        string   `yaml:"package_name"`
+	PackageNames       []string `yaml:"package_names"`
+	PackageRepoProfile string   `yaml:"package_repo_profile"`
+	ScriptPath         string   `yaml:"script_path"`
+	ScriptURL          string   `yaml:"script_url"`
+	Args               []string `yaml:"args"`
+}
+
+// UninstallSpec defines the uninstall step.
+type UninstallSpec struct {
+	Strategy           string   `yaml:"strategy"`
+	PackageName        string   `yaml:"package_name"`
+	PackageNames       []string `yaml:"package_names"`
+	PackageRepoProfile string   `yaml:"package_repo_profile"`
+	ScriptPath         string   `yaml:"script_path"`
+	ScriptURL          string   `yaml:"script_url"`
+	Args               []string `yaml:"args"`
 }
 
 // VerifySpec defines the verify step.
@@ -239,6 +291,7 @@ type ComponentTemplate struct {
 	Preflight    PreflightSpec `yaml:"preflight"`
 	Install      InstallSpec   `yaml:"install"`
 	Upgrade      UpgradeSpec   `yaml:"upgrade"`
+	Uninstall    UninstallSpec `yaml:"uninstall"`
 	Verify       VerifySpec    `yaml:"verify"`
 	// Repair is optional in YAML. When absent, ResolveTemplate defaults to reinstall strategy.
 	Repair *RepairSpec `yaml:"repair"`
@@ -253,15 +306,22 @@ type TemplateRegistry struct {
 // Placeholder fields (Binary, ServiceName, PackageName, ScriptURL) are injected
 // into template specs by ResolveTemplate; they never originate from user input.
 type CatalogEntry struct {
-	ComponentKey   ComponentKey `yaml:"component_key"`
-	TargetType     TargetType   `yaml:"target_type"`
-	Label          string       `yaml:"label"`
-	TemplateRef    string       `yaml:"template_ref"`
-	Binary         string       `yaml:"binary"`
-	ServiceName    string       `yaml:"service_name"`
-	PackageName    string       `yaml:"package_name"`
-	ScriptURL      string       `yaml:"script_url"`
-	DefaultActions []Action     `yaml:"default_actions"`
+	ComponentKey          ComponentKey        `yaml:"component_key"`
+	TargetType            TargetType          `yaml:"target_type"`
+	Label                 string              `yaml:"label"`
+	Capability            Capability          `yaml:"capability"`
+	TemplateRef           string              `yaml:"template_ref"`
+	Binary                string              `yaml:"binary"`
+	ServiceName           string              `yaml:"service_name"`
+	PackageName           string              `yaml:"package_name"`
+	PackageNames          []string            `yaml:"package_names"`
+	PackageRepoProfile    string              `yaml:"package_repo_profile"`
+	ScriptPath            string              `yaml:"script_path"`
+	ScriptURL             string              `yaml:"script_url"`
+	Description           string              `yaml:"description"`
+	ReadinessRequirements []string            `yaml:"readiness_requirements"`
+	Visibility            []CatalogVisibility `yaml:"visibility"`
+	SupportedActions      []Action            `yaml:"supported_actions"`
 }
 
 // ComponentCatalog holds all registered components.
@@ -282,9 +342,10 @@ type ResolvedTemplate struct {
 	Preflight      PreflightSpec
 	Install        InstallSpec
 	Upgrade        UpgradeSpec
+	Uninstall      UninstallSpec
 	Verify         VerifySpec
 	Repair         RepairSpec
-	DefaultActions []Action
+	SupportedActions []Action
 }
 
 // ── Readiness types ───────────────────────────────────────────────────────────
@@ -293,7 +354,7 @@ type ResolvedTemplate struct {
 type ReadinessIssueCode string
 
 const (
-	// ReadinessIssueOSNotSupported is returned when the target OS is not in the template's SupportedOS list.
+	// ReadinessIssueOSNotSupported is returned when the target OS is outside the template's verified OS baseline.
 	ReadinessIssueOSNotSupported ReadinessIssueCode = "os_not_supported"
 
 	// ReadinessIssuePrivilegeRequired is returned when the template requires root but the target lacks it.
@@ -304,6 +365,12 @@ const (
 
 	// ReadinessIssueDependencyMissing is returned when a prerequisite capability is not yet available.
 	ReadinessIssueDependencyMissing ReadinessIssueCode = "dependency_missing"
+
+	// ReadinessIssueServiceManagerMissing is returned when the required service manager is unavailable.
+	ReadinessIssueServiceManagerMissing ReadinessIssueCode = "service_manager_missing"
+
+	// ReadinessIssuePackageManagerMissing is returned when the required package manager is unavailable.
+	ReadinessIssuePackageManagerMissing ReadinessIssueCode = "package_manager_missing"
 )
 
 // TargetInfo captures the attributes of a delivery target that are required to evaluate
@@ -320,4 +387,10 @@ type TargetInfo struct {
 
 	// NetworkOK indicates whether the required network path is currently reachable.
 	NetworkOK bool
+
+	// ServiceManager is the detected service supervisor/runtime, e.g. "systemd" or "supervisor".
+	ServiceManager string
+
+	// PackageManager is the detected package manager, e.g. "apt".
+	PackageManager string
 }

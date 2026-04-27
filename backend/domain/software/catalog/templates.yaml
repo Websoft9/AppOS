@@ -10,14 +10,24 @@ templates:
     preflight:
       require_root: true
       require_network: false
-      supported_os:
+      verified_os:
         - ubuntu
         - debian
         - rocky
+        - almalinux
+        - rhel
+        - centos
+        - amzn
+        - openeuler
+      service_manager: systemd
+      package_manager: native
     install:
       strategy: package
       package_name: "{{package_name}}"
     upgrade:
+      strategy: package
+      package_name: "{{package_name}}"
+    uninstall:
       strategy: package
       package_name: "{{package_name}}"
     verify:
@@ -25,6 +35,46 @@ templates:
       service_name: "{{service_name}}"
     repair:
       strategy: reinstall  # re-run install then verify
+
+  # script-install-package-systemd: installs via a packaged AppOS script, then
+  # uses the host package manager for upgrade and uninstall.
+  # Used for components whose initial repo/bootstrap logic is OS-specific but
+  # whose steady-state lifecycle remains package-managed.
+  script-install-package-systemd:
+    template_kind: package
+    detect:
+      version_command: "{{binary}} --version"
+      installed_hint:
+        - "command -v {{binary}}"
+    preflight:
+      require_root: true
+      require_network: true
+      verified_os:
+        - ubuntu
+        - debian
+        - rocky
+        - almalinux
+        - rhel
+        - centos
+        - amzn
+        - openeuler
+      service_manager: systemd
+      package_manager: native
+    install:
+      strategy: script
+      script_path: "{{script_path}}"
+      args: []
+    upgrade:
+      strategy: package
+      package_name: "{{package_name}}"
+    uninstall:
+      strategy: package
+      package_name: "{{package_name}}"
+    verify:
+      strategy: systemd
+      service_name: "{{service_name}}"
+    repair:
+      strategy: reinstall
 
   # script-systemd: installs via a remote shell script and verifies via systemd.
   # Used for server components distributed as vendor-provided install scripts.
@@ -37,10 +87,11 @@ templates:
     preflight:
       require_root: true
       require_network: true
-      supported_os:
+      verified_os:
         - ubuntu
         - debian
         - rocky
+      service_manager: systemd
     install:
       strategy: script
       script_url: "{{script_url}}"
@@ -50,6 +101,11 @@ templates:
       script_url: "{{script_url}}"
       args:
         - --upgrade
+    uninstall:
+      strategy: script
+      script_url: "{{script_url}}"
+      args:
+        - --uninstall
     verify:
       strategy: systemd
       service_name: "{{service_name}}"
@@ -69,10 +125,12 @@ templates:
     preflight:
       require_root: false
       require_network: false
-      supported_os: []  # container-internal: OS-agnostic
+      verified_os: []  # container-internal: OS-agnostic
     install:
       strategy: ""
     upgrade:
+      strategy: ""
+    uninstall:
       strategy: ""
     verify:
       strategy: supervisor
@@ -91,10 +149,12 @@ templates:
     preflight:
       require_root: false
       require_network: false
-      supported_os: []  # container-internal: OS-agnostic
+      verified_os: []  # container-internal: OS-agnostic
     install:
       strategy: ""
     upgrade:
+      strategy: ""
+    uninstall:
       strategy: ""
     verify:
       strategy: detect  # command -v {{binary}} only; no service to check

@@ -153,6 +153,8 @@ describe('supported server software catalog', () => {
       template_kind: 'package',
       supported_actions: ['install', 'upgrade', 'verify'],
       description: 'Docker is supported by AppOS.',
+      readiness_requirements: ['supported_os', 'root_privilege', 'network_access'],
+      visibility: ['server_operations', 'supported_software_discovery'],
     }
     sendMock.mockResolvedValue({ items: [component] })
     await expect(listSupportedServerSoftware()).resolves.toEqual([component])
@@ -167,6 +169,8 @@ describe('supported server software catalog', () => {
       template_kind: 'package',
       supported_actions: ['install', 'upgrade', 'verify'],
       description: 'Nginx is supported by AppOS.',
+      readiness_requirements: ['supported_os', 'root_privilege', 'network_access'],
+      visibility: ['server_operations', 'supported_software_discovery'],
     }
     sendMock.mockResolvedValue(component)
     await expect(getSupportedServerSoftware('reverse-proxy')).resolves.toEqual(component)

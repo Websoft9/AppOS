@@ -1,50 +1,126 @@
 components:
+  # Editorial grouping only:
+  # - Keep the canonical catalog flat; comments and order are for human review only.
+  # - Do not make loader, service, or UI logic depend on file order.
+  # - Within each section, keep the most foundational component first.
+  # - Within each component, keep fields in this order:
+  #   1) identity metadata: component_key, target_type, label, capability
+  #   2) execution contract: template_ref
+  #   3) runtime binding: binary, service_name, package_name/package_names/script_path/script_url
+  #   4) surface policy: description, readiness_requirements, visibility, supported_actions
+  # - Example:
+  #   component_key -> target_type -> label -> capability -> template_ref -> binary/service_name/package_name
+  #   -> description -> readiness_requirements -> visibility -> supported_actions
+
+  # Runtime foundation
   - component_key: docker
     target_type: server
     label: Docker
-    template_ref: package-systemd
+    capability: container_runtime
+    template_ref: script-install-package-systemd
     binary: docker
     service_name: docker.service
-    package_name: docker.io
-    default_actions:
+    package_name: docker-ce
+    package_names:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    package_repo_profile: docker-ce
+    script_path: docker-install.sh
+    description: Managed Docker Engine runtime for connected servers.
+    readiness_requirements:
+      - verified_os_baseline
+      - root_privilege
+      - network_access
+      - service_manager
+      - package_manager
+    visibility:
+      - server_operations
+      - supported_software_discovery
+    supported_actions:
       - install
       - upgrade
+      - start
+      - stop
+      - restart
       - verify
+      - reinstall
+      - uninstall
 
+  # Traffic edge
   - component_key: reverse-proxy
     target_type: server
     label: Nginx
+    capability: reverse_proxy
     template_ref: package-systemd
     binary: nginx
     service_name: nginx.service
     package_name: nginx
-    default_actions:
+    description: Managed reverse proxy service for connected servers.
+    readiness_requirements:
+      - verified_os_baseline
+      - root_privilege
+      - network_access
+      - service_manager
+      - package_manager
+    visibility:
+      - server_operations
+      - supported_software_discovery
+    supported_actions:
       - install
       - upgrade
       - verify
+      - uninstall
 
+  # Observability
   - component_key: monitor-agent
     target_type: server
     label: Netdata Agent
+    capability: monitor_agent
     template_ref: script-systemd
     binary: netdata
     service_name: netdata.service
     script_url: https://get.netdata.cloud/kickstart.sh
-    default_actions:
+    description: Managed monitoring agent installer for connected servers.
+    readiness_requirements:
+      - verified_os_baseline
+      - root_privilege
+      - network_access
+      - service_manager
+    visibility:
+      - server_operations
+      - supported_software_discovery
+    supported_actions:
       - install
       - upgrade
       - verify
+      - uninstall
 
+  # Control plane
   - component_key: control-agent
     target_type: server
     label: AppOS Control Agent
+    capability: control_plane
     template_ref: script-systemd
     binary: appos-control-agent
     service_name: appos-control-agent.service
     # script_url is resolved at runtime from system settings key: software.control_agent_installer_url
     # Do not hardcode a URL here; the executor must read the setting before invoking the template.
     script_url: ""
-    default_actions:
+    description: Managed AppOS control-plane agent for connected servers.
+    readiness_requirements:
+      - verified_os_baseline
+      - root_privilege
+      - network_access
+      - service_manager
+      - trusted_installer_url
+    visibility:
+      - server_operations
+      - supported_software_discovery
+    supported_actions:
       - install
       - upgrade
       - verify
+      - uninstall
