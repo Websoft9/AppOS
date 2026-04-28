@@ -23,7 +23,7 @@ Execution mechanics, operational UI, supported-software discovery, and local inv
 ## Scope
 
 - define the canonical software vocabulary for `component`, `capability`, `target`, `template`, `snapshot`, and `operation`
-- define one shared lifecycle contract: `detect`, `install`, `upgrade`, `verify`, `repair`, `uninstall`
+- define one shared lifecycle contract: `detect`, `install`, `upgrade`, `verify`, `reinstall`, `uninstall`
 - define catalog metadata required by both backend execution and frontend surfaces
 - keep `local` and `server` under one domain language while allowing target-specific policies
 - define action policy so UI and API surfaces render from metadata rather than component-specific branching
@@ -46,7 +46,7 @@ Current mapping to preserve from the old story set:
 |------------------|------------------|--------|
 | `components` inventory output | `inventory` | describes installed state on a target |
 | component registry and config | `catalog` | defines what AppOS manages |
-| software delivery install, upgrade, verify, repair execution | `provisioning` | executes delivery actions |
+| software delivery install, upgrade, verify, reinstall execution | `provisioning` | executes delivery actions |
 | OS, privilege, and network checks | `target-readiness` | determines whether actions can safely run |
 
 ### Target Scopes
@@ -68,11 +68,11 @@ Current mapping to preserve from the old story set:
 
 | Action | Meaning |
 |--------|---------|
-| `detect` | inspect installed state and version without mutating target |
+| `detect` | inspect installed state, detected version, and minimal install-source classification without mutating target |
 | `install` | converge from `not_installed` to managed baseline |
 | `upgrade` | converge an installed component to packaged baseline |
 | `verify` | validate that the component satisfies expected capability |
-| `repair` | rerun corrective converge steps without redefining target |
+| `reinstall` | rerun converge from the managed install baseline when corrective recovery is needed |
 | `uninstall` | return the component to a controlled `not_installed` managed baseline |
 
 Rules:
@@ -80,6 +80,7 @@ Rules:
 - `uninstall` is not a promise of full cleanup outside AppOS-owned assets
 - supported actions are catalog-driven and may vary by component and target scope
 - external domains should consume capability status, not template internals or shell commands
+- initial detect classification should stay minimal: enough to separate AppOS-managed installs from foreign package installs and manual installs, not enough to become a full package inventory system
 
 ### Capability Mapping
 
@@ -100,12 +101,12 @@ External domains should call capability contracts, not component contracts.
 |------|-------|
 | `template_kind` | `package` or `script` |
 | `display_name` | operator-facing name |
-| `detect` | installed-state and version detection |
+| `detect` | installed-state, version, and minimal install-source detection |
 | `preflight` | verified OS baseline plus privilege, network, and runtime capability checks |
 | `install` | install step definition |
 | `upgrade` | upgrade step definition |
 | `verify` | post-action verification |
-| `repair` | optional repair step; defaults to install then verify when absent |
+| `reinstall` | optional reinstall step; defaults to install then verify when absent |
 | `uninstall` | optional controlled baseline removal step |
 
 #### Kind Rules
@@ -171,6 +172,27 @@ This boundary must remain strict:
 - Monitor does not own install or readiness workflows
 - Software Delivery does not own heartbeat, active checks, health summaries, or status timelines
 
+### Minimal Detect Extension
+
+Detect should remain intentionally small. The first extension only adds enough truth to decide whether a corrective action stays within the managed baseline or must escalate to replacement flow.
+
+#### `DetectionResult`
+
+| Field | Type | Notes |
+|------|------|-------|
+| `installed_state` | `installed` or `not_installed` or `unknown` | existing truth signal |
+| `detected_version` | string | existing version signal when known |
+| `install_source` | `managed` or `foreign_package` or `manual` or `unknown` | minimal source classification |
+| `source_evidence` | string | short operator-readable hint such as `apt:docker-ce`, `apt:docker.io`, `rpm:moby-engine`, or `binary:/usr/bin/docker` |
+
+Rules:
+
+- `install_source=managed` means the installed component matches the AppOS-managed package or script baseline for that component
+- `install_source=foreign_package` means the component is package-managed but not from the AppOS-recognized baseline
+- `install_source=manual` means the runtime is present but package ownership does not support a safe managed-path conclusion
+- `install_source=unknown` is the fallback when detection cannot classify source truthfully
+- initial rollout only needs strong classification for Docker because that is the first component expected to branch between `reinstall` and a future replacement action
+
 ## API and DTO Contract
 
 ### Shared DTO Fields to Preserve
@@ -184,6 +206,8 @@ This boundary must remain strict:
 | `template_kind` | `package` or `script` |
 | `installed_state` | `installed` or `not_installed` or `unknown` |
 | `detected_version` | string |
+| `install_source` | `managed` or `foreign_package` or `manual` or `unknown` |
+| `source_evidence` | string |
 | `packaged_version` | string |
 | `verification_state` | `healthy` or `degraded` or `unknown` |
 | `available_actions` | string[] |
@@ -252,7 +276,7 @@ Rules:
 - `server.software.install`
 - `server.software.upgrade`
 - `server.software.verify`
-- `server.software.repair`
+- `server.software.reinstall`
 - `server.software.uninstall`
 
 ## Developer Context
@@ -309,7 +333,7 @@ This story should therefore consolidate and formalize the contract instead of re
 
 ## Acceptance Criteria
 
-- one documented lifecycle contract exists for `detect`, `install`, `upgrade`, `verify`, `repair`, and `uninstall`
+- one documented lifecycle contract exists for `detect`, `install`, `upgrade`, `verify`, `reinstall`, and `uninstall`
 - every AppOS-managed software component can be described through one canonical catalog shape
 - the initial managed set of Docker, reverse proxy, monitor agent, and control agent fits that catalog shape without route forks
 - `server` and `local` inventory surfaces derive from the same domain language rather than separate ad hoc DTOs

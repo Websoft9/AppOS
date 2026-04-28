@@ -43,7 +43,7 @@ func packageTemplate(pkg, svc string) software.ResolvedTemplate {
 			Strategy:    "systemd",
 			ServiceName: svc,
 		},
-		Repair: software.RepairSpec{Strategy: "reinstall"},
+		Reinstall: software.ReinstallSpec{Strategy: "reinstall"},
 	}
 }
 
@@ -79,7 +79,7 @@ func scriptTemplate(url, svc string) software.ResolvedTemplate {
 			Strategy:    "systemd",
 			ServiceName: svc,
 		},
-		Repair: software.RepairSpec{Strategy: "reinstall"},
+		Reinstall: software.ReinstallSpec{Strategy: "reinstall"},
 	}
 }
 
@@ -289,7 +289,7 @@ func TestReinstall_DoesNotVerifyDuringExecution(t *testing.T) {
 
 	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
 		if containsSubstring(cmd, "is-active") {
-			t.Fatalf("repair should not run verification command inside executing phase: %s", cmd)
+			t.Fatalf("reinstall should not run verification command inside executing phase: %s", cmd)
 		}
 		if containsSubstring(cmd, "apt-get install") {
 			return "", nil
@@ -343,12 +343,63 @@ func TestUninstall_ScriptWithEmptyURL_ReturnsError(t *testing.T) {
 	}
 }
 
+func TestUninstall_StopsServiceBeforePackageRemoval(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	commands := []string{}
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		commands = append(commands, cmd)
+		switch {
+		case containsSubstring(cmd, "systemctl stop") && containsSubstring(cmd, "docker.service"):
+			return "", nil
+		case containsSubstring(cmd, "/etc/os-release"):
+			return "ubuntu", nil
+		case containsSubstring(cmd, "command -v apt-get"):
+			return "apt-get", nil
+		case containsSubstring(cmd, "apt-get remove -y") && containsSubstring(cmd, "docker-ce"):
+			return "", nil
+		default:
+			return "", nil
+		}
+	}
+
+	ex := &SSHExecutor{}
+	tpl := packageTemplate("docker-ce", "docker.service")
+	_, err := ex.Uninstall(context.Background(), "srv-1", tpl)
+	if err != nil {
+		t.Fatalf("Uninstall error: %v", err)
+	}
+	if len(commands) < 3 {
+		t.Fatalf("expected stop + package-manager detection + remove commands, got %v", commands)
+	}
+	stopIndex := -1
+	removeIndex := -1
+	for i, cmd := range commands {
+		if containsSubstring(cmd, "systemctl stop") && containsSubstring(cmd, "docker.service") {
+			stopIndex = i
+		}
+		if containsSubstring(cmd, "apt-get remove -y") && containsSubstring(cmd, "docker-ce") {
+			removeIndex = i
+		}
+	}
+	if stopIndex == -1 {
+		t.Fatalf("expected uninstall to stop service first, commands=%v", commands)
+	}
+	if removeIndex == -1 {
+		t.Fatalf("expected uninstall to remove docker package, commands=%v", commands)
+	}
+	if stopIndex > removeIndex {
+		t.Fatalf("expected service stop before package removal, commands=%v", commands)
+	}
+}
+
 // ─── Reinstall strategy routing ─────────────────────────────────────────────
 
 func TestReinstall_UnknownStrategy_ReturnsError(t *testing.T) {
 	ex := &SSHExecutor{}
 	tpl := packageTemplate("docker.io", "docker.service")
-	tpl.Repair.Strategy = "unknown"
+	tpl.Reinstall.Strategy = "unknown"
 	_, err := ex.Reinstall(context.Background(), "srv-1", tpl)
 	if err == nil {
 		t.Fatal("expected error for unknown reinstall strategy")

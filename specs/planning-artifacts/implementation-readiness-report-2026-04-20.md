@@ -125,7 +125,7 @@ This is a **low-blocking risk** for backend stories (29.1–29.5), but it should
 - `package-systemd` and `script-systemd` kinds are both documented
 - YAML files belong under `backend/domain/software/templates.yaml`
 - **Issue**: Implementation paths must stay aligned with the Software Delivery domain naming and use `backend/domain/software/templates.yaml`
-- **Missing**: No `repair` step defined in the template schema, even though epic scope lists repair as in-scope
+- **Missing**: No `reinstall` step defined in the template schema, even though epic scope lists reinstall as in-scope
 
 #### Story 29.4 — Catalog
 
@@ -178,7 +178,7 @@ This is a **low-blocking risk** for backend stories (29.1–29.5), but it should
 
 | # | Issue | Location | Action Required |
 |---|---|---|---|
-| N1 | **Repair action not specified** | Epic scope; Story 29.3 template schema | Define the repair template step or explicitly exclude repair for MVP |
+| N1 | **Reinstall action not specified** | Epic scope; Story 29.3 template schema | Define the reinstall template step or explicitly exclude reinstall for MVP |
 | N2 | **UX design gap for Story 29.6** | Story 29.6 | Create a minimal UX mockup or reference a specific existing layout pattern before Story 29.6 implementation |
 | N3 | **Architecture doc terminology** | `architecture.md` uses legacy runner and capability-management wording | Update architecture doc to use Software Delivery terminology consistently |
 | N4 | **NFR idempotency not addressed** | No story explicitly covers idempotent retry for software actions | Acknowledge in 29.3 executor contract or add to acceptance criteria |
@@ -201,10 +201,10 @@ All critical and medium issues identified in the initial assessment have been re
 | C2 | `dependency_ready` field missing | Added `DependencyReady bool` to `TargetReadinessResult` in `model.go` and to the DTO table in Story 29.1 |
 | C3 | control-agent installer URL placeholder | `catalog.yaml` updated: `script_url` is now empty with a comment directing the executor to read `software.control_agent_installer_url` system setting. Story 29.4 adds Task 4 to register the setting. |
 | M1 | No async worker story | Canonical Story 29.2 now carries the async worker contract; detailed prior implementation record is preserved in `epic29-legacy-implementation-record.md` |
-| M2 | Audit action rename not planned | `model.go` constants updated to `server.software.*`. Story 29.2 Task 4 added to cover the rename plan and migration note. `AuditActionRepair` added. |
+| M2 | Audit action rename not planned | `model.go` constants updated to `server.software.*`. Story 29.2 Task 4 added to cover the rename plan and migration note. `AuditActionReinstall` added. |
 | M3 | Epic 28 dependency direction unclear | Removed Epic 28 from Epic 29 `Depends on` — Monitor is a consumer of Software Delivery output, not a prerequisite |
 | M4 | Package naming decision undocumented | Epic 29 now has an explicit "Package Naming Decision" section: the domain package is `domain/software` and all types use the Software Delivery naming scheme |
-| N1 | Repair action not specified | `ActionRepair` constant added to `model.go`; `repair` step added to template schema in Story 29.3; idempotency AC added |
+| N1 | Reinstall action not specified | `ActionReinstall` constant added to `model.go`; `reinstall` step added to template schema in Story 29.3; idempotency AC added |
 | N2 | UX design gap for Story 29.6 | `UX Reference` section added to Story 29.6 specifying "Software" tab in Server Detail, layout pattern, status chips, and action button rules |
 | N3 | Architecture doc terminology | `architecture.md` updated to use Software Delivery terminology in all three relevant sections |
 | N4 | NFR idempotency not addressed | Story 29.3 acceptance criteria now includes explicit idempotency requirement |

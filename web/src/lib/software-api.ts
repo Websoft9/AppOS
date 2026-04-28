@@ -5,11 +5,12 @@ import { pb } from '@/lib/pb'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type SoftwareActionType = 'install' | 'upgrade' | 'verify' | 'repair' | 'uninstall'
+export type SoftwareActionType = 'install' | 'upgrade' | 'verify' | 'reinstall' | 'uninstall'
 export type InstalledState = 'installed' | 'not_installed' | 'unknown'
 export type VerificationState = 'healthy' | 'degraded' | 'unknown'
 export type TemplateKind = 'package' | 'script' | 'binary'
 export type CatalogVisibility = 'server_operations' | 'supported_software_discovery' | 'local_inventory'
+export type InstallSource = 'managed' | 'foreign_package' | 'manual' | 'unknown'
 
 export type OperationPhase =
   | 'accepted'
@@ -71,6 +72,8 @@ export interface SoftwareComponentSummary {
   template_kind: TemplateKind
   installed_state: InstalledState
   detected_version?: string
+  install_source?: InstallSource
+  source_evidence?: string
   packaged_version?: string
   verification_state: VerificationState
   available_actions: SoftwareActionType[]

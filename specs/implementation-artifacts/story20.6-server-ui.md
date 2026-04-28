@@ -419,7 +419,7 @@ Emphasize intentional pause state and resume action.
 
 ### `Needs Attention`
 
-Emphasize latest failure reason, repair action, and evidence. The error reason must be visible above the fold.
+Emphasize latest failure reason, reinstall action, and evidence. The error reason must be visible above the fold.
 
 ## Server Ops Placement in This UI Model
 

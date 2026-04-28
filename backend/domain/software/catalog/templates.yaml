@@ -33,7 +33,7 @@ templates:
     verify:
       strategy: systemd
       service_name: "{{service_name}}"
-    repair:
+    reinstall:
       strategy: reinstall  # re-run install then verify
 
   # script-install-package-systemd: installs via a packaged AppOS script, then
@@ -73,7 +73,7 @@ templates:
     verify:
       strategy: systemd
       service_name: "{{service_name}}"
-    repair:
+    reinstall:
       strategy: reinstall
 
   # script-systemd: installs via a remote shell script and verifies via systemd.
@@ -109,13 +109,13 @@ templates:
     verify:
       strategy: systemd
       service_name: "{{service_name}}"
-    repair:
+    reinstall:
       strategy: reinstall  # re-run install then verify
 
   # binary-supervisor: pre-installed binary managed by supervisord inside the AppOS container.
   # Software Delivery detects the version and verifies the supervisord program state.
   # No install or upgrade — these components are baked into the container image.
-  # Repair restarts the supervisord program.
+  # Reinstall restarts the supervisord program.
   binary-supervisor:
     template_kind: binary
     detect:
@@ -135,11 +135,11 @@ templates:
     verify:
       strategy: supervisor
       service_name: "{{service_name}}"  # supervisord program name, e.g., "nginx"
-    repair:
+    reinstall:
       strategy: supervisor-restart  # supervisorctl restart {{service_name}}
 
   # binary-detect: standalone binary with no associated service (e.g., Docker CLI, Node.js).
-  # Software Delivery detects the binary and version only. No service verification or repair.
+  # Software Delivery detects the binary and version only. No service verification or reinstall.
   binary-detect:
     template_kind: binary
     detect:
@@ -159,5 +159,5 @@ templates:
     verify:
       strategy: detect  # command -v {{binary}} only; no service to check
       service_name: ""
-    repair:
+    reinstall:
       strategy: ""  # not applicable for standalone binaries

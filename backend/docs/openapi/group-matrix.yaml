@@ -341,6 +341,26 @@ groups:
         - routes.go
       nativeRefs: []
 
+  - group: Software
+    description: Software inventory, capability readiness, lifecycle operations, action dispatch, local inventory, and supported server-software discovery APIs.
+    apiType: Ext
+    extSurface:
+      - GET /api/servers/{serverId}/software
+      - GET /api/servers/{serverId}/software/{componentKey}
+      - POST /api/servers/{serverId}/software/{componentKey}/{action}
+      - GET /api/servers/{serverId}/software/capabilities
+      - GET /api/servers/{serverId}/software/operations
+      - GET /api/servers/{serverId}/software/operations/{operationId}
+      - GET /api/software/local
+      - GET /api/software/local/{componentKey}
+      - GET /api/software/server-catalog
+      - GET /api/software/server-catalog/{componentKey}
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - software.go
+      nativeRefs: []
+
   - group: Servers
     description: Server registry CRUD and remote operations APIs for connectivity, power, ports, monitor-agent deployment, and systemd management.
     apiType: Mixed

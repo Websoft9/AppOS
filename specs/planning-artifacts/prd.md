@@ -201,7 +201,7 @@ Rules:
 
 - Application lifecycle actions: install, start, stop, redeploy, upgrade, and recover.
 - Unified resource operations: terminal, file, service diagnostics, and container operations from one operator surface.
-- Software delivery: detect, install, upgrade, repair, and validate AppOS-managed runtime prerequisites such as Docker, monitoring agent, control agent, and reverse proxy.
+- Software delivery: detect, install, upgrade, reinstall, and validate AppOS-managed runtime prerequisites such as Docker, monitoring agent, control agent, and reverse proxy.
 - Operational visibility: app and platform health, logs, events, and status views.
 - Runtime configuration assets: IaC workspace, shared envs, credentials, certificates, and required runtime settings.
 

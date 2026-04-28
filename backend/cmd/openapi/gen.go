@@ -36,12 +36,14 @@ import (
 var (
 	reGroupAssign        = regexp.MustCompile(`(\w+)\s*:?=\s*(\w+)\.Group\("([^"]*)"\)`)
 	reRouterGroupAssign  = regexp.MustCompile(`(\w+)\s*:?=\s*(\w+)\.Router\.Group\("([^"]*)"\)`)
+	reInlineGroupCall    = regexp.MustCompile(`\b(register[A-Za-z_][A-Za-z0-9_]*)\((\w+)(\.Router)?\.Group\("([^"]*)"\)\)`)
 	reRouteMethod        = regexp.MustCompile(`(\w+)\.(GET|POST|PUT|DELETE|PATCH|HEAD)\("([^"]*)"`)
 	reRouteMethodHandler = regexp.MustCompile(`(\w+)\.(GET|POST|PUT|DELETE|PATCH|HEAD)\("([^"]*)"\s*,\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)`)
 	reAuthBind           = regexp.MustCompile(`(\w+)\.Bind\(apis\.RequireAuth\(\)\)`)
 	reSuperuserBind      = regexp.MustCompile(`(\w+)\.Bind\(apis\.RequireSuperuserAuth\(\)\)`)
 	rePathParam          = regexp.MustCompile(`\{([^}]+)\}`)
 	reFuncStart          = regexp.MustCompile(`^func\s*(\([^)]*\)\s*)?([A-Za-z_][A-Za-z0-9_]*)\s*\(`)
+	reFuncSignature      = regexp.MustCompile(`^func\s*(\([^)]*\)\s*)?([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)`)
 	reQueryGet           = regexp.MustCompile(`Query\(\)\.Get\("([^"]+)"\)`)
 	reQueryVarAssign     = regexp.MustCompile(`([A-Za-z_][A-Za-z0-9_]*)\s*:?=\s*.*\.Query\(\)`)
 	reVarGet             = regexp.MustCompile(`([A-Za-z_][A-Za-z0-9_]*)\.Get\("([^"]+)"\)`)
@@ -54,6 +56,7 @@ var (
 	reSwaggerSuccessCode = regexp.MustCompile(`@Success\s+([0-9]{3})\b`)
 	reSwaggerFailureCode = regexp.MustCompile(`@Failure\s+([0-9]{3})\b`)
 	reSwaggerResponse    = regexp.MustCompile(`@(Success|Failure)\s+([0-9]{3})\s+\{([^}]+)\}\s+(\S+)`)
+	reRegisterCall       = regexp.MustCompile(`\b(register[A-Za-z_][A-Za-z0-9_]*)\((\w+)\)`)
 )
 
 // publicPrefixes: routes whose full path starts with these are unauthenticated.
@@ -128,9 +131,15 @@ type extPattern struct {
 	isWildcard  bool
 }
 
+type functionSeed struct {
+	paramName string
+	basePath  string
+	auth      string
+}
+
 // ── per-file scanner ──────────────────────────────────────────────────────────
 
-func scanFile(filePath string) ([]route, map[string]bool) {
+func scanFile(filePath string, seeds map[string]functionSeed) ([]route, map[string]bool) {
 	data, _ := os.ReadFile(filePath)
 	handlerQueries := extractHandlerQueryParams(string(data))
 	handlerParamHints := extractHandlerParamHints(string(data))
@@ -174,6 +183,35 @@ func scanFile(filePath string) ([]route, map[string]bool) {
 	scanner := bufio.NewScanner(strings.NewReader(string(data)))
 	for scanner.Scan() {
 		line := scanner.Text()
+		trim := strings.TrimSpace(line)
+
+		if m := reInlineGroupCall.FindStringSubmatch(line); m != nil {
+			funcName, parent, routerSelector, suffix := m[1], m[2], m[3], m[4]
+			basePath := ""
+			if base, ok := vars[parent]; ok && base != "" {
+				basePath = base + suffix
+			} else if routerSelector != "" {
+				basePath = suffix
+			}
+			if basePath != "" {
+				seeds[funcName] = functionSeed{
+					basePath: basePath,
+					auth:     varAuth[parent],
+				}
+			}
+		}
+
+		if m := reFuncSignature.FindStringSubmatch(trim); m != nil {
+			funcName := m[2]
+			params := m[3]
+			if seed, ok := seeds[funcName]; ok {
+				paramName := firstParamName(params)
+				if paramName != "" {
+					vars[paramName] = seed.basePath
+					varAuth[paramName] = seed.auth
+				}
+			}
+		}
 
 		if strings.Contains(line, "@swagger") {
 			pendingMarker = parseSwaggerMarker(line)
@@ -281,6 +319,87 @@ func scanFile(filePath string) ([]route, map[string]bool) {
 		}
 	}
 	return routes, superuserVarPaths
+}
+
+func firstParamName(params string) string {
+	trimmed := strings.TrimSpace(params)
+	if trimmed == "" {
+		return ""
+	}
+	first := strings.Split(trimmed, ",")[0]
+	fields := strings.Fields(strings.TrimSpace(first))
+	if len(fields) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(fields[0])
+}
+
+func loadRouteFunctionSeeds(routesDir string) (map[string]functionSeed, error) {
+	path := filepath.Join(routesDir, "routes.go")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	vars := map[string]string{"se": ""}
+	varAuth := map[string]string{"se": "public"}
+	seeds := map[string]functionSeed{}
+
+	scanner := bufio.NewScanner(strings.NewReader(string(data)))
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if m := reGroupAssign.FindStringSubmatch(line); m != nil {
+			newVar, parent, suffix := m[1], m[2], m[3]
+			if base, ok := vars[parent]; ok {
+				vars[newVar] = base + suffix
+				varAuth[newVar] = varAuth[parent]
+				if varAuth[newVar] == "" {
+					varAuth[newVar] = "public"
+				}
+			}
+		}
+
+		if m := reRouterGroupAssign.FindStringSubmatch(line); m != nil {
+			newVar, parent, suffix := m[1], m[2], m[3]
+			if base, ok := vars[parent]; ok {
+				vars[newVar] = base + suffix
+				varAuth[newVar] = varAuth[parent]
+				if varAuth[newVar] == "" {
+					varAuth[newVar] = "public"
+				}
+			}
+		}
+
+		if m := reAuthBind.FindStringSubmatch(line); m != nil {
+			if _, ok := vars[m[1]]; ok {
+				varAuth[m[1]] = "auth"
+			}
+		}
+
+		if m := reSuperuserBind.FindStringSubmatch(line); m != nil {
+			if _, ok := vars[m[1]]; ok {
+				varAuth[m[1]] = "superuser"
+			}
+		}
+
+		if m := reRegisterCall.FindStringSubmatch(line); m != nil {
+			funcName, argName := m[1], m[2]
+			if basePath, ok := vars[argName]; ok && basePath != "" {
+				seeds[funcName] = functionSeed{
+					paramName: argName,
+					basePath:  basePath,
+					auth:      varAuth[argName],
+				}
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return seeds, nil
 }
 
 func extractHandlerSummaries(src string) map[string]string {
@@ -1374,6 +1493,10 @@ func runGen() error {
 	if err != nil {
 		return fmt.Errorf("cannot resolve matrix route files: %w", err)
 	}
+	functionSeeds, err := loadRouteFunctionSeeds(routesDir)
+	if err != nil {
+		return fmt.Errorf("cannot resolve route function seeds: %w", err)
+	}
 	schemaFiles, err := parseDirsForSchemas(files)
 	if err != nil {
 		return fmt.Errorf("cannot resolve schema files: %w", err)
@@ -1385,7 +1508,7 @@ func runGen() error {
 
 	ops := map[string]route{} // key: METHOD + space + path
 	for _, f := range files {
-		routes, superuserPaths := scanFile(f)
+		routes, superuserPaths := scanFile(f, functionSeeds)
 		for r, v := range superuserPaths {
 			if v {
 				allSuperuserPaths[r] = true

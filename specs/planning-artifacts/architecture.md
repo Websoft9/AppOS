@@ -132,7 +132,7 @@ Configuration:
 Software delivery capability management:
 
 1. Dashboard or CLI reads capability readiness synchronously.
-2. If a prerequisite is missing, API accepts an async command such as install, upgrade, verify, or repair.
+2. If a prerequisite is missing, API accepts an async command such as install, upgrade, verify, or reinstall.
 3. A Software Delivery domain worker executes preflight, command execution, and verification.
 4. Status projection, audit, and events expose the final outcome to dependent domains.
 

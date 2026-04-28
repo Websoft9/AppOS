@@ -38,15 +38,15 @@ func TestLoadTemplateRegistry(t *testing.T) {
 	}
 }
 
-// TestRepairStepPresent verifies all templates declare a repair step (even if strategy is empty).
-func TestRepairStepPresent(t *testing.T) {
+// TestReinstallStepPresent verifies all templates declare a reinstall step (even if strategy is empty).
+func TestReinstallStepPresent(t *testing.T) {
 	reg, err := catalog.LoadTemplateRegistry()
 	if err != nil {
 		t.Fatalf("LoadTemplateRegistry: %v", err)
 	}
 	for name, tpl := range reg.Templates {
-		if tpl.Repair == nil {
-			t.Errorf("template %q has no repair step", name)
+		if tpl.Reinstall == nil {
+			t.Errorf("template %q has no reinstall step", name)
 		}
 	}
 }
@@ -461,19 +461,19 @@ func TestResolveTemplateNoUserInput(t *testing.T) {
 	}
 }
 
-// TestRepairDefaultsToReinstall verifies that when a template has no repair step,
+// TestReinstallDefaultsToReinstall verifies that when a template has no reinstall step,
 // ResolveTemplate defaults to the "reinstall" strategy.
-func TestRepairDefaultsToReinstall(t *testing.T) {
+func TestReinstallDefaultsToReinstall(t *testing.T) {
 	entry := software.CatalogEntry{
 		ComponentKey: software.ComponentKeyDocker,
 		Binary:       "docker",
 	}
 	tpl := software.ComponentTemplate{
 		TemplateKind: software.TemplateKindPackage,
-		// Repair is nil intentionally
+		// Reinstall is nil intentionally
 	}
 	resolved := catalog.ResolveTemplate(entry, tpl)
-	if resolved.Repair.Strategy != "reinstall" {
-		t.Errorf("expected default repair strategy=reinstall, got %q", resolved.Repair.Strategy)
+	if resolved.Reinstall.Strategy != "reinstall" {
+		t.Errorf("expected default reinstall strategy=reinstall, got %q", resolved.Reinstall.Strategy)
 	}
 }

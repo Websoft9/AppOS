@@ -375,10 +375,7 @@ export function VolumesTab({
           <Eraser className="h-4 w-4 mr-1" /> Prune unused
         </Button>
       </div>
-      <div
-        data-docker-scroll-root="true"
-        className="h-0 flex-1 min-h-0 overflow-auto rounded-md border"
-      >
+      <div className="rounded-md border">
         <Table>
           <TableHeader className="sticky top-0 bg-background z-10">
             <TableRow>

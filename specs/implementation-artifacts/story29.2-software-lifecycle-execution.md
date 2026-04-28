@@ -21,7 +21,8 @@ Implementation history from those superseded split stories is preserved in `spec
 ## Scope
 
 - keep lifecycle execution template-driven instead of component-driven
-- support server-target `install`, `upgrade`, `verify`, `repair`, and `uninstall` through the same async pipeline
+- support server-target `install`, `upgrade`, `verify`, `reinstall`, and `uninstall` through the same async pipeline
+- extend detect truth minimally so execution can distinguish managed reinstall from future replacement-only paths
 - preserve explicit preflight and readiness checks before mutating the target
 - refresh inventory snapshots when operations reach a terminal state
 - persist operation phase, result, and audit trail consistently
@@ -36,7 +37,7 @@ Implementation history from those superseded split stories is preserved in `spec
 | `TaskSoftwareInstall` | `software:install` |
 | `TaskSoftwareUpgrade` | `software:upgrade` |
 | `TaskSoftwareVerify` | `software:verify` |
-| `TaskSoftwareRepair` | `software:repair` |
+| `TaskSoftwareReinstall` | `software:reinstall` |
 | `TaskSoftwareUninstall` | `software:uninstall` |
 
 ### Action Pipeline
@@ -56,7 +57,7 @@ Each mutating action must follow the same high-level phases:
 |------|---------|--------------|
 | `accepted` | register the operation | create operation record and stable operation id |
 | `preflight` | decide whether execution may start | resolve template, evaluate readiness, reject unsafe execution |
-| `executing` | run the primary action body | install, upgrade, repair, uninstall, or verify action work |
+| `executing` | run the primary action body | install, upgrade, reinstall, uninstall, or verify action work |
 | `verifying` | confirm post-action truth | detect or verify resulting state before terminal outcome |
 | `succeeded` | terminal success | persist success, refresh snapshot, write audit |
 | `failed` | terminal failure | persist failure reason, refresh snapshot, write audit |
@@ -66,9 +67,27 @@ Each mutating action must follow the same high-level phases:
 
 Lifecycle execution should preserve the old template-driven contract:
 
-- shared steps remain `detect`, `preflight`, `install`, `upgrade`, `verify`, `repair`, and optional `uninstall`
+- shared steps remain `detect`, `preflight`, `install`, `upgrade`, `verify`, `reinstall`, and optional `uninstall`
 - `package` and `script` template kinds both resolve through the same executor shape
 - template resolution must happen before execution, and route shape must remain component-agnostic
+
+### Detect Result Shape
+
+Execution should consume detect output as a compact decision signal, not as a general package inventory API.
+
+| Field | Meaning |
+|------|---------|
+| `installed_state` | whether the component is currently present |
+| `detected_version` | currently detected runtime version when known |
+| `install_source` | `managed`, `foreign_package`, `manual`, or `unknown` |
+| `source_evidence` | one short hint describing why that source classification was chosen |
+
+Rules:
+
+- `reinstall` remains the corrective path for components already on a managed baseline
+- detect classification must make it possible for a future `replaceinstall` action to reject implicit takeover of a foreign install
+- `source_evidence` must stay short and operator-readable; it is diagnostic context, not raw package-manager output
+- initial strong classification is only required for Docker; other components may return `unknown` until they need takeover semantics
 
 ### Readiness Rules
 
@@ -116,7 +135,7 @@ Rules:
 | `server_id` | target server |
 | `capability` | may be empty for direct component actions |
 | `component_key` | target component |
-| `action` | install, upgrade, verify, repair, or uninstall |
+| `action` | install, upgrade, verify, reinstall, or uninstall |
 | `phase` | accepted, preflight, executing, verifying, succeeded, failed, or attention_required |
 | `terminal_status` | none, success, or failed |
 | `failure_reason` | human-readable failure reason when terminal state is failed |
@@ -142,6 +161,7 @@ Rules:
 - phase transitions must only go forward
 - unexpected worker failure must leave the operation in `failed`, not `accepted`
 - terminal state must be persisted before audit write
+- future replacement-capable actions must consume detect source classification before mutating a host that is not already on a managed baseline
 
 ### Persistence
 
@@ -176,7 +196,7 @@ This story should extend that pattern cleanly rather than introducing a second e
 | POST | `/api/servers/{serverId}/software/{componentKey}/install` | queue install |
 | POST | `/api/servers/{serverId}/software/{componentKey}/upgrade` | queue upgrade |
 | POST | `/api/servers/{serverId}/software/{componentKey}/verify` | queue verify |
-| POST | `/api/servers/{serverId}/software/{componentKey}/repair` | queue repair |
+| POST | `/api/servers/{serverId}/software/{componentKey}/reinstall` | queue reinstall |
 | POST | `/api/servers/{serverId}/software/{componentKey}/uninstall` | queue controlled uninstall |
 | GET | `/api/servers/{serverId}/software/operations` | list async lifecycle operations |
 | GET | `/api/servers/{serverId}/software/operations/{operationId}` | read one operation |
@@ -186,10 +206,10 @@ This story should extend that pattern cleanly rather than introducing a second e
 - [x] Task 1: Normalize lifecycle action support in backend service and routes
 	- [x] 1.1 add or confirm catalog-driven support for all lifecycle actions
 	- [x] 1.2 reject unsupported actions consistently with route tests
-	- [x] 1.3 define Asynq task types and payload shape for install, upgrade, verify, repair, and uninstall
+	- [x] 1.3 define Asynq task types and payload shape for install, upgrade, verify, reinstall, and uninstall
 	- [x] 1.4 keep operation conflict rules explicit when another action is already running
 - [x] Task 2: Complete template-driven worker execution
-	- [x] 2.1 ensure install, upgrade, verify, repair, and uninstall resolve through template phases
+	- [x] 2.1 ensure install, upgrade, verify, reinstall, and uninstall resolve through template phases
 	- [x] 2.2 preserve operation phase tracking and user-facing messages
 	- [x] 2.3 keep snapshot refresh on both success and failure terminal paths
 	- [x] 2.4 register software worker handlers in bootstrap and use the shared queue policy
@@ -198,6 +218,7 @@ This story should extend that pattern cleanly rather than introducing a second e
 	- [ ] 3.2 distinguish readiness failure, execution failure, and verification degradation
 	- [x] 3.3 recalculate capability status from truthful installed-state and verification data
 	- [x] 3.4 expose readiness in component detail and capability query responses
+	- [ ] 3.5 extend detect output with minimal install-source classification for Docker takeover decisions
 - [x] Task 4: Add uninstall baseline behavior
 	- [x] 4.1 define uninstall template hook or strategy contract
 	- [x] 4.2 rerun detect after uninstall to refresh target snapshot truthfully
@@ -224,9 +245,10 @@ This story should extend that pattern cleanly rather than introducing a second e
 
 ## Acceptance Criteria
 
-- operators can queue `install`, `upgrade`, `verify`, `repair`, and `uninstall` through one consistent server-target action model
+- operators can queue `install`, `upgrade`, `verify`, `reinstall`, and `uninstall` through one consistent server-target action model
 - lifecycle execution remains template-driven and does not fork into per-component service logic for normal cases
 - readiness covers OS, privilege, network, and prerequisite dependency state and is available from the Software Delivery API surface
+- detect output remains minimal but can distinguish managed Docker installs from foreign package installs and manual installs
 - operation records expose clear phases and terminal outcomes
 - snapshot projection is refreshed after terminal worker completion so server inventory stays current
 - readiness, execution, and verification problems are distinguishable in backend responses and logs

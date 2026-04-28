@@ -78,7 +78,7 @@ Implementation summary:
 
 - added `backend/domain/serverbase/template.go` with typed structs, embed declarations, `LoadTemplateRegistry`, `LoadComponentCatalog`, and `ResolveTemplate`
 - added `backend/domain/serverbase/template_test.go`
-- updated `backend/domain/serverbase/templates.yaml` to add `repair` to both `package-systemd` and `script-systemd`
+- updated `backend/domain/serverbase/templates.yaml` to add `reinstall` to both `package-systemd` and `script-systemd`
 - updated `backend/domain/serverbase/interfaces.go` with `TemplateResolver` and `ComponentExecutor`
 - preserved placeholder-resolution rule: placeholders resolve from catalog metadata only, not arbitrary user input
 

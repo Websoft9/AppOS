@@ -285,6 +285,13 @@ func (e *SSHExecutor) Restart(ctx context.Context, _ string, tpl software.Resolv
 // Uninstall executes the uninstall step defined by the template strategy.
 // Supported strategies: "package" (apt-get remove), "script" (curl|sh with args).
 func (e *SSHExecutor) Uninstall(ctx context.Context, serverID string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+	if tpl.Verify.Strategy == "systemd" && strings.TrimSpace(tpl.Verify.ServiceName) != "" {
+		stopCmd := fmt.Sprintf("systemctl stop %s", terminal.ShellQuote(tpl.Verify.ServiceName))
+		if _, err := executeSSHCommand(ctx, e.cfg, withSudo(stopCmd), uninstallTimeout); err != nil {
+			return software.SoftwareComponentDetail{}, fmt.Errorf("stop %s before uninstall: %w", tpl.ComponentKey, err)
+		}
+	}
+
 	switch tpl.Uninstall.Strategy {
 	case "package":
 		cmd, err := e.buildPackageActionCommand(ctx, "uninstall", tpl.Uninstall.PackageName, tpl.Uninstall.PackageNames, tpl.Uninstall.PackageRepoProfile)
@@ -329,11 +336,11 @@ func (e *SSHExecutor) Verify(ctx context.Context, _ string, tpl software.Resolve
 
 // Reinstall re-executes the primary reinstall step.
 func (e *SSHExecutor) Reinstall(ctx context.Context, serverID string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
-	switch tpl.Repair.Strategy {
+	switch tpl.Reinstall.Strategy {
 	case "reinstall":
 		return e.Install(ctx, serverID, tpl)
 	default:
-		return software.SoftwareComponentDetail{}, fmt.Errorf("unsupported reinstall strategy %q for component %s", tpl.Repair.Strategy, tpl.ComponentKey)
+		return software.SoftwareComponentDetail{}, fmt.Errorf("unsupported reinstall strategy %q for component %s", tpl.Reinstall.Strategy, tpl.ComponentKey)
 	}
 }
 

@@ -14,7 +14,9 @@ This story replaces and expands the operator-facing parts of Story 29.6 Surface.
 ## Scope
 
 - keep the operational UI inside Server Detail as a `Software` tab
-- render one row per catalog-backed server component
+- split the tab into `Prerequisites` and `Addons list`
+- keep `docker` as the only prerequisite component in the first rollout
+- render the remaining catalog-backed server components under `Addons list`
 - show installed state, detected version, verification state, readiness issues, and latest action summary
 - render only actions supported by the component metadata and current state
 - include uninstall when the component contract marks it as supported
@@ -29,7 +31,8 @@ Navigation:
 
 Presentation:
 
-- one compact list or stacked cards with one entry per component
+- `Prerequisites` appears first and answers whether the server satisfies the platform baseline
+- `Addons list` appears second and preserves the compact operational inventory view for all other managed host components
 - status should remain scannable before opening any detail drawer
 - readiness issues should be visible inline or through a compact expandable detail region
 - in-progress operations should disable conflicting actions and show current phase feedback
@@ -37,10 +40,34 @@ Presentation:
 Actions:
 
 - supported actions derive from `available_actions`
-- expected lifecycle set is `install`, `upgrade`, `verify`, `repair`, `uninstall`
+- expected lifecycle set is `install`, `upgrade`, `verify`, `reinstall`, `uninstall`
 - action labels must stay operational and explicit, not marketing-style
 
 ## UI Contract
+
+### `Prerequisites`
+
+First rollout rules:
+
+- only `docker` appears in this group
+- this group exists to answer platform readiness, not to duplicate the full addon inventory
+
+Show for each prerequisite:
+
+- label
+- short role statement
+- readiness status
+- short impact statement when missing or degraded
+- one primary corrective action derived from backend-supported actions
+
+Do not show in this group:
+
+- template kind
+- last activity history
+- the full lifecycle action set
+- generic package-manager detail
+
+### `Addons list`
 
 Show for each component:
 
@@ -75,6 +102,8 @@ Current repo behavior already validates the basic interaction pattern:
 - rows already render from backend component state
 - action buttons already follow backend `available_actions`
 
+For this refinement, `docker` is the only platform-gating prerequisite. Other managed server software remains in the addon inventory group unless a future story explicitly promotes it.
+
 This story should refine and complete that operational surface against the new lifecycle contract instead of inventing a parallel UI.
 
 ## Tasks / Subtasks
@@ -87,6 +116,8 @@ This story should refine and complete that operational surface against the new l
 	- [x] 2.1 preserve tab placement inside Server Detail
 	- [x] 2.2 render readable readiness issues and degraded-state context
 	- [x] 2.3 show accepted, running, succeeded, and failed action feedback clearly
+	- [ ] 2.4 add a `Prerequisites` section with Docker as the only first-rollout entry
+	- [ ] 2.5 keep the existing operational table as `Addons list` for the remaining components
 - [x] Task 3: Keep server-scope boundaries explicit
 	- [x] 3.1 do not mix AppOS-local inventory into this surface
 	- [x] 3.2 point discovery use cases to Supported Software rather than overloading this tab
@@ -110,7 +141,9 @@ This story should refine and complete that operational surface against the new l
 
 ## Acceptance Criteria
 
-- the Server Detail `Software` tab shows all managed server-target components in one compact operational surface
+- the Server Detail `Software` tab is split into `Prerequisites` and `Addons list`
+- `docker` is shown as the only prerequisite component in the first rollout
+- the prerequisite section makes it clear whether the server satisfies the platform baseline and what to do when Docker is missing or degraded
 - operators can understand current installed state, readiness, and recent action outcome without leaving the tab
 - lifecycle actions shown in the UI reflect backend-supported actions instead of hard-coded per-component assumptions
 - in-progress and terminal action feedback is clear enough to prevent accidental duplicate operations

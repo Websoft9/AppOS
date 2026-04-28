@@ -25,7 +25,7 @@ For the MVP phase, keep one epic only. Software Delivery owns target readiness a
 - AppOS-local bundled software inventory and metadata
 - component catalog and software identity
 - target-scoped installed component snapshots (for both `local` and `server` targets)
-- install, upgrade, verify, and repair actions
+- install, upgrade, verify, and reinstall actions
 - version detection and availability checks
 - preflight checks for OS, privilege, and network reachability
 - capability queries derived from installed software
@@ -68,7 +68,7 @@ Rules:
 
 - components are template instances, not story boundaries
 - story boundaries should follow shared capability layers
-- install, upgrade, verify, and repair flows should resolve through templates, not component-specific branching
+- install, upgrade, verify, and reinstall flows should resolve through templates, not component-specific branching
 
 ## Package Naming Decision
 
@@ -126,7 +126,7 @@ Notes:
 ## Interaction Rules
 
 - read inventory and capability state synchronously
-- run install, upgrade, verify, and repair actions asynchronously
+- run install, upgrade, verify, and reinstall actions asynchronously
 - keep long-running action execution separate from lifecycle release execution
 - let monitor consume installed snapshots and action outcomes, but do not fold runtime observation into this domain
 
@@ -157,7 +157,7 @@ Legacy implementation history from the superseded split stories is preserved in 
 ### 29.2 Software Lifecycle Execution
 
 - define readiness evaluation, lifecycle task types, async execution flow, persistence, and operation state
-- keep install, upgrade, verify, repair, and uninstall behavior routed through the shared worker contract
+- keep install, upgrade, verify, reinstall, and uninstall behavior routed through the shared worker contract
 - preserve phase tracking and audit expectations for long-running execution
 
 ### 29.3 Server Software Operational Surface

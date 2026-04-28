@@ -32,8 +32,8 @@ type fakeComponentExecutor struct {
 	restartErr    error
 	uninstallDetail software.SoftwareComponentDetail
 	uninstallErr    error
-	repairDetail  software.SoftwareComponentDetail
-	repairErr     error
+	reinstallDetail  software.SoftwareComponentDetail
+	reinstallErr     error
 }
 
 func (f *fakeComponentExecutor) Detect(context.Context, string, software.ResolvedTemplate) (software.InstalledState, string, error) {
@@ -73,7 +73,7 @@ func (f *fakeComponentExecutor) Verify(context.Context, string, software.Resolve
 }
 
 func (f *fakeComponentExecutor) Reinstall(context.Context, string, software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
-	return f.repairDetail, f.repairErr
+	return f.reinstallDetail, f.reinstallErr
 }
 
 func TestBuildComputedComponentsProjectsSnapshotRecord(t *testing.T) {

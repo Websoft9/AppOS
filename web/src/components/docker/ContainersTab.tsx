@@ -1,6 +1,7 @@
 import { Fragment, useState, useEffect, useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { pb } from '@/lib/pb'
+import { cn } from '@/lib/utils'
 import {
   Table,
   TableBody,
@@ -28,8 +29,13 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { getApiErrorMessage } from '@/lib/api-error'
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuLabel,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -42,27 +48,28 @@ import {
   ScrollText,
   ChevronRight,
   ChevronDown,
+  ArrowLeft,
+  ArrowRight,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
   Copy,
   Download,
+  Filter,
   Loader2,
-  Eye,
-  EyeOff,
+  Settings2,
 } from 'lucide-react'
 
 const CONTAINERS_SORT_KEY = 'docker.containers.sort'
-const DOCKER_PAGE_SIZE_KEY = 'docker.list.page_size'
 
-function loadGlobalPageSize(): 25 | 50 | 100 {
-  try {
-    const raw = Number(localStorage.getItem(DOCKER_PAGE_SIZE_KEY) || '50')
-    if (raw === 25 || raw === 50 || raw === 100) return raw
-  } catch {
-    // ignore invalid local storage
-  }
-  return 50
+type ContainerPageSize = 25 | 50 | 100
+
+type ContainerVisibleColumns = {
+  ports: boolean
+  status: boolean
+  cpu: boolean
+  mem: boolean
+  compose: boolean
 }
 
 interface Container {
@@ -246,23 +253,47 @@ function statusBadge(state: string) {
   return <Badge variant={variant}>{state}</Badge>
 }
 
-type SortKey = 'name' | 'state' | 'port' | 'created' | 'status' | 'cpu' | 'mem' | 'compose'
+type SortKey = 'name' | 'created' | 'cpu' | 'mem' | 'compose'
 
 export function ContainersTab({
   serverId,
+  searchQuery,
+  onSearchQueryChange,
+  page,
+  pageSize,
+  visibleColumns,
+  refreshDisabled,
+  refreshing,
   onOpenTerminal,
   filterPreset,
   includeNames,
   onClearFilterPreset,
   onClearIncludeNames,
+  onPageChange,
+  onPageSizeChange,
+  onSummaryChange,
+  onVisibleColumnsChange,
+  onRefresh,
   onOpenComposeFilter,
 }: {
   serverId: string
+  searchQuery?: string
+  onSearchQueryChange?: (value: string) => void
+  page: number
+  pageSize: ContainerPageSize
+  visibleColumns: ContainerVisibleColumns
+  refreshDisabled?: boolean
+  refreshing?: boolean
   onOpenTerminal?: (containerId: string) => void
   filterPreset?: string
   includeNames?: string[]
   onClearFilterPreset?: () => void
   onClearIncludeNames?: () => void
+  onPageChange?: (page: number) => void
+  onPageSizeChange?: (pageSize: ContainerPageSize) => void
+  onSummaryChange?: (summary: { totalItems: number; totalPages: number }) => void
+  onVisibleColumnsChange?: (columns: ContainerVisibleColumns) => void
+  onRefresh?: () => void
   onOpenComposeFilter?: (composeName: string) => void
 }) {
   type PendingAction = {
@@ -277,18 +308,17 @@ export function ContainersTab({
   const [logsContent, setLogsContent] = useState('')
   const [logsLoading, setLogsLoading] = useState(false)
   const [logsActionTip, setLogsActionTip] = useState('')
-  const [filter, setFilter] = useState('')
   const [stateFilter, setStateFilter] = useState<
     'all' | 'running' | 'exited' | 'paused' | 'created'
   >('all')
-  const [pageSize, setPageSize] = useState<25 | 50 | 100>(loadGlobalPageSize)
-  const [page, setPage] = useState(1)
   const [sortKey, setSortKey] = useState<SortKey>(() => {
     try {
       const raw = localStorage.getItem(CONTAINERS_SORT_KEY)
       if (!raw) return 'name'
       const parsed = JSON.parse(raw) as { key?: SortKey }
-      return parsed.key || 'name'
+      return parsed.key && ['name', 'created', 'cpu', 'mem', 'compose'].includes(parsed.key)
+        ? parsed.key
+        : 'name'
     } catch {
       return 'name'
     }
@@ -303,7 +333,6 @@ export function ContainersTab({
       return 'asc'
     }
   })
-  const [showMetaColumns, setShowMetaColumns] = useState(false)
   const [copiedTip, setCopiedTip] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
   const [inspectMap, setInspectMap] = useState<Record<string, Record<string, any>>>({})
@@ -318,16 +347,6 @@ export function ContainersTab({
   useEffect(() => {
     localStorage.setItem(CONTAINERS_SORT_KEY, JSON.stringify({ key: sortKey, dir: sortDir }))
   }, [sortDir, sortKey])
-
-  useEffect(() => {
-    localStorage.setItem(DOCKER_PAGE_SIZE_KEY, String(pageSize))
-  }, [pageSize])
-
-  useEffect(() => {
-    if (!filterPreset) return
-    setFilter(filterPreset)
-  }, [filterPreset])
-
   const {
     data: containers = [],
     isLoading: loading,
@@ -435,9 +454,9 @@ export function ContainersTab({
   }, [allDetailsCached, allDetailsLoading, containers, serverId])
 
   useEffect(() => {
-    if (!showMetaColumns) return
+    if (!visibleColumns.cpu && !visibleColumns.mem && !visibleColumns.compose) return
     void loadAllDetails()
-  }, [loadAllDetails, showMetaColumns])
+  }, [loadAllDetails, visibleColumns.compose, visibleColumns.cpu, visibleColumns.mem])
 
   useEffect(() => {
     if (!allDetailsLoading) {
@@ -462,12 +481,12 @@ export function ContainersTab({
   }, [allDetailsLoading])
 
   useEffect(() => {
-    if (showMetaColumns) return
+    if (visibleColumns.cpu || visibleColumns.mem || visibleColumns.compose) return
     if (sortKey === 'created' || sortKey === 'cpu' || sortKey === 'mem' || sortKey === 'compose') {
       setSortKey('name')
       setSortDir('asc')
     }
-  }, [showMetaColumns, sortKey])
+  }, [sortKey, visibleColumns.compose, visibleColumns.cpu, visibleColumns.mem])
 
   const action = async (id: string, act: string, options?: { force?: boolean }) => {
     try {
@@ -543,10 +562,12 @@ export function ContainersTab({
     }
   }, [logsContainer?.Names, logsContent])
 
+  const activeSearchQuery = String(searchQuery ?? filterPreset ?? '').trim().toLowerCase()
+
   const filtered = containers.filter(
     c =>
-      c.Names?.toLowerCase().includes(filter.toLowerCase()) ||
-      c.Image?.toLowerCase().includes(filter.toLowerCase())
+      c.Names?.toLowerCase().includes(activeSearchQuery) ||
+      c.Image?.toLowerCase().includes(activeSearchQuery)
   )
 
   const stateFiltered = filtered.filter(container => {
@@ -585,14 +606,8 @@ export function ContainersTab({
 
       const leftValue = (() => {
         switch (sortKey) {
-          case 'state':
-            return left.State
-          case 'port':
-            return hostPublishedPorts(left.Ports)
           case 'created':
             return String(leftInspect?.Created || '')
-          case 'status':
-            return left.Status
           case 'compose':
             return composeName(leftInspect)
           default:
@@ -602,14 +617,8 @@ export function ContainersTab({
 
       const rightValue = (() => {
         switch (sortKey) {
-          case 'state':
-            return right.State
-          case 'port':
-            return hostPublishedPorts(right.Ports)
           case 'created':
             return String(rightInspect?.Created || '')
-          case 'status':
-            return right.Status
           case 'compose':
             return composeName(rightInspect)
           default:
@@ -631,12 +640,16 @@ export function ContainersTab({
   }, [page, pageSize, sorted])
 
   useEffect(() => {
-    setPage(1)
-  }, [filter, stateFilter, sortDir, sortKey, pageSize, serverId, filterPreset, includeNames])
+    if (page !== 1) onPageChange?.(1)
+  }, [activeSearchQuery, includeNames, onPageChange, page, pageSize, serverId, sortDir, sortKey, stateFilter])
 
   useEffect(() => {
-    if (page > totalPages) setPage(totalPages)
-  }, [page, totalPages])
+    if (page > totalPages) onPageChange?.(totalPages)
+  }, [onPageChange, page, totalPages])
+
+  useEffect(() => {
+    onSummaryChange?.({ totalItems: sorted.length, totalPages })
+  }, [onSummaryChange, sorted.length, totalPages])
 
   const copyText = async (value: string, label: string) => {
     try {
@@ -662,7 +675,7 @@ export function ContainersTab({
     <Button
       variant="ghost"
       size="sm"
-      className="h-7 -ml-2 px-2 text-xs"
+      className="h-7 justify-start px-0 text-xs"
       onClick={() => toggleSort(keyName)}
     >
       {label}
@@ -680,125 +693,241 @@ export function ContainersTab({
     ? getApiErrorMessage(containersError, 'Failed to load containers')
     : detailsErrorMessage
 
-  const tableColSpan = showMetaColumns ? 9 : 5
+  const detailsColumnsVisible = visibleColumns.cpu || visibleColumns.mem || visibleColumns.compose
+  const tableColSpan =
+    3 +
+    (visibleColumns.ports ? 1 : 0) +
+    (visibleColumns.status ? 1 : 0) +
+    (detailsColumnsVisible ? 1 : 0) +
+    (visibleColumns.cpu ? 1 : 0) +
+    (visibleColumns.mem ? 1 : 0) +
+    (visibleColumns.compose ? 1 : 0)
+  const totalItems = sorted.length
 
   return (
-    <div className="h-full min-h-0 flex flex-col gap-4 pt-4">
+    <div className="min-h-0 flex flex-col gap-4 pt-4">
       {(loadError || actionError) && (
         <Alert variant="destructive" className="shrink-0">
           <AlertDescription>{loadError || actionError}</AlertDescription>
         </Alert>
       )}
-      <div className="flex items-center justify-between gap-2 shrink-0">
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            placeholder="Filter containers..."
-            className="border rounded-md px-3 py-1.5 text-sm bg-background"
-            value={filter}
-            onChange={e => setFilter(e.target.value)}
-          />
-          <select
-            className="border rounded-md px-2 py-1.5 text-sm bg-background"
-            value={stateFilter}
-            onChange={e =>
-              setStateFilter(e.target.value as 'all' | 'running' | 'exited' | 'paused' | 'created')
-            }
-          >
-            <option value="all">All states</option>
-            <option value="running">Running</option>
-            <option value="exited">Exited</option>
-            <option value="paused">Paused</option>
-            <option value="created">Created</option>
-          </select>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => setShowMetaColumns(visible => !visible)}
-            title={showMetaColumns ? 'Hide Created / CPU / Mem' : 'Show Created / CPU / Mem'}
-            aria-label={showMetaColumns ? 'Hide Created / CPU / Mem' : 'Show Created / CPU / Mem'}
-          >
-            {showMetaColumns ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </Button>
+      <div className="overflow-hidden rounded-xl border bg-background">
+        <div className="flex flex-col gap-4 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-sm font-semibold">Containers</div>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <input
+                value={searchQuery ?? ''}
+                onChange={event => onSearchQueryChange?.(event.target.value)}
+                placeholder="Search containers"
+                className="h-8 w-full min-w-0 rounded-md border bg-background px-3 text-sm sm:w-56 lg:w-64"
+              />
+              <span className="text-xs text-muted-foreground">Total {totalItems} items</span>
+              <div className="flex items-center gap-0.5 text-xs">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => onPageChange?.(Math.max(1, page - 1))}
+                  disabled={page <= 1}
+                  aria-label="Previous containers page"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                </Button>
+                <span className="min-w-5 text-center font-medium">{page}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => onPageChange?.(Math.min(totalPages, page + 1))}
+                  disabled={page >= totalPages}
+                  aria-label="Next containers page"
+                >
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => onRefresh?.()}
+                disabled={refreshDisabled || refreshing}
+                title="Refresh Docker data"
+                aria-label="Refresh Docker data"
+              >
+                <RotateCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    aria-label="Container display settings"
+                    title="Container display settings"
+                  >
+                    <Settings2 className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>Rows Per Page</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup
+                    value={String(pageSize)}
+                    onValueChange={value => onPageSizeChange?.(Number(value) as ContainerPageSize)}
+                  >
+                    <DropdownMenuRadioItem value="25">25 / page</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="50">50 / page</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="100">100 / page</DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Visible Columns</DropdownMenuLabel>
+                  <DropdownMenuCheckboxItem
+                    checked={visibleColumns.ports}
+                    onCheckedChange={checked =>
+                      onVisibleColumnsChange?.({ ...visibleColumns, ports: checked === true })
+                    }
+                  >
+                    Ports
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={visibleColumns.status}
+                    onCheckedChange={checked =>
+                      onVisibleColumnsChange?.({ ...visibleColumns, status: checked === true })
+                    }
+                  >
+                    Status
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={visibleColumns.cpu}
+                    onCheckedChange={checked =>
+                      onVisibleColumnsChange?.({ ...visibleColumns, cpu: checked === true })
+                    }
+                  >
+                    CPU%
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={visibleColumns.mem}
+                    onCheckedChange={checked =>
+                      onVisibleColumnsChange?.({ ...visibleColumns, mem: checked === true })
+                    }
+                  >
+                    Mem
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={visibleColumns.compose}
+                    onCheckedChange={checked =>
+                      onVisibleColumnsChange?.({ ...visibleColumns, compose: checked === true })
+                    }
+                  >
+                    Compose
+                  </DropdownMenuCheckboxItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
           {((filterPreset && onClearFilterPreset) || (includeNames && includeNames.length > 0)) && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                onClearFilterPreset?.()
-                onClearIncludeNames?.()
-              }}
-            >
-              Clear linked filter
-            </Button>
+            <div className="flex items-center justify-end gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  onClearFilterPreset?.()
+                  onClearIncludeNames?.()
+                }}
+              >
+                Clear linked filter
+              </Button>
+            </div>
           )}
-        </div>
-      </div>
-      <div className="flex items-center gap-2 flex-wrap shrink-0">
-        {stateFilter !== 'all' && <Badge variant="secondary">State: {stateFilter}</Badge>}
-        {includeNames && includeNames.length > 0 && (
-          <Badge variant="outline">Linked containers: {includeNames.length}</Badge>
-        )}
-        {allDetailsLoading && <Badge variant="outline">Loading container details...</Badge>}
-      </div>
-      {(allDetailsLoading || (fakeLoadingProgress > 0 && fakeLoadingProgress < 100)) && (
-        <div className="shrink-0 space-y-1">
-          <div className="h-1.5 w-full rounded bg-muted overflow-hidden">
-            <div
-              className="h-full bg-primary transition-all duration-200"
-              style={{ width: `${Math.max(6, Math.min(100, fakeLoadingProgress))}%` }}
-            />
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            {includeNames && includeNames.length > 0 && (
+              <Badge variant="outline">Linked containers: {includeNames.length}</Badge>
+            )}
+            {allDetailsLoading && <Badge variant="outline">Loading container details...</Badge>}
           </div>
-          <div className="text-[11px] text-muted-foreground">
-            Preparing container metrics... {Math.min(100, Math.round(fakeLoadingProgress))}%
-          </div>
+          {(allDetailsLoading || (fakeLoadingProgress > 0 && fakeLoadingProgress < 100)) && (
+            <div className="shrink-0 space-y-1">
+              <div className="h-1.5 w-full rounded bg-muted overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all duration-200"
+                  style={{ width: `${Math.max(6, Math.min(100, fakeLoadingProgress))}%` }}
+                />
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                Preparing container metrics... {Math.min(100, Math.round(fakeLoadingProgress))}%
+              </div>
+            </div>
+          )}
+          {copiedTip && <div className="text-xs text-muted-foreground shrink-0">{copiedTip}</div>}
         </div>
-      )}
-      {copiedTip && <div className="text-xs text-muted-foreground shrink-0">{copiedTip}</div>}
-      <div
-        data-docker-scroll-root="true"
-        className="overflow-auto rounded-md border"
-        style={{ maxHeight: 'min(560px, 70vh)' }}
-      >
+
+        <div className="border-t" />
+
         <Table>
           <TableHeader className="sticky top-0 bg-background z-10">
             <TableRow>
-              <TableHead>
+              <TableHead className="pl-2">
                 <SortHead label="Name" keyName="name" />
               </TableHead>
               <TableHead>
-                <SortHead label="State" keyName="state" />
+                <div className="flex items-center gap-1">
+                  <span className="text-xs font-medium text-foreground">State</span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        aria-label="Filter container state"
+                        title={stateFilter === 'all' ? 'Filter container state' : `Container state: ${stateFilter}`}
+                      >
+                        <Filter className={stateFilter === 'all' ? 'h-3.5 w-3.5' : 'h-3.5 w-3.5 text-foreground'} />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      <DropdownMenuRadioGroup
+                        value={stateFilter}
+                        onValueChange={value =>
+                          setStateFilter(value as 'all' | 'running' | 'exited' | 'paused' | 'created')
+                        }
+                      >
+                        <DropdownMenuRadioItem value="all">All states</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="running">Running</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="exited">Exited</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="paused">Paused</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="created">Created</DropdownMenuRadioItem>
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </TableHead>
-              <TableHead>
-                <SortHead label="Port" keyName="port" />
-              </TableHead>
-              {showMetaColumns && (
+              {visibleColumns.ports && (
+                <TableHead className="text-xs font-medium text-foreground">Ports</TableHead>
+              )}
+              {detailsColumnsVisible && (
                 <TableHead>
                   <SortHead label="Created" keyName="created" />
                 </TableHead>
               )}
-              <TableHead>
-                <SortHead label="Status" keyName="status" />
-              </TableHead>
-              {showMetaColumns && (
+              {visibleColumns.status && (
+                <TableHead className="text-xs font-medium text-foreground">Status</TableHead>
+              )}
+              {visibleColumns.cpu && (
                 <TableHead>
                   <SortHead label="CPU%" keyName="cpu" />
                 </TableHead>
               )}
-              {showMetaColumns && (
+              {visibleColumns.mem && (
                 <TableHead>
                   <SortHead label="Mem" keyName="mem" />
                 </TableHead>
               )}
-              {showMetaColumns && (
+              {visibleColumns.compose && (
                 <TableHead>
                   <SortHead label="Compose" keyName="compose" />
                 </TableHead>
               )}
-              <TableHead className="w-[60px]" />
+              <TableHead className="w-[60px] text-xs font-medium text-foreground">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -818,7 +947,7 @@ export function ContainersTab({
               return (
                 <Fragment key={c.ID}>
                   <TableRow className="hover:bg-muted/30">
-                    <TableCell className="font-mono text-xs">
+                    <TableCell className="pl-2 font-mono text-xs">
                       <Button
                         variant="link"
                         className="h-auto p-0 text-left font-mono text-xs gap-1"
@@ -841,8 +970,10 @@ export function ContainersTab({
                       </Button>
                     </TableCell>
                     <TableCell>{statusBadge(c.State)}</TableCell>
-                    <TableCell className="text-xs">{hostPublishedPorts(c.Ports)}</TableCell>
-                    {showMetaColumns && (
+                    {visibleColumns.ports && (
+                      <TableCell className="text-xs">{hostPublishedPorts(c.Ports)}</TableCell>
+                    )}
+                    {detailsColumnsVisible && (
                       <TableCell className="text-xs">
                         {allDetailsLoading
                           ? '...'
@@ -851,18 +982,18 @@ export function ContainersTab({
                             : '-'}
                       </TableCell>
                     )}
-                    <TableCell className="text-xs">{c.Status}</TableCell>
-                    {showMetaColumns && (
+                    {visibleColumns.status && <TableCell className="text-xs">{c.Status}</TableCell>}
+                    {visibleColumns.cpu && (
                       <TableCell className="text-xs">
                         {allDetailsLoading ? '...' : stats?.CPUPerc || '-'}
                       </TableCell>
                     )}
-                    {showMetaColumns && (
+                    {visibleColumns.mem && (
                       <TableCell className="text-xs">
                         {allDetailsLoading ? '...' : memUsed(stats?.MemUsage)}
                       </TableCell>
                     )}
-                    {showMetaColumns && (
+                    {visibleColumns.compose && (
                       <TableCell className="text-xs">
                         {composeName(inspect) !== '-' ? (
                           <Button
@@ -1023,47 +1154,6 @@ export function ContainersTab({
             )}
           </TableBody>
         </Table>
-      </div>
-      <div className="flex items-center justify-between gap-2 shrink-0">
-        <div className="text-xs text-muted-foreground">
-          {sorted.length === 0
-            ? '0 items'
-            : `${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, sorted.length)} of ${sorted.length}`}
-        </div>
-        <div className="flex items-center gap-2">
-          <select
-            className="h-8 rounded-md border bg-background px-2 text-xs"
-            value={pageSize}
-            onChange={e => {
-              const next = Number(e.target.value) as 25 | 50 | 100
-              setPageSize(next)
-              setPage(1)
-            }}
-          >
-            <option value={25}>25 / page</option>
-            <option value={50}>50 / page</option>
-            <option value={100}>100 / page</option>
-          </select>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            disabled={page <= 1}
-          >
-            Prev
-          </Button>
-          <span className="text-xs text-muted-foreground w-16 text-center">
-            {page} / {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages}
-          >
-            Next
-          </Button>
-        </div>
       </div>
 
       <AlertDialog

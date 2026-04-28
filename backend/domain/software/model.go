@@ -275,10 +275,10 @@ type VerifySpec struct {
 	ServiceName string `yaml:"service_name"`
 }
 
-// RepairSpec defines how to repair a component.
+// ReinstallSpec defines how to reinstall a component.
 // Strategy "reinstall" means: re-execute install then verify.
 // Strategy "restart" means: restart the service via the system supervisor.
-type RepairSpec struct {
+type ReinstallSpec struct {
 	Strategy string `yaml:"strategy"`
 }
 
@@ -293,8 +293,8 @@ type ComponentTemplate struct {
 	Upgrade      UpgradeSpec   `yaml:"upgrade"`
 	Uninstall    UninstallSpec `yaml:"uninstall"`
 	Verify       VerifySpec    `yaml:"verify"`
-	// Repair is optional in YAML. When absent, ResolveTemplate defaults to reinstall strategy.
-	Repair *RepairSpec `yaml:"repair"`
+	// Reinstall is optional in YAML. When absent, ResolveTemplate defaults to reinstall strategy.
+	Reinstall *ReinstallSpec `yaml:"reinstall"`
 }
 
 // TemplateRegistry holds all named component templates keyed by template_ref string.
@@ -344,7 +344,7 @@ type ResolvedTemplate struct {
 	Upgrade        UpgradeSpec
 	Uninstall      UninstallSpec
 	Verify         VerifySpec
-	Repair         RepairSpec
+	Reinstall      ReinstallSpec
 	SupportedActions []Action
 }
 

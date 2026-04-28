@@ -17,7 +17,7 @@ import (
 const (
 	localDetectTimeout    = 5 * time.Second
 	localVerifyTimeout    = 10 * time.Second
-	localRepairTimeout    = 20 * time.Second
+	localReinstallTimeout = 20 * time.Second
 	localPreflightTimeout = 5 * time.Second
 )
 
@@ -121,11 +121,11 @@ func (e *LocalExecutor) Verify(ctx context.Context, _ string, tpl software.Resol
 }
 
 func (e *LocalExecutor) Reinstall(ctx context.Context, _ string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
-	switch tpl.Repair.Strategy {
+	switch tpl.Reinstall.Strategy {
 	case "supervisor-restart":
 		if _, err := executeLocalCommand(ctx,
 			fmt.Sprintf("supervisorctl restart %s", shellQuoteLocal(tpl.Verify.ServiceName)),
-			localRepairTimeout,
+			localReinstallTimeout,
 		); err != nil {
 			return software.SoftwareComponentDetail{}, fmt.Errorf("restart local service %s: %w", tpl.Verify.ServiceName, err)
 		}
@@ -133,7 +133,7 @@ func (e *LocalExecutor) Reinstall(ctx context.Context, _ string, tpl software.Re
 	case "":
 		return software.SoftwareComponentDetail{}, fmt.Errorf("component %s does not support reinstall on local target", tpl.ComponentKey)
 	default:
-		return software.SoftwareComponentDetail{}, fmt.Errorf("unsupported reinstall strategy %q for local component %s", tpl.Repair.Strategy, tpl.ComponentKey)
+		return software.SoftwareComponentDetail{}, fmt.Errorf("unsupported reinstall strategy %q for local component %s", tpl.Reinstall.Strategy, tpl.ComponentKey)
 	}
 }
 

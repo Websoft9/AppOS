@@ -1,7 +1,7 @@
 // Package catalog loads and resolves Software Delivery component templates and catalogs.
 //
 // The catalog subdomain owns two static registries:
-//   - templates.yaml: named delivery templates (detect, preflight, install, upgrade, uninstall, verify, repair steps)
+//   - templates.yaml: named delivery templates (detect, preflight, install, upgrade, uninstall, verify, reinstall steps)
 //   - catalog_local.yaml: components managed on the local AppOS host (detect + verify only)
 //   - catalog_server.yaml: components deployed to managed remote servers (full lifecycle)
 //
@@ -146,9 +146,9 @@ func ResolveTemplate(entry software.CatalogEntry, tpl software.ComponentTemplate
 		return out
 	}
 
-	repair := software.RepairSpec{Strategy: "reinstall"}
-	if tpl.Repair != nil {
-		repair = *tpl.Repair
+	reinstall := software.ReinstallSpec{Strategy: "reinstall"}
+	if tpl.Reinstall != nil {
+		reinstall = *tpl.Reinstall
 	}
 
 	return software.ResolvedTemplate{
@@ -191,7 +191,7 @@ func ResolveTemplate(entry software.CatalogEntry, tpl software.ComponentTemplate
 			Strategy:    tpl.Verify.Strategy,
 			ServiceName: sub(tpl.Verify.ServiceName),
 		},
-		Repair:           repair,
+		Reinstall:        reinstall,
 		SupportedActions: entry.SupportedActions,
 	}
 }

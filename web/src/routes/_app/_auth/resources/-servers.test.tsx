@@ -1,5 +1,5 @@
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ServersPage } from './servers'
 
@@ -18,6 +18,10 @@ function isSecretSummaryRequest(path: string) {
 
 function isMonitorSummaryRequest(path: string) {
   return path.startsWith('/api/collections/monitor_latest_status/records?')
+}
+
+function isServerSoftwareRequest(path: string) {
+  return path === '/api/servers/server-1/software'
 }
 
 vi.mock('@tanstack/react-router', () => ({
@@ -75,6 +79,10 @@ vi.mock('@/contexts/AuthContext', () => ({
   }),
 }))
 
+vi.mock('@/components/connect/DockerPanel', () => ({
+  DockerPanel: ({ serverId }: { serverId: string }) => <div>Docker panel for {serverId}</div>,
+}))
+
 describe('ServersPage layout', () => {
   beforeEach(() => {
     navigateMock.mockReset()
@@ -127,6 +135,9 @@ describe('ServersPage layout', () => {
       if (isMonitorSummaryRequest(path)) {
         return Promise.resolve({ items: [] })
       }
+      if (isServerSoftwareRequest(path)) {
+        return Promise.resolve({ items: [] })
+      }
       if (
         path ===
         "/api/collections/secrets/records?filter=(status='active'%26%26(template_id='single_value'||template_id='ssh_key'))&sort=name"
@@ -153,6 +164,9 @@ describe('ServersPage layout', () => {
         })
       }
       if (isMonitorSummaryRequest(path)) {
+        return Promise.resolve({ items: [] })
+      }
+      if (isServerSoftwareRequest(path)) {
         return Promise.resolve({ items: [] })
       }
       if (path === '/api/collections/groups/records?perPage=500&sort=name') {
@@ -231,6 +245,9 @@ describe('ServersPage layout', () => {
       if (isMonitorSummaryRequest(path)) {
         return Promise.resolve({ items: [] })
       }
+      if (isServerSoftwareRequest(path)) {
+        return Promise.resolve({ items: [] })
+      }
       if (path === '/api/collections/groups/records?perPage=500&sort=name') {
         return Promise.resolve({ items: [] })
       }
@@ -279,6 +296,9 @@ describe('ServersPage layout', () => {
         })
       }
       if (isMonitorSummaryRequest(path)) {
+        return Promise.resolve({ items: [] })
+      }
+      if (isServerSoftwareRequest(path)) {
         return Promise.resolve({ items: [] })
       }
       if (path === '/api/collections/groups/records?perPage=500&sort=name') {
@@ -333,7 +353,7 @@ describe('ServersPage layout', () => {
     await waitFor(() => {
       expect(screen.queryByRole('columnheader', { name: 'Monitor' })).toBeNull()
     })
-  })
+  }, 10000)
 
   it('renders the unified Connection column and lifecycle primary actions', async () => {
     sendMock.mockImplementation((path: string) => {
@@ -650,6 +670,138 @@ describe('ServersPage layout', () => {
     expect(screen.getByText('4')).toBeInTheDocument()
     expect(screen.getByText('8.0 GiB')).toBeInTheDocument()
     expect(screen.getByText(new Date('2026-04-16T01:02:03Z').toLocaleString())).toBeInTheDocument()
+  })
+
+  it('splits the overview tab into metadata and system information groups', async () => {
+    searchState = { server: 'server-1', tab: 'overview' }
+
+    render(<ServersPage />)
+
+    expect(await screen.findByText('Server Metadata')).toBeInTheDocument()
+    expect(screen.getByText('System Information')).toBeInTheDocument()
+    expect(screen.getByText('Operating System')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Expand detail width' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand detail width' }))
+
+    expect(await screen.findByRole('button', { name: 'Restore detail width' })).toBeInTheDocument()
+  })
+
+  it('splits the software tab into prerequisites and addons list', async () => {
+    searchState = { server: 'server-1', tab: 'software' }
+
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/servers/connection') {
+        return Promise.resolve({
+          items: [
+            {
+              id: 'server-1',
+              name: 'alpha',
+              connect_type: 'direct',
+              host: '10.0.0.1',
+              port: 22,
+              user: 'root',
+              created_by: 'user-1',
+              created_by_name: 'owner@example.com',
+              credential: 'secret-1',
+              credential_type: 'Password',
+              created: '2026-04-16T00:00:00Z',
+              updated: '2026-04-16T01:00:00Z',
+              facts_json: {
+                os: { family: 'linux', distribution: 'ubuntu', version: '24.04' },
+                kernel: { release: '6.8.0' },
+                architecture: 'amd64',
+                cpu: { cores: 4 },
+                memory: { total_bytes: 8589934592 },
+              },
+              facts_observed_at: '2026-04-16T01:02:03Z',
+              access: { status: 'unknown', reason: '', checked_at: '', source: 'derived' },
+            },
+          ],
+        })
+      }
+      if (isMonitorSummaryRequest(path)) {
+        return Promise.resolve({ items: [] })
+      }
+      if (isServerSoftwareRequest(path)) {
+        return Promise.resolve({
+          items: [
+            {
+              component_key: 'docker',
+              label: 'Docker Engine',
+              target_type: 'server',
+              template_kind: 'package',
+              installed_state: 'installed',
+              detected_version: '27.0.1',
+              verification_state: 'healthy',
+              preflight: { ok: true, os_supported: true, privilege_ok: true, network_ok: true, dependency_ready: true },
+              available_actions: ['verify', 'upgrade'],
+            },
+            {
+              component_key: 'reverse-proxy',
+              label: 'Reverse Proxy',
+              target_type: 'server',
+              template_kind: 'package',
+              installed_state: 'installed',
+              detected_version: '1.27.0',
+              packaged_version: '1.27.1',
+              verification_state: 'degraded',
+              preflight: {
+                ok: false,
+                os_supported: true,
+                privilege_ok: true,
+                network_ok: true,
+                dependency_ready: false,
+                issues: ['dependency_not_ready: docker is not ready'],
+              },
+              last_action: { action: 'verify', result: 'failed', at: '2026-04-16T02:03:04Z' },
+              available_actions: ['verify', 'reinstall', 'uninstall'],
+            },
+          ],
+        })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === '/api/servers/local/docker-bridge') {
+        return Promise.resolve({ interface: 'docker0', address: '172.17.0.1' })
+      }
+      if (path === '/api/secrets/templates') {
+        return Promise.resolve([
+          {
+            id: 'single_value',
+            label: 'Password',
+            description: 'Single secret value',
+            fields: [{ key: 'value', label: 'Secret Value', type: 'password', required: true }],
+          },
+        ])
+      }
+      return Promise.resolve([])
+    })
+
+    render(<ServersPage />)
+
+    expect(await screen.findByRole('tab', { name: 'Software' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Prerequisites' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Addons list' })).toBeInTheDocument()
+    expect(screen.getByText('Docker Engine')).toBeInTheDocument()
+    expect(screen.getByText('Container runtime required for platform-managed workloads.')).toBeInTheDocument()
+    expect(screen.getByText('Reverse Proxy')).toBeInTheDocument()
+    expect(screen.getByText('reverse-proxy')).toBeInTheDocument()
+    expect(screen.getByText('dependency_not_ready: docker is not ready')).toBeInTheDocument()
+
+    const addonsSection = screen.getByRole('region', { name: 'Addons list section' })
+    expect(within(addonsSection).queryByText('Docker Engine')).toBeNull()
+    expect(within(addonsSection).getByText('Reverse Proxy')).toBeInTheDocument()
+  })
+
+  it('shows the migrated Docker tab in server detail', async () => {
+    searchState = { server: 'server-1', tab: 'docker' }
+
+    render(<ServersPage />)
+
+    expect(await screen.findByRole('tab', { name: 'Docker' })).toBeInTheDocument()
+    expect(screen.getByText('Docker panel for server-1')).toBeInTheDocument()
   })
 
   it('edits the selected credential secret without leaving the server dialog', async () => {

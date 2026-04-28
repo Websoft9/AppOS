@@ -63,6 +63,8 @@ tags:
       name: Settings
     - description: Initial setup and login bootstrap workflows for AppOS.
       name: Setup
+    - description: Software inventory, capability readiness, lifecycle operations, action dispatch, local inventory, and supported server-software discovery APIs.
+      name: Software
     - description: Workspace and storage-space related operations.
       name: Space & User Files
     - description: Host metrics and file browser endpoints.
@@ -1987,7 +1989,14 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-            security: []
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
             summary: Get catalog apps
             tags:
                 - Catalog
@@ -2007,7 +2016,14 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-            security: []
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
             summary: Get catalog apps by key
             tags:
                 - Catalog
@@ -2027,7 +2043,14 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-            security: []
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
             summary: Get catalog apps by key deploy source
             tags:
                 - Catalog
@@ -2041,7 +2064,14 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-            security: []
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
             summary: Get catalog categories
             tags:
                 - Catalog
@@ -2060,8 +2090,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -2070,7 +2099,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: List caller catalog personalization
             tags:
                 - Catalog
@@ -2108,8 +2138,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "404":
                     content:
@@ -2125,7 +2154,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Set catalog favorite state
             tags:
                 - Catalog
@@ -2157,8 +2187,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "404":
                     content:
@@ -2174,7 +2203,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Clear catalog note
             tags:
                 - Catalog
@@ -2211,8 +2241,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "404":
                     content:
@@ -2228,7 +2257,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Create or update catalog note
             tags:
                 - Catalog
@@ -3533,8 +3563,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -3543,7 +3572,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: List component services
             tags:
                 - Services
@@ -3584,8 +3614,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "404":
                     content:
@@ -3608,7 +3637,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Get component service logs
             tags:
                 - Services
@@ -4201,8 +4231,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -4211,7 +4240,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Get Compose config
             tags:
                 - Docker
@@ -4243,8 +4273,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -4253,7 +4282,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Write Compose config
             tags:
                 - Docker
@@ -4292,8 +4322,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -4302,7 +4331,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Tear down Compose project
             tags:
                 - Docker
@@ -4345,8 +4375,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -4355,7 +4384,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Get Compose logs
             tags:
                 - Docker
@@ -4388,8 +4418,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -4398,7 +4427,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: List Compose projects
             tags:
                 - Docker
@@ -4437,8 +4467,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -4447,7 +4476,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Restart Compose project
             tags:
                 - Docker
@@ -4486,8 +4516,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -4496,7 +4525,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Start Compose project
             tags:
                 - Docker
@@ -4535,8 +4565,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -4545,7 +4574,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Stop Compose project
             tags:
                 - Docker
@@ -4584,8 +4614,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -4594,7 +4623,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Deploy Compose project
             tags:
                 - Docker
@@ -4627,8 +4657,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -4637,7 +4666,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: List containers
             tags:
                 - Docker
@@ -4680,8 +4710,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -4690,7 +4719,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Remove container
             tags:
                 - Docker
@@ -4727,8 +4757,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -4737,7 +4766,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Inspect container
             tags:
                 - Docker
@@ -4780,8 +4810,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -4790,7 +4819,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Get container logs
             tags:
                 - Docker
@@ -4834,8 +4864,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -4844,7 +4873,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Restart container
             tags:
                 - Docker
@@ -4888,8 +4918,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -4898,7 +4927,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Start container
             tags:
                 - Docker
@@ -4942,8 +4972,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -4952,7 +4981,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Stop container
             tags:
                 - Docker
@@ -4985,8 +5015,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -4995,7 +5024,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Get container stats
             tags:
                 - Docker
@@ -5034,10 +5064,10 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
-            security: []
+            security:
+                - bearerAuth: []
             summary: Run arbitrary Docker command
             tags:
                 - Docker
@@ -5070,8 +5100,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -5080,7 +5109,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: List Docker images
             tags:
                 - Docker
@@ -5118,8 +5148,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -5128,7 +5157,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Remove Docker image
             tags:
                 - Docker
@@ -5166,8 +5196,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -5176,7 +5205,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Inspect Docker image
             tags:
                 - Docker
@@ -5215,8 +5245,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -5225,7 +5254,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Prune unused images
             tags:
                 - Docker
@@ -5264,8 +5294,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -5274,7 +5303,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Pull Docker image
             tags:
                 - Docker
@@ -5317,8 +5347,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -5327,7 +5356,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Search image registry
             tags:
                 - Docker
@@ -5360,10 +5390,10 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
-            security: []
+            security:
+                - bearerAuth: []
             summary: Check registry status
             tags:
                 - Docker
@@ -5396,8 +5426,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -5406,7 +5435,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: List networks
             tags:
                 - Docker
@@ -5444,8 +5474,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -5454,7 +5483,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Create network
             tags:
                 - Docker
@@ -5492,8 +5522,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -5502,7 +5531,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Remove network
             tags:
                 - Docker
@@ -5522,10 +5552,10 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
-            security: []
+            security:
+                - bearerAuth: []
             summary: List Docker servers
             tags:
                 - Servers
@@ -5558,8 +5588,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -5568,7 +5597,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: List volumes
             tags:
                 - Docker
@@ -5606,8 +5636,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -5616,7 +5645,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Remove volume
             tags:
                 - Docker
@@ -5654,8 +5684,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -5664,7 +5693,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Inspect volume
             tags:
                 - Docker
@@ -5703,8 +5733,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
                 "500":
                     content:
@@ -5713,7 +5742,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Prune unused volumes
             tags:
                 - Docker
@@ -7765,6 +7795,114 @@ paths:
             summary: Get releases by id
             tags:
                 - Releases
+    /api/secrets/{id}/payload:
+        put:
+            operationId: put_api_secrets_id_payload
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Update secrets by id payload
+            tags:
+                - Secrets
+    /api/secrets/{id}/reveal:
+        get:
+            operationId: get_api_secrets_id_reveal
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get secrets by id reveal
+            tags:
+                - Secrets
+    /api/secrets/resolve:
+        post:
+            operationId: post_api_secrets_resolve
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Create or execute secrets resolve
+            tags:
+                - Secrets
+    /api/secrets/templates:
+        get:
+            operationId: get_api_secrets_templates
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get secrets templates
+            tags:
+                - Secrets
     /api/servers/{serverId}/ops/connectivity:
         get:
             operationId: get_api_servers_serverid_ops_connectivity
@@ -8187,6 +8325,260 @@ paths:
             summary: Get servers by serverId ops systemd services
             tags:
                 - Servers
+    /api/servers/{serverId}/software:
+        get:
+            description: Returns the catalog components for a managed server with their latest installed and verification state.
+            operationId: get_api_servers_serverid_software
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: List software components for a server
+            tags:
+                - Software
+    /api/servers/{serverId}/software/{componentKey}:
+        get:
+            description: Returns catalog metadata and the latest installed/verification state for one component.
+            operationId: get_api_servers_serverid_software_componentkey
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+                - in: path
+                  name: componentKey
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Get a single software component for a server
+            tags:
+                - Software
+    /api/servers/{serverId}/software/{componentKey}/{action}:
+        post:
+            description: Enqueues an async software delivery action (install, upgrade, start, stop, restart, verify, reinstall, uninstall) for a component on the given server.
+            operationId: post_api_servers_serverid_software_componentkey_action
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+                - in: path
+                  name: componentKey
+                  required: true
+                  schema:
+                    type: string
+                - in: path
+                  name: action
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "202":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Accepted
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "503":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Service Unavailable
+            security:
+                - bearerAuth: []
+            summary: Invoke a software delivery action
+            tags:
+                - Software
+    /api/servers/{serverId}/software/capabilities:
+        get:
+            description: Returns readiness status for each AppOS-managed capability on the given server.
+            operationId: get_api_servers_serverid_software_capabilities
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: List capability readiness for a server
+            tags:
+                - Software
+    /api/servers/{serverId}/software/operations:
+        get:
+            description: Returns recent software delivery operations for a server.
+            operationId: get_api_servers_serverid_software_operations
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+                - in: query
+                  name: component
+                  required: false
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: List software delivery operations
+            tags:
+                - Software
+    /api/servers/{serverId}/software/operations/{operationId}:
+        get:
+            description: Returns the current state of one async software delivery operation.
+            operationId: get_api_servers_serverid_software_operations_operationid
+            parameters:
+                - in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+                - in: path
+                  name: operationId
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+            security:
+                - bearerAuth: []
+            summary: Get a software delivery operation
+            tags:
+                - Software
     /api/servers/connection:
         get:
             operationId: get_api_servers_connection
@@ -8468,6 +8860,152 @@ paths:
             summary: Test S3 settings
             tags:
                 - Settings
+    /api/software/local:
+        get:
+            description: Returns AppOS-local software inventory derived from the local catalog and runtime checks.
+            operationId: get_api_software_local
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: List AppOS-local software components
+            tags:
+                - Software
+    /api/software/local/{componentKey}:
+        get:
+            description: Returns local catalog metadata and current detected state for one AppOS-local component.
+            operationId: get_api_software_local_componentkey
+            parameters:
+                - in: path
+                  name: componentKey
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Get one AppOS-local software component
+            tags:
+                - Software
+    /api/software/server-catalog:
+        get:
+            description: Returns the AppOS-managed server software catalog as a read-only discovery surface.
+            operationId: get_api_software_server-catalog
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: List supported server-target software
+            tags:
+                - Software
+    /api/software/server-catalog/{componentKey}:
+        get:
+            description: Returns one read-only AppOS-managed server software catalog entry.
+            operationId: get_api_software_server-catalog_componentkey
+            parameters:
+                - in: path
+                  name: componentKey
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Get one supported server-target software entry
+            tags:
+                - Software
     /api/space/fetch:
         post:
             description: Downloads a remote URL and stores the result as a user_files record. Auth required.

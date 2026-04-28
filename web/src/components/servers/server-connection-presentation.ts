@@ -1,4 +1,4 @@
-export type ServerDetailTab = 'overview' | 'connection' | 'monitor' | 'runtime' | 'tunnel' | 'software'
+export type ServerDetailTab = 'overview' | 'connection' | 'monitor' | 'docker' | 'runtime' | 'tunnel' | 'software'
 
 export type ServerConnectionState =
   | 'not_configured'

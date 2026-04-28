@@ -1,2 +1,0 @@
-function t(s){return typeof s=="string"?s.trim():typeof s=="number"||typeof s=="boolean"?String(s):""}function c(s,a){const e=s,i=t(e?.message),g=t(e?.response?.message),f=t(e?.response?.data?.message),u=t(e?.data?.message),n=t(e?.response?.data?.error||e?.data?.error),o=t(e?.status),r=g||f||u||i;return r&&n&&!r.includes(n)?`${r}: ${n}`:r||n||(s instanceof Error&&s.message?s.message:o?`${a} (status ${o})`:a)}export{c as g};
-//# sourceMappingURL=api-error-BiriNozG.js.map

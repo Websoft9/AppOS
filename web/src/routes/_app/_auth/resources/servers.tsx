@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, type ReactNode } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
-import { PlugZap, Loader2, Cable, Link as LinkIcon, RotateCcw, Power, RefreshCw, CircleHelp, PanelRight, MoreVertical, SlidersHorizontal, Activity } from 'lucide-react'
+import { PlugZap, Loader2, Cable, Link as LinkIcon, RotateCcw, Power, RefreshCw, CircleHelp, PanelRight, Maximize2, Minimize2, MoreVertical, SlidersHorizontal, Activity } from 'lucide-react'
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import {
   Dialog,
@@ -21,6 +21,7 @@ import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { SecretForm, type SecretTemplate } from '@/components/secrets/SecretForm'
 import { MonitorTargetPanel } from '@/components/monitor/MonitorTargetPanel'
 import { ServerSoftwarePanel } from '@/components/servers/ServerSoftwarePanel'
+import { DockerPanel } from '@/components/connect/DockerPanel'
 import {
   getServerConnectionPresentation,
   type ServerConnectionActionId,
@@ -49,6 +50,7 @@ const TEMPLATE_ALIASES: Record<string, string> = {
 }
 const ALLOWED_TEMPLATES = new Set(Object.keys(TEMPLATE_ALIASES))
 const SERVER_STATUS_REFRESH_BATCH_SIZE = 5
+type ServerDetailDrawerTier = 'xl' | 'full'
 
 function buildDefaultCredentialSecretName() {
   return `server-credential-${Date.now().toString().slice(-6)}`
@@ -437,6 +439,7 @@ export function ServersPage() {
   const [listRefreshKey, setListRefreshKey] = useState(0)
   const [wizardServerId, setWizardServerId] = useState<string | null>(null)
   const [selectedServerId, setSelectedServerId] = useState<string | undefined>(server)
+  const [serverDetailDrawerTier, setServerDetailDrawerTier] = useState<ServerDetailDrawerTier>('xl')
   const [serverPageSize, setServerPageSize] = useState(10)
   const [visibleOptionalColumns, setVisibleOptionalColumns] = useState<Set<string>>(
     () => new Set(['host_summary', 'monitor_status', 'user', 'secret_type_label'])
@@ -797,7 +800,7 @@ export function ServersPage() {
   }, [checkServerStatus, powerAction, powerTarget])
 
   const handleOpenServer = useCallback(
-    (item: Record<string, unknown> | null, nextTab: 'overview' | 'connection' | 'monitor' | 'runtime' | 'tunnel' | 'software' = 'overview') => {
+    (item: Record<string, unknown> | null, nextTab: 'overview' | 'connection' | 'monitor' | 'docker' | 'runtime' | 'tunnel' | 'software' = 'overview') => {
       const nextServerId = item ? String(item.id ?? '') : ''
       const opening = nextServerId !== ''
       setSelectedServerId(opening ? nextServerId : undefined)
@@ -1154,15 +1157,29 @@ export function ServersPage() {
       const createdBy = String(item.created_by_display || item.created_by || '—')
       const detailTabTriggerClassName =
         'mb-[-1px] h-10 flex-none rounded-none border-0 border-b-2 border-b-transparent px-0 pb-3 pt-1 text-sm text-muted-foreground shadow-none after:hidden hover:bg-transparent hover:text-foreground data-[state=active]:border-b-foreground data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-foreground'
+      const detailSectionTitleClassName = 'text-sm font-semibold text-foreground'
       const id = String(item.id || '')
       const isTunnelAction = item.connect_type === 'tunnel'
+      const detailExpanded = serverDetailDrawerTier === 'full'
       return (
-        <div className="space-y-4">
-          <div className="min-w-0">
-            <h2 className="text-xl font-semibold tracking-tight">
-              {String(item.name || 'Unnamed Server')}
-            </h2>
-            <p className="mt-0.5 font-mono text-xs text-muted-foreground">{id}</p>
+        <div className="relative space-y-4">
+          <button
+            type="button"
+            className="ring-offset-background focus:ring-ring data-[state=open]:bg-secondary absolute top-4 right-14 z-10 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden"
+            aria-label={detailExpanded ? 'Restore detail width' : 'Expand detail width'}
+            title={detailExpanded ? 'Restore detail width' : 'Expand detail width'}
+            onClick={() => setServerDetailDrawerTier(prev => (prev === 'full' ? 'xl' : 'full'))}
+          >
+            {detailExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </button>
+
+          <div className="flex items-start justify-between gap-4 pr-16">
+            <div className="min-w-0">
+              <h2 className="text-xl font-semibold tracking-tight">
+                {String(item.name || 'Unnamed Server')}
+              </h2>
+              <p className="mt-0.5 font-mono text-xs text-muted-foreground">{id}</p>
+            </div>
           </div>
 
           <Tabs
@@ -1188,6 +1205,9 @@ export function ServersPage() {
                 </TabsTrigger>
                 <TabsTrigger value="monitor" className={detailTabTriggerClassName}>
                   Monitor
+                </TabsTrigger>
+                <TabsTrigger value="docker" className={detailTabTriggerClassName}>
+                  Docker
                 </TabsTrigger>
                 <TabsTrigger value="runtime" className={detailTabTriggerClassName}>
                   Runtime
@@ -1237,130 +1257,140 @@ export function ServersPage() {
             </div>
 
             <TabsContent value="overview" className="pt-4">
-              <dl className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2 xl:grid-cols-3">
-                {/* ID — first */}
-                <div className="sm:col-span-2 xl:col-span-3">
-                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">ID</dt>
-                  <dd className="mt-1 break-all font-mono text-xs">{id || '—'}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">Name</dt>
-                  <dd className="mt-1 break-all">{String(item.name || '—')}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">Connection Type</dt>
-                  <dd className="mt-1">
-                    <Badge variant="outline">{isTunnel ? 'Tunnel' : 'Direct'}</Badge>
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">Access</dt>
-                  <dd className="mt-1">
-                    {status === 'online' ? (
-                      <Badge variant="default">{accessLabel(status)}</Badge>
-                    ) : status === 'offline' ? (
-                      <Badge variant="secondary">{accessLabel(status)}</Badge>
-                    ) : (
-                      <Badge variant="outline">{accessLabel(status)}</Badge>
-                    )}
-                  </dd>
-                </div>
-                {isTunnel ? (
-                  <div>
-                    <dt className="text-xs uppercase tracking-wide text-muted-foreground">Tunnel State</dt>
-                    <dd className="mt-1">
-                      <Badge variant="outline">{tunnelStateLabel(tunnelState)}</Badge>
-                    </dd>
-                  </div>
-                ) : null}
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">Host</dt>
-                  <dd className="mt-1 break-all font-mono text-xs">{String(item.host || '—')}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">Port</dt>
-                  <dd className="mt-1">{String(item.port || '22')}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">User</dt>
-                  <dd className="mt-1">{String(item.user || 'root')}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">Credential</dt>
-                  <dd className="mt-1 flex items-center gap-2">
-                    {credentialType !== '—' && (
-                      <Badge variant="secondary">{credentialType}</Badge>
-                    )}
-                    {credentialId ? (
-                      <Link
-                        to="/secrets"
-                        search={{ id: credentialId, edit: undefined, returnGroup: undefined, returnType: undefined }}
-                        className="font-mono text-xs text-primary underline-offset-4 hover:underline"
-                      >
-                        {credentialId}
-                      </Link>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">Created by</dt>
-                  <dd className="mt-1">{createdBy}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">Created</dt>
-                  <dd className="mt-1">{String(item.created || '—')}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">Updated</dt>
-                  <dd className="mt-1">{String(item.updated || '—')}</dd>
-                </div>
-                {facts.hasFacts ? (
-                  <>
-                    <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Operating System</dt>
-                      <dd className="mt-1">{facts.operatingSystem}</dd>
+              <div className="space-y-8">
+                <section className="space-y-4">
+                  <h3 className={detailSectionTitleClassName}>Server Metadata</h3>
+                  <dl className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2 xl:grid-cols-3">
+                    <div className="sm:col-span-2 xl:col-span-3">
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">ID</dt>
+                      <dd className="mt-1 break-all font-mono text-xs">{id || '—'}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Kernel</dt>
-                      <dd className="mt-1">{facts.kernelRelease}</dd>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Name</dt>
+                      <dd className="mt-1 break-all">{String(item.name || '—')}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Architecture</dt>
-                      <dd className="mt-1">{facts.architecture}</dd>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Connection Type</dt>
+                      <dd className="mt-1">
+                        <Badge variant="outline">{isTunnel ? 'Tunnel' : 'Direct'}</Badge>
+                      </dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">CPU Cores</dt>
-                      <dd className="mt-1">{facts.cpuCores}</dd>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Access</dt>
+                      <dd className="mt-1">
+                        {status === 'online' ? (
+                          <Badge variant="default">{accessLabel(status)}</Badge>
+                        ) : status === 'offline' ? (
+                          <Badge variant="secondary">{accessLabel(status)}</Badge>
+                        ) : (
+                          <Badge variant="outline">{accessLabel(status)}</Badge>
+                        )}
+                      </dd>
+                    </div>
+                    {isTunnel ? (
+                      <div>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Tunnel State</dt>
+                        <dd className="mt-1">
+                          <Badge variant="outline">{tunnelStateLabel(tunnelState)}</Badge>
+                        </dd>
+                      </div>
+                    ) : null}
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Host</dt>
+                      <dd className="mt-1 break-all font-mono text-xs">{String(item.host || '—')}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Memory</dt>
-                      <dd className="mt-1">{facts.memoryTotal}</dd>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Port</dt>
+                      <dd className="mt-1">{String(item.port || '22')}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Facts Observed</dt>
-                      <dd className="mt-1">{facts.observedAt}</dd>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">User</dt>
+                      <dd className="mt-1">{String(item.user || 'root')}</dd>
                     </div>
-                  </>
-                ) : null}
-                {item.description ? (
-                  <div className="sm:col-span-2 xl:col-span-3">
-                    <dt className="text-xs uppercase tracking-wide text-muted-foreground">Description</dt>
-                    <dd className="mt-1 text-muted-foreground">{String(item.description)}</dd>
-                  </div>
-                ) : null}
-              </dl>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Credential</dt>
+                      <dd className="mt-1 flex items-center gap-2">
+                        {credentialType !== '—' && (
+                          <Badge variant="secondary">{credentialType}</Badge>
+                        )}
+                        {credentialId ? (
+                          <Link
+                            to="/secrets"
+                            search={{ id: credentialId, edit: undefined, returnGroup: undefined, returnType: undefined }}
+                            className="font-mono text-xs text-primary underline-offset-4 hover:underline"
+                          >
+                            {credentialId}
+                          </Link>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Created by</dt>
+                      <dd className="mt-1">{createdBy}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Created</dt>
+                      <dd className="mt-1">{String(item.created || '—')}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Updated</dt>
+                      <dd className="mt-1">{String(item.updated || '—')}</dd>
+                    </div>
+                    {item.description ? (
+                      <div className="sm:col-span-2 xl:col-span-3">
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Description</dt>
+                        <dd className="mt-1 text-muted-foreground">{String(item.description)}</dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                </section>
+
+                <section className="space-y-4">
+                  <h3 className={detailSectionTitleClassName}>System Information</h3>
+                  {facts.hasFacts ? (
+                    <dl className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2 xl:grid-cols-3">
+                      <div>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Operating System</dt>
+                        <dd className="mt-1">{facts.operatingSystem}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Kernel</dt>
+                        <dd className="mt-1">{facts.kernelRelease}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Architecture</dt>
+                        <dd className="mt-1">{facts.architecture}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">CPU Cores</dt>
+                        <dd className="mt-1">{facts.cpuCores}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Memory</dt>
+                        <dd className="mt-1">{facts.memoryTotal}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Facts Observed</dt>
+                        <dd className="mt-1">{facts.observedAt}</dd>
+                      </div>
+                    </dl>
+                  ) : (
+                    <div className="text-sm text-muted-foreground">No host facts have been collected for this server yet.</div>
+                  )}
+                </section>
+              </div>
             </TabsContent>
 
             <TabsContent value="connection" className="pt-4">
               <div className="space-y-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Connection Summary</CardTitle>
-                    <CardDescription>{presentation.reason}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
+                <section className="space-y-4">
+                  <div>
+                    <h3 className={detailSectionTitleClassName}>Connection Summary</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">{presentation.reason}</p>
+                  </div>
+                  <div className="grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
                     <div>
                       <div className="text-xs uppercase tracking-wide text-muted-foreground">Mode</div>
                       <div className="mt-1">{presentation.modeLabel}</div>
@@ -1389,15 +1419,15 @@ export function ServersPage() {
                       <div className="text-xs uppercase tracking-wide text-muted-foreground">Current Endpoint</div>
                       <div className="mt-1">{presentation.endpointSummary}</div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </section>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Primary Next Step</CardTitle>
-                    <CardDescription>{presentation.primaryActionDescription}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
+                <section className="space-y-4">
+                  <div>
+                    <h3 className={detailSectionTitleClassName}>Primary Next Step</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">{presentation.primaryActionDescription}</p>
+                  </div>
+                  <div className="space-y-3">
                     <div className="flex flex-wrap gap-2">
                       <Button onClick={() => executePrimaryAction(item, presentation.primaryAction.id)}>
                         {presentation.primaryAction.label}
@@ -1412,60 +1442,60 @@ export function ServersPage() {
                         </Button>
                       ))}
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </section>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Mode-Specific Setup or Recovery</CardTitle>
-                    <CardDescription>
+                <section className="space-y-4">
+                  <div>
+                    <h3 className={detailSectionTitleClassName}>Mode-Specific Setup or Recovery</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
                       {isTunnel
                         ? 'Tunnel lifecycle guidance covers setup, runtime session, and recovery.'
                         : 'Direct SSH lifecycle guidance covers configuration, verification, and recovery.'}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="grid gap-4 lg:grid-cols-3">
+                    </p>
+                  </div>
+                  <div className="grid gap-4 lg:grid-cols-3">
                     {isTunnel ? (
                       <>
-                        <div className="rounded-xl border p-4 text-sm">
+                        <div className="text-sm">
                           <div className="font-medium">Setup</div>
                           <div className="mt-2 text-muted-foreground">{presentation.state === 'not_configured' ? 'Tunnel setup has not started yet.' : 'Tunnel setup is already prepared in AppOS.'}</div>
                         </div>
-                        <div className="rounded-xl border p-4 text-sm">
+                        <div className="text-sm">
                           <div className="font-medium">Runtime Session</div>
                           <div className="mt-2 text-muted-foreground">State: {tunnelStateLabel(tunnelState)} · Last seen: {formatTimestamp(tunnel?.last_seen)}</div>
                         </div>
-                        <div className="rounded-xl border p-4 text-sm">
+                        <div className="text-sm">
                           <div className="font-medium">Recovery</div>
                           <div className="mt-2 text-muted-foreground">{String(tunnel?.reason ?? '').trim() || 'No tunnel-specific recovery issue is currently reported.'}</div>
                         </div>
                       </>
                     ) : (
                       <>
-                        <div className="rounded-xl border p-4 text-sm">
+                        <div className="text-sm">
                           <div className="font-medium">Configuration</div>
                           <div className="mt-2 text-muted-foreground">Host {String(item.host || '—')} · Port {String(item.port || '22')} · User {String(item.user || '—')}</div>
                         </div>
-                        <div className="rounded-xl border p-4 text-sm">
+                        <div className="text-sm">
                           <div className="font-medium">Verification</div>
                           <div className="mt-2 text-muted-foreground">Latest check: {presentation.lastActivityLabel} · Source: {presentation.diagnostics.evidenceSource}</div>
                         </div>
-                        <div className="rounded-xl border p-4 text-sm">
+                        <div className="text-sm">
                           <div className="font-medium">Recovery</div>
                           <div className="mt-2 text-muted-foreground">{presentation.state === 'needs_attention' ? presentation.reason : 'No SSH recovery action is currently required.'}</div>
                         </div>
                       </>
                     )}
-                  </CardContent>
-                </Card>
+                  </div>
+                </section>
 
                 {isTunnel ? (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Tunnel Services</CardTitle>
-                      <CardDescription>Service mappings exposed through this tunnel connection.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
+                  <section className="space-y-4">
+                    <div>
+                      <h3 className={detailSectionTitleClassName}>Tunnel Services</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">Service mappings exposed through this tunnel connection.</p>
+                    </div>
+                    <div>
                       {services.length === 0 ? (
                         <div className="text-sm text-muted-foreground">No tunnel service mapping exposed for this server.</div>
                       ) : (
@@ -1478,16 +1508,16 @@ export function ServersPage() {
                           ))}
                         </div>
                       )}
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </section>
                 ) : null}
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Diagnostics</CardTitle>
-                    <CardDescription>Evidence that supports the current recommendation.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
+                <section className="space-y-4">
+                  <div>
+                    <h3 className={detailSectionTitleClassName}>Diagnostics</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">Evidence that supports the current recommendation.</p>
+                  </div>
+                  <div className="grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
                     <div>
                       <div className="text-xs uppercase tracking-wide text-muted-foreground">Latest Check Result</div>
                       <div className="mt-1">{presentation.diagnostics.latestCheckResult}</div>
@@ -1512,29 +1542,29 @@ export function ServersPage() {
                       <div className="text-xs uppercase tracking-wide text-muted-foreground">Current Reason</div>
                       <div className="mt-1">{presentation.diagnostics.currentReason}</div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </section>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Activity Timeline</CardTitle>
-                    <CardDescription>Compact lifecycle milestones for this server.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
+                <section className="space-y-4">
+                  <div>
+                    <h3 className={detailSectionTitleClassName}>Activity Timeline</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">Compact lifecycle milestones for this server.</p>
+                  </div>
+                  <div>
                     {presentation.timeline.length === 0 ? (
                       <div className="text-sm text-muted-foreground">No lifecycle events are available yet.</div>
                     ) : (
                       <div className="space-y-3">
                         {presentation.timeline.map(event => (
-                          <div key={`${event.label}:${event.at}`} className="flex items-start justify-between gap-4 rounded-xl border px-4 py-3 text-sm">
+                          <div key={`${event.label}:${event.at}`} className="flex items-start justify-between gap-4 text-sm">
                             <div className="font-medium">{event.label}</div>
                             <div className="text-muted-foreground">{event.at}</div>
                           </div>
                         ))}
                       </div>
                     )}
-                  </CardContent>
-                </Card>
+                  </div>
+                </section>
               </div>
             </TabsContent>
 
@@ -1552,6 +1582,12 @@ export function ServersPage() {
               </div>
             </TabsContent>
 
+            <TabsContent value="docker" className="pt-4">
+              <div className="h-[70vh] min-h-[32rem] min-w-0">
+                <DockerPanel serverId={String(item.id || '')} className="h-full" />
+              </div>
+            </TabsContent>
+
             <TabsContent value="runtime" className="pt-4">
               <div className="text-sm text-muted-foreground">
                 Runtime details can later include active sessions, deployed workloads, and process information for {String(item.name || item.id)}.
@@ -1565,7 +1601,7 @@ export function ServersPage() {
         </div>
       )
     },
-    [checkingIds, checkServerStatus, executePrimaryAction, getConnectionPresentation, getStatusValue, getTunnelValue, handleConnect, handleOpenServer, handlePowerRequest, navigate, tab]
+    [checkingIds, checkServerStatus, executePrimaryAction, getConnectionPresentation, getStatusValue, getTunnelValue, handleConnect, handleOpenServer, handlePowerRequest, navigate, serverDetailDrawerTier, tab]
   )
 
   const renderConnectionActionItem = useCallback(
@@ -1794,7 +1830,7 @@ export function ServersPage() {
           onSelectItem: handleSelectServer,
           renderDetailPanel: item => renderDetailPanel(item),
           detailPresentation: 'drawer',
-          detailDrawerTier: 'lg',
+          detailDrawerTier: serverDetailDrawerTier,
           detailDrawerTitle: 'Server Detail',
           initialEditId: edit,
           dialogHeader: ({ editingItem, title, description }) => ({
@@ -2168,7 +2204,7 @@ export const Route = createFileRoute('/_app/_auth/resources/servers')({
     edit: typeof search.edit === 'string' ? search.edit : undefined,
     server: typeof search.server === 'string' ? search.server : undefined,
     tab:
-      search.tab === 'overview' || search.tab === 'connection' || search.tab === 'detail' || search.tab === 'monitor' || search.tab === 'runtime' || search.tab === 'tunnel' || search.tab === 'software'
+      search.tab === 'overview' || search.tab === 'connection' || search.tab === 'detail' || search.tab === 'monitor' || search.tab === 'docker' || search.tab === 'runtime' || search.tab === 'tunnel' || search.tab === 'software'
         ? search.tab
         : undefined,
   }),
