@@ -104,6 +104,11 @@ Current repo behavior already validates the basic interaction pattern:
 
 For this refinement, `docker` is the only platform-gating prerequisite. Other managed server software remains in the addon inventory group unless a future story explicitly promotes it.
 
+Related boundary note:
+
+- if Server Detail later consumes monitor-backed Docker container telemetry, that read-model and UI behavior belongs to Story `28.6`, not this story
+- this story remains responsible for software operational surface structure, readiness, and lifecycle action presentation rather than container telemetry design
+
 This story should refine and complete that operational surface against the new lifecycle contract instead of inventing a parallel UI.
 
 ## Tasks / Subtasks

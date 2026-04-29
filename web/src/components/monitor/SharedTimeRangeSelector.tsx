@@ -23,7 +23,11 @@ export function SharedTimeRangeSelector<T extends string>({
       {options.map(option => (
         <Button
           key={option.value}
-          variant={(isOptionActive?.(option.value, value) ?? value === option.value) ? 'default' : 'outline'}
+          variant={
+            (isOptionActive?.(option.value, value) ?? value === option.value)
+              ? 'default'
+              : 'outline'
+          }
           size="sm"
           onClick={() => onChange(option.value)}
         >

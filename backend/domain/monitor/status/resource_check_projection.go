@@ -40,7 +40,7 @@ func ProjectResourceCheckLatestStatus(app core.App, targetType, targetID, displa
 }
 
 func ResourceCheckFailureState(app core.App, targetType, targetID, status string, now time.Time) (int, *time.Time, *time.Time) {
-        return FailureStateFromPrevious(store.PreviousFailureCount(app, targetType, targetID), status, "healthy", now)
+	return FailureStateFromPrevious(store.PreviousFailureCount(app, targetType, targetID), status, "healthy", now)
 }
 
 func PreserveStrongerFailureFromOtherCheck(app core.App, targetType, targetID, checkKind string) bool {

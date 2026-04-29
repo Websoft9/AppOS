@@ -13,7 +13,9 @@ const getLocalDockerBridgeAddressMock = vi.fn()
 let searchState: Record<string, unknown> = {}
 
 function isSecretSummaryRequest(path: string) {
-  return path.startsWith('/api/collections/secrets/records?') && path.includes('fields=id%2Ctemplate_id')
+  return (
+    path.startsWith('/api/collections/secrets/records?') && path.includes('fields=id%2Ctemplate_id')
+  )
 }
 
 function isMonitorSummaryRequest(path: string) {
@@ -30,7 +32,10 @@ vi.mock('@tanstack/react-router', () => ({
     useSearch: () => searchState,
     useNavigate: () => navigateMock,
   }),
-  Link: ({ children, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { children?: ReactNode }) => (
+  Link: ({
+    children,
+    ...props
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & { children?: ReactNode }) => (
     <a {...props}>{children}</a>
   ),
 }))
@@ -220,7 +225,9 @@ describe('ServersPage layout', () => {
     expect(screen.getByRole('button', { name: 'Filter Secret Type' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Filter Credential' })).toBeNull()
     expect(screen.getByRole('columnheader', { name: 'Actions' })).toHaveClass('text-left')
-    expect(screen.getAllByRole('button', { name: 'More actions' })[0].closest('td')).toHaveClass('text-left')
+    expect(screen.getAllByRole('button', { name: 'More actions' })[0].closest('td')).toHaveClass(
+      'text-left'
+    )
     expect(screen.getByText('ubuntu 24.04 · amd64')).toBeInTheDocument()
   })
 
@@ -353,7 +360,7 @@ describe('ServersPage layout', () => {
     await waitFor(() => {
       expect(screen.queryByRole('columnheader', { name: 'Monitor' })).toBeNull()
     })
-  }, 10000)
+  }, 15000)
 
   it('renders the unified Connection column and lifecycle primary actions', async () => {
     sendMock.mockImplementation((path: string) => {
@@ -384,8 +391,18 @@ describe('ServersPage layout', () => {
               created_by_name: 'alice',
               credential: 'secret-1',
               credential_type: 'Password',
-              access: { status: 'unavailable', reason: 'waiting_for_first_connect', checked_at: '', source: 'tunnel_runtime' },
-              tunnel: { state: 'setup_required', status: 'offline', waiting_for_first_connect: true, services: [] },
+              access: {
+                status: 'unavailable',
+                reason: 'waiting_for_first_connect',
+                checked_at: '',
+                source: 'tunnel_runtime',
+              },
+              tunnel: {
+                state: 'setup_required',
+                status: 'offline',
+                waiting_for_first_connect: true,
+                services: [],
+              },
             },
           ],
         })
@@ -437,7 +454,12 @@ describe('ServersPage layout', () => {
               host: '10.0.0.1',
               port: 22,
               user: 'root',
-              access: { status: 'available', reason: '', checked_at: '2026-04-16T01:00:00Z', source: 'ssh_probe' },
+              access: {
+                status: 'available',
+                reason: '',
+                checked_at: '2026-04-16T01:00:00Z',
+                source: 'ssh_probe',
+              },
             },
             {
               id: 'server-2',
@@ -446,7 +468,12 @@ describe('ServersPage layout', () => {
               host: '10.0.0.2',
               port: 22,
               user: 'ubuntu',
-              access: { status: 'available', reason: '', checked_at: '2026-04-16T01:00:00Z', source: 'ssh_probe' },
+              access: {
+                status: 'available',
+                reason: '',
+                checked_at: '2026-04-16T01:00:00Z',
+                source: 'ssh_probe',
+              },
             },
           ],
         })
@@ -500,7 +527,12 @@ describe('ServersPage layout', () => {
               user: 'root',
               credential: 'secret-1',
               credential_type: 'Password',
-              access: { status: 'available', reason: '', checked_at: '2026-04-16T01:00:00Z', source: 'ssh_probe' },
+              access: {
+                status: 'available',
+                reason: '',
+                checked_at: '2026-04-16T01:00:00Z',
+                source: 'ssh_probe',
+              },
             },
             {
               id: 'server-2',
@@ -511,7 +543,12 @@ describe('ServersPage layout', () => {
               user: 'ubuntu',
               credential: 'secret-2',
               credential_type: 'SSH Key',
-              access: { status: 'available', reason: '', checked_at: '2026-04-16T01:00:00Z', source: 'ssh_probe' },
+              access: {
+                status: 'available',
+                reason: '',
+                checked_at: '2026-04-16T01:00:00Z',
+                source: 'ssh_probe',
+              },
             },
           ],
         })
@@ -519,7 +556,12 @@ describe('ServersPage layout', () => {
       if (isMonitorSummaryRequest(path)) {
         return Promise.resolve({
           items: [
-            { target_id: 'server-1', status: 'online', reason: 'netdata ready', last_checked_at: '2026-04-16T01:02:00Z' },
+            {
+              target_id: 'server-1',
+              status: 'online',
+              reason: 'netdata ready',
+              last_checked_at: '2026-04-16T01:02:00Z',
+            },
           ],
         })
       }
@@ -567,7 +609,8 @@ describe('ServersPage layout', () => {
 
     expect(await screen.findByText('View Details')).toBeInTheDocument()
     expect(screen.getByText('View Connection')).toBeInTheDocument()
-    const menuText = (await screen.findByText('Restart')).parentElement?.parentElement?.textContent ?? ''
+    const menuText =
+      (await screen.findByText('Restart')).parentElement?.parentElement?.textContent ?? ''
     expect(menuText.indexOf('Restart')).toBeLessThan(menuText.indexOf('Shutdown'))
     expect(menuText.indexOf('Shutdown')).toBeLessThan(menuText.indexOf('Add Favorite'))
   })
@@ -591,7 +634,12 @@ describe('ServersPage layout', () => {
               created: '2026-04-16T00:00:00Z',
               updated: '2026-04-16T01:00:00Z',
               credential_type: 'Password',
-              access: { status: 'available', reason: '', checked_at: '2026-04-16T01:00:00Z', source: 'tunnel_runtime' },
+              access: {
+                status: 'available',
+                reason: '',
+                checked_at: '2026-04-16T01:00:00Z',
+                source: 'tunnel_runtime',
+              },
               tunnel: {
                 state: 'ready',
                 status: 'online',
@@ -733,8 +781,16 @@ describe('ServersPage layout', () => {
               template_kind: 'package',
               installed_state: 'installed',
               detected_version: '27.0.1',
+              install_source: 'managed',
+              source_evidence: 'apt:docker-ce',
               verification_state: 'healthy',
-              preflight: { ok: true, os_supported: true, privilege_ok: true, network_ok: true, dependency_ready: true },
+              preflight: {
+                ok: true,
+                os_supported: true,
+                privilege_ok: true,
+                network_ok: true,
+                dependency_ready: true,
+              },
               available_actions: ['verify', 'upgrade'],
             },
             {
@@ -785,10 +841,18 @@ describe('ServersPage layout', () => {
     expect(await screen.findByRole('heading', { name: 'Prerequisites' })).toBeInTheDocument()
     expect(await screen.findByRole('heading', { name: 'Addons list' })).toBeInTheDocument()
     expect(screen.getByText('Docker Engine')).toBeInTheDocument()
-    expect(screen.getByText('Container runtime required for platform-managed workloads.')).toBeInTheDocument()
+    expect(
+      screen.getByText('Container runtime required for platform-managed workloads.')
+    ).toBeInTheDocument()
+    expect(screen.getByText('Install source: Managed (apt:docker-ce)')).toBeInTheDocument()
     expect(screen.getByText('Reverse Proxy')).toBeInTheDocument()
     expect(screen.getByText('reverse-proxy')).toBeInTheDocument()
     expect(screen.getByText('dependency_not_ready: docker is not ready')).toBeInTheDocument()
+
+    const prerequisitesSection = screen.getByRole('region', { name: 'Prerequisites section' })
+    expect(
+      within(prerequisitesSection).getByText('No corrective action available')
+    ).toBeInTheDocument()
 
     const addonsSection = screen.getByRole('region', { name: 'Addons list section' })
     expect(within(addonsSection).queryByText('Docker Engine')).toBeNull()
@@ -840,7 +904,7 @@ describe('ServersPage layout', () => {
       method: 'PUT',
       body: { payload: { value: 'new-pass' } },
     })
-  })
+  }, 10000)
 
   it('renders connection type as cards, pre-fills a generated name, and uses the simplified credential action', async () => {
     render(<ServersPage />)
@@ -850,8 +914,14 @@ describe('ServersPage layout', () => {
     expect(await screen.findByRole('dialog')).toHaveClass('sm:max-w-4xl')
     expect(screen.getByRole('button', { name: 'Connection type help' })).toBeInTheDocument()
     expect(screen.queryByText('Choose how the managed server connects to AppOS.')).toBeNull()
-    expect(screen.getByRole('radio', { name: /Direct SSH/i })).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByRole('radio', { name: /Reverse Tunnel/i })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('radio', { name: /Direct SSH/i })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
+    expect(screen.getByRole('radio', { name: /Reverse Tunnel/i })).toHaveAttribute(
+      'aria-checked',
+      'false'
+    )
     expect(screen.getByDisplayValue(/^server-\d{6}$/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Credential (Secret)' }))

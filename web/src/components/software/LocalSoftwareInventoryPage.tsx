@@ -4,18 +4,27 @@ import { Loader2, RefreshCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { getLocalSoftwareComponent, listLocalSoftwareComponents, type SoftwareComponentDetail, type SoftwareComponentSummary } from '@/lib/software-api'
+import {
+  getLocalSoftwareComponent,
+  listLocalSoftwareComponents,
+  type SoftwareComponentDetail,
+  type SoftwareComponentSummary,
+} from '@/lib/software-api'
 
-function statusTone(component: SoftwareComponentSummary): 'default' | 'secondary' | 'outline' | 'destructive' {
+function statusTone(
+  component: SoftwareComponentSummary
+): 'default' | 'secondary' | 'outline' | 'destructive' {
   if (component.verification_state === 'degraded') return 'destructive'
-  if (component.installed_state === 'installed' && component.verification_state === 'healthy') return 'default'
+  if (component.installed_state === 'installed' && component.verification_state === 'healthy')
+    return 'default'
   if (component.installed_state === 'not_installed') return 'secondary'
   return 'outline'
 }
 
 function statusLabel(component: SoftwareComponentSummary): string {
   if (component.verification_state === 'degraded') return 'Degraded'
-  if (component.installed_state === 'installed' && component.verification_state === 'healthy') return 'Healthy'
+  if (component.installed_state === 'installed' && component.verification_state === 'healthy')
+    return 'Healthy'
   if (component.installed_state === 'not_installed') return 'Not Installed'
   return 'Unknown'
 }
@@ -50,7 +59,6 @@ export function LocalSoftwareInventoryPage() {
 
   useEffect(() => {
     void load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function selectComponent(componentKey: string) {
@@ -71,11 +79,21 @@ export function LocalSoftwareInventoryPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Local Software</h1>
           <p className="mt-1 text-muted-foreground">
-            AppOS-local runtime inventory backed by the Software Delivery catalog, local probes, and persisted snapshots.
+            AppOS-local runtime inventory backed by the Software Delivery catalog, local probes, and
+            persisted snapshots.
           </p>
         </div>
-        <Button variant="outline" size="sm" disabled={loading || refreshing} onClick={() => void load()}>
-          {loading || refreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={loading || refreshing}
+          onClick={() => void load()}
+        >
+          {loading || refreshing ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="mr-2 h-4 w-4" />
+          )}
           Refresh
         </Button>
       </div>
@@ -86,7 +104,9 @@ export function LocalSoftwareInventoryPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Inventory</CardTitle>
-            <CardDescription>Bundled binaries and supervisord-managed services on the current AppOS host.</CardDescription>
+            <CardDescription>
+              Bundled binaries and supervisord-managed services on the current AppOS host.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {items.map(item => (
@@ -99,15 +119,21 @@ export function LocalSoftwareInventoryPage() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-medium">{item.label}</span>
-                    <Badge variant="secondary" className="text-xs uppercase">{item.template_kind}</Badge>
-                    <Badge variant={statusTone(item)} className="text-xs">{statusLabel(item)}</Badge>
+                    <Badge variant="secondary" className="text-xs uppercase">
+                      {item.template_kind}
+                    </Badge>
+                    <Badge variant={statusTone(item)} className="text-xs">
+                      {statusLabel(item)}
+                    </Badge>
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground">
                     {item.component_key}
                     {item.detected_version ? ` · ${item.detected_version}` : ''}
                   </div>
                   {item.preflight?.issues && item.preflight.issues.length > 0 && (
-                    <div className="mt-2 text-xs text-amber-700">{item.preflight.issues.join(' | ')}</div>
+                    <div className="mt-2 text-xs text-amber-700">
+                      {item.preflight.issues.join(' | ')}
+                    </div>
                   )}
                 </div>
               </button>
@@ -118,7 +144,9 @@ export function LocalSoftwareInventoryPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Detail</CardTitle>
-            <CardDescription>Latest local probe and persisted projection for the selected component.</CardDescription>
+            <CardDescription>
+              Latest local probe and persisted projection for the selected component.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             {selected ? (
@@ -156,7 +184,9 @@ export function LocalSoftwareInventoryPage() {
                 )}
               </>
             ) : (
-              <div className="text-muted-foreground">Select a component to inspect its local inventory detail.</div>
+              <div className="text-muted-foreground">
+                Select a component to inspect its local inventory detail.
+              </div>
             )}
           </CardContent>
         </Card>

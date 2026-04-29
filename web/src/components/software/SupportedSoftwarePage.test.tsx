@@ -92,9 +92,7 @@ describe('SupportedSoftwarePage', () => {
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Refresh supported software' })).toBeInTheDocument()
     expect(
-      screen.queryByText(
-        /Lifecycle actions still belong to server-scoped software surfaces/i
-      )
+      screen.queryByText(/Lifecycle actions still belong to server-scoped software surfaces/i)
     ).not.toBeInTheDocument()
 
     await waitFor(() => {
@@ -120,7 +118,9 @@ describe('SupportedSoftwarePage', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Detail' })[1])
 
     await waitFor(() => {
-      expect(screen.getByText('Read-only delivery metadata for the selected supported software entry.')).toBeInTheDocument()
+      expect(
+        screen.getByText('Read-only delivery metadata for the selected supported software entry.')
+      ).toBeInTheDocument()
       expect(screen.getByText('Mapped capability')).toBeInTheDocument()
       expect(screen.getByText(/reverse proxy capability/i)).toBeInTheDocument()
     })

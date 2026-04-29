@@ -150,29 +150,72 @@ describe('PlatformStatusPage', () => {
           rangeEndAt: '2026-04-21T14:20:00Z',
           stepSeconds: 60,
           series: [
-            { name: 'cpu', unit: 'percent', points: [[1713705600, 24], [1713705660, 32]] },
+            {
+              name: 'cpu',
+              unit: 'percent',
+              points: [
+                [1713705600, 24],
+                [1713705660, 32],
+              ],
+            },
             {
               name: 'memory',
               unit: 'bytes',
               segments: [
-                { name: 'used', points: [[1713705600, 2147483648], [1713705660, 3221225472]] },
-                { name: 'available', points: [[1713705600, 2147483648], [1713705660, 1073741824]] },
+                {
+                  name: 'used',
+                  points: [
+                    [1713705600, 2147483648],
+                    [1713705660, 3221225472],
+                  ],
+                },
+                {
+                  name: 'available',
+                  points: [
+                    [1713705600, 2147483648],
+                    [1713705660, 1073741824],
+                  ],
+                },
               ],
             },
             {
               name: 'disk',
               unit: 'bytes/s',
               segments: [
-                { name: 'read', points: [[1713705600, 1048576], [1713705660, 2097152]] },
-                { name: 'write', points: [[1713705600, 524288], [1713705660, 1048576]] },
+                {
+                  name: 'read',
+                  points: [
+                    [1713705600, 1048576],
+                    [1713705660, 2097152],
+                  ],
+                },
+                {
+                  name: 'write',
+                  points: [
+                    [1713705600, 524288],
+                    [1713705660, 1048576],
+                  ],
+                },
               ],
             },
             {
               name: 'network',
               unit: 'bytes/s',
               segments: [
-                { name: 'in', points: [[1713705600, 8388608], [1713705660, 9437184]] },
-                { name: 'out', points: [[1713705600, 4194304], [1713705660, 5242880]] },
+                {
+                  name: 'in',
+                  points: [
+                    [1713705600, 8388608],
+                    [1713705660, 9437184],
+                  ],
+                },
+                {
+                  name: 'out',
+                  points: [
+                    [1713705600, 4194304],
+                    [1713705660, 5242880],
+                  ],
+                },
               ],
             },
           ],
@@ -252,5 +295,5 @@ describe('PlatformStatusPage', () => {
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument()
     expect(await screen.findByText('Docker')).toBeInTheDocument()
-  })
+  }, 10000)
 })

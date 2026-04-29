@@ -8,7 +8,7 @@ import (
 )
 
 func ProjectPlatformLatestStatus(app core.App, now time.Time, targetID, displayName, signalSource, status, reason string, summary map[string]any) error {
-        failures, lastSuccessAt, lastFailureAt := SingleObservationFailureState(status, "healthy", now)
+	failures, lastSuccessAt, lastFailureAt := SingleObservationFailureState(status, "healthy", now)
 	_, err := store.UpsertLatestStatus(app, store.LatestStatusUpsert{
 		TargetType:              "platform",
 		TargetID:                targetID,

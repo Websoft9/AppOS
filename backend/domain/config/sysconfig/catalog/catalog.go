@@ -263,10 +263,10 @@ var entryCatalog = []EntrySchema{
 		Key:         "config",
 		Fields: []FieldSchema{
 			{
-				ID:       "controlAgentInstallerUrl",
-				Label:    "Control Agent Installer URL",
+				ID:       "apposAgentInstallerUrl",
+				Label:    "AppOS Agent Installer URL",
 				Type:     "url",
-				HelpText: "URL of the AppOS control-agent installer script. Resolved at execution time by the software delivery executor.",
+				HelpText: "URL of the AppOS agent installer script. Resolved at execution time by the software delivery executor.",
 			},
 		},
 	},
@@ -307,7 +307,7 @@ var customSettingDefaults = map[string]map[string]any{
 		"shareDefaultMinutes": 30,
 	},
 	"software/config": {
-		"controlAgentInstallerUrl": "",
+		"apposAgentInstallerUrl": "https://artifact.websoft9.com/stable/appos/agent/appos-agent-install.sh",
 	},
 }
 

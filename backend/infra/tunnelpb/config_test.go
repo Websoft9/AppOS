@@ -1,11 +1,13 @@
 package tunnelpb
 
 import (
+	"encoding/base64"
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
+	sec "github.com/websoft9/appos/backend/domain/secrets"
 	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
 )
 
@@ -15,6 +17,13 @@ func newTunnelApp(t *testing.T) *tests.TestApp {
 	app, err := tests.NewTestApp()
 	if err != nil {
 		t.Fatal(err)
+	}
+	t.Setenv(sec.EnvSecretKey, base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef")))
+	if err := sec.LoadKeyFromEnv(); err != nil {
+		t.Fatalf("load secret key: %v", err)
+	}
+	if err := sec.LoadTemplatesFromDefaultPath(); err != nil {
+		t.Fatalf("load secret templates: %v", err)
 	}
 	ensureTunnelCustomSettingsCollection(t, app)
 	return app

@@ -66,7 +66,7 @@ type TemplateResolver interface {
 // is already in a healthy installed state must not fail or degrade the component.
 type ComponentExecutor interface {
 	// Detect runs the detection step and returns the current installed state and version.
-	Detect(ctx context.Context, serverID string, tpl ResolvedTemplate) (InstalledState, string, error)
+	Detect(ctx context.Context, serverID string, tpl ResolvedTemplate) (DetectionResult, error)
 
 	// RunPreflight executes all preflight checks and returns a TargetReadinessResult.
 	// A non-ok result does not indicate an executor error; the caller decides whether to proceed.
@@ -76,19 +76,19 @@ type ComponentExecutor interface {
 	// Post-action truth must be evaluated separately via Verify or Detect by the caller.
 	Install(ctx context.Context, serverID string, tpl ResolvedTemplate) (SoftwareComponentDetail, error)
 
-		// Upgrade executes the upgrade step and returns execution detail from the primary action.
+	// Upgrade executes the upgrade step and returns execution detail from the primary action.
 	Upgrade(ctx context.Context, serverID string, tpl ResolvedTemplate) (SoftwareComponentDetail, error)
 
-		// Start starts the managed runtime service and returns execution detail from the control action.
-		Start(ctx context.Context, serverID string, tpl ResolvedTemplate) (SoftwareComponentDetail, error)
+	// Start starts the managed runtime service and returns execution detail from the control action.
+	Start(ctx context.Context, serverID string, tpl ResolvedTemplate) (SoftwareComponentDetail, error)
 
-		// Stop stops the managed runtime service and returns execution detail from the control action.
-		Stop(ctx context.Context, serverID string, tpl ResolvedTemplate) (SoftwareComponentDetail, error)
+	// Stop stops the managed runtime service and returns execution detail from the control action.
+	Stop(ctx context.Context, serverID string, tpl ResolvedTemplate) (SoftwareComponentDetail, error)
 
-		// Restart restarts the managed runtime service and returns execution detail from the control action.
-		Restart(ctx context.Context, serverID string, tpl ResolvedTemplate) (SoftwareComponentDetail, error)
+	// Restart restarts the managed runtime service and returns execution detail from the control action.
+	Restart(ctx context.Context, serverID string, tpl ResolvedTemplate) (SoftwareComponentDetail, error)
 
-		// Uninstall executes the uninstall step and returns execution detail from the primary action.
+	// Uninstall executes the uninstall step and returns execution detail from the primary action.
 	// Idempotent: if the component is already absent, returns the current absent state unchanged.
 	Uninstall(ctx context.Context, serverID string, tpl ResolvedTemplate) (SoftwareComponentDetail, error)
 

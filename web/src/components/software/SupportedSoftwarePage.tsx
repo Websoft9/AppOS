@@ -86,10 +86,10 @@ export function SupportedSoftwarePage() {
         </Link>
         <div className="flex items-start justify-between gap-3">
           <div>
-          <h1 className="text-2xl font-bold tracking-tight">Supported Software</h1>
-          <p className="mt-1 text-muted-foreground">
-            Pick a software family to inspect what AppOS can deliver to connected servers.
-          </p>
+            <h1 className="text-2xl font-bold tracking-tight">Supported Software</h1>
+            <p className="mt-1 text-muted-foreground">
+              Pick a software family to inspect what AppOS can deliver to connected servers.
+            </p>
           </div>
           <Button
             variant="outline"
@@ -151,7 +151,11 @@ export function SupportedSoftwarePage() {
                   </div>
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button variant="outline" size="sm" onClick={() => void selectComponent(item.component_key)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void selectComponent(item.component_key)}
+                  >
                     Detail
                   </Button>
                 </TableCell>

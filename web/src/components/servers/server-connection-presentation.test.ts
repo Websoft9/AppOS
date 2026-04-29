@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { getServerConnectionPresentation, type ServerConnectionFacts } from './server-connection-presentation'
+import {
+  getServerConnectionPresentation,
+  type ServerConnectionFacts,
+} from './server-connection-presentation'
 
 type DecisionCase = {
   name: string
@@ -22,7 +25,11 @@ const baseDirectFacts: ServerConnectionFacts = {
   credential_type: 'Password',
   created: '2026-04-20T08:00:00Z',
   updated: '2026-04-21T09:00:00Z',
-  connection: { state_code: 'awaiting_connection', reason_code: 'verification_pending', config_ready: true },
+  connection: {
+    state_code: 'awaiting_connection',
+    reason_code: 'verification_pending',
+    config_ready: true,
+  },
 }
 
 const baseTunnelFacts: ServerConnectionFacts = {
@@ -32,7 +39,11 @@ const baseTunnelFacts: ServerConnectionFacts = {
   credential_type: 'Password',
   created: '2026-04-20T08:00:00Z',
   updated: '2026-04-21T09:00:00Z',
-  connection: { state_code: 'awaiting_connection', reason_code: 'waiting_for_first_connect', config_ready: true },
+  connection: {
+    state_code: 'awaiting_connection',
+    reason_code: 'waiting_for_first_connect',
+    config_ready: true,
+  },
 }
 
 const cases: DecisionCase[] = [
@@ -42,7 +53,11 @@ const cases: DecisionCase[] = [
       ...baseDirectFacts,
       host: '',
       credential: '',
-      connection: { state_code: 'not_configured', reason_code: 'config_incomplete', config_ready: false },
+      connection: {
+        state_code: 'not_configured',
+        reason_code: 'config_incomplete',
+        config_ready: false,
+      },
       access: { status: 'unknown', reason: '', checked_at: '', source: 'derived' },
     },
     expected: {
@@ -57,7 +72,11 @@ const cases: DecisionCase[] = [
     name: 'direct awaiting verification',
     facts: {
       ...baseDirectFacts,
-      connection: { state_code: 'awaiting_connection', reason_code: 'verification_pending', config_ready: true },
+      connection: {
+        state_code: 'awaiting_connection',
+        reason_code: 'verification_pending',
+        config_ready: true,
+      },
       access: { status: 'unknown', reason: '', checked_at: '', source: 'derived' },
     },
     expected: {
@@ -73,7 +92,12 @@ const cases: DecisionCase[] = [
     facts: {
       ...baseDirectFacts,
       connection: { state_code: 'online', reason_code: '', config_ready: true },
-      access: { status: 'available', reason: '', checked_at: '2026-04-22T10:00:00Z', source: 'tcp_probe' },
+      access: {
+        status: 'available',
+        reason: '',
+        checked_at: '2026-04-22T10:00:00Z',
+        source: 'tcp_probe',
+      },
     },
     expected: {
       state: 'online',
@@ -87,8 +111,17 @@ const cases: DecisionCase[] = [
     name: 'direct unreachable',
     facts: {
       ...baseDirectFacts,
-      connection: { state_code: 'needs_attention', reason_code: 'tcp_connect_failed', config_ready: true },
-      access: { status: 'unavailable', reason: 'tcp_connect_failed', checked_at: '2026-04-22T10:00:00Z', source: 'tcp_probe' },
+      connection: {
+        state_code: 'needs_attention',
+        reason_code: 'tcp_connect_failed',
+        config_ready: true,
+      },
+      access: {
+        status: 'unavailable',
+        reason: 'tcp_connect_failed',
+        checked_at: '2026-04-22T10:00:00Z',
+        source: 'tcp_probe',
+      },
     },
     expected: {
       state: 'needs_attention',
@@ -102,9 +135,23 @@ const cases: DecisionCase[] = [
     name: 'tunnel setup required',
     facts: {
       ...baseTunnelFacts,
-      connection: { state_code: 'not_configured', reason_code: 'tunnel_setup_required', config_ready: true },
-      access: { status: 'unavailable', reason: 'waiting_for_first_connect', checked_at: '', source: 'tunnel_runtime' },
-      tunnel: { state: 'setup_required', status: 'offline', waiting_for_first_connect: true, services: [] },
+      connection: {
+        state_code: 'not_configured',
+        reason_code: 'tunnel_setup_required',
+        config_ready: true,
+      },
+      access: {
+        status: 'unavailable',
+        reason: 'waiting_for_first_connect',
+        checked_at: '',
+        source: 'tunnel_runtime',
+      },
+      tunnel: {
+        state: 'setup_required',
+        status: 'offline',
+        waiting_for_first_connect: true,
+        services: [],
+      },
     },
     expected: {
       state: 'not_configured',
@@ -118,8 +165,17 @@ const cases: DecisionCase[] = [
     name: 'tunnel awaiting first callback',
     facts: {
       ...baseTunnelFacts,
-      connection: { state_code: 'awaiting_connection', reason_code: 'waiting_for_first_connect', config_ready: true },
-      access: { status: 'unavailable', reason: 'waiting_for_first_connect', checked_at: '', source: 'tunnel_runtime' },
+      connection: {
+        state_code: 'awaiting_connection',
+        reason_code: 'waiting_for_first_connect',
+        config_ready: true,
+      },
+      access: {
+        status: 'unavailable',
+        reason: 'waiting_for_first_connect',
+        checked_at: '',
+        source: 'tunnel_runtime',
+      },
       tunnel: { state: 'ready', status: 'offline', waiting_for_first_connect: true, services: [] },
     },
     expected: {
@@ -135,8 +191,19 @@ const cases: DecisionCase[] = [
     facts: {
       ...baseTunnelFacts,
       connection: { state_code: 'paused', reason_code: 'paused', config_ready: true },
-      access: { status: 'unavailable', reason: 'paused', checked_at: '2026-04-22T10:00:00Z', source: 'tunnel_runtime' },
-      tunnel: { state: 'paused', status: 'paused', pause_until: '2026-04-23T10:00:00Z', reason: 'manual_pause', services: [] },
+      access: {
+        status: 'unavailable',
+        reason: 'paused',
+        checked_at: '2026-04-22T10:00:00Z',
+        source: 'tunnel_runtime',
+      },
+      tunnel: {
+        state: 'paused',
+        status: 'paused',
+        pause_until: '2026-04-23T10:00:00Z',
+        reason: 'manual_pause',
+        services: [],
+      },
     },
     expected: {
       state: 'paused',
@@ -151,8 +218,19 @@ const cases: DecisionCase[] = [
     facts: {
       ...baseTunnelFacts,
       connection: { state_code: 'online', reason_code: '', config_ready: true },
-      access: { status: 'available', reason: '', checked_at: '2026-04-22T10:00:00Z', source: 'tunnel_runtime' },
-      tunnel: { state: 'ready', status: 'online', connected_at: '2026-04-22T10:00:00Z', last_seen: '2026-04-22T10:02:00Z', services: [] },
+      access: {
+        status: 'available',
+        reason: '',
+        checked_at: '2026-04-22T10:00:00Z',
+        source: 'tunnel_runtime',
+      },
+      tunnel: {
+        state: 'ready',
+        status: 'online',
+        connected_at: '2026-04-22T10:00:00Z',
+        last_seen: '2026-04-22T10:02:00Z',
+        services: [],
+      },
     },
     expected: {
       state: 'online',
@@ -166,9 +244,24 @@ const cases: DecisionCase[] = [
     name: 'tunnel broken session',
     facts: {
       ...baseTunnelFacts,
-      connection: { state_code: 'needs_attention', reason_code: 'tunnel_offline', config_ready: true },
-      access: { status: 'unavailable', reason: 'tunnel_offline', checked_at: '2026-04-22T10:00:00Z', source: 'tunnel_runtime' },
-      tunnel: { state: 'ready', status: 'offline', reason: 'session expired', waiting_for_first_connect: false, services: [] },
+      connection: {
+        state_code: 'needs_attention',
+        reason_code: 'tunnel_offline',
+        config_ready: true,
+      },
+      access: {
+        status: 'unavailable',
+        reason: 'tunnel_offline',
+        checked_at: '2026-04-22T10:00:00Z',
+        source: 'tunnel_runtime',
+      },
+      tunnel: {
+        state: 'ready',
+        status: 'offline',
+        reason: 'session expired',
+        waiting_for_first_connect: false,
+        services: [],
+      },
     },
     expected: {
       state: 'needs_attention',
@@ -195,7 +288,12 @@ describe('server connection presentation decision table', () => {
     const presentation = getServerConnectionPresentation({
       ...baseDirectFacts,
       connection: { state_code: 'online', reason_code: '', config_ready: true },
-      access: { status: 'available', reason: '', checked_at: '2026-04-22T10:00:00Z', source: 'tcp_probe' },
+      access: {
+        status: 'available',
+        reason: '',
+        checked_at: '2026-04-22T10:00:00Z',
+        source: 'tcp_probe',
+      },
       access_status_override: 'offline',
     })
 

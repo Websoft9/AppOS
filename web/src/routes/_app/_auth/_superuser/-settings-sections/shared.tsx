@@ -101,8 +101,8 @@ export function ConnectorReferenceSection({
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          This section now references {helperNoun}. Create and edit {connectorKinds} from Resources so
-          all connector profiles stay in one place.
+          This section now references {helperNoun}. Create and edit {connectorKinds} from Resources
+          so all connector profiles stay in one place.
         </p>
         <Button asChild>
           <a href={ctaHref}>{ctaLabel}</a>

@@ -84,7 +84,7 @@ func TestLoadServerCatalogComponentKeys(t *testing.T) {
 		software.ComponentKeyDocker,
 		software.ComponentKeyReverseProxy,
 		software.ComponentKeyMonitorAgent,
-		software.ComponentKeyControlAgent,
+		software.ComponentKeyAppOSAgent,
 	}
 	found := make(map[software.ComponentKey]bool)
 	for _, e := range cat.Components {
@@ -143,12 +143,12 @@ func TestServerCatalogSupportedActionsAreValid(t *testing.T) {
 		t.Fatalf("LoadServerCatalog: %v", err)
 	}
 	validActions := map[software.Action]bool{
-		software.ActionInstall: true,
-		software.ActionUpgrade: true,
-		software.ActionStart: true,
-		software.ActionStop: true,
-		software.ActionRestart: true,
-		software.ActionVerify:  true,
+		software.ActionInstall:   true,
+		software.ActionUpgrade:   true,
+		software.ActionStart:     true,
+		software.ActionStop:      true,
+		software.ActionRestart:   true,
+		software.ActionVerify:    true,
 		software.ActionReinstall: true,
 		software.ActionUninstall: true,
 	}

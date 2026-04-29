@@ -62,7 +62,13 @@ describe('ServiceInstancesPage', () => {
               title: 'Generic MySQL',
               commonFieldDefaults: { username: 'root' },
               fields: [
-                { id: 'database', label: 'Database', type: 'text', required: true, default: 'MySQL' },
+                {
+                  id: 'database',
+                  label: 'Database',
+                  type: 'text',
+                  required: true,
+                  default: 'MySQL',
+                },
                 { id: 'ssl_ca_certificate', label: 'SSL Root CA Certificate', type: 'text' },
               ],
             },
@@ -83,7 +89,13 @@ describe('ServiceInstancesPage', () => {
               title: 'Generic PostgreSQL',
               commonFieldDefaults: { username: 'postgres' },
               fields: [
-                { id: 'database', label: 'Database', type: 'text', required: true, default: 'postgres' },
+                {
+                  id: 'database',
+                  label: 'Database',
+                  type: 'text',
+                  required: true,
+                  default: 'postgres',
+                },
                 { id: 'ssl_ca_certificate', label: 'SSL Root CA Certificate', type: 'text' },
               ],
             },
@@ -239,7 +251,9 @@ describe('ServiceInstancesPage', () => {
     expect(screen.getByLabelText('Description')).toBeInTheDocument()
     expect(screen.getByLabelText(/^Connection Timeout/)).toBeInTheDocument()
     expect(screen.getByText('Use SSL')).toBeInTheDocument()
-    expect(screen.queryByText('Optional connection, security, and organization settings.')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Optional connection, security, and organization settings.')
+    ).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Mutual SSL'))
 
@@ -269,67 +283,75 @@ describe('ServiceInstancesPage', () => {
   })
 
   it('keeps secret-only password editing and remembers ssl mode for existing instances', async () => {
-    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
-      if (path === '/api/instances/templates') {
-        return Promise.resolve([
-          {
-            id: 'generic-mysql',
-            category: 'database',
-            kind: 'mysql',
-            title: 'Generic MySQL',
-            commonFieldDefaults: { username: 'root' },
-            fields: [
-              { id: 'database', label: 'Database', type: 'text', required: true, default: 'MySQL' },
-              { id: 'ssl_ca_certificate', label: 'SSL Root CA Certificate', type: 'text' },
-            ],
-          },
-        ])
-      }
-      if (path === '/api/instances' && (!options?.method || options.method === 'GET')) {
-        return Promise.resolve([
-          {
-            id: 'instance-1',
-            created: '2026-04-11T08:30:00Z',
-            updated: '2026-04-11T09:45:00Z',
-            name: 'mysql-prod',
-            kind: 'mysql',
-            template_id: 'generic-mysql',
-            endpoint: 'db.example.com:3306',
-            credential: 'secret-1',
-            config: {
-              database: 'appdb',
-              username: 'root',
-              ssl_enabled: true,
-            },
-          },
-        ])
-      }
-      if (path.startsWith('/api/collections/monitor_latest_status/records?')) {
-        return Promise.resolve({
-          items: [
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+        if (path === '/api/instances/templates') {
+          return Promise.resolve([
             {
-              target_id: 'instance-1',
-              status: 'unreachable',
-              reason: 'dial tcp 127.0.0.1:6379: connect: connection refused',
-              last_checked_at: '2026-04-11T10:00:00Z',
+              id: 'generic-mysql',
+              category: 'database',
+              kind: 'mysql',
+              title: 'Generic MySQL',
+              commonFieldDefaults: { username: 'root' },
+              fields: [
+                {
+                  id: 'database',
+                  label: 'Database',
+                  type: 'text',
+                  required: true,
+                  default: 'MySQL',
+                },
+                { id: 'ssl_ca_certificate', label: 'SSL Root CA Certificate', type: 'text' },
+              ],
             },
-          ],
-        })
-      }
-      if (path.startsWith('/api/collections/secrets/records?filter=')) {
-        return Promise.resolve({ items: [{ id: 'secret-1', name: 'db-password' }] })
-      }
-      if (path === '/api/provider-accounts') {
+          ])
+        }
+        if (path === '/api/instances' && (!options?.method || options.method === 'GET')) {
+          return Promise.resolve([
+            {
+              id: 'instance-1',
+              created: '2026-04-11T08:30:00Z',
+              updated: '2026-04-11T09:45:00Z',
+              name: 'mysql-prod',
+              kind: 'mysql',
+              template_id: 'generic-mysql',
+              endpoint: 'db.example.com:3306',
+              credential: 'secret-1',
+              config: {
+                database: 'appdb',
+                username: 'root',
+                ssl_enabled: true,
+              },
+            },
+          ])
+        }
+        if (path.startsWith('/api/collections/monitor_latest_status/records?')) {
+          return Promise.resolve({
+            items: [
+              {
+                target_id: 'instance-1',
+                status: 'unreachable',
+                reason: 'dial tcp 127.0.0.1:6379: connect: connection refused',
+                last_checked_at: '2026-04-11T10:00:00Z',
+              },
+            ],
+          })
+        }
+        if (path.startsWith('/api/collections/secrets/records?filter=')) {
+          return Promise.resolve({ items: [{ id: 'secret-1', name: 'db-password' }] })
+        }
+        if (path === '/api/provider-accounts') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === "/api/collections/certificates/records?filter=(status='active')&sort=name") {
+          return Promise.resolve({ items: [{ id: 'cert-1', name: 'Demo CA' }] })
+        }
         return Promise.resolve([])
       }
-      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
-        return Promise.resolve({ items: [] })
-      }
-      if (path === "/api/collections/certificates/records?filter=(status='active')&sort=name") {
-        return Promise.resolve({ items: [{ id: 'cert-1', name: 'Demo CA' }] })
-      }
-      return Promise.resolve([])
-    })
+    )
 
     render(<ServiceInstancesPage />)
 
@@ -340,10 +362,7 @@ describe('ServiceInstancesPage', () => {
     expect(screen.getByText('Unreachable')).toBeInTheDocument()
     expect(screen.getByText('Apr 11, 2026, 10:00 AM')).toBeInTheDocument()
 
-    expect(sendMock).not.toHaveBeenCalledWith(
-      '/api/instances/reachability',
-      expect.anything()
-    )
+    expect(sendMock).not.toHaveBeenCalledWith('/api/instances/reachability', expect.anything())
 
     expect(screen.getAllByText(/2026/).length).toBeGreaterThanOrEqual(1)
 
@@ -399,70 +418,78 @@ describe('ServiceInstancesPage', () => {
   })
 
   it('edits an existing secret inline without navigating away', async () => {
-    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
-      if (path === '/api/instances/templates') {
-        return Promise.resolve([
-          {
-            id: 'generic-mysql',
-            category: 'database',
-            kind: 'mysql',
-            title: 'Generic MySQL',
-            commonFieldDefaults: { username: 'root' },
-            fields: [
-              { id: 'database', label: 'Database', type: 'text', required: true, default: 'MySQL' },
-              { id: 'ssl_ca_certificate', label: 'SSL Root CA Certificate', type: 'text' },
-            ],
-          },
-        ])
-      }
-      if (path === '/api/secrets/templates') {
-        return Promise.resolve([
-          {
-            id: 'single_value',
-            label: 'Single Value',
-            fields: [{ key: 'value', label: 'Value', type: 'password', required: true }],
-          },
-        ])
-      }
-      if (path === '/api/instances' && (!options?.method || options.method === 'GET')) {
-        return Promise.resolve([
-          {
-            id: 'instance-1',
-            created: '2026-04-11T08:30:00Z',
-            updated: '2026-04-11T09:45:00Z',
-            name: 'mysql-prod',
-            kind: 'mysql',
-            template_id: 'generic-mysql',
-            endpoint: 'db.example.com:3306',
-            credential: 'secret-1',
-            config: {
-              database: 'appdb',
-              username: 'root',
-              ssl_enabled: true,
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+        if (path === '/api/instances/templates') {
+          return Promise.resolve([
+            {
+              id: 'generic-mysql',
+              category: 'database',
+              kind: 'mysql',
+              title: 'Generic MySQL',
+              commonFieldDefaults: { username: 'root' },
+              fields: [
+                {
+                  id: 'database',
+                  label: 'Database',
+                  type: 'text',
+                  required: true,
+                  default: 'MySQL',
+                },
+                { id: 'ssl_ca_certificate', label: 'SSL Root CA Certificate', type: 'text' },
+              ],
             },
-          },
-        ])
-      }
-      if (path.startsWith('/api/collections/monitor_latest_status/records?')) {
-        return Promise.resolve({ items: [] })
-      }
-      if (path.startsWith('/api/collections/secrets/records?filter=')) {
-        return Promise.resolve({ items: [{ id: 'secret-1', name: 'db-password' }] })
-      }
-      if (path === '/api/provider-accounts') {
+          ])
+        }
+        if (path === '/api/secrets/templates') {
+          return Promise.resolve([
+            {
+              id: 'single_value',
+              label: 'Single Value',
+              fields: [{ key: 'value', label: 'Value', type: 'password', required: true }],
+            },
+          ])
+        }
+        if (path === '/api/instances' && (!options?.method || options.method === 'GET')) {
+          return Promise.resolve([
+            {
+              id: 'instance-1',
+              created: '2026-04-11T08:30:00Z',
+              updated: '2026-04-11T09:45:00Z',
+              name: 'mysql-prod',
+              kind: 'mysql',
+              template_id: 'generic-mysql',
+              endpoint: 'db.example.com:3306',
+              credential: 'secret-1',
+              config: {
+                database: 'appdb',
+                username: 'root',
+                ssl_enabled: true,
+              },
+            },
+          ])
+        }
+        if (path.startsWith('/api/collections/monitor_latest_status/records?')) {
+          return Promise.resolve({ items: [] })
+        }
+        if (path.startsWith('/api/collections/secrets/records?filter=')) {
+          return Promise.resolve({ items: [{ id: 'secret-1', name: 'db-password' }] })
+        }
+        if (path === '/api/provider-accounts') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === "/api/collections/certificates/records?filter=(status='active')&sort=name") {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === '/api/secrets/secret-1/payload') {
+          return Promise.resolve({ ok: true })
+        }
         return Promise.resolve([])
       }
-      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
-        return Promise.resolve({ items: [] })
-      }
-      if (path === "/api/collections/certificates/records?filter=(status='active')&sort=name") {
-        return Promise.resolve({ items: [] })
-      }
-      if (path === '/api/secrets/secret-1/payload') {
-        return Promise.resolve({ ok: true })
-      }
-      return Promise.resolve([])
-    })
+    )
 
     render(<ServiceInstancesPage />)
 
@@ -479,7 +506,11 @@ describe('ServiceInstancesPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit Secret' }))
 
-    expect(await screen.findByText('Update the selected Secret without leaving service instance editing.')).toBeInTheDocument()
+    expect(
+      await screen.findByText(
+        'Update the selected Secret without leaving service instance editing.'
+      )
+    ).toBeInTheDocument()
     expect(getSecretMock).toHaveBeenCalledWith('secret-1')
 
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'db-password-updated' } })

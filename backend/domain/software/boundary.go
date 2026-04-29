@@ -14,9 +14,9 @@
 // Software Delivery manages static component state for two delivery target types:
 //
 //   - local  — AppOS runtime install: components in the AppOS container (nginx,
-//              redis, docker, supervisor). Static state: version and availability.
+//     redis, docker, supervisor). Static state: version and availability.
 //   - server — managed remote servers registered in the server catalog.
-//              Full workflow: install, upgrade, verify, reinstall.
+//     Full workflow: install, upgrade, verify, reinstall.
 //
 // # Ownership Rules
 //
@@ -28,16 +28,16 @@
 //
 // For ALL target types (local and server), the domain split is:
 //
-//   Software Delivery owns (regardless of whether the component is running):
-//     - installed component identity, version, and availability (inventory)
-//     - install, upgrade, verify, and reinstall workflows (provisioning)
-//     - OS, privilege, network, and dependency readiness checks (target-readiness)
+//	Software Delivery owns (regardless of whether the component is running):
+//	  - installed component identity, version, and availability (inventory)
+//	  - install, upgrade, verify, and reinstall workflows (provisioning)
+//	  - OS, privilege, network, and dependency readiness checks (target-readiness)
 //
-//   Monitor owns (for the same software, only its runtime observation):
-//     - is it currently alive (active state via supervisord / systemd)
-//     - runtime health trend, uptime, CPU, memory, logs
-//     - heartbeat, active checks, and health summaries
-//     - operator-facing status timelines and degraded-state visibility
+//	Monitor owns (for the same software, only its runtime observation):
+//	  - is it currently alive (active state via supervisord / systemd)
+//	  - runtime health trend, uptime, CPU, memory, logs
+//	  - heartbeat, active checks, and health summaries
+//	  - operator-facing status timelines and degraded-state visibility
 //
 // The split is: Software Delivery answers "what is installed and at what version",
 // Monitor answers "is it running and is it healthy right now".
@@ -49,8 +49,8 @@
 //
 // Existing code material maps to subdomains as follows:
 //
-//   backend/domain/components     → inventory  (installed state per server)
-//   backend/domain/software     → catalog, provisioning, target-readiness
+//	backend/domain/components     → inventory  (installed state per server)
+//	backend/domain/software     → catalog, provisioning, target-readiness
 //
 // # Audit Migration Note
 //
@@ -106,6 +106,6 @@ var MaterialSubdomainMap = map[string]Subdomain{
 var CapabilityComponentMap = map[Capability]ComponentKey{
 	CapabilityContainerRuntime: ComponentKeyDocker,
 	CapabilityMonitorAgent:     ComponentKeyMonitorAgent,
-	CapabilityControlPlane:     ComponentKeyControlAgent,
+	CapabilityControlPlane:     ComponentKeyAppOSAgent,
 	CapabilityReverseProxy:     ComponentKeyReverseProxy,
 }

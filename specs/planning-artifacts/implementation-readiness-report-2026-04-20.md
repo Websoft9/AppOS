@@ -129,11 +129,11 @@ This is a **low-blocking risk** for backend stories (29.1–29.5), but it should
 
 #### Story 29.4 — Catalog
 
-**Status: ⚠️ Blocked on control-agent installer URL**
+**Status: ⚠️ Blocked on appos-agent installer URL**
 
 - Docker, Nginx, Netdata agent catalog entries are complete and correct
 - YAML file belongs under `backend/domain/software/catalog.yaml` with all 4 components
-- **CRITICAL**: `control-agent` installer URL is a placeholder: `{control_agent_installer_url}` in code, `https://example.invalid/appos-control-agent/install.sh` in story — neither is a real, resolvable URL. Install action for control-agent cannot execute without this value.
+- **CRITICAL**: `appos-agent` installer URL is a placeholder: `{appos_agent_installer_url}` in code, `https://example.invalid/appos-agent/install.sh` in story — neither is a real, resolvable URL. Install action for appos-agent cannot execute without this value.
 - Adding a component requires catalog registration (not a new story) ✅
 
 #### Story 29.5 — Target Readiness
@@ -163,7 +163,7 @@ This is a **low-blocking risk** for backend stories (29.1–29.5), but it should
 |---|---|---|---|
 | C1 | **DTO naming ambiguity** | Story 29.1 vs. `model.go` | Decide: rename code types (`ComponentSummary` → `SoftwareComponentSummary`, etc.) or update story to match current code names |
 | C2 | **`dependency_ready` field missing in 29.1 DTO** | Story 29.1 `TargetReadinessResult` vs. Story 29.5 readiness contract | Add `dependency_ready` to `TargetReadinessResult` in Story 29.1, or document that it is resolved differently |
-| C3 | **control-agent installer URL unresolved** | Story 29.4 catalog entry, `catalog.yaml` | Determine and document the real installer URL before Story 29.4 can be implemented |
+| C3 | **appos-agent installer URL unresolved** | Story 29.4 catalog entry, `catalog.yaml` | Determine and document the real installer URL before Story 29.4 can be implemented |
 
 ### MEDIUM (Should resolve before story-level implementation)
 
@@ -199,7 +199,7 @@ All critical and medium issues identified in the initial assessment have been re
 |---|---|---|
 | C1 | DTO naming ambiguity | `model.go` updated to use Software Delivery domain names consistently: `SoftwareComponentSummary`, `SoftwareComponentDetail`, `SoftwareActionResponse`, `SoftwareDeliveryLastAction`, `TargetReadinessResult`, `SoftwareVerificationResult` |
 | C2 | `dependency_ready` field missing | Added `DependencyReady bool` to `TargetReadinessResult` in `model.go` and to the DTO table in Story 29.1 |
-| C3 | control-agent installer URL placeholder | `catalog.yaml` updated: `script_url` is now empty with a comment directing the executor to read `software.control_agent_installer_url` system setting. Story 29.4 adds Task 4 to register the setting. |
+| C3 | appos-agent installer URL placeholder | `catalog.yaml` updated: `script_url` is now empty with a comment directing the executor to read `software.appos_agent_installer_url` system setting. Story 29.4 adds Task 4 to register the setting. |
 | M1 | No async worker story | Canonical Story 29.2 now carries the async worker contract; detailed prior implementation record is preserved in `epic29-legacy-implementation-record.md` |
 | M2 | Audit action rename not planned | `model.go` constants updated to `server.software.*`. Story 29.2 Task 4 added to cover the rename plan and migration note. `AuditActionReinstall` added. |
 | M3 | Epic 28 dependency direction unclear | Removed Epic 28 from Epic 29 `Depends on` — Monitor is a consumer of Software Delivery output, not a prerequisite |

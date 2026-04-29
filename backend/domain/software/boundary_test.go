@@ -28,8 +28,8 @@ func TestSubdomainConstants(t *testing.T) {
 // silently broken by future cleanup.
 func TestComponentMaterialMapping(t *testing.T) {
 	expected := map[string]Subdomain{
-		"components.registry":        SubdomainCatalog,
-		"components.inventory_output": SubdomainInventory,
+		"components.registry":             SubdomainCatalog,
+		"components.inventory_output":     SubdomainInventory,
 		"software.install_upgrade_verify": SubdomainProvisioning,
 		"software.os_privilege_network":   SubdomainTargetReadiness,
 	}
@@ -97,7 +97,7 @@ func TestCapabilityToComponentMapping(t *testing.T) {
 	}{
 		{CapabilityContainerRuntime, ComponentKeyDocker},
 		{CapabilityMonitorAgent, ComponentKeyMonitorAgent},
-		{CapabilityControlPlane, ComponentKeyControlAgent},
+		{CapabilityControlPlane, ComponentKeyAppOSAgent},
 		{CapabilityReverseProxy, ComponentKeyReverseProxy},
 	}
 	for _, c := range cases {

@@ -21,6 +21,11 @@ type Service struct {
 	client  *Client
 }
 
+type QueryRangeMatrixSeries struct {
+	Metric map[string]string
+	Values [][]float64
+}
+
 func New(httpClient *http.Client) *Client {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
@@ -45,6 +50,10 @@ func (s *Service) ListSeries(ctx context.Context, matchers []string, start, end 
 
 func (s *Service) QueryRange(ctx context.Context, query string, start, end time.Time, step time.Duration) ([][]float64, error) {
 	return s.client.QueryRange(ctx, s.endpoint("/api/v1/query_range"), query, start, end, step)
+}
+
+func (s *Service) QueryRangeMatrix(ctx context.Context, query string, start, end time.Time, step time.Duration) ([]QueryRangeMatrixSeries, error) {
+	return s.client.QueryRangeMatrix(ctx, s.endpoint("/api/v1/query_range"), query, start, end, step)
 }
 
 func (s *Service) endpoint(path string) string {
@@ -105,6 +114,17 @@ func (c *Client) ListSeries(ctx context.Context, endpoint string, matchers []str
 }
 
 func (c *Client) QueryRange(ctx context.Context, endpoint, query string, start, end time.Time, step time.Duration) ([][]float64, error) {
+	series, err := c.QueryRangeMatrix(ctx, endpoint, query, start, end, step)
+	if err != nil {
+		return nil, err
+	}
+	if len(series) == 0 {
+		return [][]float64{}, nil
+	}
+	return series[0].Values, nil
+}
+
+func (c *Client) QueryRangeMatrix(ctx context.Context, endpoint, query string, start, end time.Time, step time.Duration) ([]QueryRangeMatrixSeries, error) {
 	params := url.Values{}
 	params.Set("query", query)
 	params.Set("start", fmt.Sprintf("%d", start.Unix()))
@@ -126,7 +146,8 @@ func (c *Client) QueryRange(ctx context.Context, endpoint, query string, start, 
 		Status string `json:"status"`
 		Data   struct {
 			Result []struct {
-				Values [][]any `json:"values"`
+				Metric map[string]string `json:"metric"`
+				Values [][]any           `json:"values"`
 			} `json:"result"`
 		} `json:"data"`
 	}
@@ -136,25 +157,26 @@ func (c *Client) QueryRange(ctx context.Context, endpoint, query string, start, 
 	if payload.Status != "success" {
 		return nil, fmt.Errorf("victoriametrics query did not succeed")
 	}
-	if len(payload.Data.Result) == 0 {
-		return [][]float64{}, nil
+	series := make([]QueryRangeMatrixSeries, 0, len(payload.Data.Result))
+	for _, rawSeries := range payload.Data.Result {
+		points := make([][]float64, 0, len(rawSeries.Values))
+		for _, raw := range rawSeries.Values {
+			if len(raw) != 2 {
+				continue
+			}
+			timestamp, ok := coerceMetricFloat(raw[0])
+			if !ok {
+				continue
+			}
+			value, ok := coerceMetricFloat(raw[1])
+			if !ok {
+				continue
+			}
+			points = append(points, []float64{timestamp, value})
+		}
+		series = append(series, QueryRangeMatrixSeries{Metric: rawSeries.Metric, Values: points})
 	}
-	points := make([][]float64, 0, len(payload.Data.Result[0].Values))
-	for _, raw := range payload.Data.Result[0].Values {
-		if len(raw) != 2 {
-			continue
-		}
-		timestamp, ok := coerceMetricFloat(raw[0])
-		if !ok {
-			continue
-		}
-		value, ok := coerceMetricFloat(raw[1])
-		if !ok {
-			continue
-		}
-		points = append(points, []float64{timestamp, value})
-	}
-	return points, nil
+	return series, nil
 }
 
 func coerceMetricFloat(value any) (float64, bool) {

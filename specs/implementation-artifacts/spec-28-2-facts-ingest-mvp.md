@@ -42,7 +42,7 @@ context:
 - `backend/domain/routes/monitor_test.go` -- existing ingest test harness and monitor route assertions
 - `backend/domain/monitor/signals/agent/token.go` -- reusable monitor token validation for server ownership
 - `backend/domain/monitor/signals/agent/heartbeat.go` -- ingest helper style for authenticated agent payloads
-- `backend/cmd/appos-monitor-agent/main.go` -- monitor agent payload structs, run cycle, and POST helpers
+- `backend/cmd/appos-agent/main.go` -- agent payload structs, run cycle, and POST helpers
 
 ## Tasks & Acceptance
 
@@ -51,7 +51,7 @@ context:
 - [ ] `backend/domain/routes/monitor_test.go` -- add facts ingest coverage for happy path, ownership mismatch, allowlist rejection, batch limit, and replace semantics -- locks the contract before implementation
 - [ ] `backend/domain/monitor/signals/agent/facts.go` -- implement server-scoped facts validation and persistence helper -- keeps route logic thin and reuses monitor agent patterns
 - [ ] `backend/domain/routes/monitor.go` -- register and implement `POST /api/monitor/ingest/facts` -- exposes the backend ingest contract
-- [ ] `backend/cmd/appos-monitor-agent/main.go` -- add facts payload structs, collection, and `/facts` post path -- closes the MVP agent-to-backend loop
+- [ ] `backend/cmd/appos-agent/main.go` -- add facts payload structs, collection, and `/facts` post path -- closes the MVP agent-to-backend loop
 
 **Acceptance Criteria:**
 - Given a valid monitor agent token for a server, when the agent posts one allowlisted facts snapshot for that server, then AppOS persists the snapshot to the canonical server record and records the snapshot observation time.
@@ -66,4 +66,4 @@ context:
 
 **Commands:**
 - `cd /data/dev/appos/backend && go test ./domain/routes ./domain/monitor/signals/agent ./infra/migrations` -- expected: facts ingest tests and migration compilation pass
-- `cd /data/dev/appos/backend && go test ./cmd/appos-monitor-agent` -- expected: agent facts payload path compiles and tests pass if present
+- `cd /data/dev/appos/backend && go test ./cmd/appos-agent` -- expected: agent facts payload path compiles and tests pass if present

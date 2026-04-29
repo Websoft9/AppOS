@@ -44,3 +44,34 @@ type MetricSeriesResponse struct {
 	AvailableNetworkInterfaces []string       `json:"availableNetworkInterfaces,omitempty"`
 	SelectedNetworkInterface   string         `json:"selectedNetworkInterface,omitempty"`
 }
+
+type ContainerTelemetryLatest struct {
+	CPUPercent              *float64 `json:"cpuPercent,omitempty"`
+	MemoryBytes             *float64 `json:"memoryBytes,omitempty"`
+	NetworkRxBytesPerSecond *float64 `json:"networkRxBytesPerSecond,omitempty"`
+	NetworkTxBytesPerSecond *float64 `json:"networkTxBytesPerSecond,omitempty"`
+}
+
+type ContainerTelemetryFreshness struct {
+	State      string `json:"state"`
+	ObservedAt string `json:"observedAt,omitempty"`
+}
+
+type ContainerTelemetryItem struct {
+	ContainerID    string                      `json:"containerId"`
+	ContainerName  string                      `json:"containerName,omitempty"`
+	ComposeProject string                      `json:"composeProject,omitempty"`
+	ComposeService string                      `json:"composeService,omitempty"`
+	Latest         ContainerTelemetryLatest    `json:"latest"`
+	Freshness      ContainerTelemetryFreshness `json:"freshness"`
+	Series         []MetricSeries              `json:"series,omitempty"`
+}
+
+type ContainerTelemetryResponse struct {
+	ServerID     string                   `json:"serverId"`
+	Window       string                   `json:"window"`
+	RangeStartAt string                   `json:"rangeStartAt,omitempty"`
+	RangeEndAt   string                   `json:"rangeEndAt,omitempty"`
+	StepSeconds  int                      `json:"stepSeconds,omitempty"`
+	Items        []ContainerTelemetryItem `json:"items"`
+}

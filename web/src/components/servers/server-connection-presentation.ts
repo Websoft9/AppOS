@@ -1,4 +1,11 @@
-export type ServerDetailTab = 'overview' | 'connection' | 'monitor' | 'docker' | 'runtime' | 'tunnel' | 'software'
+export type ServerDetailTab =
+  | 'overview'
+  | 'connection'
+  | 'monitor'
+  | 'docker'
+  | 'runtime'
+  | 'tunnel'
+  | 'software'
 
 export type ServerConnectionState =
   | 'not_configured'
@@ -163,7 +170,9 @@ function normalizeTunnelState(facts: ServerConnectionFacts): NormalizedTunnelSta
   return waiting ? 'setup_required' : 'ready'
 }
 
-function normalizeBackendConnectionAggregate(facts: ServerConnectionFacts): BackendConnectionAggregate {
+function normalizeBackendConnectionAggregate(
+  facts: ServerConnectionFacts
+): BackendConnectionAggregate {
   const connection = asObject(facts.connection)
   const rawState = String(connection?.state_code ?? '').toLowerCase()
   const stateCode: BackendConnectionState | null =
@@ -272,7 +281,9 @@ function getConnectionReason(facts: ServerConnectionFacts, state: ServerConnecti
     return isTunnel ? 'Tunnel setup has not started.' : 'Complete SSH details before verification.'
   }
   if (state === 'awaiting_connection') {
-    return isTunnel ? 'Waiting for the first tunnel callback.' : 'Configuration is ready for verification.'
+    return isTunnel
+      ? 'Waiting for the first tunnel callback.'
+      : 'Configuration is ready for verification.'
   }
   if (state === 'online') {
     return isTunnel ? 'Tunnel session is active.' : 'SSH access is reachable.'
@@ -288,7 +299,10 @@ function getConnectionReason(facts: ServerConnectionFacts, state: ServerConnecti
   return String(tunnel?.reason ?? '').trim() || 'This connection needs attention.'
 }
 
-function getPrimaryAction(facts: ServerConnectionFacts, state: ServerConnectionState): {
+function getPrimaryAction(
+  facts: ServerConnectionFacts,
+  state: ServerConnectionState
+): {
   primaryAction: ServerConnectionActionSpec
   primaryActionDescription: string
   secondaryActions: ServerConnectionActionSpec[]
@@ -296,9 +310,20 @@ function getPrimaryAction(facts: ServerConnectionFacts, state: ServerConnectionS
 } {
   const isTunnel = String(facts.connect_type ?? '') === 'tunnel'
 
-  const viewConnection: ServerConnectionActionSpec = { id: 'view_connection', label: 'View Connection', tab: 'connection' }
-  const viewDetails: ServerConnectionActionSpec = { id: 'view_details', label: 'View Details', tab: 'overview' }
-  const viewChecklist: ServerConnectionActionSpec = { id: 'view_checklist', label: 'View Checklist' }
+  const viewConnection: ServerConnectionActionSpec = {
+    id: 'view_connection',
+    label: 'View Connection',
+    tab: 'connection',
+  }
+  const viewDetails: ServerConnectionActionSpec = {
+    id: 'view_details',
+    label: 'View Details',
+    tab: 'overview',
+  }
+  const viewChecklist: ServerConnectionActionSpec = {
+    id: 'view_checklist',
+    label: 'View Checklist',
+  }
 
   if (state === 'online') {
     return {
@@ -385,11 +410,15 @@ function buildTimeline(facts: ServerConnectionFacts): ServerConnectionTimelineEv
   const events = [
     timelineEvent('Server created', facts.created),
     facts.credential ? timelineEvent('Credential attached', facts.updated) : null,
-    String(facts.connect_type ?? '') === 'tunnel' ? timelineEvent('Setup started', facts.created) : null,
+    String(facts.connect_type ?? '') === 'tunnel'
+      ? timelineEvent('Setup started', facts.created)
+      : null,
     timelineEvent('Verification or callback observed', access?.checked_at ?? tunnel?.connected_at),
     timelineEvent('Last healthy seen', tunnel?.last_seen),
     timelineEvent('Pause window updated', tunnel?.pause_until),
-    String(access?.reason ?? '').trim() !== '' ? timelineEvent('Last failure observed', access?.checked_at) : null,
+    String(access?.reason ?? '').trim() !== ''
+      ? timelineEvent('Last failure observed', access?.checked_at)
+      : null,
     timelineEvent('Record updated', facts.updated),
   ].filter((event): event is ServerConnectionTimelineEvent => event !== null)
 
@@ -407,7 +436,8 @@ export function getServerConnectionPresentation(
 ): ServerConnectionPresentationSpec {
   const state = getConnectionState(facts)
   const reason = getConnectionReason(facts, state)
-  const { primaryAction, primaryActionDescription, secondaryActions, stateActions } = getPrimaryAction(facts, state)
+  const { primaryAction, primaryActionDescription, secondaryActions, stateActions } =
+    getPrimaryAction(facts, state)
   const access = asObject(facts.access)
   const tunnel = asObject(facts.tunnel)
   const lastActivityAt = getLastActivityAt(facts)

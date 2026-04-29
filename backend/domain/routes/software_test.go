@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -103,6 +104,8 @@ func TestSoftwareComponentSummaryResponseFields(t *testing.T) {
 			TemplateKind:      software.TemplateKindPackage,
 			AvailableActions:  []software.Action{software.ActionInstall, software.ActionVerify},
 			InstalledState:    software.InstalledStateInstalled,
+			InstallSource:     software.InstallSourceManaged,
+			SourceEvidence:    "apt:docker-ce",
 			VerificationState: software.VerificationStateHealthy,
 		},
 		TargetType: software.TargetTypeServer,
@@ -112,6 +115,77 @@ func TestSoftwareComponentSummaryResponseFields(t *testing.T) {
 	}
 	if resp.InstalledState != software.InstalledStateInstalled {
 		t.Errorf("unexpected installed_state: %q", resp.InstalledState)
+	}
+	if resp.InstallSource != software.InstallSourceManaged {
+		t.Errorf("unexpected install_source: %q", resp.InstallSource)
+	}
+}
+
+func TestSoftwareComponentListItemJSONIncludesDetectSourceFields(t *testing.T) {
+	resp := softwareComponentListItem{
+		SoftwareComponentSummary: software.SoftwareComponentSummary{
+			ComponentKey:      software.ComponentKeyDocker,
+			Label:             "Docker",
+			TemplateKind:      software.TemplateKindPackage,
+			InstalledState:    software.InstalledStateInstalled,
+			DetectedVersion:   "27.0.1",
+			InstallSource:     software.InstallSourceForeignPackage,
+			SourceEvidence:    "apt:docker.io",
+			VerificationState: software.VerificationStateDegraded,
+			AvailableActions:  []software.Action{software.ActionVerify, software.ActionReinstall},
+		},
+		TargetType: software.TargetTypeServer,
+	}
+
+	data, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal response: %v", err)
+	}
+
+	var body map[string]any
+	if err := json.Unmarshal(data, &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if body["install_source"] != "foreign_package" {
+		t.Fatalf("expected install_source foreign_package, got %#v", body["install_source"])
+	}
+	if body["source_evidence"] != "apt:docker.io" {
+		t.Fatalf("expected source_evidence apt:docker.io, got %#v", body["source_evidence"])
+	}
+}
+
+func TestSoftwareComponentDetailResponseJSONIncludesDetectSourceFields(t *testing.T) {
+	resp := softwareComponentDetailResponse{
+		SoftwareComponentDetail: software.SoftwareComponentDetail{
+			SoftwareComponentSummary: software.SoftwareComponentSummary{
+				ComponentKey:      software.ComponentKeyDocker,
+				Label:             "Docker",
+				TemplateKind:      software.TemplateKindPackage,
+				InstalledState:    software.InstalledStateInstalled,
+				DetectedVersion:   "27.0.1",
+				InstallSource:     software.InstallSourceManual,
+				SourceEvidence:    "binary:/usr/local/bin/docker",
+				VerificationState: software.VerificationStateHealthy,
+			},
+			ServiceName: "docker.service",
+		},
+		TargetType: software.TargetTypeServer,
+	}
+
+	data, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal response: %v", err)
+	}
+
+	var body map[string]any
+	if err := json.Unmarshal(data, &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if body["install_source"] != "manual" {
+		t.Fatalf("expected install_source manual, got %#v", body["install_source"])
+	}
+	if body["source_evidence"] != "binary:/usr/local/bin/docker" {
+		t.Fatalf("expected source_evidence binary path, got %#v", body["source_evidence"])
 	}
 }
 
@@ -527,5 +601,23 @@ func TestSoftwareComponentActionReturnsConflictWhenOperationInFlight(t *testing.
 	body := parseJSON(t, rec)
 	if body["error"] != "operation_in_flight" {
 		t.Fatalf("expected operation_in_flight error, got %#v", body["error"])
+	}
+}
+
+func TestSoftwareComponentActionRejectsInvalidAppOSBaseURL(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	oldClient := asynqClient
+	asynqClient = &asynq.Client{}
+	defer func() { asynqClient = oldClient }()
+
+	rec := te.doSoftware(t, http.MethodPost, "/api/servers/srv-1/software/appos-agent/install", `{"apposBaseUrl":"console.example.com"}`, true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid apposBaseUrl to return 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := parseJSON(t, rec)
+	if body["error"] != "invalid_appos_base_url" {
+		t.Fatalf("expected invalid_appos_base_url error, got %#v", body["error"])
 	}
 }

@@ -7,7 +7,15 @@ const sendMock = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (config: Record<string, unknown>) => config,
-  Link: ({ children, to, className }: { children: React.ReactNode; to: string; className?: string }) => (
+  Link: ({
+    children,
+    to,
+    className,
+  }: {
+    children: React.ReactNode
+    to: string
+    className?: string
+  }) => (
     <a href={to} className={className}>
       {children}
     </a>
@@ -49,7 +57,9 @@ describe('GroupsListPage', () => {
 
       if (path === '/api/collections/group_items/records?perPage=500') {
         return Promise.resolve({
-          items: [{ id: 'item-1', group_id: 'group-1', object_type: 'server', object_id: 'server-1' }],
+          items: [
+            { id: 'item-1', group_id: 'group-1', object_type: 'server', object_id: 'server-1' },
+          ],
         })
       }
 

@@ -4,11 +4,10 @@ import { routeTree } from './routeTree.gen'
 
 type AIProvidersRoute = FileRoutesByFullPath['/resources/ai-providers']
 
-function assertGeneratedRouteKey<T>(_value: T) {}
-
 describe('routeTree', () => {
   it('keeps the AI Providers route in the generated file-route map', () => {
-    assertGeneratedRouteKey<AIProvidersRoute | undefined>(undefined)
+    const generatedRouteKey: AIProvidersRoute | undefined = undefined
+    expect(generatedRouteKey).toBeUndefined()
     expect(routeTree).toBeDefined()
   })
 })

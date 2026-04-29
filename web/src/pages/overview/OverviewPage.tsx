@@ -1,6 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { AlertTriangle, ArrowRight, ChevronRight, KeyRound, Loader2, Radar, RefreshCw, Rocket, ServerCog, ShieldAlert, SquareActivity, Waypoints } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowRight,
+  ChevronRight,
+  KeyRound,
+  Loader2,
+  Radar,
+  RefreshCw,
+  Rocket,
+  ServerCog,
+  ShieldAlert,
+  SquareActivity,
+  Waypoints,
+} from 'lucide-react'
 import { pb } from '@/lib/pb'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -143,16 +156,9 @@ const APPOS_CORE_OVERVIEW_SERIES_QUERY = 'cpu,memory,disk_usage,network'
 
 const APPOS_CORE_OVERVIEW_SERIES_ORDER = ['cpu', 'memory', 'disk_usage', 'network'] as const
 
-const CONTROL_PLANE_SUMMARY_EXCLUDES = new Set([
-  'last_dispatch_at',
-  'last_tick_at',
-  'started_at',
-])
+const CONTROL_PLANE_SUMMARY_EXCLUDES = new Set(['last_dispatch_at', 'last_tick_at', 'started_at'])
 
-const APPOS_CORE_SUMMARY_EXCLUDES = new Set([
-  'cpu_percent',
-  'go_version',
-])
+const APPOS_CORE_SUMMARY_EXCLUDES = new Set(['cpu_percent', 'go_version'])
 
 function formatStatusLabel(value: string): string {
   return value
@@ -253,15 +259,16 @@ function latestSeriesSummary(series: MonitorSeries): string {
 
 function orderedOverviewSeries(input: MonitorSeries[] | undefined): MonitorSeries[] {
   const items = Array.isArray(input) ? input : []
-  return APPOS_CORE_OVERVIEW_SERIES_ORDER
-    .map(name => items.find(item => item.name === name))
-    .filter((item): item is MonitorSeries => Boolean(item))
+  return APPOS_CORE_OVERVIEW_SERIES_ORDER.map(name =>
+    items.find(item => item.name === name)
+  ).filter((item): item is MonitorSeries => Boolean(item))
 }
 
 function controlPlaneSummaryEntries(item: MonitorOverviewItem): Array<[string, unknown]> {
-  const excludes = item.targetId === 'appos-core'
-    ? new Set([...CONTROL_PLANE_SUMMARY_EXCLUDES, ...APPOS_CORE_SUMMARY_EXCLUDES])
-    : CONTROL_PLANE_SUMMARY_EXCLUDES
+  const excludes =
+    item.targetId === 'appos-core'
+      ? new Set([...CONTROL_PLANE_SUMMARY_EXCLUDES, ...APPOS_CORE_SUMMARY_EXCLUDES])
+      : CONTROL_PLANE_SUMMARY_EXCLUDES
 
   return Object.entries(item.summary ?? {})
     .filter(([key]) => !excludes.has(key) && !key.endsWith('_at'))
@@ -287,7 +294,9 @@ function isExpired(iso?: string): boolean {
   return expiresAt.getTime() <= Date.now()
 }
 
-function issueBadgeVariant(severity: IssueItem['severity']): 'destructive' | 'outline' | 'secondary' {
+function issueBadgeVariant(
+  severity: IssueItem['severity']
+): 'destructive' | 'outline' | 'secondary' {
   switch (severity) {
     case 'critical':
       return 'destructive'
@@ -313,7 +322,9 @@ function platformBadgeVariant(status: string): 'default' | 'secondary' | 'destru
   }
 }
 
-function normalizeMonitorOverview(input: MonitorOverviewResponse | null | undefined): MonitorOverviewResponse {
+function normalizeMonitorOverview(
+  input: MonitorOverviewResponse | null | undefined
+): MonitorOverviewResponse {
   return {
     counts: input?.counts ?? {},
     unhealthyItems: Array.isArray(input?.unhealthyItems) ? input.unhealthyItems : [],
@@ -321,7 +332,9 @@ function normalizeMonitorOverview(input: MonitorOverviewResponse | null | undefi
   }
 }
 
-function normalizeTunnelOverview(input: TunnelOverviewResponse | null | undefined): TunnelOverviewResponse {
+function normalizeTunnelOverview(
+  input: TunnelOverviewResponse | null | undefined
+): TunnelOverviewResponse {
   return {
     summary: {
       total: input?.summary?.total ?? 0,
@@ -348,7 +361,12 @@ function buildIssueItems(data: OverviewData): IssueItem[] {
     description: item.reason || `${formatStatusLabel(item.status)} requires attention.`,
     kind: 'monitor',
     href: item.detailHref || '/status',
-    severity: item.status === 'offline' || item.status === 'unreachable' || item.status === 'credential_invalid' ? 'critical' : 'warning',
+    severity:
+      item.status === 'offline' ||
+      item.status === 'unreachable' ||
+      item.status === 'credential_invalid'
+        ? 'critical'
+        : 'warning',
   }))
 
   const tunnelIssues: IssueItem[] = data.tunnels.items
@@ -356,7 +374,9 @@ function buildIssueItems(data: OverviewData): IssueItem[] {
     .map(item => ({
       id: `tunnel:${item.id}`,
       title: item.name,
-      description: item.waiting_for_first_connect ? 'Waiting for first tunnel connection.' : 'Tunnel is offline.',
+      description: item.waiting_for_first_connect
+        ? 'Waiting for first tunnel connection.'
+        : 'Tunnel is offline.',
       kind: 'tunnel',
       href: '/tunnels',
       severity: item.waiting_for_first_connect ? 'info' : 'critical',
@@ -364,48 +384,56 @@ function buildIssueItems(data: OverviewData): IssueItem[] {
 
   const certificateIssues: IssueItem[] = data.certificates.flatMap((item): IssueItem[] => {
     if (item.status === 'revoked' || item.status === 'expired' || isExpired(item.expires_at)) {
-      return [{
-        id: `certificate:${item.id}`,
-        title: item.domain || item.name,
-        description: 'Certificate is expired or revoked.',
-        kind: 'certificate' as const,
-        href: '/certificates',
-        severity: 'critical' as const,
-      }]
+      return [
+        {
+          id: `certificate:${item.id}`,
+          title: item.domain || item.name,
+          description: 'Certificate is expired or revoked.',
+          kind: 'certificate' as const,
+          href: '/certificates',
+          severity: 'critical' as const,
+        },
+      ]
     }
     if (isExpiringSoon(item.expires_at)) {
-      return [{
-        id: `certificate:${item.id}`,
-        title: item.domain || item.name,
-        description: 'Certificate is expiring within 30 days.',
-        kind: 'certificate' as const,
-        href: '/certificates',
-        severity: 'warning' as const,
-      }]
+      return [
+        {
+          id: `certificate:${item.id}`,
+          title: item.domain || item.name,
+          description: 'Certificate is expiring within 30 days.',
+          kind: 'certificate' as const,
+          href: '/certificates',
+          severity: 'warning' as const,
+        },
+      ]
     }
     return []
   })
 
   const secretIssues: IssueItem[] = data.secrets.flatMap((item): IssueItem[] => {
     if (item.status === 'revoked' || isExpired(item.expires_at)) {
-      return [{
-        id: `secret:${item.id}`,
-        title: item.name,
-        description: 'Secret is expired or revoked.',
-        kind: 'secret' as const,
-        href: '/secrets',
-        severity: 'critical' as const,
-      }]
+      return [
+        {
+          id: `secret:${item.id}`,
+          title: item.name,
+          description: 'Secret is expired or revoked.',
+          kind: 'secret' as const,
+          href: '/secrets',
+          severity: 'critical' as const,
+        },
+      ]
     }
     if (isExpiringSoon(item.expires_at)) {
-      return [{
-        id: `secret:${item.id}`,
-        title: item.name,
-        description: 'Secret is expiring within 30 days.',
-        kind: 'secret' as const,
-        href: '/secrets',
-        severity: 'warning' as const,
-      }]
+      return [
+        {
+          id: `secret:${item.id}`,
+          title: item.name,
+          description: 'Secret is expiring within 30 days.',
+          kind: 'secret' as const,
+          href: '/secrets',
+          severity: 'warning' as const,
+        },
+      ]
     }
     return []
   })
@@ -449,73 +477,106 @@ export function OverviewPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
 
-  const loadOverview = useCallback(async (silent = false) => {
-    if (silent) {
-      setRefreshing(true)
-    } else {
-      setLoading(true)
-    }
-    setError('')
-    try {
-      const [appsResult, monitorResult, tunnelsResult, serversResult, secretsResult, certificatesResult] = await Promise.allSettled([
-        pb.send<AppInstance[]>('/api/apps', { method: 'GET' }),
-        pb.send<MonitorOverviewResponse>('/api/monitor/overview', { method: 'GET' }),
-        pb.send<TunnelOverviewResponse>('/api/tunnel/overview', { method: 'GET' }),
-        isSuperuser
-          ? pb.collection('servers').getFullList<ServerOverviewRecord>({ sort: '-created' })
-          : Promise.resolve<ServerOverviewRecord[]>([]),
-        isSuperuser
-          ? pb.collection('secrets').getFullList<SecretOverviewRecord>({ sort: '-created' })
-          : Promise.resolve<SecretOverviewRecord[]>([]),
-        isSuperuser
-          ? pb.collection('certificates').getFullList<CertificateOverviewRecord>({ sort: '-created' })
-          : Promise.resolve<CertificateOverviewRecord[]>([]),
-      ])
-
-      const coreFailures = [appsResult, monitorResult, tunnelsResult].filter(result => result.status === 'rejected')
-      if (coreFailures.length === 3) {
-        throw new Error(errorMessage(coreFailures[0].reason))
+  const loadOverview = useCallback(
+    async (silent = false) => {
+      if (silent) {
+        setRefreshing(true)
+      } else {
+        setLoading(true)
       }
+      setError('')
+      try {
+        const [
+          appsResult,
+          monitorResult,
+          tunnelsResult,
+          serversResult,
+          secretsResult,
+          certificatesResult,
+        ] = await Promise.allSettled([
+          pb.send<AppInstance[]>('/api/apps', { method: 'GET' }),
+          pb.send<MonitorOverviewResponse>('/api/monitor/overview', { method: 'GET' }),
+          pb.send<TunnelOverviewResponse>('/api/tunnel/overview', { method: 'GET' }),
+          isSuperuser
+            ? pb.collection('servers').getFullList<ServerOverviewRecord>({ sort: '-created' })
+            : Promise.resolve<ServerOverviewRecord[]>([]),
+          isSuperuser
+            ? pb.collection('secrets').getFullList<SecretOverviewRecord>({ sort: '-created' })
+            : Promise.resolve<SecretOverviewRecord[]>([]),
+          isSuperuser
+            ? pb
+                .collection('certificates')
+                .getFullList<CertificateOverviewRecord>({ sort: '-created' })
+            : Promise.resolve<CertificateOverviewRecord[]>([]),
+        ])
 
-      if (coreFailures.length > 0 || [serversResult, secretsResult, certificatesResult].some(result => result.status === 'rejected')) {
-        setError('Some overview sections are temporarily unavailable.')
-      }
-
-      const normalizedMonitor = normalizeMonitorOverview(
-        monitorResult.status === 'fulfilled' ? monitorResult.value : undefined
-      )
-      let nextControlPlaneSeries: MonitorSeriesResponse | null = null
-      if (normalizedMonitor.platformItems.some(item => item.targetId === 'appos-core')) {
-        try {
-          nextControlPlaneSeries = await pb.send<MonitorSeriesResponse>(
-            `/api/monitor/targets/platform/appos-core/series?${new URLSearchParams({
-              window: '1h',
-              series: APPOS_CORE_OVERVIEW_SERIES_QUERY,
-            }).toString()}`,
-            { method: 'GET' }
-          )
-        } catch {
-          nextControlPlaneSeries = null
+        const coreFailures = [appsResult, monitorResult, tunnelsResult].filter(
+          result => result.status === 'rejected'
+        )
+        if (coreFailures.length === 3) {
+          throw new Error(errorMessage(coreFailures[0].reason))
         }
-      }
 
-      setData({
-        apps: appsResult.status === 'fulfilled' && Array.isArray(appsResult.value) ? appsResult.value : [],
-        monitor: normalizedMonitor,
-        tunnels: normalizeTunnelOverview(tunnelsResult.status === 'fulfilled' ? tunnelsResult.value : undefined),
-        servers: serversResult.status === 'fulfilled' ? normalizeCollectionItems<ServerOverviewRecord>(serversResult.value) : [],
-        secrets: secretsResult.status === 'fulfilled' ? normalizeCollectionItems<SecretOverviewRecord>(secretsResult.value) : [],
-        certificates: certificatesResult.status === 'fulfilled' ? normalizeCollectionItems<CertificateOverviewRecord>(certificatesResult.value) : [],
-      })
-      setControlPlaneSeries(nextControlPlaneSeries)
-    } catch (err) {
-      setControlPlaneSeries(null)
-      setError(err instanceof Error ? err.message : 'Failed to load overview')
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
-  }, [isSuperuser])
+        if (
+          coreFailures.length > 0 ||
+          [serversResult, secretsResult, certificatesResult].some(
+            result => result.status === 'rejected'
+          )
+        ) {
+          setError('Some overview sections are temporarily unavailable.')
+        }
+
+        const normalizedMonitor = normalizeMonitorOverview(
+          monitorResult.status === 'fulfilled' ? monitorResult.value : undefined
+        )
+        let nextControlPlaneSeries: MonitorSeriesResponse | null = null
+        if (normalizedMonitor.platformItems.some(item => item.targetId === 'appos-core')) {
+          try {
+            nextControlPlaneSeries = await pb.send<MonitorSeriesResponse>(
+              `/api/monitor/targets/platform/appos-core/series?${new URLSearchParams({
+                window: '1h',
+                series: APPOS_CORE_OVERVIEW_SERIES_QUERY,
+              }).toString()}`,
+              { method: 'GET' }
+            )
+          } catch {
+            nextControlPlaneSeries = null
+          }
+        }
+
+        setData({
+          apps:
+            appsResult.status === 'fulfilled' && Array.isArray(appsResult.value)
+              ? appsResult.value
+              : [],
+          monitor: normalizedMonitor,
+          tunnels: normalizeTunnelOverview(
+            tunnelsResult.status === 'fulfilled' ? tunnelsResult.value : undefined
+          ),
+          servers:
+            serversResult.status === 'fulfilled'
+              ? normalizeCollectionItems<ServerOverviewRecord>(serversResult.value)
+              : [],
+          secrets:
+            secretsResult.status === 'fulfilled'
+              ? normalizeCollectionItems<SecretOverviewRecord>(secretsResult.value)
+              : [],
+          certificates:
+            certificatesResult.status === 'fulfilled'
+              ? normalizeCollectionItems<CertificateOverviewRecord>(certificatesResult.value)
+              : [],
+        })
+        setControlPlaneSeries(nextControlPlaneSeries)
+      } catch (err) {
+        setControlPlaneSeries(null)
+        setError(err instanceof Error ? err.message : 'Failed to load overview')
+      } finally {
+        setLoading(false)
+        setRefreshing(false)
+      }
+    },
+    [isSuperuser]
+  )
 
   useEffect(() => {
     void loadOverview()
@@ -538,8 +599,12 @@ export function OverviewPage() {
 
   const serverSummary = useMemo(() => {
     const tunnelServers = data.servers.filter(item => item.connect_type === 'tunnel')
-    const online = tunnelServers.filter(item => String(item.tunnel_status ?? '').toLowerCase() === 'online').length
-    const offline = tunnelServers.filter(item => String(item.tunnel_status ?? '').toLowerCase() !== 'online').length
+    const online = tunnelServers.filter(
+      item => String(item.tunnel_status ?? '').toLowerCase() === 'online'
+    ).length
+    const offline = tunnelServers.filter(
+      item => String(item.tunnel_status ?? '').toLowerCase() !== 'online'
+    ).length
     return {
       total: data.servers.length,
       tunnelOnline: online,
@@ -549,8 +614,17 @@ export function OverviewPage() {
   }, [data.servers])
 
   const credentialSummary = useMemo(() => {
-    const certificateRisk = data.certificates.filter(item => item.status === 'revoked' || item.status === 'expired' || isExpired(item.expires_at) || isExpiringSoon(item.expires_at)).length
-    const secretRisk = data.secrets.filter(item => item.status === 'revoked' || isExpired(item.expires_at) || isExpiringSoon(item.expires_at)).length
+    const certificateRisk = data.certificates.filter(
+      item =>
+        item.status === 'revoked' ||
+        item.status === 'expired' ||
+        isExpired(item.expires_at) ||
+        isExpiringSoon(item.expires_at)
+    ).length
+    const secretRisk = data.secrets.filter(
+      item =>
+        item.status === 'revoked' || isExpired(item.expires_at) || isExpiringSoon(item.expires_at)
+    ).length
     return {
       total: data.secrets.length + data.certificates.length,
       atRisk: certificateRisk + secretRisk,
@@ -568,7 +642,12 @@ export function OverviewPage() {
   }, [data.monitor.platformItems])
 
   const recentApps = useMemo(
-    () => [...data.apps].sort((left, right) => String(right.updated ?? '').localeCompare(String(left.updated ?? ''))).slice(0, 5),
+    () =>
+      [...data.apps]
+        .sort((left, right) =>
+          String(right.updated ?? '').localeCompare(String(left.updated ?? ''))
+        )
+        .slice(0, 5),
     [data.apps]
   )
 
@@ -588,7 +667,11 @@ export function OverviewPage() {
           onClick={() => void loadOverview(true)}
           disabled={loading || refreshing}
         >
-          {loading || refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          {loading || refreshing ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
         </Button>
       </div>
 
@@ -629,7 +712,9 @@ export function OverviewPage() {
         <Card>
           <CardHeader>
             <CardTitle>Needs Attention</CardTitle>
-            <CardDescription>Prioritized operational items collected from monitor, tunnel, and credential state.</CardDescription>
+            <CardDescription>
+              Prioritized operational items collected from monitor, tunnel, and credential state.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {loading ? (
@@ -651,7 +736,9 @@ export function OverviewPage() {
                   <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-foreground">{item.title}</span>
-                      <Badge variant={issueBadgeVariant(item.severity)}>{formatStatusLabel(item.kind)}</Badge>
+                      <Badge variant={issueBadgeVariant(item.severity)}>
+                        {formatStatusLabel(item.kind)}
+                      </Badge>
                     </div>
                     <div className="text-sm text-muted-foreground">{item.description}</div>
                   </div>
@@ -674,7 +761,9 @@ export function OverviewPage() {
                 <ChevronRight className="h-4 w-4" />
               </a>
             </div>
-            <CardDescription>AppOS self-observation summary plus one-hour resource trends for the core process.</CardDescription>
+            <CardDescription>
+              AppOS self-observation summary plus one-hour resource trends for the core process.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {loading ? (
@@ -695,14 +784,21 @@ export function OverviewPage() {
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-foreground">{item.displayName}</span>
-                          <Badge variant={platformBadgeVariant(item.status)}>{formatStatusLabel(item.status)}</Badge>
+                          <Badge variant={platformBadgeVariant(item.status)}>
+                            {formatStatusLabel(item.status)}
+                          </Badge>
                         </div>
-                        <div className="text-xs text-muted-foreground">{item.reason || 'No active issue reported.'}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {item.reason || 'No active issue reported.'}
+                        </div>
                       </div>
                       {summaryEntries.length > 0 ? (
                         <div className="mt-3 flex flex-wrap gap-2">
                           {summaryEntries.map(([key, value]) => (
-                            <span key={key} className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
+                            <span
+                              key={key}
+                              className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground"
+                            >
                               {formatStatusLabel(key)}: {formatSummaryValue(key, value)}
                             </span>
                           ))}
@@ -718,7 +814,9 @@ export function OverviewPage() {
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
                     <div className="text-sm font-medium text-foreground">AppOS Core Trends</div>
-                    <div className="text-xs text-muted-foreground">Netdata-backed one hour control-plane resource view.</div>
+                    <div className="text-xs text-muted-foreground">
+                      Netdata-backed one hour control-plane resource view.
+                    </div>
                   </div>
                   <div className="text-xs text-muted-foreground">Window 1h</div>
                 </div>
@@ -727,10 +825,16 @@ export function OverviewPage() {
                     <div key={item.name} className="rounded-lg border bg-background p-3">
                       <div className="mb-3 flex items-start justify-between gap-3">
                         <div>
-                          <div className="text-sm font-medium text-foreground">{formatSeriesLabel(item.name)}</div>
-                          <div className="text-xs text-muted-foreground">{latestSeriesSummary(item)}</div>
+                          <div className="text-sm font-medium text-foreground">
+                            {formatSeriesLabel(item.name)}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {latestSeriesSummary(item)}
+                          </div>
                         </div>
-                        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{item.unit}</div>
+                        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                          {item.unit}
+                        </div>
                       </div>
                       <TimeSeriesChart
                         name={item.name}
@@ -756,7 +860,9 @@ export function OverviewPage() {
         <Card>
           <CardHeader>
             <CardTitle>Recent App Changes</CardTitle>
-            <CardDescription>Most recently updated application instances across the workspace.</CardDescription>
+            <CardDescription>
+              Most recently updated application instances across the workspace.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {loading ? (
@@ -779,9 +885,13 @@ export function OverviewPage() {
                   <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="truncate font-medium text-foreground">{app.name}</span>
-                      <Badge variant={runtimeVariant(app.runtime_status)}>{formatStatusLabel(app.runtime_status || 'unknown')}</Badge>
+                      <Badge variant={runtimeVariant(app.runtime_status)}>
+                        {formatStatusLabel(app.runtime_status || 'unknown')}
+                      </Badge>
                     </div>
-                    <div className="text-sm text-muted-foreground">{app.health_summary || app.runtime_reason || app.project_dir}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {app.health_summary || app.runtime_reason || app.project_dir}
+                    </div>
                   </div>
                   <div className="shrink-0 text-right text-xs text-muted-foreground">
                     <div>Updated</div>
@@ -796,30 +906,32 @@ export function OverviewPage() {
         <Card>
           <CardHeader>
             <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Jump directly into the most common operational workflows.</CardDescription>
+            <CardDescription>
+              Jump directly into the most common operational workflows.
+            </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
             {QUICK_LINKS.map(item => {
               const Icon = item.icon
               return (
-              <a
-                key={item.href}
-                href={item.href}
-                className="rounded-lg border bg-background px-4 py-3 transition-colors hover:bg-muted/20"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <div className="rounded-lg border bg-muted/30 p-2 text-muted-foreground">
-                      <Icon className="h-4 w-4" />
+                <a
+                  key={item.href}
+                  href={item.href}
+                  className="rounded-lg border bg-background px-4 py-3 transition-colors hover:bg-muted/20"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className="rounded-lg border bg-muted/30 p-2 text-muted-foreground">
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-foreground">{item.title}</div>
+                        <div className="text-sm text-muted-foreground">{item.description}</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="font-medium text-foreground">{item.title}</div>
-                    <div className="text-sm text-muted-foreground">{item.description}</div>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
                   </div>
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                </div>
-              </a>
+                </a>
               )
             })}
           </CardContent>

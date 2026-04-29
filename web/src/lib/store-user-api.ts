@@ -115,7 +115,6 @@ export function useSaveNote(onError?: (msg: string) => void) {
     mutationFn: async ({
       appKey,
       note,
-      userApps: _userApps,
     }: {
       appKey: string
       note: string | null

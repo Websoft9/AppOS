@@ -19,6 +19,7 @@ func registerMonitorRoutes(se *core.ServeEvent) {
 	monitorGroup := se.Router.Group("/api/monitor")
 	monitorGroup.Bind(apis.RequireAuth())
 	monitorGroup.GET("/overview", handleMonitorOverview)
+	monitorGroup.GET("/servers/{id}/container-telemetry", handleMonitorServerContainerTelemetry)
 	monitorGroup.GET("/targets/{targetType}/{targetId}", handleMonitorTargetStatus)
 	monitorGroup.GET("/targets/{targetType}/{targetId}/series", handleMonitorTargetSeries)
 
@@ -167,6 +168,12 @@ func handleMonitorMetrics(e *core.RequestEvent) error {
 		}
 		if labels["target_type"] == monitor.TargetTypeServer && labels["target_id"] != body.ServerID {
 			return e.BadRequestError("server metric targetId must match serverId", nil)
+		}
+		if monitormetrics.IsContainerMetricSeries(strings.TrimSpace(item.Series)) {
+			if labels["target_type"] != monitor.TargetTypeContainer {
+				return e.BadRequestError("container metric targetType must be container", nil)
+			}
+			labels["container_id"] = labels["target_id"]
 		}
 		points = append(points, monitormetrics.MetricPoint{
 			Series:     strings.TrimSpace(item.Series),
@@ -392,6 +399,26 @@ func handleMonitorOverview(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, overview)
 }
 
+func handleMonitorServerContainerTelemetry(e *core.RequestEvent) error {
+	serverID := strings.TrimSpace(e.Request.PathValue("id"))
+	if serverID == "" {
+		return e.BadRequestError("server id is required", nil)
+	}
+	if _, err := findMonitorServer(e.App, serverID); err != nil {
+		return e.NotFoundError("server not found", err)
+	}
+	window := strings.TrimSpace(e.Request.URL.Query().Get("window"))
+	if window == "" {
+		window = "15m"
+	}
+	containerIDs := e.Request.URL.Query()["containerId"]
+	response, err := monitormetrics.QueryContainerTelemetry(e.Request.Context(), serverID, containerIDs, window)
+	if err != nil {
+		return e.BadRequestError("failed to query container telemetry", err)
+	}
+	return e.JSON(http.StatusOK, response)
+}
+
 func handleMonitorTargetSeries(e *core.RequestEvent) error {
 	window := strings.TrimSpace(e.Request.URL.Query().Get("window"))
 	if window == "" {
@@ -569,5 +596,5 @@ func monitorAgentConfigYAML(serverID string, baseURL string, token string) strin
 }
 
 func monitorSystemdUnit() string {
-	return "[Unit]\nDescription=AppOS Monitor Agent\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=simple\nExecStart=/usr/local/bin/appos-monitor-agent --config /etc/appos-monitor-agent.yaml\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\n"
+	return "[Unit]\nDescription=AppOS Agent\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=simple\nExecStart=/usr/local/bin/appos-agent --config /etc/appos-agent.yaml\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\n"
 }

@@ -31,7 +31,7 @@ func TestComponentKeyConstants(t *testing.T) {
 		// Only server-target keys are constants; local keys live in catalog YAML.
 		{ComponentKeyDocker, "docker"},
 		{ComponentKeyMonitorAgent, "monitor-agent"},
-		{ComponentKeyControlAgent, "control-agent"},
+		{ComponentKeyAppOSAgent, "appos-agent"},
 		{ComponentKeyReverseProxy, "reverse-proxy"},
 	}
 	for _, c := range cases {
@@ -217,6 +217,8 @@ func TestSoftwareComponentSummaryJSON(t *testing.T) {
 		TemplateKind:      TemplateKindPackage,
 		InstalledState:    InstalledStateInstalled,
 		DetectedVersion:   "26.1.4",
+		InstallSource:     InstallSourceManaged,
+		SourceEvidence:    "apt:docker-ce",
 		PackagedVersion:   "26.1.4",
 		VerificationState: VerificationStateHealthy,
 		AvailableActions:  []Action{ActionUpgrade, ActionVerify},
@@ -248,6 +250,8 @@ func TestSoftwareComponentSummaryJSON(t *testing.T) {
 	mustHaveKey("template_kind")
 	mustHaveKey("installed_state")
 	mustHaveKey("detected_version")
+	mustHaveKey("install_source")
+	mustHaveKey("source_evidence")
 	mustHaveKey("packaged_version")
 	mustHaveKey("verification_state")
 	mustHaveKey("available_actions")

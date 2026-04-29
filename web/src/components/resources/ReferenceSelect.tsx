@@ -94,61 +94,72 @@ export function ReferenceSelect({
         )}
 
         {open && (
-          <div className={`mt-2 rounded-xl bg-popover shadow-lg ${borderlessMenu ? '' : 'border border-border/80'}`}>
           <div
-            className={`overflow-y-auto rounded-lg bg-background ${borderlessMenu ? '' : 'border'}`}
-            style={{ maxHeight: menuMaxHeight }}
+            className={`mt-2 rounded-xl bg-popover shadow-lg ${borderlessMenu ? '' : 'border border-border/80'}`}
           >
-            {showNoneOption && (
-              <button
-                type="button"
-                className={`flex w-full items-center justify-between px-3 py-2.5 text-left text-sm ${optionDividerClass} ${!value ? 'bg-accent/60 font-medium' : 'hover:bg-muted/60'}`}
-                onClick={() => {
-                  onSelect('')
-                  setOpen(false)
-                }}
-              >
-                <span>None</span>
-                {!value && showSelectedIndicator && <span className="text-xs text-muted-foreground">Selected</span>}
-              </button>
-            )}
-            {filtered.length === 0 ? (
-              <p className="px-3 py-4 text-sm text-muted-foreground">{emptyMessage}</p>
-            ) : (
-              filtered.map(option => {
-                const active = option.id === value
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    className={`flex w-full items-center justify-between px-3 py-2.5 text-left text-sm ${optionDividerClass} last:border-b-0 ${active ? 'bg-accent/60 font-medium' : 'hover:bg-muted/60'}`}
-                    onClick={() => {
-                      onSelect(option.id)
-                      setOpen(false)
-                    }}
-                  >
-                    <span className="truncate">{option.label}</span>
-                    {active && showSelectedIndicator && <span className="text-xs text-muted-foreground">Selected</span>}
-                  </button>
-                )
-              })
-            )}
-          </div>
-
-          {onCreate && createLabel && (
-            <div className="flex justify-end px-3 py-3">
-              <Button type="button" size="sm" variant="outline" onClick={onCreate}>
-                <Plus className="mr-1.5 h-4 w-4" />
-                {createLabel}
-              </Button>
+            <div
+              className={`overflow-y-auto rounded-lg bg-background ${borderlessMenu ? '' : 'border'}`}
+              style={{ maxHeight: menuMaxHeight }}
+            >
+              {showNoneOption && (
+                <button
+                  type="button"
+                  className={`flex w-full items-center justify-between px-3 py-2.5 text-left text-sm ${optionDividerClass} ${!value ? 'bg-accent/60 font-medium' : 'hover:bg-muted/60'}`}
+                  onClick={() => {
+                    onSelect('')
+                    setOpen(false)
+                  }}
+                >
+                  <span>None</span>
+                  {!value && showSelectedIndicator && (
+                    <span className="text-xs text-muted-foreground">Selected</span>
+                  )}
+                </button>
+              )}
+              {filtered.length === 0 ? (
+                <p className="px-3 py-4 text-sm text-muted-foreground">{emptyMessage}</p>
+              ) : (
+                filtered.map(option => {
+                  const active = option.id === value
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      className={`flex w-full items-center justify-between px-3 py-2.5 text-left text-sm ${optionDividerClass} last:border-b-0 ${active ? 'bg-accent/60 font-medium' : 'hover:bg-muted/60'}`}
+                      onClick={() => {
+                        onSelect(option.id)
+                        setOpen(false)
+                      }}
+                    >
+                      <span className="truncate">{option.label}</span>
+                      {active && showSelectedIndicator && (
+                        <span className="text-xs text-muted-foreground">Selected</span>
+                      )}
+                    </button>
+                  )
+                })
+              )}
             </div>
-          )}
+
+            {onCreate && createLabel && (
+              <div className="flex justify-end px-3 py-3">
+                <Button type="button" size="sm" variant="outline" onClick={onCreate}>
+                  <Plus className="mr-1.5 h-4 w-4" />
+                  {createLabel}
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {selected && value && onEditSelected && editLabel ? (
-        <Button type="button" variant="outline" className="h-10 shrink-0" onClick={() => onEditSelected(value)}>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-10 shrink-0"
+          onClick={() => onEditSelected(value)}
+        >
           {editLabel}
         </Button>
       ) : null}

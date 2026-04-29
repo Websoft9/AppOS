@@ -362,7 +362,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   const selectedDetailItem = useMemo(
     () =>
       config.selectedItemId
-        ? items.find(item => String(item.id) === config.selectedItemId) ?? null
+        ? (items.find(item => String(item.id) === config.selectedItemId) ?? null)
         : null,
     [config.selectedItemId, items]
   )
@@ -371,10 +371,8 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
     Boolean(config.favoriteStorageKey) ||
     (filterableColumns.length > 0 && !config.headerFilters) ||
     (config.pageSizeSelectorPlacement ?? 'header') === 'header'
-  const showHeaderPageSizeSelector =
-    (config.pageSizeSelectorPlacement ?? 'header') === 'header'
-  const showFooterPageSizeSelector =
-    (config.pageSizeSelectorPlacement ?? 'header') === 'footer'
+  const showHeaderPageSizeSelector = (config.pageSizeSelectorPlacement ?? 'header') === 'header'
+  const showFooterPageSizeSelector = (config.pageSizeSelectorPlacement ?? 'header') === 'footer'
   const paginationPlacement = config.paginationPlacement ?? 'footer'
   const paginationVariant = config.paginationVariant ?? 'default'
   const showHeaderPagination = paginationPlacement === 'header'
@@ -585,8 +583,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
       .finally(() => setGroupsLoading(false))
   }, [config.enableGroupAssign])
   const hasAutoOpenedCreateRef = useRef(false)
-  const createSelectionReady =
-    !config.createSelection || config.createSelection.options.length > 0
+  const createSelectionReady = !config.createSelection || config.createSelection.options.length > 0
 
   // Auto-open Create dialog once data has loaded (triggered by ?create=1)
   useEffect(() => {
@@ -663,7 +660,10 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
 
   // ─── Form helpers ────────────────────
 
-  function buildDefaultFormData(initialData: Record<string, unknown>, nextEditingItem: Record<string, unknown> | null) {
+  function buildDefaultFormData(
+    initialData: Record<string, unknown>,
+    nextEditingItem: Record<string, unknown> | null
+  ) {
     const defaults: Record<string, unknown> = {}
     for (const f of getFields(initialData, nextEditingItem)) {
       if (f.multiSelect) {
@@ -945,7 +945,9 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
 
   function isInteractiveTarget(target: EventTarget | null) {
     if (!(target instanceof HTMLElement)) return false
-    return Boolean(target.closest('button,a,input,textarea,select,[role="menuitem"],[role="checkbox"]'))
+    return Boolean(
+      target.closest('button,a,input,textarea,select,[role="menuitem"],[role="checkbox"]')
+    )
   }
 
   function renderFilterMenu(column: (typeof config.columns)[number]) {
@@ -1088,11 +1090,14 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
             {paginationTotalLabel ?? `${processedItems.length} total`} · Page {page} of {totalPages}
           </span>
         )}
-        {showFooterPageSizeSelector && (
-          renderPageSizeSelector('h-9')
-        )}
+        {showFooterPageSizeSelector && renderPageSizeSelector('h-9')}
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page <= 1}
+            onClick={() => setPage(page - 1)}
+          >
             Previous
           </Button>
           <Button
@@ -1250,12 +1255,16 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
         >
           <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
             {searchableColumns.length > 0 && (
-              <div className={cn('relative', config.searchContainerClassName ?? 'w-full sm:max-w-sm')}>
+              <div
+                className={cn('relative', config.searchContainerClassName ?? 'w-full sm:max-w-sm')}
+              >
                 <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   value={searchQuery}
                   onChange={event => setSearchQuery(event.target.value)}
-                  placeholder={config.searchPlaceholder ?? `Search ${config.title.toLowerCase()}...`}
+                  placeholder={
+                    config.searchPlaceholder ?? `Search ${config.title.toLowerCase()}...`
+                  }
                   className="pl-9"
                 />
               </div>
@@ -1270,7 +1279,9 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                     <DropdownMenu key={column.key}>
                       <DropdownMenuTrigger asChild>
                         <Button variant="outline" size="sm" className="gap-2">
-                          <Filter className={`h-3.5 w-3.5 ${active ? 'text-primary' : 'text-muted-foreground'}`} />
+                          <Filter
+                            className={`h-3.5 w-3.5 ${active ? 'text-primary' : 'text-muted-foreground'}`}
+                          />
                           {column.label}
                         </Button>
                       </DropdownMenuTrigger>
@@ -1310,7 +1321,10 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
               </label>
             )}
           </div>
-          {(showHeaderPageSizeSelector || showListControlsReset || showHeaderPagination || headerTrailingControls) && (
+          {(showHeaderPageSizeSelector ||
+            showListControlsReset ||
+            showHeaderPagination ||
+            headerTrailingControls) && (
             <div className="flex items-center gap-2 self-end sm:self-auto">
               {showHeaderPageSizeSelector && paginationVariant !== 'minimal'
                 ? renderPageSizeSelector('h-9')
@@ -1371,7 +1385,9 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                   <TableRow
                     key={String(item.id)}
                     data-selected={selectedItems.has(String(item.id))}
-                    className={config.selectedItemId === String(item.id) ? 'bg-muted/40' : undefined}
+                    className={
+                      config.selectedItemId === String(item.id) ? 'bg-muted/40' : undefined
+                    }
                     onClick={
                       config.onSelectItem
                         ? event => {
@@ -1411,49 +1427,65 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align={actionsMenuAlign}>
-                          {favoriteActionPlacement === 'beforeExtraActions' && config.favoriteStorageKey && (
-                            <>
-                              <DropdownMenuItem onClick={() => toggleFavorite(String(item.id ?? ''))}>
-                                <Star
-                                  className="h-4 w-4"
-                                  fill={favoriteIds.has(String(item.id ?? '')) ? 'currentColor' : 'none'}
-                                />
-                                {favoriteIds.has(String(item.id ?? ''))
-                                  ? 'Remove Favorite'
-                                  : 'Add Favorite'}
+                              {favoriteActionPlacement === 'beforeExtraActions' &&
+                                config.favoriteStorageKey && (
+                                  <>
+                                    <DropdownMenuItem
+                                      onClick={() => toggleFavorite(String(item.id ?? ''))}
+                                    >
+                                      <Star
+                                        className="h-4 w-4"
+                                        fill={
+                                          favoriteIds.has(String(item.id ?? ''))
+                                            ? 'currentColor'
+                                            : 'none'
+                                        }
+                                      />
+                                      {favoriteIds.has(String(item.id ?? ''))
+                                        ? 'Remove Favorite'
+                                        : 'Add Favorite'}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                  </>
+                                )}
+                              {config.extraActions?.(item, () => {
+                                void fetchItems()
+                              })}
+                              {favoriteActionPlacement === 'afterExtraActions' &&
+                                config.favoriteStorageKey && (
+                                  <>
+                                    {config.extraActions && <DropdownMenuSeparator />}
+                                    <DropdownMenuItem
+                                      onClick={() => toggleFavorite(String(item.id ?? ''))}
+                                    >
+                                      <Star
+                                        className="h-4 w-4"
+                                        fill={
+                                          favoriteIds.has(String(item.id ?? ''))
+                                            ? 'currentColor'
+                                            : 'none'
+                                        }
+                                      />
+                                      {favoriteIds.has(String(item.id ?? ''))
+                                        ? 'Remove Favorite'
+                                        : 'Add Favorite'}
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                              {(config.extraActions ||
+                                (favoriteActionPlacement === 'afterExtraActions' &&
+                                  config.favoriteStorageKey)) && <DropdownMenuSeparator />}
+                              <DropdownMenuItem onClick={() => openEditDialog(item)}>
+                                <Pencil className="h-4 w-4" />
+                                Edit
                               </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                            </>
-                          )}
-                          {config.extraActions?.(item, () => {
-                            void fetchItems()
-                          })}
-                          {favoriteActionPlacement === 'afterExtraActions' && config.favoriteStorageKey && (
-                            <>
-                              {config.extraActions && <DropdownMenuSeparator />}
-                              <DropdownMenuItem onClick={() => toggleFavorite(String(item.id ?? ''))}>
-                                <Star
-                                  className="h-4 w-4"
-                                  fill={favoriteIds.has(String(item.id ?? '')) ? 'currentColor' : 'none'}
-                                />
-                                {favoriteIds.has(String(item.id ?? ''))
-                                  ? 'Remove Favorite'
-                                  : 'Add Favorite'}
+                              <DropdownMenuItem
+                                variant="destructive"
+                                onClick={() => setDeleteTarget(item)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                Delete
                               </DropdownMenuItem>
-                            </>
-                          )}
-                          {(config.extraActions || (favoriteActionPlacement === 'afterExtraActions' && config.favoriteStorageKey)) && <DropdownMenuSeparator />}
-                          <DropdownMenuItem onClick={() => openEditDialog(item)}>
-                            <Pencil className="h-4 w-4" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            variant="destructive"
-                            onClick={() => setDeleteTarget(item)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
@@ -1499,19 +1531,21 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {pagedItems.map(item => (
+                  {pagedItems.map(item => (
                     <TableRow
                       key={String(item.id)}
                       data-selected={selectedItems.has(String(item.id))}
-                        className={config.selectedItemId === String(item.id) ? 'bg-muted/40' : undefined}
-                        onClick={
-                          config.onSelectItem
-                            ? event => {
-                                if (isInteractiveTarget(event.target)) return
-                                config.onSelectItem?.(item)
-                              }
-                            : undefined
-                        }
+                      className={
+                        config.selectedItemId === String(item.id) ? 'bg-muted/40' : undefined
+                      }
+                      onClick={
+                        config.onSelectItem
+                          ? event => {
+                              if (isInteractiveTarget(event.target)) return
+                              config.onSelectItem?.(item)
+                            }
+                          : undefined
+                      }
                     >
                       {config.enableGroupAssign && (
                         <TableCell>
@@ -1545,49 +1579,65 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align={actionsMenuAlign}>
-                            {favoriteActionPlacement === 'beforeExtraActions' && config.favoriteStorageKey && (
-                              <>
-                                <DropdownMenuItem onClick={() => toggleFavorite(String(item.id ?? ''))}>
-                                  <Star
-                                    className="h-4 w-4"
-                                    fill={favoriteIds.has(String(item.id ?? '')) ? 'currentColor' : 'none'}
-                                  />
-                                  {favoriteIds.has(String(item.id ?? ''))
-                                    ? 'Remove Favorite'
-                                    : 'Add Favorite'}
+                                {favoriteActionPlacement === 'beforeExtraActions' &&
+                                  config.favoriteStorageKey && (
+                                    <>
+                                      <DropdownMenuItem
+                                        onClick={() => toggleFavorite(String(item.id ?? ''))}
+                                      >
+                                        <Star
+                                          className="h-4 w-4"
+                                          fill={
+                                            favoriteIds.has(String(item.id ?? ''))
+                                              ? 'currentColor'
+                                              : 'none'
+                                          }
+                                        />
+                                        {favoriteIds.has(String(item.id ?? ''))
+                                          ? 'Remove Favorite'
+                                          : 'Add Favorite'}
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                    </>
+                                  )}
+                                {config.extraActions?.(item, () => {
+                                  void fetchItems()
+                                })}
+                                {favoriteActionPlacement === 'afterExtraActions' &&
+                                  config.favoriteStorageKey && (
+                                    <>
+                                      {config.extraActions && <DropdownMenuSeparator />}
+                                      <DropdownMenuItem
+                                        onClick={() => toggleFavorite(String(item.id ?? ''))}
+                                      >
+                                        <Star
+                                          className="h-4 w-4"
+                                          fill={
+                                            favoriteIds.has(String(item.id ?? ''))
+                                              ? 'currentColor'
+                                              : 'none'
+                                          }
+                                        />
+                                        {favoriteIds.has(String(item.id ?? ''))
+                                          ? 'Remove Favorite'
+                                          : 'Add Favorite'}
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                {(config.extraActions ||
+                                  (favoriteActionPlacement === 'afterExtraActions' &&
+                                    config.favoriteStorageKey)) && <DropdownMenuSeparator />}
+                                <DropdownMenuItem onClick={() => openEditDialog(item)}>
+                                  <Pencil className="h-4 w-4" />
+                                  Edit
                                 </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                              </>
-                            )}
-                            {config.extraActions?.(item, () => {
-                              void fetchItems()
-                            })}
-                            {favoriteActionPlacement === 'afterExtraActions' && config.favoriteStorageKey && (
-                              <>
-                                {config.extraActions && <DropdownMenuSeparator />}
-                                <DropdownMenuItem onClick={() => toggleFavorite(String(item.id ?? ''))}>
-                                  <Star
-                                    className="h-4 w-4"
-                                    fill={favoriteIds.has(String(item.id ?? '')) ? 'currentColor' : 'none'}
-                                  />
-                                  {favoriteIds.has(String(item.id ?? ''))
-                                    ? 'Remove Favorite'
-                                    : 'Add Favorite'}
+                                <DropdownMenuItem
+                                  variant="destructive"
+                                  onClick={() => setDeleteTarget(item)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  Delete
                                 </DropdownMenuItem>
-                              </>
-                            )}
-                            {(config.extraActions || (favoriteActionPlacement === 'afterExtraActions' && config.favoriteStorageKey)) && <DropdownMenuSeparator />}
-                            <DropdownMenuItem onClick={() => openEditDialog(item)}>
-                              <Pencil className="h-4 w-4" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              variant="destructive"
-                              onClick={() => setDeleteTarget(item)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>
@@ -1606,7 +1656,12 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
 
       {config.renderDetailPanel && selectedDetailItem && detailPresentation === 'inline' && (
         <div className={cn('border-t-2 border-border/70 pt-6', config.detailPanelWrapperClassName)}>
-          <div className={cn('rounded-xl border bg-background p-5 shadow-sm', config.detailPanelClassName)}>
+          <div
+            className={cn(
+              'rounded-xl border bg-background p-5 shadow-sm',
+              config.detailPanelClassName
+            )}
+          >
             {config.renderDetailPanel(selectedDetailItem, fetchItems)}
           </div>
         </div>

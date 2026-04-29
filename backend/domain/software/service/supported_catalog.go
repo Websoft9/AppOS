@@ -11,7 +11,7 @@ import (
 type SupportedServerCatalogEntry struct {
 	ComponentKey          software.ComponentKey        `json:"component_key"`
 	Label                 string                       `json:"label"`
-	Capability            software.Capability         `json:"capability,omitempty"`
+	Capability            software.Capability          `json:"capability,omitempty"`
 	SupportedActions      []software.Action            `json:"supported_actions"`
 	TemplateKind          software.TemplateKind        `json:"template_kind"`
 	Description           string                       `json:"description"`

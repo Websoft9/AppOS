@@ -42,108 +42,115 @@ describe('AIProvidersPage', () => {
     getOneMock.mockReset()
     createMock.mockReset()
 
-    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
-      if (path === '/api/ai-providers/templates') {
-        return Promise.resolve([
-          {
-            id: 'generic-llm',
-            kind: 'llm',
-            title: 'OpenAI-Compatible',
-            vendor: 'OpenAI-Compatible',
-            description: 'Custom OpenAI-compatible endpoint',
-            defaultAuthScheme: 'none',
-            fields: [
-              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
-              { id: 'credential', label: 'API Key', type: 'secret_ref', required: false },
-            ],
-          },
-          {
-            id: 'openai',
-            kind: 'llm',
-            title: 'OpenAI',
-            vendor: 'OpenAI',
-            description: 'Hosted OpenAI models',
-            contextSize: 128000,
-            defaultEndpoint: 'https://api.openai.com/v1',
-            defaultAuthScheme: 'api_key',
-            capabilities: ['hosted'],
-            fields: [
-              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
-              { id: 'apiVersion', label: 'API Version', type: 'string', placeholder: '2024-10-21' },
-              {
-                id: 'credential',
-                label: 'API Key',
-                type: 'secret_ref',
-                required: true,
-                secretTemplate: 'single_value',
-              },
-              {
-                id: 'org_secret',
-                label: 'Organization Secret',
-                type: 'secret_ref',
-                required: false,
-                secretTemplate: 'single_value',
-              },
-            ],
-          },
-          {
-            id: 'ollama',
-            kind: 'llm',
-            title: 'Ollama',
-            vendor: 'Ollama',
-            description: 'Local Ollama runtime',
-            capabilities: ['local', 'openai-compatible'],
-            defaultEndpoint: 'http://localhost:11434/v1',
-            fields: [
-              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
-              { id: 'credential', label: 'API Key', type: 'secret_ref', required: false },
-            ],
-          },
-          {
-            id: 'xai',
-            kind: 'llm',
-            title: 'xAI',
-            vendor: 'xAI',
-            description: 'Hosted Grok models',
-            contextSize: 131072,
-            defaultEndpoint: 'https://api.x.ai/v1',
-            defaultAuthScheme: 'api_key',
-            capabilities: ['hosted', 'openai-compatible'],
-            fields: [
-              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
-              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
-            ],
-          },
-        ])
-      }
-      if (path === '/api/ai-providers' && options?.method === 'POST') {
-        return Promise.resolve({
-          id: 'provider-1',
-          name: String(options.body?.name ?? 'OpenAI'),
-          template_id: String(options.body?.template_id ?? 'openai'),
-          endpoint: String(options.body?.endpoint ?? 'https://api.openai.com/v1'),
-          auth_scheme: String(options.body?.auth_scheme ?? 'api_key'),
-          credential: String(options.body?.credential ?? 'secret-1'),
-          config: options.body?.config ?? {},
-          description: String(options.body?.description ?? ''),
-        })
-      }
-      if (path === '/api/ai-providers') {
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+        if (path === '/api/ai-providers/templates') {
+          return Promise.resolve([
+            {
+              id: 'generic-llm',
+              kind: 'llm',
+              title: 'OpenAI-Compatible',
+              vendor: 'OpenAI-Compatible',
+              description: 'Custom OpenAI-compatible endpoint',
+              defaultAuthScheme: 'none',
+              fields: [
+                { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+                { id: 'credential', label: 'API Key', type: 'secret_ref', required: false },
+              ],
+            },
+            {
+              id: 'openai',
+              kind: 'llm',
+              title: 'OpenAI',
+              vendor: 'OpenAI',
+              description: 'Hosted OpenAI models',
+              contextSize: 128000,
+              defaultEndpoint: 'https://api.openai.com/v1',
+              defaultAuthScheme: 'api_key',
+              capabilities: ['hosted'],
+              fields: [
+                { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+                {
+                  id: 'apiVersion',
+                  label: 'API Version',
+                  type: 'string',
+                  placeholder: '2024-10-21',
+                },
+                {
+                  id: 'credential',
+                  label: 'API Key',
+                  type: 'secret_ref',
+                  required: true,
+                  secretTemplate: 'single_value',
+                },
+                {
+                  id: 'org_secret',
+                  label: 'Organization Secret',
+                  type: 'secret_ref',
+                  required: false,
+                  secretTemplate: 'single_value',
+                },
+              ],
+            },
+            {
+              id: 'ollama',
+              kind: 'llm',
+              title: 'Ollama',
+              vendor: 'Ollama',
+              description: 'Local Ollama runtime',
+              capabilities: ['local', 'openai-compatible'],
+              defaultEndpoint: 'http://localhost:11434/v1',
+              fields: [
+                { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+                { id: 'credential', label: 'API Key', type: 'secret_ref', required: false },
+              ],
+            },
+            {
+              id: 'xai',
+              kind: 'llm',
+              title: 'xAI',
+              vendor: 'xAI',
+              description: 'Hosted Grok models',
+              contextSize: 131072,
+              defaultEndpoint: 'https://api.x.ai/v1',
+              defaultAuthScheme: 'api_key',
+              capabilities: ['hosted', 'openai-compatible'],
+              fields: [
+                { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+                { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+              ],
+            },
+          ])
+        }
+        if (path === '/api/ai-providers' && options?.method === 'POST') {
+          return Promise.resolve({
+            id: 'provider-1',
+            name: String(options.body?.name ?? 'OpenAI'),
+            template_id: String(options.body?.template_id ?? 'openai'),
+            endpoint: String(options.body?.endpoint ?? 'https://api.openai.com/v1'),
+            auth_scheme: String(options.body?.auth_scheme ?? 'api_key'),
+            credential: String(options.body?.credential ?? 'secret-1'),
+            config: options.body?.config ?? {},
+            description: String(options.body?.description ?? ''),
+          })
+        }
+        if (path === '/api/ai-providers') {
+          return Promise.resolve([])
+        }
+        if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+          return Promise.resolve({ items: [] })
+        }
+        if (
+          path ===
+          "/api/collections/secrets/records?filter=(status='active'%26%26(template_id='single_value'))&sort=name"
+        ) {
+          return Promise.resolve({
+            items: [{ id: 'secret-1', name: 'shared-secret', template_id: 'single_value' }],
+          })
+        }
         return Promise.resolve([])
       }
-      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
-        return Promise.resolve({ items: [] })
-      }
-      if (
-        path ===
-        "/api/collections/secrets/records?filter=(status='active'%26%26(template_id='single_value'))&sort=name"
-      ) {
-        return Promise.resolve({
-          items: [{ id: 'secret-1', name: 'shared-secret', template_id: 'single_value' }],
-        })
-      }
-      return Promise.resolve([])
-    })
+    )
 
     getOneMock.mockResolvedValue({ template_id: 'single_value' })
     createMock.mockResolvedValue({ id: 'secret-1' })
@@ -186,7 +193,9 @@ describe('AIProvidersPage', () => {
 
     const productButtons = screen
       .getAllByRole('button')
-      .filter(button => ['OpenAI', 'Ollama', 'xAI', 'OpenAI-Compatible'].includes(button.textContent ?? ''))
+      .filter(button =>
+        ['OpenAI', 'Ollama', 'xAI', 'OpenAI-Compatible'].includes(button.textContent ?? '')
+      )
       .map(button => button.textContent)
     expect(productButtons).toEqual(['OpenAI', 'Ollama', 'xAI', 'OpenAI-Compatible'])
 
@@ -272,58 +281,60 @@ describe('AIProvidersPage', () => {
   })
 
   it('renders reachability and timestamps in the list', async () => {
-    sendMock.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
-      if (path === '/api/ai-providers/templates') {
-        return Promise.resolve([
-          {
-            id: 'xai',
-            kind: 'llm',
-            title: 'xAI',
-            vendor: 'xAI',
-            description: 'Hosted Grok models',
-            contextSize: 131072,
-            defaultEndpoint: 'https://api.x.ai/v1',
-            defaultAuthScheme: 'api_key',
-            fields: [
-              { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
-              { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
-            ],
-          },
-        ])
-      }
-      if (path === '/api/ai-providers') {
-        return Promise.resolve([
-          {
-            id: 'provider-xai',
-            name: 'xai-main',
-            template_id: 'xai',
-            endpoint: 'https://api.x.ai/v1',
-            auth_scheme: 'api_key',
-            credential: 'secret-1',
-            config: {
-              reachability: {
-                status: 'reachable',
-              },
+    sendMock.mockImplementation(
+      (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+        if (path === '/api/ai-providers/templates') {
+          return Promise.resolve([
+            {
+              id: 'xai',
+              kind: 'llm',
+              title: 'xAI',
+              vendor: 'xAI',
+              description: 'Hosted Grok models',
+              contextSize: 131072,
+              defaultEndpoint: 'https://api.x.ai/v1',
+              defaultAuthScheme: 'api_key',
+              fields: [
+                { id: 'endpoint', label: 'Base URL', type: 'url', required: true },
+                { id: 'credential', label: 'API Key', type: 'secret_ref', required: true },
+              ],
             },
-            created: '2025-01-05T10:30:00Z',
-            updated: '2025-01-06T11:45:00Z',
-          },
-        ])
+          ])
+        }
+        if (path === '/api/ai-providers') {
+          return Promise.resolve([
+            {
+              id: 'provider-xai',
+              name: 'xai-main',
+              template_id: 'xai',
+              endpoint: 'https://api.x.ai/v1',
+              auth_scheme: 'api_key',
+              credential: 'secret-1',
+              config: {
+                reachability: {
+                  status: 'reachable',
+                },
+              },
+              created: '2025-01-05T10:30:00Z',
+              updated: '2025-01-06T11:45:00Z',
+            },
+          ])
+        }
+        if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+          return Promise.resolve({ items: [] })
+        }
+        if (
+          path ===
+          "/api/collections/secrets/records?filter=(status='active'%26%26(template_id='single_value'))&sort=name"
+        ) {
+          return Promise.resolve({ items: [] })
+        }
+        if (path === '/api/ai-providers' && options?.method === 'POST') {
+          return Promise.resolve({})
+        }
+        return Promise.resolve([])
       }
-      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
-        return Promise.resolve({ items: [] })
-      }
-      if (
-        path ===
-        "/api/collections/secrets/records?filter=(status='active'%26%26(template_id='single_value'))&sort=name"
-      ) {
-        return Promise.resolve({ items: [] })
-      }
-      if (path === '/api/ai-providers' && options?.method === 'POST') {
-        return Promise.resolve({})
-      }
-      return Promise.resolve([])
-    })
+    )
 
     render(<AIProvidersPage />)
 
@@ -333,8 +344,8 @@ describe('AIProvidersPage', () => {
 
     fireEvent.click(screen.getByTitle('Refresh'))
 
-  expect(await screen.findByText('Reachable')).toBeInTheDocument()
-  expect(screen.getByText('Reachability')).toBeInTheDocument()
+    expect(await screen.findByText('Reachable')).toBeInTheDocument()
+    expect(screen.getByText('Reachability')).toBeInTheDocument()
     expect(screen.getByText('Created')).toBeInTheDocument()
     expect(screen.getByText('Updated')).toBeInTheDocument()
     expect(screen.queryByText('Type')).not.toBeInTheDocument()

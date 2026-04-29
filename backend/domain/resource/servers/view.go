@@ -16,14 +16,14 @@ type AccessView struct {
 }
 
 type TunnelView struct {
-	State       string `json:"state"`
-	LastSeen    string `json:"last_seen"`
-	ConnectedAt string `json:"connected_at"`
-	PauseUntil  string `json:"pause_until"`
-	Status      string `json:"status"`
-	Reason      string `json:"reason"`
-	IsPaused    bool   `json:"is_paused"`
-	Waiting     bool   `json:"waiting_for_first_connect"`
+	State       string               `json:"state"`
+	LastSeen    string               `json:"last_seen"`
+	ConnectedAt string               `json:"connected_at"`
+	PauseUntil  string               `json:"pause_until"`
+	Status      string               `json:"status"`
+	Reason      string               `json:"reason"`
+	IsPaused    bool                 `json:"is_paused"`
+	Waiting     bool                 `json:"waiting_for_first_connect"`
 	Services    []tunnelcore.Service `json:"services,omitempty"`
 }
 
@@ -34,43 +34,43 @@ type ConnectionView struct {
 }
 
 type ServerViewItem struct {
-	ID             string      `json:"id"`
-	Name           string      `json:"name"`
-	Host           string      `json:"host"`
-	Port           int         `json:"port"`
-	User           string      `json:"user"`
-	CreatedBy      string      `json:"created_by"`
-	CreatedByName  string      `json:"created_by_name"`
-	ConnectType    string      `json:"connect_type"`
-	Credential     string      `json:"credential"`
-	CredentialType string      `json:"credential_type"`
-	Description    string      `json:"description"`
-	Created        string      `json:"created"`
-	Updated        string      `json:"updated"`
-	FactsJSON      any          `json:"facts_json,omitempty"`
-	FactsObservedAt string      `json:"facts_observed_at,omitempty"`
-	Connection     ConnectionView `json:"connection"`
-	Access         AccessView   `json:"access"`
-	Tunnel         *TunnelView  `json:"tunnel,omitempty"`
+	ID              string         `json:"id"`
+	Name            string         `json:"name"`
+	Host            string         `json:"host"`
+	Port            int            `json:"port"`
+	User            string         `json:"user"`
+	CreatedBy       string         `json:"created_by"`
+	CreatedByName   string         `json:"created_by_name"`
+	ConnectType     string         `json:"connect_type"`
+	Credential      string         `json:"credential"`
+	CredentialType  string         `json:"credential_type"`
+	Description     string         `json:"description"`
+	Created         string         `json:"created"`
+	Updated         string         `json:"updated"`
+	FactsJSON       any            `json:"facts_json,omitempty"`
+	FactsObservedAt string         `json:"facts_observed_at,omitempty"`
+	Connection      ConnectionView `json:"connection"`
+	Access          AccessView     `json:"access"`
+	Tunnel          *TunnelView    `json:"tunnel,omitempty"`
 }
 
 func BuildServerViewItem(record *core.Record, credentialType string, createdByName string, sessions *tunnelcore.Registry) ServerViewItem {
 	managed := ManagedServerFromRecord(record)
 	item := ServerViewItem{
-		ID:             record.Id,
-		Name:           managed.Name,
-		Host:           managed.Host,
-		Port:           managed.Port,
-		User:           managed.User,
-		CreatedBy:      record.GetString("created_by"),
-		CreatedByName:  createdByName,
-		ConnectType:    string(managed.ConnectType),
-		Credential:     managed.CredentialID,
-		CredentialType: credentialType,
-		Description:    managed.Description,
-		Created:        recordDateTime(record, "created").Format(time.RFC3339),
-		Updated:        recordDateTime(record, "updated").Format(time.RFC3339),
-		FactsJSON:      record.Get("facts_json"),
+		ID:              record.Id,
+		Name:            managed.Name,
+		Host:            managed.Host,
+		Port:            managed.Port,
+		User:            managed.User,
+		CreatedBy:       record.GetString("created_by"),
+		CreatedByName:   createdByName,
+		ConnectType:     string(managed.ConnectType),
+		Credential:      managed.CredentialID,
+		CredentialType:  credentialType,
+		Description:     managed.Description,
+		Created:         recordDateTime(record, "created").Format(time.RFC3339),
+		Updated:         recordDateTime(record, "updated").Format(time.RFC3339),
+		FactsJSON:       record.Get("facts_json"),
 		FactsObservedAt: recordDateTime(record, "facts_observed_at").Format(time.RFC3339),
 		Access: AccessView{
 			Status: "unknown",

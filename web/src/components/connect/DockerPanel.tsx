@@ -18,13 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { pb } from '@/lib/pb'
 import { getApiErrorMessage } from '@/lib/api-error'
 import { ContainersTab } from '@/components/docker/ContainersTab'
@@ -55,6 +49,7 @@ type ContainerVisibleColumns = {
   status: boolean
   cpu: boolean
   mem: boolean
+  network: boolean
   compose: boolean
 }
 
@@ -75,6 +70,7 @@ const DEFAULT_CONTAINER_VISIBLE_COLUMNS: ContainerVisibleColumns = {
   status: true,
   cpu: false,
   mem: false,
+  network: false,
   compose: false,
 }
 
@@ -256,7 +252,9 @@ function OverviewTab({ serverId, disabled }: { serverId: string; disabled: boole
   const attentionContainers = containers
     .filter(container => {
       const status = (container.Status || '').toLowerCase()
-      return container.State !== 'running' || status.includes('unhealthy') || status.includes('dead')
+      return (
+        container.State !== 'running' || status.includes('unhealthy') || status.includes('dead')
+      )
     })
     .slice(0, 6)
 
@@ -290,7 +288,9 @@ function OverviewTab({ serverId, disabled }: { serverId: string; disabled: boole
   if (loadError) {
     return (
       <Alert variant="destructive">
-        <AlertDescription>{getApiErrorMessage(loadError, 'Failed to load Docker overview')}</AlertDescription>
+        <AlertDescription>
+          {getApiErrorMessage(loadError, 'Failed to load Docker overview')}
+        </AlertDescription>
       </Alert>
     )
   }
@@ -358,7 +358,9 @@ function OverviewTab({ serverId, disabled }: { serverId: string; disabled: boole
         <Card className="gap-4 py-4">
           <CardHeader className="px-4 pb-0">
             <CardTitle className="text-base">Needs Attention</CardTitle>
-            <CardDescription>Containers not fully healthy or not currently running.</CardDescription>
+            <CardDescription>
+              Containers not fully healthy or not currently running.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 px-4">
             {loading ? (
@@ -370,8 +372,12 @@ function OverviewTab({ serverId, disabled }: { serverId: string; disabled: boole
                   className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 px-3 py-2"
                 >
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{container.Names || container.ID.slice(0, 12)}</div>
-                    <div className="truncate text-xs text-muted-foreground">{container.Image || '-'}</div>
+                    <div className="truncate text-sm font-medium">
+                      {container.Names || container.ID.slice(0, 12)}
+                    </div>
+                    <div className="truncate text-xs text-muted-foreground">
+                      {container.Image || '-'}
+                    </div>
                   </div>
                   <Badge variant={statusTone(container.Status || container.State)}>
                     {container.State || 'unknown'}
@@ -406,7 +412,9 @@ function OverviewTab({ serverId, disabled }: { serverId: string; disabled: boole
                     <div className="truncate text-sm font-medium">{project.Name || '-'}</div>
                     <div className="text-xs text-muted-foreground">Compose service group</div>
                   </div>
-                  <Badge variant={composeStatusVariant(project.Status || '')}>{project.Status || 'unknown'}</Badge>
+                  <Badge variant={composeStatusVariant(project.Status || '')}>
+                    {project.Status || 'unknown'}
+                  </Badge>
                 </div>
               ))
             ) : (
@@ -424,10 +432,19 @@ function OverviewTab({ serverId, disabled }: { serverId: string; disabled: boole
             {[
               { label: 'Running containers', value: runningCount, total: containers.length },
               { label: 'Images', value: images.length, total: Math.max(images.length, 1) },
-              { label: 'Volumes', value: volumes.length, total: Math.max(volumes.length + networks.length, 1) },
-              { label: 'Networks', value: networks.length, total: Math.max(volumes.length + networks.length, 1) },
+              {
+                label: 'Volumes',
+                value: volumes.length,
+                total: Math.max(volumes.length + networks.length, 1),
+              },
+              {
+                label: 'Networks',
+                value: networks.length,
+                total: Math.max(volumes.length + networks.length, 1),
+              },
             ].map(item => {
-              const width = item.total > 0 ? Math.max(8, Math.round((item.value / item.total) * 100)) : 8
+              const width =
+                item.total > 0 ? Math.max(8, Math.round((item.value / item.total) * 100)) : 8
               return (
                 <div key={item.label} className="space-y-1">
                   <div className="flex items-center justify-between gap-3 text-sm">
@@ -435,7 +452,10 @@ function OverviewTab({ serverId, disabled }: { serverId: string; disabled: boole
                     <span className="font-medium">{loading ? '...' : item.value}</span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-muted">
-                    <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${width}%` }} />
+                    <div
+                      className="h-full rounded-full bg-primary transition-all"
+                      style={{ width: `${width}%` }}
+                    />
                   </div>
                 </div>
               )
@@ -467,7 +487,6 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
   const [terminalContainerId, setTerminalContainerId] = useState<string | null>(null)
   const [terminalShell, setTerminalShell] = useState<string>('/bin/sh')
   const [manualShell, setManualShell] = useState(false)
-  const [lockedHeight, setLockedHeight] = useState<number | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshError, setRefreshError] = useState<string | null>(null)
 
@@ -580,50 +599,16 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
   }
 
   useEffect(() => {
-    const container = document.querySelector(
-      '[data-docker-scroll-root="true"]'
+    const container = rootRef.current?.querySelector(
+      '[data-docker-active-panel="true"]'
     ) as HTMLElement | null
     if (container) container.scrollTop = 0
   }, [activeTab])
 
-  useEffect(() => {
-    const node = rootRef.current
-    if (!node) return
-
-    const syncHeight = () => {
-      const parent = node.parentElement
-      if (!parent) return
-      const next = Math.max(0, Math.floor(parent.clientHeight))
-      if (next > 0) setLockedHeight(next)
-    }
-
-    syncHeight()
-
-    const parent = node.parentElement
-    const observer = parent ? new ResizeObserver(syncHeight) : null
-    if (parent && observer) observer.observe(parent)
-    window.addEventListener('resize', syncHeight)
-
-    const t1 = window.setTimeout(syncHeight, 0)
-    const t2 = window.setTimeout(syncHeight, 100)
-    const t3 = window.setTimeout(syncHeight, 260)
-
-    return () => {
-      window.clearTimeout(t1)
-      window.clearTimeout(t2)
-      window.clearTimeout(t3)
-      window.removeEventListener('resize', syncHeight)
-      observer?.disconnect()
-    }
-  }, [activeTab, refreshSignal, serverId])
-
   return (
     <div
       ref={rootRef}
-      className={cn('flex flex-col gap-3 h-full min-h-0 min-w-0 overflow-hidden', className)}
-      style={
-        lockedHeight ? { height: `${lockedHeight}px`, maxHeight: `${lockedHeight}px` } : undefined
-      }
+      className={cn('flex h-full min-h-0 min-w-0 flex-col gap-3 overflow-hidden', className)}
     >
       <Tabs
         value={activeTab}
@@ -638,32 +623,32 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
         <div className="flex flex-1 min-h-0 min-w-0 flex-col gap-3 md:flex-row">
           <div
             className={cn(
-              'shrink-0 rounded-xl border bg-muted/20 p-2 transition-all md:min-h-0',
+              'relative shrink-0 rounded-xl border bg-muted/20 p-2 transition-all md:min-h-0 md:self-stretch',
               navCollapsed ? 'md:w-14' : 'md:w-48'
             )}
           >
-            <div className="mb-2 flex items-center justify-between gap-2 px-3">
-              <div
-                className={cn(
-                  'flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground',
-                  navCollapsed && 'md:sr-only'
-                )}
-              >
-                <Box className="h-4 w-4" />
-                <span>Docker</span>
+            <div
+              className={cn(
+                'relative mb-2 flex h-10 items-center text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground',
+                navCollapsed ? 'justify-center px-2' : 'justify-start px-3 pr-8'
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <Box className="h-4 w-4 shrink-0" />
+                {!navCollapsed && <span>Docker</span>}
               </div>
               <Button
                 variant="ghost"
                 size="icon"
-                className="hidden h-8 w-8 md:inline-flex"
+                className="absolute right-0 top-1/2 hidden h-5 w-5 -translate-y-1/2 translate-x-1/2 p-0 hover:bg-transparent md:inline-flex"
                 onClick={() => setNavCollapsed(value => !value)}
                 aria-label={navCollapsed ? 'Expand Docker tabs' : 'Collapse Docker tabs'}
                 title={navCollapsed ? 'Expand Docker tabs' : 'Collapse Docker tabs'}
               >
                 {navCollapsed ? (
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-3.5 w-3.5" />
                 ) : (
-                  <ChevronLeft className="h-4 w-4" />
+                  <ChevronLeft className="h-3.5 w-3.5" />
                 )}
               </Button>
             </div>
@@ -694,9 +679,9 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
             </TabsList>
           </div>
 
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border bg-background">
             {activeTab === 'containers' ? null : (
-              <div className="flex shrink-0 flex-col gap-3 rounded-xl border bg-background/90 p-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex shrink-0 flex-col gap-3 p-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <activeTabMeta.icon className="h-4 w-4 text-muted-foreground" />
@@ -728,23 +713,33 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
               </div>
             )}
 
+            {activeTab === 'containers' ? null : <div className="border-t" />}
+
             {dockerDisabled && (
-              <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <div className="mx-3 mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 Docker is disabled for current server: {dockerDisabledReason}
               </div>
             )}
 
             {refreshError && (
-              <Alert variant="destructive">
+              <Alert variant="destructive" className="mx-3 mt-3">
                 <AlertDescription>{refreshError}</AlertDescription>
               </Alert>
             )}
 
-            <div data-docker-scroll-root="true" className="min-h-0 flex-1 overflow-auto pr-1">
-              <TabsContent value="overview" className="mt-0 min-w-0">
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <TabsContent
+                value="overview"
+                className="mt-0 min-h-0 min-w-0 overflow-y-auto p-4 data-[state=active]:block"
+                data-docker-active-panel={activeTab === 'overview' ? 'true' : 'false'}
+              >
                 <OverviewTab serverId={serverId} disabled={dockerDisabled} />
               </TabsContent>
-              <TabsContent value="containers" className="mt-0 min-w-0">
+              <TabsContent
+                value="containers"
+                className="mt-0 min-h-0 min-w-0 overflow-y-auto data-[state=active]:block"
+                data-docker-active-panel={activeTab === 'containers' ? 'true' : 'false'}
+              >
                 <ContainersTab
                   serverId={serverId}
                   searchQuery={containerFilter}
@@ -773,10 +768,18 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
                   onOpenTerminal={id => setTerminalContainerId(id)}
                 />
               </TabsContent>
-              <TabsContent value="images" className="mt-0 min-w-0">
+              <TabsContent
+                value="images"
+                className="mt-0 min-h-0 min-w-0 overflow-y-auto p-4 data-[state=active]:block"
+                data-docker-active-panel={activeTab === 'images' ? 'true' : 'false'}
+              >
                 <ImagesTab serverId={serverId} />
               </TabsContent>
-              <TabsContent value="volumes" className="mt-0 min-w-0">
+              <TabsContent
+                value="volumes"
+                className="mt-0 min-h-0 min-w-0 overflow-y-auto p-4 data-[state=active]:block"
+                data-docker-active-panel={activeTab === 'volumes' ? 'true' : 'false'}
+              >
                 <VolumesTab
                   serverId={serverId}
                   refreshSignal={refreshSignal}
@@ -790,10 +793,18 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
                   }}
                 />
               </TabsContent>
-              <TabsContent value="networks" className="mt-0 min-w-0">
+              <TabsContent
+                value="networks"
+                className="mt-0 min-h-0 min-w-0 overflow-y-auto p-4 data-[state=active]:block"
+                data-docker-active-panel={activeTab === 'networks' ? 'true' : 'false'}
+              >
                 <NetworksTab serverId={serverId} refreshSignal={refreshSignal} />
               </TabsContent>
-              <TabsContent value="compose" className="mt-0 min-w-0">
+              <TabsContent
+                value="compose"
+                className="mt-0 min-h-0 min-w-0 overflow-y-auto p-4 data-[state=active]:block"
+                data-docker-active-panel={activeTab === 'compose' ? 'true' : 'false'}
+              >
                 <ComposeTab
                   serverId={serverId}
                   filterPreset={composeFilter}

@@ -61,6 +61,7 @@ type SoftwareActionPayload struct {
 	Action       software.Action       `json:"action"`
 	UserID       string                `json:"user_id"`
 	UserEmail    string                `json:"user_email"`
+	AppOSBaseURL string                `json:"appos_base_url,omitempty"`
 }
 
 var ErrSoftwareOperationInFlight = errors.New("software operation already in flight")
@@ -71,7 +72,7 @@ var ErrSoftwareActionUnsupported = errors.New("software action unsupported for c
 
 // NewSoftwareActionTask creates an Asynq task for a software delivery action.
 // Returns an error if server_id, component_key, or action is empty.
-func NewSoftwareActionTask(operationID, serverID string, componentKey software.ComponentKey, action software.Action, userID, userEmail string) (*asynq.Task, error) {
+func NewSoftwareActionTask(operationID, serverID string, componentKey software.ComponentKey, action software.Action, userID, userEmail, apposBaseURL string) (*asynq.Task, error) {
 	if strings.TrimSpace(operationID) == "" {
 		return nil, fmt.Errorf("operation_id is required")
 	}
@@ -95,6 +96,7 @@ func NewSoftwareActionTask(operationID, serverID string, componentKey software.C
 		Action:       action,
 		UserID:       userID,
 		UserEmail:    userEmail,
+		AppOSBaseURL: strings.TrimSpace(apposBaseURL),
 	})
 	if err != nil {
 		return nil, err
@@ -104,11 +106,11 @@ func NewSoftwareActionTask(operationID, serverID string, componentKey software.C
 
 // EnqueueSoftwareAction creates and enqueues an Asynq task for a software delivery action.
 // Returns an error if the client is nil or if task creation fails.
-func EnqueueSoftwareAction(client *asynq.Client, operationID, serverID string, componentKey software.ComponentKey, action software.Action, userID, userEmail string) error {
+func EnqueueSoftwareAction(client *asynq.Client, operationID, serverID string, componentKey software.ComponentKey, action software.Action, userID, userEmail, apposBaseURL string) error {
 	if client == nil {
 		return fmt.Errorf("asynq client is not configured")
 	}
-	task, err := NewSoftwareActionTask(operationID, serverID, componentKey, action, userID, userEmail)
+	task, err := NewSoftwareActionTask(operationID, serverID, componentKey, action, userID, userEmail, apposBaseURL)
 	if err != nil {
 		return err
 	}
@@ -402,11 +404,11 @@ func (w *Worker) verifySoftwareActionOutcome(ctx context.Context, serverID strin
 		}
 		return nil
 	case software.ActionUninstall:
-		installedState, _, err := executor.Detect(ctx, serverID, resolved)
+		detection, err := executor.Detect(ctx, serverID, resolved)
 		if err != nil {
 			return err
 		}
-		if installedState == software.InstalledStateInstalled {
+		if detection.InstalledState == software.InstalledStateInstalled {
 			return fmt.Errorf("component is still detected as installed")
 		}
 		return nil
@@ -453,7 +455,9 @@ func (w *Worker) runSoftwarePhaseLoop(ctx context.Context, record *core.Record, 
 		return
 	}
 
+	entry = software.ApplyRuntimeBindings(w.app, entry)
 	resolved := swcatalog.ResolveTemplate(entry, tpl)
+	resolved = software.ApplyServerExecutionBindings(w.app, serverID, payload.AppOSBaseURL, resolved)
 
 	executor, exErr := softwareExecutorFactory(w.app, serverID, payload.UserID)
 	if exErr != nil {
@@ -532,12 +536,16 @@ func (w *Worker) refreshSoftwareSnapshot(ctx context.Context, record *core.Recor
 		BinaryPath:               entry.Binary,
 	}
 
-	detectedState, detectedVersion, detectErr := executor.Detect(ctx, payload.ServerID, resolved)
+	detection, detectErr := executor.Detect(ctx, payload.ServerID, resolved)
 	if detectErr == nil {
-		summary.InstalledState = detectedState
-		summary.DetectedVersion = detectedVersion
-		detail.InstalledState = detectedState
-		detail.DetectedVersion = detectedVersion
+		summary.InstalledState = detection.InstalledState
+		summary.DetectedVersion = detection.DetectedVersion
+		summary.InstallSource = detection.InstallSource
+		summary.SourceEvidence = detection.SourceEvidence
+		detail.InstalledState = detection.InstalledState
+		detail.DetectedVersion = detection.DetectedVersion
+		detail.InstallSource = detection.InstallSource
+		detail.SourceEvidence = detection.SourceEvidence
 	}
 
 	preflight, err := executor.RunPreflight(ctx, payload.ServerID, resolved)
@@ -572,7 +580,7 @@ func (w *Worker) refreshSoftwareSnapshot(ctx context.Context, record *core.Recor
 		}
 	} else {
 		verification.Reason = verifyErr.Error()
-		if detectErr == nil && detectedState == software.InstalledStateNotInstalled {
+		if detectErr == nil && detection.InstalledState == software.InstalledStateNotInstalled {
 			verification.Reason = "component is not installed"
 		}
 	}

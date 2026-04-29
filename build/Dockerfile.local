@@ -1,5 +1,5 @@
 # Development Build - Uses pre-built artifacts from host
-# Requires: backend/appos + backend/appos-monitor-agent (Go binaries with PocketBase framework) and web/dist/ (React build)
+# Requires: backend/appos + backend/appos-agent (Go binaries with PocketBase framework) and web/dist/ (React build)
 #
 # Usage:
 #   make build backend && make build web
@@ -70,9 +70,9 @@ RUN npm install -g @mariozechner/pi-coding-agent \
 # Copy pre-built artifacts from host (appos is statically linked)
 COPY web/dist /usr/share/nginx/html/web
 COPY backend/appos /usr/local/bin/appos
-COPY backend/appos-monitor-agent /usr/local/bin/appos-monitor-agent
+COPY backend/appos-agent /usr/local/bin/appos-agent
 COPY --from=victoriametrics-bin /victoria-metrics-prod /usr/local/bin/victoria-metrics-prod
-RUN chmod +x /usr/local/bin/appos /usr/local/bin/appos-monitor-agent
+RUN chmod +x /usr/local/bin/appos /usr/local/bin/appos-agent
 
 # Store Library plugin (from download stage, Docker-cached after first build)
 COPY --from=library-downloader /appos/library /appos/library
@@ -125,7 +125,7 @@ RUN mkdir -p /usr/local/share/appos/netdata-defaults \
 
 RUN set -eux; \
     test -x /usr/local/bin/appos || { echo "ERROR: appos binary not found"; exit 1; }; \
-    test -x /usr/local/bin/appos-monitor-agent || { echo "ERROR: appos-monitor-agent binary not found"; exit 1; }; \
+    test -x /usr/local/bin/appos-agent || { echo "ERROR: appos-agent binary not found"; exit 1; }; \
     test -x /usr/local/bin/victoria-metrics-prod || { echo "ERROR: victoria-metrics-prod binary not found"; exit 1; }; \
     test -x /usr/local/bin/pi || { echo "ERROR: pi binary not found"; exit 1; }
 

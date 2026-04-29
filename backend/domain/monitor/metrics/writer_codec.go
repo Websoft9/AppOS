@@ -4,24 +4,35 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/websoft9/appos/backend/domain/monitor"
 )
 
 var allowedMetricSeries = map[string]struct{}{
-	"appos_host_cpu_usage":                 {},
-	"appos_host_memory_bytes":              {},
-	"appos_container_cpu_usage":            {},
-	"appos_container_memory_bytes":         {},
-	"appos_platform_cpu_percent":           {},
-	"appos_platform_memory_bytes":          {},
-	"appos_platform_goroutines":            {},
-	"appos_platform_heap_alloc_bytes":      {},
-	"appos_platform_uptime_seconds":        {},
-	"appos_worker_running":                 {},
-	"appos_worker_uptime_seconds":          {},
-	"appos_worker_dispatch_age_seconds":    {},
-	"appos_scheduler_running":              {},
-	"appos_scheduler_tick_age_seconds":     {},
-	"appos_scheduler_dispatch_age_seconds": {},
+	"appos_host_cpu_usage":                              {},
+	"appos_host_memory_bytes":                           {},
+	"appos_container_cpu_usage":                         {},
+	"appos_container_memory_bytes":                      {},
+	"appos_container_network_receive_bytes_per_second":  {},
+	"appos_container_network_transmit_bytes_per_second": {},
+	"appos_platform_cpu_percent":                        {},
+	"appos_platform_memory_bytes":                       {},
+	"appos_platform_goroutines":                         {},
+	"appos_platform_heap_alloc_bytes":                   {},
+	"appos_platform_uptime_seconds":                     {},
+	"appos_worker_running":                              {},
+	"appos_worker_uptime_seconds":                       {},
+	"appos_worker_dispatch_age_seconds":                 {},
+	"appos_scheduler_running":                           {},
+	"appos_scheduler_tick_age_seconds":                  {},
+	"appos_scheduler_dispatch_age_seconds":              {},
+}
+
+var containerMetricSeries = map[string]struct{}{
+	"appos_container_cpu_usage":                         {},
+	"appos_container_memory_bytes":                      {},
+	"appos_container_network_receive_bytes_per_second":  {},
+	"appos_container_network_transmit_bytes_per_second": {},
 }
 
 func encodeMetricPoint(point MetricPoint) (string, error) {
@@ -63,7 +74,30 @@ func validateMetricPoint(point MetricPoint) error {
 	if point.ObservedAt.IsZero() {
 		return fmt.Errorf("metric observedAt is required")
 	}
+	if IsContainerMetricSeries(point.Series) {
+		serverID := strings.TrimSpace(point.Labels["server_id"])
+		containerID := strings.TrimSpace(point.Labels["container_id"])
+		targetType := strings.TrimSpace(point.Labels["target_type"])
+		targetID := strings.TrimSpace(point.Labels["target_id"])
+		if serverID == "" {
+			return fmt.Errorf("container metric series %q requires server_id", point.Series)
+		}
+		if containerID == "" {
+			return fmt.Errorf("container metric series %q requires container_id", point.Series)
+		}
+		if targetType != monitor.TargetTypeContainer {
+			return fmt.Errorf("container metric series %q requires target_type %q", point.Series, monitor.TargetTypeContainer)
+		}
+		if targetID == "" || targetID != containerID {
+			return fmt.Errorf("container metric series %q requires target_id to match container_id", point.Series)
+		}
+	}
 	return nil
+}
+
+func IsContainerMetricSeries(series string) bool {
+	_, ok := containerMetricSeries[strings.TrimSpace(series)]
+	return ok
 }
 
 func normalizeMetricLabels(labels map[string]string) map[string]string {

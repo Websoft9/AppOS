@@ -74,7 +74,7 @@ func wsTokenAuth() *hook.Handler[*core.RequestEvent] {
 func registerServerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	g.Bind(apis.RequireSuperuserAuth())
 
-		g.GET("/connection", handleServersView)
+	g.GET("/connection", handleServersView)
 	g.GET("/local/docker-bridge", handleLocalDockerBridge)
 	registerServerOpsRoutes(g)
 }

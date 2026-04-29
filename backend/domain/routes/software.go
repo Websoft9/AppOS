@@ -3,6 +3,7 @@ package routes
 import (
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -133,6 +134,24 @@ func handleSoftwareComponentAction(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
 	componentKey := software.ComponentKey(e.Request.PathValue("componentKey"))
 	actionStr := e.Request.PathValue("action")
+	var body struct {
+		AppOSBaseURL string `json:"apposBaseUrl"`
+	}
+	if e.Request.ContentLength > 0 {
+		if err := e.BindBody(&body); err != nil {
+			return e.JSON(http.StatusBadRequest, map[string]any{
+				"error":   "invalid_body",
+				"message": "request body must be valid JSON",
+			})
+		}
+	}
+	apposBaseURL, err := normalizeActionAppOSBaseURL(body.AppOSBaseURL)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{
+			"error":   "invalid_appos_base_url",
+			"message": err.Error(),
+		})
+	}
 
 	act, ok := validSoftwareActions[actionStr]
 	if !ok {
@@ -176,7 +195,7 @@ func handleSoftwareComponentAction(e *core.RequestEvent) error {
 	}
 
 	userID, userEmail, _, _ := clientInfo(e)
-	if err := worker.EnqueueSoftwareAction(asynqClient, record.Id, serverID, componentKey, act, userID, userEmail); err != nil {
+	if err := worker.EnqueueSoftwareAction(asynqClient, record.Id, serverID, componentKey, act, userID, userEmail, apposBaseURL); err != nil {
 		markSoftwareOperationEnqueueFailed(e, record, err)
 		return e.JSON(http.StatusInternalServerError, map[string]any{
 			"error":   "enqueue_failed",
@@ -190,6 +209,21 @@ func handleSoftwareComponentAction(e *core.RequestEvent) error {
 		Phase:       software.OperationPhaseAccepted,
 		Message:     actionStr + " accepted",
 	})
+}
+
+func normalizeActionAppOSBaseURL(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", nil
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return "", err
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return "", errors.New("apposBaseUrl must include scheme and host")
+	}
+	return strings.TrimRight(parsed.String(), "/"), nil
 }
 
 func markSoftwareOperationEnqueueFailed(e *core.RequestEvent, record *core.Record, enqueueErr error) {

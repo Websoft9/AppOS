@@ -159,9 +159,7 @@ export function ResourceFormField({
           showSelectedIndicator={field.relationShowSelectedIndicator ?? true}
           borderlessMenu={field.relationBorderlessMenu ?? false}
           onEditSelected={
-            field.relationEditButton
-              ? value => field.relationEditButton?.onClick(value)
-              : undefined
+            field.relationEditButton ? value => field.relationEditButton?.onClick(value) : undefined
           }
           onCreate={
             field.relationCreateButton

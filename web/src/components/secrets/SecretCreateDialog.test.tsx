@@ -83,7 +83,13 @@ describe('SecretCreateDialog', () => {
         id: 'ssh_key',
         label: 'SSH Key',
         fields: [
-          { key: 'private_key', label: 'Private Key', type: 'textarea', required: true, upload: true },
+          {
+            key: 'private_key',
+            label: 'Private Key',
+            type: 'textarea',
+            required: true,
+            upload: true,
+          },
         ],
       },
     ])

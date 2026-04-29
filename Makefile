@@ -1,5 +1,5 @@
 
-.PHONY: help install tidy build run test lint fmt check sec scan sbom \
+.PHONY: help install tidy build run test lint lint-strict fmt fmt-strict check version-check sec sec-strict scan sbom \
 	image start stop restart logs stats delete rm kill-port redo \
 	openapi-gen openapi-merge openapi-check openapi-sync
 
@@ -25,7 +25,7 @@ help:
 	@echo "  make install              Install dev dependencies (Go tools, build-essential, npm packages)"
 	@echo "  make tidy                 Tidy Go modules"
 	@echo "  make build                Build all (backend + web)"
-	@echo "  make build backend        Build Go binaries → backend/appos + backend/appos-monitor-agent"
+	@echo "  make build backend        Build Go binaries → backend/appos + backend/appos-agent"
 	@echo "  make build web            Build React app → web/dist"
 	@echo "  make run                  Copy artifacts + restart services (~10s)"
 	@echo "  make run 9092             Copy artifacts + restart on custom port"
@@ -38,7 +38,8 @@ help:
 	@echo "  make test backend-targeted Run backend routes/secrets/migrations test set"
 	@echo "  make lint                 Run linters (golangci-lint + gosec, eslint)"
 	@echo "  make fmt                  Format code (gofmt, prettier)"
-	@echo "  make check                Format + lint in one step (local dev)"
+	@echo "  make check                Run test + lint + fmt + sec, stop at first error"
+	@echo "  make version-check        Validate version.json and SemVer release metadata"
 	@echo "  make openapi-gen          Auto-generate OpenAPI spec skeleton from route source"
 	@echo "  make openapi-merge        Merge ext-api.yaml + native-api.yaml -> api.yaml"
 	@echo "  make openapi-check        Assert all /api/ext routes are in the spec (CI gate)"
@@ -148,8 +149,8 @@ ifeq ($(ARG2),backend)
 	@echo "Building backend binaries (static, no dependencies)..."
 	@$(MAKE) openapi-sync
 	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
-	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos-monitor-agent ./cmd/appos-monitor-agent
-	@echo "✓ Backend built → backend/appos + backend/appos-monitor-agent (statically linked)"
+	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos-agent ./cmd/appos-agent
+	@echo "✓ Backend built → backend/appos + backend/appos-agent (statically linked)"
 else ifeq ($(ARG2),web)
 	@echo "Building web app..."
 	@cd web && npm run build
@@ -160,8 +161,8 @@ else
 	@echo "Building all..."
 	@$(MAKE) openapi-sync
 	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
-	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos-monitor-agent ./cmd/appos-monitor-agent
-	@echo "✓ Backend built → backend/appos + backend/appos-monitor-agent"
+	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos-agent ./cmd/appos-agent
+	@echo "✓ Backend built → backend/appos + backend/appos-agent"
 	@cd web && npm run build
 	@echo "✓ Web app built → web/dist/"
 	@echo "✓ All built"
@@ -183,7 +184,7 @@ redo:
 run:
 	@echo "Hot reload: copying pre-built artifacts..."
 	@docker cp backend/appos $(CONTAINER):/usr/local/bin/appos
-	@docker cp backend/appos-monitor-agent $(CONTAINER):/usr/local/bin/appos-monitor-agent
+	@docker cp backend/appos-agent $(CONTAINER):/usr/local/bin/appos-agent
 	@docker cp web/dist/. $(CONTAINER):/usr/share/nginx/html/web/
 	@docker cp build/nginx.conf $(CONTAINER):/etc/nginx/nginx.conf
 	@docker exec $(CONTAINER) nginx -t
@@ -235,6 +236,21 @@ lint:
 	fi
 	@echo "✓ Linting completed"
 
+lint-strict:
+	@echo "Running linters (strict)..."
+	@if command -v golangci-lint >/dev/null 2>&1; then \
+		echo "→ golangci-lint..."; \
+		cd backend && golangci-lint run --config ../.golangci.yml ./...; \
+	else \
+		echo "→ go vet (golangci-lint not installed)..."; \
+		cd backend && go vet ./...; \
+	fi
+	@if [ -f "web/node_modules/.bin/eslint" ]; then \
+		echo "→ eslint..."; \
+		cd web && npx eslint src/; \
+	fi
+	@echo "✓ Linting completed"
+
 openapi-gen:
 	@echo "Generating OpenAPI custom-route spec from route source..."
 	@cd backend && go run ./cmd/openapi gen
@@ -268,7 +284,31 @@ fmt:
 	fi
 	@echo "✓ Code formatted"
 
-check: fmt lint
+fmt-strict:
+	@echo "Formatting code (strict)..."
+	@if [ -f "backend/go.mod" ]; then \
+		echo "→ gofmt..."; \
+		find backend -name "*.go" -exec gofmt -w {} +; \
+	fi
+	@if [ -f "web/node_modules/.bin/prettier" ]; then \
+		echo "→ prettier..."; \
+		cd web && npx prettier --write "src/**/*.{ts,tsx,css,json}" 2>/dev/null; \
+	fi
+	@echo "✓ Code formatted"
+
+check:
+	@set -e; \
+	echo "Running full check (stop at first error)..."; \
+	$(MAKE) test || { echo "✗ check failed at: test"; exit 1; }; \
+	$(MAKE) lint-strict || { echo "✗ check failed at: lint"; exit 1; }; \
+	$(MAKE) fmt-strict || { echo "✗ check failed at: fmt"; exit 1; }; \
+	$(MAKE) sec-strict || { echo "✗ check failed at: sec"; exit 1; }; \
+	echo "✓ Check completed"
+
+version-check:
+	@echo "Validating version metadata..."
+	@node .github/scripts/validate-version.mjs
+	@echo "✓ Version metadata valid"
 
 # ============================================================
 # Security
@@ -295,6 +335,30 @@ sec:
 		gitleaks detect --source . --no-git --redact 2>/dev/null || true; \
 	else \
 		echo "  ⚠ gitleaks not installed. Run 'make install' first."; \
+	fi
+	@echo "✓ Security checks completed"
+
+sec-strict:
+	@echo "Running security checks (strict)..."
+	@echo "→ govulncheck (Go CVE scan)..."
+	@if command -v govulncheck >/dev/null 2>&1; then \
+		cd backend && govulncheck ./...; \
+	else \
+		echo "✗ govulncheck not installed. Run 'make install' first."; \
+		exit 1; \
+	fi
+	@echo ""
+	@echo "→ npm audit (JS CVE scan, high+critical only)..."
+	@if [ -f "web/package.json" ]; then \
+		cd web && npm audit --audit-level=high 2>/dev/null; \
+	fi
+	@echo ""
+	@echo "→ gitleaks (secret / credential leak detection)..."
+	@if command -v gitleaks >/dev/null 2>&1; then \
+		gitleaks detect --source . --no-git --redact 2>/dev/null; \
+	else \
+		echo "✗ gitleaks not installed. Run 'make install' first."; \
+		exit 1; \
 	fi
 	@echo "✓ Security checks completed"
 
@@ -338,7 +402,7 @@ else ifeq ($(ARG2),build-local)
 	@echo "Building dev image (pre-built artifacts)..."
 	@# Verify artifacts exist
 	@test -f backend/appos || { echo "Error: backend/appos not found. Run 'make build backend' first."; exit 1; }
-	@test -f backend/appos-monitor-agent || { echo "Error: backend/appos-monitor-agent not found. Run 'make build backend' first."; exit 1; }
+	@test -f backend/appos-agent || { echo "Error: backend/appos-agent not found. Run 'make build backend' first."; exit 1; }
 	@test -d web/dist || { echo "Error: web/dist/ not found. Run 'make build web' first."; exit 1; }
 	@# Pass host proxy into build (replace 127.0.0.1 with host-gateway for container access)
 	$(eval HOST_PROXY := $(shell \

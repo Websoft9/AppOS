@@ -74,7 +74,13 @@ describe('ConnectorsPage', () => {
             fields: [
               { id: 'endpoint', label: 'SMTP Endpoint', type: 'string', required: true },
               { id: 'username', label: 'Username', type: 'string', required: true },
-              { id: 'credential', label: 'Password Secret', type: 'secret_ref', required: true, secretTemplate: 'single_value' },
+              {
+                id: 'credential',
+                label: 'Password Secret',
+                type: 'secret_ref',
+                required: true,
+                secretTemplate: 'single_value',
+              },
             ],
           },
           {
@@ -86,7 +92,13 @@ describe('ConnectorsPage', () => {
             fields: [
               { id: 'endpoint', label: 'SMTP Endpoint', type: 'string', required: true },
               { id: 'username', label: 'Username', type: 'string', required: true },
-              { id: 'credential', label: 'Password Secret', type: 'secret_ref', required: true, secretTemplate: 'single_value' },
+              {
+                id: 'credential',
+                label: 'Password Secret',
+                type: 'secret_ref',
+                required: true,
+                secretTemplate: 'single_value',
+              },
               { id: 'region', label: 'AWS Region', type: 'string', placeholder: 'us-east-1' },
             ],
           },
@@ -98,7 +110,13 @@ describe('ConnectorsPage', () => {
             fields: [
               { id: 'endpoint', label: 'Registry URL', type: 'url', required: true },
               { id: 'username', label: 'Username', type: 'string', required: true },
-              { id: 'credential', label: 'Password Secret', type: 'secret_ref', required: true, secretTemplate: 'single_value' },
+              {
+                id: 'credential',
+                label: 'Password Secret',
+                type: 'secret_ref',
+                required: true,
+                secretTemplate: 'single_value',
+              },
             ],
           },
           {
@@ -109,7 +127,13 @@ describe('ConnectorsPage', () => {
             fields: [
               { id: 'endpoint', label: 'Registry URL', type: 'url', required: true },
               { id: 'username', label: 'Username', type: 'string', required: true },
-              { id: 'credential', label: 'Password Secret', type: 'secret_ref', required: true, secretTemplate: 'single_value' },
+              {
+                id: 'credential',
+                label: 'Password Secret',
+                type: 'secret_ref',
+                required: true,
+                secretTemplate: 'single_value',
+              },
             ],
           },
           {

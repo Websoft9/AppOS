@@ -21,7 +21,7 @@ const (
 	// Server-target components — referenced by CapabilityComponentMap and provisioning logic.
 	ComponentKeyDocker       ComponentKey = "docker"
 	ComponentKeyMonitorAgent ComponentKey = "monitor-agent"
-	ComponentKeyControlAgent ComponentKey = "control-agent"
+	ComponentKeyAppOSAgent   ComponentKey = "appos-agent"
 	ComponentKeyReverseProxy ComponentKey = "reverse-proxy"
 	// Local-target components are purely catalog-data-driven: their component_key strings
 	// are defined in catalog/catalog_local.yaml and flow through the system as opaque values.
@@ -56,6 +56,15 @@ const (
 	InstalledStateInstalled    InstalledState = "installed"
 	InstalledStateNotInstalled InstalledState = "not_installed"
 	InstalledStateUnknown      InstalledState = "unknown"
+)
+
+type InstallSource string
+
+const (
+	InstallSourceManaged        InstallSource = "managed"
+	InstallSourceForeignPackage InstallSource = "foreign_package"
+	InstallSourceManual         InstallSource = "manual"
+	InstallSourceUnknown        InstallSource = "unknown"
 )
 
 type VerificationState string
@@ -120,13 +129,13 @@ const (
 type FailureCode string
 
 const (
-	FailureCodeEnqueueError            FailureCode = "enqueue_error"
-	FailureCodePreflightError          FailureCode = "preflight_error"
-	FailureCodePreflightBlocked        FailureCode = "preflight_blocked"
-	FailureCodeExecutionError          FailureCode = "execution_error"
-	FailureCodeVerificationDegraded    FailureCode = "verification_degraded"
-	FailureCodeVerificationError       FailureCode = "verification_error"
-	FailureCodeUninstallTruthMismatch  FailureCode = "uninstall_truth_mismatch"
+	FailureCodeEnqueueError           FailureCode = "enqueue_error"
+	FailureCodePreflightError         FailureCode = "preflight_error"
+	FailureCodePreflightBlocked       FailureCode = "preflight_blocked"
+	FailureCodeExecutionError         FailureCode = "execution_error"
+	FailureCodeVerificationDegraded   FailureCode = "verification_degraded"
+	FailureCodeVerificationError      FailureCode = "verification_error"
+	FailureCodeUninstallTruthMismatch FailureCode = "uninstall_truth_mismatch"
 )
 
 const (
@@ -164,12 +173,21 @@ type SoftwareVerificationResult struct {
 	Details   map[string]any    `json:"details,omitempty"`
 }
 
+type DetectionResult struct {
+	InstalledState  InstalledState `json:"installed_state"`
+	DetectedVersion string         `json:"detected_version,omitempty"`
+	InstallSource   InstallSource  `json:"install_source,omitempty"`
+	SourceEvidence  string         `json:"source_evidence,omitempty"`
+}
+
 type SoftwareComponentSummary struct {
 	ComponentKey      ComponentKey                `json:"component_key"`
 	Label             string                      `json:"label"`
 	TemplateKind      TemplateKind                `json:"template_kind"`
 	InstalledState    InstalledState              `json:"installed_state"`
 	DetectedVersion   string                      `json:"detected_version,omitempty"`
+	InstallSource     InstallSource               `json:"install_source,omitempty"`
+	SourceEvidence    string                      `json:"source_evidence,omitempty"`
 	PackagedVersion   string                      `json:"packaged_version,omitempty"`
 	VerificationState VerificationState           `json:"verification_state"`
 	AvailableActions  []Action                    `json:"available_actions,omitempty"`
@@ -238,35 +256,38 @@ type PreflightSpec struct {
 
 // InstallSpec defines the install step.
 type InstallSpec struct {
-	Strategy           string   `yaml:"strategy"`
-	PackageName        string   `yaml:"package_name"`
-	PackageNames       []string `yaml:"package_names"`
-	PackageRepoProfile string   `yaml:"package_repo_profile"`
-	ScriptPath         string   `yaml:"script_path"`
-	ScriptURL          string   `yaml:"script_url"`
-	Args               []string `yaml:"args"`
+	Strategy           string            `yaml:"strategy"`
+	PackageName        string            `yaml:"package_name"`
+	PackageNames       []string          `yaml:"package_names"`
+	PackageRepoProfile string            `yaml:"package_repo_profile"`
+	ScriptPath         string            `yaml:"script_path"`
+	ScriptURL          string            `yaml:"script_url"`
+	Env                map[string]string `yaml:"env"`
+	Args               []string          `yaml:"args"`
 }
 
 // UpgradeSpec defines the upgrade step.
 type UpgradeSpec struct {
-	Strategy           string   `yaml:"strategy"`
-	PackageName        string   `yaml:"package_name"`
-	PackageNames       []string `yaml:"package_names"`
-	PackageRepoProfile string   `yaml:"package_repo_profile"`
-	ScriptPath         string   `yaml:"script_path"`
-	ScriptURL          string   `yaml:"script_url"`
-	Args               []string `yaml:"args"`
+	Strategy           string            `yaml:"strategy"`
+	PackageName        string            `yaml:"package_name"`
+	PackageNames       []string          `yaml:"package_names"`
+	PackageRepoProfile string            `yaml:"package_repo_profile"`
+	ScriptPath         string            `yaml:"script_path"`
+	ScriptURL          string            `yaml:"script_url"`
+	Env                map[string]string `yaml:"env"`
+	Args               []string          `yaml:"args"`
 }
 
 // UninstallSpec defines the uninstall step.
 type UninstallSpec struct {
-	Strategy           string   `yaml:"strategy"`
-	PackageName        string   `yaml:"package_name"`
-	PackageNames       []string `yaml:"package_names"`
-	PackageRepoProfile string   `yaml:"package_repo_profile"`
-	ScriptPath         string   `yaml:"script_path"`
-	ScriptURL          string   `yaml:"script_url"`
-	Args               []string `yaml:"args"`
+	Strategy           string            `yaml:"strategy"`
+	PackageName        string            `yaml:"package_name"`
+	PackageNames       []string          `yaml:"package_names"`
+	PackageRepoProfile string            `yaml:"package_repo_profile"`
+	ScriptPath         string            `yaml:"script_path"`
+	ScriptURL          string            `yaml:"script_url"`
+	Env                map[string]string `yaml:"env"`
+	Args               []string          `yaml:"args"`
 }
 
 // VerifySpec defines the verify step.
@@ -335,16 +356,16 @@ type ComponentCatalog struct {
 // ResolvedTemplate is the sole input type accepted by ComponentExecutor; no
 // component-specific logic is permitted outside of this resolution step.
 type ResolvedTemplate struct {
-	ComponentKey   ComponentKey
-	TemplateRef    string
-	TemplateKind   TemplateKind
-	Detect         DetectSpec
-	Preflight      PreflightSpec
-	Install        InstallSpec
-	Upgrade        UpgradeSpec
-	Uninstall      UninstallSpec
-	Verify         VerifySpec
-	Reinstall      ReinstallSpec
+	ComponentKey     ComponentKey
+	TemplateRef      string
+	TemplateKind     TemplateKind
+	Detect           DetectSpec
+	Preflight        PreflightSpec
+	Install          InstallSpec
+	Upgrade          UpgradeSpec
+	Uninstall        UninstallSpec
+	Verify           VerifySpec
+	Reinstall        ReinstallSpec
 	SupportedActions []Action
 }
 

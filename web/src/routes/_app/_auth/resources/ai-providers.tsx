@@ -116,7 +116,11 @@ function isAdvancedProviderField(field: AIProviderTemplateField) {
   const normalizedLabel = String(field.label ?? '')
     .trim()
     .toLowerCase()
-  return normalizedId === 'apiversion' || normalizedId === 'api_version' || normalizedLabel === 'api version'
+  return (
+    normalizedId === 'apiversion' ||
+    normalizedId === 'api_version' ||
+    normalizedLabel === 'api version'
+  )
 }
 
 function resolveAuthScheme(template: AIProviderTemplate, secretTemplateId: string) {
@@ -430,7 +434,9 @@ export function AIProvidersPage() {
         .map(template => ({
           id: template.id,
           title: chooserTitle(template),
-          searchText: [template.title, template.vendor, template.description, template.id].join(' '),
+          searchText: [template.title, template.vendor, template.description, template.id].join(
+            ' '
+          ),
         })),
     [providerTemplates]
   )
@@ -596,7 +602,13 @@ export function AIProvidersPage() {
   )
 
   const resolveProviderFields = useCallback(
-    ({ formData, editingItem }: { formData: Record<string, unknown>; editingItem: Record<string, unknown> | null }) => {
+    ({
+      formData,
+      editingItem,
+    }: {
+      formData: Record<string, unknown>
+      editingItem: Record<string, unknown> | null
+    }) => {
       const selectedTemplate = providerTemplatesById.get(String(formData.template_id ?? ''))
       const dynamicFields = (selectedTemplate?.fields ?? []).map(field => {
         if (field.id === 'credential') {
@@ -635,7 +647,13 @@ export function AIProvidersPage() {
         ...baseProviderFields.slice(9),
       ]
     },
-    [baseProviderFields, openSecretDialog, openSecretEditor, providerTemplatesById, renderCredentialField]
+    [
+      baseProviderFields,
+      openSecretDialog,
+      openSecretEditor,
+      providerTemplatesById,
+      renderCredentialField,
+    ]
   )
 
   return (

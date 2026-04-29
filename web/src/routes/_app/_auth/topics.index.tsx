@@ -486,7 +486,12 @@ function TopicsListPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={() => void handleRefresh()} title="Refresh">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => void handleRefresh()}
+            title="Refresh"
+          >
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
           <Button onClick={openCreate}>New Topic</Button>
@@ -522,7 +527,9 @@ function TopicsListPage() {
           <p className="text-sm mt-1">
             Create the first Topic to start capturing shared context for your team.
           </p>
-          <Button className="mt-4" onClick={openCreate}>New Topic</Button>
+          <Button className="mt-4" onClick={openCreate}>
+            New Topic
+          </Button>
         </div>
       ) : filteredRows.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground border rounded-lg">
@@ -605,7 +612,11 @@ function TopicsListPage() {
               <TableRow key={row.id} className="cursor-pointer hover:bg-muted/50">
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <Link to="/topics/$id" params={{ id: row.id }} className="font-medium hover:underline">
+                    <Link
+                      to="/topics/$id"
+                      params={{ id: row.id }}
+                      className="font-medium hover:underline"
+                    >
                       {row.title}
                     </Link>
                   </div>
@@ -629,7 +640,12 @@ function TopicsListPage() {
                   {isOwner(row) && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" title="More actions">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          title="More actions"
+                        >
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>

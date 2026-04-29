@@ -33,7 +33,7 @@ issues:
   # Relax specific noisy rules for test files only;
   # gosec still runs on test code to catch hardcoded secrets/weak crypto.
   exclude-rules:
-    - path: "_test\.go"
+    - path: '_test\.go'
       linters: [errcheck, ineffassign]
   # Surface all findings (don't cap per-linter)
   max-issues-per-linter: 0

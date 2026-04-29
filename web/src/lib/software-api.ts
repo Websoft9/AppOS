@@ -9,7 +9,10 @@ export type SoftwareActionType = 'install' | 'upgrade' | 'verify' | 'reinstall' 
 export type InstalledState = 'installed' | 'not_installed' | 'unknown'
 export type VerificationState = 'healthy' | 'degraded' | 'unknown'
 export type TemplateKind = 'package' | 'script' | 'binary'
-export type CatalogVisibility = 'server_operations' | 'supported_software_discovery' | 'local_inventory'
+export type CatalogVisibility =
+  | 'server_operations'
+  | 'supported_software_discovery'
+  | 'local_inventory'
 export type InstallSource = 'managed' | 'foreign_package' | 'manual' | 'unknown'
 
 export type OperationPhase =
@@ -216,10 +219,14 @@ export async function getSoftwareOperation(
 export async function invokeSoftwareAction(
   serverId: string,
   componentKey: string,
-  action: SoftwareActionType
+  action: SoftwareActionType,
+  options?: { apposBaseUrl?: string }
 ): Promise<AsyncCommandResponse> {
   return pb.send<AsyncCommandResponse>(
     `${softwareBasePath(serverId)}/${encodeURIComponent(componentKey)}/${action}`,
-    { method: 'POST' }
+    {
+      method: 'POST',
+      body: options?.apposBaseUrl ? { apposBaseUrl: options.apposBaseUrl } : undefined,
+    }
   )
 }

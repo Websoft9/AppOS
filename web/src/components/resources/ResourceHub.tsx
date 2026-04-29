@@ -94,7 +94,8 @@ const SHARED_ASSETS: ResourceDef[] = [
   {
     key: 'scripts',
     title: 'Scripts',
-    description: 'Reusable automation scripts for operations, recovery steps, and repeatable tasks.',
+    description:
+      'Reusable automation scripts for operations, recovery steps, and repeatable tasks.',
     icon: <FileCode2 className="h-5 w-5" />,
     href: '/resources/scripts',
     createLabel: 'Add an automation script',

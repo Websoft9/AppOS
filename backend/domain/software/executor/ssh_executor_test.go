@@ -86,7 +86,7 @@ func scriptTemplate(url, svc string) software.ResolvedTemplate {
 // ─── buildScriptCommand ───────────────────────────────────────────────────────
 
 func TestBuildScriptCommand_NoArgs(t *testing.T) {
-	cmd := buildScriptCommand("https://example.com/install.sh", nil)
+	cmd := buildScriptCommand("https://example.com/install.sh", nil, nil)
 	if cmd == "" {
 		t.Fatal("expected non-empty command")
 	}
@@ -105,7 +105,7 @@ func TestBuildScriptCommand_NoArgs(t *testing.T) {
 }
 
 func TestBuildScriptCommand_WithArgs(t *testing.T) {
-	cmd := buildScriptCommand("https://example.com/install.sh", []string{"--upgrade", "--channel=stable"})
+	cmd := buildScriptCommand("https://example.com/install.sh", []string{"--upgrade", "--channel=stable"}, nil)
 	if !containsSubstring(cmd, "'--upgrade'") {
 		t.Errorf("expected --upgrade arg in command, got: %s", cmd)
 	}
@@ -116,14 +116,24 @@ func TestBuildScriptCommand_WithArgs(t *testing.T) {
 
 func TestBuildScriptCommand_ShellQuotesURL(t *testing.T) {
 	// URL must be shell-quoted to prevent injection even from catalog metadata
-	cmd := buildScriptCommand("https://example.com/path with spaces/install.sh", nil)
+	cmd := buildScriptCommand("https://example.com/path with spaces/install.sh", nil, nil)
 	if !containsSubstring(cmd, "'https://example.com/path with spaces/install.sh'") {
 		t.Errorf("expected properly quoted URL, got: %s", cmd)
 	}
 }
 
+func TestBuildScriptCommand_WithMultilineEnv(t *testing.T) {
+	cmd := buildScriptCommand("https://example.com/install.sh", nil, map[string]string{"APPOS_AGENT_CONFIG_YAML": "line1\nline2\n"})
+	if !containsSubstring(cmd, "APPOS_AGENT_CONFIG_YAML=$(cat <<'APPOS_ENV_0'") {
+		t.Fatalf("expected multiline env heredoc, got: %s", cmd)
+	}
+	if !containsSubstring(cmd, "line1\nline2") {
+		t.Fatalf("expected env value in command, got: %s", cmd)
+	}
+}
+
 func TestBuildManagedScriptCommand_EmbeddedScript(t *testing.T) {
-	cmd, err := buildManagedScriptCommand("docker-install.sh", "", nil)
+	cmd, err := buildManagedScriptCommand("docker-install.sh", "", nil, nil)
 	if err != nil {
 		t.Fatalf("buildManagedScriptCommand error: %v", err)
 	}
@@ -132,6 +142,19 @@ func TestBuildManagedScriptCommand_EmbeddedScript(t *testing.T) {
 	}
 	if !containsSubstring(cmd, "docker-install") {
 		t.Fatalf("expected embedded docker-install.sh contents, got: %s", cmd)
+	}
+}
+
+func TestBuildManagedScriptCommand_EmbeddedScriptWithEnv(t *testing.T) {
+	cmd, err := buildManagedScriptCommand("docker-install.sh", "", nil, map[string]string{"APPOS_AGENT_SYSTEMD_UNIT": "unit-content"})
+	if err != nil {
+		t.Fatalf("buildManagedScriptCommand error: %v", err)
+	}
+	if !containsSubstring(cmd, "APPOS_AGENT_SYSTEMD_UNIT=$(cat <<'APPOS_ENV_0'") {
+		t.Fatalf("expected env injection in embedded command, got: %s", cmd)
+	}
+	if !containsSubstring(cmd, "unit-content") {
+		t.Fatalf("expected env value in embedded command, got: %s", cmd)
 	}
 }
 
@@ -186,15 +209,15 @@ func TestDetect_InstalledWithVersion(t *testing.T) {
 
 	tpl := packageTemplate("docker.io", "docker.service")
 	ex := &SSHExecutor{}
-	state, version, err := ex.Detect(context.Background(), "", tpl)
+	detection, err := ex.Detect(context.Background(), "", tpl)
 	if err != nil {
 		t.Fatalf("Detect error: %v", err)
 	}
-	if state != software.InstalledStateInstalled {
-		t.Errorf("expected installed, got %q", state)
+	if detection.InstalledState != software.InstalledStateInstalled {
+		t.Errorf("expected installed, got %q", detection.InstalledState)
 	}
-	if !containsSubstring(version, "Docker version") {
-		t.Errorf("expected version string, got %q", version)
+	if !containsSubstring(detection.DetectedVersion, "Docker version") {
+		t.Errorf("expected version string, got %q", detection.DetectedVersion)
 	}
 }
 
@@ -208,15 +231,109 @@ func TestDetect_NotInstalled(t *testing.T) {
 
 	tpl := packageTemplate("docker.io", "docker.service")
 	ex := &SSHExecutor{}
-	state, version, err := ex.Detect(context.Background(), "", tpl)
+	detection, err := ex.Detect(context.Background(), "", tpl)
 	if err != nil {
 		t.Fatalf("Detect error: %v", err)
 	}
-	if state != software.InstalledStateNotInstalled {
-		t.Errorf("expected not_installed, got %q", state)
+	if detection.InstalledState != software.InstalledStateNotInstalled {
+		t.Errorf("expected not_installed, got %q", detection.InstalledState)
 	}
-	if version != "" {
-		t.Errorf("expected empty version, got %q", version)
+	if detection.DetectedVersion != "" {
+		t.Errorf("expected empty version, got %q", detection.DetectedVersion)
+	}
+}
+
+func TestDetect_DockerManagedInstallSource(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		switch {
+		case containsSubstring(cmd, "command -v docker"):
+			return "/usr/bin/docker", nil
+		case containsSubstring(cmd, "Docker version"):
+			return "Docker version 27.0.1, build abc123", nil
+		case containsSubstring(cmd, "dpkg-query -W") && containsSubstring(cmd, "docker-ce"):
+			return "ii ", nil
+		default:
+			return "", nil
+		}
+	}
+
+	tpl := packageTemplate("docker-ce", "docker.service")
+	tpl.Install.PackageNames = []string{"docker-ce", "docker-ce-cli"}
+	ex := &SSHExecutor{}
+	detection, err := ex.Detect(context.Background(), "", tpl)
+	if err != nil {
+		t.Fatalf("Detect error: %v", err)
+	}
+	if detection.InstallSource != software.InstallSourceManaged {
+		t.Fatalf("expected managed install source, got %q", detection.InstallSource)
+	}
+	if detection.SourceEvidence != "apt:docker-ce" {
+		t.Fatalf("expected apt evidence, got %q", detection.SourceEvidence)
+	}
+}
+
+func TestDetect_DockerForeignPackageInstallSource(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		switch {
+		case containsSubstring(cmd, "command -v docker"):
+			return "/usr/bin/docker", nil
+		case containsSubstring(cmd, "Docker version"):
+			return "Docker version 27.0.1, build abc123", nil
+		case containsSubstring(cmd, "dpkg-query -W"):
+			return "", nil
+		case containsSubstring(cmd, "dpkg-query -S"):
+			return "docker.io: /usr/bin/docker", nil
+		default:
+			return "", nil
+		}
+	}
+
+	tpl := packageTemplate("docker-ce", "docker.service")
+	ex := &SSHExecutor{}
+	detection, err := ex.Detect(context.Background(), "", tpl)
+	if err != nil {
+		t.Fatalf("Detect error: %v", err)
+	}
+	if detection.InstallSource != software.InstallSourceForeignPackage {
+		t.Fatalf("expected foreign_package install source, got %q", detection.InstallSource)
+	}
+	if detection.SourceEvidence != "apt:docker.io" {
+		t.Fatalf("expected apt foreign evidence, got %q", detection.SourceEvidence)
+	}
+}
+
+func TestDetect_DockerManualInstallSource(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		switch {
+		case containsSubstring(cmd, "command -v docker"):
+			return "/usr/local/bin/docker", nil
+		case containsSubstring(cmd, "Docker version"):
+			return "Docker version 27.0.1, build abc123", nil
+		default:
+			return "", nil
+		}
+	}
+
+	tpl := packageTemplate("docker-ce", "docker.service")
+	ex := &SSHExecutor{}
+	detection, err := ex.Detect(context.Background(), "", tpl)
+	if err != nil {
+		t.Fatalf("Detect error: %v", err)
+	}
+	if detection.InstallSource != software.InstallSourceManual {
+		t.Fatalf("expected manual install source, got %q", detection.InstallSource)
+	}
+	if detection.SourceEvidence != "binary:/usr/local/bin/docker" {
+		t.Fatalf("expected binary evidence, got %q", detection.SourceEvidence)
 	}
 }
 

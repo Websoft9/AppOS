@@ -500,7 +500,7 @@ function CertificatesPage() {
         kind: selectedCreateTemplate.kind,
       }
       for (const field of selectedCreateTemplate.fields) {
-		if (field.key === 'private_key_secret') {
+        if (field.key === 'private_key_secret') {
           if (createFields[field.key]) data[field.key] = createFields[field.key]
         } else {
           data[field.key] = createFields[field.key] ?? ''
@@ -967,31 +967,32 @@ function CertificatesPage() {
                     </>
                   ) : field.type === 'relation' ? (
                     <>
-                    <select
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      value={createFields[field.key] ?? ''}
-                      onChange={e => {
-                        const val = e.target.value
-                        if (val === CREATE_SECRET_OPTION_VALUE) {
-                          openQuickSecretCreate('create')
-                          return
-                        }
-                        setCreateFields(prev => ({ ...prev, [field.key]: val }))
-                      }}
-                    >
-                      <option value="">None</option>
-                      {secrets.map(s => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
+                      <select
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={createFields[field.key] ?? ''}
+                        onChange={e => {
+                          const val = e.target.value
+                          if (val === CREATE_SECRET_OPTION_VALUE) {
+                            openQuickSecretCreate('create')
+                            return
+                          }
+                          setCreateFields(prev => ({ ...prev, [field.key]: val }))
+                        }}
+                      >
+                        <option value="">None</option>
+                        {secrets.map(s => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}
+                          </option>
+                        ))}
+                        <option value={CREATE_SECRET_OPTION_VALUE}>
+                          + Create TLS Private Key Secret
                         </option>
-                      ))}
-                      <option value={CREATE_SECRET_OPTION_VALUE}>
-                        + Create TLS Private Key Secret
-                      </option>
-                    </select>
-                    <p className="text-xs text-muted-foreground">
-                      The certificate object stores the certificate chain and references the private key through a TLS private key secret.
-                    </p>
+                      </select>
+                      <p className="text-xs text-muted-foreground">
+                        The certificate object stores the certificate chain and references the
+                        private key through a TLS private key secret.
+                      </p>
                     </>
                   ) : (
                     <Input
@@ -1025,7 +1026,8 @@ function CertificatesPage() {
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground bg-muted p-2 rounded">
-                  ℹ The server will generate the certificate chain and create or update a referenced TLS private key secret after saving.
+                  ℹ The server will generate the certificate chain and create or update a referenced
+                  TLS private key secret after saving.
                 </p>
               </>
             )}
@@ -1163,7 +1165,8 @@ function CertificatesPage() {
                       </option>
                     </select>
                     <p className="text-xs text-muted-foreground">
-                      This certificate keeps the certificate chain on the certificate record and references its private key through a secret.
+                      This certificate keeps the certificate chain on the certificate record and
+                      references its private key through a secret.
                     </p>
                   </div>
                 </>
@@ -1216,7 +1219,8 @@ function CertificatesPage() {
           <DialogHeader>
             <DialogTitle>Create TLS Private Key Secret</DialogTitle>
             <DialogDescription>
-              Create a TLS private key secret without leaving the certificate form, then attach it by reference.
+              Create a TLS private key secret without leaving the certificate form, then attach it
+              by reference.
             </DialogDescription>
           </DialogHeader>
 

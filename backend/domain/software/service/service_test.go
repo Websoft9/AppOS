@@ -13,31 +13,30 @@ import (
 )
 
 type fakeComponentExecutor struct {
-	detectState   software.InstalledState
-	detectVersion string
-	detectErr     error
-	preflight     software.TargetReadinessResult
-	preflightErr  error
-	verifyDetail  software.SoftwareComponentDetail
-	verifyErr     error
-	installDetail software.SoftwareComponentDetail
-	installErr    error
-	upgradeDetail software.SoftwareComponentDetail
-	upgradeErr    error
-	startDetail   software.SoftwareComponentDetail
-	startErr      error
-	stopDetail    software.SoftwareComponentDetail
-	stopErr       error
-	restartDetail software.SoftwareComponentDetail
-	restartErr    error
+	detection       software.DetectionResult
+	detectErr       error
+	preflight       software.TargetReadinessResult
+	preflightErr    error
+	verifyDetail    software.SoftwareComponentDetail
+	verifyErr       error
+	installDetail   software.SoftwareComponentDetail
+	installErr      error
+	upgradeDetail   software.SoftwareComponentDetail
+	upgradeErr      error
+	startDetail     software.SoftwareComponentDetail
+	startErr        error
+	stopDetail      software.SoftwareComponentDetail
+	stopErr         error
+	restartDetail   software.SoftwareComponentDetail
+	restartErr      error
 	uninstallDetail software.SoftwareComponentDetail
 	uninstallErr    error
-	reinstallDetail  software.SoftwareComponentDetail
-	reinstallErr     error
+	reinstallDetail software.SoftwareComponentDetail
+	reinstallErr    error
 }
 
-func (f *fakeComponentExecutor) Detect(context.Context, string, software.ResolvedTemplate) (software.InstalledState, string, error) {
-	return f.detectState, f.detectVersion, f.detectErr
+func (f *fakeComponentExecutor) Detect(context.Context, string, software.ResolvedTemplate) (software.DetectionResult, error) {
+	return f.detection, f.detectErr
 }
 
 func (f *fakeComponentExecutor) RunPreflight(context.Context, string, software.ResolvedTemplate) (software.TargetReadinessResult, error) {
@@ -85,8 +84,12 @@ func TestBuildComputedComponentsProjectsSnapshotRecord(t *testing.T) {
 
 	svc := &Service{app: app}
 	executor := &fakeComponentExecutor{
-		detectState:   software.InstalledStateInstalled,
-		detectVersion: "27.0.0",
+		detection: software.DetectionResult{
+			InstalledState:  software.InstalledStateInstalled,
+			DetectedVersion: "27.0.0",
+			InstallSource:   software.InstallSourceManaged,
+			SourceEvidence:  "apt:docker-ce",
+		},
 		preflight: software.TargetReadinessResult{
 			OK:              true,
 			OSSupported:     true,
@@ -107,12 +110,12 @@ func TestBuildComputedComponentsProjectsSnapshotRecord(t *testing.T) {
 	}
 
 	entry := software.CatalogEntry{
-		ComponentKey:   software.ComponentKeyDocker,
-		TargetType:     software.TargetTypeServer,
-		Label:          "Docker",
-		TemplateRef:    "tpl-docker",
-		Binary:         "docker",
-		ServiceName:    "docker",
+		ComponentKey:     software.ComponentKeyDocker,
+		TargetType:       software.TargetTypeServer,
+		Label:            "Docker",
+		TemplateRef:      "tpl-docker",
+		Binary:           "docker",
+		ServiceName:      "docker",
 		SupportedActions: []software.Action{software.ActionInstall, software.ActionVerify},
 	}
 	cat := software.ComponentCatalog{Components: []software.CatalogEntry{entry}}
@@ -142,6 +145,9 @@ func TestBuildComputedComponentsProjectsSnapshotRecord(t *testing.T) {
 	if items[0].Detail.InstalledState != software.InstalledStateInstalled {
 		t.Fatalf("expected installed state to be projected, got %q", items[0].Detail.InstalledState)
 	}
+	if items[0].Detail.InstallSource != software.InstallSourceManaged {
+		t.Fatalf("expected managed install source, got %q", items[0].Detail.InstallSource)
+	}
 	if items[0].Detail.LastAction == nil || items[0].Detail.LastAction.Result != "success" {
 		t.Fatalf("expected successful last_action projection, got %#v", items[0].Detail.LastAction)
 	}
@@ -161,7 +167,7 @@ func TestBuildComputedComponentsProjectsSnapshotRecord(t *testing.T) {
 		t.Fatalf("expected snapshot last_action result success, got %#v", lastAction)
 	}
 
-	executor.detectVersion = "28.0.0"
+	executor.detection.DetectedVersion = "28.0.0"
 	executor.verifyDetail.DetectedVersion = "28.0.0"
 	executor.verifyDetail.PackagedVersion = "28.0.0"
 	_, err = svc.buildComputedComponents(context.Background(), cat, reg, software.TargetTypeServer, "srv-1", executor, nil, latestOps)
@@ -234,5 +240,87 @@ func TestLastActionFromOperationMapsAttentionRequired(t *testing.T) {
 	}
 	if action.Result != "attention_required" {
 		t.Fatalf("expected attention_required result, got %q", action.Result)
+	}
+}
+
+func TestDeriveAvailableActions_InstalledReadinessOK(t *testing.T) {
+	actions := deriveAvailableActions(
+		[]software.Action{
+			software.ActionInstall,
+			software.ActionUpgrade,
+			software.ActionVerify,
+			software.ActionReinstall,
+			software.ActionUninstall,
+		},
+		software.InstalledStateInstalled,
+		software.TargetReadinessResult{OK: true},
+		nil,
+	)
+
+	want := []software.Action{
+		software.ActionUpgrade,
+		software.ActionVerify,
+		software.ActionReinstall,
+		software.ActionUninstall,
+	}
+	if len(actions) != len(want) {
+		t.Fatalf("available actions len = %d, want %d (%v)", len(actions), len(want), actions)
+	}
+	for i := range want {
+		if actions[i] != want[i] {
+			t.Fatalf("available action[%d] = %q, want %q", i, actions[i], want[i])
+		}
+	}
+}
+
+func TestDeriveAvailableActions_NotInstalledOnlyInstall(t *testing.T) {
+	actions := deriveAvailableActions(
+		[]software.Action{software.ActionInstall, software.ActionVerify, software.ActionUninstall},
+		software.InstalledStateNotInstalled,
+		software.TargetReadinessResult{OK: true},
+		nil,
+	)
+
+	if len(actions) != 1 || actions[0] != software.ActionInstall {
+		t.Fatalf("available actions = %v, want [install]", actions)
+	}
+}
+
+func TestDeriveAvailableActions_PreflightBlocked(t *testing.T) {
+	actions := deriveAvailableActions(
+		[]software.Action{software.ActionInstall, software.ActionUpgrade, software.ActionVerify},
+		software.InstalledStateInstalled,
+		software.TargetReadinessResult{OK: false},
+		nil,
+	)
+
+	if len(actions) != 0 {
+		t.Fatalf("available actions = %v, want none", actions)
+	}
+}
+
+func TestDeriveAvailableActions_InFlightOperation(t *testing.T) {
+	actions := deriveAvailableActions(
+		[]software.Action{software.ActionUpgrade, software.ActionVerify},
+		software.InstalledStateInstalled,
+		software.TargetReadinessResult{OK: true},
+		&OperationSummary{TerminalStatus: software.TerminalStatusNone, Phase: software.OperationPhaseExecuting},
+	)
+
+	if len(actions) != 0 {
+		t.Fatalf("available actions = %v, want none", actions)
+	}
+}
+
+func TestDeriveAvailableActions_UnknownStateAllowsVerifyOnly(t *testing.T) {
+	actions := deriveAvailableActions(
+		[]software.Action{software.ActionInstall, software.ActionVerify, software.ActionUninstall},
+		software.InstalledStateUnknown,
+		software.TargetReadinessResult{OK: true},
+		nil,
+	)
+
+	if len(actions) != 1 || actions[0] != software.ActionVerify {
+		t.Fatalf("available actions = %v, want [verify]", actions)
 	}
 }

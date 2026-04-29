@@ -89,7 +89,16 @@ describe('MonitorOverviewContent', () => {
         targetType: 'platform',
         targetId: 'appos-core',
         window: '1h',
-        series: [{ name: 'cpu', unit: 'percent', points: [[1713096000, 12.4], [1713096060, 10.1]] }],
+        series: [
+          {
+            name: 'cpu',
+            unit: 'percent',
+            points: [
+              [1713096000, 12.4],
+              [1713096060, 10.1],
+            ],
+          },
+        ],
       })
 
     render(<MonitorOverviewContent />)
@@ -104,8 +113,13 @@ describe('MonitorOverviewContent', () => {
     expect(screen.getByRole('button', { name: 'Scheduler' })).toBeInTheDocument()
     expect(sendMock).toHaveBeenCalledWith('/api/monitor/overview', { method: 'GET' })
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/platform/appos-core', { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/platform/appos-core', {
+        method: 'GET',
+      })
+      expect(sendMock).toHaveBeenCalledWith(
+        '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
+        { method: 'GET' }
+      )
     })
   })
 
@@ -187,15 +201,29 @@ describe('MonitorOverviewContent', () => {
         targetType: 'platform',
         targetId: 'appos-core',
         window: '1h',
-        series: [{ name: 'cpu', unit: 'percent', points: [[1713096000, 12.4], [1713096060, 10.1]] }],
+        series: [
+          {
+            name: 'cpu',
+            unit: 'percent',
+            points: [
+              [1713096000, 12.4],
+              [1713096060, 10.1],
+            ],
+          },
+        ],
       })
 
     render(<MonitorOverviewContent />)
 
     expect(await screen.findByText('Platform Detail')).toBeInTheDocument()
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/platform/appos-core', { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/platform/appos-core', {
+        method: 'GET',
+      })
+      expect(sendMock).toHaveBeenCalledWith(
+        '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
+        { method: 'GET' }
+      )
     })
   })
 })

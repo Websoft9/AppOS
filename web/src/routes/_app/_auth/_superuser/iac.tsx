@@ -486,128 +486,128 @@ export function FilesPage() {
       </div>
 
       <div className="flex h-[calc(100vh-var(--header-height)-5.5rem)] overflow-hidden rounded-lg border bg-background">
-      {/* ── File Tree Sidebar ──────────────────────────────────────────────── */}
-      <aside className="flex w-60 shrink-0 flex-col border-r bg-muted/30">
-        <div className="flex min-h-11 items-center border-b px-3">
-          <span className="text-sm font-medium">Files</span>
-        </div>
-        <ScrollArea className="flex-1">
-          <div className="py-1">
-            {roots.map(node => (
-              <TreeItem
-                key={node.path}
-                node={node}
-                depth={0}
-                selectedPath={selectedPath}
-                onSelect={handleSelectFile}
-                onToggleDir={handleToggleDir}
-                expandedPaths={expandedPaths}
-                loadingPaths={loadingPaths}
-                errorPaths={errorPaths}
-              />
-            ))}
+        {/* ── File Tree Sidebar ──────────────────────────────────────────────── */}
+        <aside className="flex w-60 shrink-0 flex-col border-r bg-muted/30">
+          <div className="flex min-h-11 items-center border-b px-3">
+            <span className="text-sm font-medium">Files</span>
           </div>
-        </ScrollArea>
-      </aside>
+          <ScrollArea className="flex-1">
+            <div className="py-1">
+              {roots.map(node => (
+                <TreeItem
+                  key={node.path}
+                  node={node}
+                  depth={0}
+                  selectedPath={selectedPath}
+                  onSelect={handleSelectFile}
+                  onToggleDir={handleToggleDir}
+                  expandedPaths={expandedPaths}
+                  loadingPaths={loadingPaths}
+                  errorPaths={errorPaths}
+                />
+              ))}
+            </div>
+          </ScrollArea>
+        </aside>
 
-      {/* ── Editor Area ───────────────────────────────────────────────────── */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Editor toolbar */}
-        <div className="flex min-h-11 items-center justify-between border-b bg-background px-4">
-          <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
-            {filename ? (
-              <>
-                <span className="truncate">{selectedPath}</span>
-                {isDirty && (
-                  <span className="h-2 w-2 rounded-full bg-orange-400" title="Unsaved changes" />
-                )}
-              </>
-            ) : (
-              <span>Select a file from the tree</span>
-            )}
+        {/* ── Editor Area ───────────────────────────────────────────────────── */}
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* Editor toolbar */}
+          <div className="flex min-h-11 items-center justify-between border-b bg-background px-4">
+            <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+              {filename ? (
+                <>
+                  <span className="truncate">{selectedPath}</span>
+                  {isDirty && (
+                    <span className="h-2 w-2 rounded-full bg-orange-400" title="Unsaved changes" />
+                  )}
+                </>
+              ) : (
+                <span>Select a file from the tree</span>
+              )}
+            </div>
+            <Button
+              size="sm"
+              className="h-8"
+              onClick={handleSave}
+              disabled={!selectedPath || !isDirty || saving || loadingFile}
+            >
+              {saving ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="mr-2 h-4 w-4" />
+              )}
+              Save
+            </Button>
           </div>
-          <Button
-            size="sm"
-            className="h-8"
-            onClick={handleSave}
-            disabled={!selectedPath || !isDirty || saving || loadingFile}
-          >
-            {saving ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="mr-2 h-4 w-4" />
-            )}
-            Save
-          </Button>
-        </div>
 
-        {/* Error banners */}
-        {fileError && (
-          <Alert variant="destructive" className="m-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{fileError}</AlertDescription>
-          </Alert>
-        )}
-        {saveError && (
-          <Alert variant="destructive" className="m-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{saveError}</AlertDescription>
-          </Alert>
-        )}
-
-        {/* Monaco Editor */}
-        <div className="flex-1 overflow-hidden">
-          {loadingFile ? (
-            <div className="flex h-full items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : !selectedPath ? (
-            <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
-              <FileText className="h-12 w-12 opacity-30" />
-              <p className="text-sm">Select a file to start editing</p>
-            </div>
-          ) : (
-            <Editor
-              height="100%"
-              language={language}
-              value={editorContent}
-              onChange={val => setEditorContent(val ?? '')}
-              theme={monacoTheme}
-              options={{
-                minimap: { enabled: false },
-                scrollBeyondLastLine: false,
-                fontSize: 13,
-                lineNumbers: 'on',
-                wordWrap: 'on',
-                tabSize: 2,
-                automaticLayout: true,
-              }}
-            />
+          {/* Error banners */}
+          {fileError && (
+            <Alert variant="destructive" className="m-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{fileError}</AlertDescription>
+            </Alert>
           )}
-        </div>
-      </div>
+          {saveError && (
+            <Alert variant="destructive" className="m-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{saveError}</AlertDescription>
+            </Alert>
+          )}
 
-      {/* ── Unsaved Changes Dialog ────────────────────────────────────────── */}
-      <AlertDialog
-        open={!!pendingNode}
-        onOpenChange={open => {
-          if (!open) setPendingNode(null)
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
-            <AlertDialogDescription>
-              You have unsaved changes in <strong>{selectedPath?.split('/').pop()}</strong>. Discard
-              them and open the new file?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDiscardAndSwitch}>Discard & Open</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          {/* Monaco Editor */}
+          <div className="flex-1 overflow-hidden">
+            {loadingFile ? (
+              <div className="flex h-full items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : !selectedPath ? (
+              <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
+                <FileText className="h-12 w-12 opacity-30" />
+                <p className="text-sm">Select a file to start editing</p>
+              </div>
+            ) : (
+              <Editor
+                height="100%"
+                language={language}
+                value={editorContent}
+                onChange={val => setEditorContent(val ?? '')}
+                theme={monacoTheme}
+                options={{
+                  minimap: { enabled: false },
+                  scrollBeyondLastLine: false,
+                  fontSize: 13,
+                  lineNumbers: 'on',
+                  wordWrap: 'on',
+                  tabSize: 2,
+                  automaticLayout: true,
+                }}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* ── Unsaved Changes Dialog ────────────────────────────────────────── */}
+        <AlertDialog
+          open={!!pendingNode}
+          onOpenChange={open => {
+            if (!open) setPendingNode(null)
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
+              <AlertDialogDescription>
+                You have unsaved changes in <strong>{selectedPath?.split('/').pop()}</strong>.
+                Discard them and open the new file?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDiscardAndSwitch}>Discard & Open</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   )

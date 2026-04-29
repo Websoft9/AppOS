@@ -209,7 +209,10 @@ function BundleComponentsSheetContent({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const sorted = useMemo(() => [...components].sort((a, b) => a.name.localeCompare(b.name)), [components])
+  const sorted = useMemo(
+    () => [...components].sort((a, b) => a.name.localeCompare(b.name)),
+    [components]
+  )
 
   const loadComponents = useCallback(async (force = false) => {
     setLoading(true)
@@ -238,8 +241,17 @@ function BundleComponentsSheetContent({ onClose }: { onClose: () => void }) {
             </SheetDescription>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" onClick={() => void loadComponents(true)} disabled={loading}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void loadComponents(true)}
+              disabled={loading}
+            >
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
               Refresh
             </Button>
             <SheetClose asChild>
@@ -275,11 +287,18 @@ function BundleComponentsSheetContent({ onClose }: { onClose: () => void }) {
             </div>
             <div className="space-y-2">
               {sorted.map(component => (
-                <div key={component.id} className="grid grid-cols-[2fr_1fr_1.2fr_1fr] gap-4 px-2 py-2 text-sm">
+                <div
+                  key={component.id}
+                  className="grid grid-cols-[2fr_1fr_1.2fr_1fr] gap-4 px-2 py-2 text-sm"
+                >
                   <div className="font-medium text-foreground">{component.name}</div>
                   <div className="text-muted-foreground">{component.version || 'unknown'}</div>
-                  <div className="text-muted-foreground">{formatComponentStatusTime(component.updated_at)}</div>
-                  <div className="text-muted-foreground">{component.available ? 'Available' : 'Unavailable'}</div>
+                  <div className="text-muted-foreground">
+                    {formatComponentStatusTime(component.updated_at)}
+                  </div>
+                  <div className="text-muted-foreground">
+                    {component.available ? 'Available' : 'Unavailable'}
+                  </div>
                 </div>
               ))}
             </div>
@@ -299,7 +318,10 @@ function summarizePlatformTarget(item: MonitorOverviewItem): string {
 
 function platformTargetDetailEntries(item: MonitorOverviewItem): Array<[string, unknown]> {
   return Object.entries(item.summary ?? {})
-    .filter(([key, value]) => !key.endsWith('_at') && value !== null && value !== undefined && value !== '')
+    .filter(
+      ([key, value]) =>
+        !key.endsWith('_at') && value !== null && value !== undefined && value !== ''
+    )
     .slice(0, 4)
 }
 
@@ -351,7 +373,9 @@ function capabilityLevelFromSignal(level: SignalLevel): CapabilityLevel {
   return 'limited'
 }
 
-function availabilityBadgeVariant(level: SignalLevel): 'default' | 'secondary' | 'destructive' | 'outline' {
+function availabilityBadgeVariant(
+  level: SignalLevel
+): 'default' | 'secondary' | 'destructive' | 'outline' {
   if (level === 'healthy') return 'default'
   if (level === 'unavailable') return 'destructive'
   if (level === 'degraded') return 'outline'
@@ -478,9 +502,9 @@ function derivePlatformAvailability(
   )
 
   const primaryReason =
-    capabilities.find(item => item.level === 'unavailable')?.reason
-    ?? capabilities.find(item => item.level === 'limited')?.reason
-    ?? 'All core platform capabilities are reporting healthy signals.'
+    capabilities.find(item => item.level === 'unavailable')?.reason ??
+    capabilities.find(item => item.level === 'limited')?.reason ??
+    'All core platform capabilities are reporting healthy signals.'
 
   const description =
     overallLevel === 'healthy'
@@ -491,7 +515,12 @@ function derivePlatformAvailability(
 
   return {
     level: overallLevel,
-    title: overallLevel === 'healthy' ? 'Available' : overallLevel === 'unavailable' ? 'Unavailable' : 'Degraded',
+    title:
+      overallLevel === 'healthy'
+        ? 'Available'
+        : overallLevel === 'unavailable'
+          ? 'Unavailable'
+          : 'Degraded',
     description,
     primaryReason,
     lastChecked: latestObservedAt(platformItems, services),
@@ -500,12 +529,18 @@ function derivePlatformAvailability(
 }
 
 export function PlatformStatusPage() {
-  const [overview, setOverview] = useState<MonitorOverviewResponse>(() => normalizeOverviewResponse(undefined))
+  const [overview, setOverview] = useState<MonitorOverviewResponse>(() =>
+    normalizeOverviewResponse(undefined)
+  )
   const [services, setServices] = useState<ServiceItem[]>([])
   const [infrastructure, setInfrastructure] = useState<MonitorSeriesResponse | null>(null)
   const [selectedRange, setSelectedRange] = useState<RangeOption>('1h')
-  const [draftCustomRange, setDraftCustomRange] = useState<CustomRangeState>(() => createDefaultCustomRange())
-  const [appliedCustomRange, setAppliedCustomRange] = useState<CustomRangeState>(() => createDefaultCustomRange())
+  const [draftCustomRange, setDraftCustomRange] = useState<CustomRangeState>(() =>
+    createDefaultCustomRange()
+  )
+  const [appliedCustomRange, setAppliedCustomRange] = useState<CustomRangeState>(() =>
+    createDefaultCustomRange()
+  )
   const [customRangeOpen, setCustomRangeOpen] = useState(false)
   const [componentsOpen, setComponentsOpen] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -515,61 +550,67 @@ export function PlatformStatusPage() {
   const startInputRef = useRef<HTMLInputElement | null>(null)
   const endInputRef = useRef<HTMLInputElement | null>(null)
 
-  const loadStatus = useCallback(async (silent = false) => {
-    if (silent) {
-      setRefreshing(true)
-    } else {
-      setLoading(true)
-    }
-    setError('')
-
-    try {
-      const rangeQuery = selectedRange === 'custom'
-        ? buildCustomRangeQuery(appliedCustomRange)
-        : buildRangeQuery(selectedRange)
-      const [overviewResult, servicesResult, infrastructureResult] = await Promise.allSettled([
-        pb.send<MonitorOverviewResponse>('/api/monitor/overview', { method: 'GET' }),
-        fetchActiveServices(),
-        pb.send<MonitorSeriesResponse>(
-          `/api/monitor/targets/platform/appos-core/series?${(rangeQuery ?? buildRangeQuery('1h')).toString()}`,
-          { method: 'GET' }
-        ),
-      ])
-
-      const failedCount = [overviewResult, servicesResult, infrastructureResult].filter(
-        result => result.status === 'rejected'
-      ).length
-
-      if (failedCount === 3) {
-        throw new Error('Failed to load platform status')
-      }
-
-      if (failedCount > 0) {
-        setError('Some status sections are temporarily unavailable.')
-      }
-
-      if (overviewResult.status === 'fulfilled') {
-        setOverview(normalizeOverviewResponse(overviewResult.value))
-      }
-      if (servicesResult.status === 'fulfilled') {
-        setServices(servicesResult.value)
-      }
-      if (infrastructureResult.status === 'fulfilled') {
-        setInfrastructure({
-          ...infrastructureResult.value,
-          series: Array.isArray(infrastructureResult.value.series) ? infrastructureResult.value.series : [],
-        })
+  const loadStatus = useCallback(
+    async (silent = false) => {
+      if (silent) {
+        setRefreshing(true)
       } else {
-        setInfrastructure(null)
+        setLoading(true)
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load platform status')
-      setInfrastructure(null)
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
-  }, [appliedCustomRange, selectedRange])
+      setError('')
+
+      try {
+        const rangeQuery =
+          selectedRange === 'custom'
+            ? buildCustomRangeQuery(appliedCustomRange)
+            : buildRangeQuery(selectedRange)
+        const [overviewResult, servicesResult, infrastructureResult] = await Promise.allSettled([
+          pb.send<MonitorOverviewResponse>('/api/monitor/overview', { method: 'GET' }),
+          fetchActiveServices(),
+          pb.send<MonitorSeriesResponse>(
+            `/api/monitor/targets/platform/appos-core/series?${(rangeQuery ?? buildRangeQuery('1h')).toString()}`,
+            { method: 'GET' }
+          ),
+        ])
+
+        const failedCount = [overviewResult, servicesResult, infrastructureResult].filter(
+          result => result.status === 'rejected'
+        ).length
+
+        if (failedCount === 3) {
+          throw new Error('Failed to load platform status')
+        }
+
+        if (failedCount > 0) {
+          setError('Some status sections are temporarily unavailable.')
+        }
+
+        if (overviewResult.status === 'fulfilled') {
+          setOverview(normalizeOverviewResponse(overviewResult.value))
+        }
+        if (servicesResult.status === 'fulfilled') {
+          setServices(servicesResult.value)
+        }
+        if (infrastructureResult.status === 'fulfilled') {
+          setInfrastructure({
+            ...infrastructureResult.value,
+            series: Array.isArray(infrastructureResult.value.series)
+              ? infrastructureResult.value.series
+              : [],
+          })
+        } else {
+          setInfrastructure(null)
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load platform status')
+        setInfrastructure(null)
+      } finally {
+        setLoading(false)
+        setRefreshing(false)
+      }
+    },
+    [appliedCustomRange, selectedRange]
+  )
 
   useEffect(() => {
     void loadStatus()
@@ -604,16 +645,19 @@ export function PlatformStatusPage() {
     [infrastructure]
   )
 
-  const handleRangeChange = useCallback((nextRange: RangeOption) => {
-    if (nextRange === 'custom') {
-      setDraftCustomRange(appliedCustomRange)
-      setCustomRangeOpen(current => !current)
-      return
-    }
+  const handleRangeChange = useCallback(
+    (nextRange: RangeOption) => {
+      if (nextRange === 'custom') {
+        setDraftCustomRange(appliedCustomRange)
+        setCustomRangeOpen(current => !current)
+        return
+      }
 
-    setCustomRangeOpen(false)
-    setSelectedRange(nextRange)
-  }, [appliedCustomRange])
+      setCustomRangeOpen(false)
+      setSelectedRange(nextRange)
+    },
+    [appliedCustomRange]
+  )
 
   const applyCustomRange = useCallback(() => {
     if (!isValidCustomRange(draftCustomRange)) return
@@ -649,7 +693,11 @@ export function PlatformStatusPage() {
           onClick={() => void loadStatus(true)}
           disabled={loading || refreshing}
         >
-          {loading || refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          {loading || refreshing ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
         </Button>
       </div>
 
@@ -666,7 +714,9 @@ export function PlatformStatusPage() {
               <CardTitle>Platform Availability</CardTitle>
               <CardDescription>{availability.description}</CardDescription>
             </div>
-            <Badge variant={availabilityBadgeVariant(availability.level)}>{availability.title}</Badge>
+            <Badge variant={availabilityBadgeVariant(availability.level)}>
+              {availability.title}
+            </Badge>
           </div>
         </CardHeader>
         <CardContent className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
@@ -675,8 +725,20 @@ export function PlatformStatusPage() {
               <div key={item.label} className="rounded-lg border bg-background px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-sm font-medium text-foreground">{item.label}</span>
-                  <Badge variant={item.level === 'available' ? 'default' : item.level === 'unavailable' ? 'destructive' : 'outline'}>
-                    {item.level === 'available' ? 'Available' : item.level === 'unavailable' ? 'Unavailable' : 'Limited'}
+                  <Badge
+                    variant={
+                      item.level === 'available'
+                        ? 'default'
+                        : item.level === 'unavailable'
+                          ? 'destructive'
+                          : 'outline'
+                    }
+                  >
+                    {item.level === 'available'
+                      ? 'Available'
+                      : item.level === 'unavailable'
+                        ? 'Unavailable'
+                        : 'Limited'}
                   </Badge>
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">{item.reason}</p>
@@ -718,7 +780,10 @@ export function PlatformStatusPage() {
                 <div className="absolute right-0 top-full z-20 mt-2 w-[420px] max-w-[calc(100vw-2rem)] rounded-lg border bg-background p-5 shadow-lg">
                   <div className="space-y-3">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-foreground" htmlFor="platformPerfStart">
+                      <label
+                        className="text-sm font-medium text-foreground"
+                        htmlFor="platformPerfStart"
+                      >
                         Start
                       </label>
                       <div className="relative">
@@ -727,7 +792,12 @@ export function PlatformStatusPage() {
                           id="platformPerfStart"
                           type="datetime-local"
                           value={draftCustomRange.startLocal}
-                          onChange={event => setDraftCustomRange(current => ({ ...current, startLocal: event.target.value }))}
+                          onChange={event =>
+                            setDraftCustomRange(current => ({
+                              ...current,
+                              startLocal: event.target.value,
+                            }))
+                          }
                           max={draftCustomRange.endLocal || undefined}
                           className="pr-12 text-left [appearance:textfield] [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full"
                         />
@@ -742,7 +812,10 @@ export function PlatformStatusPage() {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-foreground" htmlFor="platformPerfEnd">
+                      <label
+                        className="text-sm font-medium text-foreground"
+                        htmlFor="platformPerfEnd"
+                      >
                         End
                       </label>
                       <div className="relative">
@@ -751,7 +824,12 @@ export function PlatformStatusPage() {
                           id="platformPerfEnd"
                           type="datetime-local"
                           value={draftCustomRange.endLocal}
-                          onChange={event => setDraftCustomRange(current => ({ ...current, endLocal: event.target.value }))}
+                          onChange={event =>
+                            setDraftCustomRange(current => ({
+                              ...current,
+                              endLocal: event.target.value,
+                            }))
+                          }
                           min={draftCustomRange.startLocal || undefined}
                           className="pr-12 text-left [appearance:textfield] [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full"
                         />
@@ -765,12 +843,17 @@ export function PlatformStatusPage() {
                         </button>
                       </div>
                     </div>
-                    <div className="text-xs text-muted-foreground">{formatCustomRangeDescription(draftCustomRange)}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {formatCustomRangeDescription(draftCustomRange)}
+                    </div>
                     <div className="flex justify-end gap-2">
                       <Button variant="outline" onClick={cancelCustomRange}>
                         Cancel
                       </Button>
-                      <Button onClick={applyCustomRange} disabled={!isValidCustomRange(draftCustomRange)}>
+                      <Button
+                        onClick={applyCustomRange}
+                        disabled={!isValidCustomRange(draftCustomRange)}
+                      >
                         Apply
                       </Button>
                     </div>
@@ -800,9 +883,13 @@ export function PlatformStatusPage() {
                         <Activity className="h-4 w-4 text-muted-foreground" />
                         {formatSeriesLabel(item.name)}
                       </div>
-                      <div className="mt-1 text-xs text-muted-foreground">{latestSeriesSummary(item)}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {latestSeriesSummary(item)}
+                      </div>
                     </div>
-                    <span className="text-[11px] uppercase tracking-wide text-muted-foreground">{item.unit}</span>
+                    <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                      {item.unit}
+                    </span>
                   </div>
                   <TimeSeriesChart
                     name={item.name}
@@ -828,7 +915,9 @@ export function PlatformStatusPage() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <CardTitle>Bundled services</CardTitle>
-                <CardDescription>Core runtime and bundled services remain the main diagnostic table.</CardDescription>
+                <CardDescription>
+                  Core runtime and bundled services remain the main diagnostic table.
+                </CardDescription>
               </div>
               <a
                 href="#bundle-components"
@@ -847,7 +936,11 @@ export function PlatformStatusPage() {
           </CardContent>
         </Card>
 
-        <SheetContent side="right" showCloseButton={false} className="w-full sm:max-w-4xl overflow-y-auto p-0">
+        <SheetContent
+          side="right"
+          showCloseButton={false}
+          className="w-full sm:max-w-4xl overflow-y-auto p-0"
+        >
           <BundleComponentsSheetContent onClose={() => setComponentsOpen(false)} />
         </SheetContent>
       </Sheet>
@@ -857,7 +950,9 @@ export function PlatformStatusPage() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <CardTitle>Platform Targets</CardTitle>
-              <CardDescription>Control-plane runtime health as secondary evidence for availability.</CardDescription>
+              <CardDescription>
+                Control-plane runtime health as secondary evidence for availability.
+              </CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -883,20 +978,28 @@ export function PlatformStatusPage() {
                         <div className="font-medium text-foreground">{item.displayName}</div>
                         <div className="mt-1 text-xs text-muted-foreground">{item.targetId}</div>
                       </div>
-                      <Badge variant={statusVariant(item.status)}>{formatStatusLabel(item.status)}</Badge>
+                      <Badge variant={statusVariant(item.status)}>
+                        {formatStatusLabel(item.status)}
+                      </Badge>
                     </div>
-                    <p className="mt-3 text-sm text-muted-foreground">{summarizePlatformTarget(item)}</p>
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      {summarizePlatformTarget(item)}
+                    </p>
                     <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
                       {detailEntries.map(([key, value]) => (
                         <div key={key} className="px-0 py-1">
                           <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
                             {formatStatusLabel(key)}
                           </div>
-                          <div className="mt-1 text-sm text-foreground">{formatSummaryValue(key, value)}</div>
+                          <div className="mt-1 text-sm text-foreground">
+                            {formatSummaryValue(key, value)}
+                          </div>
                         </div>
                       ))}
                     </div>
-                    <div className="mt-4 text-xs text-muted-foreground">Updated {formatTimestamp(item.lastTransitionAt)}</div>
+                    <div className="mt-4 text-xs text-muted-foreground">
+                      Updated {formatTimestamp(item.lastTransitionAt)}
+                    </div>
                   </div>
                 )
               })}

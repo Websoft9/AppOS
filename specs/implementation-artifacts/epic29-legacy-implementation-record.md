@@ -100,7 +100,7 @@ Implementation summary:
 
 - added `backend/domain/software/catalog_test.go` with six catalog invariant tests
 - confirmed `backend/domain/software/catalog.yaml` already contained the managed component set with valid template references
-- updated `backend/domain/config/sysconfig/catalog/catalog.go` to register `software-config` and seed `controlAgentInstallerUrl`
+- updated `backend/domain/config/sysconfig/catalog/catalog.go` to register `software-config` and seed `apposAgentInstallerUrl`
 - updated `backend/domain/config/sysconfig/catalog/catalog_test.go` with two software-config tests
 
 Files recorded by the legacy story:

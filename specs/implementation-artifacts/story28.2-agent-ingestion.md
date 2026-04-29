@@ -122,6 +122,38 @@ Guardrails:
 
 Purpose: receive metric batches for host, container, and AppOS-adjacent runtime series.
 
+### Container Telemetry Extension
+
+This story should also own the first monitoring-side contract for Docker container telemetry when AppOS chooses Netdata-backed collection instead of request-time Docker CLI stats.
+
+Scope of this extension:
+
+- define allowlisted container telemetry families for CPU, memory, and network usage
+- keep container telemetry in the metrics pipeline rather than PocketBase collections
+- define stable label requirements so UI consumers can join telemetry to Docker inventory safely
+- keep telemetry ingestion separate from Docker inventory, inspect, logs, and control actions
+
+Out of scope for this extension:
+
+- image inventory ingestion
+- network inventory ingestion
+- volume inventory ingestion
+- full container inventory snapshots in monitoring storage
+- replacing Docker CLI as the control-plane integration for server detail actions
+
+Required label direction for container telemetry:
+
+- `server_id` remains required for server ownership
+- one stable container identity label must be present for joins, such as `container_id`
+- optional operator-friendly labels such as `container_name`, `compose_project`, and `compose_service` may be included when collector quality is acceptable
+- UI consumers must treat human-readable labels as best-effort hints; `container_id` remains the canonical join key
+
+MVP usage target:
+
+- this telemetry is intended for server detail and app detail runtime evidence
+- first UI consumers may replace request-time `docker stats` reads with monitor-backed current usage and short-window trends
+- Docker list, inspect, logs, and lifecycle actions continue to use Docker ext APIs outside this story
+
 Suggested `items` payload shape:
 
 ```json
@@ -146,6 +178,7 @@ MVP rules:
 - ignore or reject unknown series families
 - write metrics to `VictoriaMetrics`
 - do not mirror raw metric points into PocketBase collections
+- container telemetry must stay bounded to a small allowlist and must not open arbitrary per-label TSDB querying from the browser
 
 ### `POST /api/monitor/ingest/facts`
 
@@ -327,7 +360,7 @@ Suggested response:
 	"serverId": "srv_xxx",
 	"token": "plain-text-token",
 	"ingestBaseUrl": "https://appos.example.com/api/monitor/ingest",
-	"systemdUnit": "[Unit]\nDescription=appos monitor agent\n...",
+	"systemdUnit": "[Unit]\nDescription=appos agent\n...",
 	"configYaml": "server_id: srv_xxx\ninterval: 30s\n..."
 }
 ```
@@ -382,6 +415,8 @@ Do not persist:
 - [ ] AC11: Ingest payloads use a compact common envelope with bounded batch semantics.
 - [ ] AC12: Unknown or disallowed metric families are rejected or ignored by an explicit allowlist policy.
 - [ ] AC13: The MVP setup flow can generate a token and return enough config material to install a systemd-managed agent manually.
+- [ ] AC14: Container telemetry ingestion defines a stable container identity label contract that downstream UI can join against Docker inventory without persisting container inventories in PocketBase.
+- [ ] AC15: The first container telemetry slice remains limited to runtime usage evidence and does not absorb Docker inventory, inspect, logs, or action control into the monitoring domain.
 
 ## Implementation Notes
 
@@ -399,6 +434,8 @@ As-built note:
 - Do not introduce a full Prometheus-compatible scrape surface in this story.
 - Keep TSDB access behind a writer adapter so VictoriaMetrics remains an implementation detail outside the monitoring domain boundary.
 - Prefer one agent per server. Multi-agent fan-in on the same server is out of scope for MVP.
+- Container telemetry should prefer a collector-native source such as Netdata when available, but AppOS must still normalize series names and required labels before exposing them to UI consumers.
+- Do not let container telemetry requirements force a broadening of the existing monitor read APIs into arbitrary TSDB explorers.
 
 ## File Targets
 
@@ -412,11 +449,14 @@ As-built note:
 - secret lookup helper for monitor-agent token validation
 - backend route tests for facts ingest
 - agent facts collection and `/facts` post path
+- agent or collector mapping for allowlisted container telemetry series
+- backend metric allowlist and query mapping for container telemetry consumers
 
 ## Out of Scope
 
 - Active checks
 - Overview UI
+- Docker inventory replacement
 - Alerting
 
 ## Dev Agent Record
@@ -427,14 +467,14 @@ As-built note:
 - Implemented `POST /api/monitor/ingest/facts` with bearer-token ownership validation, one-item MVP batch enforcement, and server-scoped target validation.
 - Added `signals/agent` facts normalization and allowlist enforcement for `os`, `kernel`, `architecture`, `cpu.cores`, and `memory.total_bytes`.
 - Implemented replace-not-merge facts persistence onto the server record.
-- Extended `appos-monitor-agent` to collect a minimal canonical facts snapshot from local OS/runtime state and post it to `/facts` without blocking heartbeat when facts collection or upload degrades.
+- Extended `appos-agent` to collect a minimal canonical facts snapshot from local OS/runtime state and post it to `/facts` without blocking heartbeat when facts collection or upload degrades.
 - Added monitor route coverage for facts happy path, ownership mismatch, allowlist rejection, replace semantics, and batch size enforcement.
 
 ### Tests Run
 
 - `cd /data/dev/appos/backend && go test ./infra/migrations`
 - `cd /data/dev/appos/backend && go test ./domain/routes`
-- `cd /data/dev/appos/backend && go test ./domain/monitor/signals/agent ./cmd/appos-monitor-agent`
+- `cd /data/dev/appos/backend && go test ./domain/monitor/signals/agent ./cmd/appos-agent`
 
 ### File List
 
@@ -444,5 +484,5 @@ As-built note:
 - `backend/domain/monitor/signals/agent/facts.go`
 - `backend/domain/routes/monitor.go`
 - `backend/domain/routes/monitor_test.go`
-- `backend/cmd/appos-monitor-agent/main.go`
+- `backend/cmd/appos-agent/main.go`
 - `specs/implementation-artifacts/story28.2-agent-ingestion.md`

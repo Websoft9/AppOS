@@ -1,12 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
+import { Area, AreaChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts'
 
 type TimeSeriesChartProps = {
   name: string
@@ -92,25 +85,36 @@ function formatLabel(value: string): string {
 
 function shouldHideSegmentStroke(seriesName: string, segmentName: string): boolean {
   return (
-    (seriesName === 'memory' && segmentName === 'available')
-    || (seriesName === 'disk_usage' && segmentName === 'free')
+    (seriesName === 'memory' && segmentName === 'available') ||
+    (seriesName === 'disk_usage' && segmentName === 'free')
   )
 }
 
 function getRangeDurationMs(window: string, rangeStartAt?: string, rangeEndAt?: string): number {
   const rangeStart = rangeStartAt ? new Date(rangeStartAt) : null
   const rangeEnd = rangeEndAt ? new Date(rangeEndAt) : null
-  if (rangeStart && rangeEnd && !Number.isNaN(rangeStart.getTime()) && !Number.isNaN(rangeEnd.getTime())) {
+  if (
+    rangeStart &&
+    rangeEnd &&
+    !Number.isNaN(rangeStart.getTime()) &&
+    !Number.isNaN(rangeEnd.getTime())
+  ) {
     return Math.max(rangeEnd.getTime() - rangeStart.getTime(), 0)
   }
   return WINDOW_DURATION_MS[window] ?? WINDOW_DURATION_MS['1h']
 }
 
-function formatAxisTime(timestamp: number, window: string, rangeStartAt?: string, rangeEndAt?: string): string {
+function formatAxisTime(
+  timestamp: number,
+  window: string,
+  rangeStartAt?: string,
+  rangeEndAt?: string
+): string {
   const durationMs = getRangeDurationMs(window, rangeStartAt, rangeEndAt)
-  const format = durationMs > 24 * 60 * 60 * 1000
-    ? { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' } as const
-    : { hour: '2-digit', minute: '2-digit' } as const
+  const format =
+    durationMs > 24 * 60 * 60 * 1000
+      ? ({ month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' } as const)
+      : ({ hour: '2-digit', minute: '2-digit' } as const)
   return new Intl.DateTimeFormat(undefined, format).format(new Date(timestamp))
 }
 
@@ -129,17 +133,26 @@ function normalizeBucket(timestampMs: number, stepMs: number): number {
   return Math.round(timestampMs / stepMs) * stepMs
 }
 
-function buildWindowTimeline(window: string, rangeStartAt?: string, rangeEndAt?: string, stepSeconds?: number): number[] {
-  const stepMs = (stepSeconds && stepSeconds > 0 ? stepSeconds * 1000 : WINDOW_STEP_MS[window]) ?? WINDOW_STEP_MS['1h']
+function buildWindowTimeline(
+  window: string,
+  rangeStartAt?: string,
+  rangeEndAt?: string,
+  stepSeconds?: number
+): number[] {
+  const stepMs =
+    (stepSeconds && stepSeconds > 0 ? stepSeconds * 1000 : WINDOW_STEP_MS[window]) ??
+    WINDOW_STEP_MS['1h']
   const durationMs = WINDOW_DURATION_MS[window] ?? WINDOW_DURATION_MS['1h']
   const rangeStart = rangeStartAt ? new Date(rangeStartAt) : null
   const rangeEnd = rangeEndAt ? new Date(rangeEndAt) : null
-  const start = rangeStart && !Number.isNaN(rangeStart.getTime())
-    ? Math.floor(rangeStart.getTime() / stepMs) * stepMs
-    : Math.floor((Date.now() - durationMs) / stepMs) * stepMs
-  const end = rangeEnd && !Number.isNaN(rangeEnd.getTime())
-    ? Math.ceil(rangeEnd.getTime() / stepMs) * stepMs
-    : Math.floor(Date.now() / stepMs) * stepMs
+  const start =
+    rangeStart && !Number.isNaN(rangeStart.getTime())
+      ? Math.floor(rangeStart.getTime() / stepMs) * stepMs
+      : Math.floor((Date.now() - durationMs) / stepMs) * stepMs
+  const end =
+    rangeEnd && !Number.isNaN(rangeEnd.getTime())
+      ? Math.ceil(rangeEnd.getTime() / stepMs) * stepMs
+      : Math.floor(Date.now() / stepMs) * stepMs
   const timestamps: number[] = []
   for (let current = start; current <= end; current += stepMs) {
     timestamps.push(current)
@@ -155,7 +168,9 @@ function mergeSeriesData(
   points?: number[][],
   segments?: TimeSeriesChartProps['segments']
 ): TimeSeriesDatum[] {
-  const stepMs = (stepSeconds && stepSeconds > 0 ? stepSeconds * 1000 : WINDOW_STEP_MS[window]) ?? WINDOW_STEP_MS['1h']
+  const stepMs =
+    (stepSeconds && stepSeconds > 0 ? stepSeconds * 1000 : WINDOW_STEP_MS[window]) ??
+    WINDOW_STEP_MS['1h']
   const timeline = buildWindowTimeline(window, rangeStartAt, rangeEndAt, stepSeconds)
   const merged = new Map<number, TimeSeriesDatum>()
 
@@ -205,7 +220,17 @@ function mergeSeriesData(
     }))
 }
 
-export function TimeSeriesChart({ name, unit, window, rangeStartAt, rangeEndAt, stepSeconds, points, segments, formatValue }: TimeSeriesChartProps) {
+export function TimeSeriesChart({
+  name,
+  unit,
+  window,
+  rangeStartAt,
+  rangeEndAt,
+  stepSeconds,
+  points,
+  segments,
+  formatValue,
+}: TimeSeriesChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [chartWidth, setChartWidth] = useState(320)
 
@@ -214,7 +239,9 @@ export function TimeSeriesChart({ name, unit, window, rangeStartAt, rangeEndAt, 
     if (!element) return
 
     const updateWidth = () => {
-      const nextWidth = Math.round(element.getBoundingClientRect().width || element.clientWidth || 320)
+      const nextWidth = Math.round(
+        element.getBoundingClientRect().width || element.clientWidth || 320
+      )
       if (nextWidth > 0) {
         setChartWidth(nextWidth)
       }
@@ -235,40 +262,67 @@ export function TimeSeriesChart({ name, unit, window, rangeStartAt, rangeEndAt, 
   const data = mergeSeriesData(window, rangeStartAt, rangeEndAt, stepSeconds, points, segments)
   const shouldStackSegments = name === 'memory' || name === 'disk_usage'
 
-  const tooltipFormatter = (value: unknown, entryName: unknown, item: { payload?: Record<string, number> }) => {
-  const numericValue = Number(value ?? 0)
-  const seriesName = String(entryName ?? 'value')
-  if (name === 'disk_usage' && item?.payload) {
-    const used = Number(item.payload.used ?? 0)
-    const free = Number(item.payload.free ?? 0)
-    const total = used + free
-    const percentage = total > 0 ? (numericValue / total) * 100 : 0
-    const label = seriesName === 'used'
-      ? `Used (${percentage.toFixed(1)}%)`
-      : seriesName === 'free'
-        ? `Free (${percentage.toFixed(1)}%)`
-        : formatLabel(seriesName)
-    return [formatValue(unit, `${name}_${seriesName}`, numericValue), label]
-  }
-  return [formatValue(unit, `${name}_${seriesName}`, numericValue), seriesName === 'value' ? formatLabel(name) : formatLabel(seriesName)]
+  const tooltipFormatter = (
+    value: unknown,
+    entryName: unknown,
+    item: { payload?: Record<string, number> }
+  ) => {
+    const numericValue = Number(value ?? 0)
+    const seriesName = String(entryName ?? 'value')
+    if (name === 'disk_usage' && item?.payload) {
+      const used = Number(item.payload.used ?? 0)
+      const free = Number(item.payload.free ?? 0)
+      const total = used + free
+      const percentage = total > 0 ? (numericValue / total) * 100 : 0
+      const label =
+        seriesName === 'used'
+          ? `Used (${percentage.toFixed(1)}%)`
+          : seriesName === 'free'
+            ? `Free (${percentage.toFixed(1)}%)`
+            : formatLabel(seriesName)
+      return [formatValue(unit, `${name}_${seriesName}`, numericValue), label]
+    }
+    return [
+      formatValue(unit, `${name}_${seriesName}`, numericValue),
+      seriesName === 'value' ? formatLabel(name) : formatLabel(seriesName),
+    ]
   }
 
-  const actualPointCount = segments && segments.length > 0
-    ? data.filter(item => segments.some(segment => Number.isFinite(item[segment.name] ?? NaN))).length
-    : data.filter(item => Number.isFinite(item.value ?? NaN)).length
+  const actualPointCount =
+    segments && segments.length > 0
+      ? data.filter(item => segments.some(segment => Number.isFinite(item[segment.name] ?? NaN)))
+          .length
+      : data.filter(item => Number.isFinite(item.value ?? NaN)).length
 
   if (actualPointCount < 2) {
-    return <div className="flex h-24 items-center justify-center rounded-md border border-dashed text-xs text-muted-foreground">No trend yet</div>
+    return (
+      <div className="flex h-24 items-center justify-center rounded-md border border-dashed text-xs text-muted-foreground">
+        No trend yet
+      </div>
+    )
   }
 
   const palette = SERIES_PALETTE[name] ?? { stroke: '#475569', fill: '#94a3b8' }
   const resolvedWidth = Math.max(chartWidth, 240)
 
   return (
-    <div ref={containerRef} className="h-24 w-full" role="img" aria-label={`${name} time series chart`}>
-      <AreaChart width={resolvedWidth} height={96} data={data} margin={{ top: 6, right: 2, bottom: 0, left: 8 }}>
+    <div
+      ref={containerRef}
+      className="h-24 w-full"
+      role="img"
+      aria-label={`${name} time series chart`}
+    >
+      <AreaChart
+        width={resolvedWidth}
+        height={96}
+        data={data}
+        margin={{ top: 6, right: 2, bottom: 0, left: 8 }}
+      >
         <defs>
-          {(segments && segments.length > 0 ? segments : [{ name: 'value', points: points ?? [] }]).map(segment => {
+          {(segments && segments.length > 0
+            ? segments
+            : [{ name: 'value', points: points ?? [] }]
+          ).map(segment => {
             const segmentPalette = SEGMENT_PALETTE[name]?.[segment.name] ?? palette
             const gradientId = `monitor-series-${name}-${segment.name}`
             return (
@@ -322,7 +376,9 @@ export function TimeSeriesChart({ name, unit, window, rangeStartAt, rangeEndAt, 
                 strokeWidth={1.75}
                 fill={`url(#${gradientId})`}
                 dot={false}
-                activeDot={hideStroke ? false : { r: 3, strokeWidth: 0, fill: segmentPalette.stroke }}
+                activeDot={
+                  hideStroke ? false : { r: 3, strokeWidth: 0, fill: segmentPalette.stroke }
+                }
                 isAnimationActive={false}
               />
             )

@@ -1,8 +1,33 @@
 import { useState, useCallback, useEffect, useMemo, type ReactNode } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
-import { PlugZap, Loader2, Cable, Link as LinkIcon, RotateCcw, Power, RefreshCw, CircleHelp, PanelRight, Maximize2, Minimize2, MoreVertical, SlidersHorizontal, Activity } from 'lucide-react'
-import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import {
+  PlugZap,
+  Loader2,
+  Cable,
+  Link as LinkIcon,
+  RotateCcw,
+  Power,
+  RefreshCw,
+  CircleHelp,
+  PanelRight,
+  Maximize2,
+  Minimize2,
+  MoreVertical,
+  SlidersHorizontal,
+  Activity,
+} from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Dialog,
   DialogContent,
@@ -71,13 +96,7 @@ async function runBatched<T>(items: T[], batchSize: number, worker: (item: T) =>
   }
 }
 
-function HelpPopoverButton({
-  label,
-  children,
-}: {
-  label: string
-  children: ReactNode
-}) {
+function HelpPopoverButton({ label, children }: { label: string; children: ReactNode }) {
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -89,12 +108,7 @@ function HelpPopoverButton({
           <CircleHelp className="h-3.5 w-3.5" />
         </button>
       </PopoverTrigger>
-      <PopoverContent
-        side="right"
-        align="start"
-        sideOffset={10}
-        className="w-64 text-xs leading-5"
-      >
+      <PopoverContent side="right" align="start" sideOffset={10} className="w-64 text-xs leading-5">
         {children}
       </PopoverContent>
     </Popover>
@@ -131,9 +145,11 @@ function tunnelNeedsSetup(item: Record<string, unknown>): boolean {
   if (tunnel) {
     return String(tunnel.state ?? '') === 'setup_required'
   }
-  return !isNonEmptyDateValue(item.tunnel_connected_at) &&
+  return (
+    !isNonEmptyDateValue(item.tunnel_connected_at) &&
     !isNonEmptyDateValue(item.tunnel_last_seen) &&
     !isNonEmptyDateValue(item.tunnel_disconnect_at)
+  )
 }
 
 function accessLabel(status: string): string {
@@ -221,15 +237,12 @@ function normalizeServerFacts(item: Record<string, unknown>): ServerFactsView {
     String(osFacts?.distribution ?? '').trim(),
     String(osFacts?.version ?? '').trim(),
   ].filter(Boolean)
-  const operatingSystem = osParts.length > 0
-    ? osParts.join(' ')
-    : String(osFacts?.family ?? '').trim() || '—'
+  const operatingSystem =
+    osParts.length > 0 ? osParts.join(' ') : String(osFacts?.family ?? '').trim() || '—'
 
   const cpuCores = asNumber(cpuFacts?.cores)
   const observedAtRaw = String(item.facts_observed_at ?? '').trim()
-  const hasFacts = Boolean(
-    facts && Object.keys(facts).length > 0 || observedAtRaw
-  )
+  const hasFacts = Boolean((facts && Object.keys(facts).length > 0) || observedAtRaw)
 
   return {
     operatingSystem,
@@ -280,7 +293,10 @@ type MonitorLatestStatusRecord = {
   last_checked_at?: string | null
 }
 
-function buildServerConnectionFacts(item: Record<string, unknown>, accessStatusOverride?: 'online' | 'offline') {
+function buildServerConnectionFacts(
+  item: Record<string, unknown>,
+  accessStatusOverride?: 'online' | 'offline'
+) {
   return {
     connect_type: item.connect_type,
     host: item.host,
@@ -297,7 +313,9 @@ function buildServerConnectionFacts(item: Record<string, unknown>, accessStatusO
   }
 }
 
-function readCachedConnectionPresentation(item: Record<string, unknown>): ServerConnectionPresentationSpec | null {
+function readCachedConnectionPresentation(
+  item: Record<string, unknown>
+): ServerConnectionPresentationSpec | null {
   const cached = asObject(item.connection_presentation)
   if (!cached) {
     return null
@@ -321,8 +339,7 @@ function mapServerListItem(
 
   return {
     ...item,
-    created_by_display:
-      createdByName || formatCreator(createdBy, currentUserId, currentUserEmail),
+    created_by_display: createdByName || formatCreator(createdBy, currentUserId, currentUserEmail),
     connection_presentation: connectionPresentation,
     connection_state: connectionPresentation.state,
     connection_state_label: connectionPresentation.stateLabel,
@@ -415,9 +432,27 @@ const fields: FieldDef[] = [
     },
   },
   { key: 'name', label: 'Name', type: 'text', required: true, placeholder: 'my-server' },
-  { key: 'host', label: 'Host', type: 'text', placeholder: '192.168.1.1', showWhen: { field: 'connect_type', values: ['direct'] } },
-  { key: 'use_local_host', label: 'Use local host', type: 'boolean', hidden: true, defaultValue: false },
-  { key: 'port', label: 'Port', type: 'number', defaultValue: 22, showWhen: { field: 'connect_type', values: ['direct'] } },
+  {
+    key: 'host',
+    label: 'Host',
+    type: 'text',
+    placeholder: '192.168.1.1',
+    showWhen: { field: 'connect_type', values: ['direct'] },
+  },
+  {
+    key: 'use_local_host',
+    label: 'Use local host',
+    type: 'boolean',
+    hidden: true,
+    defaultValue: false,
+  },
+  {
+    key: 'port',
+    label: 'Port',
+    type: 'number',
+    defaultValue: 22,
+    showWhen: { field: 'connect_type', values: ['direct'] },
+  },
   { key: 'user', label: 'User', type: 'text', required: true, placeholder: 'root' },
   {
     key: 'credential',
@@ -504,10 +539,10 @@ export function ServersPage() {
   function sanitizeServerPayload(payload: Record<string, unknown>): Record<string, unknown> {
     const next = { ...payload }
     delete next.use_local_host
-      if (String(next.connect_type ?? 'direct') === 'tunnel') {
-        delete next.host
-        delete next.port
-      }
+    if (String(next.connect_type ?? 'direct') === 'tunnel') {
+      delete next.host
+      delete next.port
+    }
     return next
   }
 
@@ -655,7 +690,9 @@ export function ServersPage() {
                 render: ({ inputId, value, formData, setValue, updateField }) => {
                   const isDirect = String(formData.connect_type ?? 'direct') === 'direct'
                   const useLocalHost = Boolean(formData.use_local_host)
-                  const hostRequired = !String(formData.connect_type ?? 'direct').startsWith('tunnel')
+                  const hostRequired = !String(formData.connect_type ?? 'direct').startsWith(
+                    'tunnel'
+                  )
 
                   return (
                     <div className="space-y-1.5">
@@ -712,9 +749,16 @@ export function ServersPage() {
                   )
                 },
               }
-          : f
+            : f
       ),
-    [dockerBridgeError, dockerBridgeHost, dockerBridgeLoading, loadDockerBridgeHost, openSecretDialog, openSecretEditor]
+    [
+      dockerBridgeError,
+      dockerBridgeHost,
+      dockerBridgeLoading,
+      loadDockerBridgeHost,
+      openSecretDialog,
+      openSecretEditor,
+    ]
   )
   const checkServerStatus = useCallback(async (item: Record<string, unknown>) => {
     const id = String(item.id)
@@ -800,7 +844,17 @@ export function ServersPage() {
   }, [checkServerStatus, powerAction, powerTarget])
 
   const handleOpenServer = useCallback(
-    (item: Record<string, unknown> | null, nextTab: 'overview' | 'connection' | 'monitor' | 'docker' | 'runtime' | 'tunnel' | 'software' = 'overview') => {
+    (
+      item: Record<string, unknown> | null,
+      nextTab:
+        | 'overview'
+        | 'connection'
+        | 'monitor'
+        | 'docker'
+        | 'runtime'
+        | 'tunnel'
+        | 'software' = 'overview'
+    ) => {
       const nextServerId = item ? String(item.id ?? '') : ''
       const opening = nextServerId !== ''
       setSelectedServerId(opening ? nextServerId : undefined)
@@ -921,7 +975,9 @@ export function ServersPage() {
               }}
             >
               <span>{String(value || '—')}</span>
-              <span className="sr-only">{selected ? 'Overview already open' : 'Open overview'}</span>
+              <span className="sr-only">
+                {selected ? 'Overview already open' : 'Open overview'}
+              </span>
             </button>
           )
         },
@@ -945,19 +1001,28 @@ export function ServersPage() {
           { label: 'Paused', value: 'paused' },
           { label: 'Needs Attention', value: 'needs_attention' },
         ],
-        filterValue: row => String(row.connection_state ?? '').trim() || getConnectionPresentation(row).state,
+        filterValue: row =>
+          String(row.connection_state ?? '').trim() || getConnectionPresentation(row).state,
         render: (_value, row) => {
           const id = String(row.id ?? '')
           const override = pingResults[id]
           const presentation = !override
             ? {
                 state: String(row.connection_state ?? '').trim() || 'awaiting_connection',
-                stateLabel: String(row.connection_state_label ?? '').trim() || 'Awaiting Connection',
-                reason: String(row.connection_reason ?? '').trim() || 'Configuration is ready for verification.',
+                stateLabel:
+                  String(row.connection_state_label ?? '').trim() || 'Awaiting Connection',
+                reason:
+                  String(row.connection_reason ?? '').trim() ||
+                  'Configuration is ready for verification.',
               }
             : getConnectionPresentation(row)
           const state = presentation.state
-          const badgeVariant = state === 'online' ? 'default' : state === 'paused' || state === 'needs_attention' ? 'secondary' : 'outline'
+          const badgeVariant =
+            state === 'online'
+              ? 'default'
+              : state === 'paused' || state === 'needs_attention'
+                ? 'secondary'
+                : 'outline'
 
           return (
             <button
@@ -995,7 +1060,9 @@ export function ServersPage() {
               type="button"
               className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground"
               aria-label={`Open monitor for ${name}`}
-              title={reason ? `Monitoring active: ${status}. ${reason}` : `Monitoring active: ${status}`}
+              title={
+                reason ? `Monitoring active: ${status}. ${reason}` : `Monitoring active: ${status}`
+              }
               onClick={event => {
                 event.stopPropagation()
                 handleOpenServer(row, 'monitor')
@@ -1048,7 +1115,9 @@ export function ServersPage() {
         key: 'last_activity',
         label: 'Last Activity',
         sortable: true,
-        sortValue: row => String(row.connection_last_activity_at ?? '').trim() || getConnectionPresentation(row).lastActivityAt,
+        sortValue: row =>
+          String(row.connection_last_activity_at ?? '').trim() ||
+          getConnectionPresentation(row).lastActivityAt,
         render: (_value, row) => {
           const id = String(row.id ?? '')
           const override = pingResults[id]
@@ -1078,17 +1147,23 @@ export function ServersPage() {
     [allColumns, visibleOptionalColumns]
   )
 
-  const toggleOptionalColumn = useCallback((columnKey: 'host_summary' | 'monitor_status' | 'user' | 'secret_type_label', checked: boolean) => {
-    setVisibleOptionalColumns(prev => {
-      const next = new Set(prev)
-      if (checked) {
-        next.add(columnKey)
-      } else {
-        next.delete(columnKey)
-      }
-      return next
-    })
-  }, [])
+  const toggleOptionalColumn = useCallback(
+    (
+      columnKey: 'host_summary' | 'monitor_status' | 'user' | 'secret_type_label',
+      checked: boolean
+    ) => {
+      setVisibleOptionalColumns(prev => {
+        const next = new Set(prev)
+        if (checked) {
+          next.add(columnKey)
+        } else {
+          next.delete(columnKey)
+        }
+        return next
+      })
+    },
+    []
+  )
 
   const renderListSettings = useCallback(
     ({ pageSize, setPageSize }: { pageSize: number; setPageSize: (pageSize: number) => void }) => (
@@ -1100,7 +1175,10 @@ export function ServersPage() {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuLabel>Rows per page</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={String(pageSize)} onValueChange={value => setPageSize(Number(value))}>
+          <DropdownMenuRadioGroup
+            value={String(pageSize)}
+            onValueChange={value => setPageSize(Number(value))}
+          >
             {[10, 50, 100].map(option => (
               <DropdownMenuRadioItem key={option} value={String(option)}>
                 {option} / page
@@ -1144,8 +1222,11 @@ export function ServersPage() {
       const isTunnel = item.connect_type === 'tunnel'
       const requestedTab = tab ?? 'overview'
       const detailTab =
-        requestedTab === 'tunnel' ? 'connection' :
-        requestedTab === 'detail' ? 'overview' : requestedTab
+        requestedTab === 'tunnel'
+          ? 'connection'
+          : requestedTab === 'detail'
+            ? 'overview'
+            : requestedTab
       const tunnel = asObject(item.tunnel)
       const services = parseTunnelServices(tunnel?.services ?? item.tunnel_services)
       const status = getStatusValue(item)
@@ -1218,18 +1299,30 @@ export function ServersPage() {
               </TabsList>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="mb-2 shrink-0" aria-label="Server actions" title="Server actions">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="mb-2 shrink-0"
+                    aria-label="Server actions"
+                    title="Server actions"
+                  >
                     <MoreVertical className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => { void handleConnect(item) }}>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      void handleConnect(item)
+                    }}
+                  >
                     <LinkIcon className="h-4 w-4" />
                     Open Terminal
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     disabled={checkingIds.has(id)}
-                    onClick={() => { void checkServerStatus(item) }}
+                    onClick={() => {
+                      void checkServerStatus(item)
+                    }}
                   >
                     {checkingIds.has(id) ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -1266,17 +1359,23 @@ export function ServersPage() {
                       <dd className="mt-1 break-all font-mono text-xs">{id || '—'}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Name</dt>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Name
+                      </dt>
                       <dd className="mt-1 break-all">{String(item.name || '—')}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Connection Type</dt>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Connection Type
+                      </dt>
                       <dd className="mt-1">
                         <Badge variant="outline">{isTunnel ? 'Tunnel' : 'Direct'}</Badge>
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Access</dt>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Access
+                      </dt>
                       <dd className="mt-1">
                         {status === 'online' ? (
                           <Badge variant="default">{accessLabel(status)}</Badge>
@@ -1289,26 +1388,38 @@ export function ServersPage() {
                     </div>
                     {isTunnel ? (
                       <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Tunnel State</dt>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Tunnel State
+                        </dt>
                         <dd className="mt-1">
                           <Badge variant="outline">{tunnelStateLabel(tunnelState)}</Badge>
                         </dd>
                       </div>
                     ) : null}
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Host</dt>
-                      <dd className="mt-1 break-all font-mono text-xs">{String(item.host || '—')}</dd>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Host
+                      </dt>
+                      <dd className="mt-1 break-all font-mono text-xs">
+                        {String(item.host || '—')}
+                      </dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Port</dt>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Port
+                      </dt>
                       <dd className="mt-1">{String(item.port || '22')}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">User</dt>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                        User
+                      </dt>
                       <dd className="mt-1">{String(item.user || 'root')}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Credential</dt>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Credential
+                      </dt>
                       <dd className="mt-1 flex items-center gap-2">
                         {credentialType !== '—' && (
                           <Badge variant="secondary">{credentialType}</Badge>
@@ -1316,7 +1427,12 @@ export function ServersPage() {
                         {credentialId ? (
                           <Link
                             to="/secrets"
-                            search={{ id: credentialId, edit: undefined, returnGroup: undefined, returnType: undefined }}
+                            search={{
+                              id: credentialId,
+                              edit: undefined,
+                              returnGroup: undefined,
+                              returnType: undefined,
+                            }}
                             className="font-mono text-xs text-primary underline-offset-4 hover:underline"
                           >
                             {credentialId}
@@ -1327,20 +1443,28 @@ export function ServersPage() {
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Created by</dt>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Created by
+                      </dt>
                       <dd className="mt-1">{createdBy}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Created</dt>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Created
+                      </dt>
                       <dd className="mt-1">{String(item.created || '—')}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">Updated</dt>
+                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Updated
+                      </dt>
                       <dd className="mt-1">{String(item.updated || '—')}</dd>
                     </div>
                     {item.description ? (
                       <div className="sm:col-span-2 xl:col-span-3">
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Description</dt>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Description
+                        </dt>
                         <dd className="mt-1 text-muted-foreground">{String(item.description)}</dd>
                       </div>
                     ) : null}
@@ -1352,32 +1476,46 @@ export function ServersPage() {
                   {facts.hasFacts ? (
                     <dl className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2 xl:grid-cols-3">
                       <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Operating System</dt>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Operating System
+                        </dt>
                         <dd className="mt-1">{facts.operatingSystem}</dd>
                       </div>
                       <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Kernel</dt>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Kernel
+                        </dt>
                         <dd className="mt-1">{facts.kernelRelease}</dd>
                       </div>
                       <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Architecture</dt>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Architecture
+                        </dt>
                         <dd className="mt-1">{facts.architecture}</dd>
                       </div>
                       <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">CPU Cores</dt>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                          CPU Cores
+                        </dt>
                         <dd className="mt-1">{facts.cpuCores}</dd>
                       </div>
                       <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Memory</dt>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Memory
+                        </dt>
                         <dd className="mt-1">{facts.memoryTotal}</dd>
                       </div>
                       <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Facts Observed</dt>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Facts Observed
+                        </dt>
                         <dd className="mt-1">{facts.observedAt}</dd>
                       </div>
                     </dl>
                   ) : (
-                    <div className="text-sm text-muted-foreground">No host facts have been collected for this server yet.</div>
+                    <div className="text-sm text-muted-foreground">
+                      No host facts have been collected for this server yet.
+                    </div>
                   )}
                 </section>
               </div>
@@ -1392,31 +1530,53 @@ export function ServersPage() {
                   </div>
                   <div className="grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
                     <div>
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Mode</div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Mode
+                      </div>
                       <div className="mt-1">{presentation.modeLabel}</div>
                     </div>
                     <div>
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Connection Status</div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Connection Status
+                      </div>
                       <div className="mt-1">
-                        <Badge variant={presentation.state === 'online' ? 'default' : presentation.state === 'paused' || presentation.state === 'needs_attention' ? 'secondary' : 'outline'}>
+                        <Badge
+                          variant={
+                            presentation.state === 'online'
+                              ? 'default'
+                              : presentation.state === 'paused' ||
+                                  presentation.state === 'needs_attention'
+                                ? 'secondary'
+                                : 'outline'
+                          }
+                        >
                           {presentation.stateLabel}
                         </Badge>
                       </div>
                     </div>
                     <div>
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Last Check or Last Seen</div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Last Check or Last Seen
+                      </div>
                       <div className="mt-1">{presentation.lastActivityLabel}</div>
                     </div>
                     <div>
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Primary Action</div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Primary Action
+                      </div>
                       <div className="mt-1">
-                        <Button size="sm" onClick={() => executePrimaryAction(item, presentation.primaryAction.id)}>
+                        <Button
+                          size="sm"
+                          onClick={() => executePrimaryAction(item, presentation.primaryAction.id)}
+                        >
                           {presentation.primaryAction.label}
                         </Button>
                       </div>
                     </div>
                     <div className="sm:col-span-2 xl:col-span-3">
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Current Endpoint</div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Current Endpoint
+                      </div>
                       <div className="mt-1">{presentation.endpointSummary}</div>
                     </div>
                   </div>
@@ -1425,11 +1585,15 @@ export function ServersPage() {
                 <section className="space-y-4">
                   <div>
                     <h3 className={detailSectionTitleClassName}>Primary Next Step</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">{presentation.primaryActionDescription}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {presentation.primaryActionDescription}
+                    </p>
                   </div>
                   <div className="space-y-3">
                     <div className="flex flex-wrap gap-2">
-                      <Button onClick={() => executePrimaryAction(item, presentation.primaryAction.id)}>
+                      <Button
+                        onClick={() => executePrimaryAction(item, presentation.primaryAction.id)}
+                      >
                         {presentation.primaryAction.label}
                       </Button>
                       {presentation.secondaryActions.map(action => (
@@ -1459,30 +1623,50 @@ export function ServersPage() {
                       <>
                         <div className="text-sm">
                           <div className="font-medium">Setup</div>
-                          <div className="mt-2 text-muted-foreground">{presentation.state === 'not_configured' ? 'Tunnel setup has not started yet.' : 'Tunnel setup is already prepared in AppOS.'}</div>
+                          <div className="mt-2 text-muted-foreground">
+                            {presentation.state === 'not_configured'
+                              ? 'Tunnel setup has not started yet.'
+                              : 'Tunnel setup is already prepared in AppOS.'}
+                          </div>
                         </div>
                         <div className="text-sm">
                           <div className="font-medium">Runtime Session</div>
-                          <div className="mt-2 text-muted-foreground">State: {tunnelStateLabel(tunnelState)} · Last seen: {formatTimestamp(tunnel?.last_seen)}</div>
+                          <div className="mt-2 text-muted-foreground">
+                            State: {tunnelStateLabel(tunnelState)} · Last seen:{' '}
+                            {formatTimestamp(tunnel?.last_seen)}
+                          </div>
                         </div>
                         <div className="text-sm">
                           <div className="font-medium">Recovery</div>
-                          <div className="mt-2 text-muted-foreground">{String(tunnel?.reason ?? '').trim() || 'No tunnel-specific recovery issue is currently reported.'}</div>
+                          <div className="mt-2 text-muted-foreground">
+                            {String(tunnel?.reason ?? '').trim() ||
+                              'No tunnel-specific recovery issue is currently reported.'}
+                          </div>
                         </div>
                       </>
                     ) : (
                       <>
                         <div className="text-sm">
                           <div className="font-medium">Configuration</div>
-                          <div className="mt-2 text-muted-foreground">Host {String(item.host || '—')} · Port {String(item.port || '22')} · User {String(item.user || '—')}</div>
+                          <div className="mt-2 text-muted-foreground">
+                            Host {String(item.host || '—')} · Port {String(item.port || '22')} ·
+                            User {String(item.user || '—')}
+                          </div>
                         </div>
                         <div className="text-sm">
                           <div className="font-medium">Verification</div>
-                          <div className="mt-2 text-muted-foreground">Latest check: {presentation.lastActivityLabel} · Source: {presentation.diagnostics.evidenceSource}</div>
+                          <div className="mt-2 text-muted-foreground">
+                            Latest check: {presentation.lastActivityLabel} · Source:{' '}
+                            {presentation.diagnostics.evidenceSource}
+                          </div>
                         </div>
                         <div className="text-sm">
                           <div className="font-medium">Recovery</div>
-                          <div className="mt-2 text-muted-foreground">{presentation.state === 'needs_attention' ? presentation.reason : 'No SSH recovery action is currently required.'}</div>
+                          <div className="mt-2 text-muted-foreground">
+                            {presentation.state === 'needs_attention'
+                              ? presentation.reason
+                              : 'No SSH recovery action is currently required.'}
+                          </div>
                         </div>
                       </>
                     )}
@@ -1493,16 +1677,22 @@ export function ServersPage() {
                   <section className="space-y-4">
                     <div>
                       <h3 className={detailSectionTitleClassName}>Tunnel Services</h3>
-                      <p className="mt-1 text-sm text-muted-foreground">Service mappings exposed through this tunnel connection.</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Service mappings exposed through this tunnel connection.
+                      </p>
                     </div>
                     <div>
                       {services.length === 0 ? (
-                        <div className="text-sm text-muted-foreground">No tunnel service mapping exposed for this server.</div>
+                        <div className="text-sm text-muted-foreground">
+                          No tunnel service mapping exposed for this server.
+                        </div>
                       ) : (
                         <div className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
                           {services.map(service => (
                             <div key={`${service.service_name}:${service.tunnel_port}`}>
-                              <div className="text-xs uppercase tracking-wide text-muted-foreground">{service.service_name}</div>
+                              <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                                {service.service_name}
+                              </div>
                               <div className="mt-1 font-medium">Port {service.tunnel_port}</div>
                             </div>
                           ))}
@@ -1515,31 +1705,47 @@ export function ServersPage() {
                 <section className="space-y-4">
                   <div>
                     <h3 className={detailSectionTitleClassName}>Diagnostics</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">Evidence that supports the current recommendation.</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Evidence that supports the current recommendation.
+                    </p>
                   </div>
                   <div className="grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
                     <div>
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Latest Check Result</div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Latest Check Result
+                      </div>
                       <div className="mt-1">{presentation.diagnostics.latestCheckResult}</div>
                     </div>
                     <div>
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Evidence Source</div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Evidence Source
+                      </div>
                       <div className="mt-1">{presentation.diagnostics.evidenceSource}</div>
                     </div>
                     <div>
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Latest Failure Reason</div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Latest Failure Reason
+                      </div>
                       <div className="mt-1">{presentation.diagnostics.latestFailureReason}</div>
                     </div>
                     <div>
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Latest Tunnel Callback or Heartbeat</div>
-                      <div className="mt-1">{presentation.diagnostics.latestTunnelCallbackOrHeartbeat}</div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Latest Tunnel Callback or Heartbeat
+                      </div>
+                      <div className="mt-1">
+                        {presentation.diagnostics.latestTunnelCallbackOrHeartbeat}
+                      </div>
                     </div>
                     <div>
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Pause Until</div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Pause Until
+                      </div>
                       <div className="mt-1">{presentation.diagnostics.pauseUntil}</div>
                     </div>
                     <div>
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Current Reason</div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Current Reason
+                      </div>
                       <div className="mt-1">{presentation.diagnostics.currentReason}</div>
                     </div>
                   </div>
@@ -1548,15 +1754,22 @@ export function ServersPage() {
                 <section className="space-y-4">
                   <div>
                     <h3 className={detailSectionTitleClassName}>Activity Timeline</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">Compact lifecycle milestones for this server.</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Compact lifecycle milestones for this server.
+                    </p>
                   </div>
                   <div>
                     {presentation.timeline.length === 0 ? (
-                      <div className="text-sm text-muted-foreground">No lifecycle events are available yet.</div>
+                      <div className="text-sm text-muted-foreground">
+                        No lifecycle events are available yet.
+                      </div>
                     ) : (
                       <div className="space-y-3">
                         {presentation.timeline.map(event => (
-                          <div key={`${event.label}:${event.at}`} className="flex items-start justify-between gap-4 text-sm">
+                          <div
+                            key={`${event.label}:${event.at}`}
+                            className="flex items-start justify-between gap-4 text-sm"
+                          >
                             <div className="font-medium">{event.label}</div>
                             <div className="text-muted-foreground">{event.at}</div>
                           </div>
@@ -1590,7 +1803,8 @@ export function ServersPage() {
 
             <TabsContent value="runtime" className="pt-4">
               <div className="text-sm text-muted-foreground">
-                Runtime details can later include active sessions, deployed workloads, and process information for {String(item.name || item.id)}.
+                Runtime details can later include active sessions, deployed workloads, and process
+                information for {String(item.name || item.id)}.
               </div>
             </TabsContent>
 
@@ -1601,7 +1815,20 @@ export function ServersPage() {
         </div>
       )
     },
-    [checkingIds, checkServerStatus, executePrimaryAction, getConnectionPresentation, getStatusValue, getTunnelValue, handleConnect, handleOpenServer, handlePowerRequest, navigate, serverDetailDrawerTier, tab]
+    [
+      checkingIds,
+      checkServerStatus,
+      executePrimaryAction,
+      getConnectionPresentation,
+      getStatusValue,
+      getTunnelValue,
+      handleConnect,
+      handleOpenServer,
+      handlePowerRequest,
+      navigate,
+      serverDetailDrawerTier,
+      tab,
+    ]
   )
 
   const renderConnectionActionItem = useCallback(
@@ -1665,7 +1892,11 @@ export function ServersPage() {
               handlePowerRequest(item, powerAction)
             }}
           >
-            {powerAction === 'restart' ? <RotateCcw className="h-4 w-4" /> : <Power className="h-4 w-4" />}
+            {powerAction === 'restart' ? (
+              <RotateCcw className="h-4 w-4" />
+            ) : (
+              <Power className="h-4 w-4" />
+            )}
             {action.label}
           </DropdownMenuItem>
         )
@@ -1761,8 +1992,7 @@ export function ServersPage() {
           paginationVariant: 'minimal',
           paginationSummary: false,
           headerTrailingControls: renderListSettings,
-          paginationTotalLabel: totalCount =>
-            `Total ${totalCount} items`,
+          paginationTotalLabel: totalCount => `Total ${totalCount} items`,
           dialogContentClassName: 'sm:max-w-4xl',
           resourceType: 'server',
           actionsAlign: 'left',
@@ -1953,7 +2183,9 @@ export function ServersPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Edit Credential</DialogTitle>
-            <DialogDescription>Update the selected Secret without leaving server editing.</DialogDescription>
+            <DialogDescription>
+              Update the selected Secret without leaving server editing.
+            </DialogDescription>
           </DialogHeader>
 
           {secretEditLoading ? (
@@ -1964,7 +2196,10 @@ export function ServersPage() {
           ) : (
             <div className="space-y-4">
               <div className="space-y-2">
-                <label htmlFor="server-secret-edit-name" className="text-sm font-medium text-foreground">
+                <label
+                  htmlFor="server-secret-edit-name"
+                  className="text-sm font-medium text-foreground"
+                >
                   Name <span className="text-destructive">*</span>
                 </label>
                 <input
@@ -2004,7 +2239,9 @@ export function ServersPage() {
                 />
               </div>
 
-              {secretEditError ? <p className="text-sm text-destructive">{secretEditError}</p> : null}
+              {secretEditError ? (
+                <p className="text-sm text-destructive">{secretEditError}</p>
+              ) : null}
             </div>
           )}
 
@@ -2108,7 +2345,8 @@ function ServerMonitorAgentCard({
         <div>
           <CardTitle className="text-base">Netdata Agent</CardTitle>
           <CardDescription>
-            Install or update Netdata using the official native-package installer, then confirm the remote netdata service state without leaving this tab.
+            Install or update Netdata using the official native-package installer, then confirm the
+            remote netdata service state without leaving this tab.
           </CardDescription>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -2143,8 +2381,12 @@ function ServerMonitorAgentCard({
       <CardContent className="space-y-4">
         <div className="grid gap-2 sm:grid-cols-3">
           <div className="rounded-md border bg-background px-3 py-2">
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">Active State</div>
-            <div className="mt-1 font-medium">{loadingStatus ? 'Loading...' : activeState || 'Unknown'}</div>
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">
+              Active State
+            </div>
+            <div className="mt-1 font-medium">
+              {loadingStatus ? 'Loading...' : activeState || 'Unknown'}
+            </div>
           </div>
           <div className="rounded-md border bg-background px-3 py-2">
             <div className="text-xs uppercase tracking-wide text-muted-foreground">Sub State</div>
@@ -2152,14 +2394,17 @@ function ServerMonitorAgentCard({
           </div>
           <div className="rounded-md border bg-background px-3 py-2">
             <div className="text-xs uppercase tracking-wide text-muted-foreground">Unit File</div>
-            <div className="mt-1 font-medium">{loadingStatus ? 'Loading...' : unitState || '—'}</div>
+            <div className="mt-1 font-medium">
+              {loadingStatus ? 'Loading...' : unitState || '—'}
+            </div>
           </div>
         </div>
 
         {statusError ? (
           <Alert>
             <AlertDescription>
-              Netdata service is not readable yet. It is usually not installed on {serverName} yet, or the remote systemd unit has not been created. {statusError}
+              Netdata service is not readable yet. It is usually not installed on {serverName} yet,
+              or the remote systemd unit has not been created. {statusError}
             </AlertDescription>
           </Alert>
         ) : null}
@@ -2204,7 +2449,14 @@ export const Route = createFileRoute('/_app/_auth/resources/servers')({
     edit: typeof search.edit === 'string' ? search.edit : undefined,
     server: typeof search.server === 'string' ? search.server : undefined,
     tab:
-      search.tab === 'overview' || search.tab === 'connection' || search.tab === 'detail' || search.tab === 'monitor' || search.tab === 'docker' || search.tab === 'runtime' || search.tab === 'tunnel' || search.tab === 'software'
+      search.tab === 'overview' ||
+      search.tab === 'connection' ||
+      search.tab === 'detail' ||
+      search.tab === 'monitor' ||
+      search.tab === 'docker' ||
+      search.tab === 'runtime' ||
+      search.tab === 'tunnel' ||
+      search.tab === 'software'
         ? search.tab
         : undefined,
   }),

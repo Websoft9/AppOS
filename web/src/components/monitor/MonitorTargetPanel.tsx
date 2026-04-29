@@ -55,11 +55,31 @@ type MonitorSeriesResponse = {
 }
 
 const SERIES_WINDOWS = [
-  { value: '1h', label: '1小时', description: 'Last hour trends from the monitoring time-series backend.' },
-  { value: '5h', label: '5小时', description: 'Last five hours trends from the monitoring time-series backend.' },
-  { value: '12h', label: '12小时', description: 'Last twelve hours trends from the monitoring time-series backend.' },
-  { value: '1d', label: '1天', description: 'Last day trends from the monitoring time-series backend.' },
-  { value: '7d', label: '7天', description: 'Last seven days trends from the monitoring time-series backend.' },
+  {
+    value: '1h',
+    label: '1小时',
+    description: 'Last hour trends from the monitoring time-series backend.',
+  },
+  {
+    value: '5h',
+    label: '5小时',
+    description: 'Last five hours trends from the monitoring time-series backend.',
+  },
+  {
+    value: '12h',
+    label: '12小时',
+    description: 'Last twelve hours trends from the monitoring time-series backend.',
+  },
+  {
+    value: '1d',
+    label: '1天',
+    description: 'Last day trends from the monitoring time-series backend.',
+  },
+  {
+    value: '7d',
+    label: '7天',
+    description: 'Last seven days trends from the monitoring time-series backend.',
+  },
   { value: 'custom', label: '自定义', description: 'Custom trends for a chosen time range.' },
 ] as const
 
@@ -119,17 +139,20 @@ function formatCustomRangeLabel(range: CustomRangeState): string {
     hour: '2-digit',
     minute: '2-digit',
   })
-  const endText = end.toLocaleString(undefined, sameDay
-    ? {
-        hour: '2-digit',
-        minute: '2-digit',
-      }
-    : {
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
+  const endText = end.toLocaleString(
+    undefined,
+    sameDay
+      ? {
+          hour: '2-digit',
+          minute: '2-digit',
+        }
+      : {
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        }
+  )
   return `${startText} - ${endText}`
 }
 
@@ -256,35 +279,45 @@ export function MonitorTargetPanel({
   const [seriesLoading, setSeriesLoading] = useState(false)
   const [selectedWindow, setSelectedWindow] = useState<MonitorSeriesWindow>('1h')
   const [selectedNetworkInterface, setSelectedNetworkInterface] = useState('all')
-  const [draftCustomRange, setDraftCustomRange] = useState<CustomRangeState>(() => createDefaultCustomRange())
-  const [appliedCustomRange, setAppliedCustomRange] = useState<CustomRangeState>(() => createDefaultCustomRange())
+  const [draftCustomRange, setDraftCustomRange] = useState<CustomRangeState>(() =>
+    createDefaultCustomRange()
+  )
+  const [appliedCustomRange, setAppliedCustomRange] = useState<CustomRangeState>(() =>
+    createDefaultCustomRange()
+  )
   const [customRangeOpen, setCustomRangeOpen] = useState(false)
 
-  const load = useCallback(async (silent = false) => {
-    if (!targetId) return
-    if (silent) {
-      setRefreshing(true)
-    } else {
-      setLoading(true)
-    }
-    setError('')
-    try {
-      const response = await pb.send<MonitorTargetResponse>(
-        `/api/monitor/targets/${encodeURIComponent(targetType)}/${encodeURIComponent(targetId)}`,
-        { method: 'GET' }
-      )
-      setData(response)
-    } catch (err) {
-      setData(null)
-      setError(err instanceof Error ? err.message : 'Failed to load monitor target')
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
-  }, [targetId, targetType])
+  const load = useCallback(
+    async (silent = false) => {
+      if (!targetId) return
+      if (silent) {
+        setRefreshing(true)
+      } else {
+        setLoading(true)
+      }
+      setError('')
+      try {
+        const response = await pb.send<MonitorTargetResponse>(
+          `/api/monitor/targets/${encodeURIComponent(targetType)}/${encodeURIComponent(targetId)}`,
+          { method: 'GET' }
+        )
+        setData(response)
+      } catch (err) {
+        setData(null)
+        setError(err instanceof Error ? err.message : 'Failed to load monitor target')
+      } finally {
+        setLoading(false)
+        setRefreshing(false)
+      }
+    },
+    [targetId, targetType]
+  )
 
   const loadSeries = useCallback(async () => {
-    if (!targetId || (targetType !== 'server' && targetType !== 'platform' && targetType !== 'app')) {
+    if (
+      !targetId ||
+      (targetType !== 'server' && targetType !== 'platform' && targetType !== 'app')
+    ) {
       setSeries(null)
       return
     }
@@ -306,7 +339,10 @@ export function MonitorTargetPanel({
 
     setSeriesLoading(true)
     try {
-      if (supportsNetworkInterfaceSelection(targetType, targetId) && selectedNetworkInterface !== 'all') {
+      if (
+        supportsNetworkInterfaceSelection(targetType, targetId) &&
+        selectedNetworkInterface !== 'all'
+      ) {
         params.set('networkInterface', selectedNetworkInterface)
       }
       const response = await pb.send<MonitorSeriesResponse>(
@@ -314,9 +350,9 @@ export function MonitorTargetPanel({
         { method: 'GET' }
       )
       if (
-        supportsNetworkInterfaceSelection(targetType, targetId)
-        && response.selectedNetworkInterface
-        && response.selectedNetworkInterface !== selectedNetworkInterface
+        supportsNetworkInterfaceSelection(targetType, targetId) &&
+        response.selectedNetworkInterface &&
+        response.selectedNetworkInterface !== selectedNetworkInterface
       ) {
         setSelectedNetworkInterface(response.selectedNetworkInterface)
       }
@@ -331,15 +367,18 @@ export function MonitorTargetPanel({
     }
   }, [appliedCustomRange, selectedNetworkInterface, selectedWindow, targetId, targetType])
 
-  const selectedWindowMeta = selectedWindow === 'custom'
-    ? {
-        value: 'custom' as const,
-        label: formatCustomRangeLabel(appliedCustomRange),
-        description: formatCustomRangeDescription(appliedCustomRange),
-      }
-    : SERIES_WINDOWS.find(window => window.value === selectedWindow) ?? SERIES_WINDOWS[0]
+  const selectedWindowMeta =
+    selectedWindow === 'custom'
+      ? {
+          value: 'custom' as const,
+          label: formatCustomRangeLabel(appliedCustomRange),
+          description: formatCustomRangeDescription(appliedCustomRange),
+        }
+      : (SERIES_WINDOWS.find(window => window.value === selectedWindow) ?? SERIES_WINDOWS[0])
 
-  const customRangeDirty = draftCustomRange.startLocal !== appliedCustomRange.startLocal || draftCustomRange.endLocal !== appliedCustomRange.endLocal
+  const customRangeDirty =
+    draftCustomRange.startLocal !== appliedCustomRange.startLocal ||
+    draftCustomRange.endLocal !== appliedCustomRange.endLocal
 
   const handleRefresh = useCallback(async () => {
     await Promise.all([load(true), loadSeries()])
@@ -372,8 +411,17 @@ export function MonitorTargetPanel({
             Latest normalized monitoring state for this target.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => void handleRefresh()} disabled={loading || refreshing || seriesLoading || !targetId}>
-          {loading || refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void handleRefresh()}
+          disabled={loading || refreshing || seriesLoading || !targetId}
+        >
+          {loading || refreshing ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
           Refresh
         </Button>
       </div>
@@ -407,10 +455,15 @@ export function MonitorTargetPanel({
                 ['Last Failure', formatValue('last_failure_at', data.lastFailureAt)],
                 ['Last Check', formatValue('last_checked_at', data.lastCheckedAt)],
                 ['Last Reported', formatValue('last_reported_at', data.lastReportedAt)],
-                ['Consecutive Failures', formatValue('consecutive_failures', data.consecutiveFailures)],
+                [
+                  'Consecutive Failures',
+                  formatValue('consecutive_failures', data.consecutiveFailures),
+                ],
               ].map(([label, value]) => (
                 <div key={label} className="rounded-md border bg-background px-3 py-2">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                    {label}
+                  </div>
                   <div className="mt-1 break-words">{value}</div>
                 </div>
               ))}
@@ -430,7 +483,8 @@ export function MonitorTargetPanel({
               {!data.hasData ? (
                 <Alert className="mb-3">
                   <AlertDescription>
-                    No persisted monitor heartbeat yet. Showing current server inventory and monitor setup readiness instead.
+                    No persisted monitor heartbeat yet. Showing current server inventory and monitor
+                    setup readiness instead.
                   </AlertDescription>
                 </Alert>
               ) : null}
@@ -453,14 +507,18 @@ export function MonitorTargetPanel({
             </CardContent>
           </Card>
 
-          {seriesLoading || ((series?.series?.length ?? 0) > 0) ? (
+          {seriesLoading || (series?.series?.length ?? 0) > 0 ? (
             <Card className="lg:col-span-2">
               <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="space-y-1">
                   <CardTitle className="text-base">Trend History</CardTitle>
                   <CardDescription>{selectedWindowMeta.description}</CardDescription>
                 </div>
-                <div className="inline-flex flex-wrap items-center rounded-lg border bg-muted/20 p-1" role="tablist" aria-label="trend window selector">
+                <div
+                  className="inline-flex flex-wrap items-center rounded-lg border bg-muted/20 p-1"
+                  role="tablist"
+                  aria-label="trend window selector"
+                >
                   {SERIES_WINDOWS.filter(window => window.value !== 'custom').map(window => {
                     const active = window.value === selectedWindow
                     return (
@@ -486,38 +544,61 @@ export function MonitorTargetPanel({
                         aria-pressed={selectedWindow === 'custom'}
                         disabled={seriesLoading}
                       >
-                        {selectedWindow === 'custom' ? formatCustomRangeLabel(appliedCustomRange) : '自定义'}
+                        {selectedWindow === 'custom'
+                          ? formatCustomRangeLabel(appliedCustomRange)
+                          : '自定义'}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent align="end" className="w-[min(24rem,calc(100vw-2rem))] space-y-3">
+                    <PopoverContent
+                      align="end"
+                      className="w-[min(24rem,calc(100vw-2rem))] space-y-3"
+                    >
                       <div className="space-y-1">
                         <div className="text-sm font-medium">自定义时间区间</div>
-                        <div className="text-xs text-muted-foreground">选择起止时间后应用到当前趋势图。</div>
+                        <div className="text-xs text-muted-foreground">
+                          选择起止时间后应用到当前趋势图。
+                        </div>
                       </div>
                       <div className="grid gap-3 sm:grid-cols-2">
                         <label className="space-y-1 text-sm">
-                          <span className="text-xs uppercase tracking-wide text-muted-foreground">Start</span>
+                          <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                            Start
+                          </span>
                           <Input
                             aria-label="Trend range start"
                             type="datetime-local"
                             value={draftCustomRange.startLocal}
-                            onChange={event => setDraftCustomRange(current => ({ ...current, startLocal: event.target.value }))}
+                            onChange={event =>
+                              setDraftCustomRange(current => ({
+                                ...current,
+                                startLocal: event.target.value,
+                              }))
+                            }
                             max={draftCustomRange.endLocal || undefined}
                           />
                         </label>
                         <label className="space-y-1 text-sm">
-                          <span className="text-xs uppercase tracking-wide text-muted-foreground">End</span>
+                          <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                            End
+                          </span>
                           <Input
                             aria-label="Trend range end"
                             type="datetime-local"
                             value={draftCustomRange.endLocal}
-                            onChange={event => setDraftCustomRange(current => ({ ...current, endLocal: event.target.value }))}
+                            onChange={event =>
+                              setDraftCustomRange(current => ({
+                                ...current,
+                                endLocal: event.target.value,
+                              }))
+                            }
                             min={draftCustomRange.startLocal || undefined}
                           />
                         </label>
                       </div>
                       <div className="flex items-center justify-between gap-3">
-                        <div className="text-xs text-muted-foreground">{formatCustomRangeDescription(draftCustomRange)}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {formatCustomRangeDescription(draftCustomRange)}
+                        </div>
                         <Button
                           type="button"
                           variant="outline"
@@ -526,7 +607,11 @@ export function MonitorTargetPanel({
                             setSelectedWindow('custom')
                             setCustomRangeOpen(false)
                           }}
-                          disabled={seriesLoading || !isValidCustomRange(draftCustomRange) || (selectedWindow === 'custom' && !customRangeDirty)}
+                          disabled={
+                            seriesLoading ||
+                            !isValidCustomRange(draftCustomRange) ||
+                            (selectedWindow === 'custom' && !customRangeDirty)
+                          }
                         >
                           Apply
                         </Button>
@@ -555,9 +640,21 @@ export function MonitorTargetPanel({
                         rangeStartAt={series?.rangeStartAt}
                         rangeEndAt={series?.rangeEndAt}
                         stepSeconds={series?.stepSeconds}
-                        availableNetworkInterfaces={item.name === 'network' || item.name === 'network_traffic' ? series.availableNetworkInterfaces : undefined}
-                        selectedNetworkInterface={item.name === 'network' || item.name === 'network_traffic' ? selectedNetworkInterface : undefined}
-                        onNetworkInterfaceChange={item.name === 'network' || item.name === 'network_traffic' ? setSelectedNetworkInterface : undefined}
+                        availableNetworkInterfaces={
+                          item.name === 'network' || item.name === 'network_traffic'
+                            ? series.availableNetworkInterfaces
+                            : undefined
+                        }
+                        selectedNetworkInterface={
+                          item.name === 'network' || item.name === 'network_traffic'
+                            ? selectedNetworkInterface
+                            : undefined
+                        }
+                        onNetworkInterfaceChange={
+                          item.name === 'network' || item.name === 'network_traffic'
+                            ? setSelectedNetworkInterface
+                            : undefined
+                        }
                       />
                     ))}
                   </div>
@@ -634,29 +731,35 @@ function TrendCard({
       return `${latestUsed === null ? '—' : formatBytes(latestUsed)} used${latestFree === null ? '' : ` / ${formatBytes(latestFree)} free`}`
     }
     if (name === 'disk' && (latestRead !== null || latestWrite !== null)) {
-	      return `${latestRead === null ? '—' : `${formatRateBytes(latestRead)}/s`} read${latestWrite === null ? '' : ` / ${formatRateBytes(latestWrite)}/s write`}`
+      return `${latestRead === null ? '—' : `${formatRateBytes(latestRead)}/s`} read${latestWrite === null ? '' : ` / ${formatRateBytes(latestWrite)}/s write`}`
     }
     if (name === 'network' && (latestInbound !== null || latestOutbound !== null)) {
-	      return `${latestInbound === null ? '—' : `${formatRateBytes(latestInbound)}/s`} in${latestOutbound === null ? '' : ` / ${formatRateBytes(latestOutbound)}/s out`}`
+      return `${latestInbound === null ? '—' : `${formatRateBytes(latestInbound)}/s`} in${latestOutbound === null ? '' : ` / ${formatRateBytes(latestOutbound)}/s out`}`
     }
     if (name === 'network_traffic' && (latestInbound !== null || latestOutbound !== null)) {
-	      return `${latestInbound === null ? '—' : formatTrendValue('GB', `${name}_in`, latestInbound)} in${latestOutbound === null ? '' : ` / ${formatTrendValue('GB', `${name}_out`, latestOutbound)} out`}`
+      return `${latestInbound === null ? '—' : formatTrendValue('GB', `${name}_in`, latestInbound)} in${latestOutbound === null ? '' : ` / ${formatTrendValue('GB', `${name}_out`, latestOutbound)} out`}`
     }
     return '—'
   })()
-  const networkInterfaceLabel = metadata?.network_interface && metadata.network_interface !== 'all'
-    ? `Interface ${metadata.network_interface}`
-    : unit
+  const networkInterfaceLabel =
+    metadata?.network_interface && metadata.network_interface !== 'all'
+      ? `Interface ${metadata.network_interface}`
+      : unit
 
   return (
     <div className="rounded-lg border bg-background p-3">
       <div className="flex items-center justify-between gap-3">
         <div>
           <div className="text-sm font-medium">{formatLabel(name)}</div>
-          <div className="text-xs text-muted-foreground">{name === 'network' ? networkInterfaceLabel : unit}</div>
+          <div className="text-xs text-muted-foreground">
+            {name === 'network' ? networkInterfaceLabel : unit}
+          </div>
         </div>
         <div className="flex items-center gap-3">
-          {name === 'network_traffic' && availableNetworkInterfaces && availableNetworkInterfaces.length > 0 && onNetworkInterfaceChange ? (
+          {name === 'network_traffic' &&
+          availableNetworkInterfaces &&
+          availableNetworkInterfaces.length > 0 &&
+          onNetworkInterfaceChange ? (
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
               <span>Interface</span>
               <select

@@ -46,7 +46,12 @@ function getInitials(label: string): string {
     return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
   }
 
-  return label.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || 'SW'
+  return (
+    label
+      .replace(/[^A-Za-z0-9]/g, '')
+      .slice(0, 2)
+      .toUpperCase() || 'SW'
+  )
 }
 
 function buildFallbackLogoDataUrl(componentKey: string, label: string): string {

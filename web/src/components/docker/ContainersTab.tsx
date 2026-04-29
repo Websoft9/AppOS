@@ -1,6 +1,12 @@
 import { Fragment, useState, useEffect, useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { pb } from '@/lib/pb'
+import {
+  getServerContainerTelemetry,
+  type MonitorContainerTelemetryItem,
+  type MonitorContainerTelemetryResponse,
+  type MonitorMetricSeries,
+} from '@/lib/monitor-api'
 import { cn } from '@/lib/utils'
 import {
   Table,
@@ -13,7 +19,13 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,6 +37,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Checkbox } from '@/components/ui/checkbox'
+import { TimeSeriesChart } from '@/components/monitor/TimeSeriesChart'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { getApiErrorMessage } from '@/lib/api-error'
 import {
@@ -44,12 +57,13 @@ import {
   RotateCw,
   Trash2,
   MoreVertical,
+  Container as ContainerIcon,
   TerminalSquare,
   ScrollText,
+  Activity,
+  ChevronLeft,
   ChevronRight,
   ChevronDown,
-  ArrowLeft,
-  ArrowRight,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
@@ -69,6 +83,7 @@ type ContainerVisibleColumns = {
   status: boolean
   cpu: boolean
   mem: boolean
+  network: boolean
   compose: boolean
 }
 
@@ -80,13 +95,6 @@ interface Container {
   Status: string
   Ports?: string
   RunningFor?: string
-}
-
-interface ContainerStats {
-  ID: string
-  Name: string
-  CPUPerc: string
-  MemUsage: string
 }
 
 function parseContainers(output: string): Container[] {
@@ -104,72 +112,68 @@ function parseContainers(output: string): Container[] {
     .filter(Boolean) as Container[]
 }
 
-function parseContainerStats(output: string): ContainerStats[] {
-  if (!output.trim()) return []
-  return output
-    .trim()
-    .split('\n')
-    .map(line => {
-      try {
-        return JSON.parse(line)
-      } catch {
-        return null
-      }
-    })
-    .filter(Boolean) as ContainerStats[]
-}
-
 function shortName(name: string): string {
   if (!name) return '-'
   return name.length > 20 ? `${name.slice(0, 20)}…` : name
 }
 
-function memUsed(memUsage?: string): string {
-  if (!memUsage) return '-'
-  return memUsage.split('/')[0]?.trim() || memUsage
+function formatBytesCompact(bytes?: number): string {
+  if (!bytes || bytes <= 0) return '-'
+  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB']
+  let current = bytes
+  let index = 0
+  while (current >= 1024 && index < units.length - 1) {
+    current /= 1024
+    index += 1
+  }
+  return `${current >= 10 || index === 0 ? current.toFixed(0) : current.toFixed(1)} ${units[index]}`
 }
 
-function memoryTextToBytes(raw?: string): number {
-  if (!raw) return 0
-  const value = raw.trim()
-  const matched = value.match(/^([0-9]+(?:\.[0-9]+)?)\s*([a-zA-Z]+)?$/)
-  if (!matched) return 0
-
-  const numeric = Number(matched[1])
-  if (!Number.isFinite(numeric)) return 0
-  const unit = String(matched[2] || 'B').toUpperCase()
-
-  const base1024: Record<string, number> = {
-    B: 1,
-    KI: 1024,
-    KIB: 1024,
-    MI: 1024 ** 2,
-    MIB: 1024 ** 2,
-    GI: 1024 ** 3,
-    GIB: 1024 ** 3,
-    TI: 1024 ** 4,
-    TIB: 1024 ** 4,
-  }
-  const base1000: Record<string, number> = {
-    KB: 1000,
-    MB: 1000 ** 2,
-    GB: 1000 ** 3,
-    TB: 1000 ** 4,
-  }
-
-  if (base1024[unit]) return numeric * base1024[unit]
-  if (base1000[unit]) return numeric * base1000[unit]
-  if (unit === 'K') return numeric * 1000
-  if (unit === 'M') return numeric * 1000 ** 2
-  if (unit === 'G') return numeric * 1000 ** 3
-  if (unit === 'T') return numeric * 1000 ** 4
-  return numeric
+function formatPercent(value?: number): string {
+  if (value == null || !Number.isFinite(value)) return '-'
+  return `${value.toFixed(value >= 10 ? 0 : 1)}%`
 }
 
-function memUsageBytes(memUsage?: string): number {
-  if (!memUsage) return 0
-  const used = memUsage.split('/')[0]?.trim() || ''
-  return memoryTextToBytes(used)
+function formatRateBytes(value?: number): string {
+  if (value == null || !Number.isFinite(value) || value <= 0) return '-'
+  return `${formatBytesCompact(value)}/s`
+}
+
+function formatNetworkSummary(item?: MonitorContainerTelemetryItem): string {
+  if (!item || item.freshness.state === 'missing') return 'No telemetry'
+  const inbound = item.latest.networkRxBytesPerSecond
+  const outbound = item.latest.networkTxBytesPerSecond
+  if (inbound == null && outbound == null) return 'No telemetry'
+  return `${inbound == null ? '—' : formatRateBytes(inbound)} in / ${outbound == null ? '—' : formatRateBytes(outbound)} out`
+}
+
+function telemetrySeries(
+  item: MonitorContainerTelemetryItem | undefined,
+  name: string
+): MonitorMetricSeries | undefined {
+  return item?.series?.find(series => series.name === name)
+}
+
+function telemetryBadge(item?: MonitorContainerTelemetryItem) {
+  if (!item || item.freshness.state === 'missing') {
+    return <Badge variant="outline">No telemetry</Badge>
+  }
+  if (item.freshness.state === 'stale') {
+    return <Badge variant="outline">Stale telemetry</Badge>
+  }
+  return null
+}
+
+function telemetryObservedAt(item?: MonitorContainerTelemetryItem): string {
+  if (!item?.freshness.observedAt) return '—'
+  return new Date(item.freshness.observedAt).toLocaleString()
+}
+
+function formatTrendValue(unit: string, _name: string, value: number): string {
+  if (unit === 'bytes') return formatBytesCompact(value)
+  if (unit === 'bytes/s') return `${formatBytesCompact(value)}/s`
+  if (unit === 'percent') return formatPercent(value)
+  return `${value}`
 }
 
 function hostPublishedPorts(rawPorts?: string): string {
@@ -305,6 +309,7 @@ export function ContainersTab({
   const queryClient = useQueryClient()
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [logsContainer, setLogsContainer] = useState<Container | null>(null)
+  const [statsContainer, setStatsContainer] = useState<Container | null>(null)
   const [logsContent, setLogsContent] = useState('')
   const [logsLoading, setLogsLoading] = useState(false)
   const [logsActionTip, setLogsActionTip] = useState('')
@@ -336,7 +341,6 @@ export function ContainersTab({
   const [copiedTip, setCopiedTip] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
   const [inspectMap, setInspectMap] = useState<Record<string, Record<string, any>>>({})
-  const [statsMap, setStatsMap] = useState<Record<string, ContainerStats>>({})
   const [detailsLoadingMap, setDetailsLoadingMap] = useState<Record<string, boolean>>({})
   const [allDetailsLoading, setAllDetailsLoading] = useState(false)
   const [allDetailsCached, setAllDetailsCached] = useState(false)
@@ -375,16 +379,40 @@ export function ContainersTab({
       }
       return next
     })
-    setStatsMap(state => {
-      const next: Record<string, ContainerStats> = {}
-      for (const [id, stats] of Object.entries(state)) {
-        if (idSet.has(id)) next[id] = stats
-      }
-      return next
-    })
     setAllDetailsCached(false)
     setDetailsErrorMessage(null)
   }, [containerIdsKey])
+
+  const telemetryIds = useMemo(
+    () =>
+      containers
+        .map(container => container.ID)
+        .filter(Boolean)
+        .sort(),
+    [containers]
+  )
+
+  const {
+    data: telemetry,
+    isLoading: telemetryLoading,
+    error: telemetryError,
+  } = useQuery<MonitorContainerTelemetryResponse>({
+    queryKey: ['monitor', 'container-telemetry', serverId, telemetryIds.join(','), '15m'],
+    queryFn: () => getServerContainerTelemetry(serverId, telemetryIds, '15m'),
+    enabled: telemetryIds.length > 0,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+    refetchOnMount: false,
+  })
+
+  const telemetryMap = useMemo(() => {
+    const next: Record<string, MonitorContainerTelemetryItem> = {}
+    for (const item of telemetry?.items || []) {
+      if (!item.containerId) continue
+      next[item.containerId] = item
+    }
+    return next
+  }, [telemetry?.items])
 
   const loadInspectForContainer = useCallback(
     async (containerId: string) => {
@@ -415,15 +443,6 @@ export function ContainersTab({
     setAllDetailsLoading(true)
     setDetailsErrorMessage(null)
     try {
-      const statsRes = await pb.send(`/api/ext/docker/containers/stats?server_id=${serverId}`, {
-        method: 'GET',
-      })
-      const parsedStats = parseContainerStats(statsRes.output)
-      const nextStats: Record<string, ContainerStats> = {}
-      for (const stat of parsedStats) {
-        if (stat.ID) nextStats[stat.ID] = stat
-      }
-
       const inspectEntries = await Promise.all(
         containers.map(async container => {
           try {
@@ -443,7 +462,6 @@ export function ContainersTab({
         if (inspect) nextInspect[id] = inspect
       }
 
-      setStatsMap(state => ({ ...state, ...nextStats }))
       setInspectMap(state => ({ ...state, ...nextInspect }))
       setAllDetailsCached(true)
     } catch (err) {
@@ -562,7 +580,9 @@ export function ContainersTab({
     }
   }, [logsContainer?.Names, logsContent])
 
-  const activeSearchQuery = String(searchQuery ?? filterPreset ?? '').trim().toLowerCase()
+  const activeSearchQuery = String(searchQuery ?? filterPreset ?? '')
+    .trim()
+    .toLowerCase()
 
   const filtered = containers.filter(
     c =>
@@ -585,20 +605,20 @@ export function ContainersTab({
     items.sort((left, right) => {
       const leftInspect = inspectMap[left.ID]
       const rightInspect = inspectMap[right.ID]
-      const leftStats = statsMap[left.ID]
-      const rightStats = statsMap[right.ID]
+      const leftTelemetry = telemetryMap[left.ID]
+      const rightTelemetry = telemetryMap[right.ID]
 
       if (sortKey === 'mem') {
-        const leftMem = memUsageBytes(leftStats?.MemUsage)
-        const rightMem = memUsageBytes(rightStats?.MemUsage)
+        const leftMem = leftTelemetry?.latest.memoryBytes || 0
+        const rightMem = rightTelemetry?.latest.memoryBytes || 0
         if (leftMem < rightMem) return sortDir === 'asc' ? -1 : 1
         if (leftMem > rightMem) return sortDir === 'asc' ? 1 : -1
         return 0
       }
 
       if (sortKey === 'cpu') {
-        const leftCpu = parseFloat(leftStats?.CPUPerc || '0')
-        const rightCpu = parseFloat(rightStats?.CPUPerc || '0')
+        const leftCpu = leftTelemetry?.latest.cpuPercent || 0
+        const rightCpu = rightTelemetry?.latest.cpuPercent || 0
         if (leftCpu < rightCpu) return sortDir === 'asc' ? -1 : 1
         if (leftCpu > rightCpu) return sortDir === 'asc' ? 1 : -1
         return 0
@@ -631,7 +651,7 @@ export function ContainersTab({
       return 0
     })
     return items
-  }, [inspectMap, nameFiltered, sortDir, sortKey, statsMap])
+  }, [inspectMap, nameFiltered, sortDir, sortKey, telemetryMap])
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
   const paged = useMemo(() => {
@@ -641,7 +661,17 @@ export function ContainersTab({
 
   useEffect(() => {
     if (page !== 1) onPageChange?.(1)
-  }, [activeSearchQuery, includeNames, onPageChange, page, pageSize, serverId, sortDir, sortKey, stateFilter])
+  }, [
+    activeSearchQuery,
+    includeNames,
+    onPageChange,
+    page,
+    pageSize,
+    serverId,
+    sortDir,
+    sortKey,
+    stateFilter,
+  ])
 
   useEffect(() => {
     if (page > totalPages) onPageChange?.(totalPages)
@@ -671,11 +701,19 @@ export function ContainersTab({
     setSortDir('asc')
   }
 
-  const SortHead = ({ label, keyName }: { label: string; keyName: SortKey }) => (
+  const SortHead = ({
+    label,
+    keyName,
+    className,
+  }: {
+    label: string
+    keyName: SortKey
+    className?: string
+  }) => (
     <Button
       variant="ghost"
       size="sm"
-      className="h-7 justify-start px-0 text-xs"
+      className={cn('h-7 justify-start px-0 text-xs', className)}
       onClick={() => toggleSort(keyName)}
     >
       {label}
@@ -691,7 +729,9 @@ export function ContainersTab({
 
   const loadError = containersError
     ? getApiErrorMessage(containersError, 'Failed to load containers')
-    : detailsErrorMessage
+    : telemetryError
+      ? getApiErrorMessage(telemetryError, 'Failed to load container telemetry')
+      : detailsErrorMessage
 
   const detailsColumnsVisible = visibleColumns.cpu || visibleColumns.mem || visibleColumns.compose
   const tableColSpan =
@@ -701,49 +741,53 @@ export function ContainersTab({
     (detailsColumnsVisible ? 1 : 0) +
     (visibleColumns.cpu ? 1 : 0) +
     (visibleColumns.mem ? 1 : 0) +
+    (visibleColumns.network ? 1 : 0) +
     (visibleColumns.compose ? 1 : 0)
   const totalItems = sorted.length
 
   return (
-    <div className="min-h-0 flex flex-col gap-4 pt-4">
+    <div className="min-h-0 flex flex-col gap-3">
       {(loadError || actionError) && (
         <Alert variant="destructive" className="shrink-0">
           <AlertDescription>{loadError || actionError}</AlertDescription>
         </Alert>
       )}
-      <div className="overflow-hidden rounded-xl border bg-background">
-        <div className="flex flex-col gap-4 p-4">
+      <div className="overflow-hidden bg-background">
+        <div className="flex flex-col gap-3 px-3 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="text-sm font-semibold">Containers</div>
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <ContainerIcon className="h-4 w-4 text-muted-foreground" />
+              <span>Containers</span>
+            </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
               <input
                 value={searchQuery ?? ''}
                 onChange={event => onSearchQueryChange?.(event.target.value)}
                 placeholder="Search containers"
-                className="h-8 w-full min-w-0 rounded-md border bg-background px-3 text-sm sm:w-56 lg:w-64"
+                className="h-8 w-full min-w-0 rounded-md border bg-background px-3 text-sm sm:mr-[5ch] sm:w-[20ch]"
               />
               <span className="text-xs text-muted-foreground">Total {totalItems} items</span>
               <div className="flex items-center gap-0.5 text-xs">
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
+                  size="sm"
+                  className="h-7 min-w-0 px-0.5"
                   onClick={() => onPageChange?.(Math.max(1, page - 1))}
                   disabled={page <= 1}
                   aria-label="Previous containers page"
                 >
-                  <ArrowLeft className="h-3.5 w-3.5" />
+                  <ChevronLeft className="h-3.5 w-3.5" />
                 </Button>
-                <span className="min-w-5 text-center font-medium">{page}</span>
+                <span className="text-center font-medium tabular-nums">{page}</span>
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
+                  size="sm"
+                  className="h-7 min-w-0 px-0.5"
                   onClick={() => onPageChange?.(Math.min(totalPages, page + 1))}
                   disabled={page >= totalPages}
                   aria-label="Next containers page"
                 >
-                  <ArrowRight className="h-3.5 w-3.5" />
+                  <ChevronRight className="h-3.5 w-3.5" />
                 </Button>
               </div>
               <Button
@@ -814,6 +858,14 @@ export function ContainersTab({
                     Mem
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
+                    checked={visibleColumns.network}
+                    onCheckedChange={checked =>
+                      onVisibleColumnsChange?.({ ...visibleColumns, network: checked === true })
+                    }
+                  >
+                    Network
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
                     checked={visibleColumns.compose}
                     onCheckedChange={checked =>
                       onVisibleColumnsChange?.({ ...visibleColumns, compose: checked === true })
@@ -844,6 +896,7 @@ export function ContainersTab({
               <Badge variant="outline">Linked containers: {includeNames.length}</Badge>
             )}
             {allDetailsLoading && <Badge variant="outline">Loading container details...</Badge>}
+            {telemetryLoading && <Badge variant="outline">Loading telemetry...</Badge>}
           </div>
           {(allDetailsLoading || (fakeLoadingProgress > 0 && fakeLoadingProgress < 100)) && (
             <div className="shrink-0 space-y-1">
@@ -866,8 +919,11 @@ export function ContainersTab({
         <Table>
           <TableHeader className="sticky top-0 bg-background z-10">
             <TableRow>
-              <TableHead className="pl-2">
-                <SortHead label="Name" keyName="name" />
+              <TableHead className="px-2">
+                <div className="grid grid-cols-[0.75rem_minmax(0,1fr)] items-center gap-1">
+                  <span aria-hidden="true" />
+                  <SortHead label="Name" keyName="name" />
+                </div>
               </TableHead>
               <TableHead>
                 <div className="flex items-center gap-1">
@@ -879,16 +935,26 @@ export function ContainersTab({
                         size="icon"
                         className="h-7 w-7"
                         aria-label="Filter container state"
-                        title={stateFilter === 'all' ? 'Filter container state' : `Container state: ${stateFilter}`}
+                        title={
+                          stateFilter === 'all'
+                            ? 'Filter container state'
+                            : `Container state: ${stateFilter}`
+                        }
                       >
-                        <Filter className={stateFilter === 'all' ? 'h-3.5 w-3.5' : 'h-3.5 w-3.5 text-foreground'} />
+                        <Filter
+                          className={
+                            stateFilter === 'all' ? 'h-3.5 w-3.5' : 'h-3.5 w-3.5 text-foreground'
+                          }
+                        />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start">
                       <DropdownMenuRadioGroup
                         value={stateFilter}
                         onValueChange={value =>
-                          setStateFilter(value as 'all' | 'running' | 'exited' | 'paused' | 'created')
+                          setStateFilter(
+                            value as 'all' | 'running' | 'exited' | 'paused' | 'created'
+                          )
                         }
                       >
                         <DropdownMenuRadioItem value="all">All states</DropdownMenuRadioItem>
@@ -922,12 +988,17 @@ export function ContainersTab({
                   <SortHead label="Mem" keyName="mem" />
                 </TableHead>
               )}
+              {visibleColumns.network && (
+                <TableHead className="text-xs font-medium text-foreground">Net</TableHead>
+              )}
               {visibleColumns.compose && (
                 <TableHead>
                   <SortHead label="Compose" keyName="compose" />
                 </TableHead>
               )}
-              <TableHead className="w-[60px] text-xs font-medium text-foreground">Actions</TableHead>
+              <TableHead className="w-[60px] text-xs font-medium text-foreground">
+                Actions
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -943,14 +1014,14 @@ export function ContainersTab({
             )}
             {paged.map(c => {
               const inspect = inspectMap[c.ID]
-              const stats = statsMap[c.ID]
+              const telemetryItem = telemetryMap[c.ID]
               return (
                 <Fragment key={c.ID}>
                   <TableRow className="hover:bg-muted/30">
-                    <TableCell className="pl-2 font-mono text-xs">
+                    <TableCell className="px-2 font-mono text-xs">
                       <Button
                         variant="link"
-                        className="h-auto p-0 text-left font-mono text-xs gap-1"
+                        className="grid h-auto w-full grid-cols-[0.75rem_minmax(0,1fr)] items-center gap-1 p-0 text-left font-mono text-xs"
                         onClick={() => {
                           setExpandedId(id => {
                             const nextId = id === c.ID ? null : c.ID
@@ -962,14 +1033,21 @@ export function ContainersTab({
                         }}
                       >
                         {expandedId === c.ID ? (
-                          <ChevronDown className="h-3.5 w-3.5" />
+                          <ChevronDown className="h-3 w-3" />
                         ) : (
-                          <ChevronRight className="h-3.5 w-3.5" />
+                          <ChevronRight className="h-3 w-3" />
                         )}
-                        <span title={c.Names}>{shortName(c.Names)}</span>
+                        <span className="truncate text-left" title={c.Names}>
+                          {shortName(c.Names)}
+                        </span>
                       </Button>
                     </TableCell>
-                    <TableCell>{statusBadge(c.State)}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {statusBadge(c.State)}
+                        {telemetryBadge(telemetryItem)}
+                      </div>
+                    </TableCell>
                     {visibleColumns.ports && (
                       <TableCell className="text-xs">{hostPublishedPorts(c.Ports)}</TableCell>
                     )}
@@ -985,12 +1063,25 @@ export function ContainersTab({
                     {visibleColumns.status && <TableCell className="text-xs">{c.Status}</TableCell>}
                     {visibleColumns.cpu && (
                       <TableCell className="text-xs">
-                        {allDetailsLoading ? '...' : stats?.CPUPerc || '-'}
+                        {telemetryLoading
+                          ? '...'
+                          : telemetryItem?.freshness.state === 'missing'
+                            ? 'No telemetry'
+                            : formatPercent(telemetryItem?.latest.cpuPercent)}
                       </TableCell>
                     )}
                     {visibleColumns.mem && (
                       <TableCell className="text-xs">
-                        {allDetailsLoading ? '...' : memUsed(stats?.MemUsage)}
+                        {telemetryLoading
+                          ? '...'
+                          : telemetryItem?.freshness.state === 'missing'
+                            ? 'No telemetry'
+                            : formatBytesCompact(telemetryItem?.latest.memoryBytes)}
+                      </TableCell>
+                    )}
+                    {visibleColumns.network && (
+                      <TableCell className="text-xs">
+                        {telemetryLoading ? '...' : formatNetworkSummary(telemetryItem)}
                       </TableCell>
                     )}
                     {visibleColumns.compose && (
@@ -1021,6 +1112,9 @@ export function ContainersTab({
                               <TerminalSquare className="h-4 w-4 mr-2" /> Terminal
                             </DropdownMenuItem>
                           )}
+                          <DropdownMenuItem onClick={() => setStatsContainer(c)}>
+                            <Activity className="h-4 w-4 mr-2" /> Stats
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => fetchLogs(c)}>
                             <ScrollText className="h-4 w-4 mr-2" /> Logs
                           </DropdownMenuItem>
@@ -1054,38 +1148,40 @@ export function ContainersTab({
                   </TableRow>
                   {expandedId === c.ID && (
                     <TableRow>
-                      <TableCell colSpan={tableColSpan} className="bg-muted/20 px-4 py-3">
-                        <div className="rounded-lg border bg-background p-4 shadow-sm space-y-3">
+                      <TableCell colSpan={tableColSpan} className="bg-muted/20 px-3 py-3">
+                        <div className="space-y-3 rounded-lg bg-background/80 p-3">
                           <div className="text-sm font-medium">Container Details</div>
                           {detailsLoadingMap[c.ID] && (
                             <div className="text-xs text-muted-foreground">
                               Loading container details...
                             </div>
                           )}
-                          <div className="grid gap-3 md:grid-cols-2 text-xs">
-                            <div className="rounded-md border bg-muted/20 p-3">
-                              <div className="font-medium mb-2 text-muted-foreground">Basics</div>
-                              <div className="font-mono break-all">Image: {c.Image || '-'}</div>
+                          <div className="grid gap-3 text-xs md:grid-cols-2 xl:grid-cols-3">
+                            <div className="min-w-0 space-y-2 overflow-x-auto">
+                              <div className="mb-2 font-semibold text-foreground">Basics</div>
+                              <div className="min-w-max whitespace-nowrap font-mono">
+                                Image: {c.Image || '-'}
+                              </div>
                               <div
-                                className="font-mono break-all cursor-copy"
+                                className="min-w-max cursor-copy whitespace-nowrap font-mono"
                                 onDoubleClick={() => copyText(c.ID || '-', 'ID')}
                                 title="Double click to copy ID"
                               >
                                 ID: {c.ID || '-'}
                               </div>
                               <div
-                                className="font-mono break-all cursor-copy"
+                                className="min-w-max cursor-copy whitespace-nowrap font-mono"
                                 onDoubleClick={() => copyText(containerIP(inspect), 'IP')}
                                 title="Double click to copy IP"
                               >
                                 IP: {containerIP(inspect)}
                               </div>
                             </div>
-                            <div className="rounded-md border bg-muted/20 p-3">
-                              <div className="font-medium mb-2 text-muted-foreground">Ports</div>
+                            <div className="min-w-0 space-y-2 overflow-x-auto">
+                              <div className="mb-2 font-semibold text-foreground">Ports</div>
                               {inspectPorts(inspect).length > 0 ? (
                                 inspectPorts(inspect).map(port => (
-                                  <div key={port} className="font-mono">
+                                  <div key={port} className="min-w-max whitespace-nowrap font-mono">
                                     {port}
                                   </div>
                                 ))
@@ -1093,14 +1189,29 @@ export function ContainersTab({
                                 <div className="text-muted-foreground">-</div>
                               )}
                             </div>
-                            <div className="rounded-md border bg-muted/20 p-3">
-                              <div className="font-medium mb-2 text-muted-foreground">Volumes</div>
+                            <div className="min-w-0 space-y-2 overflow-x-auto">
+                              <div className="mb-2 font-semibold text-foreground">Network</div>
+                              {inspectNetworks(inspect).length > 0 ? (
+                                inspectNetworks(inspect).map(network => (
+                                  <div
+                                    key={network}
+                                    className="min-w-max whitespace-nowrap font-mono"
+                                  >
+                                    {network}
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="text-muted-foreground">-</div>
+                              )}
+                            </div>
+                            <div className="min-w-0 space-y-2 overflow-x-auto">
+                              <div className="mb-2 font-semibold text-foreground">Volumes</div>
                               {inspectVolumes(inspect).length > 0 ? (
                                 <div className="overflow-x-auto">
                                   {inspectVolumes(inspect).map(volume => (
                                     <div
                                       key={volume}
-                                      className="font-mono whitespace-nowrap min-w-max"
+                                      className="min-w-max whitespace-nowrap font-mono"
                                     >
                                       {volume}
                                     </div>
@@ -1110,25 +1221,16 @@ export function ContainersTab({
                                 <div className="text-muted-foreground">-</div>
                               )}
                             </div>
-                            <div className="rounded-md border bg-muted/20 p-3">
-                              <div className="font-medium mb-2 text-muted-foreground">Network</div>
-                              {inspectNetworks(inspect).length > 0 ? (
-                                inspectNetworks(inspect).map(network => (
-                                  <div key={network} className="font-mono">
-                                    {network}
-                                  </div>
-                                ))
-                              ) : (
-                                <div className="text-muted-foreground">-</div>
-                              )}
-                            </div>
-                            <div className="rounded-md border bg-muted/20 p-3">
-                              <div className="font-medium mb-2 text-muted-foreground">Env</div>
+                            <div className="min-w-0 space-y-2 overflow-x-auto">
+                              <div className="mb-2 font-semibold text-foreground">Env</div>
                               <div className="max-h-32 overflow-auto">
                                 {Array.isArray(inspect?.Config?.Env) &&
                                 inspect.Config.Env.length > 0 ? (
                                   inspect.Config.Env.map((env: string) => (
-                                    <div key={env} className="font-mono break-all">
+                                    <div
+                                      key={env}
+                                      className="min-w-max whitespace-nowrap font-mono"
+                                    >
                                       {env}
                                     </div>
                                   ))
@@ -1216,6 +1318,103 @@ export function ContainersTab({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!statsContainer} onOpenChange={open => !open && setStatsContainer(null)}>
+        <DialogContent className="sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Container Stats: {statsContainer?.Names}</DialogTitle>
+            <DialogDescription>
+              Monitor-backed container telemetry for the last 15 minutes.
+            </DialogDescription>
+          </DialogHeader>
+          {(() => {
+            const item = statsContainer ? telemetryMap[statsContainer.ID] : undefined
+            const cpuSeries = telemetrySeries(item, 'cpu')
+            const memorySeries = telemetrySeries(item, 'memory')
+            const networkSeries = telemetrySeries(item, 'network')
+            if (!item || item.freshness.state === 'missing') {
+              return (
+                <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-10 text-center text-sm text-muted-foreground">
+                  No telemetry for this container yet. Inventory, inspect, logs, and actions remain
+                  available.
+                </div>
+              )
+            }
+            return (
+              <div className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="rounded-lg border bg-muted/20 p-3 text-sm">
+                    <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      CPU
+                    </div>
+                    <div className="mt-2 font-medium">{formatPercent(item.latest.cpuPercent)}</div>
+                  </div>
+                  <div className="rounded-lg border bg-muted/20 p-3 text-sm">
+                    <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Memory
+                    </div>
+                    <div className="mt-2 font-medium">
+                      {formatBytesCompact(item.latest.memoryBytes)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border bg-muted/20 p-3 text-sm">
+                    <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Network
+                    </div>
+                    <div className="mt-2 font-medium">{formatNetworkSummary(item)}</div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <Badge variant="outline">Telemetry {item.freshness.state}</Badge>
+                  <span>Observed {telemetryObservedAt(item)}</span>
+                </div>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">CPU Trend</div>
+                    <TimeSeriesChart
+                      name="cpu"
+                      unit={cpuSeries?.unit || 'percent'}
+                      window={telemetry?.window || '15m'}
+                      rangeStartAt={telemetry?.rangeStartAt}
+                      rangeEndAt={telemetry?.rangeEndAt}
+                      stepSeconds={telemetry?.stepSeconds}
+                      points={cpuSeries?.points}
+                      formatValue={formatTrendValue}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Memory Trend</div>
+                    <TimeSeriesChart
+                      name="memory"
+                      unit={memorySeries?.unit || 'bytes'}
+                      window={telemetry?.window || '15m'}
+                      rangeStartAt={telemetry?.rangeStartAt}
+                      rangeEndAt={telemetry?.rangeEndAt}
+                      stepSeconds={telemetry?.stepSeconds}
+                      points={memorySeries?.points}
+                      formatValue={formatTrendValue}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Network Trend</div>
+                    <TimeSeriesChart
+                      name="network"
+                      unit={networkSeries?.unit || 'bytes/s'}
+                      window={telemetry?.window || '15m'}
+                      rangeStartAt={telemetry?.rangeStartAt}
+                      rangeEndAt={telemetry?.rangeEndAt}
+                      stepSeconds={telemetry?.stepSeconds}
+                      points={networkSeries?.points}
+                      segments={networkSeries?.segments}
+                      formatValue={formatTrendValue}
+                    />
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!logsContainer} onOpenChange={open => !open && setLogsContainer(null)}>
         <DialogContent className="sm:max-w-4xl h-[70vh] flex flex-col gap-0 p-0">

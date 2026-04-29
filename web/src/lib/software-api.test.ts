@@ -252,14 +252,27 @@ describe('invokeSoftwareAction', () => {
     })
     expect(sendMock).toHaveBeenCalledWith('/api/servers/srv1/software/docker/install', {
       method: 'POST',
+      body: undefined,
     })
   })
+
+  it('includes explicit appos base url when provided', async () => {
+	  sendMock.mockResolvedValue({ accepted: true })
+	  await invokeSoftwareAction('srv1', 'appos-agent', 'install', {
+	    apposBaseUrl: 'https://console.example.com:8443',
+	  })
+	  expect(sendMock).toHaveBeenCalledWith('/api/servers/srv1/software/appos-agent/install', {
+	    method: 'POST',
+	    body: { apposBaseUrl: 'https://console.example.com:8443' },
+	  })
+	})
 
   it('encodes component keys that contain special characters', async () => {
     sendMock.mockResolvedValue({ accepted: true })
     await invokeSoftwareAction('srv1', 'reverse-proxy', 'verify')
     expect(sendMock).toHaveBeenCalledWith('/api/servers/srv1/software/reverse-proxy/verify', {
       method: 'POST',
+      body: undefined,
     })
   })
 })

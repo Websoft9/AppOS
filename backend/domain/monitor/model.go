@@ -5,10 +5,11 @@ import (
 )
 
 const (
-	TargetTypeServer   = "server"
-	TargetTypeApp      = "app"
-	TargetTypeResource = "resource"
-	TargetTypePlatform = "platform"
+	TargetTypeServer    = "server"
+	TargetTypeApp       = "app"
+	TargetTypeContainer = "container"
+	TargetTypeResource  = "resource"
+	TargetTypePlatform  = "platform"
 )
 
 const (

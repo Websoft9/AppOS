@@ -29,7 +29,7 @@ func NewLocalExecutor(_ core.App) (*LocalExecutor, error) {
 	return &LocalExecutor{}, nil
 }
 
-func (e *LocalExecutor) Detect(ctx context.Context, _ string, tpl software.ResolvedTemplate) (software.InstalledState, string, error) {
+func (e *LocalExecutor) Detect(ctx context.Context, _ string, tpl software.ResolvedTemplate) (software.DetectionResult, error) {
 	installed := false
 	for _, hint := range tpl.Detect.InstalledHint {
 		out, err := executeLocalCommand(ctx, hint, localDetectTimeout)
@@ -39,13 +39,17 @@ func (e *LocalExecutor) Detect(ctx context.Context, _ string, tpl software.Resol
 		}
 	}
 	if !installed {
-		return software.InstalledStateNotInstalled, "", nil
+		return software.DetectionResult{InstalledState: software.InstalledStateNotInstalled, InstallSource: software.InstallSourceUnknown}, nil
 	}
 	if strings.TrimSpace(tpl.Detect.VersionCommand) == "" {
-		return software.InstalledStateInstalled, "", nil
+		return software.DetectionResult{InstalledState: software.InstalledStateInstalled, InstallSource: software.InstallSourceUnknown}, nil
 	}
 	versionOut, _ := executeLocalCommand(ctx, tpl.Detect.VersionCommand, localDetectTimeout)
-	return software.InstalledStateInstalled, strings.TrimSpace(firstLine(versionOut)), nil
+	return software.DetectionResult{
+		InstalledState:  software.InstalledStateInstalled,
+		DetectedVersion: strings.TrimSpace(firstLine(versionOut)),
+		InstallSource:   software.InstallSourceUnknown,
+	}, nil
 }
 
 func (e *LocalExecutor) RunPreflight(_ context.Context, _ string, tpl software.ResolvedTemplate) (software.TargetReadinessResult, error) {
@@ -83,12 +87,14 @@ func (e *LocalExecutor) Uninstall(_ context.Context, _ string, tpl software.Reso
 }
 
 func (e *LocalExecutor) Verify(ctx context.Context, _ string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
-	state, version, _ := e.Detect(ctx, "", tpl)
+	detection, _ := e.Detect(ctx, "", tpl)
 	detail := software.SoftwareComponentDetail{}
 	detail.ComponentKey = tpl.ComponentKey
 	detail.TemplateKind = tpl.TemplateKind
-	detail.InstalledState = state
-	detail.DetectedVersion = version
+	detail.InstalledState = detection.InstalledState
+	detail.DetectedVersion = detection.DetectedVersion
+	detail.InstallSource = detection.InstallSource
+	detail.SourceEvidence = detection.SourceEvidence
 	detail.ServiceName = tpl.Verify.ServiceName
 
 	switch tpl.Verify.Strategy {
@@ -109,7 +115,7 @@ func (e *LocalExecutor) Verify(ctx context.Context, _ string, tpl software.Resol
 		}
 		return detail, nil
 	case "detect":
-		if state == software.InstalledStateInstalled {
+		if detection.InstalledState == software.InstalledStateInstalled {
 			detail.VerificationState = software.VerificationStateHealthy
 		} else {
 			detail.VerificationState = software.VerificationStateDegraded

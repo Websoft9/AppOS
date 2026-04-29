@@ -10,6 +10,7 @@ package executor
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -21,12 +22,12 @@ import (
 )
 
 const (
-	detectTimeout   = 15 * time.Second
+	detectTimeout    = 15 * time.Second
 	preflightTimeout = 30 * time.Second
-	installTimeout  = 180 * time.Second
-	upgradeTimeout  = 180 * time.Second
+	installTimeout   = 180 * time.Second
+	upgradeTimeout   = 180 * time.Second
 	uninstallTimeout = 180 * time.Second
-	verifyTimeout   = 20 * time.Second
+	verifyTimeout    = 20 * time.Second
 )
 
 const dockerCEPackageRepoProfile = "docker-ce"
@@ -62,7 +63,7 @@ func NewSSHExecutor(app core.App, serverID, userID string) (*SSHExecutor, error)
 // Detect checks whether the component binary is present and returns the detected version.
 // installed_hint commands are tried in order; the first successful output determines
 // installed state. version_command is run only when the component is detected as installed.
-func (e *SSHExecutor) Detect(ctx context.Context, _ string, tpl software.ResolvedTemplate) (software.InstalledState, string, error) {
+func (e *SSHExecutor) Detect(ctx context.Context, _ string, tpl software.ResolvedTemplate) (software.DetectionResult, error) {
 	installed := false
 	for _, hint := range tpl.Detect.InstalledHint {
 		out, err := executeSSHCommand(ctx, e.cfg, hint, detectTimeout)
@@ -72,14 +73,24 @@ func (e *SSHExecutor) Detect(ctx context.Context, _ string, tpl software.Resolve
 		}
 	}
 	if !installed {
-		return software.InstalledStateNotInstalled, "", nil
+		return software.DetectionResult{InstalledState: software.InstalledStateNotInstalled, InstallSource: software.InstallSourceUnknown}, nil
+	}
+	result := software.DetectionResult{
+		InstalledState: software.InstalledStateInstalled,
+		InstallSource:  software.InstallSourceUnknown,
 	}
 	if tpl.Detect.VersionCommand == "" {
-		return software.InstalledStateInstalled, "", nil
+		if tpl.ComponentKey == software.ComponentKeyDocker {
+			result.InstallSource, result.SourceEvidence = e.detectDockerInstallSource(ctx, tpl)
+		}
+		return result, nil
 	}
 	versionOut, _ := executeSSHCommand(ctx, e.cfg, tpl.Detect.VersionCommand, detectTimeout)
-	version := strings.TrimSpace(firstLine(versionOut))
-	return software.InstalledStateInstalled, version, nil
+	result.DetectedVersion = strings.TrimSpace(firstLine(versionOut))
+	if tpl.ComponentKey == software.ComponentKeyDocker {
+		result.InstallSource, result.SourceEvidence = e.detectDockerInstallSource(ctx, tpl)
+	}
+	return result, nil
 }
 
 // RunPreflight evaluates OS support, root privilege, and network availability
@@ -194,7 +205,7 @@ func (e *SSHExecutor) Install(ctx context.Context, serverID string, tpl software
 			return software.SoftwareComponentDetail{}, fmt.Errorf("install %s via package manager: %w", tpl.ComponentKey, err)
 		}
 	case "script":
-		cmd, err := buildManagedScriptCommand(tpl.Install.ScriptPath, tpl.Install.ScriptURL, tpl.Install.Args)
+		cmd, err := buildManagedScriptCommand(tpl.Install.ScriptPath, tpl.Install.ScriptURL, tpl.Install.Args, tpl.Install.Env)
 		if err != nil {
 			return software.SoftwareComponentDetail{}, fmt.Errorf("component %s install script resolution failed: %w", tpl.ComponentKey, err)
 		}
@@ -228,7 +239,7 @@ func (e *SSHExecutor) Upgrade(ctx context.Context, serverID string, tpl software
 			return software.SoftwareComponentDetail{}, fmt.Errorf("upgrade %s via package manager: %w", tpl.ComponentKey, err)
 		}
 	case "script":
-		cmd, err := buildManagedScriptCommand(tpl.Upgrade.ScriptPath, tpl.Upgrade.ScriptURL, tpl.Upgrade.Args)
+		cmd, err := buildManagedScriptCommand(tpl.Upgrade.ScriptPath, tpl.Upgrade.ScriptURL, tpl.Upgrade.Args, tpl.Upgrade.Env)
 		if err != nil {
 			return software.SoftwareComponentDetail{}, fmt.Errorf("component %s upgrade script resolution failed: %w", tpl.ComponentKey, err)
 		}
@@ -302,7 +313,7 @@ func (e *SSHExecutor) Uninstall(ctx context.Context, serverID string, tpl softwa
 			return software.SoftwareComponentDetail{}, fmt.Errorf("uninstall %s via package manager: %w", tpl.ComponentKey, err)
 		}
 	case "script":
-		cmd, err := buildManagedScriptCommand(tpl.Uninstall.ScriptPath, tpl.Uninstall.ScriptURL, tpl.Uninstall.Args)
+		cmd, err := buildManagedScriptCommand(tpl.Uninstall.ScriptPath, tpl.Uninstall.ScriptURL, tpl.Uninstall.Args, tpl.Uninstall.Env)
 		if err != nil {
 			return software.SoftwareComponentDetail{}, fmt.Errorf("component %s uninstall script resolution failed: %w", tpl.ComponentKey, err)
 		}
@@ -357,22 +368,87 @@ func (e *SSHExecutor) verifySystemd(ctx context.Context, tpl software.ResolvedTe
 		vState = software.VerificationStateDegraded
 	}
 
-	iState, version, _ := e.Detect(ctx, "", tpl)
+	detection, _ := e.Detect(ctx, "", tpl)
 
 	detail := software.SoftwareComponentDetail{}
 	detail.ComponentKey = tpl.ComponentKey
 	detail.TemplateKind = tpl.TemplateKind
-	detail.InstalledState = iState
-	detail.DetectedVersion = version
+	detail.InstalledState = detection.InstalledState
+	detail.DetectedVersion = detection.DetectedVersion
+	detail.InstallSource = detection.InstallSource
+	detail.SourceEvidence = detection.SourceEvidence
 	detail.VerificationState = vState
 	detail.ServiceName = svc
 	return detail, nil
 }
 
+func (e *SSHExecutor) detectDockerInstallSource(ctx context.Context, tpl software.ResolvedTemplate) (software.InstallSource, string) {
+	binaryPathOut, _ := executeSSHCommand(ctx, e.cfg, "command -v docker 2>/dev/null || true", detectTimeout)
+	binaryPath := strings.TrimSpace(firstLine(binaryPathOut))
+	if binaryPath == "" {
+		return software.InstallSourceUnknown, ""
+	}
+
+	expectedPackages := normalizePackageNames(tpl.Install.PackageName, tpl.Install.PackageNames)
+	for _, pkg := range expectedPackages {
+		checkCmd := fmt.Sprintf("dpkg-query -W -f='${db:Status-Abbrev}' %s 2>/dev/null || true", terminal.ShellQuote(pkg))
+		out, _ := executeSSHCommand(ctx, e.cfg, checkCmd, detectTimeout)
+		if strings.HasPrefix(strings.TrimSpace(out), "ii") {
+			return software.InstallSourceManaged, "apt:" + pkg
+		}
+	}
+
+	aptOwnerCmd := fmt.Sprintf("dpkg-query -S %s 2>/dev/null | head -n1 || true", terminal.ShellQuote(binaryPath))
+	if owner, ok := parsePackageOwner(firstLine(mustSSHOutput(ctx, e, aptOwnerCmd))); ok {
+		if containsString(expectedPackages, owner) {
+			return software.InstallSourceManaged, "apt:" + owner
+		}
+		return software.InstallSourceForeignPackage, "apt:" + owner
+	}
+
+	rpmOwnerCmd := fmt.Sprintf("rpm -qf %s --qf '%%{NAME}\n' 2>/dev/null || true", terminal.ShellQuote(binaryPath))
+	if owner, ok := parsePackageOwner(firstLine(mustSSHOutput(ctx, e, rpmOwnerCmd))); ok {
+		if containsString(expectedPackages, owner) {
+			return software.InstallSourceManaged, "rpm:" + owner
+		}
+		return software.InstallSourceForeignPackage, "rpm:" + owner
+	}
+
+	return software.InstallSourceManual, "binary:" + binaryPath
+}
+
+func mustSSHOutput(ctx context.Context, e *SSHExecutor, cmd string) string {
+	out, _ := executeSSHCommand(ctx, e.cfg, cmd, detectTimeout)
+	return strings.TrimSpace(out)
+}
+
+func parsePackageOwner(raw string) (string, bool) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", false
+	}
+	if strings.Contains(trimmed, ":") {
+		trimmed = strings.TrimSpace(strings.SplitN(trimmed, ":", 2)[0])
+	}
+	if strings.Contains(trimmed, ",") {
+		trimmed = strings.TrimSpace(strings.SplitN(trimmed, ",", 2)[0])
+	}
+	return trimmed, trimmed != ""
+}
+
+func containsString(items []string, want string) bool {
+	for _, item := range items {
+		if strings.EqualFold(strings.TrimSpace(item), strings.TrimSpace(want)) {
+			return true
+		}
+	}
+	return false
+}
+
 // buildScriptCommand builds a safe shell snippet that downloads a script via curl or
 // wget and runs it with optional arguments. The script URL and arguments come
 // exclusively from catalog metadata and are shell-quoted before use.
-func buildScriptCommand(scriptURL string, args []string) string {
+func buildScriptCommand(scriptURL string, args []string, env map[string]string) string {
 	quotedArgs := make([]string, len(args))
 	for i, a := range args {
 		quotedArgs[i] = terminal.ShellQuote(a)
@@ -381,17 +457,19 @@ func buildScriptCommand(scriptURL string, args []string) string {
 	if len(quotedArgs) > 0 {
 		argsStr = " " + strings.Join(quotedArgs, " ")
 	}
+	envScript := buildEnvScript(env)
 	return fmt.Sprintf(
-		"set -eu; _tmp=$(mktemp); trap 'rm -f \"$_tmp\"' EXIT; "+
+		"set -eu; %s_tmp=$(mktemp); trap 'rm -f \"$_tmp\"' EXIT; "+
 			"(curl -fsSL %s -o \"$_tmp\" 2>/dev/null || wget -qO \"$_tmp\" %s); "+
 			"chmod +x \"$_tmp\"; sh \"$_tmp\"%s",
+		envScript,
 		terminal.ShellQuote(scriptURL),
 		terminal.ShellQuote(scriptURL),
 		argsStr,
 	)
 }
 
-func buildEmbeddedScriptCommand(scriptBody string, args []string) string {
+func buildEmbeddedScriptCommand(scriptBody string, args []string, env map[string]string) string {
 	quotedArgs := make([]string, len(args))
 	for i, a := range args {
 		quotedArgs[i] = terminal.ShellQuote(a)
@@ -400,27 +478,58 @@ func buildEmbeddedScriptCommand(scriptBody string, args []string) string {
 	if len(quotedArgs) > 0 {
 		argsStr = " " + strings.Join(quotedArgs, " ")
 	}
+	envScript := buildEnvScript(env)
 	return fmt.Sprintf(
-		"set -eu; _tmp=$(mktemp); trap 'rm -f \"$_tmp\"' EXIT; cat > \"$_tmp\" <<'APPOS_EMBEDDED_SCRIPT'\n%s\nAPPOS_EMBEDDED_SCRIPT\nchmod +x \"$_tmp\"; sh \"$_tmp\"%s",
+		"set -eu; %s_tmp=$(mktemp); trap 'rm -f \"$_tmp\"' EXIT; cat > \"$_tmp\" <<'APPOS_EMBEDDED_SCRIPT'\n%s\nAPPOS_EMBEDDED_SCRIPT\nchmod +x \"$_tmp\"; sh \"$_tmp\"%s",
+		envScript,
 		scriptBody,
 		argsStr,
 	)
 }
 
-func buildManagedScriptCommand(scriptPath, scriptURL string, args []string) (string, error) {
+func buildManagedScriptCommand(scriptPath, scriptURL string, args []string, env map[string]string) (string, error) {
 	if strings.TrimSpace(scriptPath) != "" {
 		body, err := softwarescripts.ReadEmbeddedScript(scriptPath)
 		if err != nil {
 			return "", err
 		}
-		return buildEmbeddedScriptCommand(body, args), nil
+		return buildEmbeddedScriptCommand(body, args, env), nil
 	}
 
 	if strings.TrimSpace(scriptURL) != "" {
-		return buildScriptCommand(scriptURL, args), nil
+		return buildScriptCommand(scriptURL, args, env), nil
 	}
 
 	return "", fmt.Errorf("both script_path and script_url are empty")
+}
+
+func buildEnvScript(env map[string]string) string {
+	if len(env) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(env))
+	for key := range env {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	var builder strings.Builder
+	for index, key := range keys {
+		value := env[key]
+		heredoc := fmt.Sprintf("APPOS_ENV_%d", index)
+		builder.WriteString(key)
+		builder.WriteString("=$(cat <<'")
+		builder.WriteString(heredoc)
+		builder.WriteString("'\n")
+		builder.WriteString(value)
+		if !strings.HasSuffix(value, "\n") {
+			builder.WriteString("\n")
+		}
+		builder.WriteString(heredoc)
+		builder.WriteString("\n); export ")
+		builder.WriteString(key)
+		builder.WriteString("; ")
+	}
+	return builder.String()
 }
 
 func (e *SSHExecutor) detectPackageManager(ctx context.Context) (string, string, error) {

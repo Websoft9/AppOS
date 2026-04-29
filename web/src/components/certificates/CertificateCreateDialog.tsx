@@ -197,34 +197,41 @@ export function CertificateCreateDialog({
                 <Textarea
                   id={`shared-certificate-${field.key}`}
                   value={fields[field.key] ?? ''}
-                  onChange={event => setFields(prev => ({ ...prev, [field.key]: event.target.value }))}
+                  onChange={event =>
+                    setFields(prev => ({ ...prev, [field.key]: event.target.value }))
+                  }
                   rows={field.key === 'cert_pem' ? 8 : 4}
                   className={field.key === 'cert_pem' ? 'font-mono text-xs' : undefined}
                 />
               ) : field.type === 'relation' ? (
                 <>
-                <select
-                  id={`shared-certificate-${field.key}`}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={fields[field.key] ?? ''}
-                  onChange={event => setFields(prev => ({ ...prev, [field.key]: event.target.value }))}
-                >
-                  <option value="">Select a TLS private key secret</option>
-                  {tlsSecrets.map(secret => (
-                    <option key={secret.id} value={secret.id}>
-                      {secret.name ?? secret.id}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-muted-foreground">
-                  The certificate object keeps the certificate chain here and references the private key through a secret.
-                </p>
+                  <select
+                    id={`shared-certificate-${field.key}`}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={fields[field.key] ?? ''}
+                    onChange={event =>
+                      setFields(prev => ({ ...prev, [field.key]: event.target.value }))
+                    }
+                  >
+                    <option value="">Select a TLS private key secret</option>
+                    {tlsSecrets.map(secret => (
+                      <option key={secret.id} value={secret.id}>
+                        {secret.name ?? secret.id}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    The certificate object keeps the certificate chain here and references the
+                    private key through a secret.
+                  </p>
                 </>
               ) : (
                 <Input
                   id={`shared-certificate-${field.key}`}
                   value={fields[field.key] ?? ''}
-                  onChange={event => setFields(prev => ({ ...prev, [field.key]: event.target.value }))}
+                  onChange={event =>
+                    setFields(prev => ({ ...prev, [field.key]: event.target.value }))
+                  }
                 />
               )}
             </div>
@@ -239,10 +246,13 @@ export function CertificateCreateDialog({
                 min={1}
                 max={3650}
                 value={validityDays}
-                onChange={event => setValidityDays(parseInt(event.target.value, 10) || DEFAULT_VALIDITY_DAYS)}
+                onChange={event =>
+                  setValidityDays(parseInt(event.target.value, 10) || DEFAULT_VALIDITY_DAYS)
+                }
               />
               <p className="text-xs text-muted-foreground">
-                Saving will create the certificate object first, then generate the certificate chain and a referenced TLS private key secret.
+                Saving will create the certificate object first, then generate the certificate chain
+                and a referenced TLS private key secret.
               </p>
             </div>
           )}

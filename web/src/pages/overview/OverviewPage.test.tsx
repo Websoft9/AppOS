@@ -34,7 +34,11 @@ vi.mock('@tanstack/react-router', () => ({
     className?: string
   }) => {
     const resolvedTo = params?.appId ? to.replace('$appId', params.appId) : to
-    return <a href={resolvedTo} className={className}>{children}</a>
+    return (
+      <a href={resolvedTo} className={className}>
+        {children}
+      </a>
+    )
   },
 }))
 
@@ -137,7 +141,10 @@ describe('OverviewPage', () => {
           ],
         })
       }
-      if (path === '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cnetwork') {
+      if (
+        path ===
+        '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cnetwork'
+      ) {
         return Promise.resolve({
           targetType: 'platform',
           targetId: 'appos-core',
@@ -146,30 +153,69 @@ describe('OverviewPage', () => {
             {
               name: 'cpu',
               unit: 'percent',
-              points: [[1713096000, 18.4], [1713096060, 21.1]],
+              points: [
+                [1713096000, 18.4],
+                [1713096060, 21.1],
+              ],
             },
             {
               name: 'memory',
               unit: 'bytes',
               segments: [
-                { name: 'used', points: [[1713096000, 2147483648], [1713096060, 2362232012]] },
-                { name: 'available', points: [[1713096000, 1073741824], [1713096060, 858993459]] },
+                {
+                  name: 'used',
+                  points: [
+                    [1713096000, 2147483648],
+                    [1713096060, 2362232012],
+                  ],
+                },
+                {
+                  name: 'available',
+                  points: [
+                    [1713096000, 1073741824],
+                    [1713096060, 858993459],
+                  ],
+                },
               ],
             },
             {
               name: 'disk_usage',
               unit: 'bytes',
               segments: [
-                { name: 'used', points: [[1713096000, 75161927680], [1713096060, 76235669504]] },
-                { name: 'free', points: [[1713096000, 32212254720], [1713096060, 31138512896]] },
+                {
+                  name: 'used',
+                  points: [
+                    [1713096000, 75161927680],
+                    [1713096060, 76235669504],
+                  ],
+                },
+                {
+                  name: 'free',
+                  points: [
+                    [1713096000, 32212254720],
+                    [1713096060, 31138512896],
+                  ],
+                },
               ],
             },
             {
               name: 'network',
               unit: 'bytes/s',
               segments: [
-                { name: 'in', points: [[1713096000, 2048], [1713096060, 4096]] },
-                { name: 'out', points: [[1713096000, 1024], [1713096060, 2048]] },
+                {
+                  name: 'in',
+                  points: [
+                    [1713096000, 2048],
+                    [1713096060, 4096],
+                  ],
+                },
+                {
+                  name: 'out',
+                  points: [
+                    [1713096000, 1024],
+                    [1713096060, 2048],
+                  ],
+                },
               ],
             },
           ],
@@ -185,17 +231,32 @@ describe('OverviewPage', () => {
         { id: 'srv-3', name: 'server-c', connect_type: 'direct' },
       ])
       .mockResolvedValueOnce([
-        { id: 'sec-1', name: 'prod-db-password', expires_at: '2099-01-01T00:00:00Z', status: 'active' },
+        {
+          id: 'sec-1',
+          name: 'prod-db-password',
+          expires_at: '2099-01-01T00:00:00Z',
+          status: 'active',
+        },
         { id: 'sec-2', name: 'legacy-token', expires_at: '2026-04-20T00:00:00Z', status: 'active' },
       ])
       .mockResolvedValueOnce([
-        { id: 'cert-1', name: 'portal-cert', domain: 'portal.example.com', expires_at: '2026-04-18T00:00:00Z', status: 'active' },
+        {
+          id: 'cert-1',
+          name: 'portal-cert',
+          domain: 'portal.example.com',
+          expires_at: '2026-04-18T00:00:00Z',
+          status: 'active',
+        },
       ])
 
     render(<OverviewPage />)
 
     expect(await screen.findByRole('heading', { name: 'Overview' })).toBeInTheDocument()
-    expect(screen.queryByText('Operational cockpit for AppOS health, current risks, and recent change across your single-server workspace.')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        'Operational cockpit for AppOS health, current risks, and recent change across your single-server workspace.'
+      )
+    ).not.toBeInTheDocument()
     expect(screen.getByText('Applications')).toBeInTheDocument()
     expect(screen.getByText('Attention Needed')).toBeInTheDocument()
     expect(await screen.findByText('Needs Attention')).toBeInTheDocument()
@@ -207,7 +268,10 @@ describe('OverviewPage', () => {
     expect(screen.getByLabelText('network time series chart')).toBeInTheDocument()
     expect(screen.getByText('Recent App Changes')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /System Monitor/i })).toHaveAttribute('href', '/status')
-    expect(screen.getByRole('link', { name: /Manage Servers/i })).toHaveAttribute('href', '/resources/servers')
+    expect(screen.getByRole('link', { name: /Manage Servers/i })).toHaveAttribute(
+      'href',
+      '/resources/servers'
+    )
     expect(screen.getByRole('link', { name: /WordPress/i })).toHaveAttribute('href', '/apps/app-1')
     expect(screen.getAllByRole('link', { name: /Deploy App/i }).length).toBeGreaterThan(0)
     expect(screen.getAllByRole('link', { name: /Review Credentials/i }).length).toBeGreaterThan(0)
@@ -216,7 +280,10 @@ describe('OverviewPage', () => {
       expect(sendMock).toHaveBeenCalledWith('/api/apps', { method: 'GET' })
       expect(sendMock).toHaveBeenCalledWith('/api/monitor/overview', { method: 'GET' })
       expect(sendMock).toHaveBeenCalledWith('/api/tunnel/overview', { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cnetwork', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith(
+        '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cnetwork',
+        { method: 'GET' }
+      )
     })
   })
 

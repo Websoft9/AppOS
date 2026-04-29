@@ -109,14 +109,31 @@ describe('AppDetailPage', () => {
             summary: { runtime_state: 'running', server_id: 'local' },
           })
         }
-        if (path === '/api/monitor/targets/app/app-1/series?window=1h&series=cpu%2Cmemory' && options?.method === 'GET') {
+        if (
+          path === '/api/monitor/targets/app/app-1/series?window=1h&series=cpu%2Cmemory' &&
+          options?.method === 'GET'
+        ) {
           return Promise.resolve({
             targetType: 'app',
             targetId: 'app-1',
             window: '1h',
             series: [
-              { name: 'cpu', unit: 'percent', points: [[1713096000, 12.5], [1713096060, 11.8]] },
-              { name: 'memory', unit: 'bytes', points: [[1713096000, 268435456], [1713096060, 272629760]] },
+              {
+                name: 'cpu',
+                unit: 'percent',
+                points: [
+                  [1713096000, 12.5],
+                  [1713096060, 11.8],
+                ],
+              },
+              {
+                name: 'memory',
+                unit: 'bytes',
+                points: [
+                  [1713096000, 268435456],
+                  [1713096060, 272629760],
+                ],
+              },
             ],
           })
         }
@@ -499,7 +516,7 @@ describe('AppDetailPage', () => {
 
     expect(screen.getByText('Server: Remote Demo Server')).toBeInTheDocument()
     expect(screen.getByText('Connection summary: SSH access is reachable.')).toBeInTheDocument()
-    expect(screen.getByText('Endpoint: 10.0.0.8:22')).toBeInTheDocument()
+    expect(screen.getByText('Endpoint: 10.0.0.8')).toBeInTheDocument()
     expect(screen.getByText('Next server step: Open Terminal')).toBeInTheDocument()
     expect(screen.getByText('Certificate summary: bound')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open server detail' })).toBeInTheDocument()
@@ -926,7 +943,10 @@ describe('AppDetailPage', () => {
       expect(sendMock).toHaveBeenCalledWith('/api/ext/docker/containers', { method: 'GET' })
       expect(sendMock).toHaveBeenCalledWith('/api/ext/docker/containers/stats', { method: 'GET' })
       expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/app/app-1', { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/app/app-1/series?window=1h&series=cpu%2Cmemory', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith(
+        '/api/monitor/targets/app/app-1/series?window=1h&series=cpu%2Cmemory',
+        { method: 'GET' }
+      )
     })
 
     const observabilityPanel = screen.getByRole('tabpanel')

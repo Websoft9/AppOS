@@ -33,10 +33,17 @@ describe('FilesPage', () => {
       if (path.startsWith('/api/ext/iac?path=')) {
         return Promise.resolve({
           path: 'apps',
-          entries: [{ name: 'demo.yml', type: 'file', size: 10, modified_at: '2026-04-21T12:00:00Z' }],
+          entries: [
+            { name: 'demo.yml', type: 'file', size: 10, modified_at: '2026-04-21T12:00:00Z' },
+          ],
         })
       }
-      return Promise.resolve({ path: '', content: 'services: {}', size: 12, modified_at: '2026-04-21T12:00:00Z' })
+      return Promise.resolve({
+        path: '',
+        content: 'services: {}',
+        size: 12,
+        modified_at: '2026-04-21T12:00:00Z',
+      })
     })
   })
 
@@ -44,7 +51,11 @@ describe('FilesPage', () => {
     render(<FilesPage />)
 
     expect(screen.getByText('Orchestration Files')).toBeInTheDocument()
-    expect(screen.getByText('Browse and edit AppOS orchestration files for apps, workflows, and templates.')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Browse and edit AppOS orchestration files for apps, workflows, and templates.'
+      )
+    ).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Refresh orchestration files' })).toHaveLength(1)
 
     fireEvent.click(screen.getByRole('button', { name: 'Refresh orchestration files' }))

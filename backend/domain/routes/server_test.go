@@ -260,18 +260,18 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 
 	var payload struct {
 		Items []struct {
-			ID             string `json:"id"`
-			Name           string `json:"name"`
-			CreatedByName  string `json:"created_by_name"`
-			CredentialType string `json:"credential_type"`
-			FactsJSON      map[string]any `json:"facts_json"`
-			FactsObservedAt string `json:"facts_observed_at"`
-			Connection     struct {
+			ID              string         `json:"id"`
+			Name            string         `json:"name"`
+			CreatedByName   string         `json:"created_by_name"`
+			CredentialType  string         `json:"credential_type"`
+			FactsJSON       map[string]any `json:"facts_json"`
+			FactsObservedAt string         `json:"facts_observed_at"`
+			Connection      struct {
 				StateCode   string `json:"state_code"`
 				ReasonCode  string `json:"reason_code"`
 				ConfigReady bool   `json:"config_ready"`
 			} `json:"connection"`
-			Access         struct {
+			Access struct {
 				Status string `json:"status"`
 				Reason string `json:"reason"`
 				Source string `json:"source"`
@@ -291,43 +291,43 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 	}
 
 	byName := make(map[string]struct {
-		ID             string
-		CreatedByName  string
-		CredentialType string
-		ConnectionState string
+		ID               string
+		CreatedByName    string
+		CredentialType   string
+		ConnectionState  string
 		ConnectionReason string
-		ConfigReady    bool
-		AccessStatus   string
-		AccessReason   string
-		AccessSource   string
-		TunnelState    string
-		TunnelStatus   string
-		TunnelWaiting  bool
+		ConfigReady      bool
+		AccessStatus     string
+		AccessReason     string
+		AccessSource     string
+		TunnelState      string
+		TunnelStatus     string
+		TunnelWaiting    bool
 	})
 	for _, item := range payload.Items {
 		entry := struct {
-			ID             string
-			CreatedByName  string
-			CredentialType string
-			ConnectionState string
+			ID               string
+			CreatedByName    string
+			CredentialType   string
+			ConnectionState  string
 			ConnectionReason string
-			ConfigReady    bool
-			AccessStatus   string
-			AccessReason   string
-			AccessSource   string
-			TunnelState    string
-			TunnelStatus   string
-			TunnelWaiting  bool
+			ConfigReady      bool
+			AccessStatus     string
+			AccessReason     string
+			AccessSource     string
+			TunnelState      string
+			TunnelStatus     string
+			TunnelWaiting    bool
 		}{
-			ID:             item.ID,
-			CreatedByName:  item.CreatedByName,
-			CredentialType: item.CredentialType,
-			ConnectionState: item.Connection.StateCode,
+			ID:               item.ID,
+			CreatedByName:    item.CreatedByName,
+			CredentialType:   item.CredentialType,
+			ConnectionState:  item.Connection.StateCode,
 			ConnectionReason: item.Connection.ReasonCode,
-			ConfigReady:    item.Connection.ConfigReady,
-			AccessStatus:   item.Access.Status,
-			AccessReason:   item.Access.Reason,
-			AccessSource:   item.Access.Source,
+			ConfigReady:      item.Connection.ConfigReady,
+			AccessStatus:     item.Access.Status,
+			AccessReason:     item.Access.Reason,
+			AccessSource:     item.Access.Source,
 		}
 		if item.Tunnel != nil {
 			entry.TunnelState = item.Tunnel.State
@@ -408,7 +408,7 @@ func TestServersViewMarksTunnelSetupRequired(t *testing.T) {
 
 	var payload struct {
 		Items []struct {
-			Name   string `json:"name"`
+			Name       string `json:"name"`
 			Connection struct {
 				StateCode   string `json:"state_code"`
 				ReasonCode  string `json:"reason_code"`

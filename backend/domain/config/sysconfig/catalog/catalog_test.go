@@ -109,7 +109,7 @@ func TestEntries_PreservesCatalogOrder(t *testing.T) {
 }
 
 // TestSoftwareConfigSettingExists verifies that the software/config settings entry is
-// registered and exposes the controlAgentInstallerUrl field.
+// registered and exposes the apposAgentInstallerUrl field.
 func TestSoftwareConfigSettingExists(t *testing.T) {
 	entry, ok := FindEntry("software-config")
 	if !ok {
@@ -123,13 +123,13 @@ func TestSoftwareConfigSettingExists(t *testing.T) {
 	}
 	var found bool
 	for _, f := range entry.Fields {
-		if f.ID == "controlAgentInstallerUrl" {
+		if f.ID == "apposAgentInstallerUrl" {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Error("expected software-config entry to have field controlAgentInstallerUrl")
+		t.Error("expected software-config entry to have field apposAgentInstallerUrl")
 	}
 }
 
@@ -140,8 +140,12 @@ func TestSoftwareConfigHasDefaultSeedValue(t *testing.T) {
 	if g == nil {
 		t.Fatal("expected non-nil default group for software/config")
 	}
-	if _, ok := g["controlAgentInstallerUrl"]; !ok {
-		t.Error("expected controlAgentInstallerUrl in software/config defaults")
+	value, ok := g["apposAgentInstallerUrl"]
+	if !ok {
+		t.Error("expected apposAgentInstallerUrl in software/config defaults")
+	}
+	if value != "https://artifact.websoft9.com/stable/appos/agent/appos-agent-install.sh" {
+		t.Fatalf("expected default installer url, got %#v", value)
 	}
 }
 

@@ -1,0 +1,9 @@
+{
+  "core_version": "0.1.0",
+  "apphub_version": "0.1.0",
+  "deployment_version": "0.1.0",
+  "git_version": "0.1.0",
+  "proxy_version": "0.1.0",
+  "media_version": "0.1.0",
+  "library_version": "0.1.0"
+}

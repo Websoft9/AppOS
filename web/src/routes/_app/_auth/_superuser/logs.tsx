@@ -233,8 +233,10 @@ export function LogsPage() {
 
       const leftExec = getExecTime(left)
       const rightExec = getExecTime(right)
-      const normalizedLeft = leftExec ?? (sortDir === 'asc' ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY)
-      const normalizedRight = rightExec ?? (sortDir === 'asc' ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY)
+      const normalizedLeft =
+        leftExec ?? (sortDir === 'asc' ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY)
+      const normalizedRight =
+        rightExec ?? (sortDir === 'asc' ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY)
       return sortDir === 'asc' ? normalizedLeft - normalizedRight : normalizedRight - normalizedLeft
     })
   }, [filterStatus, logs, sortDir, sortField])

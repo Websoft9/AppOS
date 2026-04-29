@@ -77,7 +77,14 @@ function breakdownText(breakdown: Record<string, number>): string {
     .join(', ')
 }
 
-type SortField = 'name' | 'description' | 'created' | 'updated' | 'totalItems' | 'breakdown' | 'creator'
+type SortField =
+  | 'name'
+  | 'description'
+  | 'created'
+  | 'updated'
+  | 'totalItems'
+  | 'breakdown'
+  | 'creator'
 type SortDir = 'asc' | 'desc'
 
 // ─── Page Component ──────────────────────────────────────
@@ -171,7 +178,8 @@ function GroupsListPage() {
     return [...result].sort((a, b) => {
       let cmp = 0
       if (sortField === 'name') cmp = (a.name ?? '').localeCompare(b.name ?? '')
-      else if (sortField === 'description') cmp = (a.description ?? '').localeCompare(b.description ?? '')
+      else if (sortField === 'description')
+        cmp = (a.description ?? '').localeCompare(b.description ?? '')
       else if (sortField === 'created') cmp = (a.created ?? '').localeCompare(b.created ?? '')
       else if (sortField === 'totalItems') cmp = a.totalItems - b.totalItems
       else if (sortField === 'breakdown') cmp = a.breakdownLabel.localeCompare(b.breakdownLabel)
@@ -335,7 +343,12 @@ function GroupsListPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={() => void handleRefresh()} title="Refresh">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => void handleRefresh()}
+            title="Refresh"
+          >
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
           <Button onClick={openCreate}>New Group</Button>
@@ -371,7 +384,9 @@ function GroupsListPage() {
           <p className="text-sm mt-1">
             Create the first Group to organize related applications and resources.
           </p>
-          <Button className="mt-4" onClick={openCreate}>New Group</Button>
+          <Button className="mt-4" onClick={openCreate}>
+            New Group
+          </Button>
         </div>
       ) : filteredRows.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground border rounded-lg">

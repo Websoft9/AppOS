@@ -188,7 +188,10 @@ describe('ResourceHub', () => {
       'href',
       '/resources/service-instances'
     )
-    expect(screen.getByRole('link', { name: /Shared Envs/i })).toHaveAttribute('href', '/shared-envs')
+    expect(screen.getByRole('link', { name: /Shared Envs/i })).toHaveAttribute(
+      'href',
+      '/shared-envs'
+    )
     expect(screen.getByRole('link', { name: /Scripts/i })).toHaveAttribute(
       'href',
       '/resources/scripts'
@@ -259,9 +262,7 @@ describe('ResourceHub', () => {
       )
     ).toBeInTheDocument()
     expect(
-      within(dialog).getByText(
-        'Reusable automation scripts for operational tasks and workflows.'
-      )
+      within(dialog).getByText('Reusable automation scripts for operational tasks and workflows.')
     ).toBeInTheDocument()
     expect(
       within(dialog).getByText('OpenAI, Anthropic, OpenRouter, Ollama, and similar AI providers.')

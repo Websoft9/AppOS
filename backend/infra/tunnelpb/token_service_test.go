@@ -19,10 +19,18 @@ func ensureTunnelSecretsCollection(t *testing.T, app core.App) {
 
 	col := core.NewBaseCollection("secrets")
 	col.Fields.Add(&core.TextField{Name: "name", Required: true})
+	col.Fields.Add(&core.TextField{Name: "access_mode"})
+	col.Fields.Add(&core.TextField{Name: "expires_at"})
+	col.Fields.Add(&core.TextField{Name: "scope"})
+	col.Fields.Add(&core.TextField{Name: "created_by"})
 	col.Fields.Add(&core.TextField{Name: "type", Required: true})
 	col.Fields.Add(&core.TextField{Name: "template_id"})
 	col.Fields.Add(&core.TextField{Name: "created_source"})
+	col.Fields.Add(&core.TextField{Name: "status"})
 	col.Fields.Add(&core.TextField{Name: "value"})
+	col.Fields.Add(&core.TextField{Name: "payload_encrypted"})
+	col.Fields.Add(&core.JSONField{Name: "payload_meta"})
+	col.Fields.Add(&core.NumberField{Name: "version"})
 
 	if err := app.Save(col); err != nil {
 		t.Fatalf("create secrets collection: %v", err)

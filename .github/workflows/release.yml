@@ -1,0 +1,113 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Validate And Publish Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Derive release channel
+        id: convert_version
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          channel="stable"
+          if [[ "$version" == *-* ]]; then
+            channel="preview"
+          fi
+          echo "VERSION=$version" >> "$GITHUB_OUTPUT"
+          echo "CHANNEL=$channel" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate version metadata
+        run: node .github/scripts/validate-version.mjs "${GITHUB_REF_NAME}"
+
+      - name: Generate changelog
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: .github/git-cliff.toml
+          args: --tag "${{ github.ref_name }}" --output CHANGELOG.md
+        env:
+          OUTPUT: CHANGELOG.md
+          GITHUB_REPO: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build release notes
+        run: node .github/scripts/build-release-notes.mjs "${GITHUB_REF_NAME}"
+
+      - name: Build appos-agent artifact
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/agent
+          cd backend
+          for arch in amd64 arm64; do
+            output="../artifacts/agent/appos-agent-linux-${arch}"
+            CGO_ENABLED=0 GOOS=linux GOARCH="${arch}" \
+              go build -ldflags="-w -s -X main.version=${{ steps.convert_version.outputs.VERSION }}" \
+              -o "${output}" ./cmd/appos-agent
+            chmod +x "${output}"
+          done
+          cp ../artifacts/agent/appos-agent-linux-amd64 ../artifacts/agent/appos-agent
+          chmod +x ../artifacts/agent/appos-agent
+
+      - name: Generate appos-agent installer
+        run: |
+          set -euo pipefail
+          installer_base_url="https://artifact.websoft9.com/${{ steps.convert_version.outputs.CHANNEL }}/appos/agent"
+          sed \
+            -e "s|__APPOS_AGENT_BINARY_URL_AMD64__|${installer_base_url}/appos-agent-linux-amd64|g" \
+            -e "s|__APPOS_AGENT_BINARY_URL_ARM64__|${installer_base_url}/appos-agent-linux-arm64|g" \
+            backend/domain/software/scripts/appos-agent-install.sh > artifacts/agent/appos-agent-install.sh
+          chmod +x artifacts/agent/appos-agent-install.sh
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release-notes.md
+          files: |
+            CHANGELOG.md
+            version.json
+            docs/version-compatibility-matrix.md
+            artifacts/agent/appos-agent-linux-amd64
+            artifacts/agent/appos-agent-linux-arm64
+            artifacts/agent/appos-agent-install.sh
+
+
+      - name: Upload To cloudflare r2
+        uses: ryand56/r2-upload-action@latest
+        with:
+          r2-account-id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.CLOUDFLARE_R2_SECRET_ID }}
+          r2-secret-access-key: ${{ secrets.CLOUDFLARE_R2_SECRET_KEY }}
+          r2-bucket: artifact
+          source-dir: artifacts
+          destination-dir: ./${{ steps.convert_version.outputs.CHANNEL }}/appos
+
+      - name: Purge Cloudflare Cache
+        uses: jakejarvis/cloudflare-purge-action@master
+        env:
+          CLOUDFLARE_ZONE: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PURGE_URLS: '["https://artifact.websoft9.com/${{ steps.convert_version.outputs.CHANNEL }}/appos/agent/appos-agent","https://artifact.websoft9.com/${{ steps.convert_version.outputs.CHANNEL }}/appos/agent/appos-agent-linux-amd64","https://artifact.websoft9.com/${{ steps.convert_version.outputs.CHANNEL }}/appos/agent/appos-agent-linux-arm64","https://artifact.websoft9.com/${{ steps.convert_version.outputs.CHANNEL }}/appos/agent/appos-agent-install.sh"]'

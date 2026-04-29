@@ -414,7 +414,9 @@ describe('SettingsPage shared settings paths', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/This section now references AI provider records\. Create and edit AI Providers/i)
+        screen.getByText(
+          /This section now references AI provider records\. Create and edit AI Providers/i
+        )
       ).toBeInTheDocument()
     })
 

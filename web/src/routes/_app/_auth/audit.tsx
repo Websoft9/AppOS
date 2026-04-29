@@ -319,7 +319,6 @@ export function AuditPage() {
             </option>
           ))}
         </select>
-
       </div>
 
       {/* Error banner */}

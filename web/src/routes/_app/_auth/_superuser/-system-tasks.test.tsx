@@ -34,9 +34,7 @@ describe('SystemCronsContent', () => {
     sendMock.mockReset()
     sendMock.mockImplementation((path: string) => {
       if (path === '/api/crons') {
-        return Promise.resolve([
-          { id: 'cleanup', expression: '0 * * * *' },
-        ])
+        return Promise.resolve([{ id: 'cleanup', expression: '0 * * * *' }])
       }
       return Promise.resolve({ items: [] })
     })
@@ -46,7 +44,11 @@ describe('SystemCronsContent', () => {
     render(<SystemCronsContent />)
 
     expect(await screen.findByText('System Crons')).toBeInTheDocument()
-    expect(screen.getByText('Native cron jobs registered in PocketBase. Manage schedules via PocketBase Admin.')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Native cron jobs registered in PocketBase. Manage schedules via PocketBase Admin.'
+      )
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Refresh system crons' })).toBeInTheDocument()
 
     await waitFor(() => {

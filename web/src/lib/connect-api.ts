@@ -507,17 +507,13 @@ export async function applySystemdUnit(
   )
 }
 
-export async function installMonitorAgent(
-  serverId: string
-): Promise<MonitorAgentDeployResponse> {
+export async function installMonitorAgent(serverId: string): Promise<MonitorAgentDeployResponse> {
   return pb.send<MonitorAgentDeployResponse>(`/api/servers/${serverId}/ops/monitor-agent/install`, {
     method: 'POST',
   })
 }
 
-export async function updateMonitorAgent(
-  serverId: string
-): Promise<MonitorAgentDeployResponse> {
+export async function updateMonitorAgent(serverId: string): Promise<MonitorAgentDeployResponse> {
   return pb.send<MonitorAgentDeployResponse>(`/api/servers/${serverId}/ops/monitor-agent/update`, {
     method: 'POST',
   })

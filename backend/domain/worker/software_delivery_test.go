@@ -29,14 +29,24 @@ type fakeSoftwareExecutor struct {
 	uninstallErr    error
 	detectState     software.InstalledState
 	detectVersion   string
+	detectSource    software.InstallSource
+	detectEvidence  string
 	detectErr       error
 }
 
-func (f *fakeSoftwareExecutor) Detect(context.Context, string, software.ResolvedTemplate) (software.InstalledState, string, error) {
-	if f.detectState != "" || f.detectVersion != "" || f.detectErr != nil {
-		return f.detectState, f.detectVersion, f.detectErr
+func (f *fakeSoftwareExecutor) Detect(context.Context, string, software.ResolvedTemplate) (software.DetectionResult, error) {
+	if f.detectState != "" || f.detectVersion != "" || f.detectSource != "" || f.detectEvidence != "" || f.detectErr != nil {
+		return software.DetectionResult{
+			InstalledState:  f.detectState,
+			DetectedVersion: f.detectVersion,
+			InstallSource:   f.detectSource,
+			SourceEvidence:  f.detectEvidence,
+		}, f.detectErr
 	}
-	return software.InstalledStateInstalled, "1.0.0", nil
+	return software.DetectionResult{
+		InstalledState:  software.InstalledStateInstalled,
+		DetectedVersion: "1.0.0",
+	}, nil
 }
 
 func (f *fakeSoftwareExecutor) RunPreflight(context.Context, string, software.ResolvedTemplate) (software.TargetReadinessResult, error) {
@@ -106,7 +116,7 @@ func TestSoftwareTaskTypeValues(t *testing.T) {
 // TestNewSoftwareActionTask_ReturnsTask verifies that NewSoftwareActionTask creates an
 // Asynq task with the correct type and a parseable payload.
 func TestNewSoftwareActionTask_ReturnsTask(t *testing.T) {
-	task, err := NewSoftwareActionTask("op-1", "srv-1", software.ComponentKeyDocker, software.ActionInstall, "u1", "u1@test.com")
+	task, err := NewSoftwareActionTask("op-1", "srv-1", software.ComponentKeyDocker, software.ActionInstall, "u1", "u1@test.com", "https://console.example.com:8090")
 	if err != nil {
 		t.Fatalf("NewSoftwareActionTask: %v", err)
 	}
@@ -129,11 +139,14 @@ func TestNewSoftwareActionTask_ReturnsTask(t *testing.T) {
 	if payload.Action != software.ActionInstall {
 		t.Errorf("expected Action=install, got %q", payload.Action)
 	}
+	if payload.AppOSBaseURL != "https://console.example.com:8090" {
+		t.Errorf("expected AppOSBaseURL propagated, got %q", payload.AppOSBaseURL)
+	}
 }
 
 // TestNewSoftwareActionTask_ValidatesOperationID verifies that an empty operation_id is rejected.
 func TestNewSoftwareActionTask_ValidatesOperationID(t *testing.T) {
-	_, err := NewSoftwareActionTask("", "srv-1", software.ComponentKeyDocker, software.ActionInstall, "u1", "u1@test.com")
+	_, err := NewSoftwareActionTask("", "srv-1", software.ComponentKeyDocker, software.ActionInstall, "u1", "u1@test.com", "")
 	if err == nil {
 		t.Error("expected error for empty operation_id")
 	}
@@ -141,7 +154,7 @@ func TestNewSoftwareActionTask_ValidatesOperationID(t *testing.T) {
 
 // TestNewSoftwareActionTask_ValidatesServerID verifies that an empty server_id is rejected.
 func TestNewSoftwareActionTask_ValidatesServerID(t *testing.T) {
-	_, err := NewSoftwareActionTask("op-1", "", software.ComponentKeyDocker, software.ActionInstall, "u1", "u1@test.com")
+	_, err := NewSoftwareActionTask("op-1", "", software.ComponentKeyDocker, software.ActionInstall, "u1", "u1@test.com", "")
 	if err == nil {
 		t.Error("expected error for empty server_id")
 	}
@@ -149,7 +162,7 @@ func TestNewSoftwareActionTask_ValidatesServerID(t *testing.T) {
 
 // TestNewSoftwareActionTask_ValidatesComponentKey verifies that an empty component_key is rejected.
 func TestNewSoftwareActionTask_ValidatesComponentKey(t *testing.T) {
-	_, err := NewSoftwareActionTask("op-1", "srv-1", "", software.ActionInstall, "u1", "u1@test.com")
+	_, err := NewSoftwareActionTask("op-1", "srv-1", "", software.ActionInstall, "u1", "u1@test.com", "")
 	if err == nil {
 		t.Error("expected error for empty component_key")
 	}
@@ -157,7 +170,7 @@ func TestNewSoftwareActionTask_ValidatesComponentKey(t *testing.T) {
 
 // TestNewSoftwareActionTask_ValidatesAction verifies that an empty action is rejected.
 func TestNewSoftwareActionTask_ValidatesAction(t *testing.T) {
-	_, err := NewSoftwareActionTask("op-1", "srv-1", software.ComponentKeyDocker, "", "u1", "u1@test.com")
+	_, err := NewSoftwareActionTask("op-1", "srv-1", software.ComponentKeyDocker, "", "u1", "u1@test.com", "")
 	if err == nil {
 		t.Error("expected error for empty action")
 	}
@@ -166,7 +179,7 @@ func TestNewSoftwareActionTask_ValidatesAction(t *testing.T) {
 // TestEnqueueSoftwareAction_RequiresNonNilClient verifies that EnqueueSoftwareAction returns
 // an error when passed a nil Asynq client.
 func TestEnqueueSoftwareAction_RequiresNonNilClient(t *testing.T) {
-	err := EnqueueSoftwareAction(nil, "op-1", "srv-1", software.ComponentKeyDocker, software.ActionInstall, "u1", "u1@test.com")
+	err := EnqueueSoftwareAction(nil, "op-1", "srv-1", software.ComponentKeyDocker, software.ActionInstall, "u1", "u1@test.com", "")
 	if err == nil {
 		t.Error("expected error when asynq client is nil")
 	}
@@ -209,6 +222,7 @@ func TestSoftwareActionPayloadRoundTrip(t *testing.T) {
 		Action:       software.ActionVerify,
 		UserID:       "user-1",
 		UserEmail:    "user@example.com",
+		AppOSBaseURL: "https://console.example.com:9443",
 	}
 	data, err := json.Marshal(original)
 	if err != nil {
@@ -566,7 +580,7 @@ func TestRunSoftwarePhaseLoopMarksVerificationErrorCodeForVerifyErrors(t *testin
 	defer func() { softwareExecutorFactory = oldFactory }()
 
 	fakeExecutor := &fakeSoftwareExecutor{
-		preflight: software.TargetReadinessResult{OK: true, OSSupported: true, PrivilegeOK: true, NetworkOK: true, DependencyReady: true},
+		preflight:     software.TargetReadinessResult{OK: true, OSSupported: true, PrivilegeOK: true, NetworkOK: true, DependencyReady: true},
 		installDetail: software.SoftwareComponentDetail{SoftwareComponentSummary: software.SoftwareComponentSummary{InstalledState: software.InstalledStateInstalled}},
 		verifyErr:     fmt.Errorf("systemctl verify check failed"),
 	}

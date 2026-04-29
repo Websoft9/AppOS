@@ -99,17 +99,17 @@ components:
       - uninstall
 
   # Control plane
-  - component_key: control-agent
+  - component_key: appos-agent
     target_type: server
-    label: AppOS Control Agent
+    label: AppOS Agent
     capability: control_plane
     template_ref: script-systemd
-    binary: appos-control-agent
-    service_name: appos-control-agent.service
-    # script_url is resolved at runtime from system settings key: software.control_agent_installer_url
+    binary: appos-agent
+    service_name: appos-agent.service
+    # script_url is resolved at runtime from system settings key: software.appos_agent_installer_url
     # Do not hardcode a URL here; the executor must read the setting before invoking the template.
     script_url: ""
-    description: Managed AppOS control-plane agent for connected servers.
+    description: Managed AppOS agent for connected servers.
     readiness_requirements:
       - verified_os_baseline
       - root_privilege

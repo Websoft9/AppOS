@@ -19,7 +19,10 @@ import {
 } from './monitor-overview-shared'
 
 function OverviewItemRow({ item }: { item: MonitorOverviewItem }) {
-  const summaryEntries = Object.entries(item.summary ?? {}).slice(0, item.targetType === 'platform' ? 8 : 4)
+  const summaryEntries = Object.entries(item.summary ?? {}).slice(
+    0,
+    item.targetType === 'platform' ? 8 : 4
+  )
   return (
     <div className="flex flex-col gap-2 rounded-lg border bg-background px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0 space-y-1">
@@ -28,13 +31,20 @@ function OverviewItemRow({ item }: { item: MonitorOverviewItem }) {
           <Badge variant={statusVariant(item.status)}>{formatStatusLabel(item.status)}</Badge>
         </div>
         <div className="text-xs text-muted-foreground">
-          {(item.targetType ? formatStatusLabel(item.targetType) : 'Platform') + ' · ' + item.targetId}
+          {(item.targetType ? formatStatusLabel(item.targetType) : 'Platform') +
+            ' · ' +
+            item.targetId}
         </div>
-        <div className="text-sm text-muted-foreground">{item.reason || 'No active issue reported.'}</div>
+        <div className="text-sm text-muted-foreground">
+          {item.reason || 'No active issue reported.'}
+        </div>
         {summaryEntries.length > 0 ? (
           <div className="flex flex-wrap gap-2 pt-1">
             {summaryEntries.map(([key, value]) => (
-              <span key={key} className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
+              <span
+                key={key}
+                className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground"
+              >
                 {formatStatusLabel(key)}: {formatSummaryValue(key, value)}
               </span>
             ))}
@@ -44,7 +54,10 @@ function OverviewItemRow({ item }: { item: MonitorOverviewItem }) {
       <div className="flex shrink-0 flex-col items-start gap-2 text-xs text-muted-foreground sm:items-end">
         <span>Transitioned {formatTimestamp(item.lastTransitionAt)}</span>
         {item.detailHref ? (
-          <a className="text-xs font-medium text-foreground underline-offset-4 hover:underline" href={item.detailHref}>
+          <a
+            className="text-xs font-medium text-foreground underline-offset-4 hover:underline"
+            href={item.detailHref}
+          >
             Open detail
           </a>
         ) : null}
@@ -80,7 +93,9 @@ export function MonitorOverviewContent() {
     }
     setError('')
     try {
-      const response = await pb.send<MonitorOverviewResponse>('/api/monitor/overview', { method: 'GET' })
+      const response = await pb.send<MonitorOverviewResponse>('/api/monitor/overview', {
+        method: 'GET',
+      })
       setData(normalizeOverviewResponse(response))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load monitoring overview')
@@ -116,8 +131,17 @@ export function MonitorOverviewContent() {
             Live platform and unhealthy target status from the monitoring read model.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => void loadOverview(true)} disabled={loading || refreshing}>
-          {loading || refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void loadOverview(true)}
+          disabled={loading || refreshing}
+        >
+          {loading || refreshing ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
           Refresh
         </Button>
       </div>
@@ -143,7 +167,9 @@ export function MonitorOverviewContent() {
         <Card>
           <CardHeader>
             <CardTitle>Unhealthy Targets</CardTitle>
-            <CardDescription>Cross-domain issues surfaced by the current latest-status projection.</CardDescription>
+            <CardDescription>
+              Cross-domain issues surfaced by the current latest-status projection.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {loading ? (
@@ -156,7 +182,9 @@ export function MonitorOverviewContent() {
                 No unhealthy targets right now.
               </div>
             ) : (
-              data.unhealthyItems.map(item => <OverviewItemRow key={`${item.targetType}-${item.targetId}`} item={item} />)
+              data.unhealthyItems.map(item => (
+                <OverviewItemRow key={`${item.targetType}-${item.targetId}`} item={item} />
+              ))
             )}
           </CardContent>
         </Card>
@@ -164,7 +192,9 @@ export function MonitorOverviewContent() {
         <Card>
           <CardHeader>
             <CardTitle>Platform Targets</CardTitle>
-            <CardDescription>AppOS self-observation for core process, worker, and scheduler.</CardDescription>
+            <CardDescription>
+              AppOS self-observation for core process, worker, and scheduler.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {loading ? (
@@ -188,7 +218,8 @@ export function MonitorOverviewContent() {
           <CardHeader>
             <CardTitle>Platform Detail</CardTitle>
             <CardDescription>
-              Drill into one self-observed AppOS component with the same normalized status and short-window trend surface used elsewhere.
+              Drill into one self-observed AppOS component with the same normalized status and
+              short-window trend surface used elsewhere.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

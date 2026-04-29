@@ -182,7 +182,9 @@ function productDescription(template: InstanceTemplate) {
 function parseBooleanValue(value: unknown) {
   if (typeof value === 'boolean') return value
   if (typeof value === 'number') return value !== 0
-  const normalized = String(value ?? '').trim().toLowerCase()
+  const normalized = String(value ?? '')
+    .trim()
+    .toLowerCase()
   if (!normalized) return false
   return ['1', 'true', 'yes', 'on'].includes(normalized)
 }
@@ -274,7 +276,9 @@ function formatDateTime(value: unknown) {
 }
 
 function formatMonitorStatusLabel(value: unknown) {
-  const raw = String(value ?? '').trim().toLowerCase()
+  const raw = String(value ?? '')
+    .trim()
+    .toLowerCase()
   if (!raw) return 'Unknown'
   return raw
     .split('_')
@@ -282,8 +286,14 @@ function formatMonitorStatusLabel(value: unknown) {
     .join(' ')
 }
 
-function monitorStatusVariant(status: unknown): 'default' | 'secondary' | 'destructive' | 'outline' {
-  switch (String(status ?? '').trim().toLowerCase()) {
+function monitorStatusVariant(
+  status: unknown
+): 'default' | 'secondary' | 'destructive' | 'outline' {
+  switch (
+    String(status ?? '')
+      .trim()
+      .toLowerCase()
+  ) {
     case 'healthy':
       return 'default'
     case 'offline':
@@ -1014,8 +1024,12 @@ export function ServiceInstancesPage() {
         const advancedTemplateFields = dynamicFields.filter(
           field => !field.hidden && field.advanced
         )
-        const certificateFields = advancedTemplateFields.filter(field => field.key === 'ssl_ca_certificate')
-        const otherAdvancedFields = advancedTemplateFields.filter(field => field.key !== 'ssl_ca_certificate')
+        const certificateFields = advancedTemplateFields.filter(
+          field => field.key === 'ssl_ca_certificate'
+        )
+        const otherAdvancedFields = advancedTemplateFields.filter(
+          field => field.key !== 'ssl_ca_certificate'
+        )
         const hiddenTemplateFields = dynamicFields.filter(field => field.hidden)
         const identityFields = ['database', 'username'].flatMap(key =>
           primaryTemplateFields.filter(field => field.key === key)
@@ -1289,7 +1303,9 @@ export function ServiceInstancesPage() {
                 />
               </div>
 
-              {secretEditError ? <p className="text-sm text-destructive">{secretEditError}</p> : null}
+              {secretEditError ? (
+                <p className="text-sm text-destructive">{secretEditError}</p>
+              ) : null}
             </div>
           )}
 

@@ -170,7 +170,8 @@ export function AppDetailPage({ appId }: { appId: string }) {
     savedAt?: string
     sourceAction?: string
   }>({ available: false })
-  const [serverConnectionRecord, setServerConnectionRecord] = useState<AppServerConnectionRecord | null>(null)
+  const [serverConnectionRecord, setServerConnectionRecord] =
+    useState<AppServerConnectionRecord | null>(null)
   const [accessUsernameDraft, setAccessUsernameDraft] = useState('')
   const [accessSecretHintDraft, setAccessSecretHintDraft] = useState('')
   const [accessRetrievalMethodDraft, setAccessRetrievalMethodDraft] = useState('')
@@ -541,12 +542,19 @@ export function AppDetailPage({ appId }: { appId: string }) {
     }
     let cancelled = false
     void pb
-      .send<{ items?: AppServerConnectionRecord[] } | AppServerConnectionRecord[]>(`/api/servers/connection`, {
-        method: 'GET',
-      })
+      .send<{ items?: AppServerConnectionRecord[] } | AppServerConnectionRecord[]>(
+        `/api/servers/connection`,
+        {
+          method: 'GET',
+        }
+      )
       .then(response => {
         if (cancelled) return
-        const items = Array.isArray(response) ? response : Array.isArray(response.items) ? response.items : []
+        const items = Array.isArray(response)
+          ? response
+          : Array.isArray(response.items)
+            ? response.items
+            : []
         const matched = items.find(item => String(item.id ?? '') === app.server_id) ?? null
         setServerConnectionRecord(matched)
       })
@@ -865,7 +873,8 @@ export function AppDetailPage({ appId }: { appId: string }) {
     : exposures.find(item => item.domain)
   const exposurePath = primaryExposure?.path || ''
   const effectiveServerHost = useMemo(() => {
-    const host = typeof serverConnectionRecord?.host === 'string' ? serverConnectionRecord.host.trim() : ''
+    const host =
+      typeof serverConnectionRecord?.host === 'string' ? serverConnectionRecord.host.trim() : ''
     if (host) return host
     if (app?.server_id === 'local' && typeof window !== 'undefined') return window.location.hostname
     return ''

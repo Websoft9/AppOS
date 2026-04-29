@@ -49,6 +49,10 @@ func (s *Service) ExecuteQueryRange(ctx context.Context, query string, start, en
 	return s.client.QueryRange(ctx, query, start, end, step)
 }
 
+func (s *Service) ExecuteQueryRangeMatrix(ctx context.Context, query string, start, end time.Time, step time.Duration) ([]vmclient.QueryRangeMatrixSeries, error) {
+	return s.client.QueryRangeMatrix(ctx, query, start, end, step)
+}
+
 func WritePrometheusImport(ctx context.Context, client *http.Client, baseURL string, lines []string) error {
 	return NewService(client, baseURL).WritePrometheusImport(ctx, lines)
 }
@@ -59,4 +63,8 @@ func ListNetworkInterfaces(ctx context.Context, client *http.Client, baseURL, ta
 
 func ExecuteQueryRange(ctx context.Context, client *http.Client, baseURL, query string, start, end time.Time, step time.Duration) ([][]float64, error) {
 	return NewService(client, baseURL).ExecuteQueryRange(ctx, query, start, end, step)
+}
+
+func ExecuteQueryRangeMatrix(ctx context.Context, client *http.Client, baseURL, query string, start, end time.Time, step time.Duration) ([]vmclient.QueryRangeMatrixSeries, error) {
+	return NewService(client, baseURL).ExecuteQueryRangeMatrix(ctx, query, start, end, step)
 }

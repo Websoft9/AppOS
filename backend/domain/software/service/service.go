@@ -190,7 +190,7 @@ func (s *Service) enqueueCapabilityAction(_ context.Context, serverID string, ca
 	if err != nil {
 		return software.AsyncCommandResponse{}, err
 	}
-	if err := worker.EnqueueSoftwareAction(s.queueClient, record.Id, serverID, componentKey, action, "", ""); err != nil {
+	if err := worker.EnqueueSoftwareAction(s.queueClient, record.Id, serverID, componentKey, action, "", "", ""); err != nil {
 		return software.AsyncCommandResponse{}, err
 	}
 	return software.AsyncCommandResponse{
@@ -242,6 +242,7 @@ func (s *Service) buildComputedComponents(
 ) ([]ComputedComponent, error) {
 	items := make([]ComputedComponent, 0, len(cat.Components))
 	for _, entry := range cat.Components {
+		entry = software.ApplyRuntimeBindings(s.app, entry)
 		tpl, ok := reg.Templates[entry.TemplateRef]
 		if !ok {
 			return nil, fmt.Errorf("template ref not found: %s", entry.TemplateRef)
@@ -253,7 +254,7 @@ func (s *Service) buildComputedComponents(
 			TemplateKind:      resolved.TemplateKind,
 			InstalledState:    software.InstalledStateUnknown,
 			VerificationState: software.VerificationStateUnknown,
-			AvailableActions:  entry.SupportedActions,
+			AvailableActions:  []software.Action{},
 		}
 		detail := software.SoftwareComponentDetail{
 			SoftwareComponentSummary: summary,
@@ -273,19 +274,25 @@ func (s *Service) buildComputedComponents(
 		if executorErr != nil {
 			preflight.OK = false
 			preflight.Issues = append(preflight.Issues, "executor_unavailable: "+executorErr.Error())
+			summary.AvailableActions = deriveAvailableActions(entry.SupportedActions, summary.InstalledState, preflight, lastOp)
 			detail.Preflight = &preflight
+			detail.SoftwareComponentSummary = summary
 			computed := ComputedComponent{Entry: entry, Resolved: resolved, Summary: summary, Detail: detail, Preflight: preflight, LastOperation: lastOp}
 			_ = swprojection.UpsertInventorySnapshot(s.app, targetType, targetID, snapshotFromComputed(computed))
 			items = append(items, computed)
 			continue
 		}
 
-		detectedState, detectedVersion, detectErr := executor.Detect(ctx, targetID, resolved)
+		detection, detectErr := executor.Detect(ctx, targetID, resolved)
 		if detectErr == nil {
-			summary.InstalledState = detectedState
-			summary.DetectedVersion = detectedVersion
-			detail.InstalledState = detectedState
-			detail.DetectedVersion = detectedVersion
+			summary.InstalledState = detection.InstalledState
+			summary.DetectedVersion = detection.DetectedVersion
+			summary.InstallSource = detection.InstallSource
+			summary.SourceEvidence = detection.SourceEvidence
+			detail.InstalledState = detection.InstalledState
+			detail.DetectedVersion = detection.DetectedVersion
+			detail.InstallSource = detection.InstallSource
+			detail.SourceEvidence = detection.SourceEvidence
 		}
 
 		preflight, err := executor.RunPreflight(ctx, targetID, resolved)
@@ -316,11 +323,12 @@ func (s *Service) buildComputedComponents(
 			}
 		} else {
 			verification.Reason = verifyErr.Error()
-			if detectErr == nil && detectedState == software.InstalledStateNotInstalled {
+			if detectErr == nil && detection.InstalledState == software.InstalledStateNotInstalled {
 				verification.Reason = "component is not installed"
 			}
 		}
 		detail.Verification = verification
+		summary.AvailableActions = deriveAvailableActions(entry.SupportedActions, detail.InstalledState, preflight, lastOp)
 		detail.SoftwareComponentSummary = summary
 
 		computed := ComputedComponent{Entry: entry, Resolved: resolved, Summary: summary, Detail: detail, Preflight: preflight, LastOperation: lastOp}
@@ -328,6 +336,50 @@ func (s *Service) buildComputedComponents(
 		items = append(items, computed)
 	}
 	return items, nil
+}
+
+func deriveAvailableActions(
+	supported []software.Action,
+	installedState software.InstalledState,
+	preflight software.TargetReadinessResult,
+	lastOp *OperationSummary,
+) []software.Action {
+	if lastOp != nil && lastOp.TerminalStatus == software.TerminalStatusNone {
+		return []software.Action{}
+	}
+
+	available := make([]software.Action, 0, len(supported))
+	for _, action := range supported {
+		if !isActionAvailable(action, installedState, preflight.OK) {
+			continue
+		}
+		available = append(available, action)
+	}
+	return available
+}
+
+func isActionAvailable(action software.Action, installedState software.InstalledState, readinessOK bool) bool {
+	switch installedState {
+	case software.InstalledStateInstalled:
+		switch action {
+		case software.ActionInstall:
+			return false
+		case software.ActionUpgrade,
+			software.ActionStart,
+			software.ActionStop,
+			software.ActionRestart,
+			software.ActionVerify,
+			software.ActionReinstall,
+			software.ActionUninstall:
+			return readinessOK
+		default:
+			return readinessOK
+		}
+	case software.InstalledStateNotInstalled:
+		return action == software.ActionInstall && readinessOK
+	default:
+		return action == software.ActionVerify && readinessOK
+	}
 }
 
 func snapshotFromComputed(item ComputedComponent) swprojection.Snapshot {

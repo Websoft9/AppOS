@@ -16,8 +16,8 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/monitor"
 	monitormetrics "github.com/websoft9/appos/backend/domain/monitor/metrics"
-	"github.com/websoft9/appos/backend/domain/monitor/status/store"
 	agentsignals "github.com/websoft9/appos/backend/domain/monitor/signals/agent"
+	"github.com/websoft9/appos/backend/domain/monitor/status/store"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/infra/collections"
 )
@@ -471,6 +471,60 @@ func TestMonitorMetricsIngestRejectsUnknownSeries(t *testing.T) {
 	}
 }
 
+func TestMonitorMetricsIngestAcceptsContainerTelemetryContract(t *testing.T) {
+	te := newMonitorTestEnv(t)
+	defer te.cleanup()
+
+	server := createMonitorServer(t, te, "prod-01")
+	token, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var captured []monitormetrics.MetricPoint
+	restore := monitormetrics.SetMetricWriteFuncForTest(func(_ context.Context, points []monitormetrics.MetricPoint) error {
+		captured = append(captured, points...)
+		return nil
+	})
+	defer restore()
+
+	nowRaw := time.Now().UTC().Format(time.RFC3339)
+	body := `{"serverId":"` + server.Id + `","reportedAt":"` + nowRaw + `","items":[{"targetType":"container","targetId":"ctr-1","series":"appos_container_cpu_usage","value":17.2,"labels":{"container_name":"nginx","compose_project":"demo"},"observedAt":"` + nowRaw + `"}]}`
+	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/metrics", body, "Bearer "+token)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if len(captured) != 1 {
+		t.Fatalf("expected 1 captured point, got %d", len(captured))
+	}
+	point := captured[0]
+	if point.Labels["server_id"] != server.Id || point.Labels["container_id"] != "ctr-1" {
+		t.Fatalf("expected server_id and container_id labels, got %+v", point.Labels)
+	}
+	if point.Labels["target_type"] != monitor.TargetTypeContainer || point.Labels["target_id"] != "ctr-1" {
+		t.Fatalf("expected container target labels, got %+v", point.Labels)
+	}
+	if point.Labels["container_name"] != "nginx" || point.Labels["compose_project"] != "demo" {
+		t.Fatalf("expected optional labels preserved, got %+v", point.Labels)
+	}
+}
+
+func TestMonitorMetricsIngestRejectsContainerSeriesWithoutContainerTarget(t *testing.T) {
+	te := newMonitorTestEnv(t)
+	defer te.cleanup()
+
+	server := createMonitorServer(t, te, "prod-01")
+	token, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nowRaw := time.Now().UTC().Format(time.RFC3339)
+	body := `{"serverId":"` + server.Id + `","reportedAt":"` + nowRaw + `","items":[{"targetType":"server","targetId":"` + server.Id + `","series":"appos_container_memory_bytes","value":1048576,"observedAt":"` + nowRaw + `"}]}`
+	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/metrics", body, "Bearer "+token)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestMonitorFactsIngestWritesServerRecord(t *testing.T) {
 	te := newMonitorTestEnv(t)
 	defer te.cleanup()
@@ -774,5 +828,57 @@ func TestMonitorTargetSeriesParsesCustomRange(t *testing.T) {
 	rec := te.doMonitor(t, http.MethodGet, "/api/monitor/targets/server/"+server.Id+"/series?window=custom&series=cpu&startAt="+url.QueryEscape(startAt)+"&endAt="+url.QueryEscape(endAt), "", te.token)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestMonitorServerContainerTelemetryReturnsServerScopedItems(t *testing.T) {
+	te := newMonitorTestEnv(t)
+	defer te.cleanup()
+
+	server := createMonitorServer(t, te, "prod-01")
+	restore := monitormetrics.SetContainerTelemetryQueryFuncForTest(func(_ context.Context, serverID string, containerIDs []string, window string) (*monitormetrics.ContainerTelemetryResponse, error) {
+		if serverID != server.Id {
+			t.Fatalf("unexpected server id: %s", serverID)
+		}
+		if window != "15m" {
+			t.Fatalf("unexpected window: %s", window)
+		}
+		if len(containerIDs) != 2 || containerIDs[0] != "ctr-1" || containerIDs[1] != "ctr-2" {
+			t.Fatalf("unexpected container ids: %+v", containerIDs)
+		}
+		cpu := 22.5
+		memory := 134217728.0
+		return &monitormetrics.ContainerTelemetryResponse{
+			ServerID:     serverID,
+			Window:       window,
+			RangeStartAt: "2026-04-14T11:45:00Z",
+			RangeEndAt:   "2026-04-14T12:00:00Z",
+			StepSeconds:  30,
+			Items: []monitormetrics.ContainerTelemetryItem{{
+				ContainerID:   "ctr-1",
+				ContainerName: "demo-web",
+				Latest: monitormetrics.ContainerTelemetryLatest{
+					CPUPercent:  &cpu,
+					MemoryBytes: &memory,
+				},
+				Freshness: monitormetrics.ContainerTelemetryFreshness{
+					State:      "fresh",
+					ObservedAt: "2026-04-14T12:00:00Z",
+				},
+			}},
+		}, nil
+	})
+	defer restore()
+
+	rec := te.doMonitor(t, http.MethodGet, "/api/monitor/servers/"+server.Id+"/container-telemetry?window=15m&containerId=ctr-1&containerId=ctr-2", "", te.token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp monitormetrics.ContainerTelemetryResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.ServerID != server.Id || len(resp.Items) != 1 || resp.Items[0].ContainerID != "ctr-1" {
+		t.Fatalf("unexpected telemetry response: %s", rec.Body.String())
 	}
 }
