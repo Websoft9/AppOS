@@ -24,6 +24,9 @@ jobs:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
 
+      - name: Add Go bin to PATH
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -34,15 +37,11 @@ jobs:
       - name: Install frontend deps
         run: cd web && npm ci
 
-      - name: golangci-lint (incl. gosec)
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          working-directory: backend
-          args: --config ../.golangci.yml --timeout 5m
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
-      - name: ESLint
-        run: cd web && npx eslint src/
+      - name: Run lint
+        run: make lint
 
   # ─── Backend Test ────────────────────────────────────────────────────────────
   test-backend:
@@ -57,8 +56,8 @@ jobs:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
 
-      - name: Go tests
-        run: cd backend && go test ./... -v
+      - name: Run backend tests
+        run: make test backend
 
   # ─── Frontend Test ───────────────────────────────────────────────────────────
   test-frontend:
@@ -77,8 +76,8 @@ jobs:
       - name: Install frontend deps
         run: cd web && npm ci
 
-      - name: JS tests
-        run: cd web && npm test
+      - name: Run frontend tests
+        run: make test web
 
   # ─── Security ────────────────────────────────────────────────────────────────
   sec:
@@ -95,6 +94,9 @@ jobs:
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
+
+      - name: Add Go bin to PATH
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -131,8 +133,8 @@ jobs:
             | tar -xz -C /tmp gitleaks
           sudo mv /tmp/gitleaks /usr/local/bin/gitleaks
 
-      - name: gitleaks (secret leak detection)
-        run: gitleaks detect --source . --redact
+      - name: Run security checks
+        run: make sec fast
 
   # ─── Container Image Scan ────────────────────────────────────────────────────
   scan:

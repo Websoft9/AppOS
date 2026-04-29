@@ -53,11 +53,30 @@ func handleMonitorAgentDeploy(e *core.RequestEvent, resultStatus string) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": "serverId required"})
 	}
 
+	var body struct {
+		AppOSBaseURL string `json:"apposBaseUrl"`
+	}
+	if e.Request.ContentLength > 0 {
+		if err := e.BindBody(&body); err != nil {
+			return e.JSON(http.StatusBadRequest, map[string]any{
+				"error":   "invalid_body",
+				"message": "request body must be valid JSON",
+			})
+		}
+	}
+	apposBaseURL, err := normalizeMonitorAppOSBaseURL(body.AppOSBaseURL)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{
+			"error":   "invalid_appos_base_url",
+			"message": err.Error(),
+		})
+	}
+
 	if _, err := findMonitorServer(e.App, serverID); err != nil {
 		return e.NotFoundError("server not found", err)
 	}
 
-	remoteWriteURL := monitorBaseURL(e) + monitorAgentRemoteWritePath
+	remoteWriteURL := monitorRemoteWriteURL(e, apposBaseURL)
 	exportingConfig, err := buildNetdataExportingConfig(serverID, remoteWriteURL)
 	if err != nil {
 		return e.BadRequestError("failed to build netdata exporting config", err)
@@ -133,6 +152,28 @@ func handleMonitorAgentDeploy(e *core.RequestEvent, resultStatus string) error {
 		StatusText:  statusText,
 		PackagedVer: installedVersion,
 	})
+}
+
+func normalizeMonitorAppOSBaseURL(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", nil
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return "", err
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return "", fmt.Errorf("apposBaseUrl must include scheme and host")
+	}
+	return strings.TrimRight(parsed.String(), "/"), nil
+}
+
+func monitorRemoteWriteURL(e *core.RequestEvent, explicitBaseURL string) string {
+	if explicitBaseURL != "" {
+		return explicitBaseURL + monitorAgentRemoteWritePath
+	}
+	return monitorBaseURL(e) + monitorAgentRemoteWritePath
 }
 
 func buildNetdataExportingConfig(serverID string, remoteWriteURL string) (string, error) {

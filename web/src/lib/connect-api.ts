@@ -117,6 +117,10 @@ export interface MonitorAgentDeployResponse {
   systemd?: Record<string, string>
 }
 
+export interface MonitorAgentDeployOptions {
+  apposBaseUrl?: string
+}
+
 export type SystemdControlAction = 'start' | 'stop' | 'restart' | 'enable' | 'disable'
 
 export type ServerPortProtocol = 'tcp' | 'udp'
@@ -507,15 +511,23 @@ export async function applySystemdUnit(
   )
 }
 
-export async function installMonitorAgent(serverId: string): Promise<MonitorAgentDeployResponse> {
+export async function installMonitorAgent(
+  serverId: string,
+  options?: MonitorAgentDeployOptions
+): Promise<MonitorAgentDeployResponse> {
   return pb.send<MonitorAgentDeployResponse>(`/api/servers/${serverId}/ops/monitor-agent/install`, {
     method: 'POST',
+    body: options?.apposBaseUrl ? { apposBaseUrl: options.apposBaseUrl } : undefined,
   })
 }
 
-export async function updateMonitorAgent(serverId: string): Promise<MonitorAgentDeployResponse> {
+export async function updateMonitorAgent(
+  serverId: string,
+  options?: MonitorAgentDeployOptions
+): Promise<MonitorAgentDeployResponse> {
   return pb.send<MonitorAgentDeployResponse>(`/api/servers/${serverId}/ops/monitor-agent/update`, {
     method: 'POST',
+    body: options?.apposBaseUrl ? { apposBaseUrl: options.apposBaseUrl } : undefined,
   })
 }
 

@@ -1,9 +1,24 @@
 package routes
 
 import (
+	"net/http"
 	"strings"
 	"testing"
 )
+
+func TestMonitorAgentInstallRejectsInvalidAppOSBaseURL(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doServer(t, http.MethodPost, "/api/servers/nonexistent/ops/monitor-agent/install", `{"apposBaseUrl":"console.example.com"}`, true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid apposBaseUrl to return 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := parseJSON(t, rec)
+	if body["error"] != "invalid_appos_base_url" {
+		t.Fatalf("expected invalid_appos_base_url error, got %#v", body["error"])
+	}
+}
 
 func TestBuildNetdataExportingConfigHTTP(t *testing.T) {
 	config, err := buildNetdataExportingConfig("srv-1", "http://console.example.com:9091/api/monitor/netdata/write")

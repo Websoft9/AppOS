@@ -457,7 +457,7 @@ func (w *Worker) runSoftwarePhaseLoop(ctx context.Context, record *core.Record, 
 
 	entry = software.ApplyRuntimeBindings(w.app, entry)
 	resolved := swcatalog.ResolveTemplate(entry, tpl)
-	resolved = software.ApplyServerExecutionBindings(w.app, serverID, payload.AppOSBaseURL, resolved)
+	resolved = applyServerExecutionBindings(w.app, serverID, payload.AppOSBaseURL, resolved)
 
 	executor, exErr := softwareExecutorFactory(w.app, serverID, payload.UserID)
 	if exErr != nil {

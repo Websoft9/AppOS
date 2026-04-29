@@ -1,5 +1,6 @@
 
-.PHONY: help install tidy build run test lint lint-strict fmt fmt-strict check version-check sec sec-strict scan sbom \
+.PHONY: help install tidy build run test test-strict test-fast lint lint-strict lint-fast fmt fmt-strict fmt-fast check check-fast version-check sec sec-strict sec-fast scan sbom \
+	backend web backend-targeted fast strict build-local latest dev \
 	image start stop restart logs stats delete rm kill-port redo \
 	openapi-gen openapi-merge openapi-check openapi-sync
 
@@ -12,6 +13,10 @@ COMPOSE_CMD := cd build && docker compose
 
 # Support positional args: make kill-port 9091
 ARG2 := $(word 2,$(MAKECMDGOALS))
+ARG3 := $(word 3,$(MAKECMDGOALS))
+QUALITY_MODE := $(if $(filter fast,$(ARG2) $(ARG3)),fast,strict)
+QUALITY_SCOPE := $(firstword $(filter-out fast,$(ARG2) $(ARG3)))
+GITLEAKS_ARGS := $(if $(CI),--redact,--no-git --redact)
 
 # ============================================================
 # Help
@@ -32,19 +37,25 @@ help:
 	@echo "  make redo                 Full rebuild: rm volumes + build + image + start dev"
 	@echo ""
 	@printf "\033[36mTesting & Quality:\033[0m\n"
-	@echo "  make test                 Run all tests (Go + JS)"
-	@echo "  make test backend         Run all backend Go tests from backend/"
-	@echo "  make test web             Run web tests from web/"
+	@echo "  make test                 Run strict tests (Go + JS, stop early)"
+	@echo "  make test fast            Run faster tests (bulk Go test execution)"
+	@echo "  make test backend         Run strict backend Go tests from backend/"
+	@echo "  make test backend fast    Run faster backend Go tests from backend/"
+	@echo "  make test web            Run web tests from web/"
 	@echo "  make test backend-targeted Run backend routes/secrets/migrations test set"
-	@echo "  make lint                 Run linters (golangci-lint + gosec, eslint)"
-	@echo "  make fmt                  Format code (gofmt, prettier)"
-	@echo "  make check                Run test + lint + fmt + sec, stop at first error"
+	@echo "  make lint                 Run strict linters (golangci-lint/go vet, eslint)"
+	@echo "  make lint fast            Run advisory/fast lint mode"
+	@echo "  make fmt                  Format code in strict mode"
+	@echo "  make fmt fast             Format code in tolerant/fast mode"
+	@echo "  make check                Run strict fmt + lint + test + sec, stop at first error"
+	@echo "  make check fast           Run faster fmt + lint + test + sec flow"
 	@echo "  make version-check        Validate version.json and SemVer release metadata"
 	@echo "  make openapi-gen          Auto-generate OpenAPI spec skeleton from route source"
 	@echo "  make openapi-merge        Merge ext-api.yaml + native-api.yaml -> api.yaml"
 	@echo "  make openapi-check        Assert all /api/ext routes are in the spec (CI gate)"
 	@echo "  make openapi-sync         Generate + validate OpenAPI in one command"
-	@echo "  make sec                  Security scan (govulncheck, npm audit, gitleaks)"
+	@echo "  make sec                  Run strict security scan (govulncheck, npm audit, gitleaks)"
+	@echo "  make sec fast             Run advisory/fast security scan"
 	@echo "  make scan                 Container image scan (trivy, HIGH/CRITICAL)"
 	@echo "  make sbom                 Generate SBOM → sbom.spdx.json (syft)"
 	@echo ""
@@ -196,20 +207,28 @@ run:
 # Testing & Quality
 # ============================================================
 test:
-ifeq ($(ARG2),backend)
-	@echo "Running backend tests..."
+ifeq ($(QUALITY_SCOPE),backend)
+	@echo "Running backend tests ($(QUALITY_MODE))..."
+ifeq ($(QUALITY_MODE),fast)
 	@cd backend && go test ./... -v
+else
+	@cd backend && for pkg in $$(go list ./...); do \
+		echo "   - $$pkg"; \
+		go test $$pkg -v || exit 1; \
+	 done
+endif
 	@echo "✓ Backend tests completed"
-else ifeq ($(ARG2),web)
+else ifeq ($(QUALITY_SCOPE),web)
 	@echo "Running web tests..."
 	@cd web && npm test
 	@echo "✓ Web tests completed"
-else ifeq ($(ARG2),backend-targeted)
+else ifeq ($(QUALITY_SCOPE),backend-targeted)
 	@echo "Running targeted backend tests..."
 	@cd backend && go test ./domain/routes ./domain/secrets ./infra/migrations -v
 	@echo "✓ Targeted backend tests completed"
 else
-	@echo "Running tests..."
+	@echo "Running tests ($(QUALITY_MODE))..."
+ifeq ($(QUALITY_MODE),fast)
 	@if [ -f "backend/go.mod" ]; then \
 		echo "→ Go tests..."; \
 		cd backend && go test ./... -v; \
@@ -218,11 +237,31 @@ else
 		echo "→ JS tests..."; \
 		cd web && npm test 2>/dev/null; \
 	fi
+else
+	@if [ -f "backend/go.mod" ]; then \
+		echo "→ Go tests (package-by-package)..."; \
+		cd backend && for pkg in $$(go list ./...); do \
+			echo "   - $$pkg"; \
+			go test $$pkg -v || exit 1; \
+		done; \
+	fi
+	@if [ -f "web/package.json" ]; then \
+		echo "→ JS tests..."; \
+		cd web && npm test 2>/dev/null; \
+	fi
+endif
 	@echo "✓ Tests completed"
 endif
 
+test-strict:
+	@$(MAKE) test
+
+test-fast:
+	@$(MAKE) test fast
+
 lint:
-	@echo "Running linters..."
+	@echo "Running linters ($(QUALITY_MODE))..."
+ifeq ($(QUALITY_MODE),fast)
 	@if command -v golangci-lint >/dev/null 2>&1; then \
 		echo "→ golangci-lint..."; \
 		cd backend && golangci-lint run --config ../.golangci.yml ./... || true; \
@@ -234,10 +273,7 @@ lint:
 		echo "→ eslint..."; \
 		cd web && npx eslint src/ || true; \
 	fi
-	@echo "✓ Linting completed"
-
-lint-strict:
-	@echo "Running linters (strict)..."
+else
 	@if command -v golangci-lint >/dev/null 2>&1; then \
 		echo "→ golangci-lint..."; \
 		cd backend && golangci-lint run --config ../.golangci.yml ./...; \
@@ -249,7 +285,51 @@ lint-strict:
 		echo "→ eslint..."; \
 		cd web && npx eslint src/; \
 	fi
+endif
 	@echo "✓ Linting completed"
+
+lint-strict:
+	@$(MAKE) lint
+
+lint-fast:
+	@$(MAKE) lint fast
+
+fmt:
+	@echo "Formatting code ($(QUALITY_MODE))..."
+	@if [ -f "backend/go.mod" ]; then \
+		echo "→ gofmt..."; \
+		find backend -name "*.go" -exec gofmt -w {} +; \
+	fi
+ifeq ($(QUALITY_MODE),fast)
+	@if [ -f "web/node_modules/.bin/prettier" ]; then \
+		echo "→ prettier..."; \
+		cd web && npx prettier --write "src/**/*.{ts,tsx,css,json}" 2>/dev/null || true; \
+	fi
+else
+	@if [ -f "web/node_modules/.bin/prettier" ]; then \
+		echo "→ prettier..."; \
+		cd web && npx prettier --write "src/**/*.{ts,tsx,css,json}" 2>/dev/null; \
+	fi
+endif
+	@echo "✓ Code formatted"
+
+fmt-strict:
+	@$(MAKE) fmt
+
+fmt-fast:
+	@$(MAKE) fmt fast
+
+check:
+	@set -e; \
+	echo "Running full check ($(QUALITY_MODE), stop at first error)..."; \
+	$(MAKE) fmt $(if $(filter fast,$(QUALITY_MODE)),fast,) || { echo "✗ check failed at: fmt"; exit 1; }; \
+	$(MAKE) lint $(if $(filter fast,$(QUALITY_MODE)),fast,) || { echo "✗ check failed at: lint"; exit 1; }; \
+	$(MAKE) test $(if $(filter fast,$(QUALITY_MODE)),fast,) || { echo "✗ check failed at: test"; exit 1; }; \
+	$(MAKE) sec $(if $(filter fast,$(QUALITY_MODE)),fast,) || { echo "✗ check failed at: sec"; exit 1; }; \
+	echo "✓ Check completed"
+
+check-fast:
+	@$(MAKE) check fast
 
 openapi-gen:
 	@echo "Generating OpenAPI custom-route spec from route source..."
@@ -272,38 +352,6 @@ openapi-sync:
 	@$(MAKE) openapi-check
 	@echo "✓ OpenAPI sync completed"
 
-fmt:
-	@echo "Formatting code..."
-	@if [ -f "backend/go.mod" ]; then \
-		echo "→ gofmt..."; \
-		find backend -name "*.go" -exec gofmt -w {} +; \
-	fi
-	@if [ -f "web/node_modules/.bin/prettier" ]; then \
-		echo "→ prettier..."; \
-		cd web && npx prettier --write "src/**/*.{ts,tsx,css,json}" 2>/dev/null || true; \
-	fi
-	@echo "✓ Code formatted"
-
-fmt-strict:
-	@echo "Formatting code (strict)..."
-	@if [ -f "backend/go.mod" ]; then \
-		echo "→ gofmt..."; \
-		find backend -name "*.go" -exec gofmt -w {} +; \
-	fi
-	@if [ -f "web/node_modules/.bin/prettier" ]; then \
-		echo "→ prettier..."; \
-		cd web && npx prettier --write "src/**/*.{ts,tsx,css,json}" 2>/dev/null; \
-	fi
-	@echo "✓ Code formatted"
-
-check:
-	@set -e; \
-	echo "Running full check (stop at first error)..."; \
-	$(MAKE) test || { echo "✗ check failed at: test"; exit 1; }; \
-	$(MAKE) lint-strict || { echo "✗ check failed at: lint"; exit 1; }; \
-	$(MAKE) fmt-strict || { echo "✗ check failed at: fmt"; exit 1; }; \
-	$(MAKE) sec-strict || { echo "✗ check failed at: sec"; exit 1; }; \
-	echo "✓ Check completed"
 
 version-check:
 	@echo "Validating version metadata..."
@@ -314,7 +362,8 @@ version-check:
 # Security
 # ============================================================
 sec:
-	@echo "Running security checks..."
+ifeq ($(QUALITY_MODE),fast)
+	@echo "Running security checks (fast)..."
 	@echo "→ govulncheck (Go CVE scan)..."
 	@if command -v govulncheck >/dev/null 2>&1; then \
 		cd backend && govulncheck ./... || true; \
@@ -332,13 +381,13 @@ sec:
 	@# CI uses full git history (fetch-depth: 0) for broader coverage.
 	@# To scan local git history too: gitleaks detect --source . --redact
 	@if command -v gitleaks >/dev/null 2>&1; then \
-		gitleaks detect --source . --no-git --redact 2>/dev/null || true; \
+		gitleaks detect --source . $(GITLEAKS_ARGS) 2>/dev/null; \
 	else \
 		echo "  ⚠ gitleaks not installed. Run 'make install' first."; \
 	fi
 	@echo "✓ Security checks completed"
 
-sec-strict:
+else
 	@echo "Running security checks (strict)..."
 	@echo "→ govulncheck (Go CVE scan)..."
 	@if command -v govulncheck >/dev/null 2>&1; then \
@@ -355,12 +404,19 @@ sec-strict:
 	@echo ""
 	@echo "→ gitleaks (secret / credential leak detection)..."
 	@if command -v gitleaks >/dev/null 2>&1; then \
-		gitleaks detect --source . --no-git --redact 2>/dev/null; \
+		gitleaks detect --source . $(GITLEAKS_ARGS) 2>/dev/null; \
 	else \
 		echo "✗ gitleaks not installed. Run 'make install' first."; \
 		exit 1; \
 	fi
 	@echo "✓ Security checks completed"
+endif
+
+sec-strict:
+	@$(MAKE) sec
+
+sec-fast:
+	@$(MAKE) sec fast
 
 scan:
 	@echo "Scanning container image for vulnerabilities (HIGH/CRITICAL)..."
@@ -524,6 +580,9 @@ endif
 	else \
 		echo "Error: fuser or lsof required"; exit 1; \
 	fi
+
+backend web backend-targeted fast strict build-local latest dev:
+	@:
 
 # Swallow positional args (e.g., make start 9092, make build backend)
 %:

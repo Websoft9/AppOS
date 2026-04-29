@@ -2313,8 +2313,8 @@ function ServerMonitorAgentCard({
       try {
         const response =
           action === 'install'
-            ? await installMonitorAgent(serverId)
-            : await updateMonitorAgent(serverId)
+            ? await installMonitorAgent(serverId, { apposBaseUrl: window.location.origin })
+            : await updateMonitorAgent(serverId, { apposBaseUrl: window.location.origin })
         setActionMessage(
           `${action === 'install' ? 'Install' : 'Update'} completed for ${serverName}.${response.packaged_version ? ` Netdata version: ${response.packaged_version.trim()}.` : ''}`
         )

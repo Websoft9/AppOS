@@ -376,4 +376,7 @@ func prepareWorkerSecretKey(t *testing.T) {
 	if err := secrets.LoadKeyFromEnv(); err != nil {
 		t.Fatal(err)
 	}
+	if err := secrets.LoadTemplatesFromDefaultPath(); err != nil {
+		t.Fatal(err)
+	}
 }
