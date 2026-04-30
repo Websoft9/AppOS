@@ -218,7 +218,21 @@ ifeq ($(QUALITY_MODE),fast)
 else
 	@cd backend && for pkg in $$(go list ./...); do \
 		echo "   - $$pkg"; \
-		go test $$pkg -v || exit 1; \
+		log_file=$$(mktemp); \
+		go test $$pkg -v >"$$log_file" 2>&1; \
+		status=$$?; \
+		cat "$$log_file"; \
+		if [ "$$status" -ne 0 ]; then \
+			fail_summary=$$(grep '^--- FAIL:' "$$log_file" || true); \
+			echo "✗ Backend tests failed in package: $$pkg"; \
+			if [ -n "$$fail_summary" ]; then \
+				echo "Fail summary:"; \
+				printf '%s\n' "$$fail_summary"; \
+			fi; \
+			rm -f "$$log_file"; \
+			exit 1; \
+		fi; \
+		rm -f "$$log_file"; \
 	 done
 endif
 	@echo "✓ Backend tests completed"
@@ -246,7 +260,21 @@ else
 		echo "→ Go tests (package-by-package)..."; \
 		cd backend && for pkg in $$(go list ./...); do \
 			echo "   - $$pkg"; \
-			go test $$pkg -v || exit 1; \
+			log_file=$$(mktemp); \
+			go test $$pkg -v >"$$log_file" 2>&1; \
+			status=$$?; \
+			cat "$$log_file"; \
+			if [ "$$status" -ne 0 ]; then \
+				fail_summary=$$(grep '^--- FAIL:' "$$log_file" || true); \
+				echo "✗ Backend tests failed in package: $$pkg"; \
+				if [ -n "$$fail_summary" ]; then \
+					echo "Fail summary:"; \
+					printf '%s\n' "$$fail_summary"; \
+				fi; \
+				rm -f "$$log_file"; \
+				exit 1; \
+			fi; \
+			rm -f "$$log_file"; \
 		done; \
 	fi
 	@if [ -f "web/package.json" ]; then \

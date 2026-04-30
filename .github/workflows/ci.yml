@@ -94,7 +94,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GITLEAKS_ARTIFACT_NAME: gitleaks-report-${{ github.sha }}
-      GITLEAKS_REPORT_PATH: ${{ runner.temp }}/gitleaks-report.json
+      GITLEAKS_REPORT_PATH: build/reports/gitleaks-report.json
     steps:
       - uses: actions/checkout@v4
         with:
