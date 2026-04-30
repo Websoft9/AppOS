@@ -115,6 +115,8 @@ jobs:
           provenance: false
 
       - name: Summarize published tags
+        env:
+          PUBLISHED_TAGS: ${{ steps.meta.outputs.tags }}
         run: |
           {
             echo "### Published Images"
@@ -123,9 +125,7 @@ jobs:
             echo "Commit: ${{ steps.meta.outputs.COMMIT_SHA }}"
             echo ""
             echo "Tags:"
-            while IFS= read -r tag; do
+            printf '%s\n' "$PUBLISHED_TAGS" | while IFS= read -r tag; do
               echo "- \`${tag}\`"
-            done <<'EOF'
-${{ steps.meta.outputs.tags }}
-EOF
+            done
           } >> "$GITHUB_STEP_SUMMARY"
