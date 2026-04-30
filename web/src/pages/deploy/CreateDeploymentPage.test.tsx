@@ -395,9 +395,9 @@ describe('CreateDeploymentPage', () => {
         app_required_disk_gib: '',
       },
     })
-    expect(
-      screen.queryByText('Create blocked by preflight: Preflight completed with warnings')
-    ).not.toBeInTheDocument()
+    expect(screen.getByRole('alert')).not.toHaveTextContent(
+      'Create blocked by preflight: Preflight completed with warnings'
+    )
   })
 
   it('blocks create when estimated app disk exceeds available disk', async () => {
@@ -484,9 +484,9 @@ describe('CreateDeploymentPage', () => {
       '/api/actions/install/manual-compose',
       expect.anything()
     )
-    expect(
-      screen.getByText('Create blocked by preflight: Preflight found blocking issues')
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Create blocked by preflight: Preflight found blocking issues'
+    )
     expect(
       screen.getByText(
         'Application estimated disk requirement (2147483648 bytes) exceeds available disk space (1073741824 bytes)'
