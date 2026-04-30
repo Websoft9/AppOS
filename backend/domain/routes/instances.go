@@ -51,6 +51,11 @@ type instanceReachabilityResponseDocument struct {
 	Reason    string `json:"reason,omitempty"`
 }
 
+var (
+	_ = instanceResponseDocument{}
+	_ = instanceReachabilityResponseDocument{}
+)
+
 func registerInstanceRoutes(se *core.ServeEvent) {
 	group := se.Router.Group("/api/instances")
 	group.Bind(apis.RequireAuth())

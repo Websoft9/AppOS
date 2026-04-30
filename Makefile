@@ -21,6 +21,8 @@ GOLANGCI_LINT_BIN ?= golangci-lint
 GOVULNCHECK_BIN ?= govulncheck
 GITLEAKS_BIN ?= gitleaks
 GITLEAKS_REPORT_PATH ?= build/reports/gitleaks-report.json
+GO_BIN_DIR := $(shell GOBIN="$$(go env GOBIN)"; if [ -n "$$GOBIN" ]; then printf '%s' "$$GOBIN"; else printf '%s/bin' "$$(go env GOPATH)"; fi)
+DEFAULT_GOLANGCI_LINT_BIN := $(GO_BIN_DIR)/golangci-lint
 
 # ============================================================
 # Help
@@ -126,6 +128,16 @@ install:
 		cd web && npm install; \
 	fi
 	@echo "✓ Dependencies installed"
+	@echo ""
+	@echo "Installing Go tooling..."
+	@# golangci-lint
+	@if [ ! -x "$(DEFAULT_GOLANGCI_LINT_BIN)" ] && ! command -v golangci-lint >/dev/null 2>&1; then \
+		echo "→ golangci-lint..."; \
+		go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+	else \
+		echo "✓ golangci-lint already installed"; \
+	fi
+	@echo "✓ Go tooling installed to $(GO_BIN_DIR)"
 	@echo ""
 	@echo "Installing security tools..."
 	@# govulncheck
@@ -238,7 +250,21 @@ endif
 	@echo "✓ Backend tests completed"
 else ifeq ($(QUALITY_SCOPE),web)
 	@echo "Running web tests..."
-	@cd web && npm test
+	@cd web && log_file=$$(mktemp); \
+		NO_COLOR=1 npm test >"$$log_file" 2>&1; \
+		status=$$?; \
+		cat "$$log_file"; \
+		if [ "$$status" -ne 0 ]; then \
+			fail_summary=$$(grep -E '^ FAIL |^ × ' "$$log_file" || true); \
+			echo "✗ Web tests failed"; \
+			if [ -n "$$fail_summary" ]; then \
+				echo "Fail summary:"; \
+				printf '%s\n' "$$fail_summary"; \
+			fi; \
+			rm -f "$$log_file"; \
+			exit 1; \
+		fi; \
+		rm -f "$$log_file"
 	@echo "✓ Web tests completed"
 else ifeq ($(QUALITY_SCOPE),backend-targeted)
 	@echo "Running targeted backend tests..."
@@ -279,7 +305,21 @@ else
 	fi
 	@if [ -f "web/package.json" ]; then \
 		echo "→ JS tests..."; \
-		cd web && npm test 2>/dev/null; \
+		cd web && log_file=$$(mktemp); \
+		NO_COLOR=1 npm test >"$$log_file" 2>&1; \
+		status=$$?; \
+		cat "$$log_file"; \
+		if [ "$$status" -ne 0 ]; then \
+			fail_summary=$$(grep -E '^ FAIL |^ × ' "$$log_file" || true); \
+			echo "✗ Web tests failed"; \
+			if [ -n "$$fail_summary" ]; then \
+				echo "Fail summary:"; \
+				printf '%s\n' "$$fail_summary"; \
+			fi; \
+			rm -f "$$log_file"; \
+			exit 1; \
+		fi; \
+		rm -f "$$log_file"; \
 	fi
 endif
 	@echo "✓ Tests completed"
@@ -306,12 +346,18 @@ ifeq ($(QUALITY_MODE),fast)
 		cd web && npx eslint src/ || true; \
 	fi
 else
-	@if [ -x "$(GOLANGCI_LINT_BIN)" ] || command -v "$(GOLANGCI_LINT_BIN)" >/dev/null 2>&1; then \
+	@if [ -x "$(GOLANGCI_LINT_BIN)" ] || command -v "$(GOLANGCI_LINT_BIN)" >/dev/null 2>&1 || [ -x "$(DEFAULT_GOLANGCI_LINT_BIN)" ]; then \
 		echo "→ golangci-lint..."; \
-		cd backend && "$(GOLANGCI_LINT_BIN)" run --config ../.golangci.yml ./...; \
+		lint_bin="$(GOLANGCI_LINT_BIN)"; \
+		if ! [ -x "$$lint_bin" ] && ! command -v "$$lint_bin" >/dev/null 2>&1; then \
+			lint_bin="$(DEFAULT_GOLANGCI_LINT_BIN)"; \
+		fi; \
+		cd backend && "$$lint_bin" run --config ../.golangci.yml ./...; \
 	else \
-		echo "→ go vet (golangci-lint not installed)..."; \
-		cd backend && go vet ./...; \
+		echo "✗ golangci-lint is required for strict lint mode."; \
+		echo "  Expected binary at $(DEFAULT_GOLANGCI_LINT_BIN) or on PATH."; \
+		echo "  Install it with 'make install' or run 'make lint fast' for advisory fallback mode."; \
+		exit 1; \
 	fi
 	@if [ -f "web/node_modules/.bin/eslint" ]; then \
 		echo "→ eslint..."; \

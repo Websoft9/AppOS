@@ -32,7 +32,7 @@ const (
 	ActionTunnelDisconnect      = "tunnel.disconnect"
 	ActionTunnelPause           = "tunnel.pause"
 	ActionTunnelResume          = "tunnel.resume"
-	ActionTunnelTokenGenerated  = "tunnel.token_generated"
+	ActionTunnelTokenGenerated  = "tunnel.token_generated" // #nosec G101 -- audit action name, not a credential
 	ActionTunnelTokenRotated    = "tunnel.token_rotated"
 	ActionTunnelConnectRejected = "tunnel.connect_rejected"
 	ActionTunnelForwardsUpdated = "tunnel.forwards_updated"

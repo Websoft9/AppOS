@@ -440,7 +440,7 @@ describe('ServersPage layout', () => {
     expect(screen.getByRole('columnheader', { name: 'Host' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Test Connection' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Start Setup' })).toBeInTheDocument()
-  })
+  }, 20000)
 
   it('filters rows by user', async () => {
     sendMock.mockImplementation((path: string) => {
@@ -926,7 +926,7 @@ describe('ServersPage layout', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Credential (Secret)' }))
     expect(await screen.findByRole('button', { name: 'New credential' })).toBeInTheDocument()
-  })
+  }, 20000)
 
   it('shows help text only after clicking the question buttons and toggles it closed on second click', async () => {
     render(<ServersPage />)

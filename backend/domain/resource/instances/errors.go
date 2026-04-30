@@ -52,10 +52,6 @@ func (e *AccessDeniedError) Error() string {
 
 func (e *AccessDeniedError) Unwrap() error { return e.Cause }
 
-func newAccessDeniedError(message string, cause error) error {
-	return &AccessDeniedError{Message: message, Cause: cause}
-}
-
 type NotFoundError struct {
 	ID    string
 	Cause error

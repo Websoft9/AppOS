@@ -38,7 +38,7 @@ func (o *PlatformObserver) collectAppCoreTarget(now time.Time, snapshot RuntimeS
 }
 
 func (o *PlatformObserver) collectWorkerTarget(now time.Time, snapshot RuntimeSnapshot) ([]monitormetrics.MetricPoint, error) {
-	workerStatus := monitor.StatusUnknown
+	var workerStatus string
 	workerReason := "worker not started"
 	if snapshot.WorkerRunning {
 		workerStatus = monitor.StatusHealthy

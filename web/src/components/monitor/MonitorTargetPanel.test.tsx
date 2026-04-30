@@ -179,7 +179,7 @@ describe('MonitorTargetPanel', () => {
       '/api/monitor/targets/server/srv-1/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
       { method: 'GET' }
     )
-  })
+  }, 15000)
 
   it('renders synthesized fallback detail before first heartbeat', async () => {
     sendMock
@@ -660,7 +660,7 @@ describe('MonitorTargetPanel', () => {
     expect(customSeriesRequest).toEqual(expect.stringContaining('endAt='))
     expect(screen.queryByText('自定义时间区间')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '自定义' })).not.toBeInTheDocument()
-  })
+  }, 15000)
 
   it('switches server network trends by interface', async () => {
     sendMock

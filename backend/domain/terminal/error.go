@@ -14,7 +14,7 @@ const (
 	// ErrCatConnectionRefused — remote port actively refused the connection.
 	ErrCatConnectionRefused ConnectErrorCategory = "connection_refused"
 	// ErrCatCredentialInvalid — local credential config error (bad key format, unsupported auth type).
-	ErrCatCredentialInvalid ConnectErrorCategory = "credential_invalid"
+	ErrCatCredentialInvalid ConnectErrorCategory = "credential_invalid" // #nosec G101 -- symbolic error category, not a credential
 	// ErrCatSessionFailed — SSH handshake succeeded but PTY/shell setup failed.
 	ErrCatSessionFailed ConnectErrorCategory = "session_failed"
 	// ErrCatServerDisconnected — server closed the connection unexpectedly.

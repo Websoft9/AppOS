@@ -97,13 +97,13 @@ func TestExecuteNodeHydratesSourceWorkspaceFromWorkspaceRef(t *testing.T) {
 	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(sourceDir, "app.tar.gz"), []byte("archive-bytes"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(sourceDir, "app.tar.gz"), []byte("archive-bytes"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.MkdirAll(filepath.Join(sourceDir, "nested"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(sourceDir, "nested", "build.env"), []byte("NODE_ENV=production\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(sourceDir, "nested", "build.env"), []byte("NODE_ENV=production\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -139,7 +139,7 @@ func TestExecuteNodeBuildsLocalArtifactImage(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(projectDir, "src"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(projectDir, "src", "package.json"), []byte("{}\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(projectDir, "src", "package.json"), []byte("{}\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

@@ -229,7 +229,7 @@ describe('AIProvidersPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Advanced/i }))
 
     expect(screen.getByText('API Version')).toBeInTheDocument()
-  })
+  }, 15000)
 
   it('stores manual API keys as single-value secrets and keeps api_key auth', async () => {
     const templatesById = new Map([

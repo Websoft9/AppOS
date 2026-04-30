@@ -267,7 +267,7 @@ func handleFileCreate(e *core.RequestEvent) error {
 	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
 		return apis.NewBadRequestError("cannot create parent directories", err)
 	}
-	if err := os.WriteFile(abs, []byte(req.Content), 0o644); err != nil {
+	if err := os.WriteFile(abs, []byte(req.Content), 0o600); err != nil {
 		return apis.NewBadRequestError("cannot write file", err)
 	}
 	return e.JSON(http.StatusCreated, map[string]string{
@@ -318,7 +318,7 @@ func handleFileUpdate(e *core.RequestEvent) error {
 		return apis.NewBadRequestError("path is a directory", nil)
 	}
 
-	if err := os.WriteFile(abs, []byte(req.Content), 0o644); err != nil {
+	if err := os.WriteFile(abs, []byte(req.Content), 0o600); err != nil {
 		return apis.NewBadRequestError("cannot write file", err)
 	}
 	return e.JSON(http.StatusOK, map[string]string{

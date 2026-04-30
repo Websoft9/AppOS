@@ -137,8 +137,6 @@ func Touch(id string) {
 // It does NOT close the Session itself; the caller is responsible for that.
 func Unregister(id string) {
 	registry.mu.Lock()
-	if _, ok := registry.sessions[id]; ok {
-		delete(registry.sessions, id)
-	}
+	delete(registry.sessions, id)
 	registry.mu.Unlock()
 }

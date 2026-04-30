@@ -71,7 +71,7 @@ func runMerge() error {
 		"# Source files: ext-api.yaml (generated custom-route spec) + native-api.yaml (manual)\n" +
 		"# Do not edit manually. Run: make openapi-sync\n\n"
 
-	if err := os.WriteFile(outPath, append([]byte(header), body...), 0644); err != nil {
+	if err := os.WriteFile(outPath, append([]byte(header), body...), 0600); err != nil {
 		return fmt.Errorf("cannot write merged spec: %w", err)
 	}
 
@@ -118,20 +118,6 @@ func mergeInfo(extInfo, nativeInfo map[string]any) map[string]any {
 		out["description"] = "Merged OpenAPI specification for AppOS (generated custom routes + native APIs)."
 	}
 	return out
-}
-
-func firstMap(a, b map[string]any) map[string]any {
-	if len(a) > 0 {
-		return cloneMap(a)
-	}
-	return cloneMap(b)
-}
-
-func firstServers(a, b []map[string]any) []map[string]any {
-	if len(a) > 0 {
-		return cloneServers(a)
-	}
-	return cloneServers(b)
 }
 
 func readGroupOrder(path string) ([]string, error) {
@@ -253,10 +239,3 @@ func cloneMap(in map[string]any) map[string]any {
 	return out
 }
 
-func cloneServers(in []map[string]any) []map[string]any {
-	out := make([]map[string]any, 0, len(in))
-	for _, srv := range in {
-		out = append(out, cloneMap(srv))
-	}
-	return out
-}

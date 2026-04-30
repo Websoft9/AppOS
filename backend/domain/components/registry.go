@@ -262,6 +262,7 @@ func runCommandProbe(command []string) (string, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
+	// #nosec G204 -- command probes are explicit registry entries and are intentionally executed as configured.
 	cmd := exec.CommandContext(ctx, command[0], command[1:]...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {

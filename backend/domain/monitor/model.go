@@ -17,7 +17,7 @@ const (
 	StatusDegraded          = "degraded"
 	StatusOffline           = "offline"
 	StatusUnreachable       = "unreachable"
-	StatusCredentialInvalid = "credential_invalid"
+	StatusCredentialInvalid = "credential_invalid" // #nosec G101 -- symbolic monitor status, not a credential
 	StatusUnknown           = "unknown"
 )
 

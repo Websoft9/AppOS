@@ -39,7 +39,7 @@ func (e localExecutor) PrepareWorkspace(projectDir string, compose string) error
 	if err := os.MkdirAll(projectDir, 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(projectDir, "docker-compose.yml"), []byte(compose), 0o644)
+	return os.WriteFile(filepath.Join(projectDir, "docker-compose.yml"), []byte(compose), 0o600)
 }
 
 func (e localExecutor) DockerClient() (*docker.Client, error) {

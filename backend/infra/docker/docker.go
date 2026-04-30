@@ -97,7 +97,7 @@ func (c *Client) ComposeConfigRead(projectDir string) (string, error) {
 // ComposeConfigWrite writes content to the docker-compose.yml file.
 func (c *Client) ComposeConfigWrite(projectDir string, content string) error {
 	path := filepath.Join(projectDir, "docker-compose.yml")
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		return fmt.Errorf("write compose config: %w", err)
 	}
 	return nil

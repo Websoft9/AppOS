@@ -239,16 +239,6 @@ func markSoftwareOperationEnqueueFailed(e *core.RequestEvent, record *core.Recor
 
 // ─── Component inventory handlers ─────────────────────────────────────────────
 
-type softwareLastOpSummary struct {
-	Action         software.Action         `json:"action"`
-	Phase          software.OperationPhase `json:"phase"`
-	TerminalStatus software.TerminalStatus `json:"terminal_status"`
-	FailurePhase   software.OperationPhase `json:"failure_phase,omitempty"`
-	FailureCode    software.FailureCode    `json:"failure_code,omitempty"`
-	FailureReason  string                  `json:"failure_reason,omitempty"`
-	UpdatedAt      string                  `json:"updated_at"`
-}
-
 type softwareComponentListItem struct {
 	software.SoftwareComponentSummary
 	TargetType    software.TargetType             `json:"target_type"`

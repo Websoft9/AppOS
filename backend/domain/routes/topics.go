@@ -51,6 +51,13 @@ type topicShareCommentResponse struct {
 	Created   string `json:"created"`
 }
 
+var (
+	_ = topicShareCreateResponse{}
+	_ = topicShareCommentDocument{}
+	_ = topicShareResolveResponse{}
+	_ = topicShareCommentResponse{}
+)
+
 // ─── Route registration ────────────────────────────────────────────────────
 
 // registerTopicRoutes registers authenticated topic routes under /api/topics.

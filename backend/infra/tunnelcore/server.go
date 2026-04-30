@@ -13,6 +13,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -367,7 +368,9 @@ type forwardedTCPPayload struct {
 func (s *Server) forwardConn(conn *ssh.ServerConn, svc Service, tc net.Conn) {
 	originAddr, originPortStr, _ := net.SplitHostPort(tc.RemoteAddr().String())
 	originPort := uint32(0)
-	fmt.Sscanf(originPortStr, "%d", &originPort)
+	if parsed, err := strconv.ParseUint(originPortStr, 10, 32); err == nil {
+		originPort = uint32(parsed)
+	}
 
 	payload := ssh.Marshal(forwardedTCPPayload{
 		Addr:       "localhost",

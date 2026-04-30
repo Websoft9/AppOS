@@ -42,6 +42,8 @@ type aiProviderResponseDocument struct {
 	Description       string         `json:"description"`
 }
 
+var _ = aiProviderResponseDocument{}
+
 func registerAIProviderRoutes(se *core.ServeEvent) {
 	group := se.Router.Group("/api/ai-providers")
 	group.Bind(apis.RequireAuth())

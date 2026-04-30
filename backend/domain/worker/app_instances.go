@@ -76,7 +76,7 @@ func saveDeploymentComposeToIAC(id string, name string, content string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(path, []byte(content), 0o644)
+	return os.WriteFile(path, []byte(content), 0o600)
 }
 
 func slugifyDeploymentName(name string) string {

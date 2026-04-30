@@ -78,7 +78,7 @@ func (f fakeOperationExecutor) PrepareWorkspace(projectDir string, compose strin
 	if err := os.MkdirAll(projectDir, 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(projectDir, "docker-compose.yml"), []byte(compose), 0o644)
+	return os.WriteFile(filepath.Join(projectDir, "docker-compose.yml"), []byte(compose), 0o600)
 }
 
 func (f fakeOperationExecutor) DockerClient() (*docker.Client, error) {
@@ -524,10 +524,10 @@ func TestHandleRunOperationCompletesSourceBuildPipeline(t *testing.T) {
 	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(sourceDir, "package.json"), []byte("{}\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(sourceDir, "package.json"), []byte("{}\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(sourceDir, "Dockerfile"), []byte("FROM scratch\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(sourceDir, "Dockerfile"), []byte("FROM scratch\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

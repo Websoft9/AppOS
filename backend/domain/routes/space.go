@@ -137,7 +137,7 @@ func handleSpacePreview(e *core.RequestEvent) error {
 	defer fs.Close()
 
 	storageKey := path.Join(record.Collection().Id, record.Id, storedFilename)
-	f, err := fs.GetFile(storageKey)
+	f, err := fs.GetReader(storageKey)
 	if err != nil {
 		return e.NotFoundError("File not found in storage", err)
 	}
@@ -312,7 +312,7 @@ func handleFileShareDownload(e *core.RequestEvent) error {
 	defer fs.Close()
 
 	storageKey := path.Join(record.Collection().Id, record.Id, storedFilename)
-	f, err := fs.GetFile(storageKey)
+	f, err := fs.GetReader(storageKey)
 	if err != nil {
 		return e.NotFoundError("File not found in storage", err)
 	}

@@ -232,7 +232,7 @@ func handleServerPortRelease(e *core.RequestEvent) error {
 	actionTaken := ""
 	ownerType := "host_process"
 	pidTargets := []int{}
-	containerProbe := map[string]any{"available": true, "status": "ok"}
+	var containerProbe map[string]any
 	containerOwner := map[string]any{}
 
 	runningContainer, probe, containerErr := detectRunningContainerByPort(e.Request.Context(), cfg, port, protocol)

@@ -1077,28 +1077,6 @@ func routeFilesFromMatrix(routesDir string, groups []groupEntry) ([]string, erro
 
 // ── YAML helpers ──────────────────────────────────────────────────────────────
 
-// existingPaths parses the current spec YAML and returns the set of already-
-// documented paths (line-based; no yaml dependency needed).
-func existingPaths(specPath string) map[string]bool {
-	f, err := os.Open(specPath)
-	if err != nil {
-		return map[string]bool{}
-	}
-	defer f.Close()
-
-	// Accept all normal OpenAPI path keys, including templated segments like
-	// /api/ext/resources/{id} and greedy segments like {id...}.
-	pathKeyRe := regexp.MustCompile(`^  (/[^:\s]+):\s*$`)
-	existing := map[string]bool{}
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		if m := pathKeyRe.FindStringSubmatch(scanner.Text()); m != nil {
-			existing[strings.TrimSpace(m[1])] = true
-		}
-	}
-	return existing
-}
-
 // methodBlock renders one HTTP method block inside a path entry.
 func methodBlock(method, path, tag, auth string, queryParams []string, queryRequired map[string]bool, headerParams []swaggerParamHint, cookieParams []swaggerParamHint, formDataParams []swaggerParamHint, bodyRequired *bool, bodySchema *swaggerSchemaHint, successCodes []int, failureCodes []int, successSchemas map[int]swaggerSchemaHint, failureSchemas map[int]swaggerSchemaHint, componentNames map[string]string) string {
 	var buf bytes.Buffer
@@ -1641,7 +1619,7 @@ func runGen() error {
 		}
 	}
 
-	if err := os.WriteFile(specPath, out.Bytes(), 0644); err != nil {
+	if err := os.WriteFile(specPath, out.Bytes(), 0600); err != nil {
 		return fmt.Errorf("cannot write ext spec: %w", err)
 	}
 

@@ -20,7 +20,6 @@ import (
 )
 
 const maxGitComposeBytes = 1 << 20
-const defaultMinFreeDiskBytes int64 = 512 * 1024 * 1024
 
 func registerOperationRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	o := g.Group("/actions")

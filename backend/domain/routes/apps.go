@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -160,7 +161,9 @@ func handleAppInstanceLogs(e *core.RequestEvent) error {
 
 	tail := 200
 	if raw := e.Request.URL.Query().Get("tail"); raw != "" {
-		fmt.Sscanf(raw, "%d", &tail)
+		if parsed, err := strconv.Atoi(raw); err == nil {
+			tail = parsed
+		}
 	}
 	output, err := client.ComposeLogs(e.Request.Context(), runtimeContext.ProjectDir, tail)
 	if err != nil {
@@ -791,7 +794,7 @@ func validateAppComposeConfig(e *core.RequestEvent, serverID string, projectDir 
 	tempPath := filepath.Join(projectDir, tempName)
 
 	if serverID == "local" {
-		if err := os.WriteFile(tempPath, []byte(content), 0o644); err != nil {
+			if err := os.WriteFile(tempPath, []byte(content), 0o600); err != nil {
 			return fmt.Errorf("write temp compose file: %w", err)
 		}
 		defer func() {
@@ -867,7 +870,7 @@ func saveAppComposeToIAC(id string, name string, content string) error {
 	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
 		return fmt.Errorf("prepare iac directory: %w", err)
 	}
-	if err := os.WriteFile(abs, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(abs, []byte(content), 0o600); err != nil {
 		return fmt.Errorf("write iac compose file: %w", err)
 	}
 	return nil
@@ -952,7 +955,7 @@ func setAppConfigRollbackSnapshot(record *core.Record, content string, sourceAct
 	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
 		return fmt.Errorf("prepare rollback snapshot directory: %w", err)
 	}
-	if err := os.WriteFile(abs, data, 0o644); err != nil {
+	if err := os.WriteFile(abs, data, 0o600); err != nil {
 		return fmt.Errorf("write rollback snapshot: %w", err)
 	}
 	return nil

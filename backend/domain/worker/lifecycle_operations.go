@@ -744,17 +744,6 @@ func (w *Worker) executorFor(execCtx *lifecycleExecutionContext) lifecycleruntim
 	return execCtx.executor
 }
 
-func (w *Worker) dockerClientFor(execCtx *lifecycleExecutionContext) (*docker.Client, error) {
-	if execCtx.docker != nil {
-		return execCtx.docker, nil
-	}
-	client, err := w.executorFor(execCtx).DockerClient()
-	if err != nil {
-		return nil, err
-	}
-	execCtx.docker = client
-	return client, nil
-}
 
 func (w *Worker) operationActor(operation *core.Record) (string, string) {
 	if operation == nil {

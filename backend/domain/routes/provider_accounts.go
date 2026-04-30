@@ -36,6 +36,8 @@ type providerAccountResponseDocument struct {
 	Description  string         `json:"description"`
 }
 
+var _ = providerAccountResponseDocument{}
+
 func registerProviderAccountRoutes(se *core.ServeEvent) {
 	group := se.Router.Group("/api/provider-accounts")
 	group.Bind(apis.RequireAuth())

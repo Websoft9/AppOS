@@ -877,13 +877,6 @@ func gitComposeMetadata(request deploy.GitComposeRequest, rawURL string) map[str
 	}
 }
 
-func candidateKindMetadata(kind InstallCandidateKind) map[string]any {
-	if strings.TrimSpace(string(kind)) == "" {
-		return nil
-	}
-	return map[string]any{"candidate_kind": string(kind)}
-}
-
 func applyInstallCandidateMetadata(metadata map[string]any, defaultKind InstallCandidateKind, source string, adapter string, payload map[string]any) map[string]any {
 	result := cloneMap(metadata)
 	if result == nil {

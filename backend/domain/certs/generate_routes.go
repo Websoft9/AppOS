@@ -35,6 +35,8 @@ type selfSignedCertificateResponse struct {
 	Status    string `json:"status"`
 }
 
+var _ = selfSignedCertificateResponse{}
+
 // RegisterGenerateRoutes mounts the generate and renew routes on the given group.
 func RegisterGenerateRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	g.POST("/{id}/generate-self-signed", handleGenerateSelfSigned)
@@ -284,10 +286,7 @@ func normalizeAndValidateDomain(raw string) (string, error) {
 		return domain, nil
 	}
 
-	host := domain
-	if strings.HasPrefix(host, "*.") {
-		host = strings.TrimPrefix(host, "*.")
-	}
+	host := strings.TrimPrefix(domain, "*.")
 	if strings.Contains(host, "/") || strings.Contains(host, " ") || strings.Contains(host, "\t") {
 		return "", fmt.Errorf("domain format is invalid")
 	}

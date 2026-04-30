@@ -35,9 +35,11 @@ func (e *LocalExecutor) buildCmd(ctx context.Context, command string, args []str
 		allArgs := append([]string{command}, args...)
 		if e.SudoPassword != "" {
 			// -S: read password from stdin; -p '': suppress prompt text
+			// #nosec G204 -- command and args are assembled from the validated docker executable and caller-supplied arguments.
 			return exec.CommandContext(ctx, "sudo", append([]string{"-S", "-p", "", "--"}, allArgs...)...)
 		}
 		// Passwordless sudo (-n: non-interactive, fail if password needed)
+		// #nosec G204 -- command and args are assembled from the validated docker executable and caller-supplied arguments.
 		return exec.CommandContext(ctx, "sudo", append([]string{"-n", "--"}, allArgs...)...)
 	}
 	return exec.CommandContext(ctx, command, args...)

@@ -2,7 +2,6 @@ package routes
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
 	"strconv"
@@ -141,7 +140,7 @@ func handleDockerServers(e *core.RequestEvent) error {
 		go func(idx int) {
 			defer wg.Done()
 			status := "offline"
-			reason := "server unreachable"
+			var reason string
 			host := s.Host
 			sshConfig, resolveErr := s.DockerSSHConfig(e.App, "")
 			if resolveErr == nil {
@@ -236,24 +235,6 @@ func bodyMap(body map[string]any, key string) map[string]any {
 		return v
 	}
 	return nil
-}
-
-// bodyInt extracts an integer field from body.
-func bodyInt(body map[string]any, key string) int {
-	switch v := body[key].(type) {
-	case int:
-		return v
-	case int32:
-		return int(v)
-	case int64:
-		return int(v)
-	case float64:
-		return int(v)
-	case float32:
-		return int(v)
-	default:
-		return 0
-	}
 }
 
 // ─── Compose Handlers ────────────────────────────────────
@@ -553,7 +534,9 @@ func handleComposeLogs(e *core.RequestEvent) error {
 	}
 	tail := 100
 	if t := e.Request.URL.Query().Get("tail"); t != "" {
-		fmt.Sscanf(t, "%d", &tail)
+		if parsed, err := strconv.Atoi(t); err == nil {
+			tail = parsed
+		}
 	}
 	output, err := client.ComposeLogs(e.Request.Context(), projectDir, tail)
 	if err != nil {
@@ -941,7 +924,9 @@ func handleContainerLogs(e *core.RequestEvent) error {
 	}
 	tail := 200
 	if t := e.Request.URL.Query().Get("tail"); t != "" {
-		fmt.Sscanf(t, "%d", &tail)
+		if parsed, err := strconv.Atoi(t); err == nil {
+			tail = parsed
+		}
 	}
 	if tail <= 0 {
 		tail = 200

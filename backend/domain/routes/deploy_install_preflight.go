@@ -67,10 +67,6 @@ func detectComposeProtocolPorts(ctx context.Context, cfg terminal.ConnectorConfi
 	return occupancy, reservations, containerProbe, nil
 }
 
-func parseInstallMetadata(body map[string]any) map[string]any {
-	return lifecyclesvc.NormalizeInstallMetadata(bodyMap(body, "metadata"), bodyInt64(body, "app_required_disk_bytes"), bodyFloat64(body, "app_required_disk_gib"))
-}
-
 func mergeMetadata(base map[string]any, extra map[string]any) map[string]any {
 	return lifecyclesvc.MergeMetadata(base, extra)
 }

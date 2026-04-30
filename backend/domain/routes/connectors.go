@@ -43,6 +43,8 @@ type connectorResponseDocument struct {
 	Description       string         `json:"description"`
 }
 
+var _ = connectorResponseDocument{}
+
 // registerConnectorRoutes registers authenticated read routes and superuser-only
 // mutation routes for connector resources.
 

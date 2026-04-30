@@ -46,7 +46,7 @@ func TestComponentsListFromRegistry(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	healthFile := filepath.Join(tmpDir, "health.txt")
-	if err := os.WriteFile(healthFile, []byte("ok"), 0644); err != nil {
+	if err := os.WriteFile(healthFile, []byte("ok"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	registryPath := filepath.Join(tmpDir, "components.yaml")
@@ -66,7 +66,7 @@ services: []
 `
 	restore := comp.SetRegistryPathForTesting(registryPath)
 	defer restore()
-	if err := os.WriteFile(registryPath, []byte(registry), 0644); err != nil {
+	if err := os.WriteFile(registryPath, []byte(registry), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -102,7 +102,7 @@ func TestComponentServicesLogsFromFile(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	logFile := filepath.Join(tmpDir, "appos.log")
-	if err := os.WriteFile(logFile, []byte("hello\nworld\n"), 0644); err != nil {
+	if err := os.WriteFile(logFile, []byte("hello\nworld\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	registryPath := filepath.Join(tmpDir, "components.yaml")
@@ -129,7 +129,7 @@ services:
 `
 	restore := comp.SetRegistryPathForTesting(registryPath)
 	defer restore()
-	if err := os.WriteFile(registryPath, []byte(registry), 0644); err != nil {
+	if err := os.WriteFile(registryPath, []byte(registry), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -174,7 +174,7 @@ services:
 `
 	restore := comp.SetRegistryPathForTesting(registryPath)
 	defer restore()
-	if err := os.WriteFile(registryPath, []byte(registry), 0644); err != nil {
+	if err := os.WriteFile(registryPath, []byte(registry), 0600); err != nil {
 		t.Fatal(err)
 	}
 

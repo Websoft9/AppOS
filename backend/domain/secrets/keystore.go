@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-const EnvSecretKey = "APPOS_SECRET_KEY"
+const EnvSecretKey = "APPOS_SECRET_KEY" // #nosec G101 -- environment variable name, not an embedded secret
 
 var (
 	keyMu  sync.RWMutex

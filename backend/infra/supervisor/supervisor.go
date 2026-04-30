@@ -233,7 +233,9 @@ func xmlBoolParam(b bool) string {
 
 func xmlEscape(s string) string {
 	var buf bytes.Buffer
-	xml.EscapeText(&buf, []byte(s))
+	if err := xml.EscapeText(&buf, []byte(s)); err != nil {
+		return s
+	}
 	return buf.String()
 }
 
@@ -262,9 +264,13 @@ func parseProcessInfo(v xmlValue) ProcessInfo {
 	data := v.Inner
 	if !bytes.Contains(data, []byte("<struct>")) {
 		// The value might directly contain the struct
-		xml.Unmarshal(append([]byte("<struct>"), append(data, []byte("</struct>")...)...), &s)
+		if err := xml.Unmarshal(append([]byte("<struct>"), append(data, []byte("</struct>")...)...), &s); err != nil {
+			return ProcessInfo{}
+		}
 	} else {
-		xml.Unmarshal(data, &s)
+		if err := xml.Unmarshal(data, &s); err != nil {
+			return ProcessInfo{}
+		}
 	}
 
 	p := ProcessInfo{}

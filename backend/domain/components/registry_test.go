@@ -113,7 +113,7 @@ func TestDetectVersion_StaticEmpty(t *testing.T) {
 func TestDetectVersion_File(t *testing.T) {
 	tmp := t.TempDir()
 	f := filepath.Join(tmp, "version.txt")
-	if err := os.WriteFile(f, []byte("2.0.0\nignored line\n"), 0644); err != nil {
+	if err := os.WriteFile(f, []byte("2.0.0\nignored line\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	v, err := DetectVersion(Probe{Type: "file", Path: f})
@@ -171,7 +171,7 @@ func TestCheckAvailability_StaticFalse(t *testing.T) {
 func TestCheckAvailability_FileExists(t *testing.T) {
 	tmp := t.TempDir()
 	f := filepath.Join(tmp, "health")
-	if err := os.WriteFile(f, []byte("ok"), 0644); err != nil {
+	if err := os.WriteFile(f, []byte("ok"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	ok, err := CheckAvailability(Probe{Type: "file_exists", Path: f})
@@ -300,7 +300,7 @@ func TestLoadRegistry_ValidEmbedded(t *testing.T) {
 func TestLoadRegistry_InvalidYAML(t *testing.T) {
 	tmp := t.TempDir()
 	path := filepath.Join(tmp, "bad.yaml")
-	if err := os.WriteFile(path, []byte(":::not valid yaml:::"), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(":::not valid yaml:::"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	restore := SetRegistryPathForTesting(path)
@@ -313,7 +313,7 @@ func TestLoadRegistry_InvalidYAML(t *testing.T) {
 func TestLoadRegistry_MissingVersion(t *testing.T) {
 	tmp := t.TempDir()
 	path := filepath.Join(tmp, "no-version.yaml")
-	if err := os.WriteFile(path, []byte("components: []\nservices: []\n"), 0644); err != nil {
+	if err := os.WriteFile(path, []byte("components: []\nservices: []\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	restore := SetRegistryPathForTesting(path)
@@ -350,7 +350,7 @@ components:
       success: true
 services: []
 `
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		t.Fatal(err)
 	}
 	restore := SetRegistryPathForTesting(path)

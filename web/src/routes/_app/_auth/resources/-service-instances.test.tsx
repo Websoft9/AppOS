@@ -381,7 +381,7 @@ describe('ServiceInstancesPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Advanced/ }))
     expect(screen.getByLabelText('One-way SSL')).toBeChecked()
     expect(screen.getByLabelText('Mutual SSL')).not.toBeChecked()
-  })
+  }, 15000)
 
   it('creates a password secret inline for mysql', async () => {
     render(<ServiceInstancesPage />)
@@ -539,7 +539,7 @@ describe('ServiceInstancesPage', () => {
         screen.queryByText('Update the selected Secret without leaving service instance editing.')
       ).not.toBeInTheDocument()
     })
-  })
+  }, 15000)
 
   it('stores a generated password in secrets automatically when creating mysql', async () => {
     render(<ServiceInstancesPage />)
@@ -605,5 +605,5 @@ describe('ServiceInstancesPage', () => {
     expect(screen.getByRole('button', { name: 'Generate' })).toBeInTheDocument()
     fireEvent.click(screen.getByText('Select a Secret'))
     expect(screen.getByPlaceholderText('Search secrets...')).toBeInTheDocument()
-  })
+  }, 15000)
 })

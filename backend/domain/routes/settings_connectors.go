@@ -128,7 +128,7 @@ func sendTestEmail(app core.App, body testEmailRequest) error {
 	serverAddr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
 	var message *mailyak.MailYak
 	if cfg.ImplicitTLS {
-		message, err = mailyak.NewWithTLS(serverAddr, auth, &tls.Config{ServerName: cfg.Host})
+		message, err = mailyak.NewWithTLS(serverAddr, auth, &tls.Config{ServerName: cfg.Host, MinVersion: tls.VersionTLS12})
 		if err != nil {
 			return err
 		}

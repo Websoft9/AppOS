@@ -94,7 +94,7 @@ func TestCopyFile(t *testing.T) {
 	dst := filepath.Join(dir, "sub", "dst.txt")
 
 	content := []byte("hello fileutil")
-	if err := os.WriteFile(src, content, 0o644); err != nil {
+	if err := os.WriteFile(src, content, 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -117,8 +117,8 @@ func TestCopyDir(t *testing.T) {
 
 	// Build a small tree.
 	_ = os.MkdirAll(filepath.Join(src, "sub"), 0o755)
-	_ = os.WriteFile(filepath.Join(src, "a.txt"), []byte("a"), 0o644)
-	_ = os.WriteFile(filepath.Join(src, "sub", "b.txt"), []byte("b"), 0o644)
+	_ = os.WriteFile(filepath.Join(src, "a.txt"), []byte("a"), 0o600)
+	_ = os.WriteFile(filepath.Join(src, "sub", "b.txt"), []byte("b"), 0o600)
 
 	if err := fileutil.CopyDir(src, dst); err != nil {
 		t.Fatalf("CopyDir: %v", err)

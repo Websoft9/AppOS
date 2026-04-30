@@ -47,7 +47,7 @@ func seedAppInstance(t *testing.T, te *testEnv, name string) *core.Record {
 	t.Helper()
 	projectDir := t.TempDir()
 	compose := "services:\n  web:\n    image: nginx:alpine\n"
-	if err := os.WriteFile(filepath.Join(projectDir, "docker-compose.yml"), []byte(compose), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(projectDir, "docker-compose.yml"), []byte(compose), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	col, err := te.app.FindCollectionByNameOrId("app_instances")

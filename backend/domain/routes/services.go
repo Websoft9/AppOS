@@ -14,6 +14,14 @@ func newSupervisorClient() *supervisor.Client {
 	return supervisor.NewClient(supervisor.DefaultConfig())
 }
 
+var _ = []func(*core.RequestEvent) error{
+	handleServiceList,
+	handleServiceStart,
+	handleServiceStop,
+	handleServiceRestart,
+	handleServiceLogs,
+}
+
 // handleServiceList returns all supervisord programs with their status and resource usage.
 // Legacy helper retained for internal reuse and possible future guarded operations.
 func handleServiceList(e *core.RequestEvent) error {
