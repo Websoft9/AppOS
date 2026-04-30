@@ -1,5 +1,12 @@
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ServersPage } from './servers'
 
@@ -964,15 +971,16 @@ describe('ServersPage layout', () => {
     })
   })
 
-  it('requires host for direct ssh but not for tunnel while port stays required', async () => {
+  it('requires host for direct ssh but allows tunnel submission without host or port', async () => {
     render(<ServersPage />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Add Server' }))
 
-    const nameInput = screen.getByLabelText(/^Name\*/) as HTMLInputElement
-    const hostInput = screen.getByLabelText(/^Host\*/) as HTMLInputElement
-    const portInput = screen.getByLabelText(/^Port\*/) as HTMLInputElement
-    const userInput = screen.getByLabelText(/^User\*/) as HTMLInputElement
+    const createDialog = await screen.findByRole('dialog')
+    const nameInput = within(createDialog).getByLabelText(/^Name\*/) as HTMLInputElement
+    const hostInput = within(createDialog).getByLabelText(/^Host\*/) as HTMLInputElement
+    const portInput = within(createDialog).getByLabelText(/^Port\*/) as HTMLInputElement
+    const userInput = within(createDialog).getByLabelText(/^User\*/) as HTMLInputElement
 
     fireEvent.change(nameInput, { target: { value: 'edge-node' } })
     fireEvent.change(userInput, { target: { value: 'root' } })
@@ -980,13 +988,13 @@ describe('ServersPage layout', () => {
     fireEvent.change(portInput, { target: { value: '22' } })
     expect(hostInput).toBeRequired()
     expect(portInput).toBeRequired()
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    fireEvent.click(within(createDialog).getByRole('button', { name: 'Create' }))
 
     expect(createServerMock).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole('radio', { name: /Reverse Tunnel/i }))
+    fireEvent.click(within(createDialog).getByRole('radio', { name: /Reverse Tunnel/i }))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    fireEvent.click(within(createDialog).getByRole('button', { name: 'Create' }))
 
     await waitFor(() => {
       expect(createServerMock).toHaveBeenCalledWith(
@@ -998,15 +1006,25 @@ describe('ServersPage layout', () => {
       )
     })
 
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull()
+    })
+
     createServerMock.mockClear()
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Server' }))
-    await screen.findByRole('heading', { name: 'Add Server' })
-    fireEvent.change(screen.getByLabelText(/^Name\*/), { target: { value: 'edge-node-2' } })
-    fireEvent.change(screen.getByLabelText(/^User\*/), { target: { value: 'root' } })
-    fireEvent.change(screen.getByLabelText(/^Port\*/), { target: { value: '' } })
-    fireEvent.click(screen.getByRole('radio', { name: /Reverse Tunnel/i }))
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    const secondCreateDialog = await screen.findByRole('dialog')
+    fireEvent.change(within(secondCreateDialog).getByLabelText(/^Name\*/), {
+      target: { value: 'edge-node-2' },
+    })
+    fireEvent.change(within(secondCreateDialog).getByLabelText(/^User\*/), {
+      target: { value: 'root' },
+    })
+    fireEvent.change(within(secondCreateDialog).getByLabelText(/^Port\*/), {
+      target: { value: '' },
+    })
+    fireEvent.click(within(secondCreateDialog).getByRole('radio', { name: /Reverse Tunnel/i }))
+    fireEvent.click(within(secondCreateDialog).getByRole('button', { name: 'Create' }))
 
     await waitFor(() => {
       expect(createServerMock).toHaveBeenCalledTimes(1)

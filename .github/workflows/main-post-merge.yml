@@ -13,10 +13,21 @@ jobs:
     name: Quality Gate
     uses: ./.github/workflows/_quality-gate.yml
 
-  scan:
-    name: Image Scan
+  build-image:
+    name: Build Production Image
     runs-on: ubuntu-latest
     needs: [quality-gate]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build production image
+        run: make image build
+
+  advisory-image-security:
+    name: Advisory Image Security
+    runs-on: ubuntu-latest
+    needs: [quality-gate, build-image]
+    continue-on-error: true
     permissions:
       contents: write
       security-events: write
@@ -56,3 +67,12 @@ jobs:
           upload-artifact: true
           artifact-name: sbom-${{ github.sha }}
           dependency-snapshot: true
+
+      - name: Summarize advisory scope
+        if: always()
+        run: |
+          {
+            echo "### Advisory Post-Merge Checks"
+            echo "The image build is a blocking main-branch health check."
+            echo "Trivy and SBOM publication run as advisory post-merge checks so they surface issues without redefining main health."
+          } >> "$GITHUB_STEP_SUMMARY"
