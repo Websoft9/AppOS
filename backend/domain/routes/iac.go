@@ -24,12 +24,12 @@ import (
 )
 
 const (
-	filesBasePath       = "/appos/data"
 	libraryBasePath     = "/appos/library"
 	filesAllowedArchive = ".zip"
 )
 
 var (
+	filesBasePath       = "/appos/data"
 	filesAllowedRoots   = []string{"apps", "workflows", "templates"}
 	libraryAllowedRoots = []string{"apps"}
 	defaultFileSettings = settingscatalog.DefaultGroup("files", "limits")

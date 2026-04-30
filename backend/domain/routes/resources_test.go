@@ -34,6 +34,11 @@ type testEnv struct {
 
 func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
+	oldFilesBasePath := filesBasePath
+	filesBasePath = t.TempDir()
+	t.Cleanup(func() {
+		filesBasePath = oldFilesBasePath
+	})
 
 	app, err := tests.NewTestApp()
 	if err != nil {

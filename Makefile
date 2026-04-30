@@ -1,5 +1,5 @@
 
-.PHONY: help install tidy build run test test-strict test-fast lint lint-strict lint-fast fmt fmt-strict fmt-fast check check-fast version-check sec sec-strict sec-fast scan sbom \
+.PHONY: help install tidy build run test test-strict test-fast lint lint-strict lint-fast fmt fmt-strict fmt-fast check check-fast version-check sec sec-strict sec-fast scan sbom e2e \
 	backend web backend-targeted fast strict build-local latest dev \
 	image start stop restart logs stats delete rm kill-port redo \
 	openapi-gen openapi-merge openapi-check openapi-sync
@@ -55,6 +55,7 @@ help:
 	@echo "  make fmt fast             Format code in tolerant/fast mode"
 	@echo "  make check                Run strict fmt + lint + test + sec, stop at first error"
 	@echo "  make check fast           Run faster fmt + lint + test + sec flow"
+	@echo "  make e2e                  Run end-to-end/container-required smoke tests"
 	@echo "  make version-check        Validate Git tag version metadata or print current git-derived version"
 	@echo "  make openapi-gen          Auto-generate OpenAPI spec skeleton from route source"
 	@echo "  make openapi-merge        Merge ext-api.yaml + native-api.yaml -> api.yaml"
@@ -539,6 +540,11 @@ sbom:
 	syft dir:backend dir:web/src -o spdx-json > sbom.spdx.json
 	@echo "✓ SBOM generated → sbom.spdx.json"
 	@wc -l sbom.spdx.json | awk '{print "  Lines: " $$1}'
+
+e2e:
+	@echo "Running end-to-end tests (container required)..."
+	@bash tests/e2e/container-smoke.sh
+	@echo "✓ E2E tests completed"
 
 # ============================================================
 # Build Image
