@@ -17,6 +17,10 @@ ARG3 := $(word 3,$(MAKECMDGOALS))
 QUALITY_MODE := $(if $(filter fast,$(ARG2) $(ARG3)),fast,strict)
 QUALITY_SCOPE := $(firstword $(filter-out fast,$(ARG2) $(ARG3)))
 GITLEAKS_ARGS := $(if $(CI),--redact,--no-git --redact)
+GOLANGCI_LINT_BIN ?= golangci-lint
+GOVULNCHECK_BIN ?= govulncheck
+GITLEAKS_BIN ?= gitleaks
+GITLEAKS_REPORT_PATH ?= build/reports/gitleaks-report.json
 
 # ============================================================
 # Help
@@ -262,9 +266,9 @@ test-fast:
 lint:
 	@echo "Running linters ($(QUALITY_MODE))..."
 ifeq ($(QUALITY_MODE),fast)
-	@if command -v golangci-lint >/dev/null 2>&1; then \
+	@if [ -x "$(GOLANGCI_LINT_BIN)" ] || command -v "$(GOLANGCI_LINT_BIN)" >/dev/null 2>&1; then \
 		echo "→ golangci-lint..."; \
-		cd backend && golangci-lint run --config ../.golangci.yml ./... || true; \
+		cd backend && "$(GOLANGCI_LINT_BIN)" run --config ../.golangci.yml ./... || true; \
 	else \
 		echo "→ go vet (golangci-lint not installed)..."; \
 		cd backend && go vet ./... || true; \
@@ -274,9 +278,9 @@ ifeq ($(QUALITY_MODE),fast)
 		cd web && npx eslint src/ || true; \
 	fi
 else
-	@if command -v golangci-lint >/dev/null 2>&1; then \
+	@if [ -x "$(GOLANGCI_LINT_BIN)" ] || command -v "$(GOLANGCI_LINT_BIN)" >/dev/null 2>&1; then \
 		echo "→ golangci-lint..."; \
-		cd backend && golangci-lint run --config ../.golangci.yml ./...; \
+		cd backend && "$(GOLANGCI_LINT_BIN)" run --config ../.golangci.yml ./...; \
 	else \
 		echo "→ go vet (golangci-lint not installed)..."; \
 		cd backend && go vet ./...; \
@@ -365,8 +369,8 @@ sec:
 ifeq ($(QUALITY_MODE),fast)
 	@echo "Running security checks (fast)..."
 	@echo "→ govulncheck (Go CVE scan)..."
-	@if command -v govulncheck >/dev/null 2>&1; then \
-		cd backend && govulncheck ./... || true; \
+	@if [ -x "$(GOVULNCHECK_BIN)" ] || command -v "$(GOVULNCHECK_BIN)" >/dev/null 2>&1; then \
+		cd backend && "$(GOVULNCHECK_BIN)" ./... || true; \
 	else \
 		echo "  ⚠ govulncheck not installed. Run 'make install' first."; \
 	fi
@@ -380,8 +384,19 @@ ifeq ($(QUALITY_MODE),fast)
 	@# Note: --no-git scans working directory files only.
 	@# CI uses full git history (fetch-depth: 0) for broader coverage.
 	@# To scan local git history too: gitleaks detect --source . --redact
-	@if command -v gitleaks >/dev/null 2>&1; then \
-		gitleaks detect --source . $(GITLEAKS_ARGS) 2>/dev/null; \
+	@if [ -x "$(GITLEAKS_BIN)" ] || command -v "$(GITLEAKS_BIN)" >/dev/null 2>&1; then \
+		report_path="$(GITLEAKS_REPORT_PATH)"; \
+		mkdir -p "$$(dirname "$$report_path")"; \
+		set +e; \
+		"$(GITLEAKS_BIN)" detect --source . $(GITLEAKS_ARGS) --report-format json --report-path "$$report_path"; \
+		status=$$?; \
+		set -e; \
+		if [ "$$status" -eq 1 ]; then \
+			echo "  ⚠ gitleaks found potential secret leaks. Report: $$report_path"; \
+		elif [ "$$status" -ne 0 ]; then \
+			echo "✗ gitleaks execution failed (exit $$status)."; \
+			exit $$status; \
+		fi; \
 	else \
 		echo "  ⚠ gitleaks not installed. Run 'make install' first."; \
 	fi
@@ -390,8 +405,8 @@ ifeq ($(QUALITY_MODE),fast)
 else
 	@echo "Running security checks (strict)..."
 	@echo "→ govulncheck (Go CVE scan)..."
-	@if command -v govulncheck >/dev/null 2>&1; then \
-		cd backend && govulncheck ./...; \
+	@if [ -x "$(GOVULNCHECK_BIN)" ] || command -v "$(GOVULNCHECK_BIN)" >/dev/null 2>&1; then \
+		cd backend && "$(GOVULNCHECK_BIN)" ./...; \
 	else \
 		echo "✗ govulncheck not installed. Run 'make install' first."; \
 		exit 1; \
@@ -403,8 +418,19 @@ else
 	fi
 	@echo ""
 	@echo "→ gitleaks (secret / credential leak detection)..."
-	@if command -v gitleaks >/dev/null 2>&1; then \
-		gitleaks detect --source . $(GITLEAKS_ARGS) 2>/dev/null; \
+	@if [ -x "$(GITLEAKS_BIN)" ] || command -v "$(GITLEAKS_BIN)" >/dev/null 2>&1; then \
+		report_path="$(GITLEAKS_REPORT_PATH)"; \
+		mkdir -p "$$(dirname "$$report_path")"; \
+		set +e; \
+		"$(GITLEAKS_BIN)" detect --source . $(GITLEAKS_ARGS) --report-format json --report-path "$$report_path"; \
+		status=$$?; \
+		set -e; \
+		if [ "$$status" -eq 1 ]; then \
+			echo "  ⚠ gitleaks found potential secret leaks. Report: $$report_path"; \
+		elif [ "$$status" -ne 0 ]; then \
+			echo "✗ gitleaks execution failed (exit $$status)."; \
+			exit $$status; \
+		fi; \
 	else \
 		echo "✗ gitleaks not installed. Run 'make install' first."; \
 		exit 1; \

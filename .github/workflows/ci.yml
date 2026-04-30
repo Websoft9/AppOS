@@ -24,8 +24,10 @@ jobs:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
 
-      - name: Add Go bin to PATH
-        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Prepare Go tool bin
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -38,10 +40,17 @@ jobs:
         run: cd web && npm ci
 
       - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+        run: GOBIN="$RUNNER_TEMP/bin" go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+      - name: Verify golangci-lint
+        run: |
+          "$RUNNER_TEMP/bin/golangci-lint" version
+          go version
 
       - name: Run lint
         run: make lint
+        env:
+          GOLANGCI_LINT_BIN: ${{ runner.temp }}/bin/golangci-lint
 
   # ─── Backend Test ────────────────────────────────────────────────────────────
   test-backend:
@@ -83,6 +92,9 @@ jobs:
   sec:
     name: Security Scan
     runs-on: ubuntu-latest
+    env:
+      GITLEAKS_ARTIFACT_NAME: gitleaks-report-${{ github.sha }}
+      GITLEAKS_REPORT_PATH: ${{ runner.temp }}/gitleaks-report.json
     steps:
       - uses: actions/checkout@v4
         with:
@@ -95,8 +107,10 @@ jobs:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
 
-      - name: Add Go bin to PATH
-        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Prepare Go tool bin
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -106,18 +120,10 @@ jobs:
           cache-dependency-path: web/package-lock.json
 
       - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
-
-      - name: govulncheck (Go CVE)
-        run: cd backend && govulncheck ./...
-        continue-on-error: true   # advisory; upstream CVEs may have no fix yet
+        run: GOBIN="$RUNNER_TEMP/bin" go install golang.org/x/vuln/cmd/govulncheck@latest
 
       - name: Install frontend deps
         run: cd web && npm ci
-
-      - name: npm audit (JS CVE, high+critical)
-        run: cd web && npm audit --audit-level=high
-        continue-on-error: true   # advisory; doesn't block merge
 
       - name: Install gitleaks
         run: |
@@ -130,11 +136,42 @@ jobs:
             *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;;
           esac
           curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GL_VERSION}/gitleaks_${GL_VERSION}_linux_${GL_ARCH}.tar.gz" \
-            | tar -xz -C /tmp gitleaks
-          sudo mv /tmp/gitleaks /usr/local/bin/gitleaks
+            | tar -xz -C "$RUNNER_TEMP/bin" gitleaks
+
+      - name: Verify security tools
+        run: |
+          "$RUNNER_TEMP/bin/govulncheck" -version
+          "$RUNNER_TEMP/bin/gitleaks" version
 
       - name: Run security checks
         run: make sec fast
+        env:
+          GOVULNCHECK_BIN: ${{ runner.temp }}/bin/govulncheck
+          GITLEAKS_BIN: ${{ runner.temp }}/bin/gitleaks
+          GITLEAKS_REPORT_PATH: ${{ env.GITLEAKS_REPORT_PATH }}
+
+      - name: Upload gitleaks report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.GITLEAKS_ARTIFACT_NAME }}
+          path: ${{ env.GITLEAKS_REPORT_PATH }}
+          if-no-files-found: ignore
+
+      - name: Announce gitleaks report
+        if: always()
+        run: |
+          if [ -f "$GITLEAKS_REPORT_PATH" ]; then
+            echo "gitleaks report uploaded as artifact: $GITLEAKS_ARTIFACT_NAME"
+            echo "Report path: $GITLEAKS_REPORT_PATH"
+            {
+              echo "### Gitleaks Report"
+              echo "Artifact: $GITLEAKS_ARTIFACT_NAME"
+              echo "Path: $GITLEAKS_REPORT_PATH"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No gitleaks report file was generated."
+          fi
 
   # ─── Container Image Scan ────────────────────────────────────────────────────
   scan:
