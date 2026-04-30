@@ -13,6 +13,8 @@ import (
 	"github.com/websoft9/appos/backend/domain/lifecycle/projection"
 )
 
+var deploymentComposeIACBasePath = "/appos/data/apps/installed"
+
 func syncAppInstanceFromDeployment(app core.App, deploymentRecord *core.Record) error {
 	if deploymentRecord == nil || deploymentRecord.GetString("status") != deploy.StatusSuccess {
 		return nil
@@ -72,7 +74,7 @@ func saveDeploymentComposeToIAC(id string, name string, content string) error {
 	if len(shortID) > 8 {
 		shortID = shortID[:8]
 	}
-	path := filepath.Join("/appos/data/apps/installed", shortID+"-"+slugifyDeploymentName(name), "docker-compose.yml")
+	path := filepath.Join(deploymentComposeIACBasePath, shortID+"-"+slugifyDeploymentName(name), "docker-compose.yml")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}

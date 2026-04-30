@@ -19,6 +19,14 @@ import (
 var sourceWorkspaceBasePath = "/appos/data"
 var sourceWorkspaceAllowedRoots = []string{"apps", "templates", "workflows"}
 
+func SetSourceWorkspaceBasePathForTest(basePath string) func() {
+	previous := sourceWorkspaceBasePath
+	sourceWorkspaceBasePath = basePath
+	return func() {
+		sourceWorkspaceBasePath = previous
+	}
+}
+
 type HealthChecker func(ctx context.Context, client interface {
 	Exec(context.Context, ...string) (string, error)
 }, projectDir string) error

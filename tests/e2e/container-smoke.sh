@@ -9,10 +9,39 @@ WAIT_SECONDS="${APPOS_E2E_WAIT_SECONDS:-180}"
 SECRET_KEY="${APPOS_E2E_SECRET_KEY:-MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}"
 SUPERVISOR_PASSWORD="${APPOS_E2E_SUPERVISOR_PASSWORD:-appos-e2e-supervisor-password}"
 ENCRYPTION_KEY="${APPOS_E2E_ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef}"
+EXPECT_SETUP_REQUIRED="${APPOS_E2E_EXPECT_SETUP_REQUIRED:-}"
+EXPECT_INIT_MODE="${APPOS_E2E_EXPECT_INIT_MODE:-}"
+ARTIFACT_DIR="${APPOS_E2E_ARTIFACT_DIR:-}"
+KEEP_CONTAINER_ON_FAILURE="${APPOS_E2E_KEEP_CONTAINER_ON_FAILURE:-0}"
 proxy_value="${all_proxy:-${ALL_PROXY:-${http_proxy:-${HTTP_PROXY:-}}}}"
 no_proxy_value="${no_proxy:-${NO_PROXY:-}}"
+host_port=""
+container_started=0
+test_passed=0
+
+capture_diagnostics() {
+  if [[ "${container_started}" != "1" || -z "${ARTIFACT_DIR}" ]]; then
+    return
+  fi
+
+  mkdir -p "${ARTIFACT_DIR}"
+  docker inspect "${CONTAINER_NAME}" >"${ARTIFACT_DIR}/docker-inspect.json" 2>/dev/null || true
+  docker logs "${CONTAINER_NAME}" >"${ARTIFACT_DIR}/container.log" 2>&1 || true
+  if [[ -n "${host_port}" ]]; then
+    curl --noproxy '*' -fsS "http://127.0.0.1:${host_port}${HEALTH_PATH}" >"${ARTIFACT_DIR}/health-response.txt" 2>&1 || true
+  fi
+}
 
 cleanup() {
+  if [[ "${test_passed}" != "1" ]]; then
+    capture_diagnostics
+  fi
+
+  if [[ "${test_passed}" != "1" && "${KEEP_CONTAINER_ON_FAILURE}" == "1" ]]; then
+    echo "e2e: preserving ${CONTAINER_NAME} for failure inspection" >&2
+    return
+  fi
+
   docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
 }
 
@@ -51,6 +80,7 @@ docker run -d \
   -e APPOS_ENCRYPTION_KEY="${ENCRYPTION_KEY}" \
   -p 127.0.0.1::80 \
   "${IMAGE_REF}" >/dev/null
+container_started=1
 
 host_port="$(docker port "${CONTAINER_NAME}" 80/tcp | awk -F: 'NR==1 {print $NF}')"
 if [[ -z "${host_port}" ]]; then
@@ -88,4 +118,27 @@ while true; do
   sleep 3
 done
 
+if [[ -n "${EXPECT_SETUP_REQUIRED}" || -n "${EXPECT_INIT_MODE}" ]]; then
+  setup_status="$(curl --noproxy '*' -fsS "http://127.0.0.1:${host_port}/api/ext/setup/status")"
+
+  if [[ -n "${EXPECT_SETUP_REQUIRED}" ]]; then
+    actual_needs_setup="$(printf '%s' "${setup_status}" | sed -n 's/.*"needsSetup":\(true\|false\).*/\1/p')"
+    if [[ "${actual_needs_setup}" != "${EXPECT_SETUP_REQUIRED}" ]]; then
+      echo "e2e: expected needsSetup=${EXPECT_SETUP_REQUIRED}, got: ${setup_status}" >&2
+      exit 1
+    fi
+  fi
+
+  if [[ -n "${EXPECT_INIT_MODE}" ]]; then
+    actual_init_mode="$(printf '%s' "${setup_status}" | sed -n 's/.*"initMode":"\([^"]*\)".*/\1/p')"
+    if [[ "${actual_init_mode}" != "${EXPECT_INIT_MODE}" ]]; then
+      echo "e2e: expected initMode=${EXPECT_INIT_MODE}, got: ${setup_status}" >&2
+      exit 1
+    fi
+  fi
+
+  echo "e2e: setup status matched expected contract"
+fi
+
+test_passed=1
 echo "e2e: container smoke test passed"

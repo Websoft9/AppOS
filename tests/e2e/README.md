@@ -13,8 +13,11 @@ This directory is reserved for tests that require a real AppOS container runtime
 
 - `make e2e`
 - `tests/e2e/container-smoke.sh`
+- `tests/e2e/setup-status.sh`
 
 The smoke test builds the local AppOS image, starts a real container, and waits for `/api/health` to become reachable.
+
+The setup-status scenario reuses the same real container startup path and verifies that `/api/ext/setup/status` is publicly reachable and returns the expected fresh-install contract (`needsSetup: true`, `initMode: auto`).
 
 ## Audit Of Existing Tests
 

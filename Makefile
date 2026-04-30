@@ -544,6 +544,7 @@ sbom:
 e2e:
 	@echo "Running end-to-end tests (container required)..."
 	@bash tests/e2e/container-smoke.sh
+	@bash tests/e2e/setup-status.sh
 	@echo "✓ E2E tests completed"
 
 # ============================================================

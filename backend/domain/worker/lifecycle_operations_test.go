@@ -517,9 +517,12 @@ func TestHandleRunOperationCompletesSourceBuildPipeline(t *testing.T) {
 		operationExecutorFactory = oldFactory
 		operationHealthCheck = oldHealthCheck
 	}()
+	workspaceBasePath := t.TempDir()
+	restoreWorkspaceBasePath := lifecycleruntime.SetSourceWorkspaceBasePathForTest(workspaceBasePath)
+	defer restoreWorkspaceBasePath()
 
 	workspaceRef := filepath.Join("apps", "source-build-e2e", time.Now().UTC().Format("20060102150405.000000000"), "src")
-	sourceDir := filepath.Join("/appos/data", workspaceRef)
+	sourceDir := filepath.Join(workspaceBasePath, workspaceRef)
 	defer os.RemoveAll(filepath.Dir(sourceDir))
 	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
 		t.Fatal(err)

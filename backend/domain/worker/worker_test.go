@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -118,6 +119,11 @@ func TestSyncAppInstanceFromDeploymentUsesLifecycleFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer app.Cleanup()
+	oldIACBasePath := deploymentComposeIACBasePath
+	deploymentComposeIACBasePath = filepath.Join(t.TempDir(), "apps", "installed")
+	defer func() {
+		deploymentComposeIACBasePath = oldIACBasePath
+	}()
 
 	record := seedLegacyDeploymentLikeRecord("local", deploy.StatusSuccess)
 	if err := syncAppInstanceFromDeployment(app, record); err != nil {
