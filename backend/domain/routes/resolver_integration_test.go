@@ -2,7 +2,6 @@ package routes
 
 import (
 	"encoding/base64"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -21,7 +20,7 @@ func resolverTestEnv(t *testing.T) *testEnv {
 	if err := secrets.LoadKeyFromEnv(); err != nil {
 		t.Fatal(err)
 	}
-	if err := secrets.LoadTemplatesFromFile(filepath.Clean("/data/dev/appos/backend/domain/secrets/templates.json")); err != nil {
+	if err := secrets.LoadTemplatesFromDefaultPath(); err != nil {
 		t.Fatal(err)
 	}
 	return newTestEnv(t)

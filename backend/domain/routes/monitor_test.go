@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -29,7 +28,7 @@ func newMonitorTestEnv(t *testing.T) *testEnv {
 	if err := secrets.LoadKeyFromEnv(); err != nil {
 		t.Fatalf("load secret key: %v", err)
 	}
-	if err := secrets.LoadTemplatesFromFile(filepath.Clean("/data/dev/appos/backend/domain/secrets/templates.json")); err != nil {
+	if err := secrets.LoadTemplatesFromDefaultPath(); err != nil {
 		t.Fatalf("load secret templates: %v", err)
 	}
 	return newTestEnv(t)

@@ -192,7 +192,7 @@ jobs:
       - name: Trivy image scan — table (HIGH/CRITICAL)
         uses: aquasecurity/trivy-action@0.30.0
         with:
-          image-ref: websoft9/appos:latest
+          image-ref: websoft9dev/appos:latest
           format: table
           severity: HIGH,CRITICAL
           exit-code: "0"   # advisory; report but don't block
@@ -200,7 +200,7 @@ jobs:
       - name: Trivy image scan — SARIF (GitHub Security tab)
         uses: aquasecurity/trivy-action@0.30.0
         with:
-          image-ref: websoft9/appos:latest
+          image-ref: websoft9dev/appos:latest
           format: sarif
           output: trivy-results.sarif
           severity: HIGH,CRITICAL
@@ -213,7 +213,7 @@ jobs:
       - name: Generate SBOM and upload to GitHub Dependency Graph
         uses: anchore/sbom-action@v0
         with:
-          image: websoft9/appos:latest
+          image: websoft9dev/appos:latest
           format: spdx-json
           output-file: sbom.spdx.json
           upload-artifact: true

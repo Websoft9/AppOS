@@ -1,6 +1,6 @@
 services:
   appos:
-    image: websoft9/appos:${IMAGE_TAG:-latest}
+    image: websoft9dev/appos:${IMAGE_TAG:-latest}
     container_name: ${CONTAINER_NAME:-appos}
     restart: ${RESTART_POLICY:-unless-stopped}
     ports:

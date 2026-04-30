@@ -1,14 +1,4 @@
-import { readFileSync } from 'node:fs'
-
-const REQUIRED_KEYS = [
-  'core_version',
-  'apphub_version',
-  'deployment_version',
-  'git_version',
-  'proxy_version',
-  'media_version',
-  'library_version',
-]
+import { execSync } from 'node:child_process'
 
 const semverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
 
@@ -17,31 +7,32 @@ function fail(message) {
   process.exit(1)
 }
 
-let versionManifest
-
-try {
-  versionManifest = JSON.parse(readFileSync(new URL('../../version.json', import.meta.url), 'utf8'))
-} catch (error) {
-  fail(`unable to read version.json: ${error instanceof Error ? error.message : String(error)}`)
+function normalizeRef(value) {
+  return value.startsWith('refs/tags/') ? value.slice('refs/tags/'.length) : value
 }
 
-for (const key of REQUIRED_KEYS) {
-  if (!(key in versionManifest)) {
-    fail(`missing required key \"${key}\"`)
-  }
-
-  if (typeof versionManifest[key] !== 'string' || !semverPattern.test(versionManifest[key])) {
-    fail(`key \"${key}\" must be a valid SemVer string`) 
+function deriveGitRef() {
+  try {
+    return execSync('git describe --tags --always --dirty', {
+      cwd: new URL('../..', import.meta.url),
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim()
+  } catch (error) {
+    fail(`unable to derive git version: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
-const inputTag = process.argv[2] || process.env.APPOS_RELEASE_TAG || ''
-if (inputTag) {
-  const normalizedTag = inputTag.startsWith('refs/tags/') ? inputTag.slice('refs/tags/'.length) : inputTag
-  const expectedTag = `v${versionManifest.core_version}`
-  if (normalizedTag !== expectedTag) {
-    fail(`tag \"${normalizedTag}\" must match core_version as \"${expectedTag}\"`)
+const inputRef = process.argv[2] || process.env.APPOS_RELEASE_TAG || deriveGitRef()
+const normalizedRef = normalizeRef(inputRef)
+
+if (normalizedRef.startsWith('v')) {
+  const version = normalizedRef.slice(1)
+  if (!semverPattern.test(version)) {
+    fail(`tag \"${normalizedRef}\" must be a valid SemVer tag like v1.2.3 or v1.2.3-rc.1`)
   }
+  console.log(`version-check: ok (${normalizedRef})`)
+  process.exit(0)
 }
 
-console.log(`version-check: ok (${versionManifest.core_version})`)
+console.log(`version-check: ok (non-release build ${normalizedRef})`)

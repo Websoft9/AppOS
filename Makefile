@@ -55,7 +55,7 @@ help:
 	@echo "  make fmt fast             Format code in tolerant/fast mode"
 	@echo "  make check                Run strict fmt + lint + test + sec, stop at first error"
 	@echo "  make check fast           Run faster fmt + lint + test + sec flow"
-	@echo "  make version-check        Validate version.json and SemVer release metadata"
+	@echo "  make version-check        Validate Git tag version metadata or print current git-derived version"
 	@echo "  make openapi-gen          Auto-generate OpenAPI spec skeleton from route source"
 	@echo "  make openapi-merge        Merge ext-api.yaml + native-api.yaml -> api.yaml"
 	@echo "  make openapi-check        Assert all /api/ext routes are in the spec (CI gate)"
@@ -520,15 +520,15 @@ sec-fast:
 
 scan:
 	@echo "Scanning container image for vulnerabilities (HIGH/CRITICAL)..."
-	@if ! docker image inspect websoft9/appos:latest >/dev/null 2>&1; then \
-		echo "✗ Image websoft9/appos:latest not found. Run 'make image build' first."; exit 1; \
+	@if ! docker image inspect websoft9dev/appos:latest >/dev/null 2>&1; then \
+		echo "✗ Image websoft9dev/appos:latest not found. Run 'make image build' first."; exit 1; \
 	fi
 	docker run --rm \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		aquasec/trivy:latest image \
 		--severity HIGH,CRITICAL \
 		--exit-code 0 \
-		websoft9/appos:latest
+		websoft9dev/appos:latest
 	@echo "✓ Image scan completed"
 
 sbom:
@@ -547,9 +547,9 @@ image:
 ifeq ($(ARG2),build)
   ifeq ($(ARG3),)
 	@echo "Building production image (multi-stage)..."
-	docker build -f build/Dockerfile -t websoft9/appos:latest .
-	@echo "✓ Image built: websoft9/appos:latest"
-	@docker images websoft9/appos:latest --format "  Size: {{.Size}}"
+	docker build -f build/Dockerfile -t websoft9dev/appos:latest .
+	@echo "✓ Image built: websoft9dev/appos:latest"
+	@docker images websoft9dev/appos:latest --format "  Size: {{.Size}}"
   else
 	@echo "Unknown image subcommand: $(ARG3)"
 	@echo "Usage: make image build | make image build-local"
@@ -567,9 +567,9 @@ else ifeq ($(ARG2),build-local)
 			echo "$$(echo $$P | sed 's/127\.0\.0\.1/host-gateway/g;s/localhost/host-gateway/g')"; \
 		fi))
 	$(eval PROXY_ARGS := $(if $(HOST_PROXY),--add-host=host-gateway:host-gateway --build-arg ALL_PROXY=$(HOST_PROXY),))
-	docker build $(PROXY_ARGS) -f build/Dockerfile.local -t websoft9/appos:dev .
-	@echo "✓ Dev image built: websoft9/appos:dev"
-	@docker images websoft9/appos:dev --format "  Size: {{.Size}}"
+	docker build $(PROXY_ARGS) -f build/Dockerfile.local -t websoft9dev/appos:dev .
+	@echo "✓ Dev image built: websoft9dev/appos:dev"
+	@docker images websoft9dev/appos:dev --format "  Size: {{.Size}}"
 else
 	@echo "Usage: make image build | make image build-local"
 endif

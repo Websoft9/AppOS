@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   release:
-    name: Validate And Publish Release
+    name: Validate And Draft Release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -82,32 +82,28 @@ jobs:
             backend/domain/software/scripts/appos-agent-install.sh > artifacts/agent/appos-agent-install.sh
           chmod +x artifacts/agent/appos-agent-install.sh
 
-      - name: Upload release assets
-        uses: softprops/action-gh-release@v2
+      - name: Upload release review artifacts
+        uses: actions/upload-artifact@v4
         with:
-          body_path: release-notes.md
-          files: |
+          name: release-review-${{ github.ref_name }}
+          path: |
             CHANGELOG.md
-            version.json
+            release-notes.md
             docs/version-compatibility-matrix.md
             artifacts/agent/appos-agent-linux-amd64
             artifacts/agent/appos-agent-linux-arm64
             artifacts/agent/appos-agent-install.sh
+          if-no-files-found: error
 
-
-      - name: Upload To cloudflare r2
-        uses: ryand56/r2-upload-action@latest
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
         with:
-          r2-account-id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          r2-access-key-id: ${{ secrets.CLOUDFLARE_R2_SECRET_ID }}
-          r2-secret-access-key: ${{ secrets.CLOUDFLARE_R2_SECRET_KEY }}
-          r2-bucket: artifact
-          source-dir: artifacts
-          destination-dir: ./${{ steps.convert_version.outputs.CHANNEL }}/appos
-
-      - name: Purge Cloudflare Cache
-        uses: jakejarvis/cloudflare-purge-action@master
-        env:
-          CLOUDFLARE_ZONE: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-          CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          PURGE_URLS: '["https://artifact.websoft9.com/${{ steps.convert_version.outputs.CHANNEL }}/appos/agent/appos-agent","https://artifact.websoft9.com/${{ steps.convert_version.outputs.CHANNEL }}/appos/agent/appos-agent-linux-amd64","https://artifact.websoft9.com/${{ steps.convert_version.outputs.CHANNEL }}/appos/agent/appos-agent-linux-arm64","https://artifact.websoft9.com/${{ steps.convert_version.outputs.CHANNEL }}/appos/agent/appos-agent-install.sh"]'
+          draft: true
+          prerelease: ${{ steps.convert_version.outputs.CHANNEL == 'preview' }}
+          body_path: release-notes.md
+          files: |
+            CHANGELOG.md
+            docs/version-compatibility-matrix.md
+            artifacts/agent/appos-agent-linux-amd64
+            artifacts/agent/appos-agent-linux-arm64
+            artifacts/agent/appos-agent-install.sh

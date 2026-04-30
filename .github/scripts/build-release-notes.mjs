@@ -14,10 +14,9 @@ const normalizedTag = releaseTag.startsWith('refs/tags/')
   ? releaseTag.slice('refs/tags/'.length)
   : releaseTag
 const normalizedVersion = normalizedTag.startsWith('v') ? normalizedTag.slice(1) : normalizedTag
-
-const versionManifest = JSON.parse(readFileSync(new URL('../../version.json', import.meta.url), 'utf8'))
-if (versionManifest.core_version !== normalizedVersion) {
-  fail(`core_version ${versionManifest.core_version} does not match release ${normalizedVersion}`)
+const semverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
+if (!normalizedTag.startsWith('v') || !semverPattern.test(normalizedVersion)) {
+  fail(`release tag \"${normalizedTag}\" must be a valid SemVer tag like v1.2.3 or v1.2.3-rc.1`)
 }
 
 const changelog = readFileSync(new URL('../../CHANGELOG.md', import.meta.url), 'utf8')
@@ -41,8 +40,8 @@ const installCommand = [
 const notes = `# AppOS ${normalizedVersion}
 
 ## Docker Tag
-- \`websoft9/appos:${normalizedVersion}\`
-- \`websoft9/appos:${normalizedTag}\`
+- \`websoft9dev/appos:${normalizedVersion}\`
+- \`websoft9dev/appos:${normalizedTag}\`
 
 ## Install Command
 \`\`\`bash
@@ -52,7 +51,7 @@ ${installCommand}
 ## Known Issues
 ${knownIssues}
 
-## Compatibility Matrix
+## Compatibility Policy
 See \`docs/version-compatibility-matrix.md\` for the current release compatibility policy.
 
 ## Changelog
