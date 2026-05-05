@@ -88,7 +88,7 @@ func TestWrap_PanicDoesNotCallFnTwice(t *testing.T) {
 	})
 
 	func() {
-		defer func() { recover() }() //nolint:errcheck
+		defer func() { recover() }()
 		wrapped()
 	}()
 

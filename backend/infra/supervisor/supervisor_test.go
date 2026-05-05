@@ -53,7 +53,7 @@ func TestFirstNonEmpty(t *testing.T) {
 
 // ─── xmlEscape ───────────────────────────────────────────────────────────────
 
-func TestXmlEscape(t *testing.T) {
+func TestXMLEscape(t *testing.T) {
 	cases := []struct {
 		in      string
 		wantSub string // substring that must appear in output
