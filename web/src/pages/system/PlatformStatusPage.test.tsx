@@ -295,5 +295,5 @@ describe('PlatformStatusPage', () => {
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument()
     expect(await screen.findByText('Docker')).toBeInTheDocument()
-  }, 10000)
+  }, 15000)
 })

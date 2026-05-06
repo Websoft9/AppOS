@@ -1,5 +1,5 @@
 
-.PHONY: help install tidy build run test test-strict test-fast lint lint-strict lint-fast fmt fmt-strict fmt-fast check check-fast version-check sec sec-strict sec-fast scan sbom e2e \
+.PHONY: help install tidy build run test test-strict test-fast lint lint-strict lint-fast fmt fmt-strict fmt-fast check check-fast sec sec-strict sec-fast artifact-scan \
 	backend web backend-targeted fast strict build-local latest dev \
 	image start stop restart logs stats delete rm kill-port redo \
 	openapi-gen openapi-merge openapi-check openapi-sync
@@ -20,9 +20,12 @@ GITLEAKS_ARGS := $(if $(CI),--redact,--no-git --redact)
 GOLANGCI_LINT_BIN ?= golangci-lint
 GOVULNCHECK_BIN ?= govulncheck
 GITLEAKS_BIN ?= gitleaks
+ACTIONLINT_BIN ?= actionlint
 GITLEAKS_REPORT_PATH ?= build/reports/gitleaks-report.json
 GO_BIN_DIR := $(shell GOBIN="$$(go env GOBIN)"; if [ -n "$$GOBIN" ]; then printf '%s' "$$GOBIN"; else printf '%s/bin' "$$(go env GOPATH)"; fi)
 DEFAULT_GOLANGCI_LINT_BIN := $(GO_BIN_DIR)/golangci-lint
+DEFAULT_GOVULNCHECK_BIN := $(GO_BIN_DIR)/govulncheck
+DEFAULT_ACTIONLINT_BIN := $(GO_BIN_DIR)/actionlint
 
 # ============================================================
 # Help
@@ -43,28 +46,32 @@ help:
 	@echo "  make redo                 Full rebuild: rm volumes + build + image + start dev"
 	@echo ""
 	@printf "\033[36mTesting & Quality:\033[0m\n"
-	@echo "  make test                 Run strict tests (Go + JS, stop early)"
-	@echo "  make test fast            Run faster tests (bulk Go test execution)"
+	@echo "  make test                 Run strict tests (Go + JS + E2E smoke, stop early)"
+	@echo "  make test fast            Run faster tests (Go + JS, no E2E)"
 	@echo "  make test backend         Run strict backend Go tests from backend/"
 	@echo "  make test backend fast    Run faster backend Go tests from backend/"
 	@echo "  make test web            Run web tests from web/"
 	@echo "  make test backend-targeted Run backend routes/secrets/migrations test set"
-	@echo "  make lint                 Run strict linters (golangci-lint/go vet, eslint)"
+	@echo "  make test e2e            Run the full end-to-end suite entrypoint"
+	@echo "  make test e2e fast       Run the smoke E2E suite"
+	@echo "  make lint                 Run strict linters (golangci-lint, actionlint, eslint, web typecheck)"
 	@echo "  make lint fast            Run advisory/fast lint mode"
 	@echo "  make fmt                  Format code in strict mode"
 	@echo "  make fmt fast             Format code in tolerant/fast mode"
-	@echo "  make check                Run strict fmt + lint + test + sec, stop at first error"
-	@echo "  make check fast           Run faster fmt + lint + test + sec flow"
-	@echo "  make e2e                  Run end-to-end/container-required smoke tests"
+	@echo "  make check                Run strict quality checks (lint + fmt + openapi-check + test), stop at first error"
+	@echo "  make check fast           Run faster quality check flow"
 	@echo "  make version-check        Validate Git tag version metadata or print current git-derived version"
+	@echo ""
+	@printf "\033[36mOpenAPI:\033[0m\n"
 	@echo "  make openapi-gen          Auto-generate OpenAPI spec skeleton from route source"
 	@echo "  make openapi-merge        Merge ext-api.yaml + native-api.yaml -> api.yaml"
-	@echo "  make openapi-check        Assert all /api/ext routes are in the spec (CI gate)"
+	@echo "  make openapi-check        Validate code->spec coverage and group-matrix generated anchors"
 	@echo "  make openapi-sync         Generate + validate OpenAPI in one command"
-	@echo "  make sec                  Run strict security scan (govulncheck, npm audit, gitleaks)"
+	@echo ""
+	@printf "\033[36mSecurity & Artifacts:\033[0m\n"
+	@echo "  make sec                  Run strict source security scan (govulncheck, npm audit, gitleaks, trivy config)"
 	@echo "  make sec fast             Run advisory/fast security scan"
-	@echo "  make scan                 Container image scan (trivy, HIGH/CRITICAL)"
-	@echo "  make sbom                 Generate SBOM → sbom.spdx.json (syft)"
+	@echo "  make artifact-scan        Generate SBOM and scan the built image (syft + trivy)"
 	@echo ""
 	@printf "\033[36mBuild Image:\033[0m\n"
 	@echo "  make image build          Build production image (multi-stage Dockerfile)"
@@ -130,6 +137,16 @@ install:
 	fi
 	@echo "✓ Dependencies installed"
 	@echo ""
+	@echo "Installing Node.js CLI tools..."
+	@# Qodo CLI is published on npm as @qodo/command (provides the `qodo` binary)
+	@if ! command -v qodo >/dev/null 2>&1; then \
+		echo "→ qodo..."; \
+		npm install -g @qodo/command; \
+	else \
+		echo "✓ qodo already installed"; \
+	fi
+	@echo "✓ Node.js CLI tools installed"
+	@echo ""
 	@echo "Installing Go tooling..."
 	@# golangci-lint
 	@if [ ! -x "$(DEFAULT_GOLANGCI_LINT_BIN)" ] && ! command -v golangci-lint >/dev/null 2>&1; then \
@@ -138,11 +155,17 @@ install:
 	else \
 		echo "✓ golangci-lint already installed"; \
 	fi
+	@if [ ! -x "$(DEFAULT_ACTIONLINT_BIN)" ] && ! command -v actionlint >/dev/null 2>&1; then \
+		echo "→ actionlint..."; \
+		go install github.com/rhysd/actionlint/cmd/actionlint@latest; \
+	else \
+		echo "✓ actionlint already installed"; \
+	fi
 	@echo "✓ Go tooling installed to $(GO_BIN_DIR)"
 	@echo ""
 	@echo "Installing security tools..."
 	@# govulncheck
-	@if ! command -v govulncheck >/dev/null 2>&1; then \
+	@if [ ! -x "$(DEFAULT_GOVULNCHECK_BIN)" ] && ! command -v govulncheck >/dev/null 2>&1; then \
 		echo "→ govulncheck..."; \
 		go install golang.org/x/vuln/cmd/govulncheck@latest; \
 	else \
@@ -271,6 +294,17 @@ else ifeq ($(QUALITY_SCOPE),backend-targeted)
 	@echo "Running targeted backend tests..."
 	@cd backend && go test ./domain/routes ./domain/secrets ./infra/migrations -v
 	@echo "✓ Targeted backend tests completed"
+else ifeq ($(QUALITY_SCOPE),e2e)
+ifeq ($(QUALITY_MODE),fast)
+	@echo "Running E2E smoke suite..."
+	@bash tests/e2e/container-smoke.sh
+	@bash tests/e2e/setup-status.sh
+	@echo "✓ E2E smoke suite completed"
+else
+	@echo "Running full E2E suite..."
+	@$(MAKE) test e2e fast
+	@echo "✓ Full E2E suite completed"
+endif
 else
 	@echo "Running tests ($(QUALITY_MODE))..."
 ifeq ($(QUALITY_MODE),fast)
@@ -282,6 +316,7 @@ ifeq ($(QUALITY_MODE),fast)
 		echo "→ JS tests..."; \
 		cd web && npm test 2>/dev/null; \
 	fi
+	@echo "→ E2E skipped in fast mode"
 else
 	@if [ -f "backend/go.mod" ]; then \
 		echo "→ Go tests (package-by-package)..."; \
@@ -322,6 +357,8 @@ else
 		fi; \
 		rm -f "$$log_file"; \
 	fi
+	@echo "→ E2E smoke tests..."
+	@$(MAKE) test e2e fast
 endif
 	@echo "✓ Tests completed"
 endif
@@ -342,9 +379,25 @@ ifeq ($(QUALITY_MODE),fast)
 		echo "→ go vet (golangci-lint not installed)..."; \
 		cd backend && go vet ./... || true; \
 	fi
+	@if [ -d ".github/workflows" ]; then \
+		actionlint_bin="$(ACTIONLINT_BIN)"; \
+		if ! [ -x "$$actionlint_bin" ] && ! command -v "$$actionlint_bin" >/dev/null 2>&1 && [ -x "$(DEFAULT_ACTIONLINT_BIN)" ]; then \
+			actionlint_bin="$(DEFAULT_ACTIONLINT_BIN)"; \
+		fi; \
+		if [ -x "$$actionlint_bin" ] || command -v "$$actionlint_bin" >/dev/null 2>&1; then \
+			echo "→ actionlint..."; \
+			"$$actionlint_bin" || true; \
+		else \
+			echo "→ actionlint skipped (not installed)..."; \
+		fi; \
+	fi
 	@if [ -f "web/node_modules/.bin/eslint" ]; then \
 		echo "→ eslint..."; \
 		cd web && npx eslint src/ || true; \
+	fi
+	@if [ -f "web/package.json" ]; then \
+		echo "→ web typecheck..."; \
+		cd web && npm run typecheck || true; \
 	fi
 else
 	@if [ -x "$(GOLANGCI_LINT_BIN)" ] || command -v "$(GOLANGCI_LINT_BIN)" >/dev/null 2>&1 || [ -x "$(DEFAULT_GOLANGCI_LINT_BIN)" ]; then \
@@ -360,9 +413,28 @@ else
 		echo "  Install it with 'make install' or run 'make lint fast' for advisory fallback mode."; \
 		exit 1; \
 	fi
+	@if [ -d ".github/workflows" ]; then \
+		actionlint_bin="$(ACTIONLINT_BIN)"; \
+		if ! [ -x "$$actionlint_bin" ] && ! command -v "$$actionlint_bin" >/dev/null 2>&1; then \
+			actionlint_bin="$(DEFAULT_ACTIONLINT_BIN)"; \
+		fi; \
+		if [ -x "$$actionlint_bin" ] || command -v "$$actionlint_bin" >/dev/null 2>&1; then \
+			echo "→ actionlint..."; \
+			"$$actionlint_bin"; \
+		else \
+			echo "✗ actionlint is required for strict lint mode."; \
+			echo "  Expected binary at $(DEFAULT_ACTIONLINT_BIN) or on PATH."; \
+			echo "  Install it with 'make install' or run 'make lint fast' for advisory fallback mode."; \
+			exit 1; \
+		fi; \
+	fi
 	@if [ -f "web/node_modules/.bin/eslint" ]; then \
 		echo "→ eslint..."; \
 		cd web && npx eslint src/; \
+	fi
+	@if [ -f "web/package.json" ]; then \
+		echo "→ web typecheck..."; \
+		cd web && npm run typecheck; \
 	fi
 endif
 	@echo "✓ Linting completed"
@@ -401,10 +473,10 @@ fmt-fast:
 check:
 	@set -e; \
 	echo "Running full check ($(QUALITY_MODE), stop at first error)..."; \
-	$(MAKE) fmt $(if $(filter fast,$(QUALITY_MODE)),fast,) || { echo "✗ check failed at: fmt"; exit 1; }; \
 	$(MAKE) lint $(if $(filter fast,$(QUALITY_MODE)),fast,) || { echo "✗ check failed at: lint"; exit 1; }; \
+	$(MAKE) fmt $(if $(filter fast,$(QUALITY_MODE)),fast,) || { echo "✗ check failed at: fmt"; exit 1; }; \
+	$(MAKE) openapi-check || { echo "✗ check failed at: openapi-check"; exit 1; }; \
 	$(MAKE) test $(if $(filter fast,$(QUALITY_MODE)),fast,) || { echo "✗ check failed at: test"; exit 1; }; \
-	$(MAKE) sec $(if $(filter fast,$(QUALITY_MODE)),fast,) || { echo "✗ check failed at: sec"; exit 1; }; \
 	echo "✓ Check completed"
 
 check-fast:
@@ -421,8 +493,8 @@ openapi-merge:
 	@echo "→ spec: backend/docs/openapi/api.yaml"
 
 openapi-check:
-	@echo "Checking all generated custom routes are covered by OpenAPI spec..."
-	@cd backend && go test ./domain/routes/ -run TestAllCustomRoutesCoveredByOpenAPISpec -v
+	@echo "Checking OpenAPI coverage and group-matrix generated anchors..."
+	@cd backend && go test ./domain/routes/ -run 'TestAll(CustomRoutesCoveredByOpenAPISpec|MatrixExtSurfacesHaveGeneratedSpecAnchors)' -v
 
 openapi-sync:
 	@echo "Syncing OpenAPI spec (generate + merge + validate)..."
@@ -444,8 +516,12 @@ sec:
 ifeq ($(QUALITY_MODE),fast)
 	@echo "Running security checks (fast)..."
 	@echo "→ govulncheck (Go CVE scan)..."
-	@if [ -x "$(GOVULNCHECK_BIN)" ] || command -v "$(GOVULNCHECK_BIN)" >/dev/null 2>&1; then \
-		cd backend && "$(GOVULNCHECK_BIN)" ./... || true; \
+	@if [ -x "$(GOVULNCHECK_BIN)" ] || command -v "$(GOVULNCHECK_BIN)" >/dev/null 2>&1 || [ -x "$(DEFAULT_GOVULNCHECK_BIN)" ]; then \
+		govuln_bin="$(GOVULNCHECK_BIN)"; \
+		if ! [ -x "$$govuln_bin" ] && ! command -v "$$govuln_bin" >/dev/null 2>&1; then \
+			govuln_bin="$(DEFAULT_GOVULNCHECK_BIN)"; \
+		fi; \
+		cd backend && "$$govuln_bin" ./... || true; \
 	else \
 		echo "  ⚠ govulncheck not installed. Run 'make install' first."; \
 	fi
@@ -475,13 +551,33 @@ ifeq ($(QUALITY_MODE),fast)
 	else \
 		echo "  ⚠ gitleaks not installed. Run 'make install' first."; \
 	fi
+	@echo ""
+	@echo "→ trivy config (IaC / Docker / workflow misconfiguration scan)..."
+	@if ! command -v docker >/dev/null 2>&1; then \
+		echo "  ⚠ docker not installed. Skip trivy config scan."; \
+	else \
+			docker run --rm \
+				-v "$$(pwd):/workspace" \
+				-w /workspace \
+				aquasec/trivy:latest config \
+				--skip-check-update \
+				--skip-version-check \
+				--timeout 10m \
+				--severity HIGH,CRITICAL \
+				--exit-code 0 \
+				/workspace/build || true; \
+	fi
 	@echo "✓ Security checks completed"
 
 else
 	@echo "Running security checks (strict)..."
 	@echo "→ govulncheck (Go CVE scan)..."
-	@if [ -x "$(GOVULNCHECK_BIN)" ] || command -v "$(GOVULNCHECK_BIN)" >/dev/null 2>&1; then \
-		cd backend && "$(GOVULNCHECK_BIN)" ./...; \
+	@if [ -x "$(GOVULNCHECK_BIN)" ] || command -v "$(GOVULNCHECK_BIN)" >/dev/null 2>&1 || [ -x "$(DEFAULT_GOVULNCHECK_BIN)" ]; then \
+		govuln_bin="$(GOVULNCHECK_BIN)"; \
+		if ! [ -x "$$govuln_bin" ] && ! command -v "$$govuln_bin" >/dev/null 2>&1; then \
+			govuln_bin="$(DEFAULT_GOVULNCHECK_BIN)"; \
+		fi; \
+		cd backend && "$$govuln_bin" ./...; \
 	else \
 		echo "✗ govulncheck not installed. Run 'make install' first."; \
 		exit 1; \
@@ -510,6 +606,23 @@ else
 		echo "✗ gitleaks not installed. Run 'make install' first."; \
 		exit 1; \
 	fi
+	@echo ""
+	@echo "→ trivy config (IaC / Docker / workflow misconfiguration scan)..."
+	@if ! command -v docker >/dev/null 2>&1; then \
+		echo "✗ docker is required for trivy config scan."; \
+		exit 1; \
+	else \
+			docker run --rm \
+				-v "$$(pwd):/workspace" \
+				-w /workspace \
+				aquasec/trivy:latest config \
+				--skip-check-update \
+				--skip-version-check \
+				--timeout 10m \
+				--severity HIGH,CRITICAL \
+				--exit-code 1 \
+				/workspace/build; \
+	fi
 	@echo "✓ Security checks completed"
 endif
 
@@ -519,7 +632,15 @@ sec-strict:
 sec-fast:
 	@$(MAKE) sec fast
 
-scan:
+artifact-scan:
+	@echo "Generating Software Bill of Materials (SBOM)..."
+	@if ! command -v syft >/dev/null 2>&1; then \
+		echo "✗ syft not installed. Run 'make install' first."; exit 1; \
+	fi
+	@syft dir:backend dir:web/src -o spdx-json > sbom.spdx.json
+	@echo "✓ SBOM generated → sbom.spdx.json"
+	@wc -l sbom.spdx.json | awk '{print "  Lines: " $$1}'
+	@echo ""
 	@echo "Scanning container image for vulnerabilities (HIGH/CRITICAL)..."
 	@if ! docker image inspect websoft9dev/appos:latest >/dev/null 2>&1; then \
 		echo "✗ Image websoft9dev/appos:latest not found. Run 'make image build' first."; exit 1; \
@@ -531,21 +652,6 @@ scan:
 		--exit-code 0 \
 		websoft9dev/appos:latest
 	@echo "✓ Image scan completed"
-
-sbom:
-	@echo "Generating Software Bill of Materials (SBOM)..."
-	@if ! command -v syft >/dev/null 2>&1; then \
-		echo "✗ syft not installed. Run 'make install' first."; exit 1; \
-	fi
-	syft dir:backend dir:web/src -o spdx-json > sbom.spdx.json
-	@echo "✓ SBOM generated → sbom.spdx.json"
-	@wc -l sbom.spdx.json | awk '{print "  Lines: " $$1}'
-
-e2e:
-	@echo "Running end-to-end tests (container required)..."
-	@bash tests/e2e/container-smoke.sh
-	@bash tests/e2e/setup-status.sh
-	@echo "✓ E2E tests completed"
 
 # ============================================================
 # Build Image

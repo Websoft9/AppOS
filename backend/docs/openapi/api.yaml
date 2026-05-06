@@ -37,7 +37,7 @@ tags:
       name: Health
     - description: Infrastructure-as-Code workspace and template file operations.
       name: IaC
-    - description: Monitoring overview, target status and series queries, server agent bootstrap, agent ingest APIs, and Netdata remote-write ingress.
+    - description: Monitoring overview, container telemetry, target status and series queries, server agent bootstrap, and agent ingest APIs.
       name: Monitoring
     - description: Pipeline run inventory and detail APIs for lifecycle-native execution tracking.
       name: Pipelines
@@ -49,7 +49,7 @@ tags:
       name: Realtime
     - description: Release inventory and app-scoped release inspection APIs.
       name: Releases
-    - description: Generic resource-store collection APIs for cloud accounts, databases, and scripts only.
+    - description: Generic resource-store collection APIs for scripts only.
       name: Resource
     - description: Secret storage, rotation, resolve, and reveal APIs.
       name: Secrets
@@ -69,7 +69,7 @@ tags:
       name: Space & User Files
     - description: Host metrics and file browser endpoints.
       name: System
-    - description: Native cron jobs API
+    - description: PocketBase scheduled tasks and cron management APIs.
       name: System Cron
     - description: Interactive terminal and remote file APIs for SSH, Docker exec, SFTP, and local shell sessions.
       name: Terminal
@@ -3951,9 +3951,7 @@ paths:
                 - System Cron
     /api/crons/{jobId}/logs:
         get:
-            description: |
-                Returns recent structured execution log lines for one cron job, filtered from PocketBase _logs. Only AppOS-instrumented jobs are guaranteed to have rich log data. Non-instrumented native jobs return an empty items array.
-            operationId: appos_crons_logs
+            operationId: get_api_crons_jobid_logs
             parameters:
                 - in: path
                   name: jobId
@@ -3965,57 +3963,17 @@ paths:
                     content:
                         application/json:
                             schema:
-                                properties:
-                                    items:
-                                        items:
-                                            properties:
-                                                created:
-                                                    format: date-time
-                                                    type: string
-                                                durationMs:
-                                                    nullable: true
-                                                    type: number
-                                                error:
-                                                    nullable: true
-                                                level:
-                                                    type: integer
-                                                message:
-                                                    type: string
-                                                phase:
-                                                    enum:
-                                                        - start
-                                                        - success
-                                                        - error
-                                                    type: string
-                                                runId:
-                                                    type: string
-                                                trigger:
-                                                    enum:
-                                                        - scheduled
-                                                        - manual
-                                                    type: string
-                                            type: object
-                                        type: array
-                                    jobId:
-                                        type: string
-                                    lastDurationMs:
-                                        nullable: true
-                                        type: number
-                                    lastRun:
-                                        format: date-time
-                                        nullable: true
-                                        type: string
-                                    lastStatus:
-                                        enum:
-                                            - success
-                                            - error
-                                        nullable: true
-                                        type: string
-                                type: object
+                                $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
             security:
                 - bearerAuth: []
-            summary: Get cron job execution logs
+            summary: Get crons by jobId logs
             tags:
                 - System Cron
     /api/exposures:
@@ -7310,6 +7268,38 @@ paths:
             security:
                 - bearerAuth: []
             summary: Create or execute monitor servers by id agent token
+            tags:
+                - Monitoring
+    /api/monitor/servers/{id}/container-telemetry:
+        get:
+            operationId: get_api_monitor_servers_id_container-telemetry
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+                - in: query
+                  name: window
+                  required: false
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get monitor servers by id container telemetry
             tags:
                 - Monitoring
     /api/monitor/targets/{targetType}/{targetId}:
@@ -10713,5 +10703,25 @@ paths:
             security:
                 - bearerAuth: []
             summary: Create or execute tunnel servers by id token
+            tags:
+                - Tunnel
+    /tunnel/setup/{token}:
+        get:
+            operationId: get_tunnel_setup_token
+            parameters:
+                - in: path
+                  name: token
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SuccessEnvelope'
+                    description: OK
+            security: []
+            summary: Get tunnel setup by token
             tags:
                 - Tunnel

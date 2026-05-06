@@ -36,7 +36,7 @@ make run 9092             # Copy artifacts + restart on port 9092
 
 ### Testing & Quality
 ```bash
-make test                 # Run all tests (Go + JS)
+make test                 # Run strict tests (Go + JS + make test e2e fast)
 make lint                 # Run linters (golangci-lint, eslint)
 make fmt                  # Format code (gofmt, prettier)
 make check                # fmt + lint in one step (local dev)
@@ -145,7 +145,7 @@ make start
 # Code → Test cycle
 # ... edit code ...
 make run              # Hot reload in 10 seconds
-make test             # Verify changes
+make test             # Verify changes (includes make test e2e fast in strict mode)
 ```
 
 ### Production Build
@@ -158,7 +158,7 @@ make start
 ### Testing
 
 ```bash
-make test             # Run all tests
+make test             # Run strict tests (includes make test e2e fast)
 make lint             # Check code quality
 make fmt              # Auto-format code
 make check            # fmt + lint (local dev shortcut)

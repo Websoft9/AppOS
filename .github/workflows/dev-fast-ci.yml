@@ -1,0 +1,85 @@
+name: Dev Fast CI
+
+on:
+  push:
+    branches-ignore:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: dev-fast-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fast-checks:
+    name: Fast Checks
+    runs-on: ubuntu-latest
+    env:
+      GITLEAKS_REPORT_PATH: build/reports/gitleaks-report.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Prepare Go tool bin
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install frontend deps
+        run: cd web && npm ci
+
+      - name: Install fast-check tools
+        run: |
+          set -euo pipefail
+          GOBIN="$RUNNER_TEMP/bin" go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+          GOBIN="$RUNNER_TEMP/bin" go install golang.org/x/vuln/cmd/govulncheck@latest
+
+          GL_VERSION="8.24.2"
+          ARCH="$(uname -m)"
+          case "$ARCH" in
+            x86_64) GL_ARCH="x64" ;;
+            aarch64|arm64) GL_ARCH="arm64" ;;
+            *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;;
+          esac
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GL_VERSION}/gitleaks_${GL_VERSION}_linux_${GL_ARCH}.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP/bin" gitleaks
+
+      - name: Run fast lint
+        run: make lint fast
+        env:
+          GOLANGCI_LINT_BIN: ${{ runner.temp }}/bin/golangci-lint
+
+      - name: Run fast backend tests
+        run: make test backend fast
+
+      - name: Run frontend tests
+        run: make test web
+
+      - name: Run fast security checks
+        run: make sec fast
+        env:
+          GOVULNCHECK_BIN: ${{ runner.temp }}/bin/govulncheck
+          GITLEAKS_BIN: ${{ runner.temp }}/bin/gitleaks
+          GITLEAKS_REPORT_PATH: ${{ env.GITLEAKS_REPORT_PATH }}
+
+      - name: Upload fast CI gitleaks report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-fast-gitleaks-${{ github.sha }}
+          path: ${{ env.GITLEAKS_REPORT_PATH }}
+          if-no-files-found: ignore

@@ -38,6 +38,7 @@ var (
 	reRouterGroupAssign  = regexp.MustCompile(`(\w+)\s*:?=\s*(\w+)\.Router\.Group\("([^"]*)"\)`)
 	reInlineGroupCall    = regexp.MustCompile(`\b(register[A-Za-z_][A-Za-z0-9_]*)\((\w+)(\.Router)?\.Group\("([^"]*)"\)\)`)
 	reRouteMethod        = regexp.MustCompile(`(\w+)\.(GET|POST|PUT|DELETE|PATCH|HEAD)\("([^"]*)"`)
+	reRootRouterMethod   = regexp.MustCompile(`(\w+)\.Router\.(GET|POST|PUT|DELETE|PATCH|HEAD)\("([^"]*)"`)
 	reRouteMethodHandler = regexp.MustCompile(`(\w+)\.(GET|POST|PUT|DELETE|PATCH|HEAD)\("([^"]*)"\s*,\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)`)
 	reAuthBind           = regexp.MustCompile(`(\w+)\.Bind\(apis\.RequireAuth\(\)\)`)
 	reSuperuserBind      = regexp.MustCompile(`(\w+)\.Bind\(apis\.RequireSuperuserAuth\(\)\)`)
@@ -261,7 +262,7 @@ func scanFile(filePath string, seeds map[string]functionSeed) ([]route, map[stri
 		// Collect route registrations
 		if m := reRouteMethod.FindStringSubmatch(line); m != nil {
 			varName, method, suffix := m[1], m[2], m[3]
-			if base, ok := vars[varName]; ok && strings.HasPrefix(base, "/api/") {
+			if base, ok := vars[varName]; ok && (strings.HasPrefix(base, "/api/") || strings.HasPrefix(base, "/tunnel/setup")) {
 				r := route{method: method, path: base + suffix}
 				r.detectedAuth = strings.TrimSpace(varAuth[varName])
 				if hm := reRouteMethodHandler.FindStringSubmatch(line); hm != nil {
@@ -315,6 +316,16 @@ func scanFile(filePath string, seeds map[string]functionSeed) ([]route, map[stri
 					pendingMarker = nil
 				}
 				routes = append(routes, r)
+			}
+		}
+
+		if m := reRootRouterMethod.FindStringSubmatch(line); m != nil {
+			varName, method, suffix := m[1], m[2], m[3]
+			if base, ok := vars[varName]; ok {
+				fullPath := base + suffix
+				if strings.HasPrefix(fullPath, "/api/") || strings.HasPrefix(fullPath, "/tunnel/setup") {
+					routes = append(routes, route{method: method, path: fullPath, detectedAuth: authForPath(fullPath, superuserVarPaths)})
+				}
 			}
 		}
 	}

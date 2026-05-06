@@ -17,6 +17,9 @@ const createServerMock = vi.fn()
 const getSecretMock = vi.fn()
 const updateSecretMock = vi.fn()
 const getLocalDockerBridgeAddressMock = vi.fn()
+const getSystemdStatusMock = vi.fn()
+const installMonitorAgentMock = vi.fn()
+const updateMonitorAgentMock = vi.fn()
 let searchState: Record<string, unknown> = {}
 
 function isSecretSummaryRequest(path: string) {
@@ -82,7 +85,10 @@ vi.mock('@/lib/pb', () => ({
 vi.mock('@/lib/connect-api', () => ({
   checkServerStatus: vi.fn(),
   getLocalDockerBridgeAddress: (...args: unknown[]) => getLocalDockerBridgeAddressMock(...args),
+  getSystemdStatus: (...args: unknown[]) => getSystemdStatusMock(...args),
+  installMonitorAgent: (...args: unknown[]) => installMonitorAgentMock(...args),
   serverPower: vi.fn(),
+  updateMonitorAgent: (...args: unknown[]) => updateMonitorAgentMock(...args),
 }))
 
 vi.mock('@/contexts/AuthContext', () => ({
@@ -104,6 +110,9 @@ describe('ServersPage layout', () => {
     getSecretMock.mockReset()
     updateSecretMock.mockReset()
     getLocalDockerBridgeAddressMock.mockReset()
+    getSystemdStatusMock.mockReset()
+    installMonitorAgentMock.mockReset()
+    updateMonitorAgentMock.mockReset()
     searchState = {}
     sendMock.mockImplementation((path: string) => {
       if (path === '/api/servers/connection') {
@@ -211,6 +220,14 @@ describe('ServersPage layout', () => {
     })
     updateSecretMock.mockResolvedValue({})
     getLocalDockerBridgeAddressMock.mockResolvedValue('172.17.0.1')
+    getSystemdStatusMock.mockResolvedValue({
+      server_id: 'server-1',
+      service: 'netdata',
+      status: {},
+      status_text: '',
+    })
+    installMonitorAgentMock.mockResolvedValue({ status: 'installed' })
+    updateMonitorAgentMock.mockResolvedValue({ status: 'updated' })
   })
 
   afterEach(() => {
@@ -367,7 +384,7 @@ describe('ServersPage layout', () => {
     await waitFor(() => {
       expect(screen.queryByRole('columnheader', { name: 'Monitor' })).toBeNull()
     })
-  }, 15000)
+  }, 25000)
 
   it('renders the unified Connection column and lifecycle primary actions', async () => {
     sendMock.mockImplementation((path: string) => {
@@ -911,7 +928,7 @@ describe('ServersPage layout', () => {
       method: 'PUT',
       body: { payload: { value: 'new-pass' } },
     })
-  }, 10000)
+  }, 15000)
 
   it('renders connection type as cards, pre-fills a generated name, and uses the simplified credential action', async () => {
     render(<ServersPage />)
