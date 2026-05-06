@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/websoft9/appos/backend/domain/audit"
@@ -38,6 +39,7 @@ func init() {
 //	/api/ext/docker/volumes/*     — volume management
 func registerDockerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	d := g.Group("/docker")
+	d.Bind(apis.RequireSuperuserAuth())
 
 	// ─── Servers list ───────────────────────────────────
 	d.GET("/servers", handleDockerServers)

@@ -5,10 +5,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 // SSHConfig holds connection parameters for an SSH executor.
@@ -55,10 +58,15 @@ func (e *SSHExecutor) clientConfig() (*ssh.ClientConfig, error) {
 		authMethods = []ssh.AuthMethod{ssh.Password(e.cfg.Secret)}
 	}
 
+	hostKeyCallback, err := resolveHostKeyCallback()
+	if err != nil {
+		return nil, err
+	}
+
 	return &ssh.ClientConfig{
 		User:            e.cfg.User,
 		Auth:            authMethods,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec // intentional for now
+		HostKeyCallback: hostKeyCallback,
 		Timeout:         10 * time.Second,
 	}, nil
 }
@@ -86,7 +94,7 @@ func (e *SSHExecutor) Run(ctx context.Context, command string, args ...string) (
 	}
 	defer session.Close()
 
-	cmd := strings.Join(append([]string{command}, args...), " ")
+	cmd := buildShellCommand(command, args...)
 	if e.cfg.SudoEnabled {
 		if e.cfg.SudoPassword != "" {
 			// -S: read password from stdin; -p '': suppress prompt text
@@ -132,7 +140,7 @@ func (e *SSHExecutor) RunStream(ctx context.Context, command string, args ...str
 		return nil, fmt.Errorf("ssh session: %w", err)
 	}
 
-	cmd := strings.Join(append([]string{command}, args...), " ")
+	cmd := buildShellCommand(command, args...)
 	if e.cfg.SudoEnabled {
 		if e.cfg.SudoPassword != "" {
 			// -S: read password from stdin; -p '': suppress prompt text
@@ -197,4 +205,62 @@ func (r *sshReadCloser) Close() error {
 	_ = r.session.Close()
 	_ = r.client.Close()
 	return err
+}
+
+func buildShellCommand(command string, args ...string) string {
+	parts := make([]string, 0, len(args)+1)
+	parts = append(parts, shellQuote(command))
+	for _, arg := range args {
+		parts = append(parts, shellQuote(arg))
+	}
+	return strings.Join(parts, " ")
+}
+
+func shellQuote(value string) string {
+	if value == "" {
+		return "''"
+	}
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
+}
+
+func resolveHostKeyCallback() (ssh.HostKeyCallback, error) {
+	knownHostsPath := strings.TrimSpace(os.Getenv("APPOS_SSH_KNOWN_HOSTS"))
+	candidates := make([]string, 0, 3)
+	if knownHostsPath != "" {
+		candidates = append(candidates, knownHostsPath)
+	}
+	if homeDir, err := os.UserHomeDir(); err == nil && homeDir != "" {
+		candidates = append(candidates, filepath.Join(homeDir, ".ssh", "known_hosts"))
+	}
+	candidates = append(candidates, "/etc/ssh/ssh_known_hosts")
+
+	existing := make([]string, 0, len(candidates))
+	seen := make(map[string]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		if candidate == "" {
+			continue
+		}
+		if _, ok := seen[candidate]; ok {
+			continue
+		}
+		seen[candidate] = struct{}{}
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			existing = append(existing, candidate)
+		}
+	}
+
+	if len(existing) > 0 {
+		callback, err := knownhosts.New(existing...)
+		if err != nil {
+			return nil, fmt.Errorf("load known_hosts: %w", err)
+		}
+		return callback, nil
+	}
+
+	requireStrict := strings.ToLower(strings.TrimSpace(os.Getenv("APPOS_REQUIRE_SSH_HOST_KEY")))
+	if requireStrict == "1" || requireStrict == "true" || requireStrict == "yes" {
+		return nil, fmt.Errorf("ssh host key verification required: no known_hosts file found (set by APPOS_REQUIRE_SSH_HOST_KEY)")
+	}
+
+	return ssh.InsecureIgnoreHostKey(), nil //nolint:gosec // fallback for environments without known_hosts
 }

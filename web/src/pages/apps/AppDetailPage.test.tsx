@@ -981,11 +981,11 @@ describe('AppDetailPage', () => {
       expect(sendMock).toHaveBeenCalledWith('/api/ext/backup/list', { method: 'GET' })
     })
 
-    expect(screen.getByText('demo-app-db')).toBeInTheDocument()
+    expect(await screen.findByText('demo-app-db')).toBeInTheDocument()
     expect(screen.queryByText('shared-platform-db')).not.toBeInTheDocument()
-    expect(screen.getByText('demo-app-data')).toBeInTheDocument()
+    expect(await screen.findByText('demo-app-data')).toBeInTheDocument()
     expect(screen.queryByText('shared-cache')).not.toBeInTheDocument()
-    expect(screen.getByText('Platform backup inventory is not connected yet.')).toBeInTheDocument()
+    expect(await screen.findByText('Platform backup inventory is not connected yet.')).toBeInTheDocument()
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/ext/docker/containers/container-1', {
         method: 'GET',

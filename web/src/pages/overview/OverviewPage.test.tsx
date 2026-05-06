@@ -257,24 +257,24 @@ describe('OverviewPage', () => {
         'Operational cockpit for AppOS health, current risks, and recent change across your single-server workspace.'
       )
     ).not.toBeInTheDocument()
-    expect(screen.getByText('Applications')).toBeInTheDocument()
-    expect(screen.getByText('Attention Needed')).toBeInTheDocument()
+    expect(await screen.findByText('Applications')).toBeInTheDocument()
+    expect(await screen.findByText('Attention Needed')).toBeInTheDocument()
     expect(await screen.findByText('Needs Attention')).toBeInTheDocument()
-    expect(screen.getAllByText('AppOS Core').length).toBeGreaterThan(0)
+    expect((await screen.findAllByText('AppOS Core')).length).toBeGreaterThan(0)
     expect(await screen.findByText('AppOS Core Trends')).toBeInTheDocument()
-    expect(screen.getByLabelText('cpu time series chart')).toBeInTheDocument()
-    expect(screen.getByLabelText('memory time series chart')).toBeInTheDocument()
-    expect(screen.getByLabelText('disk_usage time series chart')).toBeInTheDocument()
-    expect(screen.getByLabelText('network time series chart')).toBeInTheDocument()
-    expect(screen.getByText('Recent App Changes')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /System Monitor/i })).toHaveAttribute('href', '/status')
-    expect(screen.getByRole('link', { name: /Manage Servers/i })).toHaveAttribute(
+    expect(await screen.findByLabelText('cpu time series chart')).toBeInTheDocument()
+    expect(await screen.findByLabelText('memory time series chart')).toBeInTheDocument()
+    expect(await screen.findByLabelText('disk_usage time series chart')).toBeInTheDocument()
+    expect(await screen.findByLabelText('network time series chart')).toBeInTheDocument()
+    expect(await screen.findByText('Recent App Changes')).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: /System Monitor/i })).toHaveAttribute('href', '/status')
+    expect(await screen.findByRole('link', { name: /Manage Servers/i })).toHaveAttribute(
       'href',
       '/resources/servers'
     )
-    expect(screen.getByRole('link', { name: /WordPress/i })).toHaveAttribute('href', '/apps/app-1')
-    expect(screen.getAllByRole('link', { name: /Deploy App/i }).length).toBeGreaterThan(0)
-    expect(screen.getAllByRole('link', { name: /Review Credentials/i }).length).toBeGreaterThan(0)
+    expect(await screen.findByRole('link', { name: /WordPress/i })).toHaveAttribute('href', '/apps/app-1')
+    expect((await screen.findAllByRole('link', { name: /Deploy App/i })).length).toBeGreaterThan(0)
+    expect((await screen.findAllByRole('link', { name: /Review Credentials/i })).length).toBeGreaterThan(0)
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/apps', { method: 'GET' })
