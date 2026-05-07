@@ -298,11 +298,9 @@ groups:
       nativeRefs: []
 
   - group: Resource
-    description: Generic resource-store collection APIs for cloud accounts, databases, and scripts only.
+    description: Generic resource-store collection APIs for scripts only.
     apiType: Ext
     extSurface:
-      - /api/ext/resources/cloud-accounts*
-      - /api/ext/resources/databases*
       - /api/ext/resources/scripts*
     nativeSurface: []
     sources:
@@ -400,10 +398,11 @@ groups:
         - https://pocketbase.io/docs/api-records/#crud-actions
 
   - group: Monitoring
-    description: Monitoring overview, target status and series queries, server agent bootstrap, agent ingest APIs, and Netdata remote-write ingress.
+    description: Monitoring overview, container telemetry, target status and series queries, server agent bootstrap, and agent ingest APIs.
     apiType: Ext
     extSurface:
       - GET /api/monitor/overview
+      - GET /api/monitor/servers/{id}/container-telemetry
       - GET /api/monitor/targets/{targetType}/{targetId}
       - GET /api/monitor/targets/{targetType}/{targetId}/series
       - POST /api/monitor/servers/{id}/agent-token
@@ -412,7 +411,6 @@ groups:
       - POST /api/monitor/ingest/metrics
       - POST /api/monitor/ingest/heartbeat
       - POST /api/monitor/ingest/runtime-status
-      - POST /api/monitor/netdata/write
     nativeSurface: []
     sources:
       extRouteFiles:
@@ -504,13 +502,15 @@ groups:
 
   - group: System Cron
     description: PocketBase scheduled tasks and cron management APIs.
-    apiType: Native
-    extSurface: []
+    apiType: Mixed
+    extSurface:
+      - GET /api/crons/{jobId}/logs
     nativeSurface:
       - GET /api/crons
       - POST /api/crons/{jobId}
     sources:
-      extRouteFiles: []
+      extRouteFiles:
+        - crons.go
       nativeRefs:
         - https://pocketbase.io/docs/api-crons/
 

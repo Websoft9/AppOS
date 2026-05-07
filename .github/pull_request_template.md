@@ -17,7 +17,7 @@ Explain the problem, requirement, or risk this PR addresses.
 - [ ] `make lint`
 - [ ] `make test backend`
 - [ ] `make test web`
-- [ ] `make e2e`
+- [ ] `make test e2e fast`
 - [ ] Other validation noted below
 
 Additional validation notes:

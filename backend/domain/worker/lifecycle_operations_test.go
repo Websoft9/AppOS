@@ -12,13 +12,10 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	lifecycleruntime "github.com/websoft9/appos/backend/domain/lifecycle/runtime"
 	lifecyclesvc "github.com/websoft9/appos/backend/domain/lifecycle/service"
 	"github.com/websoft9/appos/backend/infra/docker"
-
-	_ "github.com/websoft9/appos/backend/infra/migrations"
 )
 
 type fakeDockerExecutor struct {
@@ -93,11 +90,7 @@ func (f fakeOperationExecutor) Name() string {
 }
 
 func TestHandleRunOperationCreatesReleaseAndProjection(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newWorkerTestApp(t)
 
 	oldFactory := operationExecutorFactory
 	oldHealthCheck := operationHealthCheck
@@ -222,11 +215,7 @@ func TestHandleRunOperationStopRestartAndUninstallUseExistingReleaseState(t *tes
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			app, err := tests.NewTestApp()
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer app.Cleanup()
+			app := newWorkerTestApp(t)
 
 			oldFactory := operationExecutorFactory
 			oldHealthCheck := operationHealthCheck
@@ -348,11 +337,7 @@ func TestHandleRunOperationStopRestartAndUninstallUseExistingReleaseState(t *tes
 }
 
 func TestExecuteNodeCreatesAndPromotesCandidateReleaseForSourceBuild(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newWorkerTestApp(t)
 
 	oldFactory := operationExecutorFactory
 	oldHealthCheck := operationHealthCheck
@@ -496,11 +481,7 @@ func TestExecuteNodeCreatesAndPromotesCandidateReleaseForSourceBuild(t *testing.
 }
 
 func TestHandleRunOperationCompletesSourceBuildPipeline(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newWorkerTestApp(t)
 
 	oldFactory := operationExecutorFactory
 	oldHealthCheck := operationHealthCheck

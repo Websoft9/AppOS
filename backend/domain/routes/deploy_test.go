@@ -49,6 +49,57 @@ func (te *testEnv) doOperations(t *testing.T, method, url, body string, authenti
 	return rec
 }
 
+func (te *testEnv) doRegisteredRoute(t *testing.T, method, url, body string, headers map[string]string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	r, err := apis.NewRouter(te.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	Register(&core.ServeEvent{App: te.app, Router: r})
+
+	mux, err := r.BuildMux()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var bodyReader io.Reader
+	if body != "" {
+		bodyReader = strings.NewReader(body)
+	}
+
+	req := httptest.NewRequest(method, url, bodyReader)
+	req.Header.Set("Content-Type", "application/json")
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestRegisterRejectsQueryTokenForPlainHTTPAPI(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doRegisteredRoute(t, http.MethodGet, "/api/catalog/categories?token="+te.token, "", nil)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for plain HTTP query-token auth, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestOperationLogStreamAllowsQueryTokenAuth(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doOperations(t, http.MethodGet, "/api/actions/missing-id/stream?token="+te.token, "", false)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 after query-token auth reached stream handler, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestOperationManualComposeCreateListDetail(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()

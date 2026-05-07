@@ -190,8 +190,8 @@ describe('TunnelsPage', () => {
     })
 
     expect(await screen.findByText('Reconnect')).toBeInTheDocument()
-    expect(screen.getByText('Rejected while paused')).toBeInTheDocument()
-    expect(screen.getByText('Pause until')).toBeInTheDocument()
+    expect(await screen.findByText('Rejected while paused')).toBeInTheDocument()
+    expect(await screen.findByText('Pause until')).toBeInTheDocument()
     expect(screen.getAllByText('Reason').length).toBe(1)
     expect(screen.getAllByText('Remote').length).toBeGreaterThan(0)
     expect(screen.queryByText('Reason: —')).not.toBeInTheDocument()
@@ -265,7 +265,7 @@ describe('TunnelsPage', () => {
     })
 
     expect(await screen.findByText('Desired Forwards')).toBeInTheDocument()
-    expect(screen.getByText('Effective Mappings')).toBeInTheDocument()
+    expect(await screen.findByText('Effective Mappings')).toBeInTheDocument()
 
     const localPortInputs = screen.getAllByPlaceholderText('local port')
     fireEvent.change(localPortInputs[1], { target: { value: '4000' } })

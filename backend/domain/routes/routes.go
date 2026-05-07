@@ -71,7 +71,6 @@ func Register(se *core.ServeEvent) {
 	components.Bind(apis.RequireAuth())
 
 	deployments := se.Router.Group("/api")
-	deployments.Bind(wsTokenAuth())
 	deployments.Bind(apis.RequireAuth())
 
 	// Server catalog routes (ops, ports, systemd) — no terminal sessions

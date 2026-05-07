@@ -1,0 +1,46 @@
+title = "AppOS gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Generated frontend build output"
+paths = [
+  '''^web/dist/'''
+]
+
+[[allowlists]]
+description = "BMAD file manifest stores content hashes, not credentials"
+paths = [
+  '''^_bmad/_config/files-manifest\.csv$'''
+]
+
+[[allowlists]]
+description = "Bundled skill docs use redacted or illustrative token examples"
+paths = [
+  '''^\.agents/skills/.*/resources/knowledge/api-testing-patterns\.md$''',
+  '''^\.agents/skills/wds-6-asset-generation/steps-p/step-01-load-context\.md$'''
+]
+
+[[allowlists]]
+description = "Test fixtures use deterministic non-production placeholders"
+paths = [
+  '''^backend/domain/certs/resolve_test\.go$''',
+  '''^backend/domain/monitor/signals/agent/agent_test\.go$''',
+  '''^backend/domain/monitor/signals/checks/credential_sweep_test\.go$''',
+  '''^backend/domain/worker/monitoring_checks_test\.go$'''
+]
+regexes = [
+  '''MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=''',
+  '''-----BEGIN PRIVATE KEY-----''',
+]
+
+[[allowlists]]
+description = "Deterministic development-only crypto fallback keys"
+paths = [
+  '''^backend/infra/crypto/crypto\.go$''',
+  '''^backend/domain/secrets/legacy_encryption\.go$'''
+]
+regexes = [
+  '''0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'''
+]

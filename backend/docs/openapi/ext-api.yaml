@@ -32,7 +32,7 @@ tags:
   - name: IaC
     description: "Infrastructure-as-Code workspace and template file operations."
   - name: Monitoring
-    description: "Monitoring overview, target status and series queries, server agent bootstrap, agent ingest APIs, and Netdata remote-write ingress."
+    description: "Monitoring overview, container telemetry, target status and series queries, server agent bootstrap, and agent ingest APIs."
   - name: Pipelines
     description: "Pipeline run inventory and detail APIs for lifecycle-native execution tracking."
   - name: Provider Accounts
@@ -42,7 +42,7 @@ tags:
   - name: Releases
     description: "Release inventory and app-scoped release inspection APIs."
   - name: Resource
-    description: "Generic resource-store collection APIs for cloud accounts, databases, and scripts only."
+    description: "Generic resource-store collection APIs for scripts only."
   - name: Secrets
     description: "Secret storage, rotation, resolve, and reveal APIs."
   - name: Servers
@@ -61,6 +61,8 @@ tags:
     description: "Workspace and storage-space related operations."
   - name: System
     description: "Host metrics and file browser endpoints."
+  - name: System Cron
+    description: "PocketBase scheduled tasks and cron management APIs."
   - name: Terminal
     description: "Interactive terminal and remote file APIs for SSH, Docker exec, SFTP, and local shell sessions."
   - name: Topics
@@ -2535,6 +2537,32 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
+  /api/crons/{jobId}/logs:
+    get:
+      tags: [System Cron]
+      summary: Get crons by jobId logs
+      operationId: get_api_crons_jobid_logs
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/exposures:
     get:
       tags: [Exposures]
@@ -5674,6 +5702,37 @@ paths:
               $ref: '#/components/schemas/GenericRequest'
       security:
         - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/monitor/servers/{id}/container-telemetry:
+    get:
+      tags: [Monitoring]
+      summary: Get monitor servers by id container telemetry
+      operationId: get_api_monitor_servers_id_container-telemetry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: window
+          in: query
+          required: false
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: OK
@@ -8921,3 +8980,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /tunnel/setup/{token}:
+    get:
+      tags: [Tunnel]
+      summary: Get tunnel setup by token
+      operationId: get_tunnel_setup_token
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      security: []  # public
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'

@@ -10,6 +10,12 @@ vi.mock('@/lib/pb', () => ({
   },
 }))
 
+vi.mock('@/components/monitor/TimeSeriesChart', () => ({
+  TimeSeriesChart: ({ name }: { name: string }) => (
+    <div aria-label={`${name} time series chart`}>{name} chart</div>
+  ),
+}))
+
 describe('MonitorTargetPanel', () => {
   beforeEach(() => {
     sendMock.mockReset()

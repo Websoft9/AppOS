@@ -52,6 +52,40 @@ func TestLocalDockerBridgeRequiresAuth(t *testing.T) {
 	}
 }
 
+func TestAllowWebSocketOriginAllowsEmptyOrigin(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "https://console.example.com/api/actions/demo/stream", nil)
+	if !allowWebSocketOrigin(req) {
+		t.Fatal("expected empty origin to be allowed")
+	}
+}
+
+func TestAllowWebSocketOriginAllowsSameOrigin(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "https://console.example.com/api/actions/demo/stream", nil)
+	req.Header.Set("Origin", "https://console.example.com")
+	if !allowWebSocketOrigin(req) {
+		t.Fatal("expected same origin to be allowed")
+	}
+}
+
+func TestAllowWebSocketOriginRejectsCrossOrigin(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "https://console.example.com/api/actions/demo/stream", nil)
+	req.Header.Set("Origin", "https://evil.example.com")
+	if allowWebSocketOrigin(req) {
+		t.Fatal("expected cross origin to be rejected")
+	}
+}
+
+func TestAllowWebSocketOriginUsesForwardedProxyHostAndProto(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "http://internal.example.local/api/actions/demo/stream", nil)
+	req.Host = "console.example.com"
+	req.Header.Set("X-Forwarded-Host", "console.example.com:9443")
+	req.Header.Set("X-Forwarded-Proto", "https")
+	req.Header.Set("Origin", "https://console.example.com:9443")
+	if !allowWebSocketOrigin(req) {
+		t.Fatal("expected forwarded proxy origin to be allowed")
+	}
+}
+
 func TestLocalDockerBridgeReturnsAddress(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()

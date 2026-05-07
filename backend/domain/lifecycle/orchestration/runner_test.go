@@ -132,7 +132,12 @@ func TestRunReturnsCancelledFromNodeError(t *testing.T) {
 func newRunnerTestContext(t *testing.T) (*tests.TestApp, *orchestration.ExecutionContext) {
 	t.Helper()
 
-	app, err := tests.NewTestApp()
+	baselineDir, err := orchestrationTestBaselineDataDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	app, err := tests.NewTestApp(baselineDir)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,8 +1,13 @@
 package routes
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/pocketbase/pocketbase/apis"
+	"github.com/pocketbase/pocketbase/core"
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
 )
 
@@ -55,5 +60,71 @@ func TestTunnelSSHPortFromServices(t *testing.T) {
 				t.Fatalf("got %d, want %d", got, tt.want)
 			}
 		})
+	}
+}
+
+func doDocker(t *testing.T, te *testEnv, method, url, body, token string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	r, err := apis.NewRouter(te.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	g := r.Group("/api/ext")
+	g.Bind(apis.RequireAuth())
+	registerDockerRoutes(g)
+
+	mux, err := r.BuildMux()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(method, url, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		req.Header.Set("Authorization", token)
+	}
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	return rec
+}
+
+func createRegularUserToken(t *testing.T, te *testEnv) string {
+	t.Helper()
+
+	usersCol, err := te.app.FindCollectionByNameOrId("users")
+	if err != nil {
+		t.Fatal(err)
+	}
+	user := core.NewRecord(usersCol)
+	user.Set("email", "user@test.com")
+	user.SetPassword("1234567890")
+	if err := te.app.Save(user); err != nil {
+		t.Fatal(err)
+	}
+
+	token, err := user.NewStaticAuthToken(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return token
+}
+
+func TestDockerRoutesRequireSuperuser(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	userToken := createRegularUserToken(t, te)
+
+	rec := doDocker(t, te, http.MethodGet, "/api/ext/docker/servers", "", userToken)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 for non-superuser, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doDocker(t, te, http.MethodGet, "/api/ext/docker/servers", "", te.token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for superuser, got %d: %s", rec.Code, rec.Body.String())
 	}
 }

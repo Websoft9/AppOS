@@ -220,6 +220,7 @@ func TestLastActionFromOperationMapsTerminalStatus(t *testing.T) {
 	})
 	if action == nil {
 		t.Fatal("expected last action summary")
+		return
 	}
 	if action.Action != string(software.ActionReinstall) {
 		t.Fatalf("expected reinstall action, got %q", action.Action)
@@ -237,6 +238,7 @@ func TestLastActionFromOperationMapsAttentionRequired(t *testing.T) {
 	})
 	if action == nil {
 		t.Fatal("expected last action summary")
+		return
 	}
 	if action.Result != "attention_required" {
 		t.Fatalf("expected attention_required result, got %q", action.Result)

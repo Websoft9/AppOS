@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/domain/monitor"
 	"github.com/websoft9/appos/backend/domain/monitor/signals/checks"
 	"github.com/websoft9/appos/backend/domain/monitor/status/store"
@@ -14,16 +13,11 @@ import (
 	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/infra/collections"
 	persistence "github.com/websoft9/appos/backend/infra/persistence"
-
-	_ "github.com/websoft9/appos/backend/infra/migrations"
 )
 
 func TestRunInstanceCredentialSweepProjectsCredentialInvalidWhenSecretMissing(t *testing.T) {
 	prepareMonitorSecretKey(t)
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
+	app := newChecksTestApp(t)
 	defer app.Cleanup()
 
 	secret := seedMonitorSecretRecord(t, app, "secretredis0001", secrets.StatusRevoked)
@@ -55,10 +49,7 @@ func TestRunInstanceCredentialSweepProjectsCredentialInvalidWhenSecretMissing(t 
 
 func TestRunInstanceCredentialSweepSkipsRedisWithoutCredential(t *testing.T) {
 	prepareMonitorSecretKey(t)
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
+	app := newChecksTestApp(t)
 	defer app.Cleanup()
 
 	seedMonitorSecretRecord(t, app, "secretredis0002", secrets.StatusActive)
@@ -82,10 +73,7 @@ func TestRunInstanceCredentialSweepSkipsRedisWithoutCredential(t *testing.T) {
 
 func TestCheckInstanceCredentialReturnsCredentialInvalidForMissingSecret(t *testing.T) {
 	prepareMonitorSecretKey(t)
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
+	app := newChecksTestApp(t)
 	defer app.Cleanup()
 
 	item := instances.RestoreInstance(instances.Snapshot{

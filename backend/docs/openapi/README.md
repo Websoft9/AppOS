@@ -19,4 +19,7 @@ Rules:
 Commands:
 - make openapi-gen: regenerate ext-api.yaml.
 - make openapi-merge: merge ext-api.yaml and native-api.yaml into api.yaml.
+- make openapi-check: validate both directions for generated custom-route docs:
+	- every custom route anchor found in route code is present in ext-api.yaml
+	- every extSurface entry in group-matrix.yaml has at least one matching generated path in ext-api.yaml after make openapi-gen
 - make openapi-sync: generate, merge, and validate in one step.

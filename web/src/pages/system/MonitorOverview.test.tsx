@@ -105,12 +105,12 @@ describe('MonitorOverviewContent', () => {
 
     expect(await screen.findByText('Monitor Overview')).toBeInTheDocument()
     expect(screen.getAllByText('Offline').length).toBeGreaterThan(0)
-    expect(screen.getByText('prod-01')).toBeInTheDocument()
-    expect(screen.getAllByText('AppOS Core').length).toBeGreaterThan(0)
-    expect(screen.getByText(/Uptime Seconds: 1.0h/i)).toBeInTheDocument()
+    expect(await screen.findByText('prod-01')).toBeInTheDocument()
+    expect((await screen.findAllByText('AppOS Core')).length).toBeGreaterThan(0)
+    expect(await screen.findByText(/Uptime Seconds: 1.0h/i)).toBeInTheDocument()
     expect(await screen.findByText('Platform Detail')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'AppOS Core' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Scheduler' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'AppOS Core' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Scheduler' })).toBeInTheDocument()
     expect(sendMock).toHaveBeenCalledWith('/api/monitor/overview', { method: 'GET' })
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/platform/appos-core', {

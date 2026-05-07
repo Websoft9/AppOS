@@ -1,56 +1,47 @@
 package certs
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tests"
-
-	_ "github.com/websoft9/appos/backend/infra/migrations"
 )
 
 func TestValidatePrivateKeySecretRef(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	secretCol := core.NewBaseCollection("secrets")
 
-	secretCol, err := app.FindCollectionByNameOrId("secrets")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	newSecret := func(name, templateID, scope, createdBy, status string) string {
+	newSecret := func(name, templateID, status string) *core.Record {
 		t.Helper()
 		rec := core.NewRecord(secretCol)
+		rec.Id = name
 		rec.Set("name", name)
 		rec.Set("template_id", templateID)
-		rec.Set("scope", scope)
-		rec.Set("created_by", createdBy)
 		rec.Set("status", status)
-		if err := app.Save(rec); err != nil {
-			t.Fatalf("save secret %s: %v", name, err)
-		}
-		return rec.Id
+		return rec
 	}
 
 	t.Run("allows empty relation", func(t *testing.T) {
-		if err := validatePrivateKeySecretRef(app, "", "user-1"); err != nil {
+		if err := validatePrivateKeySecretRefWith("", "user-1", func(string, string) error { return nil }, func(string) (*core.Record, error) {
+			return nil, nil
+		}); err != nil {
 			t.Fatalf("expected nil error, got %v", err)
 		}
 	})
 
 	t.Run("accepts accessible tls private key secret", func(t *testing.T) {
-		secretID := newSecret("tls-key", "tls_private_key", "global", "owner-1", "active")
-		if err := validatePrivateKeySecretRef(app, secretID, "user-1"); err != nil {
+		secret := newSecret("tls-key", "tls_private_key", "active")
+		if err := validatePrivateKeySecretRefWith(secret.Id, "user-1", func(string, string) error { return nil }, func(string) (*core.Record, error) {
+			return secret, nil
+		}); err != nil {
 			t.Fatalf("expected nil error, got %v", err)
 		}
 	})
 
 	t.Run("rejects non tls-private-key secret", func(t *testing.T) {
-		secretID := newSecret("token", "single_value", "global", "owner-1", "active")
-		err := validatePrivateKeySecretRef(app, secretID, "user-1")
+		secret := newSecret("token", "single_value", "active")
+		err := validatePrivateKeySecretRefWith(secret.Id, "user-1", func(string, string) error { return nil }, func(string) (*core.Record, error) {
+			return secret, nil
+		})
 		if err == nil {
 			t.Fatal("expected error for non-tls-private-key secret")
 		}
@@ -60,8 +51,12 @@ func TestValidatePrivateKeySecretRef(t *testing.T) {
 	})
 
 	t.Run("rejects inaccessible private secret", func(t *testing.T) {
-		secretID := newSecret("private-tls-key", "tls_private_key", "user_private", "owner-1", "active")
-		err := validatePrivateKeySecretRef(app, secretID, "other-user")
+		secret := newSecret("private-tls-key", "tls_private_key", "active")
+		err := validatePrivateKeySecretRefWith(secret.Id, "other-user", func(string, string) error {
+			return errors.New("denied")
+		}, func(string) (*core.Record, error) {
+			return secret, nil
+		})
 		if err == nil {
 			t.Fatal("expected error for inaccessible secret")
 		}

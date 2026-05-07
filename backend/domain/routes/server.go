@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gorilla/websocket"
@@ -16,8 +17,7 @@ import (
 )
 
 var wsUpgrader = websocket.Upgrader{
-	// TODO: validate Origin header for production CSRF protection.
-	CheckOrigin: func(r *http.Request) bool { return true },
+	CheckOrigin: allowWebSocketOrigin,
 }
 
 var dockerBridgeIPv4Lookup = netutil.LookupInterfaceIPv4
@@ -67,6 +67,83 @@ func wsTokenAuth() *hook.Handler[*core.RequestEvent] {
 			return e.Next()
 		},
 	}
+}
+
+func allowWebSocketOrigin(r *http.Request) bool {
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin == "" {
+		return true
+	}
+	parsed, err := url.Parse(origin)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return false
+	}
+	requestScheme := resolveWebSocketHTTPScheme(r)
+	if !strings.EqualFold(parsed.Scheme, requestScheme) {
+		return false
+	}
+	return sameWebSocketOriginHost(parsed.Host, resolveWebSocketHTTPHost(r), requestScheme)
+}
+
+func resolveWebSocketHTTPScheme(r *http.Request) string {
+	if strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")), "https") || r.TLS != nil {
+		return "https"
+	}
+	return "http"
+}
+
+func resolveWebSocketHTTPHost(r *http.Request) string {
+	host := firstForwardedHostValue(r.Host)
+	forwardedHost := firstForwardedHostValue(r.Header.Get("X-Forwarded-Host"))
+	if host == "" {
+		host = forwardedHost
+	}
+	if forwardedHost != "" && forwardedHostCarriesPort(host, forwardedHost) {
+		host = forwardedHost
+	}
+	if !hostHasExplicitPort(host) {
+		if forwardedPort := firstForwardedPortValue(r.Header.Get("X-Forwarded-Port")); forwardedPort != "" {
+			host = appendPortIfMissing(host, forwardedPort)
+		}
+	}
+	return host
+}
+
+func sameWebSocketOriginHost(originHost string, requestHost string, scheme string) bool {
+	if !strings.EqualFold(stripOptionalPort(originHost), stripOptionalPort(requestHost)) {
+		return false
+	}
+	return effectivePort(originHost, scheme) == effectivePort(requestHost, scheme)
+}
+
+func effectivePort(host string, scheme string) string {
+	if host == "" {
+		return defaultPortForScheme(scheme)
+	}
+	if strings.HasPrefix(host, "[") {
+		if idx := strings.LastIndex(host, "]:"); idx >= 0 {
+			return host[idx+2:]
+		}
+		return defaultPortForScheme(scheme)
+	}
+	idx := strings.LastIndex(host, ":")
+	if idx <= 0 || strings.Contains(host[:idx], ":") {
+		return defaultPortForScheme(scheme)
+	}
+	port := host[idx+1:]
+	for _, ch := range port {
+		if ch < '0' || ch > '9' {
+			return defaultPortForScheme(scheme)
+		}
+	}
+	return port
+}
+
+func defaultPortForScheme(scheme string) string {
+	if strings.EqualFold(strings.TrimSpace(scheme), "https") {
+		return "443"
+	}
+	return "80"
 }
 
 // registerServerRoutes registers server catalog/ops routes (non-terminal).

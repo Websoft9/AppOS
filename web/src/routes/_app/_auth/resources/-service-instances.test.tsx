@@ -36,6 +36,53 @@ vi.mock('@/lib/pb', () => ({
   },
 }))
 
+vi.mock('@/components/secrets/SecretForm', () => ({
+  SecretForm: ({
+    templates,
+    templateId,
+    payload,
+    onPayloadChange,
+  }: {
+    templates: Array<{
+      id: string
+      fields: Array<{ key: string; label: string; type: string; required?: boolean }>
+    }>
+    templateId: string
+    payload: Record<string, string>
+    onPayloadChange: (key: string, value: string) => void
+  }) => {
+    const selectedTemplate = templates.find(template => template.id === templateId)
+    if (!selectedTemplate) return null
+    return (
+      <div>
+        {selectedTemplate.fields.map(field => {
+          const label = `${field.label}${field.required ? ' *' : ''}`
+          return field.type === 'textarea' ? (
+            <label key={field.key}>
+              {label}
+              <textarea
+                aria-label={label}
+                value={payload[field.key] ?? ''}
+                onChange={event => onPayloadChange(field.key, event.target.value)}
+              />
+            </label>
+          ) : (
+            <label key={field.key}>
+              {label}
+              <input
+                aria-label={label}
+                type={field.type === 'password' ? 'password' : 'text'}
+                value={payload[field.key] ?? ''}
+                onChange={event => onPayloadChange(field.key, event.target.value)}
+              />
+            </label>
+          )
+        })}
+      </div>
+    )
+  },
+}))
+
 describe('ServiceInstancesPage', () => {
   beforeEach(() => {
     sendMock.mockReset()

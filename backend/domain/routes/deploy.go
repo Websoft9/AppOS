@@ -29,12 +29,16 @@ func registerOperationRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	o.DELETE("/{id}", handleOperationDelete)
 	o.POST("/{id}/cancel", handleOperationCancel)
 	o.GET("/{id}/logs", handleOperationLogs)
-	o.GET("/{id}/stream", handleOperationLogStream)
 	o.POST("/install/name-availability", handleOperationInstallNameAvailability)
 	o.POST("/install/git-compose", handleOperationInstallGitCompose)
 	o.POST("/install/manual-compose", handleOperationInstallManualCompose)
 	o.POST("/install/git-compose/check", handleOperationInstallGitComposeCheck)
 	o.POST("/install/manual-compose/check", handleOperationInstallManualComposeCheck)
+
+	stream := g.Group("/actions")
+	stream.Bind(wsTokenAuth())
+	stream.Bind(apis.RequireSuperuserAuth())
+	stream.GET("/{id}/stream", handleOperationLogStream)
 
 	p := g.Group("/pipelines")
 	p.Bind(apis.RequireSuperuserAuth())

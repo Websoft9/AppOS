@@ -59,6 +59,21 @@ jobs:
       - name: Run backend tests
         run: make test backend
 
+  openapi:
+    name: OpenAPI Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Run OpenAPI sync check
+        run: make openapi-sync
+
   test-frontend:
     name: Test Frontend
     runs-on: ubuntu-latest
@@ -164,7 +179,7 @@ jobs:
   e2e:
     name: E2E Smoke
     runs-on: ubuntu-latest
-    needs: [lint, test-backend, test-frontend, sec]
+    needs: [lint, test-backend, test-frontend, openapi, sec]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -173,7 +188,7 @@ jobs:
         run: mkdir -p build/reports/e2e
 
       - name: Run container smoke test
-        run: make e2e
+        run: make test e2e fast
         env:
           APPOS_E2E_ARTIFACT_DIR: build/reports/e2e
           APPOS_E2E_KEEP_CONTAINER_ON_FAILURE: "1"

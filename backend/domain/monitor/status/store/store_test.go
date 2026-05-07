@@ -5,12 +5,9 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/domain/monitor"
 	"github.com/websoft9/appos/backend/domain/monitor/status/store"
 	"github.com/websoft9/appos/backend/infra/collections"
-
-	_ "github.com/websoft9/appos/backend/infra/migrations"
 )
 
 func TestApplyReasonCodeNormalizesAndClears(t *testing.T) {
@@ -26,26 +23,14 @@ func TestApplyReasonCodeNormalizesAndClears(t *testing.T) {
 }
 
 func TestLoadResourceCheckSummaryMergesExistingSummary(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
-
-	_, err = store.UpsertLatestStatus(app, store.LatestStatusUpsert{
-		TargetType:       monitor.TargetTypeResource,
-		TargetID:         "inst-1",
-		DisplayName:      "redis-primary",
-		Status:           monitor.StatusHealthy,
-		SignalSource:     monitor.SignalSourceAppOS,
-		LastTransitionAt: time.Date(2026, 4, 19, 12, 0, 0, 0, time.UTC),
-		Summary:          map[string]any{"existing": "value"},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	summary := store.LoadResourceCheckSummary(app, monitor.TargetTypeResource, "inst-1", monitor.CheckKindReachability, "resource-redis-generic", "redis", "generic-redis", "127.0.0.1:6379")
+	summary := store.BuildResourceCheckSummary(
+		map[string]any{"existing": "value"},
+		monitor.CheckKindReachability,
+		"resource-redis-generic",
+		"redis",
+		"generic-redis",
+		"127.0.0.1:6379",
+	)
 	if summary["existing"] != "value" {
 		t.Fatalf("expected existing summary field to be preserved, got %+v", summary)
 	}
@@ -61,10 +46,7 @@ func TestLoadResourceCheckSummaryMergesExistingSummary(t *testing.T) {
 }
 
 func TestUpsertLatestStatusPreservesStrongerFailureAndTransition(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
+	app := newStoreTestApp(t)
 	defer app.Cleanup()
 
 	initialTransition := time.Date(2026, 4, 19, 12, 0, 0, 0, time.UTC)
@@ -112,16 +94,7 @@ func TestUpsertLatestStatusPreservesStrongerFailureAndTransition(t *testing.T) {
 }
 
 func TestSummaryFromRecordInvalidJSONReturnsError(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
-
-	col, err := app.FindCollectionByNameOrId(collections.MonitorLatestStatus)
-	if err != nil {
-		t.Fatal(err)
-	}
+	col := core.NewBaseCollection(collections.MonitorLatestStatus)
 	record := core.NewRecord(col)
 	record.Set("target_type", monitor.TargetTypeResource)
 	record.Set("target_id", "inst-3")
@@ -132,11 +105,9 @@ func TestSummaryFromRecordInvalidJSONReturnsError(t *testing.T) {
 }
 
 func TestPreviousFailureCountAndHasDifferentCheckKind(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
+	app := newStoreTestApp(t)
 	defer app.Cleanup()
+	var err error
 
 	failures := 3
 	_, err = store.UpsertLatestStatus(app, store.LatestStatusUpsert{

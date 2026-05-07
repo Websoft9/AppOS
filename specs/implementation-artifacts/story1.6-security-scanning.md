@@ -8,9 +8,8 @@
 作为开发者，我想要代码和镜像的安全检测工具，这样可以在开发阶段发现潜在漏洞和供应链风险。
 
 ## 验收标准
-- [x] `make sec`: govulncheck（Go CVE）+ npm audit（JS CVE high+）+ gitleaks（密钥泄露检测）
-- [x] `make scan`: trivy 镜像扫描（HIGH/CRITICAL，advisory 模式不阻断）— 通过 Docker 运行，无需安装
-- [x] `make sbom`: syft 生成 SBOM → `sbom.spdx.json`（范围：backend + web/src）
+- [x] `make sec`: govulncheck（Go CVE）+ npm audit（JS CVE high+）+ gitleaks（密钥泄露检测）+ trivy config（源码配置风险扫描）
+- [x] `make artifact-scan`: 先用 syft 生成 SBOM → `sbom.spdx.json`（范围：backend + web/src），再执行 trivy 镜像扫描（HIGH/CRITICAL，advisory 模式不阻断）
 - [x] `.golangci.yml`: gosec 纳入 lint 流程，豁免 G304/G115，测试文件仅豁免 errcheck/ineffassign
 - [x] CI `scan` job: trivy SARIF 推送 GitHub Security 标签页，SBOM 推送 GitHub Dependency Graph
 - [x] 工具安装集成到 `make install`（govulncheck/gitleaks/syft；trivy 通过 Docker 运行无需安装）

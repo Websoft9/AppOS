@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	"github.com/websoft9/appos/backend/domain/secrets"
@@ -17,11 +16,7 @@ import (
 // TestResourceCollectionsCreated verifies that all resource collections
 // are created after running migrations.
 func TestResourceCollectionsCreated(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	expected := []string{
 		"secrets",
@@ -56,11 +51,7 @@ func TestResourceCollectionsCreated(t *testing.T) {
 }
 
 func TestAppInstancesCollectionFields(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("app_instances")
 	if err != nil {
@@ -102,11 +93,7 @@ func TestAppInstancesCollectionFields(t *testing.T) {
 }
 
 func TestAppOperationsCollectionFields(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("app_operations")
 	if err != nil {
@@ -161,11 +148,7 @@ func TestAppOperationsCollectionFields(t *testing.T) {
 }
 
 func TestAuditLogsCollectionFields(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("audit_logs")
 	if err != nil {
@@ -182,11 +165,7 @@ func TestAuditLogsCollectionFields(t *testing.T) {
 }
 
 func TestAppReleasesCollectionFields(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("app_releases")
 	if err != nil {
@@ -215,11 +194,7 @@ func TestAppReleasesCollectionFields(t *testing.T) {
 }
 
 func TestAppExposuresCollectionFields(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("app_exposures")
 	if err != nil {
@@ -248,11 +223,7 @@ func TestAppExposuresCollectionFields(t *testing.T) {
 }
 
 func TestPipelineRunsCollectionFields(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("pipeline_runs")
 	if err != nil {
@@ -277,11 +248,7 @@ func TestPipelineRunsCollectionFields(t *testing.T) {
 }
 
 func TestPipelineNodeRunsCollectionFields(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("pipeline_node_runs")
 	if err != nil {
@@ -310,11 +277,7 @@ func TestPipelineNodeRunsCollectionFields(t *testing.T) {
 
 // TestSecretsCollectionFields verifies the secrets collection schema.
 func TestSecretsCollectionFields(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("secrets")
 	if err != nil {
@@ -366,11 +329,7 @@ func TestSecretsCollectionFields(t *testing.T) {
 
 // TestServersCollectionFields verifies the servers collection schema and relations.
 func TestServersCollectionFields(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("servers")
 	if err != nil {
@@ -398,11 +357,7 @@ func TestServersCollectionFields(t *testing.T) {
 
 // TestEnvSetVarsCollectionFields verifies env_set_vars schema and relations.
 func TestEnvSetVarsCollectionFields(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("env_set_vars")
 	if err != nil {
@@ -431,11 +386,7 @@ func TestEnvSetVarsCollectionFields(t *testing.T) {
 
 // TestDatabasesCollectionFields verifies databases schema and relations.
 func TestDatabasesCollectionFields(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("databases")
 	if err != nil {
@@ -456,11 +407,7 @@ func TestDatabasesCollectionFields(t *testing.T) {
 
 // TestCloudAccountsCollectionFields verifies cloud_accounts schema and relations.
 func TestCloudAccountsCollectionFields(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("cloud_accounts")
 	if err != nil {
@@ -480,11 +427,7 @@ func TestCloudAccountsCollectionFields(t *testing.T) {
 
 // TestCertificatesCollectionFields verifies certificates schema and relations.
 func TestCertificatesCollectionFields(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("certificates")
 	if err != nil {
@@ -593,11 +536,7 @@ func assertSelectFieldValues(t *testing.T, col *core.Collection, fieldName strin
 // ═══════════════════════════════════════════════════════════
 
 func TestAppsCollectionExists(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("apps")
 	if err != nil {
@@ -609,11 +548,7 @@ func TestAppsCollectionExists(t *testing.T) {
 }
 
 func TestAppsCollectionResourceFields(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("apps")
 	if err != nil {
@@ -641,11 +576,7 @@ func TestAppsCollectionResourceFields(t *testing.T) {
 // ═══════════════════════════════════════════════════════════
 
 func TestGroupsCollectionExists(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("groups")
 	if err != nil {
@@ -657,11 +588,7 @@ func TestGroupsCollectionExists(t *testing.T) {
 }
 
 func TestGroupsCollectionFields(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("groups")
 	if err != nil {
@@ -700,11 +627,7 @@ func TestGroupsCollectionFields(t *testing.T) {
 }
 
 func TestGroupItemsCollectionExists(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("group_items")
 	if err != nil {
@@ -716,11 +639,7 @@ func TestGroupItemsCollectionExists(t *testing.T) {
 }
 
 func TestGroupItemsCollectionFields(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("group_items")
 	if err != nil {
@@ -771,11 +690,8 @@ func TestGroupItemsCollectionFields(t *testing.T) {
 // TestResourceGroupsCollectionRemoved verifies that the legacy resource_groups
 // collection no longer exists after the migration runs.
 func TestResourceGroupsCollectionRemoved(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
+	var err error
 
 	_, err = app.FindCollectionByNameOrId("resource_groups")
 	if err == nil {
@@ -786,11 +702,7 @@ func TestResourceGroupsCollectionRemoved(t *testing.T) {
 // TestResourceCollectionsHaveNoGroupsField verifies that the legacy groups
 // relation field has been removed from all 8 resource collections.
 func TestResourceCollectionsHaveNoGroupsField(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	collections := []string{
 		"servers", "secrets", "env_sets",
@@ -812,11 +724,7 @@ func TestResourceCollectionsHaveNoGroupsField(t *testing.T) {
 // TestGroupsAndGroupItemsExistAfterMigration verifies that the new groups and
 // group_items collections are present (created by Story 21.1).
 func TestGroupsAndGroupItemsExistAfterMigration(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	if _, err := app.FindCollectionByNameOrId("groups"); err != nil {
 		t.Error("groups collection not found after migration:", err)
@@ -827,11 +735,7 @@ func TestGroupsAndGroupItemsExistAfterMigration(t *testing.T) {
 }
 
 func TestInstancesCollectionExistsAfterMigration(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("instances")
 	if err != nil {
@@ -847,11 +751,7 @@ func TestInstancesCollectionExistsAfterMigration(t *testing.T) {
 }
 
 func TestProviderAccountsCollectionExistsAfterMigration(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("provider_accounts")
 	if err != nil {
@@ -868,11 +768,7 @@ func TestProviderAccountsCollectionExistsAfterMigration(t *testing.T) {
 }
 
 func TestConnectorsCollectionHasProviderAccountRelation(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("connectors")
 	if err != nil {
@@ -885,11 +781,7 @@ func TestConnectorsCollectionHasProviderAccountRelation(t *testing.T) {
 }
 
 func TestAIProvidersCollectionExistsAfterMigration(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("ai_providers")
 	if err != nil {
@@ -912,11 +804,7 @@ func TestAIProvidersCollectionExistsAfterMigration(t *testing.T) {
 // TestLegacyEnvGroupsRemoved verifies that old env_groups / env_group_vars
 // collections no longer exist after the migration.
 func TestLegacyEnvGroupsRemoved(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	if _, err := app.FindCollectionByNameOrId("env_groups"); err == nil {
 		t.Error("env_groups collection should not exist after Epic 24 migration")
@@ -928,11 +816,7 @@ func TestLegacyEnvGroupsRemoved(t *testing.T) {
 
 // TestEnvSetsCollectionFields verifies the env_sets collection schema.
 func TestEnvSetsCollectionFields(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("env_sets")
 	if err != nil {
@@ -965,11 +849,7 @@ func TestEnvSetsCollectionFields(t *testing.T) {
 
 // TestAppsEnvSetsField verifies that apps collection has env_sets relation field.
 func TestAppsEnvSetsField(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("apps")
 	if err != nil {
@@ -988,11 +868,7 @@ func TestAppsEnvSetsField(t *testing.T) {
 // TestEnvSetVarsCascadeDelete verifies that deleting an env_set cascades
 // to child env_set_vars records.
 func TestEnvSetVarsCascadeDelete(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newIsolatedMigrationsTestApp(t)
 
 	// Create an env_set
 	setCol, _ := app.FindCollectionByNameOrId("env_sets")
@@ -1026,11 +902,7 @@ func TestEnvSetVarsCascadeDelete(t *testing.T) {
 // TestEnvSetVarsSecretExpandHidesPayload verifies that expanding the secret
 // relation on env_set_vars does NOT expose payload_encrypted.
 func TestEnvSetVarsSecretExpandHidesPayload(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	// Verify secrets.payload_encrypted is hidden
 	secretsCol, err := app.FindCollectionByNameOrId("secrets")
@@ -1047,11 +919,7 @@ func TestEnvSetVarsSecretExpandHidesPayload(t *testing.T) {
 }
 
 func TestSoftwareInventorySnapshotsCollectionFields(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId("software_inventory_snapshots")
 	if err != nil {
@@ -1084,11 +952,7 @@ func TestSoftwareInventorySnapshotsCollectionFields(t *testing.T) {
 }
 
 func TestSecretsPolicySeedExists(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newMigrationsTestApp(t)
 
 	value, err := sysconfig.GetGroup(app, "secrets", "policy", nil)
 	if err != nil {

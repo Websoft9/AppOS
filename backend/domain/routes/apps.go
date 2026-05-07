@@ -794,7 +794,7 @@ func validateAppComposeConfig(e *core.RequestEvent, serverID string, projectDir 
 	tempPath := filepath.Join(projectDir, tempName)
 
 	if serverID == "local" {
-			if err := os.WriteFile(tempPath, []byte(content), 0o600); err != nil {
+		if err := os.WriteFile(tempPath, []byte(content), 0o600); err != nil {
 			return fmt.Errorf("write temp compose file: %w", err)
 		}
 		defer func() {

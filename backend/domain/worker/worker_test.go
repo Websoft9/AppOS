@@ -6,19 +6,13 @@ import (
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/domain/deploy"
-
-	_ "github.com/websoft9/appos/backend/infra/migrations"
 )
 
 func TestRecoverOrphanedDeploymentsMarksFailed(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newWorkerTestApp(t)
 	w := New(app)
+	var err error
 
 	if _, err := app.FindCollectionByNameOrId("deployments"); err != nil {
 		if err := w.recoverOrphanedDeployments(); err != nil {
@@ -46,12 +40,9 @@ func TestRecoverOrphanedDeploymentsMarksFailed(t *testing.T) {
 }
 
 func TestRecoverOrphanedDeploymentsEscalatesSnapshotToManualIntervention(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newWorkerTestApp(t)
 	w := New(app)
+	var err error
 
 	if _, err := app.FindCollectionByNameOrId("deployments"); err != nil {
 		if err := w.recoverOrphanedDeployments(); err != nil {
@@ -79,12 +70,9 @@ func TestRecoverOrphanedDeploymentsEscalatesSnapshotToManualIntervention(t *test
 }
 
 func TestClaimQueuedDeploymentRejectsActivePeer(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newWorkerTestApp(t)
 	w := New(app)
+	var err error
 
 	if _, err := app.FindCollectionByNameOrId("deployments"); err != nil {
 		claimed, claimErr := w.claimQueuedDeployment("legacy-id")
@@ -114,11 +102,7 @@ func TestClaimQueuedDeploymentRejectsActivePeer(t *testing.T) {
 }
 
 func TestSyncAppInstanceFromDeploymentUsesLifecycleFields(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newWorkerTestApp(t)
 	oldIACBasePath := deploymentComposeIACBasePath
 	deploymentComposeIACBasePath = filepath.Join(t.TempDir(), "apps", "installed")
 	defer func() {

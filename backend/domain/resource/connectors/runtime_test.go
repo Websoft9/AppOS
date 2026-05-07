@@ -26,7 +26,11 @@ func setupRuntimeSecretKey(t *testing.T) {
 func newRuntimeTestApp(t *testing.T) *tests.TestApp {
 	t.Helper()
 	setupRuntimeSecretKey(t)
-	app, err := tests.NewTestApp()
+	baselineDir, err := connectorsTestBaselineDataDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	app, err := tests.NewTestApp(baselineDir)
 	if err != nil {
 		t.Fatal(err)
 	}

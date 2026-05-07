@@ -6,22 +6,16 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/domain/monitor"
 	"github.com/websoft9/appos/backend/domain/monitor/signals/agent"
 	"github.com/websoft9/appos/backend/domain/monitor/status/store"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/infra/collections"
-
-	_ "github.com/websoft9/appos/backend/infra/migrations"
 )
 
 func TestGetOrIssueAgentTokenRoundTripAndRotate(t *testing.T) {
 	prepareAgentSecretKey(t)
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
+	app := newAgentTestApp(t)
 	defer app.Cleanup()
 
 	first, changed, err := agent.GetOrIssueAgentToken(app, "server-1", false)
@@ -64,10 +58,7 @@ func TestGetOrIssueAgentTokenRoundTripAndRotate(t *testing.T) {
 
 func TestValidateAgentTokenScansBeyondFiveHundredSecrets(t *testing.T) {
 	prepareAgentSecretKey(t)
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
+	app := newAgentTestApp(t)
 	defer app.Cleanup()
 
 	var lastToken string
@@ -93,10 +84,7 @@ func TestValidateAgentTokenScansBeyondFiveHundredSecrets(t *testing.T) {
 }
 
 func TestIngestHeartbeatProjectsServerStatus(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
+	app := newAgentTestApp(t)
 	defer app.Cleanup()
 
 	receivedAt := time.Date(2026, 4, 19, 12, 0, 0, 0, time.UTC)
@@ -136,10 +124,7 @@ func TestIngestHeartbeatProjectsServerStatus(t *testing.T) {
 }
 
 func TestIngestRuntimeStatusProjectsServerAndAppStatuses(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
+	app := newAgentTestApp(t)
 	defer app.Cleanup()
 
 	seedAgentAppInstanceRecord(t, app, "appinstance0001", "Demo App")

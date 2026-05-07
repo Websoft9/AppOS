@@ -11,11 +11,13 @@ This directory is reserved for tests that require a real AppOS container runtime
 
 ## Current Entry Point
 
-- `make e2e`
+- `make test` (strict mode includes `make test e2e fast` after backend + web tests)
+- `make test e2e` (full E2E entrypoint; currently runs the smoke suite until broader scenarios are added)
+- `make test e2e fast` (smoke E2E suite)
 - `tests/e2e/container-smoke.sh`
 - `tests/e2e/setup-status.sh`
 
-The smoke test builds the local AppOS image, starts a real container, and waits for `/api/health` to become reachable.
+The smoke suite builds the local AppOS image, starts a real container, and waits for `/api/health` to become reachable.
 
 The setup-status scenario reuses the same real container startup path and verifies that `/api/ext/setup/status` is publicly reachable and returns the expected fresh-install contract (`needsSetup: true`, `initMode: auto`).
 
@@ -30,3 +32,8 @@ The following existing tests were reviewed and intentionally left in the regular
 - `web/src/routes/_app/_auth/resources/-servers.test.tsx`
 
 These tests exercise Docker-aware logic, but they do not need the AppOS container itself and therefore do not belong in E2E.
+
+## Planned Layering
+
+- `make test e2e fast`: smoke coverage for container boot and critical public/health flows.
+- `make test e2e`: the full E2E entrypoint. It currently delegates to smoke and is intended to grow as broader runtime scenarios are added.
