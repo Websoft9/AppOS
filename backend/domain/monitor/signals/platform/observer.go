@@ -15,6 +15,7 @@ func NewPlatformObserver(app core.App, snapshotFn func() RuntimeSnapshot) *Platf
 	return &PlatformObserver{
 		app:        app,
 		snapshotFn: snapshotFn,
+		resourceFn: supervisor.GetProcessResources,
 		nowFn: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -26,6 +27,13 @@ func (o *PlatformObserver) SetNowFunc(nowFn func() time.Time) {
 		return
 	}
 	o.nowFn = nowFn
+}
+
+func (o *PlatformObserver) SetResourceFunc(resourceFn func([]int) map[int]supervisor.ResourceInfo) {
+	if resourceFn == nil {
+		return
+	}
+	o.resourceFn = resourceFn
 }
 
 func (o *PlatformObserver) Start() {
@@ -54,7 +62,7 @@ func (o *PlatformObserver) Collect() error {
 	if o.snapshotFn != nil {
 		snapshot = o.snapshotFn()
 	}
-	resources := supervisor.GetProcessResources([]int{os.Getpid()})
+	resources := o.resourceFn([]int{os.Getpid()})
 	resource := resources[os.Getpid()]
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)

@@ -4,34 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pocketbase/pocketbase/tests"
-	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
 	"github.com/websoft9/appos/backend/domain/software"
-
-	_ "github.com/websoft9/appos/backend/infra/migrations"
 )
 
 func TestApplyServerExecutionBindings_AppOSAgentInjectsManagedEnv(t *testing.T) {
-	prepareWorkerSecretKey(t)
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
-
-	basicEntry, ok := settingscatalog.FindEntry("basic")
-	if !ok {
-		t.Fatal("expected basic settings entry")
-	}
-	if _, err := sysconfig.PatchPocketBaseEntry(app, basicEntry, map[string]any{
-		"appName": "AppOS",
-		"appURL":  "https://console.example.com",
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	resolved := applyServerExecutionBindings(app, "srv-123", "", software.ResolvedTemplate{
+	resolved := applyServerExecutionBindingsWithInputs("srv-123", "https://console.example.com", "agent-token", software.ResolvedTemplate{
 		ComponentKey: software.ComponentKeyAppOSAgent,
 		Install:      software.InstallSpec{},
 		Upgrade:      software.UpgradeSpec{},
@@ -47,6 +24,9 @@ func TestApplyServerExecutionBindings_AppOSAgentInjectsManagedEnv(t *testing.T) 
 	if !strings.Contains(configYAML, "ingest_base_url: https://console.example.com/api/monitor/ingest") {
 		t.Fatalf("expected app url in config yaml, got %q", configYAML)
 	}
+	if !strings.Contains(configYAML, "token: agent-token") {
+		t.Fatalf("expected token in config yaml, got %q", configYAML)
+	}
 	unit := resolved.Install.Env[apposAgentSystemdUnitEnvName]
 	if !strings.Contains(unit, "ExecStart=/usr/local/bin/appos-agent --config /etc/appos-agent.yaml") {
 		t.Fatalf("expected managed unit content, got %q", unit)
@@ -57,32 +37,8 @@ func TestApplyServerExecutionBindings_AppOSAgentInjectsManagedEnv(t *testing.T) 
 }
 
 func TestApplyServerExecutionBindings_AppOSAgentPrefersExplicitBaseURL(t *testing.T) {
-	prepareWorkerSecretKey(t)
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
-
-	basicEntry, ok := settingscatalog.FindEntry("basic")
-	if !ok {
-		t.Fatal("expected basic settings entry")
-	}
-	if _, err := sysconfig.PatchPocketBaseEntry(app, basicEntry, map[string]any{
-		"appName": "AppOS",
-		"appURL":  "https://stale.example.com",
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	resolved := applyServerExecutionBindings(app, "srv-123", "https://console.example.com:8443/", software.ResolvedTemplate{
-		ComponentKey: software.ComponentKeyAppOSAgent,
-		Install:      software.InstallSpec{},
-		Upgrade:      software.UpgradeSpec{},
-	})
-
-	configYAML := resolved.Install.Env[apposAgentConfigEnvName]
-	if !strings.Contains(configYAML, "ingest_base_url: https://console.example.com:8443/api/monitor/ingest") {
-		t.Fatalf("expected explicit app url in config yaml, got %q", configYAML)
+	baseURL := effectiveAppOSBaseURLFromValue("https://stale.example.com", "https://console.example.com:8443/")
+	if baseURL != "https://console.example.com:8443" {
+		t.Fatalf("expected explicit app url to win, got %q", baseURL)
 	}
 }

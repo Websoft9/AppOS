@@ -25,6 +25,45 @@ vi.mock('@/lib/iac-api', () => ({
   iacSaveFile: (...args: unknown[]) => iacSaveFileMock(...args),
 }))
 
+vi.mock('@/pages/apps/AppDetailDisplaySection', () => ({
+  AppDetailDisplaySection: ({ appName }: { appName: string }) => (
+    <section aria-label="Display Section">
+      <div>{appName}</div>
+    </section>
+  ),
+}))
+
+vi.mock('@/pages/apps/AppDetailActionHistoryTable', () => ({
+  AppDetailActionHistoryTable: ({
+    actions,
+    buildActionDetailHref,
+  }: {
+    actions: Array<{ id: string; compose_project_name?: string; pipeline_selector?: { operation_type?: string } }>
+    buildActionDetailHref: (actionId: string) => string
+  }) => (
+    <section aria-label="Action History Table">
+      {actions.map(action => (
+        <div key={action.id}>
+          <span>
+            {action.pipeline_selector?.operation_type
+              ? action.pipeline_selector.operation_type.charAt(0).toUpperCase() +
+                action.pipeline_selector.operation_type.slice(1)
+              : action.id}
+          </span>
+          <a href={buildActionDetailHref(action.id)}>Open Detail</a>
+          <span>{action.compose_project_name || '-'}</span>
+        </div>
+      ))}
+    </section>
+  ),
+}))
+
+vi.mock('@/components/monitor/TimeSeriesChart', () => ({
+  TimeSeriesChart: ({ title }: { title?: string }) => (
+    <div aria-label={title || 'Time Series Chart'}>{title || 'Time Series Chart'}</div>
+  ),
+}))
+
 describe('AppDetailPage', () => {
   let windowOpenMock: ReturnType<typeof vi.spyOn>
   let appDetailResponse: Record<string, unknown>
@@ -514,7 +553,9 @@ describe('AppDetailPage', () => {
       expect(screen.getByRole('heading', { name: 'Demo App' })).toBeInTheDocument()
     })
 
-    expect(screen.getByText('Server: Remote Demo Server')).toBeInTheDocument()
+    expect(
+      screen.getByText((_, node) => node?.textContent === 'Server: Remote Demo Server')
+    ).toBeInTheDocument()
     expect(screen.getByText('Connection summary: SSH access is reachable.')).toBeInTheDocument()
     expect(screen.getByText('Endpoint: 10.0.0.8')).toBeInTheDocument()
     expect(screen.getByText('Next server step: Open Terminal')).toBeInTheDocument()

@@ -4,20 +4,11 @@ import (
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/domain/monitor"
-
-	_ "github.com/websoft9/appos/backend/infra/migrations"
 )
 
 func TestSynthesizeAppTargetStatusUsesRegistryPolicy(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
-
-	seedQueryAppInstanceRecord(t, app, "appinstance0002", "Registry App")
+	appRecord := seedQueryAppInstanceRecord("appinstance0002", "Registry App")
 	entry := monitor.TargetRegistryEntry{
 		Checks: monitor.TargetCheckPolicies{
 			AppHealth: &monitor.AppHealthTargetPolicy{
@@ -34,10 +25,7 @@ func TestSynthesizeAppTargetStatusUsesRegistryPolicy(t *testing.T) {
 		},
 	}
 
-	resp, err := synthesizeAppTargetStatus(app, "appinstance0002", entry)
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := synthesizeAppTargetStatusFromRecord(appRecord, entry)
 	if resp.Status != monitor.StatusDegraded {
 		t.Fatalf("expected custom synthesized app status, got %q", resp.Status)
 	}
@@ -46,13 +34,10 @@ func TestSynthesizeAppTargetStatusUsesRegistryPolicy(t *testing.T) {
 	}
 }
 
-func seedQueryAppInstanceRecord(t *testing.T, app core.App, id string, name string) *core.Record {
-	t.Helper()
-	col, err := app.FindCollectionByNameOrId("app_instances")
-	if err != nil {
-		t.Fatal(err)
-	}
+func seedQueryAppInstanceRecord(id string, name string) *core.Record {
+	col := core.NewBaseCollection("app_instances")
 	rec := core.NewRecord(col)
+	rec.Id = id
 	rec.Set("id", id)
 	rec.Set("key", name+"-key")
 	rec.Set("server_id", "local")
@@ -63,8 +48,5 @@ func seedQueryAppInstanceRecord(t *testing.T, app core.App, id string, name stri
 	rec.Set("health_summary", "healthy")
 	rec.Set("publication_summary", "unpublished")
 	rec.Set("state_reason", "seeded for monitor status query test")
-	if err := app.Save(rec); err != nil {
-		t.Fatal(err)
-	}
 	return rec
 }

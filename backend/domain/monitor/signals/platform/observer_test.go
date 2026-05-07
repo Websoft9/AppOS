@@ -5,20 +5,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/domain/monitor"
 	monitormetrics "github.com/websoft9/appos/backend/domain/monitor/metrics"
 	"github.com/websoft9/appos/backend/domain/monitor/signals/platform"
 	"github.com/websoft9/appos/backend/infra/collections"
-
-	_ "github.com/websoft9/appos/backend/infra/migrations"
+	"github.com/websoft9/appos/backend/infra/supervisor"
 )
 
 func TestPlatformObserverCollectWritesPlatformTargets(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
+	app := newPlatformTestApp(t)
 	defer app.Cleanup()
 
 	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
@@ -32,6 +27,9 @@ func TestPlatformObserverCollectWritesPlatformTargets(t *testing.T) {
 		}
 	})
 	observer.SetNowFunc(func() time.Time { return now })
+	observer.SetResourceFunc(func([]int) map[int]supervisor.ResourceInfo {
+		return map[int]supervisor.ResourceInfo{}
+	})
 
 	if err := observer.Collect(); err != nil {
 		t.Fatal(err)
@@ -53,10 +51,7 @@ func TestPlatformObserverCollectWritesPlatformTargets(t *testing.T) {
 }
 
 func TestPlatformObserverCollectMarksStaleSchedulerDegraded(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
+	app := newPlatformTestApp(t)
 	defer app.Cleanup()
 
 	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
@@ -70,6 +65,9 @@ func TestPlatformObserverCollectMarksStaleSchedulerDegraded(t *testing.T) {
 		}
 	})
 	observer.SetNowFunc(func() time.Time { return now })
+	observer.SetResourceFunc(func([]int) map[int]supervisor.ResourceInfo {
+		return map[int]supervisor.ResourceInfo{}
+	})
 
 	if err := observer.Collect(); err != nil {
 		t.Fatal(err)
@@ -89,10 +87,7 @@ func TestPlatformObserverCollectMarksStaleSchedulerDegraded(t *testing.T) {
 }
 
 func TestPlatformObserverCollectWritesPlatformMetrics(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
+	app := newPlatformTestApp(t)
 	defer app.Cleanup()
 
 	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
@@ -114,6 +109,9 @@ func TestPlatformObserverCollectWritesPlatformMetrics(t *testing.T) {
 		}
 	})
 	observer.SetNowFunc(func() time.Time { return now })
+	observer.SetResourceFunc(func([]int) map[int]supervisor.ResourceInfo {
+		return map[int]supervisor.ResourceInfo{}
+	})
 
 	if err := observer.Collect(); err != nil {
 		t.Fatal(err)

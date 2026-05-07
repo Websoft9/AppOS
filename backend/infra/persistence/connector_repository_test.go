@@ -29,11 +29,7 @@ func createPersistenceProviderAccountRecord(t *testing.T, app *tests.TestApp, na
 }
 
 func TestConnectorRepositorySaveGetDelete(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newPersistenceTestApp(t)
 	providerAccount := createPersistenceProviderAccountRecord(t, app, "ops-root")
 
 	repo := NewConnectorRepository(app)
@@ -75,11 +71,7 @@ func TestConnectorRepositorySaveGetDelete(t *testing.T) {
 }
 
 func TestConnectorRepositoryClearDefaultsByKind(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newPersistenceTestApp(t)
 
 	repo := NewConnectorRepository(app)
 	first, _ := repo.New()
@@ -114,11 +106,8 @@ func TestConnectorRepositoryClearDefaultsByKind(t *testing.T) {
 }
 
 func TestConnectorRepositorySaveMapsDuplicateNameToConflict(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newPersistenceTestApp(t)
+	var err error
 
 	repo := NewConnectorRepository(app)
 	first, _ := repo.New()
@@ -140,11 +129,7 @@ func TestConnectorRepositorySaveMapsDuplicateNameToConflict(t *testing.T) {
 }
 
 func TestConnectorRepositoryExistsByName(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newPersistenceTestApp(t)
 
 	repo := NewConnectorRepository(app)
 	item, _ := repo.New()

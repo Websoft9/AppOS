@@ -9,21 +9,14 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/domain/monitor"
 	"github.com/websoft9/appos/backend/domain/monitor/status/store"
 	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/infra/collections"
-
-	_ "github.com/websoft9/appos/backend/infra/migrations"
 )
 
 func TestHandleMonitorReachabilitySweepProjectsInstanceStatuses(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newWorkerTestApp(t)
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -103,11 +96,7 @@ func TestEnqueueMonitorReachabilitySweepRequiresClient(t *testing.T) {
 }
 
 func TestHandleMonitorHeartbeatFreshnessProjectsOfflineStatus(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newWorkerTestApp(t)
 
 	col, err := app.FindCollectionByNameOrId(collections.MonitorLatestStatus)
 	if err != nil {
@@ -165,11 +154,7 @@ func TestEnqueueMonitorHeartbeatFreshnessRequiresClient(t *testing.T) {
 
 func TestHandleMonitorCredentialSweepProjectsCredentialInvalidWhenSecretMissing(t *testing.T) {
 	prepareWorkerSecretKey(t)
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newWorkerTestApp(t)
 
 	secret := seedWorkerSecretRecord(t, app, "secretredis0003", secrets.StatusRevoked)
 	item := seedInstanceRecord(t, app, "redis-with-missing-secret", "redis", "127.0.0.1:6379")
@@ -210,11 +195,7 @@ func TestEnqueueMonitorCredentialSweepRequiresClient(t *testing.T) {
 }
 
 func TestHandleMonitorAppHealthSweepProjectsAppStatuses(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newWorkerTestApp(t)
 
 	healthy := seedAppInstanceRecord(t, app, "healthy-app", "running", "healthy")
 	degraded := seedAppInstanceRecord(t, app, "degraded-app", "running", "degraded")

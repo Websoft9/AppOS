@@ -29,11 +29,7 @@ func createProviderAccountReferenceInstance(t *testing.T, app *tests.TestApp, ac
 }
 
 func TestProviderAccountRepositorySaveGetDelete(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newPersistenceTestApp(t)
 
 	repo := NewProviderAccountRepository(app)
 	item, err := repo.New()
@@ -79,11 +75,8 @@ func TestProviderAccountRepositorySaveGetDelete(t *testing.T) {
 }
 
 func TestProviderAccountRepositorySaveMapsDuplicateNameToConflict(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newPersistenceTestApp(t)
+	var err error
 
 	repo := NewProviderAccountRepository(app)
 	first, err := repo.New()
@@ -121,11 +114,7 @@ func TestProviderAccountRepositorySaveMapsDuplicateNameToConflict(t *testing.T) 
 }
 
 func TestProviderAccountRepositoryHasReferences(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newPersistenceTestApp(t)
 
 	repo := NewProviderAccountRepository(app)
 	item, err := repo.New()

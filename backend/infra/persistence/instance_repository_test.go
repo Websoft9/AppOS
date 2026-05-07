@@ -29,11 +29,7 @@ func createProviderAccountRecord(t *testing.T, app *tests.TestApp, name string) 
 }
 
 func TestInstanceRepositorySaveGetDelete(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newPersistenceTestApp(t)
 	providerAccount := createProviderAccountRecord(t, app, "platform-root")
 
 	repo := NewInstanceRepository(app)
@@ -81,11 +77,8 @@ func TestInstanceRepositorySaveGetDelete(t *testing.T) {
 }
 
 func TestInstanceRepositorySaveMapsDuplicateNameToConflict(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newPersistenceTestApp(t)
+	var err error
 
 	repo := NewInstanceRepository(app)
 	first, err := repo.New()

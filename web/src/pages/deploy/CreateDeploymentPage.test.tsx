@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { CreateDeploymentPage } from './CreateDeploymentPage'
@@ -40,6 +41,95 @@ vi.mock('@/lib/iac-api', () => ({
   iacRead: vi.fn(),
   iacUploadFile: (...args: unknown[]) => iacUploadFileMock(...args),
   iacMkdir: (...args: unknown[]) => iacMkdirMock(...args),
+}))
+
+vi.mock('@/pages/deploy/OrchestrationSection', () => ({
+  OrchestrationSection: ({
+    compose,
+    setCompose,
+    envVars,
+    setEnvVars,
+    setSrcFiles,
+    onYamlError,
+    onRuntimeEnvInputsChange,
+  }: {
+    compose: string
+    setCompose: (value: string) => void
+    envVars: Array<{ key: string; value: string }>
+    setEnvVars: React.Dispatch<
+      React.SetStateAction<Array<{ key: string; value: string }>>
+    >
+    setSrcFiles: React.Dispatch<React.SetStateAction<File[]>>
+    onYamlError?: (error: string | null) => void
+    onRuntimeEnvInputsChange?: (
+      inputs: Array<{ name: string; kind: 'sensitive'; generator_method?: string }>
+    ) => void
+  }) => {
+    useEffect(() => {
+      onYamlError?.(null)
+    }, [compose, onYamlError])
+
+    useEffect(() => {
+      const inputs = envVars
+        .filter(item => item.key.trim())
+        .map(item => ({
+          name: item.key.trim(),
+          kind: 'sensitive' as const,
+          generator_method: 'password_16',
+        }))
+      onRuntimeEnvInputsChange?.(inputs)
+    }, [envVars, onRuntimeEnvInputsChange])
+
+    const primaryEnv = envVars[0] ?? { key: '', value: '' }
+
+    return (
+      <section aria-label="Orchestration Section Mock">
+        <label htmlFor="compose-content">Compose Content</label>
+        <textarea
+          id="compose-content"
+          placeholder="services:"
+          value={compose}
+          onChange={event => setCompose(event.target.value)}
+        />
+
+        <button type="button">Environment Variables & Secret-backed</button>
+
+        <input
+          placeholder="KEY"
+          value={primaryEnv.key}
+          onChange={event =>
+            setEnvVars([{ key: event.target.value, value: primaryEnv.value || '' }])
+          }
+        />
+        <button
+          type="button"
+          title="Auto-generate sensitive value"
+          onClick={() =>
+            setEnvVars([{ key: primaryEnv.key, value: primaryEnv.value || 'generated-secret-value' }])
+          }
+        >
+          Generate Sensitive
+        </button>
+
+        <select
+          aria-label="Sensitive Method"
+          value="password_16"
+          onChange={() => undefined}
+        >
+          <option value="password_16">Password (16)</option>
+        </select>
+
+        <input
+          type="file"
+          multiple
+          onChange={event => {
+            const files = Array.from(event.target.files || [])
+            setSrcFiles(files)
+          }}
+        />
+      </section>
+    )
+  },
 }))
 
 describe('CreateDeploymentPage', () => {

@@ -155,16 +155,27 @@ func RegisterHooks(app *pocketbase.PocketBase) {
 }
 
 func validatePrivateKeySecretRef(app core.App, secretID, userID string) error {
+	return validatePrivateKeySecretRefWith(secretID, userID,
+		func(secretID, userID string) error {
+			return secrets.ValidateRef(app, secretID, userID)
+		},
+		func(secretID string) (*core.Record, error) {
+			return app.FindRecordById("secrets", secretID)
+		},
+	)
+}
+
+func validatePrivateKeySecretRefWith(secretID, userID string, validateRef func(string, string) error, findSecret func(string) (*core.Record, error)) error {
 	secretID = strings.TrimSpace(secretID)
 	if secretID == "" {
 		return nil
 	}
 
-	if err := secrets.ValidateRef(app, secretID, userID); err != nil {
+	if err := validateRef(secretID, userID); err != nil {
 		return fmt.Errorf("invalid private key secret")
 	}
 
-	rec, err := app.FindRecordById("secrets", secretID)
+	rec, err := findSecret(secretID)
 	if err != nil {
 		return fmt.Errorf("invalid private key secret")
 	}
@@ -201,27 +212,53 @@ func runExpirySweepLoop(app core.App, stop <-chan struct{}) {
 }
 
 func expireDueCertificates(app core.App) error {
-	now := time.Now().UTC().Format(time.RFC3339)
+	now := time.Now().UTC()
 	records, err := app.FindRecordsByFilter(
 		"certificates",
-		"status = 'active' && expires_at != '' && expires_at <= {:now}",
+		"status = 'active' && expires_at != ''",
 		"",
 		200,
 		0,
-		map[string]any{"now": now},
+		nil,
 	)
 	if err != nil {
 		return err
 	}
 
-	for _, record := range records {
-		record.Set("status", "expired")
+	for _, record := range markExpiredCertificates(records, now) {
 		if saveErr := app.Save(record); saveErr != nil {
 			log.Printf("[WARN] certs: failed to mark certificate %s expired: %v", record.Id, saveErr)
 		}
 	}
 
 	return nil
+}
+
+func markExpiredCertificates(records []*core.Record, now time.Time) []*core.Record {
+	expired := make([]*core.Record, 0, len(records))
+	for _, record := range records {
+		if !certificateShouldExpire(record, now) {
+			continue
+		}
+		record.Set("status", "expired")
+		expired = append(expired, record)
+	}
+	return expired
+}
+
+func certificateShouldExpire(record *core.Record, now time.Time) bool {
+	if record == nil || record.GetString("status") != "active" {
+		return false
+	}
+	expiresAt := strings.TrimSpace(record.GetString("expires_at"))
+	if expiresAt == "" {
+		return false
+	}
+	parsed, err := time.Parse(time.RFC3339, expiresAt)
+	if err != nil {
+		return false
+	}
+	return !parsed.After(now)
 }
 
 // checkAndExpire updates status to "expired" if expires_at is in the past

@@ -5,23 +5,14 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
-
-	_ "github.com/websoft9/appos/backend/infra/migrations"
 )
 
 func TestApplyOperationQueuedForNewInstall(t *testing.T) {
-	app := newProjectionTestApp(t)
-	defer app.Cleanup()
-
-	appRecord := createTestAppInstance(t, app)
-	operationRecord := createTestOperation(t, app, appRecord, string(model.OperationTypeInstall))
+	appRecord := newProjectionAppRecord()
+	operationRecord := newProjectionOperationRecord(appRecord, string(model.OperationTypeInstall))
 
 	ApplyOperationQueued(appRecord, operationRecord, QueueOptions{ExistingApp: false})
-	if err := app.Save(appRecord); err != nil {
-		t.Fatal(err)
-	}
 
 	if got := appRecord.GetString("last_operation"); got != operationRecord.Id {
 		t.Fatalf("expected last_operation %q, got %q", operationRecord.Id, got)
@@ -35,17 +26,11 @@ func TestApplyOperationQueuedForNewInstall(t *testing.T) {
 }
 
 func TestApplyOperationSucceededForInstall(t *testing.T) {
-	app := newProjectionTestApp(t)
-	defer app.Cleanup()
-
-	appRecord := createTestAppInstance(t, app)
-	operationRecord := createTestOperation(t, app, appRecord, string(model.OperationTypeInstall))
+	appRecord := newProjectionAppRecord()
+	operationRecord := newProjectionOperationRecord(appRecord, string(model.OperationTypeInstall))
 	now := time.Date(2026, time.March, 24, 10, 0, 0, 0, time.UTC)
 
 	ApplyOperationSucceeded(appRecord, operationRecord, now)
-	if err := app.Save(appRecord); err != nil {
-		t.Fatal(err)
-	}
 
 	if got := appRecord.GetString("last_operation"); got != operationRecord.Id {
 		t.Fatalf("expected last_operation %q, got %q", operationRecord.Id, got)
@@ -65,27 +50,15 @@ func TestApplyOperationSucceededForInstall(t *testing.T) {
 }
 
 func TestApplyOperationFailedMarksAttentionRequired(t *testing.T) {
-	app := newProjectionTestApp(t)
-	defer app.Cleanup()
-
-	appRecord := createTestAppInstance(t, app)
+	appRecord := newProjectionAppRecord()
 	appRecord.Set("lifecycle_state", string(model.AppStateUpdating))
 	appRecord.Set("health_summary", string(model.HealthHealthy))
-	if err := app.Save(appRecord); err != nil {
-		t.Fatal(err)
-	}
 
-	operationRecord := createTestOperation(t, app, appRecord, string(model.OperationTypeUpgrade))
+	operationRecord := newProjectionOperationRecord(appRecord, string(model.OperationTypeUpgrade))
 	operationRecord.Set("failure_reason", "verification_failed")
 	operationRecord.Set("error_message", "probe failed")
-	if err := app.Save(operationRecord); err != nil {
-		t.Fatal(err)
-	}
 
 	ApplyOperationFailed(appRecord, operationRecord)
-	if err := app.Save(appRecord); err != nil {
-		t.Fatal(err)
-	}
 
 	if got := appRecord.GetString("last_operation"); got != operationRecord.Id {
 		t.Fatalf("expected last_operation %q, got %q", operationRecord.Id, got)
@@ -102,10 +75,7 @@ func TestApplyOperationFailedMarksAttentionRequired(t *testing.T) {
 }
 
 func TestReadAndApplyAppInstanceProjection(t *testing.T) {
-	app := newProjectionTestApp(t)
-	defer app.Cleanup()
-
-	appRecord := createTestAppInstance(t, app)
+	appRecord := newProjectionAppRecord()
 	now := time.Date(2026, time.March, 24, 12, 0, 0, 0, time.UTC)
 	projection := model.AppInstanceProjection{
 		LifecycleState:     model.AppStateRunningHealthy,
@@ -142,26 +112,11 @@ func TestReadAndApplyAppInstanceProjection(t *testing.T) {
 	}
 }
 
-func newProjectionTestApp(t *testing.T) *tests.TestApp {
-	t.Helper()
 
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	return app
-}
-
-func createTestAppInstance(t *testing.T, app core.App) *core.Record {
-	t.Helper()
-
-	collection, err := app.FindCollectionByNameOrId("app_instances")
-	if err != nil {
-		t.Fatal(err)
-	}
-
+func newProjectionAppRecord() *core.Record {
+	collection := core.NewBaseCollection("app_instances")
 	record := core.NewRecord(collection)
+	record.Id = "app-1"
 	record.Set("key", "test-app")
 	record.Set("name", "test-app")
 	record.Set("server_id", "server-1")
@@ -169,31 +124,19 @@ func createTestAppInstance(t *testing.T, app core.App) *core.Record {
 	record.Set("desired_state", string(model.DesiredStateRunning))
 	record.Set("health_summary", string(model.HealthUnknown))
 	record.Set("publication_summary", string(model.PublicationUnpublished))
-	if err := app.Save(record); err != nil {
-		t.Fatal(err)
-	}
-
 	return record
 }
 
-func createTestOperation(t *testing.T, app core.App, appRecord *core.Record, operationType string) *core.Record {
-	t.Helper()
-
-	collection, err := app.FindCollectionByNameOrId("app_operations")
-	if err != nil {
-		t.Fatal(err)
-	}
-
+func newProjectionOperationRecord(appRecord *core.Record, operationType string) *core.Record {
+	collection := core.NewBaseCollection("app_operations")
 	record := core.NewRecord(collection)
+	record.Id = "op-1"
 	record.Set("app", appRecord.Id)
 	record.Set("server_id", appRecord.GetString("server_id"))
 	record.Set("operation_type", operationType)
 	record.Set("trigger_source", string(model.TriggerSourceManualOps))
 	record.Set("phase", string(model.OperationPhaseQueued))
 	record.Set("queued_at", time.Now())
-	if err := app.Save(record); err != nil {
-		t.Fatal(err)
-	}
 
 	return record
 }

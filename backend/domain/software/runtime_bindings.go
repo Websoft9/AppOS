@@ -31,6 +31,10 @@ func ApplyRuntimeBindings(app core.App, entry CatalogEntry) CatalogEntry {
 func effectiveAppOSAgentInstallerURL(app core.App) string {
 	defaults := settingscatalog.DefaultGroup(softwareConfigModule, softwareConfigKey)
 	group, _ := sysconfig.GetGroup(app, softwareConfigModule, softwareConfigKey, defaults)
+	return effectiveAppOSAgentInstallerURLFromGroup(group, defaults)
+}
+
+func effectiveAppOSAgentInstallerURLFromGroup(group, defaults map[string]any) string {
 	url := strings.TrimSpace(sysconfig.String(group, apposAgentInstallerURLFieldName, ""))
 	if url != "" {
 		return url

@@ -7,7 +7,9 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/pocketbase/pocketbase/apis"
@@ -32,6 +34,52 @@ type testEnv struct {
 	token string
 }
 
+var (
+	routesTestBaselineOnce sync.Once
+	routesTestBaselineDir  string
+	routesTestBaselineErr  error
+)
+
+const routesTestAdminEmail = "admin@test.com"
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+	if routesTestBaselineDir != "" {
+		_ = os.RemoveAll(routesTestBaselineDir)
+	}
+	os.Exit(code)
+}
+
+func routesTestBaselineDataDir() (string, error) {
+	routesTestBaselineOnce.Do(func() {
+		app, err := tests.NewTestApp()
+		if err != nil {
+			routesTestBaselineErr = err
+			return
+		}
+
+		suCol, err := app.FindCollectionByNameOrId(core.CollectionNameSuperusers)
+		if err != nil {
+			routesTestBaselineErr = err
+			app.Cleanup()
+			return
+		}
+		su := core.NewRecord(suCol)
+		su.Set("email", routesTestAdminEmail)
+		su.SetPassword("1234567890")
+		if err := app.Save(su); err != nil {
+			routesTestBaselineErr = err
+			app.Cleanup()
+			return
+		}
+
+		routesTestBaselineDir = app.DataDir()
+		routesTestBaselineErr = app.ResetBootstrapState()
+	})
+
+	return routesTestBaselineDir, routesTestBaselineErr
+}
+
 func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
 	oldFilesBasePath := filesBasePath
@@ -40,21 +88,19 @@ func newTestEnv(t *testing.T) *testEnv {
 		filesBasePath = oldFilesBasePath
 	})
 
-	app, err := tests.NewTestApp()
+	baselineDir, err := routesTestBaselineDataDir()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Seed a superuser for API auth
-	suCol, err := app.FindCollectionByNameOrId(core.CollectionNameSuperusers)
+	app, err := tests.NewTestApp(baselineDir)
 	if err != nil {
-		app.Cleanup()
 		t.Fatal(err)
 	}
-	su := core.NewRecord(suCol)
-	su.Set("email", "admin@test.com")
-	su.SetPassword("1234567890")
-	if err := app.Save(su); err != nil {
+
+	// Reuse the baseline superuser and mint a token in the cloned app.
+	su, err := app.FindFirstRecordByData(core.CollectionNameSuperusers, "email", routesTestAdminEmail)
+	if err != nil {
 		app.Cleanup()
 		t.Fatal(err)
 	}

@@ -101,6 +101,62 @@ vi.mock('@/components/connect/DockerPanel', () => ({
   DockerPanel: ({ serverId }: { serverId: string }) => <div>Docker panel for {serverId}</div>,
 }))
 
+vi.mock('@/components/monitor/MonitorTargetPanel', () => ({
+  MonitorTargetPanel: ({ targetId }: { targetId: string }) => <div>Monitor panel for {targetId}</div>,
+}))
+
+vi.mock('@/components/servers/TunnelSetupWizard', () => ({
+  TunnelSetupWizard: ({ open }: { open: boolean }) =>
+    open ? <div>Tunnel setup wizard</div> : null,
+}))
+
+vi.mock('@/components/secrets/SecretForm', () => ({
+  SecretForm: ({
+    templates,
+    templateId,
+    payload,
+    onPayloadChange,
+  }: {
+    templates: Array<{
+      id: string
+      fields: Array<{ key: string; label: string; type: string; required?: boolean }>
+    }>
+    templateId: string
+    payload: Record<string, string>
+    onPayloadChange: (key: string, value: string) => void
+  }) => {
+    const selectedTemplate = templates.find(template => template.id === templateId)
+    if (!selectedTemplate) return null
+    return (
+      <div>
+        {selectedTemplate.fields.map(field => {
+          const label = `${field.label}${field.required ? ' *' : ''}`
+          return field.type === 'textarea' ? (
+            <label key={field.key}>
+              {label}
+              <textarea
+                aria-label={label}
+                value={payload[field.key] ?? ''}
+                onChange={event => onPayloadChange(field.key, event.target.value)}
+              />
+            </label>
+          ) : (
+            <label key={field.key}>
+              {label}
+              <input
+                aria-label={label}
+                type={field.type === 'password' ? 'password' : 'text'}
+                value={payload[field.key] ?? ''}
+                onChange={event => onPayloadChange(field.key, event.target.value)}
+              />
+            </label>
+          )
+        })}
+      </div>
+    )
+  },
+}))
+
 describe('ServersPage layout', () => {
   beforeEach(() => {
     navigateMock.mockReset()

@@ -28,11 +28,22 @@ var (
 //
 // callerID is used only for audit/logging; pass "" for system calls.
 func ResolveCertificate(app core.App, certID string, callerID string) (*CertMaterial, error) {
+	return resolveCertificateWith(certID, callerID,
+		func(certID string) (*core.Record, error) {
+			return app.FindRecordById("certificates", certID)
+		},
+		func(secretID, callerID string) (*secrets.ResolveResult, error) {
+			return secrets.Resolve(app, secretID, callerID)
+		},
+	)
+}
+
+func resolveCertificateWith(certID string, callerID string, findCertificate func(string) (*core.Record, error), resolveSecret func(string, string) (*secrets.ResolveResult, error)) (*CertMaterial, error) {
 	if strings.TrimSpace(callerID) == "" {
 		callerID = secrets.CreatedSourceSystem
 	}
 
-	record, err := app.FindRecordById("certificates", certID)
+	record, err := findCertificate(certID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrCertNotFound
@@ -52,7 +63,7 @@ func ResolveCertificate(app core.App, certID string, callerID string) (*CertMate
 	keyPEM := ""
 	secretID := getPrivateKeySecretID(record)
 	if secretID != "" {
-		result, err := secrets.Resolve(app, secretID, callerID)
+		result, err := resolveSecret(secretID, callerID)
 		if err != nil {
 			return nil, fmt.Errorf("resolving private key secret: %w", err)
 		}

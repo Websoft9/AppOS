@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tests"
 	"github.com/pocketbase/pocketbase/tools/types"
 	"github.com/websoft9/appos/backend/domain/software"
 )
@@ -247,11 +246,7 @@ func TestSoftwareActionPayloadRoundTrip(t *testing.T) {
 }
 
 func TestRunSoftwarePhaseLoopUsesExecutorPreflightAndAuditsTerminalFailure(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newWorkerTestApp(t)
 
 	oldFactory := softwareExecutorFactory
 	defer func() { softwareExecutorFactory = oldFactory }()
@@ -333,11 +328,7 @@ func TestRunSoftwarePhaseLoopUsesExecutorPreflightAndAuditsTerminalFailure(t *te
 }
 
 func TestRunSoftwarePhaseLoopRefreshesSnapshotOnSuccess(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newWorkerTestApp(t)
 
 	oldFactory := softwareExecutorFactory
 	defer func() { softwareExecutorFactory = oldFactory }()
@@ -405,11 +396,7 @@ func TestRunSoftwarePhaseLoopRefreshesSnapshotOnSuccess(t *testing.T) {
 }
 
 func TestRunSoftwarePhaseLoopFailsWhenPostActionVerifyIsDegraded(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newWorkerTestApp(t)
 
 	oldFactory := softwareExecutorFactory
 	defer func() { softwareExecutorFactory = oldFactory }()
@@ -494,11 +481,7 @@ func TestRunSoftwarePhaseLoopFailsWhenPostActionVerifyIsDegraded(t *testing.T) {
 }
 
 func TestRunSoftwarePhaseLoopFailsWhenUninstallTruthStillDetectsInstalled(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newWorkerTestApp(t)
 
 	oldFactory := softwareExecutorFactory
 	defer func() { softwareExecutorFactory = oldFactory }()
@@ -570,11 +553,7 @@ func TestRunSoftwarePhaseLoopFailsWhenUninstallTruthStillDetectsInstalled(t *tes
 }
 
 func TestRunSoftwarePhaseLoopMarksVerificationErrorCodeForVerifyErrors(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
+	app := newWorkerTestApp(t)
 
 	oldFactory := softwareExecutorFactory
 	defer func() { softwareExecutorFactory = oldFactory }()

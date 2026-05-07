@@ -5,11 +5,8 @@ import (
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tests"
 	"github.com/websoft9/appos/backend/domain/config/sharedenv"
 	"github.com/websoft9/appos/backend/domain/secrets"
-
-	_ "github.com/websoft9/appos/backend/infra/migrations"
 )
 
 func TestGetSetAndListVars(t *testing.T) {
@@ -19,11 +16,10 @@ func TestGetSetAndListVars(t *testing.T) {
 		t.Fatalf("load secret key: %v", err)
 	}
 
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
+	app := newSharedEnvTestApp(t)
 	defer app.Cleanup()
+
+	err := error(nil)
 
 	setCol, err := app.FindCollectionByNameOrId(sharedenv.SetCollection)
 	if err != nil {
@@ -113,11 +109,10 @@ func TestGetSetAndListVars(t *testing.T) {
 }
 
 func TestFindVarSupportsQuotedKeyAndRejectsInconsistentLookup(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
+	app := newSharedEnvTestApp(t)
 	defer app.Cleanup()
+
+	err := error(nil)
 
 	setCol, err := app.FindCollectionByNameOrId(sharedenv.SetCollection)
 	if err != nil {
@@ -164,17 +159,7 @@ func TestFindVarSupportsQuotedKeyAndRejectsInconsistentLookup(t *testing.T) {
 }
 
 func TestAttachedSetIDs(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer app.Cleanup()
-
-	appCol, err := app.FindCollectionByNameOrId("apps")
-	if err != nil {
-		t.Fatalf("find apps collection: %v", err)
-	}
-	record := core.NewRecord(appCol)
+	record := core.NewRecord(&core.Collection{})
 	record.Set(sharedenv.AttachedSetsField, []string{"set-a", " set-b ", "set-a", ""})
 
 	ids := sharedenv.AttachedSetIDs(record)
@@ -190,11 +175,10 @@ func TestAttachedSetIDs(t *testing.T) {
 }
 
 func TestLoadAttachedVars(t *testing.T) {
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatal(err)
-	}
+	app := newSharedEnvTestApp(t)
 	defer app.Cleanup()
+
+	err := error(nil)
 
 	setCol, err := app.FindCollectionByNameOrId(sharedenv.SetCollection)
 	if err != nil {

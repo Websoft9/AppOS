@@ -17,6 +17,10 @@ func BuildOverview(app core.App) (*OverviewResponse, error) {
 	if err != nil {
 		return nil, err
 	}
+	return buildOverviewFromRecords(records)
+}
+
+func buildOverviewFromRecords(records []*core.Record) (*OverviewResponse, error) {
 	counts := map[string]int{
 		monitor.StatusHealthy:           0,
 		monitor.StatusDegraded:          0,
@@ -161,6 +165,10 @@ func synthesizeAppTargetStatus(app core.App, targetID string, appEntry monitor.T
 	if err != nil {
 		return nil, err
 	}
+	return synthesizeAppTargetStatusFromRecord(appRecord, appEntry), nil
+}
+
+func synthesizeAppTargetStatusFromRecord(appRecord *core.Record, appEntry monitor.TargetRegistryEntry) *TargetStatusResponse {
 	runtimeStatus := strings.ToLower(strings.TrimSpace(appRecord.GetString("runtime_status")))
 	lifecycleState := strings.TrimSpace(appRecord.GetString("lifecycle_state"))
 	healthSummary := strings.TrimSpace(appRecord.GetString("health_summary"))
@@ -184,7 +192,7 @@ func synthesizeAppTargetStatus(app core.App, targetID string, appEntry monitor.T
 	return &TargetStatusResponse{
 		HasData:             false,
 		TargetType:          monitor.TargetTypeApp,
-		TargetID:            targetID,
+		TargetID:            appRecord.Id,
 		DisplayName:         appRecord.GetString("name"),
 		Status:              status,
 		Reason:              nullableString(reason),
@@ -204,7 +212,7 @@ func synthesizeAppTargetStatus(app core.App, targetID string, appEntry monitor.T
 			"publication_summary": strings.TrimSpace(appRecord.GetString("publication_summary")),
 			"server_id":           strings.TrimSpace(appRecord.GetString("server_id")),
 		},
-	}, nil
+	}
 }
 
 func normalizeSummary(summary map[string]any) map[string]any {

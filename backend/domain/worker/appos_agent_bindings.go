@@ -23,42 +23,46 @@ func applyServerExecutionBindings(app core.App, serverID string, explicitBaseURL
 		return resolved
 	}
 
-	env := apposAgentManagedInstallEnv(app, serverID, explicitBaseURL)
-	if len(env) == 0 {
+	baseURL := effectiveAppOSBaseURL(app, explicitBaseURL)
+	if baseURL == "" {
 		return resolved
+	}
+	token, _, err := agentsignals.GetOrIssueAgentToken(app, serverID, false)
+	if err != nil || strings.TrimSpace(token) == "" {
+		return resolved
+	}
+	return applyServerExecutionBindingsWithInputs(serverID, baseURL, token, resolved)
+}
+
+func applyServerExecutionBindingsWithInputs(serverID string, baseURL string, token string, resolved software.ResolvedTemplate) software.ResolvedTemplate {
+	if strings.TrimSpace(serverID) == "" || strings.TrimSpace(baseURL) == "" || strings.TrimSpace(token) == "" {
+		return resolved
+	}
+	env := map[string]string{
+		apposAgentConfigEnvName:      apposAgentConfigYAML(serverID, baseURL, token),
+		apposAgentSystemdUnitEnvName: apposAgentSystemdUnit(),
 	}
 	resolved.Install.Env = mergeRuntimeEnv(resolved.Install.Env, env)
 	resolved.Upgrade.Env = mergeRuntimeEnv(resolved.Upgrade.Env, env)
 	return resolved
 }
 
-func apposAgentManagedInstallEnv(app core.App, serverID string, explicitBaseURL string) map[string]string {
-	baseURL := effectiveAppOSBaseURL(app, explicitBaseURL)
-	if baseURL == "" {
-		return nil
-	}
-	token, _, err := agentsignals.GetOrIssueAgentToken(app, serverID, false)
-	if err != nil || strings.TrimSpace(token) == "" {
-		return nil
-	}
-	return map[string]string{
-		apposAgentConfigEnvName:      apposAgentConfigYAML(serverID, baseURL, token),
-		apposAgentSystemdUnitEnvName: apposAgentSystemdUnit(),
-	}
-}
-
 func effectiveAppOSBaseURL(app core.App, explicitBaseURL string) string {
-	if normalized := software.NormalizeAppOSBaseURL(explicitBaseURL); normalized != "" {
-		return normalized
-	}
 	if app == nil {
-		return ""
+		return effectiveAppOSBaseURLFromValue("", explicitBaseURL)
 	}
 	current, err := app.Settings().Clone()
 	if err != nil || current == nil {
-		return ""
+		return effectiveAppOSBaseURLFromValue("", explicitBaseURL)
 	}
-	return software.NormalizeAppOSBaseURL(current.Meta.AppURL)
+	return effectiveAppOSBaseURLFromValue(current.Meta.AppURL, explicitBaseURL)
+}
+
+func effectiveAppOSBaseURLFromValue(appURL string, explicitBaseURL string) string {
+	if normalized := software.NormalizeAppOSBaseURL(explicitBaseURL); normalized != "" {
+		return normalized
+	}
+	return software.NormalizeAppOSBaseURL(appURL)
 }
 
 func apposAgentConfigYAML(serverID string, baseURL string, token string) string {

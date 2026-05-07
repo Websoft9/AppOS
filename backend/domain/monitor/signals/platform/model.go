@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/infra/supervisor"
 )
 
 const (
@@ -31,6 +32,7 @@ type RuntimeSnapshot struct {
 type PlatformObserver struct {
 	app        core.App
 	snapshotFn func() RuntimeSnapshot
+	resourceFn func([]int) map[int]supervisor.ResourceInfo
 	nowFn      func() time.Time
 	mu         sync.Mutex
 	cancel     context.CancelFunc
