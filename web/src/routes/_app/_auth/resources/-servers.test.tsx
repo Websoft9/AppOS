@@ -1,12 +1,5 @@
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ServersPage } from './servers'
 
@@ -102,7 +95,9 @@ vi.mock('@/components/connect/DockerPanel', () => ({
 }))
 
 vi.mock('@/components/monitor/MonitorTargetPanel', () => ({
-  MonitorTargetPanel: ({ targetId }: { targetId: string }) => <div>Monitor panel for {targetId}</div>,
+  MonitorTargetPanel: ({ targetId }: { targetId: string }) => (
+    <div>Monitor panel for {targetId}</div>
+  ),
 }))
 
 vi.mock('@/components/servers/TunnelSetupWizard', () => ({

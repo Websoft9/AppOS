@@ -228,11 +228,12 @@ func resolveHostKeyCallback() (ssh.HostKeyCallback, error) {
 	candidates := make([]string, 0, 3)
 	if knownHostsPath != "" {
 		candidates = append(candidates, knownHostsPath)
+	} else {
+		if homeDir, err := os.UserHomeDir(); err == nil && homeDir != "" {
+			candidates = append(candidates, filepath.Join(homeDir, ".ssh", "known_hosts"))
+		}
+		candidates = append(candidates, "/etc/ssh/ssh_known_hosts")
 	}
-	if homeDir, err := os.UserHomeDir(); err == nil && homeDir != "" {
-		candidates = append(candidates, filepath.Join(homeDir, ".ssh", "known_hosts"))
-	}
-	candidates = append(candidates, "/etc/ssh/ssh_known_hosts")
 
 	existing := make([]string, 0, len(candidates))
 	seen := make(map[string]struct{}, len(candidates))

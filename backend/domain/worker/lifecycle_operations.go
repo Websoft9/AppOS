@@ -744,7 +744,6 @@ func (w *Worker) executorFor(execCtx *lifecycleExecutionContext) lifecycleruntim
 	return execCtx.executor
 }
 
-
 func (w *Worker) operationActor(operation *core.Record) (string, string) {
 	if operation == nil {
 		return "", ""

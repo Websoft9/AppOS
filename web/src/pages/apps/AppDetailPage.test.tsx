@@ -38,7 +38,11 @@ vi.mock('@/pages/apps/AppDetailActionHistoryTable', () => ({
     actions,
     buildActionDetailHref,
   }: {
-    actions: Array<{ id: string; compose_project_name?: string; pipeline_selector?: { operation_type?: string } }>
+    actions: Array<{
+      id: string
+      compose_project_name?: string
+      pipeline_selector?: { operation_type?: string }
+    }>
     buildActionDetailHref: (actionId: string) => string
   }) => (
     <section aria-label="Action History Table">
@@ -1026,7 +1030,9 @@ describe('AppDetailPage', () => {
     expect(screen.queryByText('shared-platform-db')).not.toBeInTheDocument()
     expect(await screen.findByText('demo-app-data')).toBeInTheDocument()
     expect(screen.queryByText('shared-cache')).not.toBeInTheDocument()
-    expect(await screen.findByText('Platform backup inventory is not connected yet.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Platform backup inventory is not connected yet.')
+    ).toBeInTheDocument()
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/ext/docker/containers/container-1', {
         method: 'GET',

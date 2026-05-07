@@ -112,7 +112,6 @@ func TestReadAndApplyAppInstanceProjection(t *testing.T) {
 	}
 }
 
-
 func newProjectionAppRecord() *core.Record {
 	collection := core.NewBaseCollection("app_instances")
 	record := core.NewRecord(collection)

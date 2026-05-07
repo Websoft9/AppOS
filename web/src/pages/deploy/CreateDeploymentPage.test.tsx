@@ -56,9 +56,7 @@ vi.mock('@/pages/deploy/OrchestrationSection', () => ({
     compose: string
     setCompose: (value: string) => void
     envVars: Array<{ key: string; value: string }>
-    setEnvVars: React.Dispatch<
-      React.SetStateAction<Array<{ key: string; value: string }>>
-    >
+    setEnvVars: React.Dispatch<React.SetStateAction<Array<{ key: string; value: string }>>>
     setSrcFiles: React.Dispatch<React.SetStateAction<File[]>>
     onYamlError?: (error: string | null) => void
     onRuntimeEnvInputsChange?: (
@@ -105,17 +103,15 @@ vi.mock('@/pages/deploy/OrchestrationSection', () => ({
           type="button"
           title="Auto-generate sensitive value"
           onClick={() =>
-            setEnvVars([{ key: primaryEnv.key, value: primaryEnv.value || 'generated-secret-value' }])
+            setEnvVars([
+              { key: primaryEnv.key, value: primaryEnv.value || 'generated-secret-value' },
+            ])
           }
         >
           Generate Sensitive
         </button>
 
-        <select
-          aria-label="Sensitive Method"
-          value="password_16"
-          onChange={() => undefined}
-        >
+        <select aria-label="Sensitive Method" value="password_16" onChange={() => undefined}>
           <option value="password_16">Password (16)</option>
         </select>
 

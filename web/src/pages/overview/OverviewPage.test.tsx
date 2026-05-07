@@ -267,14 +267,22 @@ describe('OverviewPage', () => {
     expect(await screen.findByLabelText('disk_usage time series chart')).toBeInTheDocument()
     expect(await screen.findByLabelText('network time series chart')).toBeInTheDocument()
     expect(await screen.findByText('Recent App Changes')).toBeInTheDocument()
-    expect(await screen.findByRole('link', { name: /System Monitor/i })).toHaveAttribute('href', '/status')
+    expect(await screen.findByRole('link', { name: /System Monitor/i })).toHaveAttribute(
+      'href',
+      '/status'
+    )
     expect(await screen.findByRole('link', { name: /Manage Servers/i })).toHaveAttribute(
       'href',
       '/resources/servers'
     )
-    expect(await screen.findByRole('link', { name: /WordPress/i })).toHaveAttribute('href', '/apps/app-1')
+    expect(await screen.findByRole('link', { name: /WordPress/i })).toHaveAttribute(
+      'href',
+      '/apps/app-1'
+    )
     expect((await screen.findAllByRole('link', { name: /Deploy App/i })).length).toBeGreaterThan(0)
-    expect((await screen.findAllByRole('link', { name: /Review Credentials/i })).length).toBeGreaterThan(0)
+    expect(
+      (await screen.findAllByRole('link', { name: /Review Credentials/i })).length
+    ).toBeGreaterThan(0)
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/apps', { method: 'GET' })

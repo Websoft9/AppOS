@@ -250,7 +250,24 @@ test:
 ifeq ($(QUALITY_SCOPE),backend)
 	@echo "Running backend tests ($(QUALITY_MODE))..."
 ifeq ($(QUALITY_MODE),fast)
-	@cd backend && go test ./... -v
+	@cd backend && for pkg in $$(go list ./...); do \
+		echo "   - $$pkg"; \
+		log_file=$$(mktemp); \
+		go test $$pkg -v >"$$log_file" 2>&1; \
+		status=$$?; \
+		cat "$$log_file"; \
+		if [ "$$status" -ne 0 ]; then \
+			fail_summary=$$(grep '^--- FAIL:' "$$log_file" || true); \
+			echo "✗ Backend tests failed in package: $$pkg"; \
+			if [ -n "$$fail_summary" ]; then \
+				echo "Fail summary:"; \
+				printf '%s\n' "$$fail_summary"; \
+			fi; \
+			rm -f "$$log_file"; \
+			exit 1; \
+		fi; \
+		rm -f "$$log_file"; \
+	 done
 else
 	@cd backend && for pkg in $$(go list ./...); do \
 		echo "   - $$pkg"; \
@@ -310,7 +327,24 @@ else
 ifeq ($(QUALITY_MODE),fast)
 	@if [ -f "backend/go.mod" ]; then \
 		echo "→ Go tests..."; \
-		cd backend && go test ./... -v; \
+		cd backend && for pkg in $$(go list ./...); do \
+			echo "   - $$pkg"; \
+			log_file=$$(mktemp); \
+			go test $$pkg -v >"$$log_file" 2>&1; \
+			status=$$?; \
+			cat "$$log_file"; \
+			if [ "$$status" -ne 0 ]; then \
+				fail_summary=$$(grep '^--- FAIL:' "$$log_file" || true); \
+				echo "✗ Backend tests failed in package: $$pkg"; \
+				if [ -n "$$fail_summary" ]; then \
+					echo "Fail summary:"; \
+					printf '%s\n' "$$fail_summary"; \
+				fi; \
+				rm -f "$$log_file"; \
+				exit 1; \
+			fi; \
+			rm -f "$$log_file"; \
+			done; \
 	fi
 	@if [ -f "web/package.json" ]; then \
 		echo "→ JS tests..."; \
@@ -372,69 +406,127 @@ test-fast:
 lint:
 	@echo "Running linters ($(QUALITY_MODE))..."
 ifeq ($(QUALITY_MODE),fast)
-	@if [ -x "$(GOLANGCI_LINT_BIN)" ] || command -v "$(GOLANGCI_LINT_BIN)" >/dev/null 2>&1; then \
+	@set -e; advisory_failures=""; \
+	if [ -x "$(GOLANGCI_LINT_BIN)" ] || command -v "$(GOLANGCI_LINT_BIN)" >/dev/null 2>&1; then \
 		echo "→ golangci-lint..."; \
-		cd backend && "$(GOLANGCI_LINT_BIN)" run --config ../.golangci.yml ./... || true; \
+		log_file=$$(mktemp); \
+		set +e; cd backend && "$(GOLANGCI_LINT_BIN)" run --config ../.golangci.yml ./... >"$$log_file" 2>&1; status=$$?; set -e; \
+		cat "$$log_file"; \
+		if [ "$$status" -ne 0 ]; then advisory_failures="$$advisory_failures golangci-lint"; fi; \
+		rm -f "$$log_file"; \
 	else \
 		echo "→ go vet (golangci-lint not installed)..."; \
-		cd backend && go vet ./... || true; \
-	fi
-	@if [ -d ".github/workflows" ]; then \
+		log_file=$$(mktemp); \
+		set +e; cd backend && go vet ./... >"$$log_file" 2>&1; status=$$?; set -e; \
+		cat "$$log_file"; \
+		if [ "$$status" -ne 0 ]; then advisory_failures="$$advisory_failures go-vet"; fi; \
+		rm -f "$$log_file"; \
+	fi; \
+	if [ -d ".github/workflows" ]; then \
 		actionlint_bin="$(ACTIONLINT_BIN)"; \
 		if ! [ -x "$$actionlint_bin" ] && ! command -v "$$actionlint_bin" >/dev/null 2>&1 && [ -x "$(DEFAULT_ACTIONLINT_BIN)" ]; then \
 			actionlint_bin="$(DEFAULT_ACTIONLINT_BIN)"; \
 		fi; \
 		if [ -x "$$actionlint_bin" ] || command -v "$$actionlint_bin" >/dev/null 2>&1; then \
 			echo "→ actionlint..."; \
-			"$$actionlint_bin" || true; \
+			log_file=$$(mktemp); \
+			set +e; "$$actionlint_bin" >"$$log_file" 2>&1; status=$$?; set -e; \
+			cat "$$log_file"; \
+			if [ "$$status" -ne 0 ]; then advisory_failures="$$advisory_failures actionlint"; fi; \
+			rm -f "$$log_file"; \
 		else \
 			echo "→ actionlint skipped (not installed)..."; \
 		fi; \
-	fi
-	@if [ -f "web/node_modules/.bin/eslint" ]; then \
+	fi; \
+	if [ -f "web/node_modules/.bin/eslint" ]; then \
 		echo "→ eslint..."; \
-		cd web && npx eslint src/ || true; \
-	fi
-	@if [ -f "web/package.json" ]; then \
+		log_file=$$(mktemp); \
+		set +e; cd web && npx eslint src/ >"$$log_file" 2>&1; status=$$?; set -e; \
+		cat "$$log_file"; \
+		if [ "$$status" -ne 0 ]; then advisory_failures="$$advisory_failures eslint"; fi; \
+		rm -f "$$log_file"; \
+	fi; \
+	if [ -f "web/package.json" ]; then \
 		echo "→ web typecheck..."; \
-		cd web && npm run typecheck || true; \
+		log_file=$$(mktemp); \
+		set +e; cd web && npm run typecheck >"$$log_file" 2>&1; status=$$?; set -e; \
+		cat "$$log_file"; \
+		if [ "$$status" -ne 0 ]; then advisory_failures="$$advisory_failures web-typecheck"; fi; \
+		rm -f "$$log_file"; \
+	fi; \
+	if [ -n "$$advisory_failures" ]; then \
+		echo "⚠ Fast lint completed with issues:"; \
+		for item in $$advisory_failures; do echo "  - $$item"; done; \
 	fi
 else
-	@if [ -x "$(GOLANGCI_LINT_BIN)" ] || command -v "$(GOLANGCI_LINT_BIN)" >/dev/null 2>&1 || [ -x "$(DEFAULT_GOLANGCI_LINT_BIN)" ]; then \
+	@set -e; \
+	if [ -x "$(GOLANGCI_LINT_BIN)" ] || command -v "$(GOLANGCI_LINT_BIN)" >/dev/null 2>&1 || [ -x "$(DEFAULT_GOLANGCI_LINT_BIN)" ]; then \
 		echo "→ golangci-lint..."; \
 		lint_bin="$(GOLANGCI_LINT_BIN)"; \
 		if ! [ -x "$$lint_bin" ] && ! command -v "$$lint_bin" >/dev/null 2>&1; then \
 			lint_bin="$(DEFAULT_GOLANGCI_LINT_BIN)"; \
 		fi; \
-		cd backend && "$$lint_bin" run --config ../.golangci.yml ./...; \
+		log_file=$$(mktemp); \
+		set +e; cd backend && "$$lint_bin" run --config ../.golangci.yml ./... >"$$log_file" 2>&1; status=$$?; set -e; \
+		cat "$$log_file"; \
+		if [ "$$status" -ne 0 ]; then \
+			echo "✗ Lint failed at: golangci-lint"; \
+			rm -f "$$log_file"; \
+			exit $$status; \
+		fi; \
+		rm -f "$$log_file"; \
 	else \
 		echo "✗ golangci-lint is required for strict lint mode."; \
 		echo "  Expected binary at $(DEFAULT_GOLANGCI_LINT_BIN) or on PATH."; \
 		echo "  Install it with 'make install' or run 'make lint fast' for advisory fallback mode."; \
 		exit 1; \
-	fi
-	@if [ -d ".github/workflows" ]; then \
+	fi; \
+	if [ -d ".github/workflows" ]; then \
 		actionlint_bin="$(ACTIONLINT_BIN)"; \
 		if ! [ -x "$$actionlint_bin" ] && ! command -v "$$actionlint_bin" >/dev/null 2>&1; then \
 			actionlint_bin="$(DEFAULT_ACTIONLINT_BIN)"; \
 		fi; \
 		if [ -x "$$actionlint_bin" ] || command -v "$$actionlint_bin" >/dev/null 2>&1; then \
 			echo "→ actionlint..."; \
-			"$$actionlint_bin"; \
+			log_file=$$(mktemp); \
+			set +e; "$$actionlint_bin" >"$$log_file" 2>&1; status=$$?; set -e; \
+			cat "$$log_file"; \
+			if [ "$$status" -ne 0 ]; then \
+				echo "✗ Lint failed at: actionlint"; \
+				rm -f "$$log_file"; \
+				exit $$status; \
+			fi; \
+			rm -f "$$log_file"; \
 		else \
 			echo "✗ actionlint is required for strict lint mode."; \
 			echo "  Expected binary at $(DEFAULT_ACTIONLINT_BIN) or on PATH."; \
 			echo "  Install it with 'make install' or run 'make lint fast' for advisory fallback mode."; \
 			exit 1; \
 		fi; \
-	fi
-	@if [ -f "web/node_modules/.bin/eslint" ]; then \
+	fi; \
+	if [ -f "web/node_modules/.bin/eslint" ]; then \
 		echo "→ eslint..."; \
-		cd web && npx eslint src/; \
-	fi
-	@if [ -f "web/package.json" ]; then \
+		log_file=$$(mktemp); \
+		set +e; cd web && npx eslint src/ >"$$log_file" 2>&1; status=$$?; set -e; \
+		cat "$$log_file"; \
+		if [ "$$status" -ne 0 ]; then \
+			echo "✗ Lint failed at: eslint"; \
+			rm -f "$$log_file"; \
+			exit $$status; \
+		fi; \
+		rm -f "$$log_file"; \
+	fi; \
+	if [ -f "web/package.json" ]; then \
 		echo "→ web typecheck..."; \
-		cd web && npm run typecheck; \
+		log_file=$$(mktemp); \
+		set +e; cd web && npm run typecheck >"$$log_file" 2>&1; status=$$?; set -e; \
+		cat "$$log_file"; \
+		if [ "$$status" -ne 0 ]; then \
+			echo "✗ Lint failed at: web-typecheck"; \
+			rm -f "$$log_file"; \
+			exit $$status; \
+		fi; \
+		rm -f "$$log_file"; \
 	fi
 endif
 	@echo "✓ Linting completed"
@@ -447,19 +539,48 @@ lint-fast:
 
 fmt:
 	@echo "Formatting code ($(QUALITY_MODE))..."
-	@if [ -f "backend/go.mod" ]; then \
+	@set -e; advisory_failures=""; \
+	if [ -f "backend/go.mod" ]; then \
 		echo "→ gofmt..."; \
-		find backend -name "*.go" -exec gofmt -w {} +; \
+		log_file=$$(mktemp); \
+		set +e; find backend -name "*.go" -exec gofmt -w {} + >"$$log_file" 2>&1; status=$$?; set -e; \
+		cat "$$log_file"; \
+		if [ "$(QUALITY_MODE)" = "fast" ]; then \
+			if [ "$$status" -ne 0 ]; then advisory_failures="$$advisory_failures gofmt"; fi; \
+		else \
+			if [ "$$status" -ne 0 ]; then \
+				echo "✗ Format failed at: gofmt"; \
+				rm -f "$$log_file"; \
+				exit $$status; \
+			fi; \
+		fi; \
+		rm -f "$$log_file"; \
 	fi
 ifeq ($(QUALITY_MODE),fast)
 	@if [ -f "web/node_modules/.bin/prettier" ]; then \
 		echo "→ prettier..."; \
-		cd web && npx prettier --write "src/**/*.{ts,tsx,css,json}" 2>/dev/null || true; \
+		log_file=$$(mktemp); \
+		set +e; cd web && npx prettier --write "src/**/*.{ts,tsx,css,json}" >"$$log_file" 2>&1; status=$$?; set -e; \
+		cat "$$log_file"; \
+		if [ "$$status" -ne 0 ]; then advisory_failures="$$advisory_failures prettier"; fi; \
+		rm -f "$$log_file"; \
+	fi
+	@if [ -n "$$advisory_failures" ]; then \
+		echo "⚠ Fast format completed with issues:"; \
+		for item in $$advisory_failures; do echo "  - $$item"; done; \
 	fi
 else
 	@if [ -f "web/node_modules/.bin/prettier" ]; then \
 		echo "→ prettier..."; \
-		cd web && npx prettier --write "src/**/*.{ts,tsx,css,json}" 2>/dev/null; \
+		log_file=$$(mktemp); \
+		set +e; cd web && npx prettier --write "src/**/*.{ts,tsx,css,json}" >"$$log_file" 2>&1; status=$$?; set -e; \
+		cat "$$log_file"; \
+		if [ "$$status" -ne 0 ]; then \
+			echo "✗ Format failed at: prettier"; \
+			rm -f "$$log_file"; \
+			exit $$status; \
+		fi; \
+		rm -f "$$log_file"; \
 	fi
 endif
 	@echo "✓ Code formatted"
@@ -484,23 +605,47 @@ check-fast:
 
 openapi-gen:
 	@echo "Generating OpenAPI custom-route spec from route source..."
-	@cd backend && go run ./cmd/openapi gen
+	@log_file=$$(mktemp); \
+	set +e; cd backend && go run ./cmd/openapi gen >"$$log_file" 2>&1; status=$$?; set -e; \
+	cat "$$log_file"; \
+	if [ "$$status" -ne 0 ]; then \
+		echo "✗ OpenAPI failed at: generate"; \
+		rm -f "$$log_file"; \
+		exit $$status; \
+	fi; \
+	rm -f "$$log_file"
 	@echo "→ spec: backend/docs/openapi/ext-api.yaml"
 
 openapi-merge:
 	@echo "Merging OpenAPI specs (custom routes + native)..."
-	@cd backend && go run ./cmd/openapi merge
+	@log_file=$$(mktemp); \
+	set +e; cd backend && go run ./cmd/openapi merge >"$$log_file" 2>&1; status=$$?; set -e; \
+	cat "$$log_file"; \
+	if [ "$$status" -ne 0 ]; then \
+		echo "✗ OpenAPI failed at: merge"; \
+		rm -f "$$log_file"; \
+		exit $$status; \
+	fi; \
+	rm -f "$$log_file"
 	@echo "→ spec: backend/docs/openapi/api.yaml"
 
 openapi-check:
 	@echo "Checking OpenAPI coverage and group-matrix generated anchors..."
-	@cd backend && go test ./domain/routes/ -run 'TestAll(CustomRoutesCoveredByOpenAPISpec|MatrixExtSurfacesHaveGeneratedSpecAnchors)' -v
+	@log_file=$$(mktemp); \
+	set +e; cd backend && go test ./domain/routes/ -run 'TestAll(CustomRoutesCoveredByOpenAPISpec|MatrixExtSurfacesHaveGeneratedSpecAnchors)' -v >"$$log_file" 2>&1; status=$$?; set -e; \
+	cat "$$log_file"; \
+	if [ "$$status" -ne 0 ]; then \
+		echo "✗ OpenAPI failed at: validate"; \
+		rm -f "$$log_file"; \
+		exit $$status; \
+	fi; \
+	rm -f "$$log_file"
 
 openapi-sync:
 	@echo "Syncing OpenAPI spec (generate + merge + validate)..."
-	@$(MAKE) openapi-gen
-	@$(MAKE) openapi-merge
-	@$(MAKE) openapi-check
+	@$(MAKE) openapi-gen || { echo "✗ OpenAPI sync failed at: generate"; exit 1; }
+	@$(MAKE) openapi-merge || { echo "✗ OpenAPI sync failed at: merge"; exit 1; }
+	@$(MAKE) openapi-check || { echo "✗ OpenAPI sync failed at: validate"; exit 1; }
 	@echo "✓ OpenAPI sync completed"
 
 
@@ -515,27 +660,33 @@ version-check:
 sec:
 ifeq ($(QUALITY_MODE),fast)
 	@echo "Running security checks (fast)..."
-	@echo "→ govulncheck (Go CVE scan)..."
-	@if [ -x "$(GOVULNCHECK_BIN)" ] || command -v "$(GOVULNCHECK_BIN)" >/dev/null 2>&1 || [ -x "$(DEFAULT_GOVULNCHECK_BIN)" ]; then \
+	@set -e; advisory_failures=""; \
+	echo "→ govulncheck (Go CVE scan)..."; \
+	if [ -x "$(GOVULNCHECK_BIN)" ] || command -v "$(GOVULNCHECK_BIN)" >/dev/null 2>&1 || [ -x "$(DEFAULT_GOVULNCHECK_BIN)" ]; then \
 		govuln_bin="$(GOVULNCHECK_BIN)"; \
 		if ! [ -x "$$govuln_bin" ] && ! command -v "$$govuln_bin" >/dev/null 2>&1; then \
 			govuln_bin="$(DEFAULT_GOVULNCHECK_BIN)"; \
 		fi; \
-		cd backend && "$$govuln_bin" ./... || true; \
+		log_file=$$(mktemp); \
+		set +e; cd backend && "$$govuln_bin" ./... >"$$log_file" 2>&1; status=$$?; set -e; \
+		cat "$$log_file"; \
+		if [ "$$status" -ne 0 ]; then advisory_failures="$$advisory_failures govulncheck"; fi; \
+		rm -f "$$log_file"; \
 	else \
 		echo "  ⚠ govulncheck not installed. Run 'make install' first."; \
-	fi
-	@echo ""
-	@echo "→ npm audit (JS CVE scan, high+critical only)..."
-	@if [ -f "web/package.json" ]; then \
-		cd web && npm audit --audit-level=high 2>/dev/null || true; \
-	fi
-	@echo ""
-	@echo "→ gitleaks (secret / credential leak detection)..."
-	@# Note: --no-git scans working directory files only.
-	@# CI uses full git history (fetch-depth: 0) for broader coverage.
-	@# To scan local git history too: gitleaks detect --source . --redact
-	@if [ -x "$(GITLEAKS_BIN)" ] || command -v "$(GITLEAKS_BIN)" >/dev/null 2>&1; then \
+	fi; \
+	echo ""; \
+	echo "→ npm audit (JS CVE scan, high+critical only)..."; \
+	if [ -f "web/package.json" ]; then \
+		log_file=$$(mktemp); \
+		set +e; cd web && npm audit --audit-level=high >"$$log_file" 2>&1; status=$$?; set -e; \
+		cat "$$log_file"; \
+		if [ "$$status" -ne 0 ]; then advisory_failures="$$advisory_failures npm-audit"; fi; \
+		rm -f "$$log_file"; \
+	fi; \
+	echo ""; \
+	echo "→ gitleaks (secret / credential leak detection)..."; \
+	if [ -x "$(GITLEAKS_BIN)" ] || command -v "$(GITLEAKS_BIN)" >/dev/null 2>&1; then \
 		report_path="$(GITLEAKS_REPORT_PATH)"; \
 		mkdir -p "$$(dirname "$$report_path")"; \
 		set +e; \
@@ -544,18 +695,21 @@ ifeq ($(QUALITY_MODE),fast)
 		set -e; \
 		if [ "$$status" -eq 1 ]; then \
 			echo "  ⚠ gitleaks found potential secret leaks. Report: $$report_path"; \
+			advisory_failures="$$advisory_failures gitleaks"; \
 		elif [ "$$status" -ne 0 ]; then \
 			echo "✗ gitleaks execution failed (exit $$status)."; \
 			exit $$status; \
 		fi; \
 	else \
 		echo "  ⚠ gitleaks not installed. Run 'make install' first."; \
-	fi
-	@echo ""
-	@echo "→ trivy config (IaC / Docker / workflow misconfiguration scan)..."
-	@if ! command -v docker >/dev/null 2>&1; then \
+	fi; \
+	echo ""; \
+	echo "→ trivy config (IaC / Docker / workflow misconfiguration scan)..."; \
+	if ! command -v docker >/dev/null 2>&1; then \
 		echo "  ⚠ docker not installed. Skip trivy config scan."; \
 	else \
+		log_file=$$(mktemp); \
+		set +e; \
 			docker run --rm \
 				-v "$$(pwd):/workspace" \
 				-w /workspace \
@@ -565,31 +719,57 @@ ifeq ($(QUALITY_MODE),fast)
 				--timeout 10m \
 				--severity HIGH,CRITICAL \
 				--exit-code 0 \
-				/workspace/build || true; \
+				/workspace/build >"$$log_file" 2>&1; \
+		status=$$?; \
+		set -e; \
+		cat "$$log_file"; \
+		if [ "$$status" -ne 0 ]; then advisory_failures="$$advisory_failures trivy-config"; fi; \
+		rm -f "$$log_file"; \
+	fi; \
+	if [ -n "$$advisory_failures" ]; then \
+		echo "⚠ Fast security checks completed with issues:"; \
+		for item in $$advisory_failures; do echo "  - $$item"; done; \
 	fi
 	@echo "✓ Security checks completed"
 
 else
 	@echo "Running security checks (strict)..."
-	@echo "→ govulncheck (Go CVE scan)..."
-	@if [ -x "$(GOVULNCHECK_BIN)" ] || command -v "$(GOVULNCHECK_BIN)" >/dev/null 2>&1 || [ -x "$(DEFAULT_GOVULNCHECK_BIN)" ]; then \
+	@set -e; \
+	echo "→ govulncheck (Go CVE scan)..."; \
+	if [ -x "$(GOVULNCHECK_BIN)" ] || command -v "$(GOVULNCHECK_BIN)" >/dev/null 2>&1 || [ -x "$(DEFAULT_GOVULNCHECK_BIN)" ]; then \
 		govuln_bin="$(GOVULNCHECK_BIN)"; \
 		if ! [ -x "$$govuln_bin" ] && ! command -v "$$govuln_bin" >/dev/null 2>&1; then \
 			govuln_bin="$(DEFAULT_GOVULNCHECK_BIN)"; \
 		fi; \
-		cd backend && "$$govuln_bin" ./...; \
+		log_file=$$(mktemp); \
+		set +e; cd backend && "$$govuln_bin" ./... >"$$log_file" 2>&1; status=$$?; set -e; \
+		cat "$$log_file"; \
+		if [ "$$status" -ne 0 ]; then \
+			echo "✗ Security checks failed at: govulncheck"; \
+			rm -f "$$log_file"; \
+			exit $$status; \
+		fi; \
+		rm -f "$$log_file"; \
 	else \
 		echo "✗ govulncheck not installed. Run 'make install' first."; \
 		exit 1; \
-	fi
-	@echo ""
-	@echo "→ npm audit (JS CVE scan, high+critical only)..."
-	@if [ -f "web/package.json" ]; then \
-		cd web && npm audit --audit-level=high 2>/dev/null; \
-	fi
-	@echo ""
-	@echo "→ gitleaks (secret / credential leak detection)..."
-	@if [ -x "$(GITLEAKS_BIN)" ] || command -v "$(GITLEAKS_BIN)" >/dev/null 2>&1; then \
+	fi; \
+	echo ""; \
+	echo "→ npm audit (JS CVE scan, high+critical only)..."; \
+	if [ -f "web/package.json" ]; then \
+		log_file=$$(mktemp); \
+		set +e; cd web && npm audit --audit-level=high >"$$log_file" 2>&1; status=$$?; set -e; \
+		cat "$$log_file"; \
+		if [ "$$status" -ne 0 ]; then \
+			echo "✗ Security checks failed at: npm-audit"; \
+			rm -f "$$log_file"; \
+			exit $$status; \
+		fi; \
+		rm -f "$$log_file"; \
+	fi; \
+	echo ""; \
+	echo "→ gitleaks (secret / credential leak detection)..."; \
+	if [ -x "$(GITLEAKS_BIN)" ] || command -v "$(GITLEAKS_BIN)" >/dev/null 2>&1; then \
 		report_path="$(GITLEAKS_REPORT_PATH)"; \
 		mkdir -p "$$(dirname "$$report_path")"; \
 		set +e; \
@@ -605,13 +785,15 @@ else
 	else \
 		echo "✗ gitleaks not installed. Run 'make install' first."; \
 		exit 1; \
-	fi
-	@echo ""
-	@echo "→ trivy config (IaC / Docker / workflow misconfiguration scan)..."
-	@if ! command -v docker >/dev/null 2>&1; then \
+	fi; \
+	echo ""; \
+	echo "→ trivy config (IaC / Docker / workflow misconfiguration scan)..."; \
+	if ! command -v docker >/dev/null 2>&1; then \
 		echo "✗ docker is required for trivy config scan."; \
 		exit 1; \
 	else \
+		log_file=$$(mktemp); \
+		set +e; \
 			docker run --rm \
 				-v "$$(pwd):/workspace" \
 				-w /workspace \
@@ -621,7 +803,16 @@ else
 				--timeout 10m \
 				--severity HIGH,CRITICAL \
 				--exit-code 1 \
-				/workspace/build; \
+				/workspace/build >"$$log_file" 2>&1; \
+		status=$$?; \
+		set -e; \
+		cat "$$log_file"; \
+		if [ "$$status" -ne 0 ]; then \
+			echo "✗ Security checks failed at: trivy-config"; \
+			rm -f "$$log_file"; \
+			exit $$status; \
+		fi; \
+		rm -f "$$log_file"; \
 	fi
 	@echo "✓ Security checks completed"
 endif
@@ -637,7 +828,15 @@ artifact-scan:
 	@if ! command -v syft >/dev/null 2>&1; then \
 		echo "✗ syft not installed. Run 'make install' first."; exit 1; \
 	fi
-	@syft dir:backend dir:web/src -o spdx-json > sbom.spdx.json
+	@log_file=$$(mktemp); \
+	set +e; syft dir:backend dir:web/src -o spdx-json > sbom.spdx.json 2>"$$log_file"; status=$$?; set -e; \
+	cat "$$log_file"; \
+	if [ "$$status" -ne 0 ]; then \
+		echo "✗ Artifact scan failed at: sbom"; \
+		rm -f "$$log_file"; \
+		exit $$status; \
+	fi; \
+	rm -f "$$log_file"
 	@echo "✓ SBOM generated → sbom.spdx.json"
 	@wc -l sbom.spdx.json | awk '{print "  Lines: " $$1}'
 	@echo ""
@@ -645,12 +844,20 @@ artifact-scan:
 	@if ! docker image inspect websoft9dev/appos:latest >/dev/null 2>&1; then \
 		echo "✗ Image websoft9dev/appos:latest not found. Run 'make image build' first."; exit 1; \
 	fi
-	docker run --rm \
+	@log_file=$$(mktemp); \
+	set +e; docker run --rm \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		aquasec/trivy:latest image \
 		--severity HIGH,CRITICAL \
 		--exit-code 0 \
-		websoft9dev/appos:latest
+		websoft9dev/appos:latest >"$$log_file" 2>&1; status=$$?; set -e; \
+	cat "$$log_file"; \
+	if [ "$$status" -ne 0 ]; then \
+		echo "✗ Artifact scan failed at: trivy-image"; \
+		rm -f "$$log_file"; \
+		exit $$status; \
+	fi; \
+	rm -f "$$log_file"
 	@echo "✓ Image scan completed"
 
 # ============================================================
