@@ -272,7 +272,7 @@ Recommended tabs:
 2. `Connection`
 3. `Monitor`
 4. `Runtime`
-5. `Software`
+5. `Components`
 
 ### Tab responsibilities
 
@@ -305,9 +305,11 @@ It must not be named `Setup`, because setup is only one part of the lifecycle.
 
 Tunnel-specific runtime details, including mapped services, should live inside `Connection` rather than in a separate tab.
 
-#### `Monitor`, `Runtime`, `Software`
+#### `Monitor`, `Runtime`, `Components`
 
 These remain domain tabs. They must not duplicate the core `Connection` diagnosis or next-step guidance.
+
+`Components` naming and information architecture are further refined in Story 20.7. This story only defines its position in the stable tab model.
 
 ## Connection Tab Information Architecture
 

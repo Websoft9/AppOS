@@ -5,7 +5,7 @@ export type ServerDetailTab =
   | 'docker'
   | 'runtime'
   | 'tunnel'
-  | 'software'
+  | 'components'
 
 export type ServerConnectionState =
   | 'not_configured'

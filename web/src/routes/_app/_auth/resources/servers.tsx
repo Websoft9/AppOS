@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, type ReactNode } from 'react'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
 import {
   PlugZap,
@@ -8,11 +8,10 @@ import {
   Link as LinkIcon,
   RotateCcw,
   Power,
-  RefreshCw,
   CircleHelp,
   PanelRight,
-  Maximize2,
-  Minimize2,
+  Square,
+  SquareMinus,
   MoreVertical,
   SlidersHorizontal,
   Activity,
@@ -36,16 +35,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ResourcePage, type Column, type FieldDef } from '@/components/resources/ResourcePage'
 import { TunnelSetupWizard } from '@/components/servers/TunnelSetupWizard'
+import { ServerConnectionTab } from '@/components/servers/ServerConnectionTab'
+import { ServerMonitorTab } from '@/components/servers/ServerMonitorTab'
+import { ServerOverviewTab } from '@/components/servers/ServerOverviewTab'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { SecretForm, type SecretTemplate } from '@/components/secrets/SecretForm'
-import { MonitorTargetPanel } from '@/components/monitor/MonitorTargetPanel'
-import { ServerSoftwarePanel } from '@/components/servers/ServerSoftwarePanel'
+import { ServerComponentsPanel } from '@/components/servers/ServerComponentsPanel'
 import { DockerPanel } from '@/components/connect/DockerPanel'
 import {
   getServerConnectionPresentation,
@@ -54,6 +53,11 @@ import {
   type ServerConnectionPresentationSpec,
   type ServerDetailTab,
 } from '@/components/servers/server-connection-presentation'
+import {
+  compactHostFactsSummary,
+  normalizeServerFacts,
+  parseTunnelServices,
+} from '@/components/servers/server-detail-shared'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatCreator } from '@/lib/groups'
 import { pb } from '@/lib/pb'
@@ -62,10 +66,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import {
   checkServerStatus as pingServerStatus,
   getLocalDockerBridgeAddress,
-  getSystemdStatus,
-  installMonitorAgent,
   serverPower,
-  updateMonitorAgent,
 } from '@/lib/connect-api'
 
 // Template-id → display alias used in the credential dropdown
@@ -75,7 +76,7 @@ const TEMPLATE_ALIASES: Record<string, string> = {
 }
 const ALLOWED_TEMPLATES = new Set(Object.keys(TEMPLATE_ALIASES))
 const SERVER_STATUS_REFRESH_BATCH_SIZE = 5
-type ServerDetailDrawerTier = 'xl' | 'full'
+type ServerDetailDrawerTier = 'lg' | 'full'
 
 function buildDefaultCredentialSecretName() {
   return `server-credential-${Date.now().toString().slice(-6)}`
@@ -152,131 +153,11 @@ function tunnelNeedsSetup(item: Record<string, unknown>): boolean {
   )
 }
 
-function accessLabel(status: string): string {
-  if (status === 'online') return 'Available'
-  if (status === 'offline') return 'Unavailable'
-  return 'Unknown'
-}
-
 function formatSecretLabel(raw: Record<string, unknown>): string {
   const name = String(raw.name ?? raw.id)
   const tid = String(raw.template_id ?? '')
   const alias = TEMPLATE_ALIASES[tid]
   return alias ? `${name}  (${alias})` : name
-}
-
-function tunnelStateLabel(state: string): string {
-  if (state === 'setup_required') return 'Setup Required'
-  if (state === 'paused') return 'Paused'
-  return 'Ready'
-}
-
-function formatTimestamp(value: unknown): string {
-  if (typeof value !== 'string' || value.trim() === '') {
-    return '—'
-  }
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) {
-    return String(value)
-  }
-  return parsed.toLocaleString()
-}
-
-type ServerFactsView = {
-  operatingSystem: string
-  kernelRelease: string
-  architecture: string
-  cpuCores: string
-  memoryTotal: string
-  observedAt: string
-  hasFacts: boolean
-}
-
-function asNumber(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value
-  }
-  if (typeof value === 'string' && value.trim() !== '') {
-    const parsed = Number(value)
-    if (Number.isFinite(parsed)) {
-      return parsed
-    }
-  }
-  return null
-}
-
-function formatBytes(value: unknown): string {
-  const bytes = asNumber(value)
-  if (bytes === null || bytes < 0) {
-    return '—'
-  }
-  if (bytes === 0) {
-    return '0 B'
-  }
-
-  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB']
-  let size = bytes
-  let unitIndex = 0
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024
-    unitIndex += 1
-  }
-
-  const digits = size >= 10 || unitIndex === 0 ? 0 : 1
-  return `${size.toFixed(digits)} ${units[unitIndex]}`
-}
-
-function normalizeServerFacts(item: Record<string, unknown>): ServerFactsView {
-  const facts = asObject(item.facts_json)
-  const osFacts = asObject(facts?.os)
-  const kernelFacts = asObject(facts?.kernel)
-  const cpuFacts = asObject(facts?.cpu)
-  const memoryFacts = asObject(facts?.memory)
-
-  const osParts = [
-    String(osFacts?.distribution ?? '').trim(),
-    String(osFacts?.version ?? '').trim(),
-  ].filter(Boolean)
-  const operatingSystem =
-    osParts.length > 0 ? osParts.join(' ') : String(osFacts?.family ?? '').trim() || '—'
-
-  const cpuCores = asNumber(cpuFacts?.cores)
-  const observedAtRaw = String(item.facts_observed_at ?? '').trim()
-  const hasFacts = Boolean((facts && Object.keys(facts).length > 0) || observedAtRaw)
-
-  return {
-    operatingSystem,
-    kernelRelease: String(kernelFacts?.release ?? '').trim() || '—',
-    architecture: String(facts?.architecture ?? '').trim() || '—',
-    cpuCores: cpuCores === null ? '—' : String(cpuCores),
-    memoryTotal: formatBytes(memoryFacts?.total_bytes),
-    observedAt: formatTimestamp(observedAtRaw),
-    hasFacts,
-  }
-}
-
-function compactHostFactsSummary(item: Record<string, unknown>): string {
-  const facts = normalizeServerFacts(item)
-  if (!facts.hasFacts) {
-    return ''
-  }
-
-  const parts = [facts.operatingSystem, facts.architecture].filter(value => value && value !== '—')
-  return parts.join(' · ')
-}
-
-function parseTunnelServices(value: unknown): Array<{ service_name: string; tunnel_port: number }> {
-  try {
-    if (typeof value === 'string' && value !== '' && value !== 'null') {
-      return JSON.parse(value) as Array<{ service_name: string; tunnel_port: number }>
-    }
-    if (Array.isArray(value)) {
-      return value as Array<{ service_name: string; tunnel_port: number }>
-    }
-  } catch {
-    return []
-  }
-  return []
 }
 
 function hostSummary(item: Record<string, unknown>): string {
@@ -474,7 +355,7 @@ export function ServersPage() {
   const [listRefreshKey, setListRefreshKey] = useState(0)
   const [wizardServerId, setWizardServerId] = useState<string | null>(null)
   const [selectedServerId, setSelectedServerId] = useState<string | undefined>(server)
-  const [serverDetailDrawerTier, setServerDetailDrawerTier] = useState<ServerDetailDrawerTier>('xl')
+  const [serverDetailDrawerTier, setServerDetailDrawerTier] = useState<ServerDetailDrawerTier>('lg')
   const [serverPageSize, setServerPageSize] = useState(10)
   const [visibleOptionalColumns, setVisibleOptionalColumns] = useState<Set<string>>(
     () => new Set(['host_summary', 'monitor_status', 'user', 'secret_type_label'])
@@ -853,7 +734,7 @@ export function ServersPage() {
         | 'docker'
         | 'runtime'
         | 'tunnel'
-        | 'software' = 'overview'
+        | 'components' = 'overview'
     ) => {
       const nextServerId = item ? String(item.id ?? '') : ''
       const opening = nextServerId !== ''
@@ -1226,6 +1107,8 @@ export function ServersPage() {
           ? 'connection'
           : requestedTab === 'detail'
             ? 'overview'
+            : requestedTab === 'software'
+              ? 'components'
             : requestedTab
       const tunnel = asObject(item.tunnel)
       const services = parseTunnelServices(tunnel?.services ?? item.tunnel_services)
@@ -1238,7 +1121,6 @@ export function ServersPage() {
       const createdBy = String(item.created_by_display || item.created_by || '—')
       const detailTabTriggerClassName =
         'mb-[-1px] h-10 flex-none rounded-none border-0 border-b-2 border-b-transparent px-0 pb-3 pt-1 text-sm text-muted-foreground shadow-none after:hidden hover:bg-transparent hover:text-foreground data-[state=active]:border-b-foreground data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-foreground'
-      const detailSectionTitleClassName = 'text-sm font-semibold text-foreground'
       const id = String(item.id || '')
       const isTunnelAction = item.connect_type === 'tunnel'
       const detailExpanded = serverDetailDrawerTier === 'full'
@@ -1246,12 +1128,16 @@ export function ServersPage() {
         <div className="relative space-y-4">
           <button
             type="button"
-            className="ring-offset-background focus:ring-ring data-[state=open]:bg-secondary absolute top-4 right-14 z-10 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden"
+            className="absolute -top-2 right-8 z-10 inline-flex items-center justify-center p-0 opacity-70 transition-opacity hover:opacity-100 focus:outline-none"
             aria-label={detailExpanded ? 'Restore detail width' : 'Expand detail width'}
             title={detailExpanded ? 'Restore detail width' : 'Expand detail width'}
-            onClick={() => setServerDetailDrawerTier(prev => (prev === 'full' ? 'xl' : 'full'))}
+            onClick={() => setServerDetailDrawerTier(prev => (prev === 'full' ? 'lg' : 'full'))}
           >
-            {detailExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            {detailExpanded ? (
+              <SquareMinus className="size-4" />
+            ) : (
+              <Square className="size-4" />
+            )}
           </button>
 
           <div className="flex items-start justify-between gap-4 pr-16">
@@ -1293,8 +1179,8 @@ export function ServersPage() {
                 <TabsTrigger value="runtime" className={detailTabTriggerClassName}>
                   Runtime
                 </TabsTrigger>
-                <TabsTrigger value="software" className={detailTabTriggerClassName}>
-                  Software
+                <TabsTrigger value="components" className={detailTabTriggerClassName}>
+                  Components
                 </TabsTrigger>
               </TabsList>
               <DropdownMenu>
@@ -1350,449 +1236,38 @@ export function ServersPage() {
             </div>
 
             <TabsContent value="overview" className="pt-4">
-              <div className="space-y-8">
-                <section className="space-y-4">
-                  <h3 className={detailSectionTitleClassName}>Server Metadata</h3>
-                  <dl className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2 xl:grid-cols-3">
-                    <div className="sm:col-span-2 xl:col-span-3">
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">ID</dt>
-                      <dd className="mt-1 break-all font-mono text-xs">{id || '—'}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Name
-                      </dt>
-                      <dd className="mt-1 break-all">{String(item.name || '—')}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Connection Type
-                      </dt>
-                      <dd className="mt-1">
-                        <Badge variant="outline">{isTunnel ? 'Tunnel' : 'Direct'}</Badge>
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Access
-                      </dt>
-                      <dd className="mt-1">
-                        {status === 'online' ? (
-                          <Badge variant="default">{accessLabel(status)}</Badge>
-                        ) : status === 'offline' ? (
-                          <Badge variant="secondary">{accessLabel(status)}</Badge>
-                        ) : (
-                          <Badge variant="outline">{accessLabel(status)}</Badge>
-                        )}
-                      </dd>
-                    </div>
-                    {isTunnel ? (
-                      <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                          Tunnel State
-                        </dt>
-                        <dd className="mt-1">
-                          <Badge variant="outline">{tunnelStateLabel(tunnelState)}</Badge>
-                        </dd>
-                      </div>
-                    ) : null}
-                    <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Host
-                      </dt>
-                      <dd className="mt-1 break-all font-mono text-xs">
-                        {String(item.host || '—')}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Port
-                      </dt>
-                      <dd className="mt-1">{String(item.port || '22')}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                        User
-                      </dt>
-                      <dd className="mt-1">{String(item.user || 'root')}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Credential
-                      </dt>
-                      <dd className="mt-1 flex items-center gap-2">
-                        {credentialType !== '—' && (
-                          <Badge variant="secondary">{credentialType}</Badge>
-                        )}
-                        {credentialId ? (
-                          <Link
-                            to="/secrets"
-                            search={{
-                              id: credentialId,
-                              edit: undefined,
-                              returnGroup: undefined,
-                              returnType: undefined,
-                            }}
-                            className="font-mono text-xs text-primary underline-offset-4 hover:underline"
-                          >
-                            {credentialId}
-                          </Link>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Created by
-                      </dt>
-                      <dd className="mt-1">{createdBy}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Created
-                      </dt>
-                      <dd className="mt-1">{String(item.created || '—')}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Updated
-                      </dt>
-                      <dd className="mt-1">{String(item.updated || '—')}</dd>
-                    </div>
-                    {item.description ? (
-                      <div className="sm:col-span-2 xl:col-span-3">
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                          Description
-                        </dt>
-                        <dd className="mt-1 text-muted-foreground">{String(item.description)}</dd>
-                      </div>
-                    ) : null}
-                  </dl>
-                </section>
-
-                <section className="space-y-4">
-                  <h3 className={detailSectionTitleClassName}>System Information</h3>
-                  {facts.hasFacts ? (
-                    <dl className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2 xl:grid-cols-3">
-                      <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                          Operating System
-                        </dt>
-                        <dd className="mt-1">{facts.operatingSystem}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                          Kernel
-                        </dt>
-                        <dd className="mt-1">{facts.kernelRelease}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                          Architecture
-                        </dt>
-                        <dd className="mt-1">{facts.architecture}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                          CPU Cores
-                        </dt>
-                        <dd className="mt-1">{facts.cpuCores}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                          Memory
-                        </dt>
-                        <dd className="mt-1">{facts.memoryTotal}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                          Facts Observed
-                        </dt>
-                        <dd className="mt-1">{facts.observedAt}</dd>
-                      </div>
-                    </dl>
-                  ) : (
-                    <div className="text-sm text-muted-foreground">
-                      No host facts have been collected for this server yet.
-                    </div>
-                  )}
-                </section>
-              </div>
+              <ServerOverviewTab
+                item={item}
+                serverId={id}
+                facts={facts}
+                status={status}
+                tunnelState={tunnelState}
+                isTunnel={isTunnel}
+                credentialType={credentialType}
+                credentialId={credentialId}
+                createdBy={createdBy}
+              />
             </TabsContent>
 
             <TabsContent value="connection" className="pt-4">
-              <div className="space-y-4">
-                <section className="space-y-4">
-                  <div>
-                    <h3 className={detailSectionTitleClassName}>Connection Summary</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">{presentation.reason}</p>
-                  </div>
-                  <div className="grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
-                    <div>
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Mode
-                      </div>
-                      <div className="mt-1">{presentation.modeLabel}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Connection Status
-                      </div>
-                      <div className="mt-1">
-                        <Badge
-                          variant={
-                            presentation.state === 'online'
-                              ? 'default'
-                              : presentation.state === 'paused' ||
-                                  presentation.state === 'needs_attention'
-                                ? 'secondary'
-                                : 'outline'
-                          }
-                        >
-                          {presentation.stateLabel}
-                        </Badge>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Last Check or Last Seen
-                      </div>
-                      <div className="mt-1">{presentation.lastActivityLabel}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Primary Action
-                      </div>
-                      <div className="mt-1">
-                        <Button
-                          size="sm"
-                          onClick={() => executePrimaryAction(item, presentation.primaryAction.id)}
-                        >
-                          {presentation.primaryAction.label}
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="sm:col-span-2 xl:col-span-3">
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Current Endpoint
-                      </div>
-                      <div className="mt-1">{presentation.endpointSummary}</div>
-                    </div>
-                  </div>
-                </section>
-
-                <section className="space-y-4">
-                  <div>
-                    <h3 className={detailSectionTitleClassName}>Primary Next Step</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {presentation.primaryActionDescription}
-                    </p>
-                  </div>
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        onClick={() => executePrimaryAction(item, presentation.primaryAction.id)}
-                      >
-                        {presentation.primaryAction.label}
-                      </Button>
-                      {presentation.secondaryActions.map(action => (
-                        <Button
-                          key={action.label}
-                          variant="outline"
-                          onClick={() => handleOpenServer(item, action.tab)}
-                        >
-                          {action.label}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                </section>
-
-                <section className="space-y-4">
-                  <div>
-                    <h3 className={detailSectionTitleClassName}>Mode-Specific Setup or Recovery</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {isTunnel
-                        ? 'Tunnel lifecycle guidance covers setup, runtime session, and recovery.'
-                        : 'Direct SSH lifecycle guidance covers configuration, verification, and recovery.'}
-                    </p>
-                  </div>
-                  <div className="grid gap-4 lg:grid-cols-3">
-                    {isTunnel ? (
-                      <>
-                        <div className="text-sm">
-                          <div className="font-medium">Setup</div>
-                          <div className="mt-2 text-muted-foreground">
-                            {presentation.state === 'not_configured'
-                              ? 'Tunnel setup has not started yet.'
-                              : 'Tunnel setup is already prepared in AppOS.'}
-                          </div>
-                        </div>
-                        <div className="text-sm">
-                          <div className="font-medium">Runtime Session</div>
-                          <div className="mt-2 text-muted-foreground">
-                            State: {tunnelStateLabel(tunnelState)} · Last seen:{' '}
-                            {formatTimestamp(tunnel?.last_seen)}
-                          </div>
-                        </div>
-                        <div className="text-sm">
-                          <div className="font-medium">Recovery</div>
-                          <div className="mt-2 text-muted-foreground">
-                            {String(tunnel?.reason ?? '').trim() ||
-                              'No tunnel-specific recovery issue is currently reported.'}
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="text-sm">
-                          <div className="font-medium">Configuration</div>
-                          <div className="mt-2 text-muted-foreground">
-                            Host {String(item.host || '—')} · Port {String(item.port || '22')} ·
-                            User {String(item.user || '—')}
-                          </div>
-                        </div>
-                        <div className="text-sm">
-                          <div className="font-medium">Verification</div>
-                          <div className="mt-2 text-muted-foreground">
-                            Latest check: {presentation.lastActivityLabel} · Source:{' '}
-                            {presentation.diagnostics.evidenceSource}
-                          </div>
-                        </div>
-                        <div className="text-sm">
-                          <div className="font-medium">Recovery</div>
-                          <div className="mt-2 text-muted-foreground">
-                            {presentation.state === 'needs_attention'
-                              ? presentation.reason
-                              : 'No SSH recovery action is currently required.'}
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </section>
-
-                {isTunnel ? (
-                  <section className="space-y-4">
-                    <div>
-                      <h3 className={detailSectionTitleClassName}>Tunnel Services</h3>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Service mappings exposed through this tunnel connection.
-                      </p>
-                    </div>
-                    <div>
-                      {services.length === 0 ? (
-                        <div className="text-sm text-muted-foreground">
-                          No tunnel service mapping exposed for this server.
-                        </div>
-                      ) : (
-                        <div className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
-                          {services.map(service => (
-                            <div key={`${service.service_name}:${service.tunnel_port}`}>
-                              <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                                {service.service_name}
-                              </div>
-                              <div className="mt-1 font-medium">Port {service.tunnel_port}</div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </section>
-                ) : null}
-
-                <section className="space-y-4">
-                  <div>
-                    <h3 className={detailSectionTitleClassName}>Diagnostics</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Evidence that supports the current recommendation.
-                    </p>
-                  </div>
-                  <div className="grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
-                    <div>
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Latest Check Result
-                      </div>
-                      <div className="mt-1">{presentation.diagnostics.latestCheckResult}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Evidence Source
-                      </div>
-                      <div className="mt-1">{presentation.diagnostics.evidenceSource}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Latest Failure Reason
-                      </div>
-                      <div className="mt-1">{presentation.diagnostics.latestFailureReason}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Latest Tunnel Callback or Heartbeat
-                      </div>
-                      <div className="mt-1">
-                        {presentation.diagnostics.latestTunnelCallbackOrHeartbeat}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Pause Until
-                      </div>
-                      <div className="mt-1">{presentation.diagnostics.pauseUntil}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Current Reason
-                      </div>
-                      <div className="mt-1">{presentation.diagnostics.currentReason}</div>
-                    </div>
-                  </div>
-                </section>
-
-                <section className="space-y-4">
-                  <div>
-                    <h3 className={detailSectionTitleClassName}>Activity Timeline</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Compact lifecycle milestones for this server.
-                    </p>
-                  </div>
-                  <div>
-                    {presentation.timeline.length === 0 ? (
-                      <div className="text-sm text-muted-foreground">
-                        No lifecycle events are available yet.
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {presentation.timeline.map(event => (
-                          <div
-                            key={`${event.label}:${event.at}`}
-                            className="flex items-start justify-between gap-4 text-sm"
-                          >
-                            <div className="font-medium">{event.label}</div>
-                            <div className="text-muted-foreground">{event.at}</div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </section>
-              </div>
+              <ServerConnectionTab
+                item={item}
+                presentation={presentation}
+                isTunnel={isTunnel}
+                tunnelState={tunnelState}
+                tunnel={tunnel}
+                services={services}
+                onExecutePrimaryAction={executePrimaryAction}
+                onOpenTab={handleOpenServer}
+              />
             </TabsContent>
 
             <TabsContent value="monitor" className="pt-4">
-              <div className="space-y-4">
-                <ServerMonitorAgentCard
-                  serverId={String(item.id || '')}
-                  serverName={String(item.name || item.id || '')}
-                />
-                <MonitorTargetPanel
-                  targetType="server"
-                  targetId={String(item.id || '')}
-                  emptyMessage={`No monitoring data available yet for ${String(item.name || item.id)}. Current connectivity status is ${status}.`}
-                />
-              </div>
+              <ServerMonitorTab
+                serverId={String(item.id || '')}
+                serverName={String(item.name || item.id || '')}
+                connectionStatus={status}
+              />
             </TabsContent>
 
             <TabsContent value="docker" className="pt-4">
@@ -1808,8 +1283,8 @@ export function ServersPage() {
               </div>
             </TabsContent>
 
-            <TabsContent value="software" className="pt-4">
-              <ServerSoftwarePanel serverId={String(item.id || '')} />
+            <TabsContent value="components" className="pt-4">
+              <ServerComponentsPanel serverId={String(item.id || '')} />
             </TabsContent>
           </Tabs>
         </div>
@@ -2266,180 +1741,6 @@ export function ServersPage() {
   )
 }
 
-function ServerMonitorAgentCard({
-  serverId,
-  serverName,
-}: {
-  serverId: string
-  serverName: string
-}) {
-  const [status, setStatus] = useState<Record<string, string> | null>(null)
-  const [statusText, setStatusText] = useState('')
-  const [statusError, setStatusError] = useState('')
-  const [loadingStatus, setLoadingStatus] = useState(true)
-  const [actionLoading, setActionLoading] = useState<'install' | 'update' | null>(null)
-  const [actionMessage, setActionMessage] = useState('')
-  const [actionError, setActionError] = useState('')
-
-  const loadStatus = useCallback(async () => {
-    if (!serverId) return
-    setLoadingStatus(true)
-    setStatusError('')
-    try {
-      const response = await getSystemdStatus(serverId, 'netdata')
-      setStatus(response.status)
-      setStatusText(response.status_text)
-    } catch (error) {
-      setStatus(null)
-      setStatusText('')
-      setStatusError(
-        error instanceof Error ? error.message : 'Unable to read Netdata service status'
-      )
-    } finally {
-      setLoadingStatus(false)
-    }
-  }, [serverId])
-
-  useEffect(() => {
-    void loadStatus()
-  }, [loadStatus])
-
-  const runAction = useCallback(
-    async (action: 'install' | 'update') => {
-      if (!serverId) return
-      setActionLoading(action)
-      setActionError('')
-      setActionMessage('')
-      try {
-        const response =
-          action === 'install'
-            ? await installMonitorAgent(serverId, { apposBaseUrl: window.location.origin })
-            : await updateMonitorAgent(serverId, { apposBaseUrl: window.location.origin })
-        setActionMessage(
-          `${action === 'install' ? 'Install' : 'Update'} completed for ${serverName}.${response.packaged_version ? ` Netdata version: ${response.packaged_version.trim()}.` : ''}`
-        )
-        if (response.systemd) {
-          setStatus(response.systemd)
-        }
-        if (response.status_text) {
-          setStatusText(response.status_text)
-        }
-        await loadStatus()
-      } catch (error) {
-        setActionError(error instanceof Error ? error.message : 'Netdata action failed')
-      } finally {
-        setActionLoading(null)
-      }
-    },
-    [loadStatus, serverId, serverName]
-  )
-
-  const activeState = String(status?.ActiveState || '').toLowerCase()
-  const subState = String(status?.SubState || '')
-  const unitState = String(status?.UnitFileState || '')
-  const isActive = activeState === 'active'
-
-  return (
-    <Card>
-      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <CardTitle className="text-base">Netdata Agent</CardTitle>
-          <CardDescription>
-            Install or update Netdata using the official native-package installer, then confirm the
-            remote netdata service state without leaving this tab.
-          </CardDescription>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void loadStatus()}
-            disabled={loadingStatus || !!actionLoading}
-          >
-            {loadingStatus ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-            Refresh Status
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => void runAction('update')}
-            disabled={!!actionLoading}
-          >
-            {actionLoading === 'update' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Update Netdata
-          </Button>
-          <Button size="sm" onClick={() => void runAction('install')} disabled={!!actionLoading}>
-            {actionLoading === 'install' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Install Netdata
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-2 sm:grid-cols-3">
-          <div className="rounded-md border bg-background px-3 py-2">
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              Active State
-            </div>
-            <div className="mt-1 font-medium">
-              {loadingStatus ? 'Loading...' : activeState || 'Unknown'}
-            </div>
-          </div>
-          <div className="rounded-md border bg-background px-3 py-2">
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">Sub State</div>
-            <div className="mt-1 font-medium">{loadingStatus ? 'Loading...' : subState || '—'}</div>
-          </div>
-          <div className="rounded-md border bg-background px-3 py-2">
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">Unit File</div>
-            <div className="mt-1 font-medium">
-              {loadingStatus ? 'Loading...' : unitState || '—'}
-            </div>
-          </div>
-        </div>
-
-        {statusError ? (
-          <Alert>
-            <AlertDescription>
-              Netdata service is not readable yet. It is usually not installed on {serverName} yet,
-              or the remote systemd unit has not been created. {statusError}
-            </AlertDescription>
-          </Alert>
-        ) : null}
-
-        {actionError ? (
-          <Alert>
-            <AlertDescription>{actionError}</AlertDescription>
-          </Alert>
-        ) : null}
-
-        {actionMessage ? (
-          <Alert>
-            <AlertDescription>{actionMessage}</AlertDescription>
-          </Alert>
-        ) : null}
-
-        <div className="rounded-md border bg-muted/10 p-3 text-sm text-muted-foreground">
-          {isActive
-            ? 'Service is active. Netdata is now collecting host metrics on the remote server.'
-            : 'Install Netdata downloads the official kickstart installer and forces native package installation. Update Netdata reruns the same installer in reinstall mode and restarts the service.'}
-        </div>
-
-        {statusText ? (
-          <div className="rounded-md border bg-background p-3">
-            <div className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
-              systemctl status
-            </div>
-            <pre className="overflow-x-auto whitespace-pre-wrap text-xs">{statusText}</pre>
-          </div>
-        ) : null}
-      </CardContent>
-    </Card>
-  )
-}
-
 export const Route = createFileRoute('/_app/_auth/resources/servers')({
   component: ServersPage,
   validateSearch: (search: Record<string, unknown>) => ({
@@ -2456,8 +1757,11 @@ export const Route = createFileRoute('/_app/_auth/resources/servers')({
       search.tab === 'docker' ||
       search.tab === 'runtime' ||
       search.tab === 'tunnel' ||
+      search.tab === 'components' ||
       search.tab === 'software'
-        ? search.tab
+        ? search.tab === 'software'
+          ? 'components'
+          : search.tab
         : undefined,
   }),
 })

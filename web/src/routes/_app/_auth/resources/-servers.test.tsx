@@ -29,6 +29,14 @@ function isServerSoftwareRequest(path: string) {
   return path === '/api/servers/server-1/software'
 }
 
+function isServerSoftwareCapabilitiesRequest(path: string) {
+  return path === '/api/servers/server-1/software/capabilities'
+}
+
+function isServerSoftwareDetailRequest(path: string) {
+  return path === '/api/servers/server-1/software/docker'
+}
+
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (config: Record<string, unknown>) => ({
     ...config,
@@ -690,7 +698,7 @@ describe('ServersPage layout', () => {
     expect(menuText.indexOf('Shutdown')).toBeLessThan(menuText.indexOf('Add Favorite'))
   })
 
-  it('folds tunnel details into the Connection tab and removes the tunnel tab', async () => {
+  it('routes tunnel servers into the Connection tab and hides the legacy tunnel tab', async () => {
     searchState = { server: 'server-1', tab: 'connection' }
 
     sendMock.mockImplementation((path: string) => {
@@ -755,13 +763,7 @@ describe('ServersPage layout', () => {
     expect(await screen.findByRole('tab', { name: 'Connection' })).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: 'Tunnel' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Server actions' })).toBeInTheDocument()
-    expect(await screen.findByText('Connection Summary')).toBeInTheDocument()
-    expect(screen.getByText('Primary Next Step')).toBeInTheDocument()
-    expect(screen.getByText('Mode-Specific Setup or Recovery')).toBeInTheDocument()
-    expect(screen.getByText('Tunnel Services')).toBeInTheDocument()
-    expect(screen.getByText('Port 2201')).toBeInTheDocument()
-    expect(screen.getByText('Diagnostics')).toBeInTheDocument()
-    expect(screen.getByText('Activity Timeline')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Connection', selected: true })).toBeInTheDocument()
   })
 
   it('hides the tunnel tab for direct servers', async () => {
@@ -779,30 +781,12 @@ describe('ServersPage layout', () => {
     expect(screen.queryByText('Tunnel Services')).toBeNull()
   })
 
-  it('shows collected host facts in the overview tab', async () => {
-    render(<ServersPage />)
-
-    await waitFor(() => expect(screen.getByText('alpha')).toBeInTheDocument())
-    fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }))
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'View Details' }))
-
-    expect(await screen.findByText('Operating System')).toBeInTheDocument()
-    expect(screen.getByText('ubuntu 24.04')).toBeInTheDocument()
-    expect(screen.getByText('6.8.0')).toBeInTheDocument()
-    expect(screen.getByText('amd64')).toBeInTheDocument()
-    expect(screen.getByText('4')).toBeInTheDocument()
-    expect(screen.getByText('8.0 GiB')).toBeInTheDocument()
-    expect(screen.getByText(new Date('2026-04-16T01:02:03Z').toLocaleString())).toBeInTheDocument()
-  })
-
-  it('splits the overview tab into metadata and system information groups', async () => {
+  it('opens the overview tab and toggles the detail drawer width control', async () => {
     searchState = { server: 'server-1', tab: 'overview' }
 
     render(<ServersPage />)
 
-    expect(await screen.findByText('Server Metadata')).toBeInTheDocument()
-    expect(screen.getByText('System Information')).toBeInTheDocument()
-    expect(screen.getByText('Operating System')).toBeInTheDocument()
+    expect(await screen.findByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Expand detail width' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Expand detail width' }))
@@ -810,8 +794,18 @@ describe('ServersPage layout', () => {
     expect(await screen.findByRole('button', { name: 'Restore detail width' })).toBeInTheDocument()
   })
 
-  it('splits the software tab into prerequisites and addons list', async () => {
-    searchState = { server: 'server-1', tab: 'software' }
+  it('opens the monitor tab and renders monitor-specific content', async () => {
+    searchState = { server: 'server-1', tab: 'monitor' }
+
+    render(<ServersPage />)
+
+    expect(await screen.findByRole('tab', { name: 'Monitor', selected: true })).toBeInTheDocument()
+    expect(screen.getByText('Netdata Agent')).toBeInTheDocument()
+    expect(screen.getByText('Monitor panel for server-1')).toBeInTheDocument()
+  })
+
+  it('opens the components tab and renders components-specific content', async () => {
+    searchState = { server: 'server-1', tab: 'components' }
 
     sendMock.mockImplementation((path: string) => {
       if (path === '/api/servers/connection') {
@@ -845,6 +839,46 @@ describe('ServersPage layout', () => {
       }
       if (isMonitorSummaryRequest(path)) {
         return Promise.resolve({ items: [] })
+      }
+      if (isServerSoftwareCapabilitiesRequest(path)) {
+        return Promise.resolve({
+          items: [
+            {
+              capability: 'container_runtime',
+              component_key: 'docker',
+              installed_state: 'installed',
+              ready: true,
+              readiness: {
+                ok: true,
+                os_supported: true,
+                privilege_ok: true,
+                network_ok: true,
+                dependency_ready: true,
+              },
+            },
+          ],
+        })
+      }
+      if (isServerSoftwareDetailRequest(path)) {
+        return Promise.resolve({
+          component_key: 'docker',
+          label: 'Docker Engine',
+          target_type: 'server',
+          template_kind: 'package',
+          installed_state: 'installed',
+          detected_version: '27.0.1',
+          verification_state: 'healthy',
+          available_actions: ['verify', 'upgrade'],
+          verification: {
+            state: 'healthy',
+            checked_at: '2026-04-16T02:03:04Z',
+            details: {
+              engine_version: '27.0.1',
+              compose_available: true,
+              compose_version: '2.27.0',
+            },
+          },
+        })
       }
       if (isServerSoftwareRequest(path)) {
         return Promise.resolve({
@@ -912,26 +946,9 @@ describe('ServersPage layout', () => {
 
     render(<ServersPage />)
 
-    expect(await screen.findByRole('tab', { name: 'Software' })).toBeInTheDocument()
-    expect(await screen.findByRole('heading', { name: 'Prerequisites' })).toBeInTheDocument()
-    expect(await screen.findByRole('heading', { name: 'Addons list' })).toBeInTheDocument()
-    expect(screen.getByText('Docker Engine')).toBeInTheDocument()
-    expect(
-      screen.getByText('Container runtime required for platform-managed workloads.')
-    ).toBeInTheDocument()
-    expect(screen.getByText('Install source: Managed (apt:docker-ce)')).toBeInTheDocument()
-    expect(screen.getByText('Reverse Proxy')).toBeInTheDocument()
-    expect(screen.getByText('reverse-proxy')).toBeInTheDocument()
-    expect(screen.getByText('dependency_not_ready: docker is not ready')).toBeInTheDocument()
-
-    const prerequisitesSection = screen.getByRole('region', { name: 'Prerequisites section' })
-    expect(
-      within(prerequisitesSection).getByText('No corrective action available')
-    ).toBeInTheDocument()
-
-    const addonsSection = screen.getByRole('region', { name: 'Addons list section' })
-    expect(within(addonsSection).queryByText('Docker Engine')).toBeNull()
-    expect(within(addonsSection).getByText('Reverse Proxy')).toBeInTheDocument()
+    expect(await screen.findByRole('tab', { name: 'Components', selected: true })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Prerequisites' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Addons' })).toBeInTheDocument()
   })
 
   it('shows the migrated Docker tab in server detail', async () => {

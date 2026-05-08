@@ -65,7 +65,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { type PBList, pbFilterValue } from '@/lib/groups'
 import { getDrawerTierStyle } from '@/lib/drawer-tiers'
 import { cn } from '@/lib/utils'
@@ -388,6 +388,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
   const detailPresentation = config.detailPresentation ?? 'inline'
   const detailDrawerSide = config.detailDrawerSide ?? 'right'
   const detailDrawerTitle = config.detailDrawerTitle ?? `${config.title.replace(/s$/, '')} Detail`
+  const detailDrawerDescription = 'Review the selected item details and available actions.'
   const detailDrawerTier = config.detailDrawerTier ?? 'lg'
   const showInlinePageSizeSelector =
     paginationVariant === 'minimal' &&
@@ -1682,6 +1683,7 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
             style={getDrawerTierStyle(detailDrawerTier)}
           >
             <SheetTitle className="sr-only">{detailDrawerTitle}</SheetTitle>
+            <SheetDescription className="sr-only">{detailDrawerDescription}</SheetDescription>
             {selectedDetailItem ? config.renderDetailPanel(selectedDetailItem, fetchItems) : null}
           </SheetContent>
         </Sheet>

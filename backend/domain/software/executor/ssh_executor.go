@@ -379,6 +379,27 @@ func (e *SSHExecutor) verifySystemd(ctx context.Context, tpl software.ResolvedTe
 	detail.SourceEvidence = detection.SourceEvidence
 	detail.VerificationState = vState
 	detail.ServiceName = svc
+	if tpl.ComponentKey == software.ComponentKeyDocker {
+		composeVersionOut, _ := executeSSHCommand(ctx, e.cfg, "docker compose version --short 2>/dev/null || true", verifyTimeout)
+		composeVersion := strings.TrimSpace(firstLine(composeVersionOut))
+		composeAvailable := composeVersion != ""
+		if detection.InstalledState == software.InstalledStateInstalled && !composeAvailable {
+			detail.VerificationState = software.VerificationStateDegraded
+		}
+		reason := ""
+		if detection.InstalledState == software.InstalledStateInstalled && !composeAvailable {
+			reason = "docker compose plugin not available"
+		}
+		detail.Verification = &software.SoftwareVerificationResult{
+			State:  detail.VerificationState,
+			Reason: reason,
+			Details: map[string]any{
+				"engine_version":   detection.DetectedVersion,
+				"compose_available": composeAvailable,
+				"compose_version":   composeVersion,
+			},
+		}
+	}
 	return detail, nil
 }
 

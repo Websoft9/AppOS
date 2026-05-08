@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase/core"
@@ -302,8 +303,11 @@ func (s *Service) buildComputedComponents(
 		detail.Preflight = &preflight
 
 		verifiedDetail, verifyErr := executor.Verify(ctx, targetID, resolved)
-		verification := &software.SoftwareVerificationResult{
-			State: software.VerificationStateUnknown,
+		verification := verifiedDetail.Verification
+		if verification == nil {
+			verification = &software.SoftwareVerificationResult{
+				State: software.VerificationStateUnknown,
+			}
 		}
 		if verifyErr == nil {
 			if verifiedDetail.InstalledState != "" {
@@ -318,7 +322,7 @@ func (s *Service) buildComputedComponents(
 			detail.VerificationState = verifiedDetail.VerificationState
 			detail.ServiceName = verifiedDetail.ServiceName
 			verification.State = verifiedDetail.VerificationState
-			if verifiedDetail.VerificationState == software.VerificationStateDegraded {
+			if verification.Reason == "" && verifiedDetail.VerificationState == software.VerificationStateDegraded {
 				verification.Reason = "service verification returned degraded state"
 			}
 		} else {
@@ -326,6 +330,9 @@ func (s *Service) buildComputedComponents(
 			if detectErr == nil && detection.InstalledState == software.InstalledStateNotInstalled {
 				verification.Reason = "component is not installed"
 			}
+		}
+		if verification.CheckedAt == "" {
+			verification.CheckedAt = time.Now().UTC().Format(time.RFC3339)
 		}
 		detail.Verification = verification
 		summary.AvailableActions = deriveAvailableActions(entry.SupportedActions, detail.InstalledState, preflight, lastOp)
