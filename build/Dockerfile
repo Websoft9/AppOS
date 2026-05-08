@@ -3,6 +3,23 @@
 # ===========================
 FROM node:24-alpine AS web-builder
 
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG ALL_PROXY
+ARG NO_PROXY
+ARG http_proxy
+ARG https_proxy
+ARG all_proxy
+ARG no_proxy
+ENV HTTP_PROXY=${HTTP_PROXY} \
+    HTTPS_PROXY=${HTTPS_PROXY} \
+    ALL_PROXY=${ALL_PROXY} \
+    NO_PROXY=${NO_PROXY} \
+    http_proxy=${http_proxy} \
+    https_proxy=${https_proxy} \
+    all_proxy=${all_proxy} \
+    no_proxy=${no_proxy}
+
 WORKDIR /build
 COPY web/package.json web/package-lock.json* ./
 RUN npm ci --silent
@@ -27,7 +44,24 @@ FROM victoriametrics/victoria-metrics:v1.124.0 AS victoriametrics-bin
 # ===========================
 # Stage 2: Build Backend (PocketBase Framework)
 # ===========================
-FROM golang:1.26-alpine AS backend-builder
+FROM golang:1.26.2-alpine AS backend-builder
+
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG ALL_PROXY
+ARG NO_PROXY
+ARG http_proxy
+ARG https_proxy
+ARG all_proxy
+ARG no_proxy
+ENV HTTP_PROXY=${HTTP_PROXY} \
+    HTTPS_PROXY=${HTTPS_PROXY} \
+    ALL_PROXY=${ALL_PROXY} \
+    NO_PROXY=${NO_PROXY} \
+    http_proxy=${http_proxy} \
+    https_proxy=${https_proxy} \
+    all_proxy=${all_proxy} \
+    no_proxy=${no_proxy}
 
 WORKDIR /build
 COPY backend/go.mod backend/go.sum ./
@@ -40,6 +74,23 @@ RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o appos-agent ./cmd/appos-agent
 # Stage 3: Runtime
 # ===========================
 FROM netdata/netdata:stable
+
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG ALL_PROXY
+ARG NO_PROXY
+ARG http_proxy
+ARG https_proxy
+ARG all_proxy
+ARG no_proxy
+ENV HTTP_PROXY=${HTTP_PROXY} \
+        HTTPS_PROXY=${HTTPS_PROXY} \
+        ALL_PROXY=${ALL_PROXY} \
+        NO_PROXY=${NO_PROXY} \
+        http_proxy=${http_proxy} \
+        https_proxy=${https_proxy} \
+        all_proxy=${all_proxy} \
+        no_proxy=${no_proxy}
 
 LABEL maintainer="Websoft9<help@websoft9.com>" \
       org.opencontainers.image.title="AppOS" \

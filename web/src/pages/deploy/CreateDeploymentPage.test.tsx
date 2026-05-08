@@ -470,20 +470,22 @@ describe('CreateDeploymentPage', () => {
       })
     })
 
-    expect(sendMock).toHaveBeenCalledWith('/api/actions/install/manual-compose', {
-      method: 'POST',
-      body: {
-        server_id: 'local',
-        project_name: 'wordpress-prod',
-        compose: 'services:\n  web:\n    image: nginx:alpine\n',
-        env: {},
-        metadata: { candidate_kind: 'manual-compose' },
-        app_required_disk_gib: '',
-      },
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/actions/install/manual-compose', {
+        method: 'POST',
+        body: {
+          server_id: 'local',
+          project_name: 'wordpress-prod',
+          compose: 'services:\n  web:\n    image: nginx:alpine\n',
+          env: {},
+          metadata: { candidate_kind: 'manual-compose' },
+          app_required_disk_gib: '',
+        },
+      })
+      expect(
+        screen.queryByText('Create blocked by preflight: Preflight completed with warnings')
+      ).toBeNull()
     })
-    expect(screen.getByRole('alert')).not.toHaveTextContent(
-      'Create blocked by preflight: Preflight completed with warnings'
-    )
   })
 
   it('blocks create when estimated app disk exceeds available disk', async () => {

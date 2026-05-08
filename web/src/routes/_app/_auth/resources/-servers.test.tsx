@@ -973,11 +973,11 @@ describe('ServersPage layout', () => {
         name: 'ops-password-v2',
         description: 'Original secret',
       })
-    })
-
-    expect(sendMock).toHaveBeenCalledWith('/api/secrets/secret-1/payload', {
-      method: 'PUT',
-      body: { payload: { value: 'new-pass' } },
+      expect(sendMock).toHaveBeenCalledWith('/api/secrets/secret-1/payload', {
+        method: 'PUT',
+        body: { payload: { value: 'new-pass' } },
+      })
+      expect(screen.queryByRole('heading', { name: 'Edit Credential' })).toBeNull()
     })
   }, 15000)
 
