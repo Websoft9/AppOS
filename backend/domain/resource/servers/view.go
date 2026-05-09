@@ -90,6 +90,22 @@ func BuildServerViewItem(record *core.Record, credentialType string, createdByNa
 	}
 
 	if managed.ConnectType != ConnectionModeTunnel {
+		// Read the cached result of the last TCP probe (written back by the
+		// connectivity-check endpoint) instead of probing live on every list load.
+		cachedStatus := strings.TrimSpace(record.GetString("access_status"))
+		if cachedStatus != "" {
+			checkedAt := recordDateTime(record, "access_checked_at")
+			checkedAtStr := ""
+			if !checkedAt.IsZero() {
+				checkedAtStr = checkedAt.UTC().Format(time.RFC3339)
+			}
+			item.Access = AccessView{
+				Status:    cachedStatus,
+				Reason:    strings.TrimSpace(record.GetString("access_reason")),
+				CheckedAt: checkedAtStr,
+				Source:    "cached",
+			}
+		}
 		return item
 	}
 

@@ -29,12 +29,12 @@ function isServerSoftwareRequest(path: string) {
   return path === '/api/servers/server-1/software'
 }
 
-function isServerSoftwareCapabilitiesRequest(path: string) {
-  return path === '/api/servers/server-1/software/capabilities'
+function isServerSoftwareComponentRequest(path: string) {
+  return path === '/api/servers/server-1/software/docker'
 }
 
-function isServerSoftwareDetailRequest(path: string) {
-  return path === '/api/servers/server-1/software/docker'
+function isServerSoftwareCapabilitiesRequest(path: string) {
+  return path === '/api/servers/server-1/software/capabilities'
 }
 
 vi.mock('@tanstack/react-router', () => ({
@@ -100,6 +100,16 @@ vi.mock('@/contexts/AuthContext', () => ({
 
 vi.mock('@/components/connect/DockerPanel', () => ({
   DockerPanel: ({ serverId }: { serverId: string }) => <div>Docker panel for {serverId}</div>,
+}))
+
+vi.mock('@/components/servers/ServerPortsPanel', () => ({
+  ServerPortsPanel: ({ serverId }: { serverId: string }) => <div>Ports panel for {serverId}</div>,
+}))
+
+vi.mock('@/components/servers/ServerServicesPanel', () => ({
+  ServerServicesPanel: ({ serverId }: { serverId: string }) => (
+    <div>Services panel for {serverId}</div>
+  ),
 }))
 
 vi.mock('@/components/monitor/MonitorTargetPanel', () => ({
@@ -787,11 +797,30 @@ describe('ServersPage layout', () => {
     render(<ServersPage />)
 
     expect(await screen.findByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Expand detail width' })).toBeInTheDocument()
+    expect(screen.getByText('Server Detail | alpha')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Restore detail width' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Expand detail width' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Restore detail width' }))
 
-    expect(await screen.findByRole('button', { name: 'Restore detail width' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Expand detail width' })).toBeInTheDocument()
+  })
+
+  it('opens the ports tab in server detail', async () => {
+    searchState = { server: 'server-1', tab: 'ports' }
+
+    render(<ServersPage />)
+
+    expect(await screen.findByRole('tab', { name: 'Ports', selected: true })).toBeInTheDocument()
+    expect(screen.getByText('Ports panel for server-1')).toBeInTheDocument()
+  })
+
+  it('opens the systemd tab in server detail', async () => {
+    searchState = { server: 'server-1', tab: 'systemd' }
+
+    render(<ServersPage />)
+
+    expect(await screen.findByRole('tab', { name: 'Systemd', selected: true })).toBeInTheDocument()
+    expect(screen.getByText('Services panel for server-1')).toBeInTheDocument()
   })
 
   it('opens the monitor tab and renders monitor-specific content', async () => {
@@ -859,7 +888,7 @@ describe('ServersPage layout', () => {
           ],
         })
       }
-      if (isServerSoftwareDetailRequest(path)) {
+      if (isServerSoftwareComponentRequest(path)) {
         return Promise.resolve({
           component_key: 'docker',
           label: 'Docker Engine',
@@ -867,8 +896,9 @@ describe('ServersPage layout', () => {
           template_kind: 'package',
           installed_state: 'installed',
           detected_version: '27.0.1',
+          install_source: 'managed',
+          source_evidence: 'apt:docker-ce',
           verification_state: 'healthy',
-          available_actions: ['verify', 'upgrade'],
           verification: {
             state: 'healthy',
             checked_at: '2026-04-16T02:03:04Z',
@@ -878,6 +908,14 @@ describe('ServersPage layout', () => {
               compose_version: '2.27.0',
             },
           },
+          preflight: {
+            ok: true,
+            os_supported: true,
+            privilege_ok: true,
+            network_ok: true,
+            dependency_ready: true,
+          },
+          available_actions: ['verify', 'upgrade'],
         })
       }
       if (isServerSoftwareRequest(path)) {
@@ -893,6 +931,15 @@ describe('ServersPage layout', () => {
               install_source: 'managed',
               source_evidence: 'apt:docker-ce',
               verification_state: 'healthy',
+              verification: {
+                state: 'healthy',
+                checked_at: '2026-04-16T02:03:04Z',
+                details: {
+                  engine_version: '27.0.1',
+                  compose_available: true,
+                  compose_version: '2.27.0',
+                },
+              },
               preflight: {
                 ok: true,
                 os_supported: true,

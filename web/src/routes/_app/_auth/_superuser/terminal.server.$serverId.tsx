@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 
 type TerminalServerSearch = {
-  panel?: 'files' | 'docker'
+  panel?: 'files'
   path?: string
   lockedRoot?: string
 }
@@ -15,7 +15,7 @@ const LazyConnectServerPage = lazy(() =>
 
 export const Route = createFileRoute('/_app/_auth/_superuser/terminal/server/$serverId')({
   validateSearch: (search: Record<string, unknown>): TerminalServerSearch => ({
-    panel: search.panel === 'files' || search.panel === 'docker' ? search.panel : undefined,
+    panel: search.panel === 'files' ? search.panel : undefined,
     path: typeof search.path === 'string' && search.path.trim() ? search.path : undefined,
     lockedRoot:
       typeof search.lockedRoot === 'string' && search.lockedRoot.trim()

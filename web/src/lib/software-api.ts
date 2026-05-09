@@ -83,6 +83,7 @@ export interface SoftwareComponentSummary {
   last_action?: SoftwareLastAction
   last_operation?: SoftwareLastOperation
   preflight?: TargetReadinessResult
+  verification?: SoftwareVerificationResult
 }
 
 export interface SoftwareComponentDetail extends SoftwareComponentSummary {

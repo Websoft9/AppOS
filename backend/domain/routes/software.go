@@ -243,6 +243,7 @@ type softwareComponentListItem struct {
 	software.SoftwareComponentSummary
 	TargetType    software.TargetType             `json:"target_type"`
 	Preflight     *software.TargetReadinessResult `json:"preflight,omitempty"`
+	Verification  *software.SoftwareVerificationResult `json:"verification,omitempty"`
 	LastOperation *swservice.OperationSummary     `json:"last_operation,omitempty"`
 }
 
@@ -277,6 +278,7 @@ func handleSoftwareComponentList(e *core.RequestEvent) error {
 			SoftwareComponentSummary: item.Summary,
 			TargetType:               item.Entry.TargetType,
 			Preflight:                item.Detail.Preflight,
+			Verification:             item.Detail.Verification,
 			LastOperation:            item.LastOperation,
 		})
 	}

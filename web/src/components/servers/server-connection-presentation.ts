@@ -5,6 +5,8 @@ export type ServerDetailTab =
   | 'docker'
   | 'runtime'
   | 'tunnel'
+  | 'ports'
+  | 'systemd'
   | 'components'
 
 export type ServerConnectionState =

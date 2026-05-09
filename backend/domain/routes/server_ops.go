@@ -14,8 +14,18 @@ import (
 
 	"github.com/websoft9/appos/backend/domain/audit"
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
+	"github.com/websoft9/appos/backend/domain/software"
 	"github.com/websoft9/appos/backend/domain/terminal"
+	"github.com/websoft9/appos/backend/domain/worker"
 )
+
+var enqueueSoftwareSnapshotWarmTask = worker.EnqueueSoftwareSnapshotWarm
+
+var defaultWarmSnapshotComponents = []software.ComponentKey{
+	software.ComponentKeyDocker,
+	software.ComponentKeyReverseProxy,
+	software.ComponentKeyMonitorAgent,
+}
 
 func registerServerOpsRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	serverOps := g.Group("/{serverId}/ops")
@@ -132,12 +142,14 @@ func handleServerConnectivity(e *core.RequestEvent) error {
 	}
 
 	response := map[string]any{"status": "offline", "mode": mode}
+	userID, _, _, _ := clientInfo(e)
 
 	switch mode {
 	case "tunnel":
 		if tunnelSessions != nil {
 			if _, ok := tunnelSessions.Get(serverID); ok {
 				response["status"] = "online"
+				warmServerSoftwareSnapshots(serverID, userID)
 			}
 		}
 		return e.JSON(http.StatusOK, response)
@@ -153,28 +165,55 @@ func handleServerConnectivity(e *core.RequestEvent) error {
 		start := time.Now()
 		sess, connErr := (&terminal.SSHConnector{}).Connect(ctx, cfg)
 		if connErr != nil {
-			response["reason"] = connErr.Error()
+			reason := connErr.Error()
 			var ce *terminal.ConnectError
 			if errors.As(connErr, &ce) {
 				response["category"] = string(ce.Category)
-				response["reason"] = ce.Message
+				reason = ce.Message
 			}
+			response["reason"] = reason
+			writeServerAccessCache(e.App, server, "unavailable", reason)
 			return e.JSON(http.StatusOK, response)
 		}
 		_ = sess.Close()
 		response["status"] = "online"
 		response["latency_ms"] = time.Since(start).Milliseconds()
+		writeServerAccessCache(e.App, server, "available", "")
+		warmServerSoftwareSnapshots(serverID, userID)
 		return e.JSON(http.StatusOK, response)
 	default:
 		probe := directServerAccessProbe(ms.Host, ms.Port)
 		if probe.Access.Status != "available" {
 			response["reason"] = probe.Detail
+			writeServerAccessCache(e.App, server, "unavailable", probe.Access.Reason)
 			return e.JSON(http.StatusOK, response)
 		}
 		response["status"] = "online"
 		response["latency_ms"] = probe.LatencyMS
+		writeServerAccessCache(e.App, server, "available", "")
+		warmServerSoftwareSnapshots(serverID, userID)
 		return e.JSON(http.StatusOK, response)
 	}
+}
+
+func warmServerSoftwareSnapshots(serverID, userID string) {
+	if asynqClient == nil || strings.TrimSpace(serverID) == "" {
+		return
+	}
+	if err := enqueueSoftwareSnapshotWarmTask(asynqClient, serverID, userID, defaultWarmSnapshotComponents); err != nil {
+		return
+	}
+}
+
+// writeServerAccessCache persists the result of a connectivity probe back to
+// the servers record so the list endpoint can serve it instantly without a
+// live TCP probe on every page load.
+func writeServerAccessCache(app core.App, record *core.Record, status, reason string) {
+	now := time.Now().UTC().Format("2006-01-02 15:04:05.000Z")
+	record.Set("access_status", status)
+	record.Set("access_reason", reason)
+	record.Set("access_checked_at", now)
+	_ = app.Save(record)
 }
 
 func handleServerPower(e *core.RequestEvent) error {

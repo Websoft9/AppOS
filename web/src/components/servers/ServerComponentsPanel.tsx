@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Check, Loader2, RefreshCw, X } from 'lucide-react'
+import { Check, CircleHelp, Loader2, RefreshCw, X } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Table,
   TableBody,
@@ -16,7 +17,6 @@ import {
   invokeSoftwareAction,
   type InstallSource,
   listSoftwareComponents,
-  type SoftwareComponentDetail,
   type SoftwareActionType,
   type SoftwareComponentSummary,
   type SoftwareLastOperation,
@@ -29,7 +29,7 @@ function isPrerequisiteComponent(component: SoftwareComponentSummary): boolean {
 }
 
 function primaryPrerequisiteAction(component: SoftwareComponentSummary): SoftwareActionType | null {
-  const actions = new Set(component.available_actions)
+  const actions = new Set(component.available_actions ?? [])
   if (component.installed_state !== 'installed' && actions.has('install')) return 'install'
   if (component.verification_state === 'degraded' && actions.has('reinstall')) return 'reinstall'
   if (component.verification_state === 'degraded' && actions.has('upgrade')) return 'upgrade'
@@ -82,8 +82,8 @@ function blockingSummary(
   return null
 }
 
-function readVerificationDetails(detail: SoftwareComponentDetail | null): Record<string, unknown> | null {
-  const value = detail?.verification?.details
+function readVerificationDetails(component: SoftwareComponentSummary): Record<string, unknown> | null {
+  const value = component.verification?.details
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return value as Record<string, unknown>
   }
@@ -154,10 +154,32 @@ function statusTone(
 
 function statusLabel(component: SoftwareComponentSummary): string {
   if (component.verification_state === 'degraded') return 'Degraded'
+  // installed + healthy = runtime verified running — distinct from merely being installed
   if (component.installed_state === 'installed' && component.verification_state === 'healthy')
-    return 'Installed'
+    return 'Running'
+  // installed + unknown = deployment confirmed, runtime not yet verified
+  if (component.installed_state === 'installed') return 'Installed'
   if (component.installed_state === 'not_installed') return 'Not Installed'
   return 'Unknown'
+}
+
+function SectionHelp({ label, children }: { label: string; children: string }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          className="inline-flex h-5 w-5 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none"
+        >
+          <CircleHelp className="h-3.5 w-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="top" align="start" className="w-64 text-xs leading-5">
+        {children}
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 function ComponentRow({
@@ -246,7 +268,7 @@ function ComponentRow({
       </TableCell>
       <TableCell className="py-3 align-top text-right">
         <div className="flex flex-wrap justify-end gap-1">
-          {component.available_actions.map(action => {
+          {(component.available_actions ?? []).map(action => {
             const loadingKey = `${component.component_key}:${action}`
             const isThisLoading = actionLoading === loadingKey
             return (
@@ -270,36 +292,56 @@ function ComponentRow({
 }
 
 export function ServerComponentsPanel({ serverId }: { serverId: string }) {
-  const [components, setComponents] = useState<SoftwareComponentSummary[]>([])
-  const [dockerDetail, setDockerDetail] = useState<SoftwareComponentDetail | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState('')
+  const [prerequisiteComponents, setPrerequisiteComponents] = useState<SoftwareComponentSummary[]>([])
+  const [addonComponents, setAddonComponents] = useState<SoftwareComponentSummary[]>([])
+  const [prerequisitesLoading, setPrerequisitesLoading] = useState(true)
+  const [addonsLoading, setAddonsLoading] = useState(true)
+  const [prerequisiteError, setPrerequisiteError] = useState('')
+  const [addonError, setAddonError] = useState('')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [actionError, setActionError] = useState('')
   const [actionMessage, setActionMessage] = useState('')
-
-  const prerequisiteComponents = components.filter(isPrerequisiteComponent)
-  const addonComponents = components.filter(component => !isPrerequisiteComponent(component))
+  const loading = prerequisitesLoading || addonsLoading
 
   const loadComponents = useCallback(async () => {
     if (!serverId) return
-    setLoading(true)
-    setLoadError('')
-    try {
-      const items = await listSoftwareComponents(serverId)
-      setComponents(items)
-      const hasDocker = items.some(item => item.component_key === 'docker')
-      if (hasDocker) {
-        setDockerDetail(await getSoftwareComponent(serverId, 'docker'))
-      } else {
-        setDockerDetail(null)
+    setPrerequisitesLoading(true)
+    setAddonsLoading(true)
+    setPrerequisiteError('')
+    setAddonError('')
+
+    const loadPrerequisites = async () => {
+      try {
+        const items = await Promise.all(
+          Array.from(PREREQUISITE_COMPONENT_KEYS).map(componentKey =>
+            getSoftwareComponent(serverId, componentKey)
+          )
+        )
+        setPrerequisiteComponents(items)
+      } catch (err) {
+        setPrerequisiteComponents([])
+        setPrerequisiteError(
+          err instanceof Error ? err.message : 'Failed to load prerequisite components'
+        )
+      } finally {
+        setPrerequisitesLoading(false)
       }
-    } catch (err) {
-      setLoadError(err instanceof Error ? err.message : 'Failed to load software components')
-      setDockerDetail(null)
-    } finally {
-      setLoading(false)
     }
+
+    const loadAddons = async () => {
+      try {
+        const items = await listSoftwareComponents(serverId)
+        setAddonComponents(items.filter(component => !isPrerequisiteComponent(component)))
+      } catch (err) {
+        setAddonComponents([])
+        setAddonError(err instanceof Error ? err.message : 'Failed to load addon components')
+      } finally {
+        setAddonsLoading(false)
+      }
+    }
+
+    await loadPrerequisites()
+    await loadAddons()
   }, [serverId])
 
   useEffect(() => {
@@ -335,13 +377,17 @@ export function ServerComponentsPanel({ serverId }: { serverId: string }) {
 
   return (
     <div className="space-y-4">
-      {loadError && <p className="text-sm text-destructive">{loadError}</p>}
       {actionMessage && <p className="text-sm text-muted-foreground">{actionMessage}</p>}
       {actionError && <p className="text-sm text-destructive">{actionError}</p>}
 
       <section className="space-y-3" aria-label="Prerequisites section">
         <div className="flex items-start justify-between gap-3">
-          <h4 className="text-sm font-semibold text-foreground">Prerequisites</h4>
+          <div className="flex items-center gap-1.5">
+            <h4 className="text-sm font-semibold text-foreground">Prerequisites</h4>
+            <SectionHelp label="Prerequisites help">
+              Core platform requirements that should be ready before AppOS manages workloads on this server.
+            </SectionHelp>
+          </div>
           <Button
             variant="ghost"
             size="sm"
@@ -359,9 +405,11 @@ export function ServerComponentsPanel({ serverId }: { serverId: string }) {
           </Button>
         </div>
 
+        {prerequisiteError && <p className="text-sm text-destructive">{prerequisiteError}</p>}
+
         {prerequisiteComponents.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border/60 px-4 py-6 text-sm text-muted-foreground">
-            {loading
+            {prerequisitesLoading
               ? 'Loading prerequisites...'
               : 'No prerequisite components are defined for this server.'}
           </div>
@@ -370,12 +418,11 @@ export function ServerComponentsPanel({ serverId }: { serverId: string }) {
             {prerequisiteComponents.map(component => {
               const readinessIssues = component.preflight?.issues ?? []
               const dockerVerificationDetails =
-                component.component_key === 'docker' ? readVerificationDetails(dockerDetail) : null
+                component.component_key === 'docker' ? readVerificationDetails(component) : null
               const engineVersion =
                 component.component_key === 'docker'
                   ? String(
                       dockerVerificationDetails?.engine_version ??
-                        dockerDetail?.detected_version ??
                         component.detected_version ??
                         ''
                     ).trim()
@@ -498,12 +545,14 @@ export function ServerComponentsPanel({ serverId }: { serverId: string }) {
       </section>
 
       <section className="space-y-3" aria-label="Addons section">
-        <div className="space-y-1">
+        <div className="flex items-center gap-1.5">
           <h4 className="text-sm font-semibold text-foreground">Addons</h4>
-          <p className="text-sm text-muted-foreground">
-            Remaining managed server software available for inspection and lifecycle actions.
-          </p>
+          <SectionHelp label="Addons help">
+            Optional server-side components that AppOS can inspect, verify, install, or repair after the baseline is ready.
+          </SectionHelp>
         </div>
+
+        {addonError && <p className="text-sm text-destructive">{addonError}</p>}
 
         <Table>
           <TableHeader>
@@ -519,7 +568,7 @@ export function ServerComponentsPanel({ serverId }: { serverId: string }) {
             {addonComponents.length === 0 ? (
               <TableRow className="hover:bg-transparent">
                 <TableCell colSpan={5} className="py-6 text-center text-sm text-muted-foreground">
-                  {loading
+                  {addonsLoading
                     ? 'Loading addons...'
                     : 'No addon components found for this server.'}
                 </TableCell>

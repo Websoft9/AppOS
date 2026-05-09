@@ -2754,7 +2754,7 @@ paths:
           schema:
             type: string
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -2795,7 +2795,7 @@ paths:
             schema:
               $ref: '#/components/schemas/GenericRequest'
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -2843,7 +2843,7 @@ paths:
             schema:
               $ref: '#/components/schemas/GenericRequest'
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -2895,7 +2895,7 @@ paths:
           schema:
             type: string
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -2937,7 +2937,7 @@ paths:
           schema:
             type: string
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -2985,7 +2985,7 @@ paths:
             schema:
               $ref: '#/components/schemas/GenericRequest'
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -3033,7 +3033,7 @@ paths:
             schema:
               $ref: '#/components/schemas/GenericRequest'
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -3081,7 +3081,7 @@ paths:
             schema:
               $ref: '#/components/schemas/GenericRequest'
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -3129,7 +3129,7 @@ paths:
             schema:
               $ref: '#/components/schemas/GenericRequest'
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -3171,7 +3171,7 @@ paths:
           schema:
             type: string
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -3213,7 +3213,7 @@ paths:
           schema:
             type: string
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -3265,7 +3265,7 @@ paths:
           schema:
             type: string
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -3311,7 +3311,7 @@ paths:
           schema:
             type: string
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -3363,7 +3363,7 @@ paths:
           schema:
             type: string
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -3416,7 +3416,7 @@ paths:
             schema:
               $ref: '#/components/schemas/GenericRequest'
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -3469,7 +3469,7 @@ paths:
             schema:
               $ref: '#/components/schemas/GenericRequest'
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -3522,7 +3522,7 @@ paths:
             schema:
               $ref: '#/components/schemas/GenericRequest'
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -3570,7 +3570,7 @@ paths:
             schema:
               $ref: '#/components/schemas/GenericRequest'
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -3605,7 +3605,7 @@ paths:
           schema:
             type: string
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -3653,7 +3653,7 @@ paths:
             schema:
               $ref: '#/components/schemas/GenericRequest'
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -3701,7 +3701,7 @@ paths:
             schema:
               $ref: '#/components/schemas/GenericRequest'
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -3753,7 +3753,7 @@ paths:
           schema:
             type: string
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -3795,7 +3795,7 @@ paths:
           schema:
             type: string
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -3835,7 +3835,7 @@ paths:
           schema:
             type: string
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -3882,7 +3882,7 @@ paths:
           schema:
             type: string
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -3924,7 +3924,7 @@ paths:
           schema:
             type: string
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -3971,7 +3971,7 @@ paths:
             schema:
               $ref: '#/components/schemas/GenericRequest'
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -4018,7 +4018,7 @@ paths:
           schema:
             type: string
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -4054,7 +4054,7 @@ paths:
       description: "Returns all configured servers with concurrent online/offline ping status. Superuser only."
       operationId: get_api_ext_docker_servers
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -4082,7 +4082,7 @@ paths:
           schema:
             type: string
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -4130,7 +4130,7 @@ paths:
             schema:
               $ref: '#/components/schemas/GenericRequest'
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -4177,7 +4177,7 @@ paths:
           schema:
             type: string
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -4224,7 +4224,7 @@ paths:
           schema:
             type: string
       security:
-        - bearerAuth: []
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK

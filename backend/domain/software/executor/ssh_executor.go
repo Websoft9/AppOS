@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
+	cryptossh "golang.org/x/crypto/ssh"
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
 	"github.com/websoft9/appos/backend/domain/software"
 	softwarescripts "github.com/websoft9/appos/backend/domain/software/scripts"
@@ -33,47 +34,88 @@ const (
 const dockerCEPackageRepoProfile = "docker-ce"
 
 // executeSSHCommand is the SSH transport function. Overridable in tests.
+// Used as a fallback when SSHExecutor has no established client (e.g., in unit tests).
 var executeSSHCommand = terminal.ExecuteSSHCommand
 
 // SSHExecutor implements software.ComponentExecutor against a remote server via SSH.
-// It is created once per operation and is not safe for concurrent use.
+// It holds a single persistent SSH client connection that is reused for all commands,
+// avoiding per-command TCP+SSH handshake overhead.
+// It is created once per operation scope and is not safe for concurrent use.
 type SSHExecutor struct {
-	cfg terminal.ConnectorConfig
+	cfg         terminal.ConnectorConfig
+	client      *cryptossh.Client                    // nil in unit-test mode (uses executeSSHCommand fallback)
+	detectCache map[string]software.DetectionResult  // keyed by ComponentKey; avoids re-running Detect inside verifySystemd
 }
 
-// NewSSHExecutor resolves the SSH configuration for serverID and returns a ready executor.
+// Close releases the underlying SSH client connection if one was established.
+// Safe to call on a nil receiver.
+func (e *SSHExecutor) Close() {
+	if e == nil || e.client == nil {
+		return
+	}
+	_ = e.client.Close()
+	e.client = nil
+}
+
+// runCommand executes a shell command over SSH. When e.client is set (normal production
+// operation after NewSSHExecutor), it opens a new lightweight session on the already-
+// established connection. When e.client is nil (unit-test mode), it falls back to the
+// package-level executeSSHCommand variable which tests may override.
+func (e *SSHExecutor) runCommand(ctx context.Context, command string, timeout time.Duration) (string, error) {
+	if e.client != nil {
+		return terminal.RunSSHSession(ctx, e.client, command, timeout)
+	}
+	return executeSSHCommand(ctx, e.cfg, command, timeout)
+}
+
+// NewSSHExecutor resolves the SSH configuration for serverID and establishes the
+// underlying SSH connection. All subsequent commands reuse this single connection.
 // userID may be empty; in that case the system account credential flow is used.
 func NewSSHExecutor(app core.App, serverID, userID string) (*SSHExecutor, error) {
 	access, err := servers.ResolveConfigForUserID(app, serverID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("resolve server config for %s: %w", serverID, err)
 	}
-	return &SSHExecutor{
-		cfg: terminal.ConnectorConfig{
-			Host:     access.Host,
-			Port:     access.Port,
-			User:     access.User,
-			AuthType: terminal.CredAuthType(access.AuthType),
-			Secret:   access.Secret,
-			Shell:    access.Shell,
-		},
-	}, nil
+	cfg := terminal.ConnectorConfig{
+		Host:     access.Host,
+		Port:     access.Port,
+		User:     access.User,
+		AuthType: terminal.CredAuthType(access.AuthType),
+		Secret:   access.Secret,
+		Shell:    access.Shell,
+	}
+	client, err := terminal.DialSSH(context.Background(), cfg)
+	if err != nil {
+		return nil, fmt.Errorf("ssh connect to %s: %w", serverID, err)
+	}
+	return &SSHExecutor{cfg: cfg, client: client, detectCache: make(map[string]software.DetectionResult)}, nil
 }
 
 // Detect checks whether the component binary is present and returns the detected version.
 // installed_hint commands are tried in order; the first successful output determines
 // installed state. version_command is run only when the component is detected as installed.
 func (e *SSHExecutor) Detect(ctx context.Context, _ string, tpl software.ResolvedTemplate) (software.DetectionResult, error) {
+	key := string(tpl.ComponentKey)
+	if e.detectCache != nil {
+		if cached, ok := e.detectCache[key]; ok {
+			return cached, nil
+		}
+	}
+
 	installed := false
 	for _, hint := range tpl.Detect.InstalledHint {
-		out, err := executeSSHCommand(ctx, e.cfg, hint, detectTimeout)
+		out, err := e.runCommand(ctx, hint, detectTimeout)
 		if err == nil && strings.TrimSpace(out) != "" {
 			installed = true
 			break
 		}
 	}
 	if !installed {
-		return software.DetectionResult{InstalledState: software.InstalledStateNotInstalled, InstallSource: software.InstallSourceUnknown}, nil
+		result := software.DetectionResult{InstalledState: software.InstalledStateNotInstalled, InstallSource: software.InstallSourceUnknown}
+		if e.detectCache != nil {
+			e.detectCache[key] = result
+		}
+		return result, nil
 	}
 	result := software.DetectionResult{
 		InstalledState: software.InstalledStateInstalled,
@@ -83,12 +125,18 @@ func (e *SSHExecutor) Detect(ctx context.Context, _ string, tpl software.Resolve
 		if tpl.ComponentKey == software.ComponentKeyDocker {
 			result.InstallSource, result.SourceEvidence = e.detectDockerInstallSource(ctx, tpl)
 		}
+		if e.detectCache != nil {
+			e.detectCache[key] = result
+		}
 		return result, nil
 	}
-	versionOut, _ := executeSSHCommand(ctx, e.cfg, tpl.Detect.VersionCommand, detectTimeout)
+	versionOut, _ := e.runCommand(ctx, tpl.Detect.VersionCommand, detectTimeout)
 	result.DetectedVersion = strings.TrimSpace(firstLine(versionOut))
 	if tpl.ComponentKey == software.ComponentKeyDocker {
 		result.InstallSource, result.SourceEvidence = e.detectDockerInstallSource(ctx, tpl)
+	}
+	if e.detectCache != nil {
+		e.detectCache[key] = result
 	}
 	return result, nil
 }
@@ -107,7 +155,7 @@ func (e *SSHExecutor) RunPreflight(ctx context.Context, _ string, tpl software.R
 
 	// OS verified-baseline check
 	if len(tpl.Preflight.VerifiedOS) > 0 {
-		osOut, err := executeSSHCommand(ctx, e.cfg,
+		osOut, err := e.runCommand(ctx,
 			`awk -F= '/^ID=/{gsub(/"/, "", $2); print $2}' /etc/os-release 2>/dev/null || true`,
 			preflightTimeout)
 		if err != nil {
@@ -131,10 +179,10 @@ func (e *SSHExecutor) RunPreflight(ctx context.Context, _ string, tpl software.R
 
 	// Root / privilege check
 	if tpl.Preflight.RequireRoot {
-		uidOut, err := executeSSHCommand(ctx, e.cfg, "id -u", preflightTimeout)
+		uidOut, err := e.runCommand(ctx, "id -u", preflightTimeout)
 		if err != nil || strings.TrimSpace(uidOut) != "0" {
 			// Accept passwordless sudo as an equivalent to root
-			_, sudoErr := executeSSHCommand(ctx, e.cfg, "sudo -n true 2>/dev/null", preflightTimeout)
+			_, sudoErr := e.runCommand(ctx, "sudo -n true 2>/dev/null", preflightTimeout)
 			if sudoErr != nil {
 				result.PrivilegeOK = false
 				result.Issues = append(result.Issues, "privilege_required: neither root nor passwordless sudo available")
@@ -144,7 +192,7 @@ func (e *SSHExecutor) RunPreflight(ctx context.Context, _ string, tpl software.R
 
 	// Network check
 	if tpl.Preflight.RequireNetwork {
-		_, err := executeSSHCommand(ctx, e.cfg,
+		_, err := e.runCommand(ctx,
 			"curl -fs --max-time 5 https://get.docker.com -o /dev/null 2>/dev/null || "+
 				"wget -q --timeout=5 https://get.docker.com -O /dev/null 2>/dev/null",
 			preflightTimeout)
@@ -158,7 +206,7 @@ func (e *SSHExecutor) RunPreflight(ctx context.Context, _ string, tpl software.R
 	if strings.TrimSpace(tpl.Preflight.ServiceManager) != "" {
 		switch tpl.Preflight.ServiceManager {
 		case "systemd":
-			if _, err := executeSSHCommand(ctx, e.cfg, "command -v systemctl >/dev/null 2>&1", preflightTimeout); err != nil {
+			if _, err := e.runCommand(ctx, "command -v systemctl >/dev/null 2>&1", preflightTimeout); err != nil {
 				result.ServiceManagerOK = false
 				result.Issues = append(result.Issues, fmt.Sprintf("%s: required service manager %q is not available", software.ReadinessIssueServiceManagerMissing, tpl.Preflight.ServiceManager))
 			}
@@ -177,7 +225,7 @@ func (e *SSHExecutor) RunPreflight(ctx context.Context, _ string, tpl software.R
 				result.Issues = append(result.Issues, fmt.Sprintf("%s: no supported package manager (apt-get, dnf, yum) is available", software.ReadinessIssuePackageManagerMissing))
 			}
 		case "apt":
-			if _, err := executeSSHCommand(ctx, e.cfg, "command -v apt-get >/dev/null 2>&1", preflightTimeout); err != nil {
+			if _, err := e.runCommand(ctx, "command -v apt-get >/dev/null 2>&1", preflightTimeout); err != nil {
 				result.PackageManagerOK = false
 				result.Issues = append(result.Issues, fmt.Sprintf("%s: required package manager %q is not available", software.ReadinessIssuePackageManagerMissing, tpl.Preflight.PackageManager))
 			}
@@ -201,7 +249,7 @@ func (e *SSHExecutor) Install(ctx context.Context, serverID string, tpl software
 		if err != nil {
 			return software.SoftwareComponentDetail{}, fmt.Errorf("install %s via package manager: %w", tpl.ComponentKey, err)
 		}
-		if _, err := executeSSHCommand(ctx, e.cfg, withSudo(cmd), installTimeout); err != nil {
+		if _, err := e.runCommand(ctx, withSudo(cmd), installTimeout); err != nil {
 			return software.SoftwareComponentDetail{}, fmt.Errorf("install %s via package manager: %w", tpl.ComponentKey, err)
 		}
 	case "script":
@@ -209,7 +257,7 @@ func (e *SSHExecutor) Install(ctx context.Context, serverID string, tpl software
 		if err != nil {
 			return software.SoftwareComponentDetail{}, fmt.Errorf("component %s install script resolution failed: %w", tpl.ComponentKey, err)
 		}
-		if _, err := executeSSHCommand(ctx, e.cfg, cmd, installTimeout); err != nil {
+		if _, err := e.runCommand(ctx, cmd, installTimeout); err != nil {
 			return software.SoftwareComponentDetail{}, fmt.Errorf("install %s via script: %w", tpl.ComponentKey, err)
 		}
 	case "":
@@ -235,7 +283,7 @@ func (e *SSHExecutor) Upgrade(ctx context.Context, serverID string, tpl software
 		if err != nil {
 			return software.SoftwareComponentDetail{}, fmt.Errorf("upgrade %s via package manager: %w", tpl.ComponentKey, err)
 		}
-		if _, err := executeSSHCommand(ctx, e.cfg, withSudo(cmd), upgradeTimeout); err != nil {
+		if _, err := e.runCommand(ctx, withSudo(cmd), upgradeTimeout); err != nil {
 			return software.SoftwareComponentDetail{}, fmt.Errorf("upgrade %s via package manager: %w", tpl.ComponentKey, err)
 		}
 	case "script":
@@ -243,7 +291,7 @@ func (e *SSHExecutor) Upgrade(ctx context.Context, serverID string, tpl software
 		if err != nil {
 			return software.SoftwareComponentDetail{}, fmt.Errorf("component %s upgrade script resolution failed: %w", tpl.ComponentKey, err)
 		}
-		if _, err := executeSSHCommand(ctx, e.cfg, cmd, upgradeTimeout); err != nil {
+		if _, err := e.runCommand(ctx, cmd, upgradeTimeout); err != nil {
 			return software.SoftwareComponentDetail{}, fmt.Errorf("upgrade %s via script: %w", tpl.ComponentKey, err)
 		}
 	case "":
@@ -265,7 +313,7 @@ func (e *SSHExecutor) Start(ctx context.Context, _ string, tpl software.Resolved
 		return software.SoftwareComponentDetail{}, fmt.Errorf("component %s does not support start", tpl.ComponentKey)
 	}
 	cmd := fmt.Sprintf("systemctl start %s", terminal.ShellQuote(tpl.Verify.ServiceName))
-	if _, err := executeSSHCommand(ctx, e.cfg, withSudo(cmd), verifyTimeout); err != nil {
+	if _, err := e.runCommand(ctx, withSudo(cmd), verifyTimeout); err != nil {
 		return software.SoftwareComponentDetail{}, fmt.Errorf("start %s via systemd: %w", tpl.ComponentKey, err)
 	}
 	return software.SoftwareComponentDetail{SoftwareComponentSummary: software.SoftwareComponentSummary{ComponentKey: tpl.ComponentKey, TemplateKind: tpl.TemplateKind}, ServiceName: tpl.Verify.ServiceName}, nil
@@ -276,7 +324,7 @@ func (e *SSHExecutor) Stop(ctx context.Context, _ string, tpl software.ResolvedT
 		return software.SoftwareComponentDetail{}, fmt.Errorf("component %s does not support stop", tpl.ComponentKey)
 	}
 	cmd := fmt.Sprintf("systemctl stop %s", terminal.ShellQuote(tpl.Verify.ServiceName))
-	if _, err := executeSSHCommand(ctx, e.cfg, withSudo(cmd), verifyTimeout); err != nil {
+	if _, err := e.runCommand(ctx, withSudo(cmd), verifyTimeout); err != nil {
 		return software.SoftwareComponentDetail{}, fmt.Errorf("stop %s via systemd: %w", tpl.ComponentKey, err)
 	}
 	return software.SoftwareComponentDetail{SoftwareComponentSummary: software.SoftwareComponentSummary{ComponentKey: tpl.ComponentKey, TemplateKind: tpl.TemplateKind}, ServiceName: tpl.Verify.ServiceName}, nil
@@ -287,7 +335,7 @@ func (e *SSHExecutor) Restart(ctx context.Context, _ string, tpl software.Resolv
 		return software.SoftwareComponentDetail{}, fmt.Errorf("component %s does not support restart", tpl.ComponentKey)
 	}
 	cmd := fmt.Sprintf("systemctl restart %s", terminal.ShellQuote(tpl.Verify.ServiceName))
-	if _, err := executeSSHCommand(ctx, e.cfg, withSudo(cmd), verifyTimeout); err != nil {
+	if _, err := e.runCommand(ctx, withSudo(cmd), verifyTimeout); err != nil {
 		return software.SoftwareComponentDetail{}, fmt.Errorf("restart %s via systemd: %w", tpl.ComponentKey, err)
 	}
 	return software.SoftwareComponentDetail{SoftwareComponentSummary: software.SoftwareComponentSummary{ComponentKey: tpl.ComponentKey, TemplateKind: tpl.TemplateKind}, ServiceName: tpl.Verify.ServiceName}, nil
@@ -298,7 +346,7 @@ func (e *SSHExecutor) Restart(ctx context.Context, _ string, tpl software.Resolv
 func (e *SSHExecutor) Uninstall(ctx context.Context, serverID string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
 	if tpl.Verify.Strategy == "systemd" && strings.TrimSpace(tpl.Verify.ServiceName) != "" {
 		stopCmd := fmt.Sprintf("systemctl stop %s", terminal.ShellQuote(tpl.Verify.ServiceName))
-		if _, err := executeSSHCommand(ctx, e.cfg, withSudo(stopCmd), uninstallTimeout); err != nil {
+		if _, err := e.runCommand(ctx, withSudo(stopCmd), uninstallTimeout); err != nil {
 			return software.SoftwareComponentDetail{}, fmt.Errorf("stop %s before uninstall: %w", tpl.ComponentKey, err)
 		}
 	}
@@ -309,7 +357,7 @@ func (e *SSHExecutor) Uninstall(ctx context.Context, serverID string, tpl softwa
 		if err != nil {
 			return software.SoftwareComponentDetail{}, fmt.Errorf("uninstall %s via package manager: %w", tpl.ComponentKey, err)
 		}
-		if _, err := executeSSHCommand(ctx, e.cfg, withSudo(cmd), uninstallTimeout); err != nil {
+		if _, err := e.runCommand(ctx, withSudo(cmd), uninstallTimeout); err != nil {
 			return software.SoftwareComponentDetail{}, fmt.Errorf("uninstall %s via package manager: %w", tpl.ComponentKey, err)
 		}
 	case "script":
@@ -317,7 +365,7 @@ func (e *SSHExecutor) Uninstall(ctx context.Context, serverID string, tpl softwa
 		if err != nil {
 			return software.SoftwareComponentDetail{}, fmt.Errorf("component %s uninstall script resolution failed: %w", tpl.ComponentKey, err)
 		}
-		if _, err := executeSSHCommand(ctx, e.cfg, cmd, uninstallTimeout); err != nil {
+		if _, err := e.runCommand(ctx, cmd, uninstallTimeout); err != nil {
 			return software.SoftwareComponentDetail{}, fmt.Errorf("uninstall %s via script: %w", tpl.ComponentKey, err)
 		}
 	case "":
@@ -359,7 +407,7 @@ func (e *SSHExecutor) Reinstall(ctx context.Context, serverID string, tpl softwa
 // It detects installed state and version as part of the same pass.
 func (e *SSHExecutor) verifySystemd(ctx context.Context, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
 	svc := tpl.Verify.ServiceName
-	out, _ := executeSSHCommand(ctx, e.cfg,
+	out, _ := e.runCommand(ctx,
 		fmt.Sprintf("systemctl is-active %s 2>/dev/null; true", terminal.ShellQuote(svc)),
 		verifyTimeout)
 
@@ -380,7 +428,7 @@ func (e *SSHExecutor) verifySystemd(ctx context.Context, tpl software.ResolvedTe
 	detail.VerificationState = vState
 	detail.ServiceName = svc
 	if tpl.ComponentKey == software.ComponentKeyDocker {
-		composeVersionOut, _ := executeSSHCommand(ctx, e.cfg, "docker compose version --short 2>/dev/null || true", verifyTimeout)
+		composeVersionOut, _ := e.runCommand(ctx, "docker compose version --short 2>/dev/null || true", verifyTimeout)
 		composeVersion := strings.TrimSpace(firstLine(composeVersionOut))
 		composeAvailable := composeVersion != ""
 		if detection.InstalledState == software.InstalledStateInstalled && !composeAvailable {
@@ -404,7 +452,7 @@ func (e *SSHExecutor) verifySystemd(ctx context.Context, tpl software.ResolvedTe
 }
 
 func (e *SSHExecutor) detectDockerInstallSource(ctx context.Context, tpl software.ResolvedTemplate) (software.InstallSource, string) {
-	binaryPathOut, _ := executeSSHCommand(ctx, e.cfg, "command -v docker 2>/dev/null || true", detectTimeout)
+	binaryPathOut, _ := e.runCommand(ctx, "command -v docker 2>/dev/null || true", detectTimeout)
 	binaryPath := strings.TrimSpace(firstLine(binaryPathOut))
 	if binaryPath == "" {
 		return software.InstallSourceUnknown, ""
@@ -413,7 +461,7 @@ func (e *SSHExecutor) detectDockerInstallSource(ctx context.Context, tpl softwar
 	expectedPackages := normalizePackageNames(tpl.Install.PackageName, tpl.Install.PackageNames)
 	for _, pkg := range expectedPackages {
 		checkCmd := fmt.Sprintf("dpkg-query -W -f='${db:Status-Abbrev}' %s 2>/dev/null || true", terminal.ShellQuote(pkg))
-		out, _ := executeSSHCommand(ctx, e.cfg, checkCmd, detectTimeout)
+		out, _ := e.runCommand(ctx, checkCmd, detectTimeout)
 		if strings.HasPrefix(strings.TrimSpace(out), "ii") {
 			return software.InstallSourceManaged, "apt:" + pkg
 		}
@@ -439,7 +487,7 @@ func (e *SSHExecutor) detectDockerInstallSource(ctx context.Context, tpl softwar
 }
 
 func mustSSHOutput(ctx context.Context, e *SSHExecutor, cmd string) string {
-	out, _ := executeSSHCommand(ctx, e.cfg, cmd, detectTimeout)
+	out, _ := e.runCommand(ctx, cmd, detectTimeout)
 	return strings.TrimSpace(out)
 }
 
@@ -564,7 +612,7 @@ func (e *SSHExecutor) detectPackageManager(ctx context.Context) (string, string,
 	}
 
 	for _, check := range checks {
-		out, err := executeSSHCommand(ctx, e.cfg, check.command, preflightTimeout)
+		out, err := e.runCommand(ctx, check.command, preflightTimeout)
 		if err == nil && strings.TrimSpace(out) != "" {
 			return check.name, strings.TrimSpace(out), nil
 		}
@@ -574,7 +622,7 @@ func (e *SSHExecutor) detectPackageManager(ctx context.Context) (string, string,
 }
 
 func (e *SSHExecutor) detectOS(ctx context.Context) (string, error) {
-	out, err := executeSSHCommand(ctx, e.cfg,
+	out, err := e.runCommand(ctx,
 		`awk -F= '/^ID=/{gsub(/"/, "", $2); print $2}' /etc/os-release 2>/dev/null || true`,
 		preflightTimeout)
 	if err != nil {

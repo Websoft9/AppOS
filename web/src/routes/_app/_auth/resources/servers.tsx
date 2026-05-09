@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, type ReactNode } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -45,6 +45,8 @@ import { ServerOverviewTab } from '@/components/servers/ServerOverviewTab'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { SecretForm, type SecretTemplate } from '@/components/secrets/SecretForm'
 import { ServerComponentsPanel } from '@/components/servers/ServerComponentsPanel'
+import { ServerPortsPanel } from '@/components/servers/ServerPortsPanel'
+import { ServerServicesPanel } from '@/components/servers/ServerServicesPanel'
 import { DockerPanel } from '@/components/connect/DockerPanel'
 import {
   getServerConnectionPresentation,
@@ -353,9 +355,10 @@ export function ServersPage() {
   const autoCreate = create === '1' || !!returnGroup
   const navigate = Route.useNavigate()
   const [listRefreshKey, setListRefreshKey] = useState(0)
+  const bgChecksFiredRef = useRef(false)
   const [wizardServerId, setWizardServerId] = useState<string | null>(null)
   const [selectedServerId, setSelectedServerId] = useState<string | undefined>(server)
-  const [serverDetailDrawerTier, setServerDetailDrawerTier] = useState<ServerDetailDrawerTier>('lg')
+  const [serverDetailDrawerTier, setServerDetailDrawerTier] = useState<ServerDetailDrawerTier>('full')
   const [serverPageSize, setServerPageSize] = useState(10)
   const [visibleOptionalColumns, setVisibleOptionalColumns] = useState<Set<string>>(
     () => new Set(['host_summary', 'monitor_status', 'user', 'secret_type_label'])
@@ -727,14 +730,7 @@ export function ServersPage() {
   const handleOpenServer = useCallback(
     (
       item: Record<string, unknown> | null,
-      nextTab:
-        | 'overview'
-        | 'connection'
-        | 'monitor'
-        | 'docker'
-        | 'runtime'
-        | 'tunnel'
-        | 'components' = 'overview'
+      nextTab: ServerDetailTab = 'overview'
     ) => {
       const nextServerId = item ? String(item.id ?? '') : ''
       const opening = nextServerId !== ''
@@ -805,6 +801,49 @@ export function ServersPage() {
     setSelectedServerId(server)
   }, [server])
 
+  // ── Realtime subscription: patch connection state as PB pushes server record changes ──
+  // Tunnel connect/disconnect and connectivity-probe write-backs both save the
+  // servers record → PocketBase fires an SSE event → we immediately update
+  // pingResults so the Connection badge reflects the new state without any poll.
+  useEffect(() => {
+    let unsubscribe: (() => void) | null = null
+
+    pb.collection('servers')
+      .subscribe('*', ev => {
+        const rec = ev.record as Record<string, unknown>
+        const id = String(rec.id ?? '').trim()
+        if (!id) return
+
+        const connectType = String(rec.connect_type ?? '').trim()
+        let status: 'online' | 'offline' | undefined
+
+        if (connectType === 'tunnel') {
+          const tunnelStatus = String(rec.tunnel_status ?? '').trim()
+          if (tunnelStatus === 'online') status = 'online'
+          else if (tunnelStatus === 'offline') status = 'offline'
+        } else {
+          const accessStatus = String(rec.access_status ?? '').trim()
+          if (accessStatus === 'available') status = 'online'
+          else if (accessStatus === 'unavailable') status = 'offline'
+        }
+
+        if (status !== undefined) {
+          setPingResults(prev => ({ ...prev, [id]: status as 'online' | 'offline' }))
+        }
+      })
+      .then(fn => {
+        unsubscribe = fn
+      })
+      .catch(() => {
+        // realtime unavailable — fall back to background poll already in place
+      })
+
+    return () => {
+      unsubscribe?.()
+      pb.collection('servers').unsubscribe('*').catch(() => {})
+    }
+  }, [])
+
   const listItems = useCallback(async () => {
     const [serverResponse, monitorResponse] = await Promise.all([
       pb.send<{ items?: Array<Record<string, unknown>> }>('/api/servers/connection', {
@@ -831,10 +870,20 @@ export function ServersPage() {
         : []
     )
 
-    return items.map(item =>
+    const result = items.map(item =>
       mapServerListItem(item, user?.id, String(user?.email ?? ''), monitorByTargetId)
     )
-  }, [user?.email, user?.id])
+
+    // After the list is rendered from the DB cache, fire a background
+    // connectivity check per server so the connection column updates live
+    // without blocking the initial page load. Fires once per component mount.
+    if (!bgChecksFiredRef.current) {
+      bgChecksFiredRef.current = true
+      void runBatched(result, SERVER_STATUS_REFRESH_BATCH_SIZE, checkServerStatus)
+    }
+
+    return result
+  }, [user?.email, user?.id, checkServerStatus])
 
   const allColumns = useMemo<Column[]>(
     () => [
@@ -1143,7 +1192,7 @@ export function ServersPage() {
           <div className="flex items-start justify-between gap-4 pr-16">
             <div className="min-w-0">
               <h2 className="text-xl font-semibold tracking-tight">
-                {String(item.name || 'Unnamed Server')}
+                {`Server Detail | ${String(item.name || 'Unnamed Server')}`}
               </h2>
               <p className="mt-0.5 font-mono text-xs text-muted-foreground">{id}</p>
             </div>
@@ -1178,6 +1227,12 @@ export function ServersPage() {
                 </TabsTrigger>
                 <TabsTrigger value="runtime" className={detailTabTriggerClassName}>
                   Runtime
+                </TabsTrigger>
+                <TabsTrigger value="ports" className={detailTabTriggerClassName}>
+                  Ports
+                </TabsTrigger>
+                <TabsTrigger value="systemd" className={detailTabTriggerClassName}>
+                  Systemd
                 </TabsTrigger>
                 <TabsTrigger value="components" className={detailTabTriggerClassName}>
                   Components
@@ -1281,6 +1336,14 @@ export function ServersPage() {
                 Runtime details can later include active sessions, deployed workloads, and process
                 information for {String(item.name || item.id)}.
               </div>
+            </TabsContent>
+
+            <TabsContent value="ports" className="pt-4">
+              <ServerPortsPanel serverId={String(item.id || '')} />
+            </TabsContent>
+
+            <TabsContent value="systemd" className="pt-4">
+              <ServerServicesPanel serverId={String(item.id || '')} />
             </TabsContent>
 
             <TabsContent value="components" className="pt-4">
@@ -1756,6 +1819,8 @@ export const Route = createFileRoute('/_app/_auth/resources/servers')({
       search.tab === 'monitor' ||
       search.tab === 'docker' ||
       search.tab === 'runtime' ||
+      search.tab === 'ports' ||
+      search.tab === 'systemd' ||
       search.tab === 'tunnel' ||
       search.tab === 'components' ||
       search.tab === 'software'

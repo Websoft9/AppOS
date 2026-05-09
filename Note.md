@@ -241,3 +241,18 @@ Docker tab 的 container
 
 1. 点击 container 详情后，state 列有点跳动，即详情会导致列表显示发生变化
 2. 分页 <> 中的页号与分页操作图标之间建议保持一个字符的距离即可
+
+
+Components 的 Addos 优化：
+
+1. version 列显示两个版本： 
+Target version
+Current version
+没有安装时，仅显示 target  version
+
+2. 增加一列表示安装制品格式，包含：package, binary, docker 等
+3. Component 列表格内容，增加问号，点击查看这个组件的介绍。
+3. Status 列应该表示这个组件的真实运行态，installed 其实不属于这个态。
+
+
+server detail 的所有tab，当 Connection 都要验证ssh 连接是否存在，如何无法连接，直接显示无法连接，而不是默认的布局

@@ -7,9 +7,11 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase/apis"
-	servers "github.com/websoft9/appos/backend/domain/resource/servers"
+	"github.com/websoft9/appos/backend/domain/software"
 	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
 )
 
@@ -124,6 +126,52 @@ func TestLocalDockerBridgeReturnsAddress(t *testing.T) {
 	}
 }
 
+func TestServerConnectivityOnlineEnqueuesSnapshotWarm(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	server := createTunnelServerRecord(t, te, "warm-edge")
+	oldSessions := tunnelSessions
+	tunnelSessions = tunnelcore.NewRegistry()
+	tunnelSessions.Register(server.Id, &tunnelcore.Session{ClientID: server.Id, ConnectedAt: time.Now().UTC()})
+	defer func() { tunnelSessions = oldSessions }()
+
+	oldClient := asynqClient
+	asynqClient = &asynq.Client{}
+	defer func() { asynqClient = oldClient }()
+
+	oldEnqueue := enqueueSoftwareSnapshotWarmTask
+	called := false
+	var gotServerID string
+	var gotUserID string
+	var gotComponents []software.ComponentKey
+	enqueueSoftwareSnapshotWarmTask = func(client *asynq.Client, serverID, userID string, componentKeys []software.ComponentKey) error {
+		called = true
+		gotServerID = serverID
+		gotUserID = userID
+		gotComponents = append([]software.ComponentKey(nil), componentKeys...)
+		return nil
+	}
+	defer func() { enqueueSoftwareSnapshotWarmTask = oldEnqueue }()
+
+	rec := te.doServer(t, http.MethodGet, "/api/servers/"+server.Id+"/ops/connectivity?mode=tunnel", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !called {
+		t.Fatal("expected connectivity online check to enqueue snapshot warming")
+	}
+	if gotServerID != server.Id {
+		t.Fatalf("expected server id %q, got %q", server.Id, gotServerID)
+	}
+	if gotUserID == "" {
+		t.Fatal("expected authenticated user id to be forwarded to snapshot warming")
+	}
+	if len(gotComponents) != 3 {
+		t.Fatalf("expected 3 default warm components, got %#v", gotComponents)
+	}
+}
+
 func TestLocalDockerBridgeFallsBackToBridgeGateway(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
@@ -213,33 +261,6 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
-	originalProbe := directServerAccessProbe
-	directServerAccessProbe = func(host string, port int) directAccessProbeResult {
-		if host == "10.0.0.1" && port == 22 {
-			return directAccessProbeResult{
-				Access: servers.AccessView{
-					Status:    "available",
-					Reason:    "",
-					CheckedAt: "2026-04-22T10:00:00Z",
-					Source:    "tcp_probe",
-				},
-				LatencyMS: 12,
-			}
-		}
-		return directAccessProbeResult{
-			Access: servers.AccessView{
-				Status:    "unavailable",
-				Reason:    "tcp_connect_failed",
-				CheckedAt: "2026-04-22T10:00:00Z",
-				Source:    "tcp_probe",
-			},
-			Detail: "dial tcp failed",
-		}
-	}
-	t.Cleanup(func() {
-		directServerAccessProbe = originalProbe
-	})
-
 	secret := createRouteSecret(t, te, "global", "")
 	owner, err := te.app.FindFirstRecordByData("_superusers", "email", "admin@test.com")
 	if err != nil {
@@ -268,6 +289,12 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 		},
 	})
 	direct.Set("facts_observed_at", "2026-04-22 10:30:00.000Z")
+	// Simulate a previously successful probe persisted to the DB (the new
+	// connectivity-check write-back path). The list endpoint reads this cached
+	// value instead of running a live TCP probe.
+	direct.Set("access_status", "available")
+	direct.Set("access_reason", "")
+	direct.Set("access_checked_at", "2026-04-22 10:00:00.000Z")
 	if err := te.app.Save(direct); err != nil {
 		t.Fatal(err)
 	}
@@ -371,7 +398,7 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 		byName[item.Name] = entry
 	}
 
-	if got := byName["direct-a"]; got.AccessStatus != "available" || got.AccessSource != "tcp_probe" {
+	if got := byName["direct-a"]; got.AccessStatus != "available" || got.AccessSource != "cached" {
 		t.Fatalf("unexpected direct access payload: %#v", got)
 	}
 	if got := byName["direct-a"]; got.ConnectionState != "online" || got.ConnectionReason != "" || !got.ConfigReady {

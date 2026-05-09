@@ -179,6 +179,7 @@ func (w *Worker) Start() {
 	mux.HandleFunc(TaskSoftwareVerify, w.handleSoftwareAction)
 	mux.HandleFunc(TaskSoftwareReinstall, w.handleSoftwareAction)
 	mux.HandleFunc(TaskSoftwareUninstall, w.handleSoftwareAction)
+	mux.HandleFunc(TaskSoftwareWarmSnapshot, w.handleSoftwareSnapshotWarm)
 	w.startLifecycleScheduler()
 
 	go func() {

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +15,8 @@ import (
 	"github.com/websoft9/appos/backend/domain/audit"
 	"github.com/websoft9/appos/backend/domain/terminal"
 )
+
+var systemdAnsiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 // ════════════════════════════════════════════════════════════
 // Systemd service management handlers (Story 20.4)
@@ -30,35 +33,13 @@ func handleSystemdServices(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	raw, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, "systemctl list-units --type=service --all --no-legend --no-pager", 20*time.Second)
+	raw, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, "systemctl list-units --type=service --all --plain --no-legend --no-pager", 20*time.Second)
 	if runErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error()})
 	}
 
 	keyword := strings.ToLower(strings.TrimSpace(e.Request.URL.Query().Get("keyword")))
-	services := make([]map[string]string, 0)
-	for _, line := range strings.Split(raw, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		parts := strings.Fields(line)
-		if len(parts) < 5 {
-			continue
-		}
-		name := parts[0]
-		desc := strings.Join(parts[4:], " ")
-		if keyword != "" && !strings.Contains(strings.ToLower(name), keyword) && !strings.Contains(strings.ToLower(desc), keyword) {
-			continue
-		}
-		services = append(services, map[string]string{
-			"name":         name,
-			"load_state":   parts[1],
-			"active_state": parts[2],
-			"sub_state":    parts[3],
-			"description":  desc,
-		})
-	}
+	services := parseSystemdServicesOutput(raw, keyword)
 
 	userID, _, ip, _ := clientInfo(e)
 	audit.Write(e.App, audit.Entry{
@@ -72,6 +53,100 @@ func handleSystemdServices(e *core.RequestEvent) error {
 	})
 
 	return e.JSON(http.StatusOK, map[string]any{"server_id": serverID, "services": services})
+}
+
+func parseSystemdServicesOutput(raw, keyword string) []map[string]string {
+	services := make([]map[string]string, 0)
+	for _, line := range strings.Split(raw, "\n") {
+		line = strings.TrimSpace(systemdAnsiPattern.ReplaceAllString(line, ""))
+		if line == "" {
+			continue
+		}
+		parts := normalizeSystemdListFields(strings.Fields(line))
+		if len(parts) < 4 {
+			continue
+		}
+
+		name := ""
+		loadState := ""
+		activeState := ""
+		subState := ""
+		desc := ""
+
+		if isSystemdServiceUnit(parts[0]) && isSystemdLoadState(parts[1]) && isSystemdActiveState(parts[2]) && isSystemdSubState(parts[3]) {
+			name = parts[0]
+			loadState = parts[1]
+			activeState = parts[2]
+			subState = parts[3]
+			if len(parts) > 4 {
+				desc = strings.Join(parts[4:], " ")
+			}
+		} else if len(parts) == 4 && isSystemdLoadState(parts[0]) && isSystemdActiveState(parts[1]) && isSystemdSubState(parts[2]) && isSystemdServiceUnit(parts[3]) {
+			loadState = parts[0]
+			activeState = parts[1]
+			subState = parts[2]
+			name = parts[3]
+		} else {
+			continue
+		}
+
+		if keyword != "" && !strings.Contains(strings.ToLower(name), keyword) && !strings.Contains(strings.ToLower(desc), keyword) {
+			continue
+		}
+		services = append(services, map[string]string{
+			"name":         name,
+			"load_state":   loadState,
+			"active_state": activeState,
+			"sub_state":    subState,
+			"description":  desc,
+		})
+	}
+	return services
+}
+
+func normalizeSystemdListFields(fields []string) []string {
+	normalized := make([]string, 0, len(fields))
+	for _, field := range fields {
+		field = strings.TrimSpace(field)
+		field = strings.TrimLeft(field, "●○*•")
+		field = strings.TrimSpace(field)
+		if field == "" {
+			continue
+		}
+		normalized = append(normalized, field)
+	}
+	return normalized
+}
+
+func isSystemdLoadState(value string) bool {
+	switch strings.ToLower(value) {
+	case "loaded", "not-found", "bad-setting", "error", "masked", "merged", "stub":
+		return true
+	default:
+		return false
+	}
+}
+
+func isSystemdServiceUnit(value string) bool {
+	return strings.HasSuffix(strings.ToLower(strings.TrimSpace(value)), ".service")
+}
+
+func isSystemdActiveState(value string) bool {
+	switch strings.ToLower(value) {
+	case "active", "reloading", "inactive", "failed", "activating", "deactivating", "maintenance":
+		return true
+	default:
+		return false
+	}
+}
+
+func isSystemdSubState(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "running", "dead", "exited", "failed", "start", "start-pre", "start-post", "stop", "stop-sigterm", "stop-sigkill", "stop-post", "auto-restart", "listening", "waiting", "elapsed", "plugged", "mounted", "remounting", "unmounting", "condition", "reload", "reload-signal", "reload-notify", "final-sigterm", "final-sigkill":
+		return true
+	default:
+		return false
+	}
 }
 
 func handleSystemdServiceStatus(e *core.RequestEvent) error {

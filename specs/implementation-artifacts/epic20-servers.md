@@ -4,6 +4,13 @@
 
 ## Overview
 
+
+**Systemd UX product decision:**
+
+- the legacy terminal `Manage Services` modal is retired
+- no backward-compatibility UX requirement remains for the modal flow
+- the authoritative frontend surface for systemd service management is Server Detail > `Systemd` tab
+- terminal workspace design should not reintroduce a parallel systemd-management modal
 Covers all server-domain business: the `servers` resource registry, SSH-based terminal access, SFTP file management, Docker container exec, and server operations (power, ports, systemd). Both frontend and backend are owned here. The Terminal UI framework (tab rail, TerminalPanel component, ConnectError system) is provided by Epic 15.
 
 ---
@@ -445,7 +452,8 @@ Establish the `servers` collection and its full CRUD surface. This is a pure dat
 | 20.2 | SSH + SFTP | `connector.go`, `ssh.go`, `sftp.go`, all routes, audit log; Connect workspace UI, FileManagerPanel |
 | 20.3 | Docker Terminal | `docker_exec.go`, container shell route, shell strategy |
 | 20.4 | SFTP Enhancements | file properties, symlink, copy/move progress, upload limits |
-| 20.5 | Server Ops | connectivity check (with error category), power, ports, systemd API + frontend |
+| 20.5 | Server Ops | connectivity check (with error category), power, ports, systemd backend route family |
+| 20.8 | Server Detail Systemd Tab | server-detail `Systemd` tab UX, paginated service inventory, search, featured services |
 
 | Story | Status |
 |-------|--------|
@@ -454,6 +462,7 @@ Establish the `servers` collection and its full CRUD surface. This is a pure dat
 | 20.3 | ✅ Complete |
 | 20.4 | ✅ Complete |
 | 20.5 | 🟡 In Review |
+| 20.8 | Draft |
 
 ---
 
