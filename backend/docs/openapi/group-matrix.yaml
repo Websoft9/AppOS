@@ -398,19 +398,24 @@ groups:
         - https://pocketbase.io/docs/api-records/#crud-actions
 
   - group: Monitoring
-    description: Monitoring overview, container telemetry, target status and series queries, server agent bootstrap, and agent ingest APIs.
+    description: Monitoring overview, container telemetry, target status and series queries.
     apiType: Ext
     extSurface:
       - GET /api/monitor/overview
       - GET /api/monitor/servers/{id}/container-telemetry
       - GET /api/monitor/targets/{targetType}/{targetId}
       - GET /api/monitor/targets/{targetType}/{targetId}/series
-      - POST /api/monitor/servers/{id}/agent-token
-      - GET /api/monitor/servers/{id}/agent-setup
-      - POST /api/monitor/ingest/facts
-      - POST /api/monitor/ingest/metrics
-      - POST /api/monitor/ingest/heartbeat
-      - POST /api/monitor/ingest/runtime-status
+    nativeSurface: []
+    sources:
+      extRouteFiles:
+        - monitor.go
+      nativeRefs: []
+
+  - group: Monitoring Ingest
+    description: Metrics ingestion endpoints used by managed-server collectors.
+    apiType: Ext
+    extSurface:
+      - POST /api/monitor/write
     nativeSurface: []
     sources:
       extRouteFiles:

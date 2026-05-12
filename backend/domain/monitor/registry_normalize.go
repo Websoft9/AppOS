@@ -25,11 +25,6 @@ func normalizeTargetRegistryEntry(entry TargetRegistryEntry) (TargetRegistryEntr
 		entry.Checks.Credential.ReasonMap = normalizeReasonMap(entry.Checks.Credential.ReasonMap)
 		entry.Checks.Credential.ReasonCodeMap = normalizeReasonMap(entry.Checks.Credential.ReasonCodeMap)
 	}
-	if entry.Checks.Heartbeat != nil {
-		entry.Checks.Heartbeat.StatusMap = normalizeStatusMap(entry.Checks.Heartbeat.StatusMap)
-		entry.Checks.Heartbeat.ReasonMap = normalizeReasonMap(entry.Checks.Heartbeat.ReasonMap)
-		entry.Checks.Heartbeat.ReasonCodeMap = normalizeReasonMap(entry.Checks.Heartbeat.ReasonCodeMap)
-	}
 	if entry.Checks.AppHealth != nil {
 		entry.Checks.AppHealth.StatusMap = normalizeStatusMap(entry.Checks.AppHealth.StatusMap)
 		entry.Checks.AppHealth.ReasonMap = normalizeReasonMap(entry.Checks.AppHealth.ReasonMap)

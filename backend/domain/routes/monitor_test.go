@@ -2,8 +2,8 @@ package routes
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -15,22 +15,11 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/monitor"
 	monitormetrics "github.com/websoft9/appos/backend/domain/monitor/metrics"
-	agentsignals "github.com/websoft9/appos/backend/domain/monitor/signals/agent"
 	"github.com/websoft9/appos/backend/domain/monitor/status/store"
-	"github.com/websoft9/appos/backend/domain/secrets"
-	"github.com/websoft9/appos/backend/infra/collections"
 )
 
 func newMonitorTestEnv(t *testing.T) *testEnv {
 	t.Helper()
-	key := base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef"))
-	t.Setenv(secrets.EnvSecretKey, key)
-	if err := secrets.LoadKeyFromEnv(); err != nil {
-		t.Fatalf("load secret key: %v", err)
-	}
-	if err := secrets.LoadTemplatesFromDefaultPath(); err != nil {
-		t.Fatalf("load secret templates: %v", err)
-	}
 	return newTestEnv(t)
 }
 
@@ -118,157 +107,72 @@ func createMonitorApp(t *testing.T, te *testEnv, id string, name string, serverI
 	return rec
 }
 
-func TestMonitorAgentTokenCreateAndRotate(t *testing.T) {
+func TestMonitorWriteRequiresBasicAuth(t *testing.T) {
 	te := newMonitorTestEnv(t)
 	defer te.cleanup()
 
-	server := createMonitorServer(t, te, "prod-01")
-
-	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/servers/"+server.Id+"/agent-token", "", te.token)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/write", "remote-write-payload", "")
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d: %s", rec.Code, rec.Body.String())
 	}
-	var first map[string]any
-	if err := json.Unmarshal(rec.Body.Bytes(), &first); err != nil {
-		t.Fatal(err)
-	}
-	firstToken, _ := first["token"].(string)
-	if firstToken == "" {
-		t.Fatalf("expected token in response, got %s", rec.Body.String())
-	}
-
-	rec = te.doMonitor(t, http.MethodPost, "/api/monitor/servers/"+server.Id+"/agent-token?rotate=true", "", te.token)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200 on rotate, got %d: %s", rec.Code, rec.Body.String())
-	}
-	var rotated map[string]any
-	if err := json.Unmarshal(rec.Body.Bytes(), &rotated); err != nil {
-		t.Fatal(err)
-	}
-	secondToken, _ := rotated["token"].(string)
-	if secondToken == "" || secondToken == firstToken {
-		t.Fatalf("expected rotated token to differ, first=%q second=%q", firstToken, secondToken)
+	if got := rec.Header().Get("WWW-Authenticate"); !strings.Contains(got, "AppOS monitor write") {
+		t.Fatalf("expected monitor write auth challenge, got %q", got)
 	}
 }
 
-func TestMonitorAgentSetupKeepsRequestHostPort(t *testing.T) {
+func TestMonitorWriteForwardsAuthenticatedRemoteWritePayload(t *testing.T) {
 	te := newMonitorTestEnv(t)
 	defer te.cleanup()
 
 	server := createMonitorServer(t, te, "prod-01")
-
-	rec := te.doMonitor(t, http.MethodGet, "https://appos.example.com:9443/api/monitor/servers/"+server.Id+"/agent-setup", "", te.token)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-	var response map[string]any
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatal(err)
-	}
-	if got := response["ingestBaseUrl"]; got != "https://appos.example.com:9443/api/monitor/ingest" {
-		t.Fatalf("expected request-host ingest base url with port preserved, got %v", got)
-	}
-	configYaml, _ := response["configYaml"].(string)
-	if !strings.Contains(configYaml, "ingest_base_url: https://appos.example.com:9443/api/monitor/ingest") {
-		t.Fatalf("expected config yaml to contain request-host ingest url, got %q", configYaml)
-	}
-}
-
-func TestMonitorAgentSetupUsesForwardedProtoWithRequestHostPort(t *testing.T) {
-	te := newMonitorTestEnv(t)
-	defer te.cleanup()
-
-	server := createMonitorServer(t, te, "prod-01")
-	rec := te.doMonitorWithHeaders(t, http.MethodGet, "http://console.example.com:8090/api/monitor/servers/"+server.Id+"/agent-setup", "", te.token, map[string]string{
-		"X-Forwarded-Proto": "https",
-		"X-Forwarded-Host":  "ignored.example.com",
-	})
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-	var response map[string]any
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatal(err)
-	}
-	if got := response["ingestBaseUrl"]; got != "https://console.example.com:8090/api/monitor/ingest" {
-		t.Fatalf("expected monitor setup to use request host port and forwarded proto, got %v", got)
-	}
-}
-
-func TestMonitorAgentSetupUsesForwardedHostPortWhenProxyDropsRequestPort(t *testing.T) {
-	te := newMonitorTestEnv(t)
-	defer te.cleanup()
-
-	server := createMonitorServer(t, te, "prod-01")
-	rec := te.doMonitorWithHeaders(t, http.MethodGet, "http://console.example.com/api/monitor/servers/"+server.Id+"/agent-setup", "", te.token, map[string]string{
-		"X-Forwarded-Host":  "console.example.com:9091",
-		"X-Forwarded-Proto": "https",
-	})
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-	var response map[string]any
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatal(err)
-	}
-	if got := response["ingestBaseUrl"]; got != "https://console.example.com:9091/api/monitor/ingest" {
-		t.Fatalf("expected monitor setup to recover proxy-forwarded host port, got %v", got)
-	}
-	configYaml, _ := response["configYaml"].(string)
-	if !strings.Contains(configYaml, "ingest_base_url: https://console.example.com:9091/api/monitor/ingest") {
-		t.Fatalf("expected config yaml to contain forwarded-host ingest url, got %q", configYaml)
-	}
-}
-
-func TestMonitorAgentSetupUsesForwardedPortWhenHostLacksPort(t *testing.T) {
-	te := newMonitorTestEnv(t)
-	defer te.cleanup()
-
-	server := createMonitorServer(t, te, "prod-01")
-	rec := te.doMonitorWithHeaders(t, http.MethodGet, "http://console.example.com/api/monitor/servers/"+server.Id+"/agent-setup", "", te.token, map[string]string{
-		"X-Forwarded-Port":  "9091",
-		"X-Forwarded-Proto": "http",
-	})
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-	var response map[string]any
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatal(err)
-	}
-	if got := response["ingestBaseUrl"]; got != "http://console.example.com:9091/api/monitor/ingest" {
-		t.Fatalf("expected monitor setup to append forwarded port, got %v", got)
-	}
-}
-
-func TestMonitorHeartbeatIngestCreatesLatestStatus(t *testing.T) {
-	te := newMonitorTestEnv(t)
-	defer te.cleanup()
-
-	server := createMonitorServer(t, te, "prod-01")
-	token, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false)
+	token, err := getOrIssueMonitorAgentToken(te.app, server.Id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	nowRaw := time.Now().UTC().Format(time.RFC3339)
-	body := `{"serverId":"` + server.Id + `","agentVersion":"0.1.0","reportedAt":"` + nowRaw + `","items":[{"targetType":"server","targetId":"` + server.Id + `","status":"healthy","observedAt":"` + nowRaw + `"}]}`
-	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/heartbeat", body, "Bearer "+token)
-	if rec.Code != http.StatusAccepted {
-		t.Fatalf("expected 202, got %d: %s", rec.Code, rec.Body.String())
-	}
-	record, err := te.app.FindFirstRecordByFilter(collections.MonitorLatestStatus, "target_type = {:targetType} && target_id = {:id}", map[string]any{"targetType": monitor.TargetTypeServer, "id": server.Id})
+
+	var gotPath string
+	var gotBody string
+	var gotContentType string
+	tsdb := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotContentType = r.Header.Get("Content-Type")
+		body, _ := io.ReadAll(r.Body)
+		gotBody = string(body)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer tsdb.Close()
+	t.Setenv(monitormetrics.EnvVictoriaMetricsURL, tsdb.URL)
+
+	r, err := apis.NewRouter(te.app)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if record.GetString("status") != monitor.StatusHealthy {
-		t.Fatalf("expected healthy status, got %q", record.GetString("status"))
+	registerMonitorRoutes(&core.ServeEvent{App: te.app, Router: r})
+	mux, err := r.BuildMux()
+	if err != nil {
+		t.Fatal(err)
 	}
-	if record.GetString("display_name") != "prod-01" {
-		t.Fatalf("expected display name prod-01, got %q", record.GetString("display_name"))
+	req := httptest.NewRequest(http.MethodPost, "/api/monitor/write", strings.NewReader("remote-write-payload"))
+	req.SetBasicAuth(server.Id, token)
+	req.Header.Set("Content-Type", "application/x-protobuf")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if gotPath != "/api/v1/write" {
+		t.Fatalf("expected TSDB remote write path, got %q", gotPath)
+	}
+	if gotBody != "remote-write-payload" {
+		t.Fatalf("unexpected forwarded body %q", gotBody)
+	}
+	if gotContentType != "application/x-protobuf" {
+		t.Fatalf("expected content-type to be forwarded, got %q", gotContentType)
 	}
 }
 
-func TestMonitorOverviewReturnsProjectedOfflineHeartbeat(t *testing.T) {
+func TestMonitorOverviewReturnsProjectedOfflineStatus(t *testing.T) {
 	te := newMonitorTestEnv(t)
 	defer te.cleanup()
 
@@ -280,13 +184,13 @@ func TestMonitorOverviewReturnsProjectedOfflineHeartbeat(t *testing.T) {
 		TargetID:            server.Id,
 		DisplayName:         server.GetString("name"),
 		Status:              monitor.StatusOffline,
-		Reason:              "heartbeat missing",
-		SignalSource:        monitor.SignalSourceAgent,
+		Reason:              "control plane check failed",
+		SignalSource:        monitor.SignalSourceAppOS,
 		LastTransitionAt:    now,
 		LastFailureAt:       &now,
 		LastReportedAt:      &now,
 		ConsecutiveFailures: &zeroFailures,
-		Summary:             map[string]any{"heartbeat_state": monitor.HeartbeatStateOffline},
+		Summary:             map[string]any{"reason_code": "control_unreachable"},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -325,13 +229,13 @@ func TestMonitorTargetStatusReturnsDetail(t *testing.T) {
 		TargetID:            server.Id,
 		DisplayName:         server.GetString("name"),
 		Status:              monitor.StatusHealthy,
-		SignalSource:        monitor.SignalSourceAgent,
+		SignalSource:        monitor.SignalSourceAppOS,
 		LastTransitionAt:    now,
 		LastSuccessAt:       &now,
 		LastReportedAt:      &now,
 		ConsecutiveFailures: &zeroFailures,
 		Summary: map[string]any{
-			"heartbeat_state": "fresh",
+			"control_state": "reachable",
 		},
 	}); err != nil {
 		t.Fatal(err)
@@ -352,19 +256,16 @@ func TestMonitorTargetStatusReturnsDetail(t *testing.T) {
 	if resp.TargetID != server.Id || resp.Status != monitor.StatusHealthy {
 		t.Fatalf("unexpected monitor target response: %s", rec.Body.String())
 	}
-	if resp.Summary["heartbeat_state"] != "fresh" {
-		t.Fatalf("expected heartbeat summary, got %+v", resp.Summary)
+	if resp.Summary["control_state"] != "reachable" {
+		t.Fatalf("expected control summary, got %+v", resp.Summary)
 	}
 }
 
-func TestMonitorTargetStatusSynthesizesServerDetailWithoutHeartbeat(t *testing.T) {
+func TestMonitorTargetStatusSynthesizesServerDetailWithoutMonitorRecord(t *testing.T) {
 	te := newMonitorTestEnv(t)
 	defer te.cleanup()
 
 	server := createMonitorServer(t, te, "test")
-	if _, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false); err != nil {
-		t.Fatal(err)
-	}
 
 	rec := te.doMonitor(t, http.MethodGet, "/api/monitor/targets/server/"+server.Id, "", te.token)
 	if rec.Code != http.StatusOK {
@@ -389,8 +290,8 @@ func TestMonitorTargetStatusSynthesizesServerDetailWithoutHeartbeat(t *testing.T
 	if resp.SignalSource != monitor.SignalSourceInventory {
 		t.Fatalf("expected inventory signal source, got %q", resp.SignalSource)
 	}
-	if resp.Summary["agent_token_configured"] != true {
-		t.Fatalf("expected configured agent token summary, got %+v", resp.Summary)
+	if resp.Summary["monitoring_state"] != "awaiting_control_plane_pull" {
+		t.Fatalf("expected control-plane pending summary, got %+v", resp.Summary)
 	}
 }
 
@@ -420,315 +321,6 @@ func TestMonitorTargetStatusSynthesizesAppDetailWithoutMonitorRecord(t *testing.
 	}
 	if resp.Summary["runtime_status"] != "running" {
 		t.Fatalf("expected runtime summary in synthesized app response, got %+v", resp.Summary)
-	}
-}
-
-func TestMonitorMetricsIngestWritesAllowedSeries(t *testing.T) {
-	te := newMonitorTestEnv(t)
-	defer te.cleanup()
-
-	server := createMonitorServer(t, te, "prod-01")
-	token, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var captured []monitormetrics.MetricPoint
-	restore := monitormetrics.SetMetricWriteFuncForTest(func(_ context.Context, points []monitormetrics.MetricPoint) error {
-		captured = append(captured, points...)
-		return nil
-	})
-	defer restore()
-
-	nowRaw := time.Now().UTC().Format(time.RFC3339)
-	body := `{"serverId":"` + server.Id + `","reportedAt":"` + nowRaw + `","items":[{"targetType":"server","targetId":"` + server.Id + `","series":"appos_host_cpu_usage","value":0.42,"labels":{"hostname":"prod-01"},"observedAt":"` + nowRaw + `"}]}`
-	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/metrics", body, "Bearer "+token)
-	if rec.Code != http.StatusAccepted {
-		t.Fatalf("expected 202, got %d: %s", rec.Code, rec.Body.String())
-	}
-	if len(captured) != 1 {
-		t.Fatalf("expected 1 captured point, got %d", len(captured))
-	}
-	if captured[0].Series != "appos_host_cpu_usage" || captured[0].Labels["server_id"] != server.Id {
-		t.Fatalf("unexpected captured metric point: %+v", captured[0])
-	}
-}
-
-func TestMonitorMetricsIngestRejectsUnknownSeries(t *testing.T) {
-	te := newMonitorTestEnv(t)
-	defer te.cleanup()
-
-	server := createMonitorServer(t, te, "prod-01")
-	token, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	nowRaw := time.Now().UTC().Format(time.RFC3339)
-	body := `{"serverId":"` + server.Id + `","reportedAt":"` + nowRaw + `","items":[{"targetType":"server","targetId":"` + server.Id + `","series":"appos_unknown_metric","value":1,"observedAt":"` + nowRaw + `"}]}`
-	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/metrics", body, "Bearer "+token)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
-	}
-}
-
-func TestMonitorMetricsIngestAcceptsContainerTelemetryContract(t *testing.T) {
-	te := newMonitorTestEnv(t)
-	defer te.cleanup()
-
-	server := createMonitorServer(t, te, "prod-01")
-	token, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var captured []monitormetrics.MetricPoint
-	restore := monitormetrics.SetMetricWriteFuncForTest(func(_ context.Context, points []monitormetrics.MetricPoint) error {
-		captured = append(captured, points...)
-		return nil
-	})
-	defer restore()
-
-	nowRaw := time.Now().UTC().Format(time.RFC3339)
-	body := `{"serverId":"` + server.Id + `","reportedAt":"` + nowRaw + `","items":[{"targetType":"container","targetId":"ctr-1","series":"appos_container_cpu_usage","value":17.2,"labels":{"container_name":"nginx","compose_project":"demo"},"observedAt":"` + nowRaw + `"}]}`
-	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/metrics", body, "Bearer "+token)
-	if rec.Code != http.StatusAccepted {
-		t.Fatalf("expected 202, got %d: %s", rec.Code, rec.Body.String())
-	}
-	if len(captured) != 1 {
-		t.Fatalf("expected 1 captured point, got %d", len(captured))
-	}
-	point := captured[0]
-	if point.Labels["server_id"] != server.Id || point.Labels["container_id"] != "ctr-1" {
-		t.Fatalf("expected server_id and container_id labels, got %+v", point.Labels)
-	}
-	if point.Labels["target_type"] != monitor.TargetTypeContainer || point.Labels["target_id"] != "ctr-1" {
-		t.Fatalf("expected container target labels, got %+v", point.Labels)
-	}
-	if point.Labels["container_name"] != "nginx" || point.Labels["compose_project"] != "demo" {
-		t.Fatalf("expected optional labels preserved, got %+v", point.Labels)
-	}
-}
-
-func TestMonitorMetricsIngestRejectsContainerSeriesWithoutContainerTarget(t *testing.T) {
-	te := newMonitorTestEnv(t)
-	defer te.cleanup()
-
-	server := createMonitorServer(t, te, "prod-01")
-	token, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	nowRaw := time.Now().UTC().Format(time.RFC3339)
-	body := `{"serverId":"` + server.Id + `","reportedAt":"` + nowRaw + `","items":[{"targetType":"server","targetId":"` + server.Id + `","series":"appos_container_memory_bytes","value":1048576,"observedAt":"` + nowRaw + `"}]}`
-	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/metrics", body, "Bearer "+token)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
-	}
-}
-
-func TestMonitorFactsIngestWritesServerRecord(t *testing.T) {
-	te := newMonitorTestEnv(t)
-	defer te.cleanup()
-
-	server := createMonitorServer(t, te, "prod-01")
-	token, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	observedAt := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
-	observedAtRaw := observedAt.Format(time.RFC3339)
-	body := `{"serverId":"` + server.Id + `","reportedAt":"` + observedAtRaw + `","items":[{"targetType":"server","targetId":"` + server.Id + `","observedAt":"` + observedAtRaw + `","facts":{"os":{"family":"linux","distribution":"ubuntu","version":"24.04"},"kernel":{"release":"6.8.0"},"architecture":"amd64","cpu":{"cores":4},"memory":{"total_bytes":8589934592}}}]}`
-	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/facts", body, "Bearer "+token)
-	if rec.Code != http.StatusAccepted {
-		t.Fatalf("expected 202, got %d: %s", rec.Code, rec.Body.String())
-	}
-	stored, err := te.app.FindRecordById("servers", server.Id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	facts := mustRouteJSONMap(t, stored.Get("facts_json"))
-	if facts["architecture"] != "amd64" {
-		t.Fatalf("expected architecture amd64, got %+v", facts)
-	}
-	osFacts := mustRouteJSONMap(t, facts["os"])
-	if osFacts["distribution"] != "ubuntu" {
-		t.Fatalf("expected normalized os facts, got %+v", facts)
-	}
-	if got := stored.GetDateTime("facts_observed_at").Time().UTC().Format(time.RFC3339); got != observedAtRaw {
-		t.Fatalf("expected facts_observed_at %q, got %q", observedAtRaw, got)
-	}
-}
-
-func TestMonitorFactsIngestRejectsOwnershipMismatch(t *testing.T) {
-	te := newMonitorTestEnv(t)
-	defer te.cleanup()
-
-	server := createMonitorServer(t, te, "prod-01")
-	other := createMonitorServer(t, te, "prod-02")
-	token, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	nowRaw := time.Now().UTC().Format(time.RFC3339)
-	body := `{"serverId":"` + other.Id + `","reportedAt":"` + nowRaw + `","items":[{"targetType":"server","targetId":"` + other.Id + `","facts":{"architecture":"amd64"}}]}`
-	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/facts", body, "Bearer "+token)
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("expected 403, got %d: %s", rec.Code, rec.Body.String())
-	}
-}
-
-func TestMonitorFactsIngestRejectsAllowlistViolation(t *testing.T) {
-	te := newMonitorTestEnv(t)
-	defer te.cleanup()
-
-	server := createMonitorServer(t, te, "prod-01")
-	token, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	nowRaw := time.Now().UTC().Format(time.RFC3339)
-	body := `{"serverId":"` + server.Id + `","reportedAt":"` + nowRaw + `","items":[{"targetType":"server","targetId":"` + server.Id + `","facts":{"os":{"family":"linux"},"netdata":{"plugin":"system-info"}}}]}`
-	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/facts", body, "Bearer "+token)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
-	}
-}
-
-func TestMonitorFactsIngestReplacesPreviousSnapshot(t *testing.T) {
-	te := newMonitorTestEnv(t)
-	defer te.cleanup()
-
-	server := createMonitorServer(t, te, "prod-01")
-	token, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	firstAt := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC).Format(time.RFC3339)
-	secondAt := time.Date(2026, 4, 14, 12, 5, 0, 0, time.UTC).Format(time.RFC3339)
-	firstBody := `{"serverId":"` + server.Id + `","reportedAt":"` + firstAt + `","items":[{"targetType":"server","targetId":"` + server.Id + `","facts":{"os":{"family":"linux","distribution":"ubuntu"},"kernel":{"release":"6.8.0"}}}]}`
-	if rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/facts", firstBody, "Bearer "+token); rec.Code != http.StatusAccepted {
-		t.Fatalf("expected first request 202, got %d: %s", rec.Code, rec.Body.String())
-	}
-	secondBody := `{"serverId":"` + server.Id + `","reportedAt":"` + secondAt + `","items":[{"targetType":"server","targetId":"` + server.Id + `","facts":{"architecture":"arm64","cpu":{"cores":8}}}]}`
-	if rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/facts", secondBody, "Bearer "+token); rec.Code != http.StatusAccepted {
-		t.Fatalf("expected second request 202, got %d: %s", rec.Code, rec.Body.String())
-	}
-	stored, err := te.app.FindRecordById("servers", server.Id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	facts := mustRouteJSONMap(t, stored.Get("facts_json"))
-	if _, ok := facts["os"]; ok {
-		t.Fatalf("expected replaced facts snapshot without os, got %+v", facts)
-	}
-	if facts["architecture"] != "arm64" {
-		t.Fatalf("expected replaced facts snapshot, got %+v", facts)
-	}
-}
-
-func TestMonitorFactsIngestRejectsBatchLargerThanOne(t *testing.T) {
-	te := newMonitorTestEnv(t)
-	defer te.cleanup()
-
-	server := createMonitorServer(t, te, "prod-01")
-	token, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	nowRaw := time.Now().UTC().Format(time.RFC3339)
-	body := `{"serverId":"` + server.Id + `","reportedAt":"` + nowRaw + `","items":[{"targetType":"server","targetId":"` + server.Id + `","facts":{"architecture":"amd64"}},{"targetType":"server","targetId":"` + server.Id + `","facts":{"architecture":"arm64"}}]}`
-	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/facts", body, "Bearer "+token)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
-	}
-}
-
-func TestMonitorRuntimeStatusIngestMergesServerSummary(t *testing.T) {
-	te := newMonitorTestEnv(t)
-	defer te.cleanup()
-
-	server := createMonitorServer(t, te, "prod-01")
-	appOne := createMonitorApp(t, te, "app-1-monitor-key", "Demo App", server.Id)
-	appTwo := createMonitorApp(t, te, "app-2-monitor-key", "Demo Worker", server.Id)
-	token, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
-	zeroFailures := 0
-	if _, err := store.UpsertLatestStatus(te.app, store.LatestStatusUpsert{
-		TargetType:          monitor.TargetTypeServer,
-		TargetID:            server.Id,
-		DisplayName:         server.GetString("name"),
-		Status:              monitor.StatusHealthy,
-		SignalSource:        monitor.SignalSourceAgent,
-		LastTransitionAt:    now,
-		LastSuccessAt:       &now,
-		LastReportedAt:      &now,
-		ConsecutiveFailures: &zeroFailures,
-		Summary:             map[string]any{"heartbeat_state": "fresh"},
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	observedAtRaw := now.Add(5 * time.Minute).Format(time.RFC3339)
-	body := `{"serverId":"` + server.Id + `","reportedAt":"` + observedAtRaw + `","items":[{"targetType":"server","targetId":"` + server.Id + `","runtimeState":"running","observedAt":"` + observedAtRaw + `","containers":{"running":3,"restarting":1,"exited":0},"apps":[{"appId":"` + appOne.Id + `","runtimeState":"running"},{"appId":"` + appTwo.Id + `","runtimeState":"restarting"}]}]}`
-	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/runtime-status", body, "Bearer "+token)
-	if rec.Code != http.StatusAccepted {
-		t.Fatalf("expected 202, got %d: %s", rec.Code, rec.Body.String())
-	}
-	record, err := te.app.FindFirstRecordByFilter(collections.MonitorLatestStatus, "target_type = {:targetType} && target_id = {:id}", map[string]any{"targetType": monitor.TargetTypeServer, "id": server.Id})
-	if err != nil {
-		t.Fatal(err)
-	}
-	summary, err := store.SummaryFromRecord(record)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if summary["heartbeat_state"] != "fresh" {
-		t.Fatalf("expected heartbeat summary preserved, got %+v", summary)
-	}
-	if _, ok := summary["reason_code"]; ok {
-		t.Fatalf("expected healthy server runtime summary to omit reason_code, got %+v", summary)
-	}
-	if summary["runtime_state"] != "running" || summary["containers_running"] != float64(3) {
-		t.Fatalf("expected runtime summary merged, got %+v", summary)
-	}
-	apps, ok := summary["apps"].([]any)
-	if !ok || len(apps) != 2 {
-		t.Fatalf("expected two runtime app summaries, got %+v", summary["apps"])
-	}
-	if record.GetString("status") != monitor.StatusHealthy {
-		t.Fatalf("expected healthy status after running runtime summary, got %q", record.GetString("status"))
-	}
-	appRecord, err := te.app.FindFirstRecordByFilter(collections.MonitorLatestStatus, "target_type = {:targetType} && target_id = {:id}", map[string]any{"targetType": monitor.TargetTypeApp, "id": appTwo.Id})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if appRecord.GetString("status") != monitor.StatusDegraded {
-		t.Fatalf("expected degraded app status from runtime projection, got %q", appRecord.GetString("status"))
-	}
-	appSummary, err := store.SummaryFromRecord(appRecord)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if appSummary["reason_code"] != "app_runtime_unhealthy" {
-		t.Fatalf("expected app_runtime_unhealthy reason_code, got %+v", appSummary)
-	}
-}
-
-func TestMonitorRuntimeStatusRejectsMismatchedTarget(t *testing.T) {
-	te := newMonitorTestEnv(t)
-	defer te.cleanup()
-
-	server := createMonitorServer(t, te, "prod-01")
-	token, _, err := agentsignals.GetOrIssueAgentToken(te.app, server.Id, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	nowRaw := time.Now().UTC().Format(time.RFC3339)
-	body := `{"serverId":"` + server.Id + `","reportedAt":"` + nowRaw + `","items":[{"targetType":"server","targetId":"other","runtimeState":"running","observedAt":"` + nowRaw + `"}]}`
-	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/ingest/runtime-status", body, "Bearer "+token)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 

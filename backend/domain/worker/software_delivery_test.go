@@ -143,6 +143,48 @@ func TestNewSoftwareActionTask_ReturnsTask(t *testing.T) {
 	}
 }
 
+func TestPrepareSoftwareOperation_AllowsInstallWhenVerifyInFlight(t *testing.T) {
+	app := newWorkerTestApp(t)
+
+	_, err := createSoftwareOperationRecord(app, SoftwareActionPayload{
+		ServerID:     "srv-prepare-1",
+		ComponentKey: software.ComponentKeyDocker,
+		Action:       software.ActionVerify,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	record, err := PrepareSoftwareOperation(app, "srv-prepare-1", software.ComponentKeyDocker, software.ActionInstall)
+	if err != nil {
+		t.Fatalf("expected install to be allowed when verify is in flight, got error: %v", err)
+	}
+	if record.GetString("action") != string(software.ActionInstall) {
+		t.Fatalf("expected install operation record, got %q", record.GetString("action"))
+	}
+}
+
+func TestPrepareSoftwareOperation_BlocksInstallWhenInstallInFlight(t *testing.T) {
+	app := newWorkerTestApp(t)
+
+	_, err := createSoftwareOperationRecord(app, SoftwareActionPayload{
+		ServerID:     "srv-prepare-2",
+		ComponentKey: software.ComponentKeyDocker,
+		Action:       software.ActionInstall,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = PrepareSoftwareOperation(app, "srv-prepare-2", software.ComponentKeyDocker, software.ActionInstall)
+	if err == nil {
+		t.Fatal("expected install to remain blocked when another install is already in flight")
+	}
+	if !strings.Contains(err.Error(), ErrSoftwareOperationInFlight.Error()) {
+		t.Fatalf("expected in-flight error, got %v", err)
+	}
+}
+
 // TestNewSoftwareActionTask_ValidatesOperationID verifies that an empty operation_id is rejected.
 func TestNewSoftwareActionTask_ValidatesOperationID(t *testing.T) {
 	_, err := NewSoftwareActionTask("", "srv-1", software.ComponentKeyDocker, software.ActionInstall, "u1", "u1@test.com", "")

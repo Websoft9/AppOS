@@ -143,11 +143,14 @@ func TestEvaluateReadiness_NetworkRequired(t *testing.T) {
 	target := software.TargetInfo{OS: "ubuntu", HasRoot: true, NetworkOK: false}
 	result := readiness.EvaluateReadiness(preflight, target, true)
 
-	if result.OK {
-		t.Error("expected OK=false when network is unavailable")
+	if !result.OK {
+		t.Error("expected OK=true when network is unavailable because network probing is advisory")
 	}
 	if result.NetworkOK {
 		t.Error("expected NetworkOK=false when NetworkOK=false")
+	}
+	if len(result.Issues) == 0 {
+		t.Error("expected advisory network issue when network check cannot be confirmed")
 	}
 }
 
@@ -185,8 +188,8 @@ func TestEvaluateReadiness_MultipleIssues(t *testing.T) {
 	if result.OK {
 		t.Error("expected OK=false for multiple failures")
 	}
-	if len(result.Issues) < 6 {
-		t.Errorf("expected at least 6 issues (os baseline, privilege, network, dependency, service manager, package manager), got %d: %v", len(result.Issues), result.Issues)
+if len(result.Issues) < 6 {
+		t.Errorf("expected at least 6 issues (os baseline, privilege, network advisory, dependency, service manager, package manager), got %d: %v", len(result.Issues), result.Issues)
 	}
 }
 

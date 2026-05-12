@@ -72,45 +72,6 @@ func defaultReasonCodeForCredentialOutcome(outcome string) string {
 	}
 }
 
-func defaultStatusForHeartbeatOutcome(outcome string) string {
-	switch outcome {
-	case HeartbeatStateFresh:
-		return StatusHealthy
-	case HeartbeatStateStale:
-		return StatusUnknown
-	case HeartbeatStateOffline:
-		return StatusOffline
-	default:
-		return StatusUnknown
-	}
-}
-
-func defaultReasonForHeartbeatOutcome(outcome string) string {
-	switch outcome {
-	case HeartbeatStateFresh:
-		return ""
-	case HeartbeatStateStale:
-		return "heartbeat stale"
-	case HeartbeatStateOffline:
-		return "heartbeat missing"
-	default:
-		return "heartbeat state is unknown"
-	}
-}
-
-func defaultReasonCodeForHeartbeatOutcome(outcome string) string {
-	switch outcome {
-	case HeartbeatStateFresh:
-		return ""
-	case HeartbeatStateStale:
-		return "heartbeat_stale"
-	case HeartbeatStateOffline:
-		return "heartbeat_missing"
-	default:
-		return "heartbeat_unknown"
-	}
-}
-
 func defaultStatusForAppHealthOutcome(outcome string) string {
 	switch outcome {
 	case StatusHealthy:

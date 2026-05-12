@@ -14,7 +14,10 @@ import (
 
 const componentsInventoryCronJobID = "appos_components_inventory_probe"
 const monitorReachabilityCronJobID = "monitor_reachability_checks"
-const monitorHeartbeatFreshnessCronJobID = "monitor_heartbeat_freshness"
+const monitorMetricsFreshnessCronJobID = "monitor_metrics_freshness"
+const monitorControlReachabilityCronJobID = "monitor_control_reachability"
+const monitorFactsPullCronJobID = "monitor_facts_pull"
+const monitorRuntimeSnapshotPullCronJobID = "monitor_runtime_snapshot_pull"
 const monitorCredentialCronJobID = "monitor_credential_checks"
 const monitorAppHealthCronJobID = "monitor_app_health_checks"
 
@@ -44,10 +47,40 @@ func registerCronHooks(app *pocketbase.PocketBase, asynqClient *asynq.Client) {
 	)
 
 	app.Cron().MustAdd(
-		monitorHeartbeatFreshnessCronJobID,
+		monitorMetricsFreshnessCronJobID,
 		"*/1 * * * *",
-		cronutil.Wrap(app, monitorHeartbeatFreshnessCronJobID, func() {
-			if err := worker.EnqueueMonitorHeartbeatFreshness(asynqClient); err != nil {
+		cronutil.Wrap(app, monitorMetricsFreshnessCronJobID, func() {
+			if err := worker.EnqueueMonitorMetricsFreshness(asynqClient); err != nil {
+				panic(err)
+			}
+		}),
+	)
+
+	app.Cron().MustAdd(
+		monitorControlReachabilityCronJobID,
+		"*/1 * * * *",
+		cronutil.Wrap(app, monitorControlReachabilityCronJobID, func() {
+			if err := worker.EnqueueMonitorControlReachability(asynqClient); err != nil {
+				panic(err)
+			}
+		}),
+	)
+
+	app.Cron().MustAdd(
+		monitorFactsPullCronJobID,
+		"*/15 * * * *",
+		cronutil.Wrap(app, monitorFactsPullCronJobID, func() {
+			if err := worker.EnqueueMonitorFactsPull(asynqClient); err != nil {
+				panic(err)
+			}
+		}),
+	)
+
+	app.Cron().MustAdd(
+		monitorRuntimeSnapshotPullCronJobID,
+		"*/1 * * * *",
+		cronutil.Wrap(app, monitorRuntimeSnapshotPullCronJobID, func() {
+			if err := worker.EnqueueMonitorRuntimeSnapshotPull(asynqClient); err != nil {
 				panic(err)
 			}
 		}),

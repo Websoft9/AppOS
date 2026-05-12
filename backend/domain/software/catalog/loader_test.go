@@ -71,20 +71,19 @@ func TestPreflightVerifiedOSNonEmpty(t *testing.T) {
 // ── Server catalog tests ──────────────────────────────────────────────────────
 
 // TestLoadServerCatalogComponentKeys verifies that the server catalog contains
-// all four expected component keys.
+// all expected component keys.
 func TestLoadServerCatalogComponentKeys(t *testing.T) {
 	cat, err := catalog.LoadServerCatalog()
 	if err != nil {
 		t.Fatalf("LoadServerCatalog: %v", err)
 	}
-	if len(cat.Components) != 4 {
-		t.Errorf("expected 4 server components, got %d", len(cat.Components))
+	if len(cat.Components) != 3 {
+		t.Errorf("expected 3 server components, got %d", len(cat.Components))
 	}
 	required := []software.ComponentKey{
 		software.ComponentKeyDocker,
 		software.ComponentKeyReverseProxy,
 		software.ComponentKeyMonitorAgent,
-		software.ComponentKeyAppOSAgent,
 	}
 	found := make(map[software.ComponentKey]bool)
 	for _, e := range cat.Components {

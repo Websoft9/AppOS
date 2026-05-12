@@ -8,12 +8,13 @@ Establish a minimal monitoring domain for AppOS that gives operators one place t
 
 **Scope note**: Monitor observes the runtime state of running software (is it alive, is it healthy). Version detection, install, upgrade, and reinstall of those same software components are owned by Software Delivery (Epic 29), not Monitor.
 
-This epic adopts a push-first hybrid model:
+This epic adopts a Netdata-plus-control-plane-pull model:
 
-- managed servers run `appos-agent` as the control-plane agent; it coordinates local collectors, normalizes selected facts and signals, and pushes them to AppOS
-- AppOS executes monitoring-owned active checks for reachability, credential usability, and selected health probes
+- managed servers run Netdata as the only continuous managed-side monitoring agent
+- Netdata exports continuous metrics to AppOS and provides metrics freshness evidence
+- AppOS control plane collects non-metric evidence through SSH/tunnel pull or temporary collectors
 - high-frequency metrics use a dedicated time-series store
-- latest status, check results, and operator-facing summaries remain in the business data store
+- latest status, check results, facts snapshots, and operator-facing summaries remain AppOS-owned business projections
 
 The goal is not to build a full observability platform. The goal is to provide a small, reliable operator signal surface that answers: what is unhealthy, why, and since when.
 
@@ -25,7 +26,7 @@ The goal is not to build a full observability platform. The goal is to provide a
 |----------|-------------|
 | Server metrics: CPU, memory, disk, network | Full log platform or centralized log search |
 | Container runtime summary and resource metrics | Complex alert routing and notification workflows |
-| Application heartbeat and health summary | Distributed tracing |
+| Application health and manageability summary | Distributed tracing |
 | Resource reachability checks | Multi-node monitoring clusters |
 | Resource credential usability checks | Per-tenant observability isolation |
 | AppOS self metrics and monitor pipeline health | Large historical analytics or BI-style reporting |
@@ -42,8 +43,9 @@ The epic defines four operator-facing monitoring areas:
    - container metrics
    - container runtime state summary
 
-2. `App Health & Heartbeat`
-   - app heartbeat
+2. `App Health & Manageability`
+   - metrics freshness
+   - control reachability
    - app health check result
    - degraded reason
    - last success and last failure time
@@ -66,7 +68,7 @@ Within that context, the recommended split is:
 - `signals`: normalize all incoming monitor signals into one canonical event model
 - `status`: consume canonical signal events and own latest-status projection, precedence, and transitions
 
-Inside `signals`, source-specific code stays as adapters such as `agent`, `probes`, and `platform`.
+Inside `signals`, source-specific code stays as adapters such as `netdata`, `probes`, `pull`, and `platform`.
 `status` should be the sole writer of the latest-status projection.
 The TSDB adapter remains infrastructure, not a monitor subdomain.
 
@@ -78,8 +80,10 @@ Distributed tracing remains out of scope for Epic 28 and should be treated as a 
 
 **Collection model**:
 
-- `collector + agent push`: Netdata collects host telemetry and low-frequency host facts; `appos-agent` filters and normalizes the selected output, then pushes heartbeat, runtime summary, and product-shaped facts to AppOS
-- `AppOS active check`: scheduled reachability checks, credential checks, selected app health probes, AppOS self-observation
+- `Netdata metrics export`: Netdata collects continuous host/container telemetry and exports selected charts to AppOS/VictoriaMetrics
+- `metrics freshness`: AppOS evaluates the latest Netdata sample time as one heartbeat-like evidence source
+- `control-plane pull`: AppOS collects non-metric facts, runtime snapshots, SSH/tunnel reachability, credential checks, selected service checks, and app health probes over the managed control path
+- `temporary collector`: when a single SSH command becomes too brittle, AppOS may upload a short-lived executable or script, read JSON output, and remove it after execution
 
 Active checks are owned by the `monitoring` domain even when target identity comes from resource, app, or server domains.
 
@@ -99,7 +103,9 @@ The product should read primarily from normalized status projections rather than
 
 ```text
 signal sources
-  - managed server agent
+   - Netdata metrics export
+   - AppOS SSH/tunnel pull
+   - temporary collectors
   - AppOS probes
   - AppOS platform observer
          |
@@ -125,11 +131,10 @@ AppOS runs as a single container that includes PocketBase, Asynq, VictoriaMetric
 
 Within that shape, Netdata is acceptable as a collection substrate, but not as the monitoring authority.
 
-- managed-server Netdata remains the primary collector for remote host, container, and application-adjacent telemetry
-- managed-server Netdata may also collect low-frequency host facts such as OS, kernel, and architecture when available locally
+- managed-server Netdata remains the primary collector for remote host, container, and application-adjacent continuous telemetry
+- low-frequency host facts are collected by the AppOS control plane through SSH/tunnel pull or temporary collectors, not by a long-running AppOS-owned managed-server agent
 - control-plane Netdata is required for AppOS self-observation and is limited to probes against targets that are local to the control-plane environment
 - both collectors write raw telemetry into `VictoriaMetrics`
-- `appos-agent` is the coordinator on the managed server: it reads collector output, filters it, normalizes it into AppOS contracts, and reports it upstream
 - the AppOS monitoring domain keeps ownership of target identity, signal normalization, status adjudication, latest-status projection, and notification orchestration
 
 Operational constraints:
@@ -137,7 +142,7 @@ Operational constraints:
 - local Netdata in the AppOS container is required and starts by default with AppOS
 - Netdata local alerts, notifications, and cloud claim should be disabled
 - Netdata should be treated as collector and exporter only; business status does not come from Netdata alarm state
-- low-frequency host facts may originate from Netdata, but AppOS persists only `appos-agent`-normalized facts rather than collector-native field shapes
+- low-frequency host facts should use AppOS-owned canonical fields aligned where practical to OpenTelemetry Resource semantic conventions
 
 Netdata usage red lines:
 
@@ -151,22 +156,23 @@ Netdata usage red lines:
 The current server-metric implementation is intentionally narrow and push-first:
 
 - Netdata runs on each managed server under systemd
-- Netdata may collect both time-series telemetry and low-frequency host facts on the managed server
-- `appos-agent` reads the selected collector output, normalizes it, and separates facts from metrics before upstream reporting
+- Netdata collects selected time-series telemetry on the managed server
+- AppOS evaluates Netdata sample freshness as metrics heartbeat evidence
+- AppOS collects facts and runtime snapshots through SSH/tunnel pull or temporary collectors
 - AppOS runs one local Netdata process inside the single control-plane container for self-observation
 - Netdata exports selected host charts by Prometheus remote write
-- managed servers and the local control-plane collector push to AppOS `/api/monitor/netdata/write`
-- AppOS public ingress forwards that path to embedded `VictoriaMetrics /api/v1/write`
+- managed servers push to AppOS `/api/monitor/write` using per-server Basic Auth credentials
+- AppOS validates the server identity and monitor agent token before forwarding accepted payloads to embedded VictoriaMetrics
 - AppOS monitor APIs query VictoriaMetrics for short-window CPU, memory, disk, and network trends
 
-Low-frequency host facts are not treated as TSDB series. After normalization by `appos-agent`, they are stored on the server business record such as `server.facts_json`.
+Low-frequency host facts are not treated as TSDB series. After control-plane collection and normalization, they are stored on the server business record such as `server.facts_json`.
 
 This keeps AppOS as the control and presentation plane while Netdata remains the collector layer.
 
 ### Minimal Domain Flow
 
 ```text
-server agent / AppOS checker
+Netdata freshness / AppOS pull / AppOS checker
    ↓
 raw signal ingest
    ↓
@@ -184,7 +190,8 @@ The MVP uses four operator-facing signal types. They should be collected indepen
 | Signal | Answers | Primary concern |
 |--------|---------|-----------------|
 | `app_health` | Is the application service itself behaving correctly? | serving health |
-| `heartbeat` | Is the target still reporting fresh runtime signal? | liveness / freshness |
+| `metrics_freshness` | Is the target still reporting fresh Netdata metrics? | observability freshness |
+| `control_reachability` | Can AppOS still manage the target over SSH/tunnel? | manageability |
 | `reachability` | Can AppOS reach the target over the expected network path? | connectivity |
 | `credential` | Can AppOS complete one minimal safe authenticated action? | authenticated access |
 
@@ -198,10 +205,12 @@ Signal relationship rules:
 
 | Condition | Latest status | Why |
 |----------|---------------|-----|
-| heartbeat is `offline` | `offline` | freshness failure outranks older or partial check success |
-| heartbeat is fresh and reachability fails | `unreachable` | network path failure blocks stronger health claims |
-| heartbeat is fresh, reachability succeeds, credential fails | `credential_invalid` | authenticated access failed after connectivity succeeded |
-| heartbeat is fresh, reachability succeeds, app health fails | `degraded` | service is reachable but not behaving correctly |
+| metrics are fresh and control reachability succeeds | `healthy` or lower-severity app/resource result | both observation and manageability are available |
+| metrics are fresh and control reachability fails | `unreachable` or `observable_not_manageable` | target is observable but AppOS cannot manage it |
+| metrics are stale and control reachability succeeds | `degraded` or `monitoring_stale` | target is manageable but monitoring data is stale |
+| metrics are stale and control reachability fails | `offline` | neither observability nor manageability is currently reliable |
+| control reachability succeeds but credential fails | `credential_invalid` | authenticated access failed after connectivity succeeded |
+| app health fails | `degraded` | service is reachable but not behaving correctly |
 | no reliable signal is available | `unknown` | no trustworthy current judgment |
 | relevant signals succeed | `healthy` | current checks support a healthy operator view |
 
@@ -213,7 +222,8 @@ Signal relationship rules:
 | container metrics | VictoriaMetrics | append-only metric series |
 | AppOS self metrics | VictoriaMetrics | append-only metric series |
 | low-frequency host facts | server business record | normalized facts such as OS, kernel, architecture, CPU, and total memory |
-| latest heartbeat | business store | one latest state per target |
+| latest metrics freshness | business store | one latest state per target |
+| latest control reachability | business store | one latest state per target |
 | latest health result | business store | includes reason and transition time |
 | reachability result | business store | current state first, history optional later |
 | credential validation result | business store | store outcome only, never secret payload |
@@ -245,18 +255,18 @@ Signal relationship rules:
 ### 28.1 Monitoring Domain Foundation
 
 - Define canonical monitor target types: `server`, `app`, `resource`, `platform`
-- Define canonical signal types: `app_health`, `heartbeat`, `reachability`, `credential`
+- Define canonical signal types: `app_health`, `metrics_freshness`, `control_reachability`, `reachability`, `credential`
 - Define normalized status projection with states such as `healthy`, `degraded`, `offline`, `unreachable`, `credential_invalid`
 - Persist latest status snapshot and last failure reason per target
 
-### 28.2 Agent Ingestion and Metrics Pipeline
+### 28.2 Netdata Metrics and Control-Plane Evidence Pipeline
 
 - Standardize the managed-server metrics collector contract with Netdata running under systemd
-- Clarify that Netdata may provide both metrics and low-frequency host facts, while `appos-agent` normalizes and reports AppOS-owned payloads
-- Add ingestion endpoints for metrics, heartbeat, and runtime summary
+- Evaluate Netdata sample freshness as `metrics_freshness` evidence
+- Replace agent-pushed heartbeat and runtime summary with AppOS control-plane pull evidence
 - Store host and container metrics in `VictoriaMetrics`
-- Store normalized host facts on the canonical server record such as `server.facts_json`
-- Record agent freshness and stale-heartbeat detection in the business store
+- Store normalized host facts on the canonical server record such as `server.facts_json` after control-plane collection
+- Record metrics freshness, control reachability, and runtime snapshot evidence in the business store
 
 ### 28.3 Active Checks for Resource and App Availability
 
@@ -283,7 +293,7 @@ Signal relationship rules:
 
 ## Acceptance Criteria
 
-- [ ] AppOS accepts pushed metrics and heartbeat data from managed servers through authenticated ingestion endpoints
+- [ ] AppOS accepts Netdata remote-write metrics from managed servers and evaluates metrics freshness without requiring `appos-agent`
 - [ ] Host and container metrics are stored in a dedicated time-series backend rather than the primary business store
 - [ ] AppOS executes scheduled reachability and credential-usability checks without relying on agent self-report alone
 - [ ] Each monitored target exposes one normalized latest status with transition time and failure reason
@@ -301,9 +311,7 @@ This epic assumes a split between write-only ingest routes and read-oriented ope
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| POST | `/api/monitor/ingest/metrics` | Receive metric batches from server agent or AppOS self collector |
-| POST | `/api/monitor/ingest/heartbeat` | Receive heartbeat and freshness signals |
-| POST | `/api/monitor/ingest/runtime-status` | Receive compact runtime summary for host, containers, and app runtime |
+| POST | `/api/monitor/write` | Receive Netdata remote-write metrics through the AppOS backend after per-server agent authentication |
 
 ### Operator Read Routes
 
@@ -318,10 +326,11 @@ This epic assumes a split between write-only ingest routes and read-oriented ope
 
 Implementation may use cron or worker infrastructure, but the business contract is:
 
+- metrics freshness evaluation runs on AppOS schedule
 - reachability checks run on AppOS schedule
 - credential validation checks run on AppOS schedule
 - selected app health probes run on AppOS schedule
-- stale heartbeat evaluation runs on AppOS schedule
+- stale metrics-freshness evaluation runs on AppOS schedule
 
 Recommended MVP implementation:
 
@@ -336,7 +345,7 @@ Exact route placement can still shift during implementation, but the separation 
 ## Story Artifacts
 
 - `story28.1-monitor-foundation.md`
-- `story28.2-agent-ingestion.md`
+- `story28.2-agent-ingestion.md` (legacy title; scope is superseded by Netdata metrics and control-plane evidence pipeline)
 - `story28.3-active-checks.md`
 - `story28.4-operator-surfaces.md`
 - `story28.5-platform-status-frontend.md`
@@ -363,7 +372,7 @@ The MVP succeeds if AppOS can answer three questions quickly:
 Implement this epic in the following order:
 
 1. `28.1 Monitoring Domain Foundation`
-2. `28.2 Agent Ingestion and Metrics Pipeline`
+2. `28.2 Netdata Metrics and Control-Plane Evidence Pipeline`
 3. `28.3 Active Checks for Resource and App Availability`
 4. `28.4 Minimal Operator Surfaces`
 5. `28.5 Platform Status Frontend Page`
@@ -371,7 +380,7 @@ Implement this epic in the following order:
 Reasoning:
 
 - 28.1 freezes target identity, latest-status projection, and persistence shape.
-- 28.2 establishes the first write path and TSDB boundary.
+- 28.2 establishes the Netdata metrics boundary and the first non-agent evidence paths.
 - 28.3 adds AppOS-owned judgment so monitoring does not depend only on self-report.
 - 28.4 should consume stable read contracts instead of inventing UI-specific logic.
 - 28.5 converges the operator-facing platform status experience into one simple page after the monitor contracts are stable.
@@ -386,8 +395,8 @@ Recommended first slice:
 
 1. ship `monitor_latest_status` only
 2. support `server` and `platform` targets first
-3. implement `POST /api/monitor/ingest/heartbeat` before metrics and runtime summary
-4. evaluate heartbeat freshness into `healthy`, `offline`, or `unknown`
+3. implement Netdata metrics freshness evaluation before runtime snapshot collection
+4. evaluate metrics freshness and control reachability into `healthy`, `degraded`, `offline`, or `unknown`
 5. expose one minimal overview list of unhealthy targets
 
 This slice is enough to validate:
@@ -408,7 +417,7 @@ Do not include in the first slice:
 
 | Risk | Why it matters | MVP response |
 |------|----------------|--------------|
-| Agent token lifecycle drifts from server lifecycle | ingest trust becomes hard to rotate or reason about | keep dedicated per-server monitor token and simple rotation flow |
+| Legacy agent contracts remain active too long | status semantics split across push and pull paths | retire `appos-agent` setup and ingest routes after replacement paths exist |
 | Status semantics become inconsistent | UI will show contradictory health states | freeze precedence and latest-status rules in Story 28.1 |
 | TSDB details leak into app code | hard to change storage behavior later | keep VictoriaMetrics behind a small writer/query adapter |
 | Active checks become an unbounded plugin surface | scope and safety explode | allowlist only `reachability`, `credential`, `app_health` in MVP |
@@ -419,6 +428,6 @@ Do not include in the first slice:
 
 Epic 28 is complete when:
 
-- agent and AppOS checks both feed one normalized latest-status model
+- Netdata metrics freshness and AppOS checks both feed one normalized latest-status model
 - operators can identify unhealthy targets and likely causes from overview and detail surfaces
 - monitoring remains minimal in scope: no logs platform, no tracing, no custom dashboards

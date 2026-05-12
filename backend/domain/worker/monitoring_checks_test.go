@@ -2,16 +2,21 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/monitor"
+	"github.com/websoft9/appos/backend/domain/monitor/metrics"
+	monitorchecks "github.com/websoft9/appos/backend/domain/monitor/signals/checks"
 	"github.com/websoft9/appos/backend/domain/monitor/status/store"
 	"github.com/websoft9/appos/backend/domain/secrets"
+	"github.com/websoft9/appos/backend/domain/terminal"
 	"github.com/websoft9/appos/backend/infra/collections"
 )
 
@@ -95,59 +100,270 @@ func TestEnqueueMonitorReachabilitySweepRequiresClient(t *testing.T) {
 	}
 }
 
-func TestHandleMonitorHeartbeatFreshnessProjectsOfflineStatus(t *testing.T) {
+func TestHandleMonitorMetricsFreshnessProjectsNetdataFreshStatus(t *testing.T) {
 	app := newWorkerTestApp(t)
+	server := seedServerRecord(t, app, "metrics-prod-01")
+	now := time.Now().UTC()
+	restore := metrics.SetMetricQueryFuncForTest(func(_ context.Context, targetType, targetID, _ string, _ []string, _ metrics.MetricSeriesQueryOptions) (*metrics.MetricSeriesResponse, error) {
+		response := &metrics.MetricSeriesResponse{TargetType: targetType, TargetID: targetID, Series: []metrics.MetricSeries{}}
+		if targetID != server.Id {
+			return response, nil
+		}
+		response.Series = []metrics.MetricSeries{{
+			Name:   "cpu",
+			Unit:   "percent",
+			Points: [][]float64{{float64(now.Add(-20 * time.Second).Unix()), 42}},
+		}}
+		return response, nil
+	})
+	defer restore()
 
-	col, err := app.FindCollectionByNameOrId(collections.MonitorLatestStatus)
+	w := New(app)
+	task, err := NewMonitorMetricsFreshnessTask()
 	if err != nil {
 		t.Fatal(err)
 	}
-	record := core.NewRecord(col)
-	staleAt := time.Now().UTC().Add(-monitor.OfflineHeartbeatThreshold).Add(-time.Minute)
-	record.Set("target_type", monitor.TargetTypeServer)
-	record.Set("target_id", "srv-1")
-	record.Set("display_name", "prod-01")
-	record.Set("status", monitor.StatusHealthy)
-	record.Set("signal_source", monitor.SignalSourceAgent)
-	record.Set("last_transition_at", staleAt.Format(time.RFC3339))
-	record.Set("last_success_at", staleAt.Format(time.RFC3339))
-	record.Set("last_reported_at", staleAt.Format(time.RFC3339))
-	record.Set("consecutive_failures", 0)
-	record.Set("summary_json", map[string]any{"heartbeat_state": monitor.HeartbeatStateFresh})
-	if err := app.Save(record); err != nil {
+	if err := w.handleMonitorMetricsFreshness(context.Background(), task); err != nil {
+		t.Fatal(err)
+	}
+
+	status := loadTargetLatestStatus(t, app, monitor.TargetTypeServer, server.Id)
+	if got := status.GetString("status"); got != monitor.StatusHealthy {
+		t.Fatalf("expected healthy metrics freshness status, got %q", got)
+	}
+	if got := status.GetString("signal_source"); got != monitor.SignalSourceNetdata {
+		t.Fatalf("expected netdata signal source, got %q", got)
+	}
+	summary, err := store.SummaryFromRecord(status)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary["metrics_freshness_state"] != monitor.MetricsFreshnessFresh {
+		t.Fatalf("expected fresh metrics summary, got %+v", summary)
+	}
+	if summary["metrics_observed_at"] == nil {
+		t.Fatalf("expected metrics_observed_at in summary, got %+v", summary)
+	}
+}
+
+func TestEnqueueMonitorMetricsFreshnessRequiresClient(t *testing.T) {
+	if err := EnqueueMonitorMetricsFreshness(nil); err == nil {
+		t.Fatal("expected nil client error")
+	}
+}
+
+func TestHandleMonitorControlReachabilityProjectsServerStatuses(t *testing.T) {
+	app := newWorkerTestApp(t)
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen control probe target: %v", err)
+	}
+	defer listener.Close()
+
+	closedListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve closed control probe target: %v", err)
+	}
+	closedAddr := closedListener.Addr().String()
+	_ = closedListener.Close()
+
+	reachable := seedServerRecord(t, app, "control-prod-01")
+	reachableHost, reachablePort, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	reachablePortNumber, err := strconv.Atoi(reachablePort)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reachable.Set("host", reachableHost)
+	reachable.Set("port", reachablePortNumber)
+	if err := app.Save(reachable); err != nil {
+		t.Fatal(err)
+	}
+
+	offline := seedServerRecord(t, app, "control-prod-02")
+	offlineHost, offlinePort, err := net.SplitHostPort(closedAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	offlinePortNumber, err := strconv.Atoi(offlinePort)
+	if err != nil {
+		t.Fatal(err)
+	}
+	offline.Set("host", offlineHost)
+	offline.Set("port", offlinePortNumber)
+	if err := app.Save(offline); err != nil {
 		t.Fatal(err)
 	}
 
 	w := New(app)
-	task, err := NewMonitorHeartbeatFreshnessTask()
+	task, err := NewMonitorControlReachabilityTask()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := w.handleMonitorHeartbeatFreshness(context.Background(), task); err != nil {
+	if err := w.handleMonitorControlReachability(context.Background(), task); err != nil {
 		t.Fatal(err)
 	}
 
-	record, err = app.FindRecordById(collections.MonitorLatestStatus, record.Id)
+	reachableStatus := loadTargetLatestStatus(t, app, monitor.TargetTypeServer, reachable.Id)
+	if got := reachableStatus.GetString("status"); got != monitor.StatusHealthy {
+		t.Fatalf("expected reachable control status healthy, got %q", got)
+	}
+	if got := reachableStatus.GetString("signal_source"); got != monitor.SignalSourceAppOS {
+		t.Fatalf("expected appos active check source, got %q", got)
+	}
+	reachableSummary, err := store.SummaryFromRecord(reachableStatus)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := record.GetString("status"); got != monitor.StatusOffline {
-		t.Fatalf("expected offline status, got %q", got)
+	if reachableSummary["check_kind"] != monitor.CheckKindControlReachability {
+		t.Fatalf("expected control reachability check kind, got %+v", reachableSummary)
 	}
-	summary, err := store.SummaryFromRecord(record)
+	if reachableSummary["control_reachability_state"] != "reachable" {
+		t.Fatalf("expected reachable control state, got %+v", reachableSummary)
+	}
+	if _, ok := reachableSummary["reason_code"]; ok {
+		t.Fatalf("expected healthy control summary to omit reason_code, got %+v", reachableSummary)
+	}
+
+	offlineStatus := loadTargetLatestStatus(t, app, monitor.TargetTypeServer, offline.Id)
+	if got := offlineStatus.GetString("status"); got != monitor.StatusUnreachable {
+		t.Fatalf("expected offline control status unreachable, got %q", got)
+	}
+	if offlineStatus.GetInt("consecutive_failures") != 1 {
+		t.Fatalf("expected offline control consecutive_failures 1, got %d", offlineStatus.GetInt("consecutive_failures"))
+	}
+	offlineSummary, err := store.SummaryFromRecord(offlineStatus)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if summary["heartbeat_state"] != monitor.HeartbeatStateOffline {
-		t.Fatalf("expected offline heartbeat summary, got %+v", summary)
+	if offlineSummary["reason_code"] != "control_unreachable" {
+		t.Fatalf("expected control_unreachable reason_code, got %+v", offlineSummary)
 	}
-	if summary["reason_code"] != "heartbeat_missing" {
-		t.Fatalf("expected heartbeat_missing reason_code, got %+v", summary)
+	if offlineSummary["probe_protocol"] != "ssh" {
+		t.Fatalf("expected ssh probe protocol, got %+v", offlineSummary)
 	}
 }
 
-func TestEnqueueMonitorHeartbeatFreshnessRequiresClient(t *testing.T) {
-	if err := EnqueueMonitorHeartbeatFreshness(nil); err == nil {
+func TestEnqueueMonitorControlReachabilityRequiresClient(t *testing.T) {
+	if err := EnqueueMonitorControlReachability(nil); err == nil {
+		t.Fatal("expected nil client error")
+	}
+}
+
+func TestHandleMonitorFactsPullWritesServerFactsSnapshot(t *testing.T) {
+	app := newWorkerTestApp(t)
+	server := seedServerRecord(t, app, "facts-prod-01")
+
+	var capturedCfg terminal.ConnectorConfig
+	restore := monitorchecks.SetServerFactsCommandExecutorForTest(func(_ context.Context, cfg terminal.ConnectorConfig, command string, timeout time.Duration) (string, error) {
+		capturedCfg = cfg
+		if !strings.Contains(command, "os.family") {
+			t.Fatalf("expected facts command to print os.family, got %q", command)
+		}
+		if timeout <= 0 {
+			t.Fatal("expected positive facts pull timeout")
+		}
+		return "os.family=Linux\nos.distribution=Ubuntu\nos.version=24.04\nkernel.release=6.8.0-31-generic\narchitecture=x86_64\ncpu.cores=4\nmemory.total_bytes=8589934592\n", nil
+	})
+	defer restore()
+
+	w := New(app)
+	task, err := NewMonitorFactsPullTask()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.handleMonitorFactsPull(context.Background(), task); err != nil {
+		t.Fatal(err)
+	}
+	if capturedCfg.Host != "192.168.1.10" || capturedCfg.Port != 22 || capturedCfg.User != "root" {
+		t.Fatalf("expected server access config to be used, got %+v", capturedCfg)
+	}
+
+	stored, err := app.FindRecordById("servers", server.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	facts := mustWorkerJSONMap(t, stored.Get("facts_json"))
+	if facts["architecture"] != "x86_64" {
+		t.Fatalf("expected architecture from facts pull, got %+v", facts)
+	}
+	osFacts := mustWorkerJSONMap(t, facts["os"])
+	if osFacts["distribution"] != "Ubuntu" {
+		t.Fatalf("expected Ubuntu facts distribution, got %+v", facts)
+	}
+	if got := stored.GetDateTime("facts_observed_at").Time().UTC(); got.IsZero() {
+		t.Fatal("expected facts_observed_at to be set")
+	}
+}
+
+func TestEnqueueMonitorFactsPullRequiresClient(t *testing.T) {
+	if err := EnqueueMonitorFactsPull(nil); err == nil {
+		t.Fatal("expected nil client error")
+	}
+}
+
+func TestHandleMonitorRuntimeSnapshotPullProjectsServerRuntime(t *testing.T) {
+	app := newWorkerTestApp(t)
+	server := seedServerRecord(t, app, "runtime-prod-01")
+
+	var capturedCfg terminal.ConnectorConfig
+	restore := monitorchecks.SetServerRuntimeCommandExecutorForTest(func(_ context.Context, cfg terminal.ConnectorConfig, command string, timeout time.Duration) (string, error) {
+		capturedCfg = cfg
+		if !strings.Contains(command, "docker ps") {
+			t.Fatalf("expected runtime command to inspect docker state, got %q", command)
+		}
+		if timeout <= 0 {
+			t.Fatal("expected positive runtime pull timeout")
+		}
+		return "running\nrunning\nrestarting\nexited\n", nil
+	})
+	defer restore()
+
+	w := New(app)
+	task, err := NewMonitorRuntimeSnapshotPullTask()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.handleMonitorRuntimeSnapshotPull(context.Background(), task); err != nil {
+		t.Fatal(err)
+	}
+	if capturedCfg.Host != "192.168.1.10" || capturedCfg.Port != 22 || capturedCfg.User != "root" {
+		t.Fatalf("expected server access config to be used, got %+v", capturedCfg)
+	}
+
+	status := loadTargetLatestStatus(t, app, monitor.TargetTypeServer, server.Id)
+	if got := status.GetString("status"); got != monitor.StatusDegraded {
+		t.Fatalf("expected degraded runtime status, got %q", got)
+	}
+	if got := status.GetString("signal_source"); got != monitor.SignalSourceAppOS {
+		t.Fatalf("expected appos active check source, got %q", got)
+	}
+	summary, err := store.SummaryFromRecord(status)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary["check_kind"] != monitor.CheckKindRuntime {
+		t.Fatalf("expected runtime_summary check kind, got %+v", summary)
+	}
+	if summary["signal_source"] != monitor.SignalSourceAppOS {
+		t.Fatalf("expected appos signal source in summary, got %+v", summary)
+	}
+	if summary["runtime_state"] != monitor.StatusDegraded {
+		t.Fatalf("expected degraded runtime_state, got %+v", summary)
+	}
+	if asInt(summary["containers_running"]) != 2 || asInt(summary["containers_restarting"]) != 1 || asInt(summary["containers_exited"]) != 1 {
+		t.Fatalf("expected container counts from runtime pull, got %+v", summary)
+	}
+	if summary["reason_code"] != "runtime_degraded" {
+		t.Fatalf("expected runtime_degraded reason_code, got %+v", summary)
+	}
+}
+
+func TestEnqueueMonitorRuntimeSnapshotPullRequiresClient(t *testing.T) {
+	if err := EnqueueMonitorRuntimeSnapshotPull(nil); err == nil {
 		t.Fatal("expected nil client error")
 	}
 }
@@ -308,6 +524,23 @@ func seedAppInstanceRecord(t *testing.T, app core.App, name string, runtimeStatu
 	return rec
 }
 
+func seedServerRecord(t *testing.T, app core.App, name string) *core.Record {
+	t.Helper()
+	col, err := app.FindCollectionByNameOrId("servers")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := core.NewRecord(col)
+	rec.Set("name", name)
+	rec.Set("host", "192.168.1.10")
+	rec.Set("port", 22)
+	rec.Set("user", "root")
+	if err := app.Save(rec); err != nil {
+		t.Fatal(err)
+	}
+	return rec
+}
+
 func loadLatestStatus(t *testing.T, app core.App, targetID string) *core.Record {
 	t.Helper()
 	return loadTargetLatestStatus(t, app, monitor.TargetTypeResource, targetID)
@@ -359,5 +592,34 @@ func prepareWorkerSecretKey(t *testing.T) {
 	}
 	if err := secrets.LoadTemplatesFromDefaultPath(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func mustWorkerJSONMap(t *testing.T, value any) map[string]any {
+	t.Helper()
+	if direct, ok := value.(map[string]any); ok {
+		return direct
+	}
+	raw, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("marshal json field: %v", err)
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		t.Fatalf("unmarshal json field: %v", err)
+	}
+	return parsed
+}
+
+func asInt(value any) int {
+	switch typed := value.(type) {
+	case int:
+		return typed
+	case int64:
+		return int(typed)
+	case float64:
+		return int(typed)
+	default:
+		return 0
 	}
 }

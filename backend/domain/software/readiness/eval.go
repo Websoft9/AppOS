@@ -98,6 +98,6 @@ func EvaluateReadiness(preflight software.PreflightSpec, target software.TargetI
 	}
 
 	result.Issues = issues
-	result.OK = result.PrivilegeOK && result.NetworkOK && result.DependencyReady && result.ServiceManagerOK && result.PackageManagerOK
+	result.OK = result.PrivilegeOK && result.DependencyReady && result.ServiceManagerOK && result.PackageManagerOK
 	return result
 }

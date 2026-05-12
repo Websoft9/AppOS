@@ -30,11 +30,14 @@ import {
 } from '@/lib/connect-api'
 import { cn } from '@/lib/utils'
 
-type PortsSortColumn = 'port' | 'status' | 'sources'
+type PortRow = ServerPortItem & { protocol: ServerPortProtocol }
+type PortProtocolFilter = ServerPortProtocol | 'all'
+type PortsSortColumn = 'port' | 'status' | 'protocol' | 'process'
 type PortsSortDirection = 'asc' | 'desc'
 type PortStatusFilter = 'all' | 'occupied' | 'reserved'
 
 const PAGE_SIZE = 20
+const PORTS_INVENTORY_GRID_CLASS = 'grid-cols-[4.5rem_5rem_4.75rem_5.25rem_minmax(0,1fr)_2rem]'
 
 function getPortStatusLabel(row: ServerPortItem) {
   if (row.occupancy?.occupied) return 'Occupied'
@@ -59,17 +62,11 @@ function getPortSourceLabel(row: ServerPortItem) {
   return sources.map(source => source.type).join(', ')
 }
 
-function getPortSummary(row: ServerPortItem) {
-  const processLabel = getPortProcessLabel(row)
-  if (processLabel !== '—') return processLabel
-  const sourceLabel = getPortSourceLabel(row)
-  if (sourceLabel !== '—') return sourceLabel
-  const listener = row.occupancy?.listeners?.[0]
-  if (listener?.local_address) return listener.local_address
-  return '—'
+function getPortRowKey(row: Pick<PortRow, 'port' | 'protocol'>) {
+  return `${row.protocol}:${row.port}`
 }
 
-function matchesQuery(row: ServerPortItem, query: string) {
+function matchesQuery(row: PortRow, query: string) {
   if (!query) return true
   const normalized = query.trim().toLowerCase()
   if (!normalized) return true
@@ -81,13 +78,14 @@ function matchesQuery(row: ServerPortItem, query: string) {
 
   return (
     String(row.port).includes(normalized) ||
+    row.protocol.toLowerCase().includes(normalized) ||
     getPortProcessLabel(row).toLowerCase().includes(normalized) ||
     getPortSourceLabel(row).toLowerCase().includes(normalized) ||
     listenerText.includes(normalized)
   )
 }
 
-function matchesStatus(row: ServerPortItem, filter: PortStatusFilter) {
+function matchesStatus(row: PortRow, filter: PortStatusFilter) {
   if (filter === 'all') return true
   if (filter === 'occupied') return !!row.occupancy?.occupied
   return !!row.reservation?.reserved
@@ -97,28 +95,28 @@ function compareText(left: string, right: string) {
   return left.localeCompare(right, undefined, { sensitivity: 'base' })
 }
 
-function compareRows(left: ServerPortItem, right: ServerPortItem, sortBy: PortsSortColumn, sortDirection: PortsSortDirection) {
+function compareRows(left: PortRow, right: PortRow, sortBy: PortsSortColumn, sortDirection: PortsSortDirection) {
   let result = 0
   if (sortBy === 'status') {
     result = compareText(getPortStatusLabel(left), getPortStatusLabel(right))
-  } else if (sortBy === 'sources') {
-    const leftCount = left.reservation?.sources?.length || 0
-    const rightCount = right.reservation?.sources?.length || 0
-    result = leftCount - rightCount
+  } else if (sortBy === 'protocol') {
+    result = compareText(left.protocol, right.protocol)
+  } else if (sortBy === 'process') {
+    result = compareText(getPortProcessLabel(left), getPortProcessLabel(right))
   } else {
     result = left.port - right.port
   }
 
   if (result === 0) {
-    result = left.port - right.port
+    result = left.port - right.port || compareText(left.protocol, right.protocol)
   }
 
   return sortDirection === 'desc' ? result * -1 : result
 }
 
 export function ServerPortsPanel({ serverId }: { serverId: string }) {
-  const [protocol, setProtocol] = useState<ServerPortProtocol>('tcp')
-  const [rows, setRows] = useState<ServerPortItem[]>([])
+  const [protocol, setProtocol] = useState<PortProtocolFilter>('all')
+  const [rows, setRows] = useState<PortRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [hint, setHint] = useState('')
@@ -127,10 +125,10 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
   const [sortBy, setSortBy] = useState<PortsSortColumn>('port')
   const [sortDirection, setSortDirection] = useState<PortsSortDirection>('asc')
   const [page, setPage] = useState(1)
-  const [selectedPort, setSelectedPort] = useState<number | null>(null)
+  const [selectedPortKey, setSelectedPortKey] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [releaseSubmitting, setReleaseSubmitting] = useState(false)
-  const [releasingPort, setReleasingPort] = useState<number | null>(null)
+  const [releasingTarget, setReleasingTarget] = useState<Pick<PortRow, 'port' | 'protocol'> | null>(null)
   const [releaseForce, setReleaseForce] = useState(false)
 
   const loadPorts = useCallback(async () => {
@@ -138,8 +136,15 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
     setLoading(true)
     setError('')
     try {
-      const response = await listServerPorts(serverId, 'all', protocol)
-      setRows(Array.isArray(response.ports) ? response.ports : [])
+      const protocols: ServerPortProtocol[] = protocol === 'all' ? ['tcp', 'udp'] : [protocol]
+      const responses = await Promise.all(protocols.map(value => listServerPorts(serverId, 'all', value)))
+      const nextRows = responses.flatMap(response =>
+        (Array.isArray(response.ports) ? response.ports : []).map(row => ({
+          ...row,
+          protocol: response.protocol,
+        }))
+      )
+      setRows(nextRows)
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Failed to load ports')
     } finally {
@@ -188,18 +193,18 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
   }, [currentPage, filteredRows])
 
   const selectedRow = useMemo(
-    () => filteredRows.find(row => row.port === selectedPort) ?? null,
-    [filteredRows, selectedPort]
+    () => filteredRows.find(row => getPortRowKey(row) === selectedPortKey) ?? null,
+    [filteredRows, selectedPortKey]
   )
 
   useEffect(() => {
-    if (selectedPort != null && !filteredRows.some(row => row.port === selectedPort)) {
-      setSelectedPort(null)
+    if (selectedPortKey != null && !filteredRows.some(row => getPortRowKey(row) === selectedPortKey)) {
+      setSelectedPortKey(null)
     }
-  }, [filteredRows, selectedPort])
+  }, [filteredRows, selectedPortKey])
 
-  const requestReleaseOccupiedPort = useCallback((port: number) => {
-    setReleasingPort(port)
+  const requestReleaseOccupiedPort = useCallback((row: Pick<PortRow, 'port' | 'protocol'>) => {
+    setReleasingTarget(row)
     setReleaseForce(false)
     setConfirmOpen(true)
     setError('')
@@ -207,25 +212,25 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
   }, [])
 
   const releaseOccupiedPort = useCallback(
-    async (port: number) => {
+    async (target: Pick<PortRow, 'port' | 'protocol'>) => {
       setConfirmOpen(false)
       setReleaseSubmitting(true)
-      setReleasingPort(port)
+      setReleasingTarget(target)
       setError('')
       setHint('')
       try {
         const mode = releaseForce ? 'force' : 'graceful'
-        const result = await releaseServerPort(serverId, port, protocol, mode)
+        const result = await releaseServerPort(serverId, target.port, target.protocol, mode)
         if (!result.released) {
-          setError(`Port ${port} is still occupied after ${mode} release.`)
+          setError(`Port ${target.port}/${target.protocol.toUpperCase()} is still occupied after ${mode} release.`)
         } else {
-          setHint(`Port ${port} released by ${result.action_taken}.`)
+          setHint(`Port ${target.port}/${target.protocol.toUpperCase()} released by ${result.action_taken}.`)
         }
         await loadPorts()
       } catch (releaseError) {
         if (releaseError instanceof ClientResponseError && releaseError.status === 409) {
           const forceHint = !releaseForce ? ' Try enabling force mode.' : ''
-          setError(`Port ${port} is still occupied after release.${forceHint}`)
+          setError(`Port ${target.port}/${target.protocol.toUpperCase()} is still occupied after release.${forceHint}`)
           await loadPorts()
         } else {
           setError(releaseError instanceof Error ? releaseError.message : 'Failed to release port')
@@ -233,10 +238,10 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
       } finally {
         setReleaseSubmitting(false)
         setReleaseForce(false)
-        setReleasingPort(null)
+        setReleasingTarget(null)
       }
     },
-    [loadPorts, protocol, releaseForce, serverId]
+    [loadPorts, releaseForce, serverId]
   )
 
   const summary = useMemo(() => {
@@ -309,9 +314,10 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
                 <select
                   aria-label="Port protocol"
                   value={protocol}
-                  onChange={event => setProtocol(event.target.value as ServerPortProtocol)}
-                  className="h-8 w-20 rounded-md border bg-background px-2 text-sm"
+                  onChange={event => setProtocol(event.target.value as PortProtocolFilter)}
+                  className="h-8 w-28 rounded-md border bg-background px-2 text-sm"
                 >
+                  <option value="all">All Protocol</option>
                   <option value="tcp">TCP</option>
                   <option value="udp">UDP</option>
                 </select>
@@ -359,7 +365,7 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
           </div>
 
           <div className="space-y-1">
-            <div className="grid grid-cols-[5rem_6rem_6rem_minmax(0,1.5fr)_3rem] gap-2 px-3 py-2 text-sm font-medium text-muted-foreground">
+            <div className={cn('grid gap-2 px-3 py-2 text-sm font-medium text-muted-foreground', PORTS_INVENTORY_GRID_CLASS)}>
               <button
                 type="button"
                 onClick={() => toggleSort('port')}
@@ -378,17 +384,26 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
                 <span>Status</span>
                 {renderSortIcon('status')}
               </button>
+              <button
+                type="button"
+                onClick={() => toggleSort('protocol')}
+                className="inline-flex items-center gap-1 py-1 text-left transition-colors hover:text-foreground"
+                aria-label={`Protocol ${sortBy === 'protocol' ? `sorted ${sortDirection === 'asc' ? 'ascending' : 'descending'}` : 'sortable'}`}
+              >
+                <span>Protocol</span>
+                {renderSortIcon('protocol')}
+              </button>
               <span className="py-1 text-left">PIDs</span>
               <button
                 type="button"
-                onClick={() => toggleSort('sources')}
+                onClick={() => toggleSort('process')}
                 className="inline-flex items-center gap-1 py-1 text-left transition-colors hover:text-foreground"
-                aria-label={`Summary ${sortBy === 'sources' ? `sorted ${sortDirection === 'asc' ? 'ascending' : 'descending'}` : 'sortable'}`}
+                aria-label={`Process ${sortBy === 'process' ? `sorted ${sortDirection === 'asc' ? 'ascending' : 'descending'}` : 'sortable'}`}
               >
-                <span>Summary</span>
-                {renderSortIcon('sources')}
+                <span>Process</span>
+                {renderSortIcon('process')}
               </button>
-              <span className="py-1 text-left">Actions</span>
+              <span className="py-1 text-center">Actions</span>
             </div>
 
             {loading ? (
@@ -402,43 +417,46 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
               <div className="divide-y divide-border/60">
                 {pagedRows.map(row => {
                   const portLabel = String(row.port)
+                  const rowKey = getPortRowKey(row)
                   const occupied = !!row.occupancy?.occupied
                   return (
                     <div
-                      key={row.port}
+                      key={rowKey}
                       className={cn(
-                        'grid grid-cols-[5rem_6rem_6rem_minmax(0,1.5fr)_3rem] items-center gap-2 px-3 py-1.5 text-sm',
-                        selectedPort === row.port && 'bg-accent/40'
+                        'grid items-center gap-2 px-3 py-1.5 text-sm',
+                        PORTS_INVENTORY_GRID_CLASS,
+                        selectedPortKey === rowKey && 'bg-accent/40'
                       )}
                     >
                       <button
                         type="button"
-                        onClick={() => setSelectedPort(row.port)}
+                        onClick={() => setSelectedPortKey(rowKey)}
                         className="min-w-0 text-left"
-                        aria-label={portLabel}
+                        aria-label={`${portLabel}/${row.protocol.toUpperCase()}`}
                       >
                         <span className="block truncate font-medium leading-5">{portLabel}</span>
                       </button>
                       <span className={cn('truncate py-1 text-left', occupied ? 'text-emerald-600' : row.reservation?.reserved ? 'text-amber-600' : 'text-muted-foreground')}>
                         {getPortStatusLabel(row)}
                       </span>
+                      <span className="truncate py-1 text-left text-muted-foreground">{row.protocol.toUpperCase()}</span>
                       <span className="truncate py-1 text-left text-muted-foreground">{getPortPidLabel(row)}</span>
-                      <span className="truncate py-1 text-left text-muted-foreground">{getPortSummary(row)}</span>
+                      <span className="truncate py-1 text-left text-muted-foreground">{getPortProcessLabel(row)}</span>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8 justify-self-start"
+                            className="h-8 w-8 justify-self-center p-0"
                             disabled={loading || releaseSubmitting}
-                            aria-label={`Port actions for ${portLabel}`}
+                            aria-label={`Port actions for ${portLabel}/${row.protocol.toUpperCase()}`}
                           >
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setSelectedPort(row.port)}>Open details</DropdownMenuItem>
-                          <DropdownMenuItem disabled={!occupied} onClick={() => requestReleaseOccupiedPort(row.port)}>
+                          <DropdownMenuItem onClick={() => setSelectedPortKey(rowKey)}>Open details</DropdownMenuItem>
+                          <DropdownMenuItem disabled={!occupied} onClick={() => requestReleaseOccupiedPort(row)}>
                             Release port
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -458,7 +476,7 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
                 Selected Port
               </h3>
               <p className="text-xs text-muted-foreground">
-                {selectedRow ? `Port ${selectedRow.port}/${protocol}` : 'Select one port from the inventory.'}
+                {selectedRow ? `Port ${selectedRow.port}/${selectedRow.protocol.toUpperCase()}` : 'Select one port from the inventory.'}
               </p>
             </div>
             {selectedRow ? (
@@ -468,7 +486,7 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
                   size="sm"
                   variant="outline"
                   disabled={!selectedRow.occupancy?.occupied || loading || releaseSubmitting}
-                  onClick={() => requestReleaseOccupiedPort(selectedRow.port)}
+                  onClick={() => requestReleaseOccupiedPort(selectedRow)}
                 >
                   Release
                 </Button>
@@ -489,7 +507,7 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
                 </div>
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
                   <span className="shrink-0 font-medium text-foreground">Protocol:</span>
-                  <span className="break-words text-muted-foreground">{protocol.toUpperCase()}</span>
+                  <span className="break-words text-muted-foreground">{selectedRow.protocol.toUpperCase()}</span>
                 </div>
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
                   <span className="shrink-0 font-medium text-foreground">Status:</span>
@@ -553,14 +571,16 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
           if (releaseSubmitting) return
           setConfirmOpen(open)
           if (!open) {
-            setReleasingPort(null)
+            setReleasingTarget(null)
             setReleaseForce(false)
           }
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Release port {releasingPort ?? '-'}</AlertDialogTitle>
+            <AlertDialogTitle>
+              Release port {releasingTarget ? `${releasingTarget.port}/${releasingTarget.protocol.toUpperCase()}` : '-'}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               This operation stops the current owner of this port. Use with caution.
             </AlertDialogDescription>
@@ -594,10 +614,10 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={releaseSubmitting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              disabled={releaseSubmitting || releasingPort == null}
+              disabled={releaseSubmitting || releasingTarget == null}
               onClick={() => {
-                if (releasingPort == null) return
-                void releaseOccupiedPort(releasingPort)
+                if (releasingTarget == null) return
+                void releaseOccupiedPort(releasingTarget)
               }}
             >
               {releaseSubmitting ? (

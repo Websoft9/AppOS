@@ -7,11 +7,8 @@
 
 ### 服务器
 
-- detail page
 - 服务器特殊环境配置：Docker 仓库地址、Docker 加速地址、代理地址
 - 环境预装机制：在线一键脚本或由 AppOS 推送到服务器后执行
-- Create Server 是，需要针对两种类型做一定的体验改善
-
 
 ## 隧道
 
@@ -110,92 +107,6 @@ Settings（配置层）
 2. Install  from store 和 Custom Deployment 区块没有考虑 dark 模式
 3.  
 
-backend/
-├── cmd/
-│   └── appos/main.go
-│
-├── domain/
-│   ├── lifecycle/                         # Domain: Application Lifecycle
-│   │   ├── appinstance/                   #   Subdomain: App Instance Management
-│   │   │   ├── model.go
-│   │   │   ├── service.go
-│   │   │   └── api.go
-│   │   ├── operation/                     #   Subdomain: Operation Management
-│   │   │   ├── model.go
-│   │   │   ├── service.go
-│   │   │   └── api.go
-│   │   ├── release/                       #   Subdomain: Release Management
-│   │   ├── exposure/                      #   Subdomain: Exposure Management
-│   │   └── recovery/                      #   Subdomain: Recovery Management
-│   │
-│   ├── execution/                         # Domain: Lifecycle Execution
-│   │   ├── pipeline/                      #   Subdomain: Pipeline Execution
-│   │   ├── worker/                        #   Subdomain: Worker Scheduling
-│   │   ├── projection/                    #   Subdomain: Projection Update
-│   │   └── compensation/                  #   Subdomain: Compensation Control
-│   │
-│   ├── resourceops/                       # Domain: Resource Operations Platform
-│   │   ├── remoteaccess/                  #   Subdomain: Remote Access (tunnel)
-│   │   ├── terminal/                      #   Subdomain: Terminal Operations
-│   │   ├── fileops/                       #   Subdomain: File Operations
-│   │   ├── serviceops/                    #   Subdomain: Service Operations
-│   │   └── containerops/                  #   Subdomain: Container Operations
-│   │
-│   ├── observability/                     # Domain: Observability
-│   │   ├── telemetry/                     #   Subdomain: Telemetry
-│   │   ├── health/                        #   Subdomain: Health & Diagnostics
-│   │   └── platformstatus/               #   Subdomain: Platform Self-Observation
-│   │
-│   ├── operations/                        # Domain: Operations Management
-│   │   ├── inventory/                     #   Subdomain: Resource Inventory & Topology
-│   │   ├── topics/                        #   Subdomain: Operational Knowledge (Topics)
-│   │   ├── space/                         #   Subdomain: Operational Knowledge (Space)
-│   │   ├── incidents/                     #   Subdomain: Incident Response
-│   │   └── automation/                    #   Subdomain: Operations Automation
-│   │
-│   ├── catalog/                           # Domain: App Catalog
-│   │   ├── apps/                          #   Subdomain: Catalog Apps
-│   │   ├── custom/                        #   Subdomain: Custom Apps
-│   │   ├── templates/                     #   Subdomain: Templates
-│   │   └── favorites/                     #   Subdomain: Favorites / Notes
-│   │
-│   ├── gateway/                           # Domain: Gateway Management
-│   │   ├── domainbinding/                 #   Subdomain: Domain Binding
-│   │   ├── routing/                       #   Subdomain: Routing & Upstreams
-│   │   ├── certbinding/                   #   Subdomain: Certificate Binding
-│   │   └── policies/                      #   Subdomain: Gateway Policies
-│   │
-│   ├── secrets/                           # Domain: Security and Secret Management
-│   │   ├── vault/                         #   Subdomain: Secrets
-│   │   └── policies/                      #   Subdomain: Secret Policies
-│   │
-│   ├── config/                            # Domain: Platform Configuration
-│   │   └── settings/
-│   │
-│   ├── identity/                          # Domain: Identity and Access
-│   │   └── access/
-│   │
-│   ├── audit/                             # Domain: Audit and Policy
-│   │   └── logging/
-│   │
-│   └── integrations/                      # Domain: Integrations & Connectors
-│       ├── sources/                       #   Subdomain: Source Integrations
-│       ├── registries/                    #   Subdomain: Artifact & Registry
-│       ├── notifications/                 #   Subdomain: Notification Integrations
-│       └── ai/                            #   Subdomain: AI Provider Integrations
-│
-├── infra/                                 # 跨领域技术基础设施
-│   ├── docker/
-│   ├── crypto/
-│   ├── fileutil/
-│   └── cronutil/
-│
-└── platform/                              # 平台级关注点
-    ├── migrations/
-    ├── components/
-    ├── hooks/
-    └── supervisor/
-
 
 
 但它们不等于宇宙完备分类。将来还可能出现这些不太适合硬塞进去的类型：
@@ -256,3 +167,6 @@ Current version
 
 
 server detail 的所有tab，当 Connection 都要验证ssh 连接是否存在，如何无法连接，直接显示无法连接，而不是默认的布局
+
+
+ports tab 不稳定，经常打开显示  somethins wrong

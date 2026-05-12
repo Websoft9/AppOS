@@ -37,8 +37,10 @@ tags:
       name: Health
     - description: Infrastructure-as-Code workspace and template file operations.
       name: IaC
-    - description: Monitoring overview, container telemetry, target status and series queries, server agent bootstrap, and agent ingest APIs.
+    - description: Monitoring overview, container telemetry, target status and series queries.
       name: Monitoring
+    - description: Metrics ingestion endpoints used by managed-server collectors.
+      name: Monitoring Ingest
     - description: Pipeline run inventory and detail APIs for lifecycle-native execution tracking.
       name: Pipelines
     - description: Provider account catalog and template APIs for cloud and platform credentials.
@@ -301,6 +303,100 @@ components:
                         $ref: '#/components/schemas/FileEntry'
                     type: array
                 path:
+                    type: string
+            type: object
+        MonitorContainerTelemetryResponse:
+            properties:
+                items:
+                    items:
+                        $ref: '#/components/schemas/MonitorContainerTelemetryItem'
+                    type: array
+                rangeEndAt:
+                    type: string
+                rangeStartAt:
+                    type: string
+                serverId:
+                    type: string
+                stepSeconds:
+                    type: integer
+                window:
+                    type: string
+            type: object
+        MonitorMetricSeriesResponse:
+            properties:
+                availableNetworkInterfaces:
+                    items:
+                        type: string
+                    type: array
+                rangeEndAt:
+                    type: string
+                rangeStartAt:
+                    type: string
+                selectedNetworkInterface:
+                    type: string
+                series:
+                    items:
+                        $ref: '#/components/schemas/MonitorMetricSeries'
+                    type: array
+                stepSeconds:
+                    type: integer
+                targetId:
+                    type: string
+                targetType:
+                    type: string
+                window:
+                    type: string
+            type: object
+        MonitorOverviewResponse:
+            properties:
+                counts:
+                    additionalProperties:
+                        type: integer
+                    type: object
+                platformItems:
+                    items:
+                        $ref: '#/components/schemas/MonitorOverviewItem'
+                    type: array
+                unhealthyItems:
+                    items:
+                        $ref: '#/components/schemas/MonitorOverviewItem'
+                    type: array
+            type: object
+        MonitorTargetStatusResponse:
+            properties:
+                consecutiveFailures:
+                    type: integer
+                displayName:
+                    type: string
+                hasData:
+                    type: boolean
+                lastCheckedAt:
+                    additionalProperties: true
+                    type: object
+                lastFailureAt:
+                    additionalProperties: true
+                    type: object
+                lastReportedAt:
+                    additionalProperties: true
+                    type: object
+                lastSuccessAt:
+                    additionalProperties: true
+                    type: object
+                lastTransitionAt:
+                    type: string
+                reason:
+                    additionalProperties: true
+                    type: object
+                signalSource:
+                    type: string
+                status:
+                    type: string
+                summary:
+                    additionalProperties: true
+                    type: object
+                targetId:
+                    type: string
+                targetType:
                     type: string
             type: object
         MoveRequest:
@@ -1104,7 +1200,7 @@ paths:
                   name: removeVolumes
                   required: false
                   schema:
-                    type: string
+                    type: boolean
             responses:
                 "202":
                     content:
@@ -1533,7 +1629,7 @@ paths:
                   name: tail
                   required: false
                   schema:
-                    type: string
+                    type: integer
             responses:
                 "200":
                     content:
@@ -3596,7 +3692,7 @@ paths:
                   name: tail
                   required: false
                   schema:
-                    type: string
+                    type: integer
                 - in: query
                   name: type
                   required: false
@@ -4313,7 +4409,7 @@ paths:
                   name: tail
                   required: false
                   schema:
-                    type: string
+                    type: integer
             responses:
                 "200":
                     content:
@@ -4643,7 +4739,7 @@ paths:
                   name: force
                   required: false
                   schema:
-                    type: string
+                    type: boolean
                 - in: query
                   name: server_id
                   required: false
@@ -4748,7 +4844,7 @@ paths:
                   name: tail
                   required: false
                   schema:
-                    type: string
+                    type: integer
             responses:
                 "200":
                     content:
@@ -5275,7 +5371,7 @@ paths:
                   name: limit
                   required: false
                   schema:
-                    type: string
+                    type: integer
                 - in: query
                   name: q
                   required: true
@@ -5719,7 +5815,7 @@ paths:
                   name: recursive
                   required: false
                   schema:
-                    type: string
+                    type: boolean
             responses:
                 "200":
                     content:
@@ -6667,6 +6763,9 @@ paths:
                   name: collection
                   required: true
                   schema:
+                    enum:
+                        - users
+                        - _superusers
                     type: string
                 - in: path
                   name: id
@@ -7104,95 +7203,16 @@ paths:
             summary: Get instance template
             tags:
                 - Service Instances
-    /api/monitor/ingest/facts:
-        post:
-            operationId: post_api_monitor_ingest_facts
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: false
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-            security: []
-            summary: Create or execute monitor ingest facts
-            tags:
-                - Monitoring
-    /api/monitor/ingest/heartbeat:
-        post:
-            operationId: post_api_monitor_ingest_heartbeat
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: false
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-            security: []
-            summary: Create or execute monitor ingest heartbeat
-            tags:
-                - Monitoring
-    /api/monitor/ingest/metrics:
-        post:
-            operationId: post_api_monitor_ingest_metrics
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: false
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-            security: []
-            summary: Create or execute monitor ingest metrics
-            tags:
-                - Monitoring
-    /api/monitor/ingest/runtime-status:
-        post:
-            operationId: post_api_monitor_ingest_runtime-status
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: false
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-            security: []
-            summary: Create or execute monitor ingest runtime status
-            tags:
-                - Monitoring
     /api/monitor/overview:
         get:
+            description: Returns aggregate status counts plus unhealthy targets and platform monitor items. Status values include healthy, degraded, offline, unreachable, credential_invalid, and unknown.
             operationId: get_api_monitor_overview
             responses:
                 "200":
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
+                                $ref: '#/components/schemas/MonitorOverviewResponse'
                     description: OK
                 "401":
                     content:
@@ -7200,78 +7220,21 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
             security:
                 - bearerAuth: []
             summary: Get monitor overview
             tags:
                 - Monitoring
-    /api/monitor/servers/{id}/agent-setup:
-        get:
-            operationId: get_api_monitor_servers_id_agent-setup
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                    type: string
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Get monitor servers by id agent setup
-            tags:
-                - Monitoring
-    /api/monitor/servers/{id}/agent-token:
-        post:
-            operationId: post_api_monitor_servers_id_agent-token
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                    type: string
-                - in: query
-                  name: rotate
-                  required: false
-                  schema:
-                    type: string
-            requestBody:
-                content:
-                    application/json:
-                        schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: false
-            responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
-                "401":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
-                    description: Unauthorized
-            security:
-                - bearerAuth: []
-            summary: Create or execute monitor servers by id agent token
-            tags:
-                - Monitoring
     /api/monitor/servers/{id}/container-telemetry:
         get:
+            description: Returns latest and time-series telemetry for containers on one managed server. The optional containerId query parameter may be repeated.
             operationId: get_api_monitor_servers_id_container-telemetry
             parameters:
                 - in: path
@@ -7280,36 +7243,71 @@ paths:
                   schema:
                     type: string
                 - in: query
+                  name: containerId
+                  required: false
+                  schema:
+                    type: string
+                - in: query
                   name: window
                   required: false
                   schema:
+                    enum:
+                        - 15m
+                        - 1h
+                        - 5h
+                        - 6h
+                        - 12h
+                        - 1d
+                        - 24h
+                        - 7d
                     type: string
             responses:
                 "200":
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
+                                $ref: '#/components/schemas/MonitorContainerTelemetryResponse'
                     description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
                 "401":
                     content:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
             security:
                 - bearerAuth: []
-            summary: Get monitor servers by id container telemetry
+            summary: Get server container telemetry
             tags:
                 - Monitoring
     /api/monitor/targets/{targetType}/{targetId}:
         get:
+            description: Returns the latest projected status for a monitor target. targetType accepts server, app, container, resource, or platform.
             operationId: get_api_monitor_targets_targettype_targetid
             parameters:
                 - in: path
                   name: targetType
                   required: true
                   schema:
+                    enum:
+                        - server
+                        - app
+                        - container
+                        - resource
+                        - platform
                     type: string
                 - in: path
                   name: targetId
@@ -7321,7 +7319,7 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
+                                $ref: '#/components/schemas/MonitorTargetStatusResponse'
                     description: OK
                 "401":
                     content:
@@ -7329,19 +7327,32 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/ErrorEnvelope'
                     description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Not Found
             security:
                 - bearerAuth: []
-            summary: Get monitor targets by targetType by targetId
+            summary: Get monitor target status
             tags:
                 - Monitoring
     /api/monitor/targets/{targetType}/{targetId}/series:
         get:
+            description: Returns metric series for a monitor target. targetType accepts server, app, container, or platform. series accepts cpu, memory, disk, disk_usage, network, or network_traffic depending on target type. Use startAt and endAt together for a custom RFC3339 range.
             operationId: get_api_monitor_targets_targettype_targetid_series
             parameters:
                 - in: path
                   name: targetType
                   required: true
                   schema:
+                    enum:
+                        - server
+                        - app
+                        - container
+                        - platform
                     type: string
                 - in: path
                   name: targetId
@@ -7362,6 +7373,13 @@ paths:
                   name: series
                   required: false
                   schema:
+                    enum:
+                        - cpu
+                        - memory
+                        - disk
+                        - disk_usage
+                        - network
+                        - network_traffic
                     type: string
                 - in: query
                   name: startAt
@@ -7372,7 +7390,50 @@ paths:
                   name: window
                   required: false
                   schema:
+                    enum:
+                        - 15m
+                        - 1h
+                        - 5h
+                        - 6h
+                        - 12h
+                        - 1d
+                        - 24h
+                        - 7d
                     type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MonitorMetricSeriesResponse'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get monitor target series
+            tags:
+                - Monitoring
+    /api/monitor/write:
+        post:
+            operationId: post_api_monitor_write
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
             responses:
                 "200":
                     content:
@@ -7388,9 +7449,9 @@ paths:
                     description: Unauthorized
             security:
                 - bearerAuth: []
-            summary: Get monitor targets by targetType by targetId series
+            summary: Create or execute monitor write
             tags:
-                - Monitoring
+                - Monitoring Ingest
     /api/pipelines:
         get:
             operationId: get_api_pipelines
@@ -9292,6 +9353,10 @@ paths:
                   name: shell
                   required: false
                   schema:
+                    enum:
+                        - /bin/sh
+                        - /bin/bash
+                        - /bin/zsh
                     type: string
             responses:
                 "400":

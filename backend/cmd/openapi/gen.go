@@ -52,6 +52,7 @@ var (
 	reFuncQueryMapParam  = regexp.MustCompile(`([A-Za-z_][A-Za-z0-9_]*)\s+map\[string\]\[\]string`)
 	reSwaggerKV          = regexp.MustCompile(`(group|summary|auth)=("[^"]+"|\S+)`)
 	reSwaggerParam       = regexp.MustCompile(`@Param\s+([A-Za-z_][A-Za-z0-9_]*)\s+(path|query|header|cookie|body|formData)\s+(\S+)\s+(true|false)\b`)
+	reSwaggerParamEnums  = regexp.MustCompile(`Enums\(([^)]*)\)`)
 	reSwaggerSummary     = regexp.MustCompile(`@Summary\s+(.+)`)
 	reSwaggerDescription = regexp.MustCompile(`@Description\s+(.+)`)
 	reSwaggerSuccessCode = regexp.MustCompile(`@Success\s+([0-9]{3})\b`)
@@ -87,33 +88,36 @@ func authForPath(path string, superuserVarPaths map[string]bool) string {
 
 // route is a single discovered route entry.
 type route struct {
-	method         string
-	path           string
-	handler        string
-	queryParams    []string
-	queryRequired  map[string]bool
-	headerParams   []swaggerParamHint
-	cookieParams   []swaggerParamHint
-	formDataParams []swaggerParamHint
-	bodyRequired   *bool
-	bodySchema     *swaggerSchemaHint
-	successCodes   []int
-	failureCodes   []int
-	successSchemas map[int]swaggerSchemaHint
-	failureSchemas map[int]swaggerSchemaHint
-	markerGroup    string
-	markerSummary  string
-	markerAuth     string
-	summary        string
-	description    string
-	detectedAuth   string
+	method          string
+	path            string
+	handler         string
+	queryParams     []string
+	queryRequired   map[string]bool
+	queryParamHints map[string]swaggerParamHint
+	pathParamHints  []swaggerParamHint
+	headerParams    []swaggerParamHint
+	cookieParams    []swaggerParamHint
+	formDataParams  []swaggerParamHint
+	bodyRequired    *bool
+	bodySchema      *swaggerSchemaHint
+	successCodes    []int
+	failureCodes    []int
+	successSchemas  map[int]swaggerSchemaHint
+	failureSchemas  map[int]swaggerSchemaHint
+	markerGroup     string
+	markerSummary   string
+	markerAuth      string
+	summary         string
+	description     string
+	detectedAuth    string
 }
 
 type swaggerParamHint struct {
-	name     string
-	location string
-	dataType string
-	required bool
+	name       string
+	location   string
+	dataType   string
+	required   bool
+	enumValues []string
 }
 
 type groupEntry struct {
@@ -270,6 +274,8 @@ func scanFile(filePath string, seeds map[string]functionSeed) ([]route, map[stri
 					r.handler = h
 					r.queryParams = append([]string{}, handlerQueries[h]...)
 					r.queryRequired = map[string]bool{}
+					r.queryParamHints = map[string]swaggerParamHint{}
+					r.pathParamHints = []swaggerParamHint{}
 					r.headerParams = []swaggerParamHint{}
 					r.cookieParams = []swaggerParamHint{}
 					r.formDataParams = []swaggerParamHint{}
@@ -280,11 +286,14 @@ func scanFile(filePath string, seeds map[string]functionSeed) ([]route, map[stri
 					}
 					for _, hint := range handlerParamHints[h] {
 						switch hint.location {
+						case "path":
+							r.pathParamHints = append(r.pathParamHints, hint)
 						case "query":
 							if _, ok := r.queryRequired[hint.name]; !ok {
 								r.queryParams = append(r.queryParams, hint.name)
 							}
 							r.queryRequired[hint.name] = hint.required
+							r.queryParamHints[hint.name] = hint
 						case "body":
 							required := hint.required
 							r.bodyRequired = &required
@@ -537,10 +546,35 @@ func parseParamHintsFromComments(lines []string) []swaggerParamHint {
 				continue
 			}
 			seen[key] = struct{}{}
-			out = append(out, swaggerParamHint{name: name, location: location, dataType: dataType, required: required})
+			out = append(out, swaggerParamHint{name: name, location: location, dataType: dataType, required: required, enumValues: parseParamEnumValues(line)})
 		}
 	}
 	return out
+}
+
+func parseParamEnumValues(line string) []string {
+	m := reSwaggerParamEnums.FindStringSubmatch(line)
+	if len(m) < 2 {
+		return nil
+	}
+	parts := strings.Split(m[1], ",")
+	values := make([]string, 0, len(parts))
+	seen := map[string]struct{}{}
+	for _, part := range parts {
+		value := strings.Trim(strings.TrimSpace(part), `"'`)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		values = append(values, value)
+	}
+	if len(values) == 0 {
+		return nil
+	}
+	return values
 }
 
 func extractHandlerSuccessCodes(src string) map[string][]int {
@@ -1089,7 +1123,7 @@ func routeFilesFromMatrix(routesDir string, groups []groupEntry) ([]string, erro
 // ── YAML helpers ──────────────────────────────────────────────────────────────
 
 // methodBlock renders one HTTP method block inside a path entry.
-func methodBlock(method, path, tag, auth string, queryParams []string, queryRequired map[string]bool, headerParams []swaggerParamHint, cookieParams []swaggerParamHint, formDataParams []swaggerParamHint, bodyRequired *bool, bodySchema *swaggerSchemaHint, successCodes []int, failureCodes []int, successSchemas map[int]swaggerSchemaHint, failureSchemas map[int]swaggerSchemaHint, componentNames map[string]string) string {
+func methodBlock(method, path, tag, auth string, queryParams []string, queryRequired map[string]bool, queryParamHints map[string]swaggerParamHint, pathParamHints []swaggerParamHint, headerParams []swaggerParamHint, cookieParams []swaggerParamHint, formDataParams []swaggerParamHint, bodyRequired *bool, bodySchema *swaggerSchemaHint, successCodes []int, failureCodes []int, successSchemas map[int]swaggerSchemaHint, failureSchemas map[int]swaggerSchemaHint, componentNames map[string]string) string {
 	var buf bytes.Buffer
 	lm := strings.ToLower(method)
 	fmt.Fprintf(&buf, "    %s:\n", lm)
@@ -1098,7 +1132,7 @@ func methodBlock(method, path, tag, auth string, queryParams []string, queryRequ
 	fmt.Fprintf(&buf, "      operationId: %s\n", operationID(method, path)) // can be refined manually
 
 	params := extractPathParams(path)
-	allParams := renderParameters(params, queryParams, queryRequired, headerParams, cookieParams)
+	allParams := renderParameters(params, queryParams, queryRequired, queryParamHints, pathParamHints, headerParams, cookieParams)
 	if len(allParams) > 0 {
 		fmt.Fprintf(&buf, "      parameters:\n")
 		for _, p := range allParams {
@@ -1247,15 +1281,17 @@ func hasResponseSchema(schemas map[int]swaggerSchemaHint, want int) bool {
 	return ok
 }
 
-func renderParameters(pathParams, queryParams []string, queryRequired map[string]bool, headerParams []swaggerParamHint, cookieParams []swaggerParamHint) []string {
+func renderParameters(pathParams, queryParams []string, queryRequired map[string]bool, queryParamHints map[string]swaggerParamHint, pathParamHints []swaggerParamHint, headerParams []swaggerParamHint, cookieParams []swaggerParamHint) []string {
 	var out []string
+	pathHints := hintsByName(pathParamHints)
 	for _, p := range pathParams {
+		hint := pathHints[p]
 		out = append(out,
 			fmt.Sprintf("        - name: %s\n", p)+
 				"          in: path\n"+
 				"          required: true\n"+
 				"          schema:\n"+
-				"            type: string\n",
+				renderParameterSchema(hint.dataType, hint.enumValues),
 		)
 	}
 
@@ -1272,12 +1308,18 @@ func renderParameters(pathParams, queryParams []string, queryRequired map[string
 		if queryRequired != nil {
 			required = queryRequired[q]
 		}
+		hint := swaggerParamHint{dataType: "string"}
+		if queryParamHints != nil {
+			if value, ok := queryParamHints[q]; ok {
+				hint = value
+			}
+		}
 		out = append(out,
 			fmt.Sprintf("        - name: %s\n", q)+
 				"          in: query\n"+
 				fmt.Sprintf("          required: %t\n", required)+
 				"          schema:\n"+
-				"            type: string\n",
+				renderParameterSchema(hint.dataType, hint.enumValues),
 		)
 	}
 
@@ -1304,6 +1346,30 @@ func renderParameters(pathParams, queryParams []string, queryRequired map[string
 	}
 
 	return out
+}
+
+func hintsByName(params []swaggerParamHint) map[string]swaggerParamHint {
+	out := map[string]swaggerParamHint{}
+	for _, p := range dedupeParamHints(params) {
+		out[p.name] = p
+	}
+	return out
+}
+
+func renderParameterSchema(swaggerType string, enumValues []string) string {
+	var buf strings.Builder
+	dataType := swaggerType
+	if strings.TrimSpace(dataType) == "" {
+		dataType = "string"
+	}
+	fmt.Fprintf(&buf, "            type: %s\n", mapSwaggerTypeToOpenAPI(dataType))
+	if len(enumValues) > 0 {
+		buf.WriteString("            enum:\n")
+		for _, value := range enumValues {
+			fmt.Fprintf(&buf, "              - %s\n", yamlQuotedScalar(value))
+		}
+	}
+	return buf.String()
 }
 
 func dedupeParamHints(params []swaggerParamHint) []swaggerParamHint {
@@ -1610,7 +1676,7 @@ func runGen() error {
 					resolvedAuth = strings.TrimSpace(op.markerAuth)
 				}
 
-				block := methodBlock(m, p, resolvedTag, resolvedAuth, op.queryParams, op.queryRequired, op.headerParams, op.cookieParams, op.formDataParams, op.bodyRequired, op.bodySchema, op.successCodes, op.failureCodes, op.successSchemas, op.failureSchemas, componentNames)
+				block := methodBlock(m, p, resolvedTag, resolvedAuth, op.queryParams, op.queryRequired, op.queryParamHints, op.pathParamHints, op.headerParams, op.cookieParams, op.formDataParams, op.bodyRequired, op.bodySchema, op.successCodes, op.failureCodes, op.successSchemas, op.failureSchemas, componentNames)
 				// Override summary: prefer @Summary annotation, then @swagger marker, then auto-generated
 				resolvedSummary := summaryFrom(m, p)
 				if strings.TrimSpace(op.summary) != "" {

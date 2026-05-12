@@ -39,7 +39,7 @@ help:
 	@echo "  make install              Install dev dependencies (Go tools, build-essential, npm packages)"
 	@echo "  make tidy                 Tidy Go modules"
 	@echo "  make build                Build all (backend + web)"
-	@echo "  make build backend        Build Go binaries → backend/appos + backend/appos-agent"
+	@echo "  make build backend        Build Go binary → backend/appos"
 	@echo "  make build web            Build React app → web/dist"
 	@echo "  make run                  Copy artifacts + restart services (~10s)"
 	@echo "  make run 9092             Copy artifacts + restart on custom port"
@@ -200,8 +200,7 @@ ifeq ($(ARG2),backend)
 	@echo "Building backend binaries (static, no dependencies)..."
 	@$(MAKE) openapi-sync
 	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
-	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos-agent ./cmd/appos-agent
-	@echo "✓ Backend built → backend/appos + backend/appos-agent (statically linked)"
+	@echo "✓ Backend built → backend/appos (statically linked)"
 else ifeq ($(ARG2),web)
 	@echo "Building web app..."
 	@cd web && npm run build
@@ -212,8 +211,7 @@ else
 	@echo "Building all..."
 	@$(MAKE) openapi-sync
 	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
-	@cd backend && CGO_ENABLED=0 go build -ldflags="-w -s" -o appos-agent ./cmd/appos-agent
-	@echo "✓ Backend built → backend/appos + backend/appos-agent"
+	@echo "✓ Backend built → backend/appos"
 	@cd web && npm run build
 	@echo "✓ Web app built → web/dist/"
 	@echo "✓ All built"
@@ -235,7 +233,6 @@ redo:
 run:
 	@echo "Hot reload: copying pre-built artifacts..."
 	@docker cp backend/appos $(CONTAINER):/usr/local/bin/appos
-	@docker cp backend/appos-agent $(CONTAINER):/usr/local/bin/appos-agent
 	@docker cp web/dist/. $(CONTAINER):/usr/share/nginx/html/web/
 	@docker cp build/nginx.conf $(CONTAINER):/etc/nginx/nginx.conf
 	@docker exec $(CONTAINER) nginx -t
@@ -878,7 +875,6 @@ else ifeq ($(ARG2),build-local)
 	@echo "Building dev image (pre-built artifacts)..."
 	@# Verify artifacts exist
 	@test -f backend/appos || { echo "Error: backend/appos not found. Run 'make build backend' first."; exit 1; }
-	@test -f backend/appos-agent || { echo "Error: backend/appos-agent not found. Run 'make build backend' first."; exit 1; }
 	@test -d web/dist || { echo "Error: web/dist/ not found. Run 'make build web' first."; exit 1; }
 	@# Pass host proxy into build (replace 127.0.0.1 with host-gateway for container access)
 	$(eval HOST_PROXY := $(shell \

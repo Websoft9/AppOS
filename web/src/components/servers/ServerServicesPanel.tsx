@@ -67,7 +67,6 @@ const APPOS_FOCUS_SERVICES = [
   'docker.service',
   'netdata.service',
   'appos-tunnel.service',
-  'appos-agent.service',
 ] as const
 
 const PAGE_SIZE = 20

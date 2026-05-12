@@ -54,7 +54,6 @@ func TestMonitorBoundaryIsNotOwner(t *testing.T) {
 	monitorConcerns := []string{
 		"runtime_observation",
 		"health_trend_projection",
-		"heartbeat",
 		"active_checks",
 		"health_summaries",
 		"status_timelines",
@@ -97,7 +96,6 @@ func TestCapabilityToComponentMapping(t *testing.T) {
 	}{
 		{CapabilityContainerRuntime, ComponentKeyDocker},
 		{CapabilityMonitorAgent, ComponentKeyMonitorAgent},
-		{CapabilityControlPlane, ComponentKeyAppOSAgent},
 		{CapabilityReverseProxy, ComponentKeyReverseProxy},
 	}
 	for _, c := range cases {

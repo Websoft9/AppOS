@@ -71,35 +71,32 @@ func TestResolveTargetRegistryEntryMatchesServerAndAppBaselines(t *testing.T) {
 	if !ok {
 		t.Fatal("expected server baseline target registry entry")
 	}
-	if serverEntry.ID != "server-heartbeat-default" {
+	if serverEntry.ID != "server-monitoring-default" {
 		t.Fatalf("expected server baseline registry entry, got %q", serverEntry.ID)
-	}
-	if !containsNormalized(serverEntry.EnabledChecks, CheckKindHeartbeat) {
-		t.Fatalf("expected heartbeat check for server baseline, got %+v", serverEntry.EnabledChecks)
 	}
 	if !containsNormalized(serverEntry.EnabledChecks, CheckKindRuntime) {
 		t.Fatalf("expected runtime_summary check for server baseline, got %+v", serverEntry.EnabledChecks)
 	}
-	if !containsNormalized(serverEntry.SignalSources, SignalSourceAgent) {
-		t.Fatalf("expected agent signal source for server baseline, got %+v", serverEntry.SignalSources)
+	if !containsNormalized(serverEntry.EnabledChecks, CheckKindMetricsFreshness) {
+		t.Fatalf("expected metrics_freshness check for server baseline, got %+v", serverEntry.EnabledChecks)
 	}
-	if serverEntry.Checks.Heartbeat == nil || serverEntry.Checks.Heartbeat.StatusMap["offline"] != StatusOffline {
-		t.Fatalf("expected server heartbeat status map, got %+v", serverEntry.Checks.Heartbeat)
+	if !containsNormalized(serverEntry.EnabledChecks, CheckKindControlReachability) {
+		t.Fatalf("expected control_reachability check for server baseline, got %+v", serverEntry.EnabledChecks)
+	}
+	if !containsNormalized(serverEntry.EnabledChecks, CheckKindFactsSnapshot) {
+		t.Fatalf("expected facts_snapshot check for server baseline, got %+v", serverEntry.EnabledChecks)
+	}
+	if !containsNormalized(serverEntry.SignalSources, SignalSourceNetdata) {
+		t.Fatalf("expected netdata signal source for server baseline, got %+v", serverEntry.SignalSources)
+	}
+	if !containsNormalized(serverEntry.SignalSources, SignalSourceAppOS) {
+		t.Fatalf("expected appos active check source for server baseline, got %+v", serverEntry.SignalSources)
 	}
 	if serverEntry.Checks.Runtime == nil || serverEntry.Checks.Runtime.StatusMap["stopped"] != StatusUnknown {
 		t.Fatalf("expected server runtime status map, got %+v", serverEntry.Checks.Runtime)
 	}
 	if got := serverEntry.StatusPriorityFor(StatusOffline); got != 2 {
 		t.Fatalf("expected server offline priority 2, got %d", got)
-	}
-	if got := serverEntry.HeartbeatStatusFor(HeartbeatStateStale); got != StatusUnknown {
-		t.Fatalf("expected stale heartbeat to map to unknown, got %q", got)
-	}
-	if got := serverEntry.HeartbeatReasonFor(HeartbeatStateOffline, ""); got != "heartbeat missing" {
-		t.Fatalf("expected offline heartbeat reason from registry, got %q", got)
-	}
-	if got := serverEntry.HeartbeatReasonCodeFor(HeartbeatStateOffline, ""); got != "heartbeat_missing" {
-		t.Fatalf("expected offline heartbeat reason code from registry, got %q", got)
 	}
 	if got := serverEntry.RuntimeStatusFor("stopped"); got != StatusUnknown {
 		t.Fatalf("expected stopped runtime outcome to map to unknown, got %q", got)

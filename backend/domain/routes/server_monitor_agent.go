@@ -1,6 +1,9 @@
 package routes
 
 import (
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -10,6 +13,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/websoft9/appos/backend/domain/audit"
+	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/domain/terminal"
 )
 
@@ -21,7 +25,8 @@ const (
 	monitorAgentRemoteUnit        = "netdata.service"
 	monitorAgentKickstartURL      = "https://get.netdata.cloud/kickstart.sh"
 	monitorAgentStableChannelName = "stable"
-	monitorAgentRemoteWritePath   = "/api/monitor/netdata/write"
+	monitorAgentRemoteWritePath   = "/api/monitor/write"
+	monitorAgentTokenPrefix       = "monitor-agent-token-"
 )
 
 var executeSSHCommand = terminal.ExecuteSSHCommand
@@ -76,8 +81,13 @@ func handleMonitorAgentDeploy(e *core.RequestEvent, resultStatus string) error {
 		return e.NotFoundError("server not found", err)
 	}
 
+	agentToken, err := getOrIssueMonitorAgentToken(e.App, serverID)
+	if err != nil {
+		return e.InternalServerError("failed to issue monitor agent token", err)
+	}
+
 	remoteWriteURL := monitorRemoteWriteURL(e, apposBaseURL)
-	exportingConfig, err := buildNetdataExportingConfig(serverID, remoteWriteURL)
+	exportingConfig, err := buildNetdataExportingConfig(serverID, remoteWriteURL, agentToken)
 	if err != nil {
 		return e.BadRequestError("failed to build netdata exporting config", err)
 	}
@@ -176,7 +186,7 @@ func monitorRemoteWriteURL(e *core.RequestEvent, explicitBaseURL string) string 
 	return monitorBaseURL(e) + monitorAgentRemoteWritePath
 }
 
-func buildNetdataExportingConfig(serverID string, remoteWriteURL string) (string, error) {
+func buildNetdataExportingConfig(serverID string, remoteWriteURL string, agentToken string) (string, error) {
 	parsed, err := url.Parse(strings.TrimSpace(remoteWriteURL))
 	if err != nil {
 		return "", err
@@ -187,6 +197,10 @@ func buildNetdataExportingConfig(serverID string, remoteWriteURL string) (string
 	destinationHost := parsed.Hostname()
 	if destinationHost == "" {
 		return "", fmt.Errorf("remote write url must include destination host")
+	}
+	agentToken = strings.TrimSpace(agentToken)
+	if agentToken == "" {
+		return "", fmt.Errorf("agent token is required")
 	}
 	port := parsed.Port()
 	if port == "" {
@@ -207,6 +221,8 @@ func buildNetdataExportingConfig(serverID string, remoteWriteURL string) (string
 		"    enabled = yes",
 		fmt.Sprintf("    destination = %s:%s", destinationHost, port),
 		fmt.Sprintf("    remote write URL path = %s", parsed.EscapedPath()),
+		fmt.Sprintf("    username = %s", strings.TrimSpace(serverID)),
+		fmt.Sprintf("    password = %s", agentToken),
 		"    data source = average",
 		"    prefix = netdata",
 		fmt.Sprintf("    hostname = %s", strings.TrimSpace(serverID)),
@@ -218,6 +234,59 @@ func buildNetdataExportingConfig(serverID string, remoteWriteURL string) (string
 		"",
 	}, "\n")
 	return config, nil
+}
+
+func monitorAgentTokenSecretName(serverID string) string {
+	return monitorAgentTokenPrefix + strings.TrimSpace(serverID)
+}
+
+func getOrIssueMonitorAgentToken(app core.App, serverID string) (string, error) {
+	name := monitorAgentTokenSecretName(serverID)
+	secret, err := secrets.FindSystemSecretByNameAndType(app, name, "token")
+	if err == nil && secret != nil {
+		value, readErr := secrets.ReadSystemSingleValue(secret)
+		if readErr != nil {
+			return "", readErr
+		}
+		if strings.TrimSpace(value) != "" {
+			return value, nil
+		}
+	}
+
+	token, err := generateMonitorAgentToken()
+	if err != nil {
+		return "", err
+	}
+	_, err = secrets.UpsertSystemSingleValue(app, secret, name, "token", token)
+	if err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+func readMonitorAgentToken(app core.App, serverID string) (string, error) {
+	secret, err := secrets.FindSystemSecretByNameAndType(app, monitorAgentTokenSecretName(serverID), "token")
+	if err != nil || secret == nil {
+		return "", err
+	}
+	return secrets.ReadSystemSingleValue(secret)
+}
+
+func generateMonitorAgentToken() (string, error) {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(raw), nil
+}
+
+func constantTimeTokenEqual(expected string, actual string) bool {
+	expected = strings.TrimSpace(expected)
+	actual = strings.TrimSpace(actual)
+	if expected == "" || actual == "" || len(expected) != len(actual) {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(expected), []byte(actual)) == 1
 }
 
 func readRemoteSystemdStatus(e *core.RequestEvent, cfg terminal.ConnectorConfig, service string) (map[string]string, string, error) {

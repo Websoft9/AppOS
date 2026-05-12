@@ -9,17 +9,22 @@ import (
 
 	"github.com/hibiken/asynq"
 	monitorchecks "github.com/websoft9/appos/backend/domain/monitor/signals/checks"
-	monitorstatus "github.com/websoft9/appos/backend/domain/monitor/status"
 	persistence "github.com/websoft9/appos/backend/infra/persistence"
 )
 
 const TaskMonitorReachabilitySweep = "monitor:reachability_sweep"
-const TaskMonitorHeartbeatFreshness = "monitor:heartbeat_freshness"
+const TaskMonitorMetricsFreshness = "monitor:metrics_freshness"
+const TaskMonitorControlReachability = "monitor:control_reachability"
+const TaskMonitorFactsPull = "monitor:facts_pull"
+const TaskMonitorRuntimeSnapshotPull = "monitor:runtime_snapshot_pull"
 const TaskMonitorCredentialSweep = "monitor:credential_sweep"
 const TaskMonitorAppHealthSweep = "monitor:app_health_sweep"
 
 type MonitorReachabilitySweepPayload struct{}
-type MonitorHeartbeatFreshnessPayload struct{}
+type MonitorMetricsFreshnessPayload struct{}
+type MonitorControlReachabilityPayload struct{}
+type MonitorFactsPullPayload struct{}
+type MonitorRuntimeSnapshotPullPayload struct{}
 type MonitorCredentialSweepPayload struct{}
 type MonitorAppHealthSweepPayload struct{}
 
@@ -43,12 +48,36 @@ func EnqueueMonitorReachabilitySweep(client *asynq.Client) error {
 	return err
 }
 
-func NewMonitorHeartbeatFreshnessTask() (*asynq.Task, error) {
-	payload, err := json.Marshal(MonitorHeartbeatFreshnessPayload{})
+func NewMonitorMetricsFreshnessTask() (*asynq.Task, error) {
+	payload, err := json.Marshal(MonitorMetricsFreshnessPayload{})
 	if err != nil {
 		return nil, err
 	}
-	return asynq.NewTask(TaskMonitorHeartbeatFreshness, payload), nil
+	return asynq.NewTask(TaskMonitorMetricsFreshness, payload), nil
+}
+
+func NewMonitorControlReachabilityTask() (*asynq.Task, error) {
+	payload, err := json.Marshal(MonitorControlReachabilityPayload{})
+	if err != nil {
+		return nil, err
+	}
+	return asynq.NewTask(TaskMonitorControlReachability, payload), nil
+}
+
+func NewMonitorFactsPullTask() (*asynq.Task, error) {
+	payload, err := json.Marshal(MonitorFactsPullPayload{})
+	if err != nil {
+		return nil, err
+	}
+	return asynq.NewTask(TaskMonitorFactsPull, payload), nil
+}
+
+func NewMonitorRuntimeSnapshotPullTask() (*asynq.Task, error) {
+	payload, err := json.Marshal(MonitorRuntimeSnapshotPullPayload{})
+	if err != nil {
+		return nil, err
+	}
+	return asynq.NewTask(TaskMonitorRuntimeSnapshotPull, payload), nil
 }
 
 func NewMonitorCredentialSweepTask() (*asynq.Task, error) {
@@ -67,11 +96,47 @@ func NewMonitorAppHealthSweepTask() (*asynq.Task, error) {
 	return asynq.NewTask(TaskMonitorAppHealthSweep, payload), nil
 }
 
-func EnqueueMonitorHeartbeatFreshness(client *asynq.Client) error {
+func EnqueueMonitorMetricsFreshness(client *asynq.Client) error {
 	if client == nil {
 		return fmt.Errorf("asynq client is not configured")
 	}
-	task, err := NewMonitorHeartbeatFreshnessTask()
+	task, err := NewMonitorMetricsFreshnessTask()
+	if err != nil {
+		return err
+	}
+	_, err = client.Enqueue(task, asynq.Queue("default"))
+	return err
+}
+
+func EnqueueMonitorControlReachability(client *asynq.Client) error {
+	if client == nil {
+		return fmt.Errorf("asynq client is not configured")
+	}
+	task, err := NewMonitorControlReachabilityTask()
+	if err != nil {
+		return err
+	}
+	_, err = client.Enqueue(task, asynq.Queue("default"))
+	return err
+}
+
+func EnqueueMonitorFactsPull(client *asynq.Client) error {
+	if client == nil {
+		return fmt.Errorf("asynq client is not configured")
+	}
+	task, err := NewMonitorFactsPullTask()
+	if err != nil {
+		return err
+	}
+	_, err = client.Enqueue(task, asynq.Queue("default"))
+	return err
+}
+
+func EnqueueMonitorRuntimeSnapshotPull(client *asynq.Client) error {
+	if client == nil {
+		return fmt.Errorf("asynq client is not configured")
+	}
+	task, err := NewMonitorRuntimeSnapshotPullTask()
 	if err != nil {
 		return err
 	}
@@ -113,14 +178,44 @@ func (w *Worker) handleMonitorReachabilitySweep(_ context.Context, t *asynq.Task
 	return monitorchecks.RunInstanceReachabilitySweep(w.app, persistence.NewInstanceRepository(w.app), time.Now().UTC())
 }
 
-func (w *Worker) handleMonitorHeartbeatFreshness(_ context.Context, t *asynq.Task) error {
+func (w *Worker) handleMonitorMetricsFreshness(_ context.Context, t *asynq.Task) error {
 	if t != nil && len(t.Payload()) > 0 {
-		var payload MonitorHeartbeatFreshnessPayload
+		var payload MonitorMetricsFreshnessPayload
 		if err := json.Unmarshal(t.Payload(), &payload); err != nil && !strings.Contains(err.Error(), "EOF") {
 			return err
 		}
 	}
-	return monitorstatus.RefreshHeartbeatFreshness(w.app, time.Now().UTC())
+	return monitorchecks.RunServerMetricsFreshnessSweep(w.app, time.Now().UTC())
+}
+
+func (w *Worker) handleMonitorControlReachability(_ context.Context, t *asynq.Task) error {
+	if t != nil && len(t.Payload()) > 0 {
+		var payload MonitorControlReachabilityPayload
+		if err := json.Unmarshal(t.Payload(), &payload); err != nil && !strings.Contains(err.Error(), "EOF") {
+			return err
+		}
+	}
+	return monitorchecks.RunServerControlReachabilitySweep(w.app, time.Now().UTC())
+}
+
+func (w *Worker) handleMonitorFactsPull(_ context.Context, t *asynq.Task) error {
+	if t != nil && len(t.Payload()) > 0 {
+		var payload MonitorFactsPullPayload
+		if err := json.Unmarshal(t.Payload(), &payload); err != nil && !strings.Contains(err.Error(), "EOF") {
+			return err
+		}
+	}
+	return monitorchecks.RunServerFactsPullSweep(w.app, time.Now().UTC())
+}
+
+func (w *Worker) handleMonitorRuntimeSnapshotPull(_ context.Context, t *asynq.Task) error {
+	if t != nil && len(t.Payload()) > 0 {
+		var payload MonitorRuntimeSnapshotPullPayload
+		if err := json.Unmarshal(t.Payload(), &payload); err != nil && !strings.Contains(err.Error(), "EOF") {
+			return err
+		}
+	}
+	return monitorchecks.RunServerRuntimeSnapshotPullSweep(w.app, time.Now().UTC())
 }
 
 func (w *Worker) handleMonitorCredentialSweep(_ context.Context, t *asynq.Task) error {

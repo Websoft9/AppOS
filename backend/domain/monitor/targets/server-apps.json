@@ -1,9 +1,9 @@
 [
   {
-    "id": "server-heartbeat-default",
+    "id": "server-monitoring-default",
     "targetType": "server",
-    "signalSources": ["agent"],
-    "enabledChecks": ["heartbeat", "runtime_summary"],
+    "signalSources": ["netdata", "appos_active_check"],
+    "enabledChecks": ["runtime_summary", "metrics_freshness", "control_reachability", "facts_snapshot"],
     "statusPriority": {
       "credential_invalid": 5,
       "unreachable": 4,
@@ -13,23 +13,6 @@
       "healthy": 0
     },
     "checks": {
-      "heartbeat": {
-        "statusMap": {
-          "fresh": "healthy",
-          "stale": "unknown",
-          "offline": "offline"
-        },
-        "reasonMap": {
-          "stale": "heartbeat stale",
-          "offline": "heartbeat missing",
-          "unknown": "heartbeat state is unknown"
-        },
-        "reasonCodeMap": {
-          "stale": "heartbeat_stale",
-          "offline": "heartbeat_missing",
-          "unknown": "heartbeat_unknown"
-        }
-      },
       "runtime_summary": {
         "statusMap": {
           "healthy": "healthy",

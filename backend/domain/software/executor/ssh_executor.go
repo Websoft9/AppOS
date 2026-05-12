@@ -15,11 +15,11 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
-	cryptossh "golang.org/x/crypto/ssh"
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
 	"github.com/websoft9/appos/backend/domain/software"
 	softwarescripts "github.com/websoft9/appos/backend/domain/software/scripts"
 	"github.com/websoft9/appos/backend/domain/terminal"
+	cryptossh "golang.org/x/crypto/ssh"
 )
 
 const (
@@ -33,6 +33,16 @@ const (
 
 const dockerCEPackageRepoProfile = "docker-ce"
 
+func networkProbeCommand() string {
+	return strings.Join([]string{
+		"curl -fs --max-time 5 https://get.docker.com -o /dev/null 2>/dev/null",
+		"curl -fs --max-time 5 https://www.google.com/generate_204 -o /dev/null 2>/dev/null",
+		"wget -q --timeout=5 https://get.docker.com -O /dev/null 2>/dev/null",
+		"wget -q --timeout=5 https://www.google.com/generate_204 -O /dev/null 2>/dev/null",
+		"(command -v nc >/dev/null 2>&1 && nc -z -w5 1.1.1.1 443 >/dev/null 2>&1)",
+	}, " || ")
+}
+
 // executeSSHCommand is the SSH transport function. Overridable in tests.
 // Used as a fallback when SSHExecutor has no established client (e.g., in unit tests).
 var executeSSHCommand = terminal.ExecuteSSHCommand
@@ -43,8 +53,8 @@ var executeSSHCommand = terminal.ExecuteSSHCommand
 // It is created once per operation scope and is not safe for concurrent use.
 type SSHExecutor struct {
 	cfg         terminal.ConnectorConfig
-	client      *cryptossh.Client                    // nil in unit-test mode (uses executeSSHCommand fallback)
-	detectCache map[string]software.DetectionResult  // keyed by ComponentKey; avoids re-running Detect inside verifySystemd
+	client      *cryptossh.Client                   // nil in unit-test mode (uses executeSSHCommand fallback)
+	detectCache map[string]software.DetectionResult // keyed by ComponentKey; avoids re-running Detect inside verifySystemd
 }
 
 // Close releases the underlying SSH client connection if one was established.
@@ -192,10 +202,7 @@ func (e *SSHExecutor) RunPreflight(ctx context.Context, _ string, tpl software.R
 
 	// Network check
 	if tpl.Preflight.RequireNetwork {
-		_, err := e.runCommand(ctx,
-			"curl -fs --max-time 5 https://get.docker.com -o /dev/null 2>/dev/null || "+
-				"wget -q --timeout=5 https://get.docker.com -O /dev/null 2>/dev/null",
-			preflightTimeout)
+		_, err := e.runCommand(ctx, networkProbeCommand(), preflightTimeout)
 		if err != nil {
 			result.NetworkOK = false
 			result.Issues = append(result.Issues, "network_required: no outbound internet connectivity")
@@ -235,7 +242,7 @@ func (e *SSHExecutor) RunPreflight(ctx context.Context, _ string, tpl software.R
 		}
 	}
 
-	result.OK = result.PrivilegeOK && result.NetworkOK && result.DependencyReady && result.ServiceManagerOK && result.PackageManagerOK
+	result.OK = result.PrivilegeOK && result.DependencyReady && result.ServiceManagerOK && result.PackageManagerOK
 	return result, nil
 }
 
@@ -442,7 +449,7 @@ func (e *SSHExecutor) verifySystemd(ctx context.Context, tpl software.ResolvedTe
 			State:  detail.VerificationState,
 			Reason: reason,
 			Details: map[string]any{
-				"engine_version":   detection.DetectedVersion,
+				"engine_version":    detection.DetectedVersion,
 				"compose_available": composeAvailable,
 				"compose_version":   composeVersion,
 			},

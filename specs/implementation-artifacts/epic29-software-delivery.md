@@ -48,6 +48,8 @@ For the same software component, the split is:
   Monitor is a consumer of Software Delivery inventory events. It does not own
   install, upgrade, or readiness workflows.
 
+  New monitoring direction: Software Delivery should not deliver or manage a custom `appos-agent`. Managed servers keep Netdata as the only continuous monitoring agent. Any non-metric facts, runtime snapshots, or manageability checks are collected by the AppOS control plane through SSH/tunnel pull or temporary collectors, not by a Software Delivery-managed AppOS agent component.
+
 ## Subdomains
 
 - `catalog`: what software AppOS manages
@@ -93,7 +95,6 @@ Managed capabilities currently include:
 
 - `container_runtime`
 - `monitor_agent`
-- `control_plane`
 - `reverse_proxy`
 
 ## Current Mapping

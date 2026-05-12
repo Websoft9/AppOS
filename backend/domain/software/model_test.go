@@ -31,7 +31,6 @@ func TestComponentKeyConstants(t *testing.T) {
 		// Only server-target keys are constants; local keys live in catalog YAML.
 		{ComponentKeyDocker, "docker"},
 		{ComponentKeyMonitorAgent, "monitor-agent"},
-		{ComponentKeyAppOSAgent, "appos-agent"},
 		{ComponentKeyReverseProxy, "reverse-proxy"},
 	}
 	for _, c := range cases {
@@ -66,7 +65,6 @@ func TestCapabilityConstants(t *testing.T) {
 	}{
 		{CapabilityContainerRuntime, "container_runtime"},
 		{CapabilityMonitorAgent, "monitor_agent"},
-		{CapabilityControlPlane, "control_plane"},
 		{CapabilityReverseProxy, "reverse_proxy"},
 	}
 	for _, c := range cases {

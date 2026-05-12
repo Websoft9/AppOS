@@ -1,4 +1,4 @@
-# Story 28.2: Agent Ingestion and Metrics Pipeline
+# Story 28.2: Netdata Metrics and Control-Plane Evidence Pipeline
 
 **Epic**: Epic 28 - Monitoring
 **Priority**: P1
@@ -7,30 +7,56 @@
 
 ## Objective
 
-Add the minimal ingestion path for managed servers so AppOS can receive host metrics, low-frequency host facts, heartbeat, and runtime summary from a systemd-managed agent.
+Replace the managed-server `appos-agent` push path with a Netdata metrics pipeline plus AppOS control-plane evidence collection.
+
+Managed servers keep Netdata as the only continuous monitoring agent. AppOS derives metrics freshness from Netdata samples and collects non-metric facts, runtime snapshots, and manageability evidence through SSH/tunnel pull or temporary collectors.
 
 ## Scope
 
-- Define authenticated ingest contract for server agent
-- Add ingest endpoints for metrics, facts, heartbeat, and runtime summary
+- Define Netdata remote-write metrics boundary for managed servers
+- Add metrics freshness evaluation for Netdata-backed server targets
+- Define control-plane pull contracts for facts, runtime snapshots, and manageability evidence
 - Store high-frequency metrics in `VictoriaMetrics`
 - Store normalized low-frequency host facts on the canonical server record such as `server.facts_json`
-- Update latest-status projection with heartbeat freshness and runtime summary
+- Update latest-status projection with metrics freshness, control reachability, and runtime snapshot evidence
 
 ## First Slice Note
 
-This story should absorb the first delivery slice at the ingest level instead of spawning an extra story.
+This story supersedes the original agent-ingestion direction. The first implementation pass should narrow to:
 
-For the first implementation pass, narrow Story 28.2 to:
+- Netdata remote-write freshness for `server` targets
+- control-plane SSH/tunnel reachability evidence for `server` targets
+- latest-status projection that distinguishes observable, manageable, stale, and offline states
 
-- monitoring agent token bootstrap
-- `POST /api/monitor/ingest/heartbeat` only
-- `server` heartbeat first, `platform` self-observation may be local-only
-- freshness evaluation into `healthy`, `offline`, or `unknown`
+Facts and runtime snapshots remain in this story, but should land after metrics freshness and control reachability semantics are stable.
 
-Facts ingest, metrics ingest, and runtime summary ingest remain in Story 28.2, but should land after heartbeat-first validation succeeds.
+## Legacy agent contract retirement
+
+The following concepts are legacy under the new monitor direction:
+
+- `appos-agent` managed-server binary
+- monitor-agent token bootstrap for `appos-agent`
+- `/api/monitor/servers/{id}/agent-token`
+- `/api/monitor/servers/{id}/agent-setup`
+- `/api/monitor/ingest/heartbeat`
+- `/api/monitor/ingest/runtime-status`
+- `appos-agent` facts push
+
+Implementation may keep temporary backwards compatibility while replacement paths are introduced, but new design and new UI surfaces must not depend on these contracts.
 
 ## Authentication Draft
+
+No AppOS-owned managed-server agent token is required for the new primary path.
+
+Netdata metrics continue to flow through the AppOS public Netdata remote-write ingress. Control-plane pull uses existing server access credentials, SSH/tunnel reachability, and server-domain access resolution.
+
+If a temporary collector is uploaded for one-shot collection, it should not receive a long-lived write token. It should return JSON on stdout to the control plane, and AppOS should own persistence.
+
+<!-- Legacy agent token material retained below for implementation history only. -->
+
+## Legacy Authentication Draft
+
+This section is historical only. It describes the former `appos-agent` push model and must not be used for new implementation work.
 
 MVP should use a dedicated monitoring agent token per server.
 
@@ -61,7 +87,26 @@ Bootstrap route behavior:
 - rotation invalidates the previous token immediately
 - no public setup script route is required for MVP; returning config text is enough
 
-## Ingest Contract Draft
+## Evidence Contract Draft
+
+All non-metric monitor inputs should become compact evidence records before latest-status projection.
+
+Suggested evidence fields:
+
+- `targetType`
+- `targetId`
+- `signalKind`: `metrics_freshness`, `control_reachability`, `runtime_snapshot`, `facts_snapshot`, `app_health`, `credential`, `reachability`
+- `signalSource`: `netdata`, `ssh_pull`, `tunnel`, `temporary_collector`, `appos_self`
+- `status`
+- `severity`
+- `reason`
+- `observedAt`
+- `expiresAt`
+- `summary`
+
+Projection rules should consume evidence, not raw collector-specific payloads.
+
+## Legacy Ingest Contract Draft
 
 All ingest routes should be backend-managed and machine-authenticated.
 
@@ -111,14 +156,16 @@ Guardrails:
 - `reportedAt` older than a bounded skew window may be accepted but marked as stale-source input
 - batch size should be capped in MVP to avoid oversized writes
 
-## API
+## Legacy API Draft
+
+The following ingest endpoints belong to the former `appos-agent` push model. New implementation should use Netdata remote write for time-series metrics and AppOS control-plane evidence collection for non-metric inputs.
 
 - `POST /api/monitor/ingest/metrics`
 - `POST /api/monitor/ingest/facts`
 - `POST /api/monitor/ingest/heartbeat`
 - `POST /api/monitor/ingest/runtime-status`
 
-### `POST /api/monitor/ingest/metrics`
+### Legacy `POST /api/monitor/ingest/metrics`
 
 Purpose: receive metric batches for host, container, and AppOS-adjacent runtime series.
 
@@ -180,12 +227,12 @@ MVP rules:
 - do not mirror raw metric points into PocketBase collections
 - container telemetry must stay bounded to a small allowlist and must not open arbitrary per-label TSDB querying from the browser
 
-### `POST /api/monitor/ingest/facts`
+### Facts collection
 
-Purpose: receive normalized low-frequency host facts selected by `appos-agent` from collector output such as Netdata.
+Purpose: collect normalized low-frequency host facts through AppOS control-plane pull or a temporary collector.
 
-Facts ingest is a server-scoped snapshot write, not a patch stream.
-The agent must send AppOS-owned canonical field names, and the backend must persist the latest accepted snapshot onto the canonical server record.
+Facts collection is a server-scoped snapshot write, not a patch stream.
+The control-plane collector must normalize into AppOS-owned canonical field names, and the backend must persist the latest accepted snapshot onto the canonical server record.
 
 Suggested `items` payload shape:
 
@@ -219,8 +266,7 @@ Suggested `items` payload shape:
 MVP rules:
 
 - facts are low-frequency snapshots, not time-series samples
-- Netdata may be the source collector, but payload field names must already be normalized to AppOS-owned shape before persistence
-- facts ingest is server-scoped only in MVP: `targetType` must be `server` and `targetId` must equal authenticated `serverId`
+- facts collection is server-scoped only in MVP: `targetType` must be `server`
 - batch size should be `1` in MVP so one request writes one canonical server snapshot
 - upsert normalized facts onto the canonical server record such as `server.facts_json`
 - facts writes replace the previous snapshot for that server instead of merging partial payloads
@@ -247,9 +293,9 @@ Not in MVP facts payloads:
 - raw container facts
 - collector-native payload passthrough
 
-### `POST /api/monitor/ingest/heartbeat`
+### Metrics freshness
 
-Purpose: update freshness and simple liveness for server-owned targets.
+Purpose: derive freshness from the most recent Netdata-backed metric sample for server-owned targets.
 
 Suggested `items` payload shape:
 
@@ -274,13 +320,13 @@ Suggested `items` payload shape:
 
 MVP rules:
 
-- heartbeat updates `last_reported_at`
-- heartbeat may update `last_success_at` for healthy reports
-- heartbeat alone must not overwrite stronger failure states produced by active checks
+- metrics freshness updates `last_reported_at` or equivalent latest-observed freshness metadata
+- fresh metrics may update `last_success_at` for observability freshness only
+- metrics freshness alone must not overwrite stronger failure states produced by active checks or control reachability evidence
 
-### `POST /api/monitor/ingest/runtime-status`
+### Runtime snapshot
 
-Purpose: receive compact runtime summary not suited to TSDB-only reads.
+Purpose: collect compact runtime summary not suited to TSDB-only reads through SSH/tunnel pull or a temporary collector.
 
 Suggested `items` payload shape:
 
@@ -314,20 +360,21 @@ MVP rules:
 
 ## Freshness and State Draft
 
-Heartbeat freshness should be evaluated centrally by AppOS, not only inferred at write time.
+Metrics freshness and control reachability should be evaluated centrally by AppOS.
 
 Recommended MVP thresholds:
 
-- expected heartbeat interval: `30s`
-- stale threshold: `90s`
-- offline threshold: `180s`
+- expected Netdata export interval: `10s` to `30s`, depending on generated Netdata config
+- stale threshold: `3x` expected export interval, with a minimum of `60s`
+- offline threshold: `5x` expected export interval, with a minimum of `180s`
 
 Recommended behavior:
 
-1. fresh heartbeat keeps agent-owned target eligible for `healthy` or `degraded`
-2. no heartbeat beyond stale threshold marks `summary.heartbeat_state = stale`
-3. no heartbeat beyond offline threshold can transition target to `offline`
-4. active-check failures still outrank fresh heartbeat when the target is reachable but unhealthy
+1. fresh metrics keep a target observable but do not prove it is manageable
+2. stale metrics mark `summary.metrics_state = stale`
+3. missing metrics beyond offline threshold can contribute to `offline` only when control reachability also fails or is unknown
+4. control reachability failures can mark a target `observable_not_manageable` when metrics are fresh
+5. active-check failures still outrank freshness when the target is reachable but unhealthy
 
 ## VictoriaMetrics Write Draft
 
@@ -347,11 +394,11 @@ Suggested file targets:
 - monitoring metric allowlist definitions
 - monitoring label normalization helpers
 
-## Registration and Setup Draft
+## Legacy Registration and Setup Draft
 
-MVP should keep agent setup intentionally small.
+This section is historical only. MVP setup should no longer expose AppOS-owned managed-server agent setup.
 
-### `GET /api/monitor/servers/{id}/agent-setup`
+### Legacy `GET /api/monitor/servers/{id}/agent-setup`
 
 Suggested response:
 
@@ -365,7 +412,7 @@ Suggested response:
 }
 ```
 
-This is enough for MVP because the operator can copy a rendered config and systemd unit to the managed server. No remote installer or package repository is required yet.
+This route is legacy under the no-`appos-agent` direction. Netdata setup remains in the server monitor-agent/software delivery path; AppOS-owned agent setup should be retired.
 
 ## Platform Self-Observation Write Path
 
@@ -391,7 +438,7 @@ Persist only:
 - normalized host facts on the canonical server record such as `server.facts_json`
 - latest facts observation time on the canonical server record such as `server.facts_observed_at`
 - optional recent diagnostic check records later in `monitor_check_results`
-- agent token material in existing `secrets` collection
+- temporary collector artifacts should not be persisted after execution
 
 Do not persist:
 
@@ -402,54 +449,54 @@ Do not persist:
 
 ## Acceptance Criteria
 
-- [ ] AC1: AppOS accepts authenticated ingest requests from managed servers.
+- [ ] AC1: AppOS receives Netdata remote-write metrics from managed servers without requiring `appos-agent`.
 - [ ] AC2: Host and container metrics are written to the dedicated time-series backend, not the primary business store.
-- [ ] AC3: AppOS accepts authenticated `POST /api/monitor/ingest/facts` requests that are scoped to the token-owning server only.
-- [ ] AC4: Normalized low-frequency host facts can be ingested and persisted onto the canonical server record in `server.facts_json`, with `server.facts_observed_at` updated from the accepted snapshot.
+- [ ] AC3: AppOS can collect normalized low-frequency host facts through control-plane pull or a temporary collector.
+- [ ] AC4: Normalized low-frequency host facts can be persisted onto the canonical server record in `server.facts_json`, with `server.facts_observed_at` updated from the accepted snapshot.
 - [ ] AC5: Facts ingest writes replace the previous facts snapshot for that server instead of merging partial collector payloads.
 - [ ] AC6: Facts ingest accepts only the MVP canonical fact allowlist and does not persist collector-native field names or plugin metadata verbatim.
-- [ ] AC7: Heartbeat ingest updates freshness state for the related target.
-- [ ] AC8: Stale or missing heartbeat can transition a target to `offline` through the latest-status projection.
-- [ ] AC9: Runtime summary payloads can attach minimal container and app runtime state to the target summary without requiring log ingestion.
-- [ ] AC10: Agent authentication uses a dedicated per-server monitoring token rather than coupling ingest trust to unrelated access tokens.
-- [ ] AC11: Ingest payloads use a compact common envelope with bounded batch semantics.
+- [ ] AC7: Netdata metrics freshness updates freshness evidence for the related server target.
+- [ ] AC8: Stale or missing metrics plus failed or unknown control reachability can transition a target to `offline` through the latest-status projection.
+- [ ] AC9: Runtime snapshots can attach minimal container and app runtime state to the target summary without requiring log ingestion.
+- [ ] AC10: Control-plane pull uses existing server access resolution rather than introducing a second long-lived managed-server AppOS agent credential.
+- [ ] AC11: Evidence records use a compact common shape with bounded summary semantics.
 - [ ] AC12: Unknown or disallowed metric families are rejected or ignored by an explicit allowlist policy.
-- [ ] AC13: The MVP setup flow can generate a token and return enough config material to install a systemd-managed agent manually.
+- [ ] AC13: The MVP setup flow no longer exposes AppOS-owned managed-server agent setup; Netdata remains the only continuous managed-side agent.
 - [ ] AC14: Container telemetry ingestion defines a stable container identity label contract that downstream UI can join against Docker inventory without persisting container inventories in PocketBase.
 - [ ] AC15: The first container telemetry slice remains limited to runtime usage evidence and does not absorb Docker inventory, inspect, logs, or action control into the monitoring domain.
 
 ## Implementation Notes
 
-As-built note:
+Legacy as-built note:
 
-- heartbeat freshness projection now uses registry-backed heartbeat mapping at projection time rather than resolving the server baseline inside the projection helper itself
-- `signals/agent` passes the resolved target registry entry into heartbeat evaluation so the freshness-to-status mapping stays aligned with the canonical monitoring registry contract
+- previous heartbeat freshness projection used registry-backed heartbeat mapping at projection time rather than resolving the server baseline inside the projection helper itself
+- previous `signals/agent` code passed the resolved target registry entry into heartbeat evaluation so the freshness-to-status mapping stayed aligned with the canonical monitoring registry contract
 
 - Keep payload shape compact and batch-friendly.
 - Treat Netdata as an allowed fact source, but keep AppOS field naming and persistence shape independent from collector-native schemas.
 - Reuse existing secret-management and setup-route patterns where helpful, but keep monitoring token lifecycle separate from tunnel lifecycle.
 - Facts ingest should be implemented only after adding server schema fields for `facts_json` and `facts_observed_at`.
 - Facts route tests should cover server ownership mismatch, invalid target type, invalid target id, replace-not-merge semantics, and allowlist enforcement before implementation is marked complete.
-- Agent-side facts collection should not block heartbeat delivery; facts failures may be logged and retried on the next cycle while heartbeat remains the primary freshness signal.
+- Facts collection failures should not block metrics freshness evaluation; facts failures may be logged and retried on the next control-plane pull cycle.
 - Do not introduce a full Prometheus-compatible scrape surface in this story.
 - Keep TSDB access behind a writer adapter so VictoriaMetrics remains an implementation detail outside the monitoring domain boundary.
-- Prefer one agent per server. Multi-agent fan-in on the same server is out of scope for MVP.
+- Prefer zero AppOS-owned long-running agents per server. Netdata is the only continuous managed-side monitoring agent in this direction.
 - Container telemetry should prefer a collector-native source such as Netdata when available, but AppOS must still normalize series names and required labels before exposing them to UI consumers.
 - Do not let container telemetry requirements force a broadening of the existing monitor read APIs into arbitrary TSDB explorers.
 
 ## File Targets
 
-- backend ingest routes under `/api/monitor/ingest/*`
+- backend Netdata freshness evaluator
+- backend control-plane evidence collector for SSH/tunnel pull
 - backend migration for server facts fields
 - backend time-series write adapter
 - backend facts persistence updater for canonical server records
-- backend projection updater for heartbeat freshness
-- backend OpenAPI docs for ingest endpoints
-- bootstrap route or service for monitoring agent token/setup generation
-- secret lookup helper for monitor-agent token validation
-- backend route tests for facts ingest
-- agent facts collection and `/facts` post path
-- agent or collector mapping for allowlisted container telemetry series
+- backend projection updater for metrics freshness
+- backend OpenAPI docs for Netdata remote write, evidence projection, and legacy route retirement behavior
+- legacy cleanup for monitoring agent token/setup generation
+- backend route or worker tests for control-plane facts collection
+- control-plane facts collection and runtime snapshot path
+- Netdata or control-plane mapping for allowlisted container telemetry series
 - backend metric allowlist and query mapping for container telemetry consumers
 
 ## Out of Scope
@@ -459,7 +506,78 @@ As-built note:
 - Docker inventory replacement
 - Alerting
 
-## Dev Agent Record
+## Replacement Implementation Slices
+
+Use these slices for follow-up implementation work instead of extending the legacy `appos-agent` path.
+
+### 28.2A Netdata metrics freshness evidence
+
+- Query latest Netdata-backed samples for each managed server.
+- Emit `metrics_freshness` evidence with `fresh`, `stale`, `missing`, or `unknown` state.
+- Project metrics freshness into `monitor_latest_status` without claiming SSH/tunnel manageability.
+- Keep VictoriaMetrics query details behind the monitor metrics adapter.
+
+Implementation progress:
+
+- Added Netdata-backed server metrics freshness query, evaluation, projection, worker task, and cron scheduling.
+- Metrics freshness now writes `signal_source = netdata` and summary fields such as `metrics_freshness_state`, `metrics_observed_at`, and `metrics_reason_code`.
+- Tests: `go test ./domain/monitor/status ./domain/monitor/metrics ./domain/monitor/signals/checks ./domain/worker`.
+
+### 28.2B Control-plane reachability evidence
+
+- Use existing server access resolution and SSH/tunnel path to perform a minimal safe control reachability probe.
+- Emit `control_reachability` evidence with distinct outcomes for reachable, timeout, auth failure, tunnel unavailable, and unknown.
+- Combine `metrics_freshness` and `control_reachability` into operator-facing server states such as observable-but-not-manageable and manageable-but-monitoring-stale.
+
+Implementation progress:
+
+- Added AppOS control-plane server reachability probing for direct SSH TCP paths and tunnel-forwarded SSH paths.
+- Added `control_reachability` latest-status projection with `signal_source = appos_active_check` and summary fields such as `control_reachability_state`, `control_reason_code`, `probe_protocol`, `host`, `port`, and `latency_ms`.
+- Added worker task and cron scheduling for `monitor:control_reachability` every minute.
+- Updated the server monitor registry baseline to include Netdata and AppOS active-check signal sources plus `metrics_freshness` and `control_reachability` checks.
+- Tests: `go test ./domain/monitor/... ./domain/worker`.
+
+### 28.2C Facts snapshot by control-plane pull
+
+- Replace agent-pushed facts with control-plane collection.
+- Keep the existing canonical facts persistence fields: `servers.facts_json` and `servers.facts_observed_at`.
+- Keep the allowlist narrow and align naming toward OpenTelemetry Resource semantic conventions where practical.
+
+Implementation progress:
+
+- Added AppOS control-plane facts pull over the existing managed-server SSH/tunnel access configuration.
+- Reused the existing canonical facts normalization and replace-not-merge persistence path for `servers.facts_json` and `servers.facts_observed_at`.
+- Added a narrow remote facts command for `os.family`, `os.distribution`, `os.version`, `kernel.release`, `architecture`, `cpu.cores`, and `memory.total_bytes`.
+- Added worker task and cron scheduling for `monitor:facts_pull` every 15 minutes.
+- Updated the server monitor registry baseline to include `facts_snapshot`.
+- Tests: `go test ./domain/monitor/signals/checks ./domain/worker ./domain/monitor`.
+
+### 28.2D Runtime snapshot by control-plane pull
+
+- Collect compact docker/systemd/runtime summary through SSH/tunnel pull or a temporary collector.
+- Persist only distilled evidence and latest-status summary, not full inventory history.
+- Keep Docker inventory, inspect, logs, and lifecycle control outside Monitor.
+
+Implementation progress:
+
+- Added AppOS control-plane runtime snapshot pull over the existing managed-server SSH/tunnel access configuration.
+- Collected a compact Docker state summary via `docker ps -a --format '{{.State}}'` and persisted only distilled counts for running, restarting, and exited-like containers.
+- Reused the existing runtime-status projection path while allowing pulled snapshots to write `signal_source = appos_active_check` instead of the legacy agent source.
+- Runtime latest-status summaries now include `check_kind = runtime_summary`, `signal_source`, `runtime_state`, and container state counts.
+- Added worker task and cron scheduling for `monitor:runtime_snapshot_pull` every minute.
+- Tests: `go test ./domain/monitor/signals/snapshots ./domain/monitor/signals/checks ./domain/worker`.
+
+### 28.2E Legacy appos-agent retirement
+
+- Removed the managed-server binary, build/release/Docker delivery paths, generated artifacts, software catalog entry, installer script, runtime bindings, and software settings for the former custom agent.
+- Removed monitor token/setup routes, ingest routes, heartbeat freshness worker/cron, heartbeat registry policy, and token/heartbeat signal helpers with no compatibility shims.
+- Updated server monitoring defaults to use Netdata plus AppOS control-plane active checks only.
+- Updated OpenAPI and UI focus services so operators see Netdata as the only continuous managed-side monitoring agent.
+- Tests: `make openapi-sync`; `cd backend && go test ./...`; `cd web && npm test -- src/lib/software-api.test.tsx src/lib/software-api.test.ts src/components/servers/ServerServicesPanel.test.tsx`.
+
+## Legacy Dev Agent Record
+
+The following record documents the previously implemented agent-push slice. It is retained for historical context only and should not guide new implementation under the no-`appos-agent` direction.
 
 ### Completion Notes
 
@@ -467,22 +585,22 @@ As-built note:
 - Implemented `POST /api/monitor/ingest/facts` with bearer-token ownership validation, one-item MVP batch enforcement, and server-scoped target validation.
 - Added `signals/agent` facts normalization and allowlist enforcement for `os`, `kernel`, `architecture`, `cpu.cores`, and `memory.total_bytes`.
 - Implemented replace-not-merge facts persistence onto the server record.
-- Extended `appos-agent` to collect a minimal canonical facts snapshot from local OS/runtime state and post it to `/facts` without blocking heartbeat when facts collection or upload degrades.
+- Previously extended `appos-agent` to collect a minimal canonical facts snapshot from local OS/runtime state and post it to `/facts`; this path is now legacy and should be replaced by control-plane facts collection.
 - Added monitor route coverage for facts happy path, ownership mismatch, allowlist rejection, replace semantics, and batch size enforcement.
 
 ### Tests Run
 
 - `cd /data/dev/appos/backend && go test ./infra/migrations`
 - `cd /data/dev/appos/backend && go test ./domain/routes`
-- `cd /data/dev/appos/backend && go test ./domain/monitor/signals/agent ./cmd/appos-agent`
+- Legacy only: `cd /data/dev/appos/backend && go test ./domain/monitor/signals/agent ./cmd/appos-agent`
 
 ### File List
 
 - `backend/infra/migrations/1765500000_add_server_monitor_facts.go`
 - `backend/infra/migrations/migrations_test.go`
-- `backend/domain/monitor/signals/agent/errors.go`
-- `backend/domain/monitor/signals/agent/facts.go`
+- `backend/domain/monitor/signals/snapshots/errors.go`
+- `backend/domain/monitor/signals/snapshots/facts.go`
 - `backend/domain/routes/monitor.go`
 - `backend/domain/routes/monitor_test.go`
-- `backend/cmd/appos-agent/main.go`
+- Legacy only: `backend/cmd/appos-agent/main.go`
 - `specs/implementation-artifacts/story28.2-agent-ingestion.md`

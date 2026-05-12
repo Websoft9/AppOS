@@ -108,47 +108,6 @@ func TestEntries_PreservesCatalogOrder(t *testing.T) {
 	}
 }
 
-// TestSoftwareConfigSettingExists verifies that the software/config settings entry is
-// registered and exposes the apposAgentInstallerUrl field.
-func TestSoftwareConfigSettingExists(t *testing.T) {
-	entry, ok := FindEntry("software-config")
-	if !ok {
-		t.Fatal("expected to find software-config settings entry")
-	}
-	if entry.Module != "software" {
-		t.Errorf("expected module=software, got %q", entry.Module)
-	}
-	if entry.Key != "config" {
-		t.Errorf("expected key=config, got %q", entry.Key)
-	}
-	var found bool
-	for _, f := range entry.Fields {
-		if f.ID == "apposAgentInstallerUrl" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Error("expected software-config entry to have field apposAgentInstallerUrl")
-	}
-}
-
-// TestSoftwareConfigHasDefaultSeedValue verifies that the software/config group has
-// a default seed value that is usable (key exists, value is a map).
-func TestSoftwareConfigHasDefaultSeedValue(t *testing.T) {
-	g := DefaultGroup("software", "config")
-	if g == nil {
-		t.Fatal("expected non-nil default group for software/config")
-	}
-	value, ok := g["apposAgentInstallerUrl"]
-	if !ok {
-		t.Error("expected apposAgentInstallerUrl in software/config defaults")
-	}
-	if value != "https://artifact.websoft9.com/stable/appos/agent/appos-agent-install.sh" {
-		t.Fatalf("expected default installer url, got %#v", value)
-	}
-}
-
 func TestEntries_ReturnsDeepCopy(t *testing.T) {
 	e1 := Entries()
 	e2 := Entries()

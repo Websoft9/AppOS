@@ -36,7 +36,7 @@
 //	Monitor owns (for the same software, only its runtime observation):
 //	  - is it currently alive (active state via supervisord / systemd)
 //	  - runtime health trend, uptime, CPU, memory, logs
-//	  - heartbeat, active checks, and health summaries
+//	  - active checks and health summaries
 //	  - operator-facing status timelines and degraded-state visibility
 //
 // The split is: Software Delivery answers "what is installed and at what version",
@@ -106,6 +106,5 @@ var MaterialSubdomainMap = map[string]Subdomain{
 var CapabilityComponentMap = map[Capability]ComponentKey{
 	CapabilityContainerRuntime: ComponentKeyDocker,
 	CapabilityMonitorAgent:     ComponentKeyMonitorAgent,
-	CapabilityControlPlane:     ComponentKeyAppOSAgent,
 	CapabilityReverseProxy:     ComponentKeyReverseProxy,
 }

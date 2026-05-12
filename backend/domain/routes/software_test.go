@@ -612,7 +612,7 @@ func TestSoftwareComponentActionRejectsInvalidAppOSBaseURL(t *testing.T) {
 	asynqClient = &asynq.Client{}
 	defer func() { asynqClient = oldClient }()
 
-	rec := te.doSoftware(t, http.MethodPost, "/api/servers/srv-1/software/appos-agent/install", `{"apposBaseUrl":"console.example.com"}`, true)
+	rec := te.doSoftware(t, http.MethodPost, "/api/servers/srv-1/software/docker/install", `{"apposBaseUrl":"console.example.com"}`, true)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected invalid apposBaseUrl to return 400, got %d: %s", rec.Code, rec.Body.String())
 	}

@@ -21,7 +21,6 @@ const (
 	// Server-target components — referenced by CapabilityComponentMap and provisioning logic.
 	ComponentKeyDocker       ComponentKey = "docker"
 	ComponentKeyMonitorAgent ComponentKey = "monitor-agent"
-	ComponentKeyAppOSAgent   ComponentKey = "appos-agent"
 	ComponentKeyReverseProxy ComponentKey = "reverse-proxy"
 	// Local-target components are purely catalog-data-driven: their component_key strings
 	// are defined in catalog/catalog_local.yaml and flow through the system as opaque values.
@@ -38,7 +37,6 @@ type Capability string
 const (
 	CapabilityContainerRuntime Capability = "container_runtime"
 	CapabilityMonitorAgent     Capability = "monitor_agent"
-	CapabilityControlPlane     Capability = "control_plane"
 	CapabilityReverseProxy     Capability = "reverse_proxy"
 )
 

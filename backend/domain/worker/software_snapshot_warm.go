@@ -92,7 +92,6 @@ func (w *Worker) handleSoftwareSnapshotWarm(ctx context.Context, t *asynq.Task) 
 			log.Printf("software snapshot warm: component %s not found in catalog", componentKey)
 			continue
 		}
-		resolved = applyServerExecutionBindings(w.app, payload.ServerID, "", resolved)
 		w.upsertWarmSoftwareSnapshot(ctx, payload.ServerID, entry, resolved, executor)
 	}
 	return nil

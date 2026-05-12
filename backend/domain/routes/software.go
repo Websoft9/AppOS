@@ -241,10 +241,10 @@ func markSoftwareOperationEnqueueFailed(e *core.RequestEvent, record *core.Recor
 
 type softwareComponentListItem struct {
 	software.SoftwareComponentSummary
-	TargetType    software.TargetType             `json:"target_type"`
-	Preflight     *software.TargetReadinessResult `json:"preflight,omitempty"`
+	TargetType    software.TargetType                  `json:"target_type"`
+	Preflight     *software.TargetReadinessResult      `json:"preflight,omitempty"`
 	Verification  *software.SoftwareVerificationResult `json:"verification,omitempty"`
-	LastOperation *swservice.OperationSummary     `json:"last_operation,omitempty"`
+	LastOperation *swservice.OperationSummary          `json:"last_operation,omitempty"`
 }
 
 type softwareComponentDetailResponse struct {

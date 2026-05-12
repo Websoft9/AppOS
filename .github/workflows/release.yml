@@ -57,31 +57,6 @@ jobs:
       - name: Build release notes
         run: node .github/scripts/build-release-notes.mjs "${GITHUB_REF_NAME}"
 
-      - name: Build appos-agent artifact
-        run: |
-          set -euo pipefail
-          mkdir -p artifacts/agent
-          cd backend
-          for arch in amd64 arm64; do
-            output="../artifacts/agent/appos-agent-linux-${arch}"
-            CGO_ENABLED=0 GOOS=linux GOARCH="${arch}" \
-              go build -ldflags="-w -s -X main.version=${{ steps.convert_version.outputs.VERSION }}" \
-              -o "${output}" ./cmd/appos-agent
-            chmod +x "${output}"
-          done
-          cp ../artifacts/agent/appos-agent-linux-amd64 ../artifacts/agent/appos-agent
-          chmod +x ../artifacts/agent/appos-agent
-
-      - name: Generate appos-agent installer
-        run: |
-          set -euo pipefail
-          installer_base_url="https://artifact.websoft9.com/${{ steps.convert_version.outputs.CHANNEL }}/appos/agent"
-          sed \
-            -e "s|__APPOS_AGENT_BINARY_URL_AMD64__|${installer_base_url}/appos-agent-linux-amd64|g" \
-            -e "s|__APPOS_AGENT_BINARY_URL_ARM64__|${installer_base_url}/appos-agent-linux-arm64|g" \
-            backend/domain/software/scripts/appos-agent-install.sh > artifacts/agent/appos-agent-install.sh
-          chmod +x artifacts/agent/appos-agent-install.sh
-
       - name: Upload release review artifacts
         uses: actions/upload-artifact@v5
         with:
@@ -90,9 +65,6 @@ jobs:
             CHANGELOG.md
             release-notes.md
             docs/version-compatibility-matrix.md
-            artifacts/agent/appos-agent-linux-amd64
-            artifacts/agent/appos-agent-linux-arm64
-            artifacts/agent/appos-agent-install.sh
           if-no-files-found: error
 
       - name: Upload release assets
@@ -104,6 +76,3 @@ jobs:
           files: |
             CHANGELOG.md
             docs/version-compatibility-matrix.md
-            artifacts/agent/appos-agent-linux-amd64
-            artifacts/agent/appos-agent-linux-arm64
-            artifacts/agent/appos-agent-install.sh

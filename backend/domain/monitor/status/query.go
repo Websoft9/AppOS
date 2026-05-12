@@ -8,7 +8,6 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/monitor"
 	"github.com/websoft9/appos/backend/domain/monitor/status/store"
-	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/infra/collections"
 )
 
@@ -116,22 +115,9 @@ func synthesizeServerTargetStatus(app core.App, targetID string) (*TargetStatusR
 		}
 	}
 
-	hasAgentToken := false
-	_, secretErr := secrets.FindSystemSecretByNameAndType(app, monitor.AgentTokenSecretPrefix+strings.TrimSpace(targetID), monitor.AgentTokenSecretType)
-	if secretErr == nil {
-		hasAgentToken = true
-	} else if !errors.Is(secretErr, sql.ErrNoRows) {
-		return nil, secretErr
-	}
-
 	transitionAt := server.GetDateTime("updated").String()
 	if strings.TrimSpace(transitionAt) == "" {
 		transitionAt = server.GetDateTime("created").String()
-	}
-
-	reason := "monitor agent has not reported yet"
-	if hasAgentToken {
-		reason = "monitor agent token is ready, waiting for first heartbeat"
 	}
 
 	return &TargetStatusResponse{
@@ -140,7 +126,7 @@ func synthesizeServerTargetStatus(app core.App, targetID string) (*TargetStatusR
 		TargetID:            targetID,
 		DisplayName:         server.GetString("name"),
 		Status:              monitor.StatusUnknown,
-		Reason:              reason,
+		Reason:              "server monitoring has not collected evidence yet",
 		SignalSource:        monitor.SignalSourceInventory,
 		LastTransitionAt:    transitionAt,
 		LastSuccessAt:       nil,
@@ -149,13 +135,12 @@ func synthesizeServerTargetStatus(app core.App, targetID string) (*TargetStatusR
 		LastReportedAt:      nil,
 		ConsecutiveFailures: 0,
 		Summary: map[string]any{
-			"monitoring_state":       map[bool]string{true: "awaiting_first_heartbeat", false: "agent_not_configured"}[hasAgentToken],
-			"agent_token_configured": hasAgentToken,
-			"connection_type":        strings.TrimSpace(server.GetString("connect_type")),
-			"connectivity_status":    connectivityStatus,
-			"host":                   strings.TrimSpace(server.GetString("host")),
-			"port":                   server.GetInt("port"),
-			"user":                   strings.TrimSpace(server.GetString("user")),
+			"monitoring_state":    "awaiting_control_plane_pull",
+			"connection_type":     strings.TrimSpace(server.GetString("connect_type")),
+			"connectivity_status": connectivityStatus,
+			"host":                strings.TrimSpace(server.GetString("host")),
+			"port":                server.GetInt("port"),
+			"user":                strings.TrimSpace(server.GetString("user")),
 		},
 	}, nil
 }

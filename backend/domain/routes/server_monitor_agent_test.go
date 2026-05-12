@@ -21,7 +21,7 @@ func TestMonitorAgentInstallRejectsInvalidAppOSBaseURL(t *testing.T) {
 }
 
 func TestBuildNetdataExportingConfigHTTP(t *testing.T) {
-	config, err := buildNetdataExportingConfig("srv-1", "http://console.example.com:9091/api/monitor/netdata/write")
+	config, err := buildNetdataExportingConfig("srv-1", "http://console.example.com:9091/api/monitor/write", "agent-secret")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,8 +31,11 @@ func TestBuildNetdataExportingConfigHTTP(t *testing.T) {
 	if !strings.Contains(config, "destination = console.example.com:9091") {
 		t.Fatalf("expected explicit destination, got %q", config)
 	}
-	if !strings.Contains(config, "remote write URL path = /api/monitor/netdata/write") {
+	if !strings.Contains(config, "remote write URL path = /api/monitor/write") {
 		t.Fatalf("expected remote write path, got %q", config)
+	}
+	if !strings.Contains(config, "username = srv-1") || !strings.Contains(config, "password = agent-secret") {
+		t.Fatalf("expected basic auth credentials, got %q", config)
 	}
 	if !strings.Contains(config, "hostname = srv-1") {
 		t.Fatalf("expected hostname override, got %q", config)
@@ -43,7 +46,7 @@ func TestBuildNetdataExportingConfigHTTP(t *testing.T) {
 }
 
 func TestBuildNetdataExportingConfigHTTPSDefaultsPort(t *testing.T) {
-	config, err := buildNetdataExportingConfig("srv-2", "https://appos.example.com/api/monitor/netdata/write")
+	config, err := buildNetdataExportingConfig("srv-2", "https://appos.example.com/api/monitor/write", "agent-secret")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,5 +55,12 @@ func TestBuildNetdataExportingConfigHTTPSDefaultsPort(t *testing.T) {
 	}
 	if !strings.Contains(config, "destination = appos.example.com:443") {
 		t.Fatalf("expected default https port, got %q", config)
+	}
+}
+
+func TestBuildNetdataExportingConfigRequiresAgentToken(t *testing.T) {
+	_, err := buildNetdataExportingConfig("srv-1", "https://appos.example.com/api/monitor/write", "")
+	if err == nil || !strings.Contains(err.Error(), "agent token is required") {
+		t.Fatalf("expected agent token validation error, got %v", err)
 	}
 }

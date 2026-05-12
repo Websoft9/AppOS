@@ -28,7 +28,6 @@ The following existing tests were reviewed and intentionally left in the regular
 - `backend/domain/worker/lifecycle_operations_test.go`
 - `backend/domain/lifecycle/runtime/node_executor_test.go`
 - `backend/domain/routes/server_test.go`
-- `backend/cmd/appos-agent/main_test.go`
 - `web/src/routes/_app/_auth/resources/-servers.test.tsx`
 
 These tests exercise Docker-aware logic, but they do not need the AppOS container itself and therefore do not belong in E2E.

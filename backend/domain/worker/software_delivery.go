@@ -133,11 +133,11 @@ func PrepareSoftwareOperation(app core.App, serverID string, componentKey softwa
 	if err := validateSoftwareActionSupport(componentKey, action); err != nil {
 		return nil, err
 	}
-	inFlight, err := hasSoftwareOperationInFlight(app, serverID, string(componentKey))
+	inFlight, err := findInFlightSoftwareOperation(app, serverID, string(componentKey))
 	if err != nil {
 		return nil, err
 	}
-	if inFlight {
+	if inFlight != nil && !allowsConcurrentSoftwareAction(action, software.Action(inFlight.GetString("action"))) {
 		return nil, fmt.Errorf("%w for server %q component %q", ErrSoftwareOperationInFlight, serverID, componentKey)
 	}
 	return createSoftwareOperationRecord(app, SoftwareActionPayload{
@@ -237,11 +237,11 @@ func (w *Worker) resolveSoftwareOperationRecord(payload SoftwareActionPayload) (
 		return record, nil
 	}
 
-	inFlight, err := w.hasSoftwareOperationInFlight(payload.ServerID, string(payload.ComponentKey))
+	inFlight, err := w.findInFlightSoftwareOperation(payload.ServerID, string(payload.ComponentKey))
 	if err != nil {
 		return nil, fmt.Errorf("check in-flight operation: %w", err)
 	}
-	if inFlight {
+	if inFlight != nil && !allowsConcurrentSoftwareAction(payload.Action, software.Action(inFlight.GetString("action"))) {
 		return nil, fmt.Errorf("operation already in flight for server %q component %q", payload.ServerID, payload.ComponentKey)
 	}
 
@@ -250,14 +250,26 @@ func (w *Worker) resolveSoftwareOperationRecord(payload SoftwareActionPayload) (
 
 // hasSoftwareOperationInFlight returns true when there is already a non-terminal operation
 // for the given server + component combination.
-func (w *Worker) hasSoftwareOperationInFlight(serverID, componentKey string) (bool, error) {
-	return hasSoftwareOperationInFlight(w.app, serverID, componentKey)
+func (w *Worker) findInFlightSoftwareOperation(serverID, componentKey string) (*core.Record, error) {
+	return findInFlightSoftwareOperation(w.app, serverID, componentKey)
+}
+
+func allowsConcurrentSoftwareAction(nextAction, inFlightAction software.Action) bool {
+	return nextAction == software.ActionInstall && inFlightAction == software.ActionVerify
 }
 
 func hasSoftwareOperationInFlight(app core.App, serverID, componentKey string) (bool, error) {
+	record, err := findInFlightSoftwareOperation(app, serverID, componentKey)
+	if err != nil {
+		return false, err
+	}
+	return record != nil, nil
+}
+
+func findInFlightSoftwareOperation(app core.App, serverID, componentKey string) (*core.Record, error) {
 	col, err := app.FindCollectionByNameOrId(collections.SoftwareOperations)
 	if err != nil {
-		return false, nil // collection not yet created; allow operation
+		return nil, nil // collection not yet created; allow operation
 	}
 	records, err := app.FindRecordsByFilter(
 		col,
@@ -270,9 +282,12 @@ func hasSoftwareOperationInFlight(app core.App, serverID, componentKey string) (
 		0,
 	)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	return len(records) > 0, nil
+	if len(records) == 0 {
+		return nil, nil
+	}
+	return records[0], nil
 }
 
 // createSoftwareOperation creates a new software_operations record in the accepted phase.
@@ -457,7 +472,6 @@ func (w *Worker) runSoftwarePhaseLoop(ctx context.Context, record *core.Record, 
 
 	entry = software.ApplyRuntimeBindings(w.app, entry)
 	resolved := swcatalog.ResolveTemplate(entry, tpl)
-	resolved = applyServerExecutionBindings(w.app, serverID, payload.AppOSBaseURL, resolved)
 
 	executor, exErr := softwareExecutorFactory(w.app, serverID, payload.UserID)
 	if exErr != nil {

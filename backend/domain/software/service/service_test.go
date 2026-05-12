@@ -468,6 +468,92 @@ func TestGetServerComponentPersistsLiveResultForSubsequentReads(t *testing.T) {
 	}
 }
 
+func TestGetServerComponentRecomputesNotInstalledSnapshot(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		fatal(t, err)
+	}
+	defer app.Cleanup()
+
+	stale := ComputedComponent{
+		Entry: software.CatalogEntry{
+			ComponentKey: software.ComponentKeyDocker,
+			TargetType:   software.TargetTypeServer,
+			Label:        "Docker",
+			TemplateRef:  "docker-ce-package",
+		},
+		Summary: software.SoftwareComponentSummary{
+			ComponentKey:      software.ComponentKeyDocker,
+			TemplateKind:      software.TemplateKindPackage,
+			InstalledState:    software.InstalledStateNotInstalled,
+			VerificationState: software.VerificationStateDegraded,
+			AvailableActions:  []software.Action{},
+		},
+		Detail: software.SoftwareComponentDetail{
+			SoftwareComponentSummary: software.SoftwareComponentSummary{
+				ComponentKey:      software.ComponentKeyDocker,
+				TemplateKind:      software.TemplateKindPackage,
+				InstalledState:    software.InstalledStateNotInstalled,
+				VerificationState: software.VerificationStateDegraded,
+				AvailableActions:  []software.Action{},
+			},
+			Preflight: &software.TargetReadinessResult{
+				OK:              false,
+				OSSupported:     true,
+				PrivilegeOK:     true,
+				NetworkOK:       false,
+				DependencyReady: true,
+				Issues:          []string{"network_required: no outbound internet connectivity"},
+			},
+		},
+		Preflight: software.TargetReadinessResult{
+			OK:              false,
+			OSSupported:     true,
+			PrivilegeOK:     true,
+			NetworkOK:       false,
+			DependencyReady: true,
+			Issues:          []string{"network_required: no outbound internet connectivity"},
+		},
+	}
+	if err := swprojection.UpsertInventorySnapshot(app, software.TargetTypeServer, "srv-1", snapshotFromComputed(stale)); err != nil {
+		fatal(t, err)
+	}
+
+	executorCalls := 0
+	svc := &Service{
+		app: app,
+		serverExecutorFactory: func(app core.App, serverID, userID string) (software.ComponentExecutor, error) {
+			executorCalls++
+			return &fakeComponentExecutor{
+				detection: software.DetectionResult{InstalledState: software.InstalledStateNotInstalled},
+				preflight: software.TargetReadinessResult{
+					OK:              true,
+					OSSupported:     true,
+					PrivilegeOK:     true,
+					NetworkOK:       true,
+					DependencyReady: true,
+					Issues:          []string{},
+				},
+				verifyErr: fmt.Errorf("component is not installed"),
+			}, nil
+		},
+	}
+
+	item, err := svc.GetServerComponent(context.Background(), "srv-1", "", software.ComponentKeyDocker)
+	if err != nil {
+		fatal(t, err)
+	}
+	if executorCalls != 1 {
+		t.Fatalf("expected stale not-installed snapshot to trigger live recompute, got %d executor calls", executorCalls)
+	}
+	if len(item.Detail.AvailableActions) != 2 || item.Detail.AvailableActions[0] != software.ActionInstall || item.Detail.AvailableActions[1] != software.ActionVerify {
+		t.Fatalf("expected refreshed actions [install verify], got %v", item.Detail.AvailableActions)
+	}
+	if item.Detail.Preflight == nil || !item.Detail.Preflight.NetworkOK {
+		t.Fatalf("expected refreshed preflight to report network OK, got %#v", item.Detail.Preflight)
+	}
+}
+
 func fatal(t *testing.T, err error) {
 	t.Helper()
 	t.Fatal(err)
@@ -562,7 +648,7 @@ func TestDeriveAvailableActions_InstalledReadinessOK(t *testing.T) {
 	}
 }
 
-func TestDeriveAvailableActions_NotInstalledOnlyInstall(t *testing.T) {
+func TestDeriveAvailableActions_NotInstalledAllowsInstallAndVerify(t *testing.T) {
 	actions := deriveAvailableActions(
 		[]software.Action{software.ActionInstall, software.ActionVerify, software.ActionUninstall},
 		software.InstalledStateNotInstalled,
@@ -570,8 +656,33 @@ func TestDeriveAvailableActions_NotInstalledOnlyInstall(t *testing.T) {
 		nil,
 	)
 
-	if len(actions) != 1 || actions[0] != software.ActionInstall {
-		t.Fatalf("available actions = %v, want [install]", actions)
+	want := []software.Action{software.ActionInstall, software.ActionVerify}
+	if len(actions) != len(want) {
+		t.Fatalf("available actions len = %d, want %d (%v)", len(actions), len(want), actions)
+	}
+	for i := range want {
+		if actions[i] != want[i] {
+			t.Fatalf("available action[%d] = %q, want %q", i, actions[i], want[i])
+		}
+	}
+}
+
+func TestDeriveAvailableActions_NotInstalledAllowsInstallAndVerifyWhenPreflightBlocked(t *testing.T) {
+	actions := deriveAvailableActions(
+		[]software.Action{software.ActionInstall, software.ActionVerify, software.ActionUninstall},
+		software.InstalledStateNotInstalled,
+		software.TargetReadinessResult{OK: false},
+		nil,
+	)
+
+	want := []software.Action{software.ActionInstall, software.ActionVerify}
+	if len(actions) != len(want) {
+		t.Fatalf("available actions len = %d, want %d (%v)", len(actions), len(want), actions)
+	}
+	for i := range want {
+		if actions[i] != want[i] {
+			t.Fatalf("available action[%d] = %q, want %q", i, actions[i], want[i])
+		}
 	}
 }
 
@@ -596,8 +707,14 @@ func TestDeriveAvailableActions_InFlightOperation(t *testing.T) {
 		&OperationSummary{TerminalStatus: software.TerminalStatusNone, Phase: software.OperationPhaseExecuting},
 	)
 
-	if len(actions) != 0 {
-		t.Fatalf("available actions = %v, want none", actions)
+	want := []software.Action{software.ActionUpgrade, software.ActionVerify}
+	if len(actions) != len(want) {
+		t.Fatalf("available actions len = %d, want %d (%v)", len(actions), len(want), actions)
+	}
+	for i := range want {
+		if actions[i] != want[i] {
+			t.Fatalf("available action[%d] = %q, want %q", i, actions[i], want[i])
+		}
 	}
 }
 
@@ -605,7 +722,7 @@ func TestDeriveAvailableActions_UnknownStateAllowsVerifyOnly(t *testing.T) {
 	actions := deriveAvailableActions(
 		[]software.Action{software.ActionInstall, software.ActionVerify, software.ActionUninstall},
 		software.InstalledStateUnknown,
-		software.TargetReadinessResult{OK: true},
+		software.TargetReadinessResult{OK: false},
 		nil,
 	)
 

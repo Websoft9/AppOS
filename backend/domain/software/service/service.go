@@ -85,12 +85,17 @@ func (s *Service) GetServerComponent(ctx context.Context, serverID, userID strin
 	}
 	latestOps := s.loadLatestOperations(serverID)
 	if item, ok := s.loadProjectedComponent(cat, reg, software.TargetTypeServer, serverID, componentKey, latestOps); ok {
-		return item, nil
+		if item.Detail.InstalledState == software.InstalledStateInstalled {
+			return item, nil
+		}
 	}
 	if items, ok := s.loadProjectedComponents(cat, reg, software.TargetTypeServer, serverID, latestOps); ok {
 		for _, item := range items {
 			if item.Entry.ComponentKey == componentKey {
-				return item, nil
+				if item.Detail.InstalledState == software.InstalledStateInstalled {
+					return item, nil
+				}
+				break
 			}
 		}
 	}
@@ -562,10 +567,6 @@ func deriveAvailableActions(
 	preflight software.TargetReadinessResult,
 	lastOp *OperationSummary,
 ) []software.Action {
-	if lastOp != nil && lastOp.TerminalStatus == software.TerminalStatusNone {
-		return []software.Action{}
-	}
-
 	available := make([]software.Action, 0, len(supported))
 	for _, action := range supported {
 		if !isActionAvailable(action, installedState, preflight.OK) {
@@ -594,9 +595,14 @@ func isActionAvailable(action software.Action, installedState software.Installed
 			return readinessOK
 		}
 	case software.InstalledStateNotInstalled:
-		return action == software.ActionInstall && readinessOK
+		switch action {
+		case software.ActionInstall, software.ActionVerify:
+			return true
+		default:
+			return false
+		}
 	default:
-		return action == software.ActionVerify && readinessOK
+		return action == software.ActionVerify
 	}
 }
 

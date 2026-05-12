@@ -68,7 +68,6 @@ COPY backend/go.mod backend/go.sum ./
 RUN go mod download
 COPY backend/ .
 RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o appos ./cmd/appos
-RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o appos-agent ./cmd/appos-agent
 
 # ===========================
 # Stage 3: Runtime
@@ -126,7 +125,6 @@ RUN npm install -g @mariozechner/pi-coding-agent \
 # Copy build artifacts
 COPY --from=web-builder /build/dist /usr/share/nginx/html/web
 COPY --from=backend-builder /build/appos /usr/local/bin/appos
-COPY --from=backend-builder /build/appos-agent /usr/local/bin/appos-agent
 COPY --from=victoriametrics-bin /victoria-metrics-prod /usr/local/bin/victoria-metrics-prod
 
 # Download Store Library plugin at build time
@@ -186,7 +184,6 @@ RUN mkdir -p /usr/local/share/appos/netdata-defaults \
 # Verify critical files
 RUN set -eux; \
     test -x /usr/local/bin/appos || { echo "ERROR: appos binary not found"; exit 1; }; \
-    test -x /usr/local/bin/appos-agent || { echo "ERROR: appos-agent binary not found"; exit 1; }; \
     test -x /usr/local/bin/victoria-metrics-prod || { echo "ERROR: victoria-metrics-prod binary not found"; exit 1; }; \
     test -x /usr/local/bin/pi || { echo "ERROR: pi binary not found"; exit 1; }; \
     test -x /entrypoint.sh || { echo "ERROR: entrypoint.sh not executable"; exit 1; }; \

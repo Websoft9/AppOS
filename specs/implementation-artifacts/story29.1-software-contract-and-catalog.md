@@ -88,7 +88,6 @@ Rules:
 |-----------|------------------------|
 | `container_runtime` | `docker` |
 | `monitor_agent` | `monitor-agent` |
-| `control_plane` | `appos-agent` |
 | `reverse_proxy` | `reverse-proxy` |
 
 External domains should call capability contracts, not component contracts.
@@ -143,12 +142,11 @@ Each catalog entry must define at least:
 | `docker` | Docker | `package-systemd` | `package` | binary version and daemon readiness | `install`, `upgrade`, `verify`, `uninstall` |
 | `reverse-proxy` | Reverse Proxy | `package-systemd` | `package` | package version and service readiness | `install`, `upgrade`, `verify`, `uninstall` |
 | `monitor-agent` | Netdata Agent | `script-systemd` | `script` | binary version and service readiness | `install`, `upgrade`, `verify`, `uninstall` |
-| `appos-agent` | AppOS Agent | `script-systemd` | `script` | binary version and service readiness | `install`, `upgrade`, `verify`, `uninstall` |
 
 Rules:
 
 - shared component definitions stay singular; target placement is expressed through `target_type` metadata rather than duplicated component definitions
-- `appos-agent` installer URL is resolved from trusted system settings at execution time, not hardcoded in catalog data
+- Software Delivery does not manage a custom `appos-agent`; Netdata is the only continuous monitoring agent on managed servers
 - adding a new component should require catalog registration, not a new route family or a new planning story
 
 ### Boundary with Monitor

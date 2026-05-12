@@ -123,8 +123,8 @@ func TestBuildScriptCommand_ShellQuotesURL(t *testing.T) {
 }
 
 func TestBuildScriptCommand_WithMultilineEnv(t *testing.T) {
-	cmd := buildScriptCommand("https://example.com/install.sh", nil, map[string]string{"APPOS_AGENT_CONFIG_YAML": "line1\nline2\n"})
-	if !containsSubstring(cmd, "APPOS_AGENT_CONFIG_YAML=$(cat <<'APPOS_ENV_0'") {
+	cmd := buildScriptCommand("https://example.com/install.sh", nil, map[string]string{"APPOS_CONFIG_YAML": "line1\nline2\n"})
+	if !containsSubstring(cmd, "APPOS_CONFIG_YAML=$(cat <<'APPOS_ENV_0'") {
 		t.Fatalf("expected multiline env heredoc, got: %s", cmd)
 	}
 	if !containsSubstring(cmd, "line1\nline2") {
@@ -146,11 +146,11 @@ func TestBuildManagedScriptCommand_EmbeddedScript(t *testing.T) {
 }
 
 func TestBuildManagedScriptCommand_EmbeddedScriptWithEnv(t *testing.T) {
-	cmd, err := buildManagedScriptCommand("docker-install.sh", "", nil, map[string]string{"APPOS_AGENT_SYSTEMD_UNIT": "unit-content"})
+	cmd, err := buildManagedScriptCommand("docker-install.sh", "", nil, map[string]string{"APPOS_SYSTEMD_UNIT": "unit-content"})
 	if err != nil {
 		t.Fatalf("buildManagedScriptCommand error: %v", err)
 	}
-	if !containsSubstring(cmd, "APPOS_AGENT_SYSTEMD_UNIT=$(cat <<'APPOS_ENV_0'") {
+	if !containsSubstring(cmd, "APPOS_SYSTEMD_UNIT=$(cat <<'APPOS_ENV_0'") {
 		t.Fatalf("expected env injection in embedded command, got: %s", cmd)
 	}
 	if !containsSubstring(cmd, "unit-content") {
@@ -607,6 +607,82 @@ func TestRunPreflight_AllDimensionsOK(t *testing.T) {
 	}
 	if !result.OK {
 		t.Errorf("expected OK preflight, issues: %v", result.Issues)
+	}
+}
+
+func TestRunPreflight_NetworkRequired_FallbackProbeOK(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		if containsSubstring(cmd, "/etc/os-release") {
+			return "ubuntu", nil
+		}
+		if containsSubstring(cmd, "systemctl") {
+			return "", nil
+		}
+		if containsSubstring(cmd, "apt-get") {
+			return "", nil
+		}
+		if containsSubstring(cmd, "id -u") {
+			return "0", nil
+		}
+		if containsSubstring(cmd, "get.docker.com") && containsSubstring(cmd, "google.com/generate_204") {
+			return "", nil
+		}
+		return "", nil
+	}
+
+	tpl := packageTemplate("docker.io", "docker.service")
+	tpl.Preflight.RequireNetwork = true
+	ex := &SSHExecutor{}
+	result, err := ex.RunPreflight(context.Background(), "", tpl)
+	if err != nil {
+		t.Fatalf("RunPreflight error: %v", err)
+	}
+	if !result.OK {
+		t.Errorf("expected OK preflight via fallback probe, issues: %v", result.Issues)
+	}
+}
+
+func TestRunPreflight_NetworkRequired_ProbeFailureIsAdvisory(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		if containsSubstring(cmd, "/etc/os-release") {
+			return "ubuntu", nil
+		}
+		if containsSubstring(cmd, "systemctl") {
+			return "", nil
+		}
+		if containsSubstring(cmd, "apt-get") {
+			return "", nil
+		}
+		if containsSubstring(cmd, "id -u") {
+			return "0", nil
+		}
+		if containsSubstring(cmd, "get.docker.com") && containsSubstring(cmd, "google.com/generate_204") {
+			return "", ErrCommandFailed
+		}
+		return "", nil
+	}
+
+	tpl := packageTemplate("docker.io", "docker.service")
+	tpl.Preflight.RequireNetwork = true
+	ex := &SSHExecutor{}
+	result, err := ex.RunPreflight(context.Background(), "", tpl)
+	if err != nil {
+		t.Fatalf("RunPreflight error: %v", err)
+	}
+	if !result.OK {
+		t.Fatalf("expected advisory network probe failure to keep preflight OK, issues: %v", result.Issues)
+	}
+	if result.NetworkOK {
+		t.Fatal("expected NetworkOK=false when all outbound network probes fail")
+	}
+	if len(result.Issues) == 0 {
+		t.Fatal("expected advisory network issue when probes fail")
 	}
 }
 

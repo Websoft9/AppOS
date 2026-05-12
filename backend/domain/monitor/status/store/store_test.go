@@ -12,9 +12,9 @@ import (
 
 func TestApplyReasonCodeNormalizesAndClears(t *testing.T) {
 	summary := map[string]any{"reason_code": "old_value"}
-	store.ApplyReasonCode(summary, "  HEARTBEAT_STALE  ")
-	if got := summary["reason_code"]; got != "heartbeat_stale" {
-		t.Fatalf("expected normalized reason_code heartbeat_stale, got %+v", got)
+	store.ApplyReasonCode(summary, "  CONTROL_UNREACHABLE  ")
+	if got := summary["reason_code"]; got != "control_unreachable" {
+		t.Fatalf("expected normalized reason_code control_unreachable, got %+v", got)
 	}
 	store.ApplyReasonCode(summary, "   ")
 	if _, ok := summary["reason_code"]; ok {
