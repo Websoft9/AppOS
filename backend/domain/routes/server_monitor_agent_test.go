@@ -64,3 +64,16 @@ func TestBuildNetdataExportingConfigRequiresAgentToken(t *testing.T) {
 		t.Fatalf("expected agent token validation error, got %v", err)
 	}
 }
+
+func TestMonitorAgentExportingInstallCommandRestrictsSecretFileMode(t *testing.T) {
+	cmd := monitorAgentExportingInstallCommand(monitorAgentRemoteExporting)
+	if strings.Contains(cmd, "-m 0644") {
+		t.Fatalf("monitor agent token config must not be world-readable: %s", cmd)
+	}
+	if !strings.Contains(cmd, "-m 0640") || !strings.Contains(cmd, "-g netdata") {
+		t.Fatalf("expected netdata group-readable secure install command, got %s", cmd)
+	}
+	if !strings.Contains(cmd, "-m 0600") {
+		t.Fatalf("expected owner-only fallback mode, got %s", cmd)
+	}
+}

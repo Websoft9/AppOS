@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ServerComponentsPanel } from './ServerComponentsPanel'
@@ -16,13 +17,19 @@ function deferred<T>() {
 const listSoftwareComponentsMock = vi.fn()
 const getSoftwareComponentMock = vi.fn()
 const getSoftwareOperationMock = vi.fn()
+const listSoftwareOperationsMock = vi.fn()
+const deleteSoftwareOperationMock = vi.fn()
 const invokeSoftwareActionMock = vi.fn()
+const getConfiguredAppURLMock = vi.fn()
 
 vi.mock('@/lib/software-api', () => ({
   listSoftwareComponents: (...args: unknown[]) => listSoftwareComponentsMock(...args),
   getSoftwareComponent: (...args: unknown[]) => getSoftwareComponentMock(...args),
   getSoftwareOperation: (...args: unknown[]) => getSoftwareOperationMock(...args),
+  listSoftwareOperations: (...args: unknown[]) => listSoftwareOperationsMock(...args),
+  deleteSoftwareOperation: (...args: unknown[]) => deleteSoftwareOperationMock(...args),
   invokeSoftwareAction: (...args: unknown[]) => invokeSoftwareActionMock(...args),
+  getConfiguredAppURL: (...args: unknown[]) => getConfiguredAppURLMock(...args),
 }))
 
 afterEach(() => {
@@ -34,7 +41,14 @@ describe('ServerComponentsPanel', () => {
     listSoftwareComponentsMock.mockReset()
     getSoftwareComponentMock.mockReset()
     getSoftwareOperationMock.mockReset()
+    listSoftwareOperationsMock.mockReset()
+    deleteSoftwareOperationMock.mockReset()
     invokeSoftwareActionMock.mockReset()
+    getConfiguredAppURLMock.mockReset()
+
+    listSoftwareOperationsMock.mockResolvedValue([])
+    deleteSoftwareOperationMock.mockResolvedValue(undefined)
+    getConfiguredAppURLMock.mockResolvedValue('')
 
     listSoftwareComponentsMock.mockResolvedValue([
       {
@@ -99,6 +113,8 @@ describe('ServerComponentsPanel', () => {
       phase: 'succeeded',
       terminal_status: 'success',
       failure_reason: '',
+      event_log:
+        '2026-04-16T02:03:04Z · Accepted verify request for docker.\n2026-04-16T02:03:10Z · Verification passed.',
       created: '2026-04-16T02:03:04Z',
       updated: '2026-04-16T02:03:10Z',
     })
@@ -141,30 +157,48 @@ describe('ServerComponentsPanel', () => {
     expect(screen.getByText('reverse-proxy')).toBeInTheDocument()
 
     const prerequisitesSection = screen.getByRole('region', { name: 'Prerequisites section' })
-    expect(within(prerequisitesSection).getByRole('button', { name: 'Prerequisites help' })).toBeInTheDocument()
-    expect(within(prerequisitesSection).getByRole('button', { name: 'Docker Engine details' })).toBeInTheDocument()
+    expect(
+      within(prerequisitesSection).getByRole('button', { name: 'Prerequisites help' })
+    ).toBeInTheDocument()
+    expect(
+      within(prerequisitesSection).getByRole('button', { name: 'Docker Engine details' })
+    ).toBeInTheDocument()
     expect(within(prerequisitesSection).getByText('Verified')).toBeInTheDocument()
     expect(within(prerequisitesSection).getByText('Checks passed')).toBeInTheDocument()
 
-    fireEvent.click(within(prerequisitesSection).getByRole('button', { name: 'Docker Engine details' }))
+    fireEvent.click(
+      within(prerequisitesSection).getByRole('button', { name: 'Docker Engine details' })
+    )
 
-    expect(within(prerequisitesSection).getByText('Install source: Managed (apt:docker-ce)')).toBeInTheDocument()
+    expect(
+      within(prerequisitesSection).getByText('Install source: Managed (apt:docker-ce)')
+    ).toBeInTheDocument()
     expect(within(prerequisitesSection).getByText('Status:')).toBeInTheDocument()
     expect(within(prerequisitesSection).getAllByText('Verified').length).toBeGreaterThan(0)
     expect(within(prerequisitesSection).getByText('Version:')).toBeInTheDocument()
     expect(within(prerequisitesSection).getByText('27.0.1')).toBeInTheDocument()
     expect(within(prerequisitesSection).getByText('Docker Compose:')).toBeInTheDocument()
     expect(within(prerequisitesSection).getByText('2.27.0')).toBeInTheDocument()
-    expect(within(prerequisitesSection).getByText('Docker Engine installed')).toBeInTheDocument()
-    expect(within(prerequisitesSection).getByText('Docker Compose available')).toBeInTheDocument()
-    expect(within(prerequisitesSection).getByText('OS Support confirmed')).toBeInTheDocument()
-    expect(within(prerequisitesSection).getByText('Privileged Access confirmed')).toBeInTheDocument()
+    expect(
+      within(prerequisitesSection).getByText('Check Docker Engine installation')
+    ).toBeInTheDocument()
+    expect(
+      within(prerequisitesSection).getByText('Check Docker Compose availability')
+    ).toBeInTheDocument()
+    expect(within(prerequisitesSection).getByText('Check OS Support')).toBeInTheDocument()
+    expect(within(prerequisitesSection).getByText('Check Privileged Access')).toBeInTheDocument()
     expect(within(prerequisitesSection).getByText('Verification Checklist')).toBeInTheDocument()
-    expect(within(prerequisitesSection).getByRole('button', { name: 'Recheck' })).toBeInTheDocument()
+    expect(
+      within(prerequisitesSection).getByRole('button', { name: 'Recheck' })
+    ).toBeInTheDocument()
     expect(within(prerequisitesSection).getByRole('button', { name: 'Upgrade/Fix' })).toBeEnabled()
     expect(within(prerequisitesSection).queryByRole('button', { name: 'Install' })).toBeNull()
     expect(within(prerequisitesSection).queryByText('No corrective action available')).toBeNull()
-    expect(within(prerequisitesSection).queryByText('Container runtime required for platform-managed workloads.')).toBeNull()
+    expect(
+      within(prerequisitesSection).queryByText(
+        'Container runtime required for platform-managed workloads.'
+      )
+    ).toBeNull()
 
     const addonsSection = screen.getByRole('region', { name: 'Addons section' })
     expect(within(addonsSection).queryByText('Docker Engine')).toBeNull()
@@ -175,11 +209,15 @@ describe('ServerComponentsPanel', () => {
     fireEvent.click(within(inventory).getByRole('button', { name: 'Reverse Proxy' }))
 
     const selectedAddon = within(addonsSection).getByRole('region', { name: 'Selected Addon' })
-    expect(within(selectedAddon).getByText('dependency_not_ready: docker is not ready')).toBeInTheDocument()
-    expect(within(selectedAddon).getByRole('button', { name: 'verify' })).toBeInTheDocument()
+    expect(
+      within(selectedAddon).getByText('dependency_not_ready: docker is not ready')
+    ).toBeInTheDocument()
+    expect(within(selectedAddon).getByRole('button', { name: 'reinstall' })).toBeInTheDocument()
+    expect(within(selectedAddon).getByRole('button', { name: 'More actions' })).toBeInTheDocument()
   })
 
   it('invokes component actions and surfaces the accepted operation message', async () => {
+    const user = userEvent.setup()
     render(<ServerComponentsPanel serverId="server-1" />)
 
     expect(await screen.findByRole('heading', { name: 'Addons' })).toBeInTheDocument()
@@ -188,14 +226,190 @@ describe('ServerComponentsPanel', () => {
     fireEvent.click(within(inventory).getByRole('button', { name: 'Reverse Proxy' }))
 
     const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
-    fireEvent.click(within(selectedAddon).getByRole('button', { name: 'verify' }))
+    await user.click(within(selectedAddon).getByRole('button', { name: 'More actions' }))
+    await user.click(screen.getByRole('menuitem', { name: 'verify' }))
 
     await waitFor(() => {
       expect(invokeSoftwareActionMock).toHaveBeenCalledWith('server-1', 'reverse-proxy', 'verify', {
         apposBaseUrl: window.location.origin,
       })
     })
-    expect(await screen.findByText('verify accepted for reverse-proxy (op-123)')).toBeInTheDocument()
+    expect(
+      await screen.findByText('verify accepted for reverse-proxy (op-123)')
+    ).toBeInTheDocument()
+  })
+
+  it('renders addon load errors inside the addon inventory', async () => {
+    listSoftwareComponentsMock.mockRejectedValue(new Error('ssh failed'))
+
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    const inventory = await screen.findByRole('region', { name: 'Addon inventory' })
+    expect(await within(inventory).findByText('ssh failed')).toBeInTheDocument()
+
+    const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
+    expect(within(selectedAddon).queryByText('ssh failed')).toBeNull()
+  })
+
+  it('executes an external monitor-agent addon action intent', async () => {
+    listSoftwareComponentsMock.mockResolvedValue([
+      {
+        component_key: 'monitor-agent',
+        label: 'Netdata Agent',
+        target_type: 'server',
+        template_kind: 'script-systemd',
+        installed_state: 'not_installed',
+        verification_state: 'unknown',
+        preflight: {
+          ok: true,
+          os_supported: true,
+          privilege_ok: true,
+          network_ok: true,
+          dependency_ready: true,
+        },
+        available_actions: ['install', 'verify'],
+      },
+    ])
+
+    render(
+      <ServerComponentsPanel
+        serverId="server-1"
+        actionIntent={{
+          serverId: 'server-1',
+          componentKey: 'monitor-agent',
+          action: 'install',
+          nonce: 101,
+        }}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Netdata Agent').length).toBeGreaterThan(0)
+    })
+    await waitFor(() => {
+      expect(invokeSoftwareActionMock).toHaveBeenCalledWith(
+        'server-1',
+        'monitor-agent',
+        'install',
+        {
+          apposBaseUrl: window.location.origin,
+        }
+      )
+    })
+    expect(
+      await screen.findByText('install accepted for monitor-agent (op-123)')
+    ).toBeInTheDocument()
+  })
+
+  it('asks which callback address to use when monitor-agent detected URL differs from App URL', async () => {
+    getConfiguredAppURLMock.mockResolvedValue('https://appos.example.com')
+    listSoftwareComponentsMock.mockResolvedValue([
+      {
+        component_key: 'monitor-agent',
+        label: 'Netdata Agent',
+        target_type: 'server',
+        template_kind: 'script-systemd',
+        installed_state: 'not_installed',
+        verification_state: 'unknown',
+        preflight: {
+          ok: true,
+          os_supported: true,
+          privilege_ok: true,
+          network_ok: true,
+          dependency_ready: true,
+        },
+        available_actions: ['install', 'verify'],
+      },
+    ])
+
+    render(
+      <ServerComponentsPanel
+        serverId="server-1"
+        actionIntent={{
+          serverId: 'server-1',
+          componentKey: 'monitor-agent',
+          action: 'install',
+          nonce: 102,
+        }}
+      />
+    )
+
+    expect(await screen.findByText('Choose monitor callback address')).toBeInTheDocument()
+    expect(screen.getByText(window.location.origin)).toBeInTheDocument()
+    expect(screen.getByText('https://appos.example.com')).toBeInTheDocument()
+    expect(invokeSoftwareActionMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use App URL' }))
+
+    await waitFor(() => {
+      expect(invokeSoftwareActionMock).toHaveBeenCalledWith(
+        'server-1',
+        'monitor-agent',
+        'install',
+        {
+          apposBaseUrl: 'https://appos.example.com',
+        }
+      )
+    })
+  })
+
+  it('shows prerequisite SSH failures in addon inventory instead of cached addon rows', async () => {
+    getSoftwareComponentMock.mockRejectedValue(new Error('ssh connection failed'))
+
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    const prerequisitesSection = await screen.findByRole('region', {
+      name: 'Prerequisites section',
+    })
+    expect(
+      await within(prerequisitesSection).findByText('ssh connection failed')
+    ).toBeInTheDocument()
+
+    const inventory = screen.getByRole('region', { name: 'Addon inventory' })
+    expect(within(inventory).getByText('ssh connection failed')).toBeInTheDocument()
+    expect(within(inventory).queryByRole('button', { name: 'Reverse Proxy' })).toBeNull()
+    expect(listSoftwareComponentsMock).not.toHaveBeenCalled()
+  })
+
+  it('shows prerequisite privilege errors in addon inventory even when prerequisite fetch succeeds', async () => {
+    getSoftwareComponentMock.mockResolvedValue({
+      component_key: 'docker',
+      label: 'Docker Engine',
+      target_type: 'server',
+      template_kind: 'package',
+      installed_state: 'installed',
+      detected_version: '27.0.1',
+      verification_state: 'degraded',
+      verification: {
+        state: 'degraded',
+        reason: 'sudo check failed: permission denied',
+        details: {
+          engine_version: '27.0.1',
+          compose_available: true,
+          compose_version: '2.27.0',
+        },
+      },
+      preflight: {
+        ok: false,
+        os_supported: true,
+        privilege_ok: false,
+        network_ok: true,
+        dependency_ready: true,
+        issues: ['privilege_required: neither root nor passwordless sudo available'],
+      },
+      available_actions: ['verify'],
+    })
+
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    const inventory = await screen.findByRole('region', { name: 'Addon inventory' })
+    expect(
+      await within(inventory).findByText(
+        'privilege_required: neither root nor passwordless sudo available'
+      )
+    ).toBeInTheDocument()
+    expect(within(inventory).queryByRole('button', { name: 'Reverse Proxy' })).toBeNull()
+    expect(listSoftwareComponentsMock).not.toHaveBeenCalled()
   })
 
   it('loads docker detail only when compose verification is missing from the list response', async () => {
@@ -220,8 +434,12 @@ describe('ServerComponentsPanel', () => {
 
     render(<ServerComponentsPanel serverId="server-1" />)
 
-    const prerequisitesSection = await screen.findByRole('region', { name: 'Prerequisites section' })
-    fireEvent.click(within(prerequisitesSection).getByRole('button', { name: 'Docker Engine details' }))
+    const prerequisitesSection = await screen.findByRole('region', {
+      name: 'Prerequisites section',
+    })
+    fireEvent.click(
+      within(prerequisitesSection).getByRole('button', { name: 'Docker Engine details' })
+    )
 
     expect(within(prerequisitesSection).getByText('2.27.0')).toBeInTheDocument()
     expect(getSoftwareComponentMock).toHaveBeenCalledWith('server-1', 'docker')
@@ -230,8 +448,12 @@ describe('ServerComponentsPanel', () => {
   it('switches the prerequisite checklist box into an action log when a prerequisite action starts', async () => {
     render(<ServerComponentsPanel serverId="server-1" />)
 
-    const prerequisitesSection = await screen.findByRole('region', { name: 'Prerequisites section' })
-    fireEvent.click(within(prerequisitesSection).getByRole('button', { name: 'Docker Engine details' }))
+    const prerequisitesSection = await screen.findByRole('region', {
+      name: 'Prerequisites section',
+    })
+    fireEvent.click(
+      within(prerequisitesSection).getByRole('button', { name: 'Docker Engine details' })
+    )
 
     fireEvent.click(within(prerequisitesSection).getByRole('button', { name: 'Recheck' }))
 
@@ -248,13 +470,250 @@ describe('ServerComponentsPanel', () => {
     await waitFor(() => {
       expect(getSoftwareOperationMock).toHaveBeenCalledWith('server-1', 'op-123')
     })
-    expect(within(prerequisitesSection).getByText(/Recheck: Succeeded/)).toBeInTheDocument()
+    expect(
+      within(prerequisitesSection).getByText(
+        '2026-04-16T02:03:04Z · Accepted verify request for docker.'
+      )
+    ).toBeInTheDocument()
+    expect(
+      within(prerequisitesSection).getByText('2026-04-16T02:03:10Z · Verification passed.')
+    ).toBeInTheDocument()
     expect(
       within(prerequisitesSection).getByLabelText('Prerequisite action log entries')
     ).toHaveClass('max-h-72', 'overflow-y-auto')
   })
 
-  it('shows the blocking issue beside the log title and keeps recheck clickable while in progress', async () => {
+  it('asks for confirmation before running upgrade fix', async () => {
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    const prerequisitesSection = await screen.findByRole('region', {
+      name: 'Prerequisites section',
+    })
+    fireEvent.click(
+      within(prerequisitesSection).getByRole('button', { name: 'Docker Engine details' })
+    )
+
+    fireEvent.click(within(prerequisitesSection).getByRole('button', { name: 'Upgrade/Fix' }))
+
+    expect(await screen.findByText('Confirm Upgrade/Fix')).toBeInTheDocument()
+    expect(invokeSoftwareActionMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+
+    await waitFor(() => {
+      expect(invokeSoftwareActionMock).toHaveBeenCalledWith('server-1', 'docker', 'upgrade', {
+        apposBaseUrl: window.location.origin,
+      })
+    })
+  })
+
+  it('does not replace the current live log when a prerequisite action is rejected', async () => {
+    invokeSoftwareActionMock
+      .mockResolvedValueOnce({ accepted: true, operation_id: 'op-123' })
+      .mockRejectedValueOnce(new Error('software operation already in flight'))
+
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    const prerequisitesSection = await screen.findByRole('region', {
+      name: 'Prerequisites section',
+    })
+    fireEvent.click(
+      within(prerequisitesSection).getByRole('button', { name: 'Docker Engine details' })
+    )
+
+    fireEvent.click(within(prerequisitesSection).getByRole('button', { name: 'Recheck' }))
+    expect(
+      await within(prerequisitesSection).findByText('Recheck accepted (op-123)')
+    ).toBeInTheDocument()
+
+    fireEvent.click(within(prerequisitesSection).getByRole('button', { name: 'Recheck' }))
+    expect(await screen.findByText('software operation already in flight')).toBeInTheDocument()
+    expect(within(prerequisitesSection).getByText('Recheck accepted (op-123)')).toBeInTheDocument()
+    expect(within(prerequisitesSection).queryByText('Recheck requested...')).toBeInTheDocument()
+  })
+
+  it('keeps action buttons disabled while the live log operation is still running', async () => {
+    const pendingOperation = deferred<{
+      id: string
+      server_id: string
+      component_key: string
+      action: string
+      phase: string
+      terminal_status: string
+      failure_reason: string
+      event_log: string
+      created: string
+      updated: string
+    }>()
+    getSoftwareOperationMock.mockReturnValue(pendingOperation.promise)
+
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    const prerequisitesSection = await screen.findByRole('region', {
+      name: 'Prerequisites section',
+    })
+    fireEvent.click(
+      within(prerequisitesSection).getByRole('button', { name: 'Docker Engine details' })
+    )
+
+    fireEvent.click(within(prerequisitesSection).getByRole('button', { name: 'Recheck' }))
+    expect(
+      await within(prerequisitesSection).findByText('Recheck accepted (op-123)')
+    ).toBeInTheDocument()
+
+    expect(within(prerequisitesSection).getByRole('button', { name: 'Recheck' })).toBeDisabled()
+    expect(within(prerequisitesSection).getByRole('button', { name: 'Upgrade/Fix' })).toBeDisabled()
+
+    pendingOperation.resolve({
+      id: 'op-123',
+      server_id: 'server-1',
+      component_key: 'docker',
+      action: 'verify',
+      phase: 'succeeded',
+      terminal_status: 'success',
+      failure_reason: '',
+      event_log:
+        '2026-04-16T02:03:04Z · Accepted verify request for docker.\n2026-04-16T02:03:10Z · Verification passed.',
+      created: '2026-04-16T02:03:04Z',
+      updated: '2026-04-16T02:03:10Z',
+    })
+  })
+
+  it('does not show a live log error or unlock actions when polling fails but history is still running', async () => {
+    getSoftwareOperationMock.mockRejectedValueOnce(new Error('Something went wrong.'))
+    getSoftwareComponentMock
+      .mockResolvedValueOnce({
+        component_key: 'docker',
+        label: 'Docker Engine',
+        target_type: 'server',
+        template_kind: 'package',
+        installed_state: 'installed',
+        detected_version: '27.0.1',
+        install_source: 'managed',
+        source_evidence: 'apt:docker-ce',
+        verification_state: 'healthy',
+        preflight: {
+          ok: true,
+          os_supported: true,
+          privilege_ok: true,
+          network_ok: true,
+          dependency_ready: true,
+        },
+        verification: {
+          state: 'healthy',
+          checked_at: '2026-04-16T02:03:04Z',
+          details: {
+            engine_version: '27.0.1',
+            compose_available: true,
+            compose_version: '2.27.0',
+          },
+        },
+        available_actions: ['verify', 'upgrade'],
+      })
+      .mockResolvedValueOnce({
+        component_key: 'docker',
+        label: 'Docker Engine',
+        target_type: 'server',
+        template_kind: 'package',
+        installed_state: 'installed',
+        detected_version: '27.0.1',
+        install_source: 'managed',
+        source_evidence: 'apt:docker-ce',
+        verification_state: 'healthy',
+        last_operation: {
+          action: 'reinstall',
+          phase: 'executing',
+          terminal_status: 'none',
+          updated_at: '2026-05-13T09:15:02Z',
+        },
+        preflight: {
+          ok: true,
+          os_supported: true,
+          privilege_ok: true,
+          network_ok: true,
+          dependency_ready: true,
+        },
+        verification: {
+          state: 'healthy',
+          checked_at: '2026-04-16T02:03:04Z',
+          details: {
+            engine_version: '27.0.1',
+            compose_available: true,
+            compose_version: '2.27.0',
+          },
+        },
+        available_actions: ['verify', 'upgrade'],
+      })
+
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    const prerequisitesSection = await screen.findByRole('region', {
+      name: 'Prerequisites section',
+    })
+    fireEvent.click(
+      within(prerequisitesSection).getByRole('button', { name: 'Docker Engine details' })
+    )
+
+    fireEvent.click(within(prerequisitesSection).getByRole('button', { name: 'Recheck' }))
+    expect(
+      await within(prerequisitesSection).findByText('Recheck accepted (op-123)')
+    ).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(getSoftwareOperationMock).toHaveBeenCalledWith('server-1', 'op-123')
+    })
+
+    expect(within(prerequisitesSection).queryByText('Something went wrong.')).toBeNull()
+    expect(within(prerequisitesSection).getByRole('button', { name: 'Recheck' })).toBeDisabled()
+    expect(within(prerequisitesSection).getByRole('button', { name: 'Upgrade/Fix' })).toBeDisabled()
+  })
+
+  it('deletes a prerequisite operation history record without confirmation', async () => {
+    listSoftwareOperationsMock.mockResolvedValue([
+      {
+        id: 'op-delete-1',
+        server_id: 'server-1',
+        component_key: 'docker',
+        action: 'verify',
+        phase: 'failed',
+        terminal_status: 'failed',
+        failure_reason: 'previous check failed',
+        created: '2026-05-13T01:00:00Z',
+        updated: '2026-05-13T01:01:00Z',
+      },
+    ])
+
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    const prerequisitesSection = await screen.findByRole('region', {
+      name: 'Prerequisites section',
+    })
+    fireEvent.click(
+      within(prerequisitesSection).getByRole('button', { name: 'Docker Engine details' })
+    )
+    fireEvent.click(within(prerequisitesSection).getByRole('button', { name: 'History' }))
+
+    expect(
+      await within(prerequisitesSection).findByText('Operation History (1)')
+    ).toBeInTheDocument()
+    expect(
+      await within(prerequisitesSection).findByText('previous check failed')
+    ).toBeInTheDocument()
+    fireEvent.click(
+      within(prerequisitesSection).getByRole('button', {
+        name: 'Delete verify operation history record',
+      })
+    )
+
+    await waitFor(() => {
+      expect(deleteSoftwareOperationMock).toHaveBeenCalledWith('server-1', 'op-delete-1')
+    })
+    await waitFor(() => {
+      expect(within(prerequisitesSection).queryByText('previous check failed')).toBeNull()
+    })
+  })
+
+  it('keeps blocking issue out of the checklist title row and shows mode tabs', async () => {
     getSoftwareComponentMock.mockReset()
     getSoftwareComponentMock.mockImplementation(async (_serverId: string, componentKey: string) => {
       if (componentKey === 'docker') {
@@ -270,8 +729,8 @@ describe('ServerComponentsPanel', () => {
           verification_state: 'degraded',
           last_operation: {
             action: 'verify',
-            phase: 'running',
-            terminal_status: 'running',
+            phase: 'executing',
+            terminal_status: 'none',
             updated_at: '2026-04-16T02:03:10Z',
           },
           verification: {
@@ -315,16 +774,104 @@ describe('ServerComponentsPanel', () => {
 
     render(<ServerComponentsPanel serverId="server-1" />)
 
-    const prerequisitesSection = await screen.findByRole('region', { name: 'Prerequisites section' })
-    fireEvent.click(within(prerequisitesSection).getByRole('button', { name: 'Docker Engine details' }))
+    const prerequisitesSection = await screen.findByRole('region', {
+      name: 'Prerequisites section',
+    })
+    expect(
+      within(prerequisitesSection).queryByText('dependency_not_ready: docker compose is missing')
+    ).toBeNull()
+    fireEvent.click(
+      within(prerequisitesSection).getByRole('button', { name: 'Docker Engine details' })
+    )
 
     const checklistTitle = within(prerequisitesSection).getByText('Verification Checklist')
     const titleRow = checklistTitle.parentElement
     expect(titleRow).not.toBeNull()
-    expect(within(titleRow as HTMLElement).getByText(/Blocking issue:/)).toBeInTheDocument()
+    expect(
+      within(titleRow as HTMLElement).queryByText('dependency_not_ready: docker compose is missing')
+    ).toBeNull()
+    expect(
+      within(titleRow as HTMLElement).getByRole('button', { name: 'Checklist' })
+    ).toBeInTheDocument()
+    expect(
+      within(titleRow as HTMLElement).getByRole('button', { name: 'History' })
+    ).toBeInTheDocument()
 
     const recheckButton = within(prerequisitesSection).getByRole('button', { name: 'Recheck' })
-    expect(recheckButton).toBeEnabled()
+    expect(recheckButton).toBeDisabled()
+
+    const upgradeButton = within(prerequisitesSection).getByRole('button', { name: 'Upgrade/Fix' })
+    expect(upgradeButton).toBeDisabled()
+  })
+
+  it('locks addon action buttons while a prerequisite operation is still in progress', async () => {
+    getSoftwareComponentMock.mockReset()
+    getSoftwareComponentMock.mockImplementation(async (_serverId: string, componentKey: string) => {
+      if (componentKey === 'docker') {
+        return {
+          component_key: 'docker',
+          label: 'Docker Engine',
+          target_type: 'server',
+          template_kind: 'package',
+          installed_state: 'installed',
+          detected_version: '27.0.1',
+          install_source: 'managed',
+          source_evidence: 'apt:docker-ce',
+          verification_state: 'healthy',
+          last_operation: {
+            action: 'verify',
+            phase: 'executing',
+            terminal_status: 'none',
+            updated_at: '2026-04-16T02:03:10Z',
+          },
+          verification: {
+            state: 'healthy',
+            checked_at: '2026-04-16T02:03:04Z',
+            details: {
+              engine_version: '27.0.1',
+              compose_available: true,
+              compose_version: '2.27.0',
+            },
+          },
+          preflight: {
+            ok: true,
+            os_supported: true,
+            privilege_ok: true,
+            network_ok: true,
+            dependency_ready: true,
+          },
+          available_actions: ['verify', 'upgrade'],
+        }
+      }
+
+      return {
+        component_key: componentKey,
+        label: componentKey,
+        target_type: 'server',
+        template_kind: 'package',
+        installed_state: 'not_installed',
+        verification_state: 'unknown',
+        preflight: {
+          ok: true,
+          os_supported: true,
+          privilege_ok: true,
+          network_ok: true,
+          dependency_ready: true,
+        },
+        available_actions: ['verify', 'install'],
+      }
+    })
+
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    expect(await screen.findByRole('heading', { name: 'Addons' })).toBeInTheDocument()
+
+    const inventory = screen.getByRole('region', { name: 'Addon inventory' })
+    fireEvent.click(within(inventory).getByRole('button', { name: 'Reverse Proxy' }))
+
+    const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
+    expect(within(selectedAddon).getByRole('button', { name: 'reinstall' })).toBeDisabled()
+    expect(within(selectedAddon).getByRole('button', { name: 'More actions' })).toBeDisabled()
   })
 
   it('does not surface a network probe issue as a blocking issue', async () => {
@@ -379,10 +926,14 @@ describe('ServerComponentsPanel', () => {
 
     render(<ServerComponentsPanel serverId="server-1" />)
 
-    const prerequisitesSection = await screen.findByRole('region', { name: 'Prerequisites section' })
-    fireEvent.click(within(prerequisitesSection).getByRole('button', { name: 'Docker Engine details' }))
+    const prerequisitesSection = await screen.findByRole('region', {
+      name: 'Prerequisites section',
+    })
+    fireEvent.click(
+      within(prerequisitesSection).getByRole('button', { name: 'Docker Engine details' })
+    )
 
-    expect(within(prerequisitesSection).queryByText(/Blocking issue:/)).toBeNull()
+    expect(within(prerequisitesSection).queryByText(/dependency_not_ready:/)).toBeNull()
     expect(within(prerequisitesSection).getByRole('button', { name: 'Install' })).toBeEnabled()
     expect(within(prerequisitesSection).getByRole('button', { name: 'Recheck' })).toBeEnabled()
   })

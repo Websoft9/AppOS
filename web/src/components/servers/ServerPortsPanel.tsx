@@ -1,6 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ClientResponseError } from 'pocketbase'
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Loader2, MoreVertical, RotateCw } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Loader2,
+  MoreVertical,
+  RotateCw,
+} from 'lucide-react'
 
 import {
   AlertDialog,
@@ -26,12 +34,13 @@ import {
   type ServerPortItem,
   type ServerPortListener,
   type ServerPortProtocol,
+  type ServerPortProtocolFilter,
   type ServerPortReservationSource,
 } from '@/lib/connect-api'
+import { getApiErrorMessage, isRequestCancellation } from '@/lib/api-error'
 import { cn } from '@/lib/utils'
 
 type PortRow = ServerPortItem & { protocol: ServerPortProtocol }
-type PortProtocolFilter = ServerPortProtocol | 'all'
 type PortsSortColumn = 'port' | 'status' | 'protocol' | 'process'
 type PortsSortDirection = 'asc' | 'desc'
 type PortStatusFilter = 'all' | 'occupied' | 'reserved'
@@ -72,7 +81,14 @@ function matchesQuery(row: PortRow, query: string) {
   if (!normalized) return true
 
   const listenerText = (row.occupancy?.listeners || [])
-    .map(listener => [listener.local_address, listener.peer_address, listener.raw, listener.process?.name || ''].join(' '))
+    .map(listener =>
+      [
+        listener.local_address,
+        listener.peer_address,
+        listener.raw,
+        listener.process?.name || '',
+      ].join(' ')
+    )
     .join(' ')
     .toLowerCase()
 
@@ -95,7 +111,12 @@ function compareText(left: string, right: string) {
   return left.localeCompare(right, undefined, { sensitivity: 'base' })
 }
 
-function compareRows(left: PortRow, right: PortRow, sortBy: PortsSortColumn, sortDirection: PortsSortDirection) {
+function compareRows(
+  left: PortRow,
+  right: PortRow,
+  sortBy: PortsSortColumn,
+  sortDirection: PortsSortDirection
+) {
   let result = 0
   if (sortBy === 'status') {
     result = compareText(getPortStatusLabel(left), getPortStatusLabel(right))
@@ -115,7 +136,8 @@ function compareRows(left: PortRow, right: PortRow, sortBy: PortsSortColumn, sor
 }
 
 export function ServerPortsPanel({ serverId }: { serverId: string }) {
-  const [protocol, setProtocol] = useState<PortProtocolFilter>('all')
+  const requestSeqRef = useRef(0)
+  const [protocol, setProtocol] = useState<ServerPortProtocolFilter>('all')
   const [rows, setRows] = useState<PortRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -128,27 +150,33 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
   const [selectedPortKey, setSelectedPortKey] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [releaseSubmitting, setReleaseSubmitting] = useState(false)
-  const [releasingTarget, setReleasingTarget] = useState<Pick<PortRow, 'port' | 'protocol'> | null>(null)
+  const [releasingTarget, setReleasingTarget] = useState<Pick<PortRow, 'port' | 'protocol'> | null>(
+    null
+  )
   const [releaseForce, setReleaseForce] = useState(false)
 
   const loadPorts = useCallback(async () => {
     if (!serverId) return
+    const requestSeq = requestSeqRef.current + 1
+    requestSeqRef.current = requestSeq
     setLoading(true)
     setError('')
     try {
-      const protocols: ServerPortProtocol[] = protocol === 'all' ? ['tcp', 'udp'] : [protocol]
-      const responses = await Promise.all(protocols.map(value => listServerPorts(serverId, 'all', value)))
-      const nextRows = responses.flatMap(response =>
-        (Array.isArray(response.ports) ? response.ports : []).map(row => ({
-          ...row,
-          protocol: response.protocol,
-        }))
-      )
+      const response = await listServerPorts(serverId, 'all', protocol)
+      if (requestSeqRef.current !== requestSeq) return
+      const nextRows = (Array.isArray(response.ports) ? response.ports : []).map(row => ({
+        ...row,
+        protocol: row.protocol || (response.protocol === 'all' ? 'tcp' : response.protocol),
+      }))
+      if (requestSeqRef.current !== requestSeq) return
       setRows(nextRows)
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Failed to load ports')
+      if (requestSeqRef.current !== requestSeq || isRequestCancellation(loadError)) return
+      setError(getApiErrorMessage(loadError, 'Failed to load ports'))
     } finally {
-      setLoading(false)
+      if (requestSeqRef.current === requestSeq) {
+        setLoading(false)
+      }
     }
   }, [protocol, serverId])
 
@@ -160,7 +188,10 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
     setPage(1)
   }, [protocol, query, statusFilter])
 
-  const searchMatchedRows = useMemo(() => rows.filter(row => matchesQuery(row, query)), [query, rows])
+  const searchMatchedRows = useMemo(
+    () => rows.filter(row => matchesQuery(row, query)),
+    [query, rows]
+  )
 
   const filteredRows = useMemo(() => {
     return [...searchMatchedRows]
@@ -198,7 +229,10 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
   )
 
   useEffect(() => {
-    if (selectedPortKey != null && !filteredRows.some(row => getPortRowKey(row) === selectedPortKey)) {
+    if (
+      selectedPortKey != null &&
+      !filteredRows.some(row => getPortRowKey(row) === selectedPortKey)
+    ) {
       setSelectedPortKey(null)
     }
   }, [filteredRows, selectedPortKey])
@@ -222,15 +256,21 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
         const mode = releaseForce ? 'force' : 'graceful'
         const result = await releaseServerPort(serverId, target.port, target.protocol, mode)
         if (!result.released) {
-          setError(`Port ${target.port}/${target.protocol.toUpperCase()} is still occupied after ${mode} release.`)
+          setError(
+            `Port ${target.port}/${target.protocol.toUpperCase()} is still occupied after ${mode} release.`
+          )
         } else {
-          setHint(`Port ${target.port}/${target.protocol.toUpperCase()} released by ${result.action_taken}.`)
+          setHint(
+            `Port ${target.port}/${target.protocol.toUpperCase()} released by ${result.action_taken}.`
+          )
         }
         await loadPorts()
       } catch (releaseError) {
         if (releaseError instanceof ClientResponseError && releaseError.status === 409) {
           const forceHint = !releaseForce ? ' Try enabling force mode.' : ''
-          setError(`Port ${target.port}/${target.protocol.toUpperCase()} is still occupied after release.${forceHint}`)
+          setError(
+            `Port ${target.port}/${target.protocol.toUpperCase()} is still occupied after release.${forceHint}`
+          )
           await loadPorts()
         } else {
           setError(releaseError instanceof Error ? releaseError.message : 'Failed to release port')
@@ -270,7 +310,11 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
       if (sortBy !== column) {
         return <ArrowUpDown className="h-3.5 w-3.5" />
       }
-      return sortDirection === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+      return sortDirection === 'asc' ? (
+        <ArrowUp className="h-3.5 w-3.5" />
+      ) : (
+        <ArrowDown className="h-3.5 w-3.5" />
+      )
     },
     [sortBy, sortDirection]
   )
@@ -285,7 +329,8 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
           <div className="space-y-1">
             <h2 className="text-sm font-semibold">Ports</h2>
             <p className="text-sm text-muted-foreground">
-              Review occupied and reserved ports, inspect ownership, and release active listeners when needed.
+              Review occupied and reserved ports, inspect ownership, and release active listeners
+              when needed.
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -297,7 +342,9 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
               disabled={loading || releaseSubmitting}
               aria-label="Refresh ports data"
             >
-              <RotateCw className={cn('h-4 w-4', (loading || releaseSubmitting) && 'animate-spin')} />
+              <RotateCw
+                className={cn('h-4 w-4', (loading || releaseSubmitting) && 'animate-spin')}
+              />
             </Button>
           </div>
         </div>
@@ -308,13 +355,14 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
           <div className="overflow-x-auto pb-1">
             <div className="flex min-w-max items-center gap-3 whitespace-nowrap">
               <span className="text-sm text-muted-foreground">
-                Total {summary.total} ports, {summary.occupied} occupied, {summary.reserved} reserved.
+                Total {summary.total} ports, {summary.occupied} occupied, {summary.reserved}{' '}
+                reserved.
               </span>
               <div className="ml-auto flex items-center gap-2">
                 <select
                   aria-label="Port protocol"
                   value={protocol}
-                  onChange={event => setProtocol(event.target.value as PortProtocolFilter)}
+                  onChange={event => setProtocol(event.target.value as ServerPortProtocolFilter)}
                   className="h-8 w-28 rounded-md border bg-background px-2 text-sm"
                 >
                   <option value="all">All Protocol</option>
@@ -348,7 +396,9 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
                   >
                     {'<'}
                   </Button>
-                  <span className="px-1 text-center font-medium text-foreground">{currentPage}/{totalPages}</span>
+                  <span className="px-1 text-center font-medium text-foreground">
+                    {currentPage}/{totalPages}
+                  </span>
                   <Button
                     size="icon"
                     variant="ghost"
@@ -365,7 +415,12 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
           </div>
 
           <div className="space-y-1">
-            <div className={cn('grid gap-2 px-3 py-2 text-sm font-medium text-muted-foreground', PORTS_INVENTORY_GRID_CLASS)}>
+            <div
+              className={cn(
+                'grid gap-2 px-3 py-2 text-sm font-medium text-muted-foreground',
+                PORTS_INVENTORY_GRID_CLASS
+              )}
+            >
               <button
                 type="button"
                 onClick={() => toggleSort('port')}
@@ -406,13 +461,17 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
               <span className="py-1 text-center">Actions</span>
             </div>
 
+            {error ? <div className="px-3 py-2 text-sm text-destructive">{error}</div> : null}
+
             {loading ? (
               <div className="inline-flex items-center gap-2 px-3 py-6 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Loading ports...
               </div>
             ) : pagedRows.length === 0 ? (
-              <div className="px-3 py-6 text-sm text-muted-foreground">No ports match the current filters.</div>
+              <div className="px-3 py-6 text-sm text-muted-foreground">
+                No ports match the current filters.
+              </div>
             ) : (
               <div className="divide-y divide-border/60">
                 {pagedRows.map(row => {
@@ -436,12 +495,27 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
                       >
                         <span className="block truncate font-medium leading-5">{portLabel}</span>
                       </button>
-                      <span className={cn('truncate py-1 text-left', occupied ? 'text-emerald-600' : row.reservation?.reserved ? 'text-amber-600' : 'text-muted-foreground')}>
+                      <span
+                        className={cn(
+                          'truncate py-1 text-left',
+                          occupied
+                            ? 'text-emerald-600'
+                            : row.reservation?.reserved
+                              ? 'text-amber-600'
+                              : 'text-muted-foreground'
+                        )}
+                      >
                         {getPortStatusLabel(row)}
                       </span>
-                      <span className="truncate py-1 text-left text-muted-foreground">{row.protocol.toUpperCase()}</span>
-                      <span className="truncate py-1 text-left text-muted-foreground">{getPortPidLabel(row)}</span>
-                      <span className="truncate py-1 text-left text-muted-foreground">{getPortProcessLabel(row)}</span>
+                      <span className="truncate py-1 text-left text-muted-foreground">
+                        {row.protocol.toUpperCase()}
+                      </span>
+                      <span className="truncate py-1 text-left text-muted-foreground">
+                        {getPortPidLabel(row)}
+                      </span>
+                      <span className="truncate py-1 text-left text-muted-foreground">
+                        {getPortProcessLabel(row)}
+                      </span>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
@@ -455,8 +529,13 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setSelectedPortKey(rowKey)}>Open details</DropdownMenuItem>
-                          <DropdownMenuItem disabled={!occupied} onClick={() => requestReleaseOccupiedPort(row)}>
+                          <DropdownMenuItem onClick={() => setSelectedPortKey(rowKey)}>
+                            Open details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={!occupied}
+                            onClick={() => requestReleaseOccupiedPort(row)}
+                          >
                             Release port
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -469,14 +548,19 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
           </div>
         </section>
 
-        <section className="max-h-[calc(100vh-50px)] self-start overflow-auto space-y-4 rounded-md border p-4" aria-labelledby="selected-port-heading">
+        <section
+          className="max-h-[calc(100vh-50px)] self-start overflow-auto space-y-4 rounded-md border p-4"
+          aria-labelledby="selected-port-heading"
+        >
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h3 id="selected-port-heading" className="text-sm font-semibold">
                 Selected Port
               </h3>
               <p className="text-xs text-muted-foreground">
-                {selectedRow ? `Port ${selectedRow.port}/${selectedRow.protocol.toUpperCase()}` : 'Select one port from the inventory.'}
+                {selectedRow
+                  ? `Port ${selectedRow.port}/${selectedRow.protocol.toUpperCase()}`
+                  : 'Select one port from the inventory.'}
               </p>
             </div>
             {selectedRow ? (
@@ -507,19 +591,27 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
                 </div>
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
                   <span className="shrink-0 font-medium text-foreground">Protocol:</span>
-                  <span className="break-words text-muted-foreground">{selectedRow.protocol.toUpperCase()}</span>
+                  <span className="break-words text-muted-foreground">
+                    {selectedRow.protocol.toUpperCase()}
+                  </span>
                 </div>
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
                   <span className="shrink-0 font-medium text-foreground">Status:</span>
-                  <span className="break-words text-muted-foreground">{getPortStatusLabel(selectedRow)}</span>
+                  <span className="break-words text-muted-foreground">
+                    {getPortStatusLabel(selectedRow)}
+                  </span>
                 </div>
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
                   <span className="shrink-0 font-medium text-foreground">Process:</span>
-                  <span className="break-words text-muted-foreground">{getPortProcessLabel(selectedRow)}</span>
+                  <span className="break-words text-muted-foreground">
+                    {getPortProcessLabel(selectedRow)}
+                  </span>
                 </div>
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
                   <span className="shrink-0 font-medium text-foreground">PIDs:</span>
-                  <span className="break-words text-muted-foreground">{getPortPidLabel(selectedRow)}</span>
+                  <span className="break-words text-muted-foreground">
+                    {getPortPidLabel(selectedRow)}
+                  </span>
                 </div>
               </div>
 
@@ -530,8 +622,13 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
                 ) : (
                   <div className="space-y-2">
                     {selectedListeners.map((listener: ServerPortListener, index) => (
-                      <div key={`${listener.local_address}-${listener.peer_address}-${index}`} className="rounded-md border px-3 py-2">
-                        <div className="text-sm text-foreground">{listener.local_address || '—'}</div>
+                      <div
+                        key={`${listener.local_address}-${listener.peer_address}-${index}`}
+                        className="rounded-md border px-3 py-2"
+                      >
+                        <div className="text-sm text-foreground">
+                          {listener.local_address || '—'}
+                        </div>
                         <div className="text-xs text-muted-foreground">
                           {listener.state || 'unknown'}
                           {listener.peer_address ? ` · ${listener.peer_address}` : ''}
@@ -551,7 +648,9 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
                     {selectedSources.map((source: ServerPortReservationSource, index) => (
                       <div key={`${source.type}-${index}`} className="rounded-md border px-3 py-2">
                         <div className="text-sm text-foreground">{source.type}</div>
-                        <div className="text-xs text-muted-foreground">Confidence: {source.confidence}</div>
+                        <div className="text-xs text-muted-foreground">
+                          Confidence: {source.confidence}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -563,7 +662,6 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
       </div>
 
       {hint ? <div className="text-sm text-emerald-600">{hint}</div> : null}
-      {error ? <div className="text-sm text-destructive">{error}</div> : null}
 
       <AlertDialog
         open={confirmOpen}
@@ -579,7 +677,10 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Release port {releasingTarget ? `${releasingTarget.port}/${releasingTarget.protocol.toUpperCase()}` : '-'}
+              Release port{' '}
+              {releasingTarget
+                ? `${releasingTarget.port}/${releasingTarget.protocol.toUpperCase()}`
+                : '-'}
             </AlertDialogTitle>
             <AlertDialogDescription>
               This operation stops the current owner of this port. Use with caution.
@@ -593,13 +694,18 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
                 disabled={releaseSubmitting}
                 onCheckedChange={checked => setReleaseForce(checked === true)}
               />
-              <span>Force release (non-graceful). This may terminate processes or containers immediately.</span>
+              <span>
+                Force release (non-graceful). This may terminate processes or containers
+                immediately.
+              </span>
             </label>
 
             {releaseForce ? (
               <div className="inline-flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                 <AlertTriangle className="mt-0.5 h-4 w-4" />
-                <span>Dangerous operation: force mode may cause service interruption or data loss.</span>
+                <span>
+                  Dangerous operation: force mode may cause service interruption or data loss.
+                </span>
               </div>
             ) : null}
 

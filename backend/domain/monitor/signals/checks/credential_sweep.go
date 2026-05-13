@@ -1,6 +1,7 @@
 package checks
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -24,10 +25,12 @@ func RunInstanceCredentialSweep(app core.App, repo instances.Repository, now tim
 	if err != nil {
 		return err
 	}
+	var sweepErrors []error
 	for _, item := range items {
 		target, ok, err := monitor.ResolveInstanceTarget(item)
 		if err != nil {
-			return err
+			sweepErrors = append(sweepErrors, err)
+			continue
 		}
 		if !ok {
 			continue
@@ -38,10 +41,10 @@ func RunInstanceCredentialSweep(app core.App, repo instances.Repository, now tim
 		}
 		result := CheckInstanceCredential(app, target)
 		if err := projectInstanceCredential(app, target, result, now); err != nil {
-			return err
+			sweepErrors = append(sweepErrors, err)
 		}
 	}
-	return nil
+	return errors.Join(sweepErrors...)
 }
 
 func CheckInstanceCredential(app core.App, target monitor.ResolvedInstanceTarget) CredentialCheckResult {

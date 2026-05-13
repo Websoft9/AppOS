@@ -44,10 +44,38 @@ type monitorAgentDeployResponse struct {
 	PackagedVer string            `json:"packaged_version,omitempty"`
 }
 
+type monitorAgentDeployRequest struct {
+	AppOSBaseURL string `json:"apposBaseUrl,omitempty"`
+}
+
+// @Summary Install monitor agent on a managed server
+// @Description Installs and starts the server metrics collector, writes the remote-write configuration, and issues or reuses the per-server monitor-agent token. Optional apposBaseUrl overrides the callback base URL used in the generated collector configuration.
+// @Tags Servers
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param payload body monitorAgentDeployRequest false "optional AppOS callback base URL override"
+// @Success 200 {object} monitorAgentDeployResponse
+// @Failure 400 {object} MonitorErrorResponse
+// @Failure 401 {object} MonitorErrorResponse
+// @Failure 404 {object} MonitorErrorResponse
+// @Failure 500 {object} MonitorErrorResponse
+// @Router /api/servers/{serverId}/ops/monitor-agent/install [post]
 func handleMonitorAgentInstall(e *core.RequestEvent) error {
 	return handleMonitorAgentDeploy(e, "installed")
 }
 
+// @Summary Update monitor agent on a managed server
+// @Description Reinstalls the server metrics collector, refreshes the remote-write configuration, and returns current service status details. Optional apposBaseUrl overrides the callback base URL used in the generated collector configuration.
+// @Tags Servers
+// @Security BearerAuth
+// @Param serverId path string true "server record ID"
+// @Param payload body monitorAgentDeployRequest false "optional AppOS callback base URL override"
+// @Success 200 {object} monitorAgentDeployResponse
+// @Failure 400 {object} MonitorErrorResponse
+// @Failure 401 {object} MonitorErrorResponse
+// @Failure 404 {object} MonitorErrorResponse
+// @Failure 500 {object} MonitorErrorResponse
+// @Router /api/servers/{serverId}/ops/monitor-agent/update [post]
 func handleMonitorAgentUpdate(e *core.RequestEvent) error {
 	return handleMonitorAgentDeploy(e, "updated")
 }
@@ -58,9 +86,7 @@ func handleMonitorAgentDeploy(e *core.RequestEvent, resultStatus string) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": "serverId required"})
 	}
 
-	var body struct {
-		AppOSBaseURL string `json:"apposBaseUrl"`
-	}
+	var body monitorAgentDeployRequest
 	if e.Request.ContentLength > 0 {
 		if err := e.BindBody(&body); err != nil {
 			return e.JSON(http.StatusBadRequest, map[string]any{
@@ -117,7 +143,7 @@ func handleMonitorAgentDeploy(e *core.RequestEvent, resultStatus string) error {
 		"chmod +x \"$tmp_script\"",
 		fmt.Sprintf("printf %s > \"$tmp_config\"", terminal.ShellQuote(exportingConfig)),
 		fmt.Sprintf("(sudo -n env DISABLE_TELEMETRY=1 sh \"$tmp_script\" %s || env DISABLE_TELEMETRY=1 sh \"$tmp_script\" %s)", strings.Join(quotedArgs, " "), strings.Join(quotedArgs, " ")),
-		fmt.Sprintf("(sudo -n install -D -m 0644 \"$tmp_config\" %s || install -D -m 0644 \"$tmp_config\" %s)", terminal.ShellQuote(monitorAgentRemoteExporting), terminal.ShellQuote(monitorAgentRemoteExporting)),
+		monitorAgentExportingInstallCommand(monitorAgentRemoteExporting),
 		fmt.Sprintf("(sudo -n systemctl enable --now %s || systemctl enable --now %s)", terminal.ShellQuote(monitorAgentServiceName), terminal.ShellQuote(monitorAgentServiceName)),
 		fmt.Sprintf("(sudo -n systemctl restart %s || systemctl restart %s)", terminal.ShellQuote(monitorAgentServiceName), terminal.ShellQuote(monitorAgentServiceName)),
 	}, " && ")
@@ -234,6 +260,11 @@ func buildNetdataExportingConfig(serverID string, remoteWriteURL string, agentTo
 		"",
 	}, "\n")
 	return config, nil
+}
+
+func monitorAgentExportingInstallCommand(path string) string {
+	quotedPath := terminal.ShellQuote(path)
+	return fmt.Sprintf("(if getent group netdata >/dev/null 2>&1; then sudo -n install -D -m 0640 -o root -g netdata \"$tmp_config\" %s || install -D -m 0640 \"$tmp_config\" %s; else sudo -n install -D -m 0600 \"$tmp_config\" %s || install -D -m 0600 \"$tmp_config\" %s; fi)", quotedPath, quotedPath, quotedPath, quotedPath)
 }
 
 func monitorAgentTokenSecretName(serverID string) string {

@@ -1,6 +1,7 @@
 package checks
 
 import (
+	"errors"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -14,10 +15,12 @@ func RunInstanceReachabilitySweep(app core.App, repo instances.Repository, now t
 	if err != nil {
 		return err
 	}
+	var sweepErrors []error
 	for _, item := range items {
 		target, ok, err := monitor.ResolveInstanceTarget(item)
 		if err != nil {
-			return err
+			sweepErrors = append(sweepErrors, err)
+			continue
 		}
 		if !ok {
 			continue
@@ -28,10 +31,10 @@ func RunInstanceReachabilitySweep(app core.App, repo instances.Repository, now t
 		}
 		result := ProbeInstanceReachability(item)
 		if err := projectInstanceReachability(app, target, result, now); err != nil {
-			return err
+			sweepErrors = append(sweepErrors, err)
 		}
 	}
-	return nil
+	return errors.Join(sweepErrors...)
 }
 
 func projectInstanceReachability(app core.App, target monitor.ResolvedInstanceTarget, result ReachabilityResult, now time.Time) error {

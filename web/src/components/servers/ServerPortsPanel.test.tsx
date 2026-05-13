@@ -20,40 +20,226 @@ describe('ServerPortsPanel', () => {
     listServerPortsMock.mockReset()
     releaseServerPortMock.mockReset()
 
-    listServerPortsMock.mockImplementation(async (_serverId: string, _view: string, protocol: string) => {
-      if (protocol === 'udp') {
+    listServerPortsMock.mockImplementation(
+      async (_serverId: string, _view: string, protocol: string) => {
+        if (protocol === 'all') {
+          return {
+            server_id: 'server-1',
+            protocol: 'all',
+            view: 'all',
+            detected_at: '2026-05-09T09:00:00Z',
+            ports: [
+              {
+                port: 8080,
+                protocol: 'tcp',
+                occupancy: {
+                  occupied: true,
+                  process: { name: 'nginx', pid: 101 },
+                  pids: [101, 102],
+                  listeners: [
+                    {
+                      state: 'LISTEN',
+                      local_address: '0.0.0.0:8080',
+                      peer_address: '*:*',
+                      raw: 'tcp LISTEN 0 128 0.0.0.0:8080 *:*',
+                      process: { name: 'nginx', pid: 101 },
+                      pids: [101, 102],
+                    },
+                  ],
+                },
+                reservation: {
+                  reserved: true,
+                  sources: [{ type: 'docker', confidence: 'high', matches: [] }],
+                  container_probe: { available: true, status: 'ok' },
+                },
+              },
+              {
+                port: 5432,
+                protocol: 'tcp',
+                occupancy: {
+                  occupied: false,
+                  listeners: [],
+                },
+                reservation: {
+                  reserved: true,
+                  sources: [{ type: 'compose', confidence: 'medium', matches: [] }],
+                  container_probe: { available: true, status: 'ok' },
+                },
+              },
+              {
+                port: 80,
+                protocol: 'tcp',
+                occupancy: {
+                  occupied: true,
+                  process: { name: 'apache', pid: 80 },
+                  pids: [80],
+                  listeners: [
+                    {
+                      state: 'LISTEN',
+                      local_address: '0.0.0.0:80',
+                      peer_address: '*:*',
+                      raw: 'tcp LISTEN 0 128 0.0.0.0:80 *:*',
+                      process: { name: 'apache', pid: 80 },
+                      pids: [80],
+                    },
+                  ],
+                },
+                reservation: {
+                  reserved: false,
+                  sources: [],
+                  container_probe: { available: true, status: 'ok' },
+                },
+              },
+              {
+                port: 8080,
+                protocol: 'udp',
+                occupancy: {
+                  occupied: false,
+                  listeners: [],
+                },
+                reservation: {
+                  reserved: false,
+                  sources: [],
+                  container_probe: { available: true, status: 'ok' },
+                },
+              },
+              {
+                port: 53,
+                protocol: 'udp',
+                occupancy: {
+                  occupied: true,
+                  process: { name: 'dnsmasq', pid: 53 },
+                  pids: [53],
+                  listeners: [
+                    {
+                      state: 'UNCONN',
+                      local_address: '0.0.0.0:53',
+                      peer_address: '*:*',
+                      raw: 'udp UNCONN 0 0 0.0.0.0:53 *:*',
+                      process: { name: 'dnsmasq', pid: 53 },
+                      pids: [53],
+                    },
+                  ],
+                },
+                reservation: {
+                  reserved: false,
+                  sources: [],
+                  container_probe: { available: true, status: 'ok' },
+                },
+              },
+            ],
+            total: 5,
+            reservation_meta: {
+              container_probe: { available: true, status: 'ok' },
+            },
+          }
+        }
+
+        if (protocol === 'udp') {
+          return {
+            server_id: 'server-1',
+            protocol: 'udp',
+            view: 'all',
+            detected_at: '2026-05-09T09:00:00Z',
+            ports: [
+              {
+                port: 8080,
+                occupancy: {
+                  occupied: false,
+                  listeners: [],
+                },
+                reservation: {
+                  reserved: false,
+                  sources: [],
+                  container_probe: { available: true, status: 'ok' },
+                },
+              },
+              {
+                port: 53,
+                occupancy: {
+                  occupied: true,
+                  process: { name: 'dnsmasq', pid: 53 },
+                  pids: [53],
+                  listeners: [
+                    {
+                      state: 'UNCONN',
+                      local_address: '0.0.0.0:53',
+                      peer_address: '*:*',
+                      raw: 'udp UNCONN 0 0 0.0.0.0:53 *:*',
+                      process: { name: 'dnsmasq', pid: 53 },
+                      pids: [53],
+                    },
+                  ],
+                },
+                reservation: {
+                  reserved: false,
+                  sources: [],
+                  container_probe: { available: true, status: 'ok' },
+                },
+              },
+            ],
+            total: 2,
+            reservation_meta: {
+              container_probe: { available: true, status: 'ok' },
+            },
+          }
+        }
+
         return {
           server_id: 'server-1',
-          protocol: 'udp',
+          protocol: 'tcp',
           view: 'all',
           detected_at: '2026-05-09T09:00:00Z',
           ports: [
             {
               port: 8080,
               occupancy: {
-                occupied: false,
-                listeners: [],
+                occupied: true,
+                process: { name: 'nginx', pid: 101 },
+                pids: [101, 102],
+                listeners: [
+                  {
+                    state: 'LISTEN',
+                    local_address: '0.0.0.0:8080',
+                    peer_address: '*:*',
+                    raw: 'tcp LISTEN 0 128 0.0.0.0:8080 *:*',
+                    process: { name: 'nginx', pid: 101 },
+                    pids: [101, 102],
+                  },
+                ],
               },
               reservation: {
-                reserved: false,
-                sources: [],
+                reserved: true,
+                sources: [{ type: 'docker', confidence: 'high', matches: [] }],
                 container_probe: { available: true, status: 'ok' },
               },
             },
             {
-              port: 53,
+              port: 5432,
+              occupancy: {
+                occupied: false,
+                listeners: [],
+              },
+              reservation: {
+                reserved: true,
+                sources: [{ type: 'compose', confidence: 'medium', matches: [] }],
+                container_probe: { available: true, status: 'ok' },
+              },
+            },
+            {
+              port: 80,
               occupancy: {
                 occupied: true,
-                process: { name: 'dnsmasq', pid: 53 },
-                pids: [53],
+                process: { name: 'apache', pid: 80 },
+                pids: [80],
                 listeners: [
                   {
-                    state: 'UNCONN',
-                    local_address: '0.0.0.0:53',
+                    state: 'LISTEN',
+                    local_address: '0.0.0.0:80',
                     peer_address: '*:*',
-                    raw: 'udp UNCONN 0 0 0.0.0.0:53 *:*',
-                    process: { name: 'dnsmasq', pid: 53 },
-                    pids: [53],
+                    raw: 'tcp LISTEN 0 128 0.0.0.0:80 *:*',
+                    process: { name: 'apache', pid: 80 },
+                    pids: [80],
                   },
                 ],
               },
@@ -64,84 +250,13 @@ describe('ServerPortsPanel', () => {
               },
             },
           ],
-          total: 2,
+          total: 3,
           reservation_meta: {
             container_probe: { available: true, status: 'ok' },
           },
         }
       }
-
-      return {
-        server_id: 'server-1',
-        protocol: 'tcp',
-        view: 'all',
-        detected_at: '2026-05-09T09:00:00Z',
-        ports: [
-          {
-            port: 8080,
-            occupancy: {
-              occupied: true,
-              process: { name: 'nginx', pid: 101 },
-              pids: [101, 102],
-              listeners: [
-                {
-                  state: 'LISTEN',
-                  local_address: '0.0.0.0:8080',
-                  peer_address: '*:*',
-                  raw: 'tcp LISTEN 0 128 0.0.0.0:8080 *:*',
-                  process: { name: 'nginx', pid: 101 },
-                  pids: [101, 102],
-                },
-              ],
-            },
-            reservation: {
-              reserved: true,
-              sources: [{ type: 'docker', confidence: 'high', matches: [] }],
-              container_probe: { available: true, status: 'ok' },
-            },
-          },
-          {
-            port: 5432,
-            occupancy: {
-              occupied: false,
-              listeners: [],
-            },
-            reservation: {
-              reserved: true,
-              sources: [{ type: 'compose', confidence: 'medium', matches: [] }],
-              container_probe: { available: true, status: 'ok' },
-            },
-          },
-          {
-            port: 80,
-            occupancy: {
-              occupied: true,
-              process: { name: 'apache', pid: 80 },
-              pids: [80],
-              listeners: [
-                {
-                  state: 'LISTEN',
-                  local_address: '0.0.0.0:80',
-                  peer_address: '*:*',
-                  raw: 'tcp LISTEN 0 128 0.0.0.0:80 *:*',
-                  process: { name: 'apache', pid: 80 },
-                  pids: [80],
-                },
-              ],
-            },
-            reservation: {
-              reserved: false,
-              sources: [],
-              container_probe: { available: true, status: 'ok' },
-            },
-          },
-        ],
-        total: 3,
-        reservation_meta: {
-          container_probe: { available: true, status: 'ok' },
-        },
-      }
-    })
+    )
 
     releaseServerPortMock.mockResolvedValue({
       server_id: 'server-1',
@@ -159,15 +274,18 @@ describe('ServerPortsPanel', () => {
     render(<ServerPortsPanel serverId="server-1" />)
 
     await waitFor(() => {
-      expect(listServerPortsMock).toHaveBeenCalledWith('server-1', 'all', 'tcp')
-      expect(listServerPortsMock).toHaveBeenCalledWith('server-1', 'all', 'udp')
+      expect(listServerPortsMock).toHaveBeenCalledWith('server-1', 'all', 'all')
     })
 
     expect(screen.getByRole('heading', { name: 'Ports' })).toBeInTheDocument()
     expect(screen.getByText(/Review occupied and reserved ports/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Refresh ports data' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Selected Port' })).toBeInTheDocument()
-    expect(screen.getByText('Choose a port to inspect occupancy, reservation sources, and release options.')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Choose a port to inspect occupancy, reservation sources, and release options.'
+      )
+    ).toBeInTheDocument()
 
     const inventory = screen.getByRole('region', { name: 'Port inventory' })
     expect(within(inventory).getByLabelText('Port protocol')).toBeInTheDocument()
@@ -178,11 +296,17 @@ describe('ServerPortsPanel', () => {
     expect(within(inventory).getByRole('option', { name: 'All status (5)' })).toBeInTheDocument()
     expect(within(inventory).getByRole('option', { name: 'Occupied (3)' })).toBeInTheDocument()
     expect(within(inventory).getByRole('option', { name: 'Reserved (2)' })).toBeInTheDocument()
-    expect(within(inventory).getByText('Total 5 ports, 3 occupied, 2 reserved.')).toBeInTheDocument()
+    expect(
+      within(inventory).getByText('Total 5 ports, 3 occupied, 2 reserved.')
+    ).toBeInTheDocument()
     expect(within(inventory).getByText('1/1')).toBeInTheDocument()
-    expect(within(inventory).getByRole('button', { name: /Port sorted ascending/i })).toBeInTheDocument()
+    expect(
+      within(inventory).getByRole('button', { name: /Port sorted ascending/i })
+    ).toBeInTheDocument()
     expect(within(inventory).getByRole('button', { name: /Status sortable/i })).toBeInTheDocument()
-    expect(within(inventory).getByRole('button', { name: /Protocol sortable/i })).toBeInTheDocument()
+    expect(
+      within(inventory).getByRole('button', { name: /Protocol sortable/i })
+    ).toBeInTheDocument()
     expect(within(inventory).getByText('PIDs')).toBeInTheDocument()
     expect(within(inventory).getByRole('button', { name: /Process sortable/i })).toBeInTheDocument()
     expect(within(inventory).getByRole('button', { name: /^80\/TCP$/ })).toBeInTheDocument()
@@ -194,7 +318,9 @@ describe('ServerPortsPanel', () => {
     expect(within(inventory).getAllByText('UDP').length).toBeGreaterThan(0)
     expect(within(inventory).getByText('nginx')).toBeInTheDocument()
     expect(within(inventory).getByText('101, 102')).toBeInTheDocument()
-    expect(within(inventory).getByRole('button', { name: /Port actions for 8080\/TCP/i })).toBeInTheDocument()
+    expect(
+      within(inventory).getByRole('button', { name: /Port actions for 8080\/TCP/i })
+    ).toBeInTheDocument()
   })
 
   it('filters across all protocols and opens protocol-aware selected-port details', async () => {
@@ -203,7 +329,7 @@ describe('ServerPortsPanel', () => {
     const inventory = await screen.findByRole('region', { name: 'Port inventory' })
 
     await waitFor(() => {
-      expect(listServerPortsMock).toHaveBeenCalledWith('server-1', 'all', 'udp')
+      expect(listServerPortsMock).toHaveBeenCalledWith('server-1', 'all', 'all')
     })
 
     expect(within(inventory).getByRole('button', { name: /^8080\/TCP$/ })).toBeInTheDocument()
@@ -246,9 +372,27 @@ describe('ServerPortsPanel', () => {
     expect(within(detailSection).getByText('docker')).toBeInTheDocument()
     expect(within(detailSection).getByRole('button', { name: 'Release' })).toBeInTheDocument()
 
-    fireEvent.change(within(inventory).getByLabelText('Status filter'), { target: { value: 'reserved' } })
+    fireEvent.change(within(inventory).getByLabelText('Status filter'), {
+      target: { value: 'reserved' },
+    })
     expect(within(inventory).getByRole('button', { name: /^8080\/TCP$/ })).toBeInTheDocument()
     expect(within(inventory).queryByRole('button', { name: /^5432\/TCP$/ })).toBeNull()
     expect(within(inventory).queryByRole('button', { name: /^80\/TCP$/ })).toBeNull()
+  })
+
+  it('renders load errors inside the port inventory', async () => {
+    listServerPortsMock.mockRejectedValue(new Error('ssh failed'))
+
+    render(<ServerPortsPanel serverId="server-1" />)
+
+    const inventory = screen.getByRole('region', { name: 'Port inventory' })
+    expect(await within(inventory).findByText('ssh failed')).toBeInTheDocument()
+
+    const detailSection = screen.getByRole('heading', { name: 'Selected Port' }).closest('section')
+    if (!detailSection) {
+      throw new Error('Expected selected port section')
+    }
+
+    expect(within(detailSection).queryByText('ssh failed')).toBeNull()
   })
 })

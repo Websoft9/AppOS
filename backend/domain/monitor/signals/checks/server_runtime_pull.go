@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -15,6 +16,7 @@ import (
 )
 
 const serverRuntimePullTimeout = 20 * time.Second
+const serverRuntimePullConcurrency = 5
 
 var executeServerRuntimeCommand = terminal.ExecuteSSHCommand
 
@@ -35,15 +37,37 @@ func RunServerRuntimeSnapshotPullSweep(app core.App, now time.Time) error {
 	if err != nil {
 		return err
 	}
-	var sweepErrors []error
+	var (
+		wg          sync.WaitGroup
+		mu          sync.Mutex
+		sweepErrors []error
+		sem         = make(chan struct{}, serverRuntimePullConcurrency)
+	)
 	for _, server := range items {
 		if server == nil || server.ID == "" {
 			continue
 		}
-		if err := PullServerRuntimeSnapshot(app, server.ID, now); err != nil {
-			sweepErrors = append(sweepErrors, fmt.Errorf("server %s runtime pull: %w", server.ID, err))
-		}
+		serverID := server.ID
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() {
+				<-sem
+				if recovered := recover(); recovered != nil {
+					mu.Lock()
+					sweepErrors = append(sweepErrors, fmt.Errorf("server %s runtime pull panic: %v", serverID, recovered))
+					mu.Unlock()
+				}
+			}()
+			if err := PullServerRuntimeSnapshot(app, serverID, now); err != nil {
+				mu.Lock()
+				sweepErrors = append(sweepErrors, fmt.Errorf("server %s runtime pull: %w", serverID, err))
+				mu.Unlock()
+			}
+		}()
 	}
+	wg.Wait()
 	return errors.Join(sweepErrors...)
 }
 

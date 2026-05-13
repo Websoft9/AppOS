@@ -25,7 +25,12 @@ func QueryServerMetricsFreshness(ctx context.Context, serverID string, now time.
 	if now.IsZero() {
 		now = time.Now().UTC()
 	}
-	response, err := QueryMetricSeries(ctx, monitor.TargetTypeServer, serverID, defaultMetricsFreshnessWindow, []string{"cpu"}, MetricSeriesQueryOptions{EndAt: &now})
+	windowDuration, err := time.ParseDuration(defaultMetricsFreshnessWindow)
+	if err != nil {
+		return MetricsFreshnessObservation{}, err
+	}
+	startAt := now.Add(-windowDuration)
+	response, err := QueryMetricSeries(ctx, monitor.TargetTypeServer, serverID, defaultMetricsFreshnessWindow, []string{"cpu"}, MetricSeriesQueryOptions{StartAt: &startAt, EndAt: &now})
 	if err != nil {
 		return MetricsFreshnessObservation{}, err
 	}

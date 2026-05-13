@@ -132,6 +132,30 @@ const cases: DecisionCase[] = [
     },
   },
   {
+    name: 'direct unreachable from monitor control projection',
+    facts: {
+      ...baseDirectFacts,
+      connection: {
+        state_code: 'needs_attention',
+        reason_code: 'control_unreachable',
+        config_ready: true,
+      },
+      access: {
+        status: 'unavailable',
+        reason: 'control_unreachable',
+        checked_at: '2026-04-22T10:00:00Z',
+        source: 'monitor_control_reachability',
+      },
+    },
+    expected: {
+      state: 'needs_attention',
+      reason: 'AppOS cannot reach this server.',
+      primaryAction: 'Fix Configuration',
+      stateActions: ['View Connection', 'View Details'],
+      toolActions: ['Restart', 'Shutdown'],
+    },
+  },
+  {
     name: 'tunnel setup required',
     facts: {
       ...baseTunnelFacts,

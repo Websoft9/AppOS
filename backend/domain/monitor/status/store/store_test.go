@@ -93,6 +93,68 @@ func TestUpsertLatestStatusPreservesStrongerFailureAndTransition(t *testing.T) {
 	}
 }
 
+func TestUpsertLatestStatusIncomingCheckKindIgnoresMissingExistingCheckKind(t *testing.T) {
+	app := newStoreTestApp(t)
+	defer app.Cleanup()
+
+	now := time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)
+	_, err := store.UpsertLatestStatus(app, store.LatestStatusUpsert{
+		TargetType:       monitor.TargetTypeServer,
+		TargetID:         "server-missing-check-kind",
+		DisplayName:      "server-missing-check-kind",
+		Status:           monitor.StatusUnreachable,
+		Reason:           "previous failure without check kind",
+		SignalSource:     monitor.SignalSourceAppOS,
+		LastTransitionAt: now,
+		Summary:          map[string]any{"legacy": true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = store.UpsertLatestStatus(app, store.LatestStatusUpsert{
+		TargetType:        monitor.TargetTypeServer,
+		TargetID:          "server-missing-check-kind",
+		DisplayName:       "server-missing-check-kind",
+		Status:            monitor.StatusHealthy,
+		SignalSource:      monitor.SignalSourceAppOS,
+		LastTransitionAt:  now.Add(time.Minute),
+		StatusPriorityMap: map[string]int{monitor.StatusUnreachable: 4, monitor.StatusHealthy: 0},
+		IncomingCheckKind: monitor.CheckKindControlReachability,
+		Summary:           map[string]any{"check_kind": monitor.CheckKindControlReachability},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	updated := loadStoreLatestStatusRecord(t, app, monitor.TargetTypeServer, "server-missing-check-kind")
+	if got := updated.GetString("status"); got != monitor.StatusHealthy {
+		t.Fatalf("expected missing existing check_kind not to preserve stale failure, got %q", got)
+	}
+}
+
+func TestCloneSummaryDeepCopiesNestedValues(t *testing.T) {
+	original := map[string]any{
+		"apps": []map[string]any{{"app_id": "app-1", "runtime_state": "healthy"}},
+		"meta": map[string]any{"reason": "ok"},
+	}
+	cloned := store.CloneSummary(original)
+
+	clonedApps := cloned["apps"].([]map[string]any)
+	clonedApps[0]["runtime_state"] = "degraded"
+	clonedMeta := cloned["meta"].(map[string]any)
+	clonedMeta["reason"] = "changed"
+
+	originalApps := original["apps"].([]map[string]any)
+	if originalApps[0]["runtime_state"] != "healthy" {
+		t.Fatalf("expected original nested app state unchanged, got %+v", originalApps)
+	}
+	originalMeta := original["meta"].(map[string]any)
+	if originalMeta["reason"] != "ok" {
+		t.Fatalf("expected original nested meta unchanged, got %+v", originalMeta)
+	}
+}
+
 func TestSummaryFromRecordInvalidJSONReturnsError(t *testing.T) {
 	col := core.NewBaseCollection(collections.MonitorLatestStatus)
 	record := core.NewRecord(col)

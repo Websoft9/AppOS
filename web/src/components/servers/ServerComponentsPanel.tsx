@@ -1,19 +1,43 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Check, ChevronDown, CircleHelp, Loader2, RefreshCw, X } from 'lucide-react'
+import {
+  Check,
+  ChevronDown,
+  CircleHelp,
+  Loader2,
+  MoreHorizontal,
+  RefreshCw,
+  Trash2,
+  X,
+} from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
+  deleteSoftwareOperation,
+  getConfiguredAppURL,
   getSoftwareOperation,
   getSoftwareComponent,
   invokeSoftwareAction,
   type InstallSource,
+  listSoftwareOperations,
   listSoftwareComponents,
   type SoftwareOperation,
   type SoftwareActionType,
@@ -22,9 +46,46 @@ import {
 } from '@/lib/software-api'
 
 const PREREQUISITE_COMPONENT_KEYS = new Set(['docker'])
+const MONITOR_AGENT_COMPONENT_KEY = 'monitor-agent'
+const MONITOR_AGENT_ADDRESS_ACTIONS = new Set<SoftwareActionType>([
+  'install',
+  'upgrade',
+  'reinstall',
+])
+
+export type ServerComponentActionIntent = {
+  serverId: string
+  componentKey: string
+  action: SoftwareActionType
+  nonce: number
+}
 
 function isPrerequisiteComponent(component: SoftwareComponentSummary): boolean {
   return PREREQUISITE_COMPONENT_KEYS.has(component.component_key)
+}
+
+function primaryAddonAction(component: SoftwareComponentSummary): SoftwareActionType | null {
+  const actions = new Set(component.available_actions ?? [])
+  if (component.installed_state !== 'installed' && actions.has('install')) return 'install'
+  if (component.verification_state === 'degraded' && actions.has('reinstall')) return 'reinstall'
+  return null
+}
+
+function addonVersionLabel(component: SoftwareComponentSummary): string {
+  const detected = component.detected_version
+  const packaged = component.packaged_version
+  if (!detected) return packaged || '—'
+  if (packaged && packaged !== detected) return `${detected} (${packaged} avail)`
+  return detected
+}
+
+// Returns a human-readable format label for artifact distribution kind.
+// script is an installation method, not an artifact format, so it is not shown.
+function addonFormatLabel(kind: string | undefined): string | null {
+  if (kind === 'package') return 'package'
+  if (kind === 'binary') return 'binary'
+  if (kind === 'docker') return 'docker'
+  return null
 }
 
 function primaryPrerequisiteAction(component: SoftwareComponentSummary): SoftwareActionType | null {
@@ -33,6 +94,10 @@ function primaryPrerequisiteAction(component: SoftwareComponentSummary): Softwar
   if (component.verification_state === 'degraded' && actions.has('reinstall')) return 'reinstall'
   if (component.verification_state === 'degraded' && actions.has('upgrade')) return 'upgrade'
   return null
+}
+
+function isDangerousPrerequisiteAction(action: SoftwareActionType): boolean {
+  return action === 'upgrade' || action === 'reinstall'
 }
 
 function prerequisiteChecks(component: SoftwareComponentSummary): Array<{
@@ -83,7 +148,39 @@ function blockingSummary(
   return null
 }
 
-function readVerificationDetails(component: SoftwareComponentSummary): Record<string, unknown> | null {
+function addonInventoryBlockingError(component: SoftwareComponentSummary): string | null {
+  const readinessIssues = component.preflight?.issues ?? []
+  const readinessBlocker = readinessIssues.find(issue => !issue.startsWith('network_required:'))
+  if (readinessBlocker) {
+    return readinessBlocker
+  }
+
+  const verificationReason = component.verification?.reason?.trim()
+  if (!verificationReason || component.verification_state !== 'degraded') {
+    return null
+  }
+
+  const normalized = verificationReason.toLowerCase()
+  if (
+    normalized.includes('sudo') ||
+    normalized.includes('permission') ||
+    normalized.includes('privilege') ||
+    normalized.includes('denied') ||
+    normalized.includes('authentication') ||
+    normalized.includes('auth ') ||
+    normalized.includes('ssh') ||
+    normalized.includes('operation not permitted') ||
+    normalized.includes('not allowed')
+  ) {
+    return verificationReason
+  }
+
+  return null
+}
+
+function readVerificationDetails(
+  component: SoftwareComponentSummary
+): Record<string, unknown> | null {
   const value = component.verification?.details
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return value as Record<string, unknown>
@@ -122,11 +219,34 @@ function formatTimestamp(value: string | undefined): string {
   return timestamp.toLocaleString()
 }
 
+function browserAppOSBaseURL(): string | undefined {
+  if (typeof window === 'undefined' || !window.location?.origin) return undefined
+  return normalizeAppOSBaseURL(window.location.origin) || undefined
+}
+
+function normalizeAppOSBaseURL(value: string | undefined): string {
+  const raw = value?.trim()
+  if (!raw) return ''
+  try {
+    const parsed = new URL(raw)
+    if (!parsed.protocol || !parsed.host) return ''
+    return parsed.toString().replace(/\/$/, '')
+  } catch {
+    return ''
+  }
+}
+
+function needsMonitorAgentAddressChoice(componentKey: string, action: SoftwareActionType): boolean {
+  return componentKey === MONITOR_AGENT_COMPONENT_KEY && MONITOR_AGENT_ADDRESS_ACTIONS.has(action)
+}
+
 function phaseLabel(op: SoftwareLastOperation | undefined): string {
   if (!op) return ''
   if (op.terminal_status === 'success') return 'Succeeded'
   if (op.terminal_status === 'failed')
     return op.failure_reason ? `Failed: ${op.failure_reason}` : 'Failed'
+  if (op.terminal_status === 'attention_required')
+    return op.failure_reason ? `Attention required: ${op.failure_reason}` : 'Attention required'
   const labels: Record<string, string> = {
     accepted: 'Accepted',
     preflight: 'Preflight check…',
@@ -145,6 +265,9 @@ function phaseLabelFromOperation(op: SoftwareOperation | undefined): string {
   if (op.terminal_status === 'failed') {
     return op.failure_reason ? `Failed: ${op.failure_reason}` : 'Failed'
   }
+  if (op.terminal_status === 'attention_required') {
+    return op.failure_reason ? `Attention required: ${op.failure_reason}` : 'Attention required'
+  }
   const labels: Record<string, string> = {
     accepted: 'Accepted',
     preflight: 'Preflight check…',
@@ -157,8 +280,36 @@ function phaseLabelFromOperation(op: SoftwareOperation | undefined): string {
   return labels[op.phase] ?? op.phase
 }
 
-function isInProgress(op: SoftwareLastOperation | undefined): boolean {
+function isInProgress(op: SoftwareLastOperation | SoftwareOperation | undefined): boolean {
   return !!op && op.terminal_status === 'none'
+}
+
+function operationTone(op: SoftwareOperation): 'default' | 'secondary' | 'outline' | 'destructive' {
+  if (op.terminal_status === 'success' || op.phase === 'succeeded') return 'default'
+  if (op.terminal_status === 'failed' || op.phase === 'failed') return 'destructive'
+  if (op.terminal_status === 'attention_required' || op.phase === 'attention_required')
+    return 'outline'
+  return 'secondary'
+}
+
+function operationStatusBadgeLabel(op: SoftwareOperation): string {
+  if (op.terminal_status === 'success') return 'Succeeded'
+  if (op.terminal_status === 'failed') return 'Failed'
+  if (op.terminal_status === 'attention_required') return 'Attention required'
+  return phaseLabelFromOperation(op)
+}
+
+function operationEventLines(op: SoftwareOperation | undefined): string[] {
+  if (!op?.event_log) return []
+  return op.event_log
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+}
+
+function latestOperationEventLine(op: SoftwareOperation): string {
+  const lines = operationEventLines(op)
+  return lines.length > 0 ? lines[lines.length - 1] : ''
 }
 
 function statusTone(
@@ -221,12 +372,19 @@ function prerequisiteActionSlots(component: SoftwareComponentSummary): Array<{
   return slots.filter(slot => slot.label !== 'Install' || slot.action !== null)
 }
 
-type PrerequisitePanelMode = 'checklist' | 'operation'
+type PrerequisitePanelMode = 'checklist' | 'operation' | 'history'
 
 type ActionLogEntry = {
   id: string
   tone: 'muted' | 'success' | 'error'
   text: string
+}
+
+type MonitorAgentAddressChoice = {
+  componentKey: string
+  action: SoftwareActionType
+  detectedURL: string
+  configuredURL: string
 }
 
 function SectionHelp({ label, children }: { label: string; children: string }) {
@@ -248,22 +406,172 @@ function SectionHelp({ label, children }: { label: string; children: string }) {
   )
 }
 
-function AddonDetailRows({
-  component,
+function OperationHistory({
+  serverId,
+  componentKey,
+  enabled = true,
+  reloadKey,
 }: {
-  component: SoftwareComponentSummary
+  serverId: string
+  componentKey: string
+  enabled?: boolean
+  reloadKey?: string
 }) {
+  const [operations, setOperations] = useState<SoftwareOperation[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [deletingOperationId, setDeletingOperationId] = useState<string | null>(null)
+
+  const loadHistory = useCallback(async () => {
+    if (!serverId || !componentKey || !enabled) return
+    setLoading(true)
+    setError('')
+    try {
+      setOperations(await listSoftwareOperations(serverId, componentKey))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load operation history')
+    } finally {
+      setLoading(false)
+    }
+  }, [componentKey, enabled, serverId])
+
+  useEffect(() => {
+    void loadHistory()
+  }, [loadHistory, reloadKey])
+
+  const handleDelete = useCallback(
+    async (operation: SoftwareOperation) => {
+      if (isInProgress(operation)) return
+      setDeletingOperationId(operation.id)
+      setError('')
+      try {
+        await deleteSoftwareOperation(serverId, operation.id)
+        setOperations(current => current.filter(item => item.id !== operation.id))
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to delete operation history record')
+      } finally {
+        setDeletingOperationId(null)
+      }
+    },
+    [serverId]
+  )
+
+  return (
+    <div className="min-w-0 space-y-2">
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <div className="min-w-0 truncate text-sm font-medium text-foreground">
+          Operation History ({operations.length})
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={loading}
+          onClick={() => void loadHistory()}
+          className="h-7 w-7 shrink-0 p-0"
+          aria-label="Refresh operation history"
+          title="Refresh operation history"
+        >
+          {loading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <RefreshCw className="h-3.5 w-3.5" />
+          )}
+        </Button>
+      </div>
+
+      {error ? <div className="text-sm text-destructive">{error}</div> : null}
+
+      {loading && operations.length === 0 ? (
+        <div className="py-3 text-sm text-muted-foreground">Loading operation history...</div>
+      ) : operations.length === 0 ? (
+        <div className="py-3 text-sm text-muted-foreground">No operation history yet.</div>
+      ) : (
+        <div className="max-h-72 min-w-0 divide-y divide-border/60 overflow-y-auto overflow-x-hidden">
+          {operations.map(operation => (
+            <div
+              key={operation.id}
+              className="grid min-w-0 max-w-full gap-2 py-2 text-sm sm:grid-cols-[minmax(0,8rem)_minmax(0,6rem)_minmax(0,1fr)_1.75rem] sm:items-start"
+            >
+              <div className="min-w-0 truncate text-xs text-muted-foreground">
+                {formatTimestamp(operation.updated || operation.created) || '—'}
+              </div>
+              <div className="flex min-w-0 items-center gap-1.5">
+                {isInProgress(operation) ? (
+                  <Loader2 className="h-3 w-3 shrink-0 animate-spin text-muted-foreground" />
+                ) : null}
+                <span className="min-w-0 truncate text-xs font-medium capitalize text-foreground">
+                  {operation.action}
+                </span>
+              </div>
+              <div className="min-w-0 max-w-full space-y-1">
+                <Badge
+                  variant={operationTone(operation)}
+                  className="max-w-full truncate text-[11px]"
+                >
+                  {operationStatusBadgeLabel(operation)}
+                </Badge>
+                {operation.failure_reason ? (
+                  <div className="max-w-full break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">
+                    {operation.failure_reason}
+                  </div>
+                ) : latestOperationEventLine(operation) ? (
+                  <div className="max-w-full break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">
+                    {latestOperationEventLine(operation)}
+                  </div>
+                ) : null}
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={isInProgress(operation) || deletingOperationId === operation.id}
+                onClick={() => void handleDelete(operation)}
+                className="h-7 w-7 justify-self-end p-0 text-muted-foreground hover:text-destructive disabled:opacity-40"
+                aria-label={`Delete ${operation.action} operation history record`}
+                title={
+                  isInProgress(operation)
+                    ? 'In-flight operations cannot be deleted'
+                    : 'Delete history record'
+                }
+              >
+                {deletingOperationId === operation.id ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AddonDetailRows({ component }: { component: SoftwareComponentSummary }) {
   const installSource = installSourceSummary(component)
-  const versionLabel = component.detected_version || component.packaged_version || '—'
+  const versionLabel = addonVersionLabel(component)
   const lastOp = component.last_operation
   const lastActionAt = formatTimestamp(component.last_action?.at || lastOp?.updated_at)
   const readinessIssues = component.preflight?.issues ?? []
   return [
     { label: 'Status', value: statusLabel(component) },
-    { label: 'Version', value: versionLabel },
-    { label: 'Template', value: component.template_kind },
+    {
+      label: 'Version',
+      value: addonFormatLabel(component.template_kind)
+        ? `${versionLabel}  ·  ${addonFormatLabel(component.template_kind)}`
+        : versionLabel,
+    },
     { label: 'Install Source', value: installSource?.replace(/^Install source:\s*/i, '') || '—' },
-    { label: 'Last Activity', value: phaseLabel(lastOp) || (component.last_action ? `${component.last_action.action} · ${component.last_action.result}` : '—') },
+    {
+      label: 'Last Activity',
+      value:
+        phaseLabel(lastOp) ||
+        (component.last_action
+          ? `${component.last_action.action} · ${component.last_action.result}`
+          : '—'),
+    },
     { label: 'Updated', value: lastActionAt || '—' },
     { label: 'Issues', value: readinessIssues.length ? readinessIssues.join(' | ') : '—' },
   ]
@@ -282,17 +590,28 @@ function AddonInventoryRow({
   const inProgress = isInProgress(lastOp)
   const phase = phaseLabel(lastOp)
   const activityLabel = inProgress ? phase : phase || statusLabel(component)
+  const versionLabel = addonVersionLabel(component)
 
   return (
     <button
       type="button"
       onClick={() => onSelect(component.component_key)}
-      className={`grid w-full grid-cols-[minmax(0,1.2fr)_6rem_7rem] items-center gap-3 px-3 py-2 text-left text-sm ${selected ? 'bg-accent/40' : 'hover:bg-accent/20'}`}
+      className={`grid w-full grid-cols-[minmax(0,1.2fr)_8rem_5rem_7rem] items-center gap-3 px-3 py-2 text-left text-sm ${selected ? 'bg-accent/40' : 'hover:bg-accent/20'}`}
       aria-label={component.label}
     >
       <div className="min-w-0 space-y-1">
         <div className="truncate font-medium text-foreground">{component.label}</div>
-        <div className="truncate text-[11px] font-mono text-muted-foreground">{component.component_key}</div>
+        <div className="truncate text-[11px] font-mono text-muted-foreground">
+          {component.component_key}
+        </div>
+      </div>
+      <div className="min-w-0 space-y-0.5">
+        <div className="truncate text-xs text-muted-foreground">{versionLabel}</div>
+        {addonFormatLabel(component.template_kind) ? (
+          <div className="truncate text-[10px] text-muted-foreground/60">
+            {addonFormatLabel(component.template_kind)}
+          </div>
+        ) : null}
       </div>
       <div className="truncate text-xs text-muted-foreground">{statusLabel(component)}</div>
       <div className="truncate text-xs text-muted-foreground">{activityLabel || '—'}</div>
@@ -320,27 +639,32 @@ function readPrerequisiteContext(component: SoftwareComponentSummary) {
   const primaryAction = primaryPrerequisiteAction(component)
   const checklistItems = [
     {
-      label: 'Docker Engine installed',
+      label: 'Check Docker Engine installation',
       ready: component.installed_state === 'installed',
     },
     {
-      label: 'Docker Engine version available',
+      label: 'Check Docker Engine version',
       ready: engineVersion !== '',
     },
     {
-      label: 'Docker Compose available',
+      label: 'Check Docker Compose availability',
       ready: composeAvailable,
     },
     {
-      label: 'Docker Compose version available',
+      label: 'Check Docker Compose version',
       ready: composeVersion !== '',
     },
     ...prerequisiteChecks(component).map(check => ({
-      label: `${check.label} confirmed`,
+      label: `Check ${check.label}`,
       ready: check.ready,
     })),
   ]
-  const summary = blockingSummary(component.installed_state, readinessIssues, composeAvailable, primaryAction)
+  const summary = blockingSummary(
+    component.installed_state,
+    readinessIssues,
+    composeAvailable,
+    primaryAction
+  )
 
   return {
     readinessIssues,
@@ -359,7 +683,10 @@ function PrerequisiteChecklist({ component }: { component: SoftwareComponentSumm
   return (
     <div className="space-y-2">
       {context.checklistItems.map(item => (
-        <div key={`${component.component_key}:${item.label}`} className="flex items-center gap-2 text-sm">
+        <div
+          key={`${component.component_key}:${item.label}`}
+          className="flex items-center gap-2 text-sm"
+        >
           {item.ready ? (
             <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
           ) : (
@@ -376,10 +703,12 @@ function PrerequisiteActions({
   component,
   onAction,
   actionLoading,
+  actionsLocked,
 }: {
   component: SoftwareComponentSummary
   onAction: (componentKey: string, action: SoftwareActionType) => Promise<void>
   actionLoading: string | null
+  actionsLocked: boolean
 }) {
   const installSource = installSourceSummary(component)
   const actionSlots = prerequisiteActionSlots(component)
@@ -393,7 +722,7 @@ function PrerequisiteActions({
         {actionSlots.map(slot => {
           const loadingKey = slot.action ? `${component.component_key}:${slot.action}` : null
           const isThisLoading = loadingKey !== null && actionLoading === loadingKey
-          const disabled = !slot.action || isThisLoading
+          const disabled = !slot.action || isThisLoading || actionsLocked
           return (
             <Button
               key={slot.label}
@@ -423,8 +752,11 @@ function PrerequisiteCard({
   onAction,
   actionLoading,
   panelMode,
+  onPanelModeChange,
   activeActionLabel,
   actionLogs,
+  serverId,
+  actionsLocked,
 }: {
   component: SoftwareComponentSummary
   open: boolean
@@ -432,12 +764,19 @@ function PrerequisiteCard({
   onAction: (componentKey: string, action: SoftwareActionType) => Promise<void>
   actionLoading: string | null
   panelMode: PrerequisitePanelMode
+  onPanelModeChange: (mode: PrerequisitePanelMode) => void
   activeActionLabel: string | null
   actionLogs: ActionLogEntry[]
+  serverId: string
+  actionsLocked: boolean
 }) {
   const context = readPrerequisiteContext(component)
   const lastOp = component.last_operation
   const lastActionAt = formatTimestamp(component.last_action?.at || lastOp?.updated_at)
+  const headerSummary =
+    component.verification_state === 'healthy'
+      ? 'Checks passed'
+      : 'Open details for verification and recovery actions'
 
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
@@ -455,9 +794,7 @@ function PrerequisiteCard({
                   {prerequisiteStatusLabel(component)}
                 </Badge>
               </div>
-              <div className="text-xs text-muted-foreground">
-                {context.summary || (context.composeAvailable ? 'Checks passed' : 'Compose missing')}
-              </div>
+              <div className="text-xs text-muted-foreground">{headerSummary}</div>
             </div>
             <ChevronDown
               className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`}
@@ -484,7 +821,9 @@ function PrerequisiteCard({
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
                   <span className="shrink-0 font-medium text-foreground">Docker Compose:</span>
                   <span className="break-words text-muted-foreground">
-                    {context.composeAvailable && context.composeVersion ? context.composeVersion : 'Missing'}
+                    {context.composeAvailable && context.composeVersion
+                      ? context.composeVersion
+                      : 'Missing'}
                   </span>
                 </div>
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
@@ -498,20 +837,51 @@ function PrerequisiteCard({
                   component={component}
                   onAction={onAction}
                   actionLoading={actionLoading}
+                  actionsLocked={actionsLocked}
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-start justify-between gap-3">
-                <div className="text-sm font-medium text-foreground">
-                  {panelMode === 'operation' ? `${activeActionLabel || 'Action'} Log` : 'Verification Checklist'}
+              <div className="flex min-w-0 items-center justify-between gap-3">
+                <div className="inline-flex shrink-0 items-center gap-1 rounded-md bg-muted/35 p-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onPanelModeChange('checklist')}
+                    className={`h-7 rounded-sm px-2.5 text-xs ${panelMode === 'checklist' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:bg-transparent hover:text-foreground'}`}
+                  >
+                    Checklist
+                  </Button>
+                  {actionLogs.length > 0 || panelMode === 'operation' ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onPanelModeChange('operation')}
+                      className={`h-7 rounded-sm px-2.5 text-xs ${panelMode === 'operation' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:bg-transparent hover:text-foreground'}`}
+                    >
+                      Live Log
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onPanelModeChange('history')}
+                    className={`h-7 rounded-sm px-2.5 text-xs ${panelMode === 'history' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:bg-transparent hover:text-foreground'}`}
+                  >
+                    History
+                  </Button>
                 </div>
-                {context.summary ? (
-                  <div className="text-right text-xs text-amber-700 dark:text-amber-400">
-                    Blocking issue: {context.summary}
-                  </div>
-                ) : null}
+                <div className="min-w-0 truncate text-sm font-medium text-foreground">
+                  {panelMode === 'operation'
+                    ? `${activeActionLabel || 'Action'} Log`
+                    : panelMode === 'history'
+                      ? 'Operation History'
+                      : 'Verification Checklist'}
+                </div>
               </div>
               <div className="rounded-md border px-3 py-3">
                 {panelMode === 'operation' ? (
@@ -536,8 +906,17 @@ function PrerequisiteCard({
                       ))}
                     </div>
                   ) : (
-                    <div className="text-sm text-muted-foreground">Waiting for operation updates...</div>
+                    <div className="text-sm text-muted-foreground">
+                      Waiting for operation updates...
+                    </div>
                   )
+                ) : panelMode === 'history' ? (
+                  <OperationHistory
+                    serverId={serverId}
+                    componentKey={component.component_key}
+                    enabled={open && panelMode === 'history'}
+                    reloadKey={lastOp?.updated_at}
+                  />
                 ) : (
                   <PrerequisiteChecklist component={component} />
                 )}
@@ -550,14 +929,30 @@ function PrerequisiteCard({
   )
 }
 
-export function ServerComponentsPanel({ serverId }: { serverId: string }) {
+export function ServerComponentsPanel({
+  serverId,
+  actionIntent,
+  onActionIntentConsumed,
+}: {
+  serverId: string
+  actionIntent?: ServerComponentActionIntent | null
+  onActionIntentConsumed?: (nonce: number) => void
+}) {
   const [prerequisiteOpen, setPrerequisiteOpen] = useState<Record<string, boolean>>({})
-  const [prerequisitePanelMode, setPrerequisitePanelMode] = useState<Record<string, PrerequisitePanelMode>>({})
-  const [prerequisiteActiveActionLabel, setPrerequisiteActiveActionLabel] = useState<Record<string, string | null>>({})
-  const [prerequisiteActionLogs, setPrerequisiteActionLogs] = useState<Record<string, ActionLogEntry[]>>({})
+  const [prerequisitePanelMode, setPrerequisitePanelMode] = useState<
+    Record<string, PrerequisitePanelMode>
+  >({})
+  const [prerequisiteActiveActionLabel, setPrerequisiteActiveActionLabel] = useState<
+    Record<string, string | null>
+  >({})
+  const [prerequisiteActionLogs, setPrerequisiteActionLogs] = useState<
+    Record<string, ActionLogEntry[]>
+  >({})
   const [selectedAddonKey, setSelectedAddonKey] = useState<string | null>(null)
 
-  const [prerequisiteComponents, setPrerequisiteComponents] = useState<SoftwareComponentSummary[]>([])
+  const [prerequisiteComponents, setPrerequisiteComponents] = useState<SoftwareComponentSummary[]>(
+    []
+  )
   const [addonComponents, setAddonComponents] = useState<SoftwareComponentSummary[]>([])
   const [prerequisitesLoading, setPrerequisitesLoading] = useState(true)
   const [addonsLoading, setAddonsLoading] = useState(true)
@@ -566,13 +961,28 @@ export function ServerComponentsPanel({ serverId }: { serverId: string }) {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [actionError, setActionError] = useState('')
   const [actionMessage, setActionMessage] = useState('')
+  const [confirmDangerAction, setConfirmDangerAction] = useState<{
+    componentKey: string
+    action: SoftwareActionType
+    label: string
+  } | null>(null)
+  const [monitorAddressChoice, setMonitorAddressChoice] =
+    useState<MonitorAgentAddressChoice | null>(null)
+  const [activeOperationKeys, setActiveOperationKeys] = useState<Record<string, boolean>>({})
   const loading = prerequisitesLoading || addonsLoading
   const operationPollersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const handledActionIntentRef = useRef<number | null>(null)
 
   const selectedAddon = useMemo(
     () => addonComponents.find(component => component.component_key === selectedAddonKey) ?? null,
     [addonComponents, selectedAddonKey]
   )
+
+  const actionsLocked =
+    actionLoading !== null ||
+    Object.values(activeOperationKeys).some(Boolean) ||
+    prerequisiteComponents.some(component => isInProgress(component.last_operation)) ||
+    addonComponents.some(component => isInProgress(component.last_operation))
 
   useEffect(() => {
     setPrerequisiteOpen(current => {
@@ -625,11 +1035,17 @@ export function ServerComponentsPanel({ serverId }: { serverId: string }) {
     })
   }, [])
 
-  const stopOperationPolling = useCallback((componentKey: string) => {
+  const stopOperationPolling = useCallback((componentKey: string, clearActive = true) => {
     const timer = operationPollersRef.current[componentKey]
     if (timer) {
       clearTimeout(timer)
       delete operationPollersRef.current[componentKey]
+    }
+    if (clearActive) {
+      setActiveOperationKeys(current => {
+        if (!current[componentKey]) return current
+        return { ...current, [componentKey]: false }
+      })
     }
   }, [])
 
@@ -648,11 +1064,13 @@ export function ServerComponentsPanel({ serverId }: { serverId: string }) {
           )
         )
         setPrerequisiteComponents(items)
+        return items
       } catch (err) {
-        setPrerequisiteComponents([])
-        setPrerequisiteError(
+        const message =
           err instanceof Error ? err.message : 'Failed to load prerequisite components'
-        )
+        setPrerequisiteComponents([])
+        setPrerequisiteError(message)
+        return message
       } finally {
         setPrerequisitesLoading(false)
       }
@@ -670,33 +1088,69 @@ export function ServerComponentsPanel({ serverId }: { serverId: string }) {
       }
     }
 
-    await loadPrerequisites()
+    const prerequisiteLoadResult = await loadPrerequisites()
+    if (typeof prerequisiteLoadResult === 'string') {
+      setAddonComponents([])
+      setAddonError(prerequisiteLoadResult)
+      setAddonsLoading(false)
+      return
+    }
+
+    const prerequisiteBlocker = (prerequisiteLoadResult ?? [])
+      .map(component => addonInventoryBlockingError(component))
+      .find((message): message is string => !!message)
+    if (prerequisiteBlocker) {
+      setAddonComponents([])
+      setAddonError(prerequisiteBlocker)
+      setAddonsLoading(false)
+      return
+    }
+
     await loadAddons()
   }, [serverId])
 
   const startOperationPolling = useCallback(
     (componentKey: string, operationId: string, actionLabel: string) => {
-      stopOperationPolling(componentKey)
+      stopOperationPolling(componentKey, false)
 
       const poll = async () => {
         try {
           const operation = await getSoftwareOperation(serverId, operationId)
+          const eventLines = operationEventLines(operation)
           const terminal =
             operation.terminal_status !== 'none' ||
             operation.phase === 'succeeded' ||
             operation.phase === 'failed' ||
             operation.phase === 'attention_required'
 
-          appendPrerequisiteLog(componentKey, {
-            id: `${operation.id}:${operation.phase}:${operation.terminal_status}:${operation.updated}`,
-            tone:
-              operation.phase === 'failed' || operation.terminal_status === 'failed'
-                ? 'error'
-                : operation.phase === 'succeeded' || operation.terminal_status === 'success'
-                  ? 'success'
-                  : 'muted',
-            text: `${formatTimestamp(operation.updated) || 'Now'} · ${actionLabel}: ${phaseLabelFromOperation(operation)}`,
-          })
+          if (eventLines.length > 0) {
+            eventLines.forEach((line, index) => {
+              appendPrerequisiteLog(componentKey, {
+                id: `${operation.id}:event:${index}:${line}`,
+                tone:
+                  operation.phase === 'failed' || operation.terminal_status === 'failed'
+                    ? 'error'
+                    : operation.phase === 'succeeded' || operation.terminal_status === 'success'
+                      ? 'success'
+                      : operation.phase === 'attention_required' ||
+                          operation.terminal_status === 'attention_required'
+                        ? 'error'
+                        : 'muted',
+                text: line,
+              })
+            })
+          } else {
+            appendPrerequisiteLog(componentKey, {
+              id: `${operation.id}:${operation.phase}:${operation.terminal_status}:${operation.updated}`,
+              tone:
+                operation.phase === 'failed' || operation.terminal_status === 'failed'
+                  ? 'error'
+                  : operation.phase === 'succeeded' || operation.terminal_status === 'success'
+                    ? 'success'
+                    : 'muted',
+              text: `${formatTimestamp(operation.updated) || 'Now'} · ${actionLabel}: ${phaseLabelFromOperation(operation)}`,
+            })
+          }
 
           if (terminal) {
             stopOperationPolling(componentKey)
@@ -705,13 +1159,20 @@ export function ServerComponentsPanel({ serverId }: { serverId: string }) {
           }
 
           operationPollersRef.current[componentKey] = setTimeout(poll, 1500)
-        } catch (err) {
-          appendPrerequisiteLog(componentKey, {
-            id: `${componentKey}:poll-error:${Date.now()}`,
-            tone: 'error',
-            text: err instanceof Error ? err.message : `Failed to poll ${actionLabel} progress`,
-          })
-          stopOperationPolling(componentKey)
+        } catch {
+          try {
+            const latestComponent = await getSoftwareComponent(serverId, componentKey)
+            if (!isInProgress(latestComponent.last_operation)) {
+              stopOperationPolling(componentKey)
+              await loadComponents()
+              return
+            }
+          } catch {
+            // Keep the live log quiet on transient fetch failures and retry while the
+            // operation may still be running.
+          }
+
+          operationPollersRef.current[componentKey] = setTimeout(poll, 1500)
         }
       }
 
@@ -724,8 +1185,8 @@ export function ServerComponentsPanel({ serverId }: { serverId: string }) {
     void loadComponents()
   }, [loadComponents])
 
-  const handleAction = useCallback(
-    async (componentKey: string, action: SoftwareActionType) => {
+  const executeAction = useCallback(
+    async (componentKey: string, action: SoftwareActionType, apposBaseUrl?: string) => {
       setActionLoading(`${componentKey}:${action}`)
       setActionError('')
       setActionMessage('')
@@ -741,37 +1202,35 @@ export function ServerComponentsPanel({ serverId }: { serverId: string }) {
 
       if (isPrerequisite) {
         setPrerequisiteOpen(current => ({ ...current, [componentKey]: true }))
-        setPrerequisitePanelMode(current => ({ ...current, [componentKey]: 'operation' }))
-        setPrerequisiteActiveActionLabel(current => ({ ...current, [componentKey]: actionLabel }))
-        setPrerequisiteActionLogs(current => ({
-          ...current,
-          [componentKey]: [
-            {
-              id: `${componentKey}:${action}:requested`,
-              tone: 'muted',
-              text: `${actionLabel} requested...`,
-            },
-          ],
-        }))
-        stopOperationPolling(componentKey)
+        setActiveOperationKeys(current => ({ ...current, [componentKey]: true }))
       }
 
       try {
         const response = await invokeSoftwareAction(serverId, componentKey, action, {
-          apposBaseUrl:
-            typeof window !== 'undefined' && window.location?.origin
-              ? window.location.origin
-              : undefined,
+          apposBaseUrl: apposBaseUrl ?? browserAppOSBaseURL(),
         })
 
         if (isPrerequisite) {
-          appendPrerequisiteLog(componentKey, {
-            id: `${componentKey}:${action}:accepted:${response.operation_id || 'local'}`,
-            tone: 'muted',
-            text: response.operation_id
-              ? `${actionLabel} accepted (${response.operation_id})`
-              : `${actionLabel} accepted`,
-          })
+          setPrerequisitePanelMode(current => ({ ...current, [componentKey]: 'operation' }))
+          setPrerequisiteActiveActionLabel(current => ({ ...current, [componentKey]: actionLabel }))
+          setPrerequisiteActionLogs(current => ({
+            ...current,
+            [componentKey]: [
+              {
+                id: `${componentKey}:${action}:requested`,
+                tone: 'muted',
+                text: `${actionLabel} requested...`,
+              },
+              {
+                id: `${componentKey}:${action}:accepted:${response.operation_id || 'local'}`,
+                tone: 'muted',
+                text: response.operation_id
+                  ? `${actionLabel} accepted (${response.operation_id})`
+                  : `${actionLabel} accepted`,
+              },
+            ],
+          }))
+          stopOperationPolling(componentKey)
         }
 
         setActionMessage(
@@ -781,16 +1240,22 @@ export function ServerComponentsPanel({ serverId }: { serverId: string }) {
         )
 
         if (isPrerequisite && response.operation_id) {
+          setActiveOperationKeys(current => ({ ...current, [componentKey]: true }))
           startOperationPolling(componentKey, response.operation_id, actionLabel)
         } else {
+          if (isPrerequisite) {
+            setActiveOperationKeys(current => {
+              if (!current[componentKey]) return current
+              return { ...current, [componentKey]: false }
+            })
+          }
           await loadComponents()
         }
       } catch (err) {
         if (isPrerequisite) {
-          appendPrerequisiteLog(componentKey, {
-            id: `${componentKey}:${action}:error:${Date.now()}`,
-            tone: 'error',
-            text: err instanceof Error ? err.message : `${actionLabel} failed`,
+          setActiveOperationKeys(current => {
+            if (!current[componentKey]) return current
+            return { ...current, [componentKey]: false }
           })
         }
         setActionError(err instanceof Error ? err.message : `${action} failed`)
@@ -801,8 +1266,185 @@ export function ServerComponentsPanel({ serverId }: { serverId: string }) {
     [appendPrerequisiteLog, loadComponents, serverId, startOperationPolling, stopOperationPolling]
   )
 
+  const resolveMonitorAgentAddressChoice = useCallback(
+    async (componentKey: string, action: SoftwareActionType): Promise<string | null> => {
+      const detectedURL = browserAppOSBaseURL()
+      if (!needsMonitorAgentAddressChoice(componentKey, action)) {
+        return detectedURL ?? null
+      }
+
+      let configuredURL = ''
+      try {
+        configuredURL = normalizeAppOSBaseURL(await getConfiguredAppURL())
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : 'Failed to load App URL')
+        return null
+      }
+
+      if (!detectedURL) {
+        if (configuredURL) return configuredURL
+        setActionError('Cannot detect the AppOS callback address from this browser session.')
+        return null
+      }
+
+      if (configuredURL && configuredURL !== detectedURL) {
+        setMonitorAddressChoice({ componentKey, action, detectedURL, configuredURL })
+        return null
+      }
+
+      return detectedURL
+    },
+    []
+  )
+
+  const handleAction = useCallback(
+    async (componentKey: string, action: SoftwareActionType) => {
+      if (PREREQUISITE_COMPONENT_KEYS.has(componentKey) && isDangerousPrerequisiteAction(action)) {
+        setConfirmDangerAction({
+          componentKey,
+          action,
+          label: action === 'reinstall' ? 'Upgrade/Fix' : 'Upgrade/Fix',
+        })
+        return
+      }
+
+      const apposBaseUrl = await resolveMonitorAgentAddressChoice(componentKey, action)
+      if (needsMonitorAgentAddressChoice(componentKey, action) && !apposBaseUrl) return
+      await executeAction(componentKey, action, apposBaseUrl ?? undefined)
+    },
+    [executeAction, resolveMonitorAgentAddressChoice]
+  )
+
+  useEffect(() => {
+    if (!actionIntent || actionIntent.serverId !== serverId) return
+    if (handledActionIntentRef.current === actionIntent.nonce) return
+    if (addonsLoading || actionLoading !== null || actionsLocked) return
+    const component = addonComponents.find(item => item.component_key === actionIntent.componentKey)
+    if (!component) return
+    if (!(component.available_actions ?? []).includes(actionIntent.action)) {
+      setActionError(`${actionIntent.action} is not available for ${actionIntent.componentKey}`)
+      handledActionIntentRef.current = actionIntent.nonce
+      onActionIntentConsumed?.(actionIntent.nonce)
+      return
+    }
+
+    handledActionIntentRef.current = actionIntent.nonce
+    setSelectedAddonKey(actionIntent.componentKey)
+    onActionIntentConsumed?.(actionIntent.nonce)
+    void (async () => {
+      const apposBaseUrl = await resolveMonitorAgentAddressChoice(
+        actionIntent.componentKey,
+        actionIntent.action
+      )
+      if (
+        needsMonitorAgentAddressChoice(actionIntent.componentKey, actionIntent.action) &&
+        !apposBaseUrl
+      ) {
+        return
+      }
+      await executeAction(actionIntent.componentKey, actionIntent.action, apposBaseUrl ?? undefined)
+    })()
+  }, [
+    actionIntent,
+    actionLoading,
+    actionsLocked,
+    addonComponents,
+    addonsLoading,
+    executeAction,
+    onActionIntentConsumed,
+    resolveMonitorAgentAddressChoice,
+    serverId,
+  ])
+
   return (
     <div className="space-y-4">
+      <AlertDialog
+        open={!!confirmDangerAction}
+        onOpenChange={open => {
+          if (!open) setConfirmDangerAction(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Upgrade/Fix</AlertDialogTitle>
+            <AlertDialogDescription>
+              Upgrade/Fix may reinstall or replace Docker components on this server. Continue only
+              if you are ready to interrupt the current runtime and repair the installation.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!confirmDangerAction) return
+                const next = confirmDangerAction
+                setConfirmDangerAction(null)
+                void executeAction(next.componentKey, next.action)
+              }}
+            >
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!monitorAddressChoice}
+        onOpenChange={open => {
+          if (!open) setMonitorAddressChoice(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Choose monitor callback address</AlertDialogTitle>
+            <AlertDialogDescription>
+              The monitor agent will send metrics back to AppOS. The address detected from this
+              browser session differs from the configured App URL. Choose the address that the
+              target server can reach.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {monitorAddressChoice ? (
+            <div className="space-y-3 text-sm">
+              <div className="rounded-md border p-3">
+                <div className="font-medium text-foreground">Detected address</div>
+                <div className="break-all text-muted-foreground">
+                  {monitorAddressChoice.detectedURL}
+                </div>
+              </div>
+              <div className="rounded-md border p-3">
+                <div className="font-medium text-foreground">App URL</div>
+                <div className="break-all text-muted-foreground">
+                  {monitorAddressChoice.configuredURL}
+                </div>
+              </div>
+            </div>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!monitorAddressChoice) return
+                const next = monitorAddressChoice
+                setMonitorAddressChoice(null)
+                void executeAction(next.componentKey, next.action, next.detectedURL)
+              }}
+            >
+              Use detected address
+            </AlertDialogAction>
+            <AlertDialogAction
+              onClick={() => {
+                if (!monitorAddressChoice) return
+                const next = monitorAddressChoice
+                setMonitorAddressChoice(null)
+                void executeAction(next.componentKey, next.action, next.configuredURL)
+              }}
+            >
+              Use App URL
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {actionMessage && <p className="text-sm text-muted-foreground">{actionMessage}</p>}
       {actionError && <p className="text-sm text-destructive">{actionError}</p>}
 
@@ -811,7 +1453,8 @@ export function ServerComponentsPanel({ serverId }: { serverId: string }) {
           <div className="flex items-center gap-1.5">
             <h4 className="text-sm font-semibold text-foreground">Prerequisites</h4>
             <SectionHelp label="Prerequisites help">
-              Core platform requirements that should be ready before AppOS manages workloads on this server.
+              Core platform requirements that should be ready before AppOS manages workloads on this
+              server.
             </SectionHelp>
           </div>
           <Button
@@ -848,13 +1491,24 @@ export function ServerComponentsPanel({ serverId }: { serverId: string }) {
                   component={component}
                   open={prerequisiteOpen[component.component_key] ?? false}
                   onOpenChange={open =>
-                    setPrerequisiteOpen(current => ({ ...current, [component.component_key]: open }))
+                    setPrerequisiteOpen(current => ({
+                      ...current,
+                      [component.component_key]: open,
+                    }))
                   }
                   onAction={handleAction}
                   actionLoading={actionLoading}
                   panelMode={prerequisitePanelMode[component.component_key] ?? 'checklist'}
+                  onPanelModeChange={mode =>
+                    setPrerequisitePanelMode(current => ({
+                      ...current,
+                      [component.component_key]: mode,
+                    }))
+                  }
                   activeActionLabel={prerequisiteActiveActionLabel[component.component_key] ?? null}
                   actionLogs={prerequisiteActionLogs[component.component_key] ?? []}
+                  serverId={serverId}
+                  actionsLocked={actionsLocked}
                 />
               ))}
             </div>
@@ -866,19 +1520,21 @@ export function ServerComponentsPanel({ serverId }: { serverId: string }) {
         <div className="flex items-center gap-1.5">
           <h4 className="text-sm font-semibold text-foreground">Addons</h4>
           <SectionHelp label="Addons help">
-            Optional server-side components that AppOS can inspect, verify, install, or repair after the baseline is ready.
+            Optional server-side components that AppOS can inspect, verify, install, or repair after
+            the baseline is ready.
           </SectionHelp>
         </div>
 
-        {addonError && <p className="text-sm text-destructive">{addonError}</p>}
-
         <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
           <section className="space-y-4 rounded-md border p-4" aria-label="Addon inventory">
-            <div className="grid grid-cols-[minmax(0,1.2fr)_6rem_7rem] gap-3 px-3 py-2 text-sm font-medium text-muted-foreground">
+            <div className="grid grid-cols-[minmax(0,1.2fr)_8rem_5rem_7rem] gap-3 px-3 py-2 text-sm font-medium text-muted-foreground">
               <span>Component</span>
+              <span>Version</span>
               <span>Status</span>
               <span>Activity</span>
             </div>
+
+            {addonError ? <p className="px-3 py-2 text-sm text-destructive">{addonError}</p> : null}
 
             {addonComponents.length === 0 ? (
               <div className="px-3 py-6 text-sm text-muted-foreground">
@@ -898,46 +1554,97 @@ export function ServerComponentsPanel({ serverId }: { serverId: string }) {
             )}
           </section>
 
-          <section className="max-h-[calc(100vh-50px)] self-start overflow-auto space-y-4 rounded-md border p-4" aria-labelledby="selected-addon-heading">
+          <section
+            className="max-h-[calc(100vh-50px)] self-start overflow-auto space-y-4 rounded-md border p-4"
+            aria-labelledby="selected-addon-heading"
+          >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h3 id="selected-addon-heading" className="text-sm font-semibold">Selected Addon</h3>
+                <h3 id="selected-addon-heading" className="text-sm font-semibold">
+                  Selected Addon
+                </h3>
                 <p className="text-xs text-muted-foreground">
                   {selectedAddon ? selectedAddon.label : 'Select one addon from the inventory.'}
                 </p>
               </div>
               {selectedAddon ? (
                 <div className="flex flex-wrap justify-end gap-1">
-                  {(selectedAddon.available_actions ?? []).map(action => {
-                    const loadingKey = `${selectedAddon.component_key}:${action}`
-                    const isThisLoading = actionLoading === loadingKey
-                    return (
-                      <Button
-                        key={action}
-                        variant="outline"
-                        size="sm"
-                        disabled={isInProgress(selectedAddon.last_operation) || isThisLoading}
-                        onClick={() => void handleAction(selectedAddon.component_key, action)}
-                        className="h-7 px-2 text-xs capitalize"
-                      >
-                        {isThisLoading ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
-                        {action}
-                      </Button>
+                  {(() => {
+                    const primary = primaryAddonAction(selectedAddon)
+                    const secondaryActions = (selectedAddon.available_actions ?? []).filter(
+                      a => a !== primary
                     )
-                  })}
+                    const allActions = selectedAddon.available_actions ?? []
+                    return (
+                      <>
+                        {primary ? (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            disabled={
+                              actionsLocked ||
+                              actionLoading === `${selectedAddon.component_key}:${primary}`
+                            }
+                            onClick={() => void handleAction(selectedAddon.component_key, primary)}
+                            className="h-7 px-2 text-xs capitalize"
+                          >
+                            {actionLoading === `${selectedAddon.component_key}:${primary}` ? (
+                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                            ) : null}
+                            {primary}
+                          </Button>
+                        ) : null}
+                        {(primary ? secondaryActions : allActions).length > 0 ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={actionsLocked}
+                                className="h-7 px-2 text-xs"
+                                aria-label="More actions"
+                              >
+                                <MoreHorizontal className="h-3.5 w-3.5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {(primary ? secondaryActions : allActions).map(action => (
+                                <DropdownMenuItem
+                                  key={action}
+                                  onClick={() =>
+                                    void handleAction(selectedAddon.component_key, action)
+                                  }
+                                  className="cursor-pointer capitalize text-xs"
+                                >
+                                  {actionLoading === `${selectedAddon.component_key}:${action}` ? (
+                                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                  ) : null}
+                                  {action}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : null}
+                      </>
+                    )
+                  })()}
                 </div>
               ) : null}
             </div>
 
             {!selectedAddon ? (
               <div className="text-sm text-muted-foreground">
-                Choose a component to inspect status, activity, readiness issues, and available actions.
+                Choose a component to inspect status, activity, readiness issues, and available
+                actions.
               </div>
             ) : (
               <div className="space-y-4 text-sm">
                 <div className="space-y-2">
                   {AddonDetailRows({ component: selectedAddon }).map(item => (
-                    <div key={`${selectedAddon.component_key}:${item.label}`} className="flex flex-col gap-1 sm:flex-row sm:gap-2">
+                    <div
+                      key={`${selectedAddon.component_key}:${item.label}`}
+                      className="flex flex-col gap-1 sm:flex-row sm:gap-2"
+                    >
                       <span className="shrink-0 font-medium text-foreground">{item.label}:</span>
                       <span className="break-words text-muted-foreground">{item.value}</span>
                     </div>
@@ -947,9 +1654,17 @@ export function ServerComponentsPanel({ serverId }: { serverId: string }) {
                 <div className="space-y-2">
                   <div className="text-sm font-medium text-foreground">Verification</div>
                   <div className="rounded-md border px-3 py-2 text-sm text-muted-foreground">
-                    {selectedAddon.verification?.reason || selectedAddon.verification_state || 'No verification details.'}
+                    {selectedAddon.verification?.reason ||
+                      selectedAddon.verification_state ||
+                      'No verification details.'}
                   </div>
                 </div>
+
+                <OperationHistory
+                  serverId={serverId}
+                  componentKey={selectedAddon.component_key}
+                  reloadKey={selectedAddon.last_operation?.updated_at}
+                />
               </div>
             )}
           </section>

@@ -114,7 +114,10 @@ function getSystemdServiceDisplayName(value: string): string {
   return normalizeSystemdServiceUnitName(value).replace(/\.service$/i, '')
 }
 
-function openServerDetailTab(serverId: string, tab: 'overview' | 'systemd' | 'docker' | 'ports' | 'monitor') {
+function openServerDetailTab(
+  serverId: string,
+  tab: 'overview' | 'systemd' | 'docker' | 'ports' | 'monitor'
+) {
   window.open(
     `/resources/servers?server=${encodeURIComponent(serverId)}&tab=${encodeURIComponent(tab)}`,
     '_blank',
@@ -1307,7 +1310,10 @@ export function ConnectServerPage({
                 return (
                   <div
                     key={`files-wrap-${tabServerId}`}
-                    className={cn('h-full min-h-0', tabServerId === activeServerId ? 'block' : 'hidden')}
+                    className={cn(
+                      'h-full min-h-0',
+                      tabServerId === activeServerId ? 'block' : 'hidden'
+                    )}
                   >
                     <FileManagerPanel
                       key={`files-${tabServerId}-${preset?.nonce ?? 0}`}

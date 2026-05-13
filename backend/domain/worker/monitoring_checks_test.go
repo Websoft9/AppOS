@@ -227,6 +227,16 @@ func TestHandleMonitorControlReachabilityProjectsServerStatuses(t *testing.T) {
 	if _, ok := reachableSummary["reason_code"]; ok {
 		t.Fatalf("expected healthy control summary to omit reason_code, got %+v", reachableSummary)
 	}
+	reachableRecord, err := app.FindRecordById("servers", reachable.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := reachableRecord.GetString("access_status"); got != "available" {
+		t.Fatalf("expected reachable server access cache available, got %q", got)
+	}
+	if got := reachableRecord.GetString("access_reason"); got != "" {
+		t.Fatalf("expected reachable server access reason empty, got %q", got)
+	}
 
 	offlineStatus := loadTargetLatestStatus(t, app, monitor.TargetTypeServer, offline.Id)
 	if got := offlineStatus.GetString("status"); got != monitor.StatusUnreachable {
@@ -244,6 +254,39 @@ func TestHandleMonitorControlReachabilityProjectsServerStatuses(t *testing.T) {
 	}
 	if offlineSummary["probe_protocol"] != "ssh" {
 		t.Fatalf("expected ssh probe protocol, got %+v", offlineSummary)
+	}
+	offlineRecord, err := app.FindRecordById("servers", offline.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := offlineRecord.GetString("access_status"); got != "unavailable" {
+		t.Fatalf("expected offline server access cache unavailable, got %q", got)
+	}
+	if got := offlineRecord.GetString("access_reason"); got != "control_unreachable" {
+		t.Fatalf("expected offline server access reason control_unreachable, got %q", got)
+	}
+	if offlineRecord.GetDateTime("access_checked_at").IsZero() {
+		t.Fatal("expected offline server access_checked_at to be updated")
+	}
+
+	offlineRecord.Set("host", reachableHost)
+	offlineRecord.Set("port", reachablePortNumber)
+	if err := app.Save(offlineRecord); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.handleMonitorControlReachability(context.Background(), task); err != nil {
+		t.Fatal(err)
+	}
+	recoveredStatus := loadTargetLatestStatus(t, app, monitor.TargetTypeServer, offline.Id)
+	if got := recoveredStatus.GetString("status"); got != monitor.StatusHealthy {
+		t.Fatalf("expected control reachability to recover from unreachable to healthy, got %q", got)
+	}
+	recoveredRecord, err := app.FindRecordById("servers", offline.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := recoveredRecord.GetString("access_status"); got != "available" {
+		t.Fatalf("expected recovered server access cache available, got %q", got)
 	}
 }
 

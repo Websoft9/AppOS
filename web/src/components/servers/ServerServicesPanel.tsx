@@ -17,6 +17,7 @@ import {
   ScrollText,
   Star,
   Square,
+  SquarePen,
   X,
 } from 'lucide-react'
 
@@ -46,10 +47,13 @@ import {
   getSystemdUnit,
   listSystemdServices,
   type SystemdControlAction,
+  type SystemdLogsResponse,
   type SystemdService,
+  type SystemdUnitResponse,
   updateSystemdUnit,
   verifySystemdUnit,
 } from '@/lib/connect-api'
+import { getApiErrorMessage, isRequestCancellation } from '@/lib/api-error'
 import { cn } from '@/lib/utils'
 
 type SystemdDetailTab = 'overview' | 'logs' | 'unit'
@@ -63,11 +67,7 @@ type DetailRow = {
   value: string
 }
 
-const APPOS_FOCUS_SERVICES = [
-  'docker.service',
-  'netdata.service',
-  'appos-tunnel.service',
-] as const
+const APPOS_FOCUS_SERVICES = ['docker.service', 'netdata.service', 'appos-tunnel.service'] as const
 
 const PAGE_SIZE = 20
 const DETAIL_STATUS_KEYS = new Set([
@@ -79,6 +79,7 @@ const DETAIL_STATUS_KEYS = new Set([
   'UnitFileState',
   'MainPID',
   'StateChangeTimestamp',
+  'FragmentPath',
   'Status',
 ])
 
@@ -115,8 +116,12 @@ function shouldHideService(service: SystemdService) {
 }
 
 function getStatusLabel(service: Pick<SystemdService, 'active_state' | 'sub_state'>) {
-  const subState = String(service.sub_state || '').trim().toLowerCase()
-  const activeState = String(service.active_state || '').trim().toLowerCase()
+  const subState = String(service.sub_state || '')
+    .trim()
+    .toLowerCase()
+  const activeState = String(service.active_state || '')
+    .trim()
+    .toLowerCase()
 
   if (subState === 'exited') return 'exited'
   if (subState === 'dead') return 'dead'
@@ -131,14 +136,18 @@ function getStatusLabel(service: Pick<SystemdService, 'active_state' | 'sub_stat
 }
 
 function getSummary(service: SystemdService) {
-  return String(service.description || `${service.load_state || 'unknown'} / ${service.sub_state || 'unknown'}`)
+  return String(
+    service.description || `${service.load_state || 'unknown'} / ${service.sub_state || 'unknown'}`
+  )
 }
 
 function matchesQuery(service: SystemdService, query: string) {
   if (!query) return true
   return (
     normalizeServiceName(service.name).includes(query) ||
-    String(service.description || '').toLowerCase().includes(query)
+    String(service.description || '')
+      .toLowerCase()
+      .includes(query)
   )
 }
 
@@ -161,8 +170,12 @@ function compareServices(
   sortKey: SortKey,
   sortDirection: SortDirection
 ) {
-  const leftFocusIndex = APPOS_FOCUS_SERVICES.indexOf(left.name as (typeof APPOS_FOCUS_SERVICES)[number])
-  const rightFocusIndex = APPOS_FOCUS_SERVICES.indexOf(right.name as (typeof APPOS_FOCUS_SERVICES)[number])
+  const leftFocusIndex = APPOS_FOCUS_SERVICES.indexOf(
+    left.name as (typeof APPOS_FOCUS_SERVICES)[number]
+  )
+  const rightFocusIndex = APPOS_FOCUS_SERVICES.indexOf(
+    right.name as (typeof APPOS_FOCUS_SERVICES)[number]
+  )
   const leftPinned = leftFocusIndex >= 0
   const rightPinned = rightFocusIndex >= 0
 
@@ -195,7 +208,10 @@ function buildDetailRows(
 ): DetailRow[] {
   const rows: DetailRow[] = [
     { label: 'Name', value: getDisplayName(selectedService.name) || '—' },
-    { label: 'Description', value: statusDetails.Description || selectedService.description || '—' },
+    {
+      label: 'Description',
+      value: statusDetails.Description || selectedService.description || '—',
+    },
     {
       label: 'Status',
       value:
@@ -207,7 +223,10 @@ function buildDetailRows(
     { label: 'Path', value: unitPath || '—' },
     { label: 'PID', value: statusDetails.MainPID || '—' },
     { label: 'Load State', value: statusDetails.LoadState || selectedService.load_state || '—' },
-    { label: 'Active State', value: statusDetails.ActiveState || selectedService.active_state || '—' },
+    {
+      label: 'Active State',
+      value: statusDetails.ActiveState || selectedService.active_state || '—',
+    },
     { label: 'Sub State', value: statusDetails.SubState || selectedService.sub_state || '—' },
     { label: 'Unit File State', value: statusDetails.UnitFileState || '—' },
     { label: 'State Change', value: statusDetails.StateChangeTimestamp || '—' },
@@ -243,18 +262,26 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
   const [hint, setHint] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmService, setConfirmService] = useState('')
-  const [confirmAction, setConfirmAction] = useState<SystemdControlAction | 'verify-unit' | 'apply-unit' | null>(null)
+  const [confirmAction, setConfirmAction] = useState<
+    SystemdControlAction | 'verify-unit' | 'apply-unit' | null
+  >(null)
 
   const loadInventory = useCallback(async () => {
+    const requestSeq = requestSeqRef.current + 1
+    requestSeqRef.current = requestSeq
     setInventoryLoading(true)
     setError('')
     try {
       const response = await listSystemdServices(serverId, '')
+      if (requestSeqRef.current !== requestSeq) return
       setServices(response)
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Failed to load services')
+      if (requestSeqRef.current !== requestSeq || isRequestCancellation(loadError)) return
+      setError(getApiErrorMessage(loadError, 'Failed to load services'))
     } finally {
-      setInventoryLoading(false)
+      if (requestSeqRef.current === requestSeq) {
+        setInventoryLoading(false)
+      }
     }
   }, [serverId])
 
@@ -266,7 +293,10 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
     setPage(1)
   }, [query, statusFilter])
 
-  const visibleServices = useMemo(() => services.filter(service => !shouldHideService(service)), [services])
+  const visibleServices = useMemo(
+    () => services.filter(service => !shouldHideService(service)),
+    [services]
+  )
 
   const searchMatchedServices = useMemo(() => {
     const normalizedQuery = normalizeQuery(query)
@@ -334,29 +364,41 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
         setLogs([])
       }
       if (nextTab !== 'unit') {
-        setUnitResult('')
-      }
-      try {
-        const [statusResponse, unitResponse, logsResponse] = await Promise.all([
-          getSystemdStatus(serverId, serviceName),
-          getSystemdUnit(serverId, serviceName).catch(() => null),
-          nextTab === 'logs' ? getSystemdLogs(serverId, serviceName, 200) : Promise.resolve(null),
-        ])
-        if (requestSeqRef.current !== requestSeq) return
-        setStatusDetails(statusResponse.status || {})
-        setUnitPath(unitResponse?.path || '')
-        setUnitContent(unitResponse?.content || '')
-        setLogs(Array.isArray(logsResponse?.entries) ? logsResponse.entries : [])
-        setDetailTab(nextTab)
-        setEditMode(nextTab === 'unit' && editUnit)
-      } catch (loadError) {
-        if (requestSeqRef.current !== requestSeq) return
-        setError(loadError instanceof Error ? loadError.message : 'Operation failed')
-      } finally {
-        if (requestSeqRef.current === requestSeq) {
-          setActionLoading(false)
+    setUnitResult('')
         }
-      }
+        try {
+    const statusResponse = await getSystemdStatus(serverId, serviceName)
+    if (requestSeqRef.current !== requestSeq) return
+    const nextStatusDetails = statusResponse.status || {}
+
+    let unitResponse: SystemdUnitResponse | null = null
+    let logsResponse: SystemdLogsResponse | null = null
+
+    if (nextTab === 'unit' || (nextTab === 'overview' && !nextStatusDetails.FragmentPath)) {
+      unitResponse = await getSystemdUnit(serverId, serviceName).catch(() => null)
+      if (requestSeqRef.current !== requestSeq) return
+    }
+
+    if (nextTab === 'logs') {
+      logsResponse = await getSystemdLogs(serverId, serviceName, 200)
+      if (requestSeqRef.current !== requestSeq) return
+    }
+
+    if (requestSeqRef.current !== requestSeq) return
+    setStatusDetails(nextStatusDetails)
+    setUnitPath(unitResponse?.path || nextStatusDetails.FragmentPath || '')
+    setUnitContent(unitResponse?.content || '')
+    setLogs(Array.isArray(logsResponse?.entries) ? logsResponse.entries : [])
+    setDetailTab(nextTab)
+    setEditMode(nextTab === 'unit' && editUnit)
+        } catch (loadError) {
+    if (requestSeqRef.current !== requestSeq || isRequestCancellation(loadError)) return
+    setError(getApiErrorMessage(loadError, 'Operation failed'))
+        } finally {
+    if (requestSeqRef.current === requestSeq) {
+      setActionLoading(false)
+    }
+        }
     },
     [serverId]
   )
@@ -437,7 +479,8 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
       const saveResponse = await updateSystemdUnit(serverId, selected, unitContent)
       const verifyResponse = await verifySystemdUnit(serverId, selected)
       setUnitResult(
-        [saveResponse.output, verifyResponse.verify_output].filter(Boolean).join('\n\n') || 'Validate passed.'
+        [saveResponse.output, verifyResponse.verify_output].filter(Boolean).join('\n\n') ||
+          'Validate passed.'
       )
       setDetailTab('unit')
     } catch (actionError) {
@@ -505,7 +548,11 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
       if (sortKey !== column) {
         return <ArrowUpDown className="h-3.5 w-3.5" />
       }
-      return sortDirection === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+      return sortDirection === 'asc' ? (
+        <ArrowUp className="h-3.5 w-3.5" />
+      ) : (
+        <ArrowDown className="h-3.5 w-3.5" />
+      )
     },
     [sortDirection, sortKey]
   )
@@ -529,7 +576,9 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
               disabled={inventoryLoading || actionLoading}
               aria-label="Refresh systemd data"
             >
-              <RotateCw className={cn('h-4 w-4', (inventoryLoading || actionLoading) && 'animate-spin')} />
+              <RotateCw
+                className={cn('h-4 w-4', (inventoryLoading || actionLoading) && 'animate-spin')}
+              />
             </Button>
           </div>
         </div>
@@ -540,7 +589,9 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
           <div className="overflow-x-auto pb-1">
             <div className="flex min-w-max items-center gap-3 whitespace-nowrap">
               <span className="text-sm text-muted-foreground">
-                Total {visibleServices.length} services, {visibleServices.filter(service => getStatusLabel(service) === 'failed').length} failed.
+                Total {visibleServices.length} services,{' '}
+                {visibleServices.filter(service => getStatusLabel(service) === 'failed').length}{' '}
+                failed.
               </span>
               <div className="ml-auto flex items-center gap-2">
                 <input
@@ -572,7 +623,9 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                   >
                     {'<'}
                   </Button>
-                  <span className="px-1 text-center font-medium text-foreground">{currentPage}/{totalPages}</span>
+                  <span className="px-1 text-center font-medium text-foreground">
+                    {currentPage}/{totalPages}
+                  </span>
                   <Button
                     size="icon"
                     variant="ghost"
@@ -612,13 +665,17 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
               <span className="py-1 text-left">Actions</span>
             </div>
 
+            {error ? <div className="px-3 py-2 text-sm text-destructive">{error}</div> : null}
+
             {inventoryLoading ? (
               <div className="inline-flex items-center gap-2 px-3 py-6 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Loading services...
               </div>
             ) : pagedServices.length === 0 ? (
-              <div className="px-3 py-6 text-sm text-muted-foreground">No services match the current filters.</div>
+              <div className="px-3 py-6 text-sm text-muted-foreground">
+                No services match the current filters.
+              </div>
             ) : (
               <div className="divide-y divide-border/60">
                 {pagedServices.map(service => {
@@ -645,11 +702,15 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                               aria-label="AppOS focus service"
                             />
                           ) : null}
-                          <span className="block truncate font-medium leading-5">{serviceDisplayName}</span>
+                          <span className="block truncate font-medium leading-5">
+                            {serviceDisplayName}
+                          </span>
                         </span>
                       </button>
                       <span className="truncate py-1 text-left">{getStatusLabel(service)}</span>
-                      <span className="truncate py-1 text-left text-muted-foreground">{getSummary(service)}</span>
+                      <span className="truncate py-1 text-left text-muted-foreground">
+                        {getSummary(service)}
+                      </span>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
@@ -663,19 +724,27 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => void loadServiceContext(service.name, 'overview')}>
+                          <DropdownMenuItem
+                            onClick={() => void loadServiceContext(service.name, 'overview')}
+                          >
                             <Eye className="mr-2 h-4 w-4" />
                             Open overview
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => void loadServiceContext(service.name, 'logs')}>
+                          <DropdownMenuItem
+                            onClick={() => void loadServiceContext(service.name, 'logs')}
+                          >
                             <ScrollText className="mr-2 h-4 w-4" />
                             Open logs
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => void loadServiceContext(service.name, 'unit')}>
+                          <DropdownMenuItem
+                            onClick={() => void loadServiceContext(service.name, 'unit')}
+                          >
                             <FileText className="mr-2 h-4 w-4" />
                             Open unit
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => void loadServiceContext(service.name, 'unit', true)}>
+                          <DropdownMenuItem
+                            onClick={() => void loadServiceContext(service.name, 'unit', true)}
+                          >
                             <PenLine className="mr-2 h-4 w-4" />
                             Edit unit
                           </DropdownMenuItem>
@@ -720,7 +789,9 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                 Selected Service
               </h3>
               <p className="text-xs text-muted-foreground">
-                {selectedService ? getDisplayName(selectedService.name) : 'Select one service from the inventory.'}
+                {selectedService
+                  ? getDisplayName(selectedService.name)
+                  : 'Select one service from the inventory.'}
               </p>
             </div>
             {selectedService ? (
@@ -753,7 +824,9 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
               Loading details...
             </div>
           ) : !selectedService ? (
-            <div className="text-sm text-muted-foreground">Choose a service to inspect its status, logs, and unit details.</div>
+            <div className="text-sm text-muted-foreground">
+              Choose a service to inspect its status, logs, and unit details.
+            </div>
           ) : (
             <>
               {detailTab === 'overview' ? (
@@ -773,49 +846,86 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                     <span className="font-medium text-foreground">Logs</span>
                     <div className="flex items-center gap-2">
                       <span>{logs.length} entries</span>
-                      <Button type="button" size="sm" variant="outline" className="h-7 px-2" onClick={() => void copyLogs()} disabled={logs.length === 0}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2"
+                        onClick={() => void copyLogs()}
+                        disabled={logs.length === 0}
+                      >
                         <Clipboard className="mr-1 h-3.5 w-3.5" />
                         Copy
                       </Button>
                     </div>
                   </div>
-                  <pre className="max-h-[28rem] overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted/20 px-3 py-2 font-mono text-[11px] leading-5">{logs.length ? logs.join('\n') : 'No logs.'}</pre>
+                  <pre className="max-h-[28rem] overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted/20 px-3 py-2 font-mono text-[11px] leading-5">
+                    {logs.length ? logs.join('\n') : 'No logs.'}
+                  </pre>
                 </div>
               ) : null}
 
               {detailTab === 'unit' ? (
-                <div className="space-y-2 rounded-md border bg-muted/10 p-3">
+                <div className="space-y-3">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
+                    <div className="space-y-1.5">
                       <div className="text-sm font-medium text-foreground">Unit</div>
-                      <div className="mt-1 break-all text-xs text-muted-foreground">{unitPath || '-'}</div>
+                      <div className="mt-1 break-all text-xs text-muted-foreground">
+                        {unitPath || '-'}
+                      </div>
                     </div>
-                    {editMode ? (
+                    {!editMode ? (
+                      <button
+                        type="button"
+                        onClick={() => setEditMode(true)}
+                        className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-primary transition-colors hover:text-primary/80"
+                      >
+                        <SquarePen className="h-3.5 w-3.5" />
+                        Edit unit
+                      </button>
+                    ) : null}
+                  </div>
+                  {!editMode ? (
+                    <pre className="max-h-[28rem] overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted/10 px-3 py-2 font-mono text-[11px] leading-5">
+                      {unitContent || 'No unit content.'}
+                    </pre>
+                  ) : (
+                    <div className="space-y-3">
+                      <textarea
+                        value={unitContent}
+                        onChange={event => setUnitContent(event.target.value)}
+                        className="min-h-[28rem] w-full overflow-auto rounded-md border bg-background p-3 font-mono text-[11px] leading-5"
+                        placeholder="[Unit]\nDescription=..."
+                      />
                       <div className="flex flex-wrap gap-2">
-                        <Button type="button" size="sm" variant="outline" onClick={() => requestConfirm(selectedService.name, 'verify-unit')}>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => requestConfirm(selectedService.name, 'verify-unit')}
+                        >
                           <Check className="mr-2 h-4 w-4" />
                           Validate
                         </Button>
-                        <Button type="button" size="sm" onClick={() => requestConfirm(selectedService.name, 'apply-unit')}>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => requestConfirm(selectedService.name, 'apply-unit')}
+                        >
                           <Check className="mr-2 h-4 w-4" />
                           Apply
                         </Button>
-                        <Button type="button" size="sm" variant="ghost" onClick={() => setEditMode(false)}>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setEditMode(false)}
+                        >
                           <X className="mr-2 h-4 w-4" />
                           Cancel edit
                         </Button>
                       </div>
-                    ) : null}
-                  </div>
-                  {!editMode ? (
-                    <pre className="max-h-[28rem] overflow-auto whitespace-pre-wrap break-words rounded-md bg-background px-3 py-2 font-mono text-[11px] leading-5">{unitContent || 'No unit content.'}</pre>
-                  ) : (
-                    <textarea
-                      value={unitContent}
-                      onChange={event => setUnitContent(event.target.value)}
-                      className="min-h-[260px] w-full overflow-auto rounded-md border bg-background p-3 font-mono text-[11px] leading-5"
-                      placeholder="[Unit]\nDescription=..."
-                    />
+                    </div>
                   )}
                   {unitResult ? (
                     <pre className="rounded-md border bg-background px-3 py-2 font-mono text-[11px] leading-5 whitespace-pre-wrap break-words">
@@ -828,7 +938,6 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
           )}
 
           {hint ? <div className="text-xs text-emerald-600">{hint}</div> : null}
-          {error ? <div className="text-sm text-destructive">{error}</div> : null}
         </section>
       </div>
 

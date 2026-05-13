@@ -78,6 +78,9 @@ components:
       type: http
       scheme: bearer
       bearerFormat: PocketBase token
+    basicAuth:
+      type: http
+      scheme: basic
   schemas:
     GenericRequest:
       type: object
@@ -98,6 +101,109 @@ components:
           type: string
       required: [message]
 
+    MonitorContainerTelemetryResponse:
+      type: object
+      properties:
+        serverId:
+          type: string
+        window:
+          type: string
+        rangeStartAt:
+          type: string
+        rangeEndAt:
+          type: string
+        stepSeconds:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MonitorContainerTelemetryItem'
+    MonitorErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        maxBytes:
+          type: integer
+    MonitorMetricSeriesResponse:
+      type: object
+      properties:
+        targetType:
+          type: string
+        targetId:
+          type: string
+        window:
+          type: string
+        rangeStartAt:
+          type: string
+        rangeEndAt:
+          type: string
+        stepSeconds:
+          type: integer
+        series:
+          type: array
+          items:
+            $ref: '#/components/schemas/MonitorMetricSeries'
+        availableNetworkInterfaces:
+          type: array
+          items:
+            type: string
+        selectedNetworkInterface:
+          type: string
+    MonitorOverviewResponse:
+      type: object
+      properties:
+        counts:
+          type: object
+          additionalProperties:
+            type: integer
+        unhealthyItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/MonitorOverviewItem'
+        platformItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/MonitorOverviewItem'
+    MonitorTargetStatusResponse:
+      type: object
+      properties:
+        hasData:
+          type: boolean
+        targetType:
+          type: string
+        targetId:
+          type: string
+        displayName:
+          type: string
+        status:
+          type: string
+        reason:
+          type: object
+          additionalProperties: true
+        signalSource:
+          type: string
+        lastTransitionAt:
+          type: string
+        lastSuccessAt:
+          type: object
+          additionalProperties: true
+        lastFailureAt:
+          type: object
+          additionalProperties: true
+        lastCheckedAt:
+          type: object
+          additionalProperties: true
+        lastReportedAt:
+          type: object
+          additionalProperties: true
+        consecutiveFailures:
+          type: integer
+        summary:
+          type: object
+          additionalProperties: true
     ConnectorResponseDocument:
       type: object
       properties:
@@ -246,100 +352,36 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/FileEntry'
-    MonitorContainerTelemetryResponse:
+    MonitorAgentDeployRequest:
       type: object
       properties:
-        serverId:
+        apposBaseUrl:
           type: string
-        window:
-          type: string
-        rangeStartAt:
-          type: string
-        rangeEndAt:
-          type: string
-        stepSeconds:
-          type: integer
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/MonitorContainerTelemetryItem'
-    MonitorMetricSeriesResponse:
+    MonitorAgentDeployResponse:
       type: object
       properties:
-        targetType:
+        server_id:
           type: string
-        targetId:
-          type: string
-        window:
-          type: string
-        rangeStartAt:
-          type: string
-        rangeEndAt:
-          type: string
-        stepSeconds:
-          type: integer
-        series:
-          type: array
-          items:
-            $ref: '#/components/schemas/MonitorMetricSeries'
-        availableNetworkInterfaces:
-          type: array
-          items:
-            type: string
-        selectedNetworkInterface:
-          type: string
-    MonitorOverviewResponse:
-      type: object
-      properties:
-        counts:
-          type: object
-          additionalProperties:
-            type: integer
-        unhealthyItems:
-          type: array
-          items:
-            $ref: '#/components/schemas/MonitorOverviewItem'
-        platformItems:
-          type: array
-          items:
-            $ref: '#/components/schemas/MonitorOverviewItem'
-    MonitorTargetStatusResponse:
-      type: object
-      properties:
-        hasData:
-          type: boolean
-        targetType:
-          type: string
-        targetId:
-          type: string
-        displayName:
+        service:
           type: string
         status:
           type: string
-        reason:
-          type: object
-          additionalProperties: true
-        signalSource:
+        binary_path:
           type: string
-        lastTransitionAt:
+        config_path:
           type: string
-        lastSuccessAt:
+        unit_path:
+          type: string
+        output:
+          type: string
+        systemd:
           type: object
-          additionalProperties: true
-        lastFailureAt:
-          type: object
-          additionalProperties: true
-        lastCheckedAt:
-          type: object
-          additionalProperties: true
-        lastReportedAt:
-          type: object
-          additionalProperties: true
-        consecutiveFailures:
-          type: integer
-        summary:
-          type: object
-          additionalProperties: true
+          additionalProperties:
+            type: string
+        status_text:
+          type: string
+        packaged_version:
+          type: string
     MoveRequest:
       type: object
       properties:
@@ -533,6 +575,7 @@ paths:
       description: "Resolves and validates a Git Compose install request without creating an action. Returns compose validity, duplicate-name checks, and host-port conflict findings when available. Superuser only."
       operationId: post_api_actions_install_git-compose_check
       requestBody:
+        description: "git compose install preflight payload"
         required: true
         content:
           application/json:
@@ -553,7 +596,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -601,6 +645,7 @@ paths:
       description: "Resolves and validates a manual Compose install request without creating an action. Returns compose validity, duplicate-name checks, and host-port conflict findings when available. Superuser only."
       operationId: post_api_actions_install_manual-compose_check
       requestBody:
+        description: "manual compose install preflight payload"
         required: true
         content:
           application/json:
@@ -621,7 +666,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -643,6 +689,7 @@ paths:
       description: "Normalizes a candidate install name and reports whether it is available for a new app instance. Superuser only."
       operationId: post_api_actions_install_name-availability
       requestBody:
+        description: "name availability payload"
         required: true
         content:
           application/json:
@@ -663,7 +710,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -1007,7 +1055,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "500":
           description: Internal Server Error
           content:
@@ -1024,11 +1073,13 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "app instance ID"
           required: true
           schema:
             type: string
         - name: removeVolumes
           in: query
+          description: "remove named volumes"
           required: false
           schema:
             type: boolean
@@ -1047,7 +1098,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -1077,6 +1129,7 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "app instance ID"
           required: true
           schema:
             type: string
@@ -1095,7 +1148,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -1119,10 +1173,12 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "app instance ID"
           required: true
           schema:
             type: string
       requestBody:
+        description: "access hints"
         required: true
         content:
           application/json:
@@ -1143,7 +1199,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -1174,6 +1231,7 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "app instance ID"
           required: true
           schema:
             type: string
@@ -1192,7 +1250,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -1222,10 +1281,12 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "app instance ID"
           required: true
           schema:
             type: string
       requestBody:
+        description: "content"
         required: true
         content:
           application/json:
@@ -1246,7 +1307,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -1277,6 +1339,7 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "app instance ID"
           required: true
           schema:
             type: string
@@ -1301,7 +1364,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -1332,10 +1396,12 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "app instance ID"
           required: true
           schema:
             type: string
       requestBody:
+        description: "content"
         required: true
         content:
           application/json:
@@ -1356,7 +1422,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -1444,11 +1511,13 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "app instance ID"
           required: true
           schema:
             type: string
         - name: tail
           in: query
+          description: "number of log lines (default 200)"
           required: false
           schema:
             type: integer
@@ -1467,7 +1536,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -1498,6 +1568,7 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "app instance ID"
           required: true
           schema:
             type: string
@@ -1522,7 +1593,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -1605,6 +1677,7 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "app instance ID"
           required: true
           schema:
             type: string
@@ -1629,7 +1702,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -1660,6 +1734,7 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "app instance ID"
           required: true
           schema:
             type: string
@@ -1684,7 +1759,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -1715,6 +1791,7 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "app instance ID"
           required: true
           schema:
             type: string
@@ -1739,7 +1816,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -1770,6 +1848,7 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "app instance ID"
           required: true
           schema:
             type: string
@@ -1794,7 +1873,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -1928,7 +2008,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "500":
           description: Internal Server Error
           content:
@@ -1945,10 +2026,12 @@ paths:
       parameters:
         - name: key
           in: path
+          description: "catalog app key"
           required: true
           schema:
             type: string
       requestBody:
+        description: "favorite payload"
         required: true
         content:
           application/json:
@@ -1968,7 +2051,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -1999,6 +2083,7 @@ paths:
       parameters:
         - name: key
           in: path
+          description: "catalog app key"
           required: true
           schema:
             type: string
@@ -2016,7 +2101,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -2046,10 +2132,12 @@ paths:
       parameters:
         - name: key
           in: path
+          description: "catalog app key"
           required: true
           schema:
             type: string
       requestBody:
+        description: "note payload"
         required: true
         content:
           application/json:
@@ -2069,7 +2157,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -2113,10 +2202,12 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "certificate id"
           required: true
           schema:
             type: string
       requestBody:
+        description: "generation options"
         required: false
         content:
           application/json:
@@ -2136,7 +2227,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -2181,10 +2273,12 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "certificate id"
           required: true
           schema:
             type: string
       requestBody:
+        description: "renewal options"
         required: false
         content:
           application/json:
@@ -2204,7 +2298,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -2260,7 +2355,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "500":
           description: Internal Server Error
           content:
@@ -2289,7 +2385,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "500":
           description: Internal Server Error
           content:
@@ -2306,16 +2403,19 @@ paths:
       parameters:
         - name: name
           in: path
+          description: "service name"
           required: true
           schema:
             type: string
         - name: stream
           in: query
+          description: "stdout or stderr"
           required: false
           schema:
             type: string
         - name: tail
           in: query
+          description: "approximate line count"
           required: false
           schema:
             type: integer
@@ -2339,7 +2439,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "404":
           description: Not Found
           content:
@@ -2370,6 +2471,7 @@ paths:
       parameters:
         - name: kind
           in: query
+          description: "comma-separated connector kinds"
           required: false
           schema:
             type: string
@@ -2389,7 +2491,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "500":
           description: Internal Server Error
           content:
@@ -2403,6 +2506,7 @@ paths:
       description: "Creates a connector. Superuser only."
       operationId: post_api_connectors
       requestBody:
+        description: "connector payload"
         required: true
         content:
           application/json:
@@ -2422,7 +2526,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -2467,7 +2572,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
   /api/connectors/templates/{id}:
     get:
       tags: [Connectors]
@@ -2477,6 +2583,7 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "template id"
           required: true
           schema:
             type: string
@@ -2495,7 +2602,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "404":
           description: Not Found
           content:
@@ -2512,6 +2620,7 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "connector id"
           required: true
           schema:
             type: string
@@ -2525,7 +2634,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "404":
           description: Not Found
           content:
@@ -2548,6 +2658,7 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "connector id"
           required: true
           schema:
             type: string
@@ -2565,7 +2676,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "404":
           description: Not Found
           content:
@@ -2581,10 +2693,12 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "connector id"
           required: true
           schema:
             type: string
       requestBody:
+        description: "connector payload"
         required: true
         content:
           application/json:
@@ -2604,7 +2718,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -2636,11 +2751,13 @@ paths:
   /api/crons/{jobId}/logs:
     get:
       tags: [System Cron]
-      summary: Get crons by jobId logs
+      summary: Get cron job execution logs
+      description: "Returns recent structured execution log lines for one cron job, filtered from PocketBase _logs. Superuser only."
       operationId: get_api_crons_jobid_logs
       parameters:
         - name: jobId
           in: path
+          description: "Cron job ID"
           required: true
           schema:
             type: string
@@ -2652,13 +2769,15 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
+                type: object
+                additionalProperties: true
         "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
   /api/exposures:
     get:
       tags: [Exposures]
@@ -2731,6 +2850,7 @@ paths:
       description: "Enqueues an asynchronous task to create a named backup of the platform state. Superuser only."
       operationId: post_api_ext_backup_create
       requestBody:
+        description: "name: backup filename (without extension)"
         required: true
         content:
           application/json:
@@ -2751,7 +2871,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -2787,7 +2908,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "500":
           description: Internal Server Error
           content:
@@ -2802,6 +2924,7 @@ paths:
       description: "Restores platform state from a named backup synchronously. Superuser only."
       operationId: post_api_ext_backup_restore
       requestBody:
+        description: "name: backup filename to restore"
         required: true
         content:
           application/json:
@@ -2822,7 +2945,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -2846,6 +2970,7 @@ paths:
       parameters:
         - name: projectDir
           in: query
+          description: "absolute path to the compose project"
           required: true
           schema:
             type: string
@@ -2864,7 +2989,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -2885,6 +3011,7 @@ paths:
       description: "Overwrites docker-compose.yml for the specified project directory. Writes audit entry. Superuser only."
       operationId: put_api_ext_docker_compose_config
       requestBody:
+        description: "projectDir, content"
         required: true
         content:
           application/json:
@@ -2905,7 +3032,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -2929,10 +3057,12 @@ paths:
       parameters:
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
       requestBody:
+        description: "projectDir, removeVolumes (optional bool)"
         required: true
         content:
           application/json:
@@ -2953,7 +3083,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -2977,16 +3108,19 @@ paths:
       parameters:
         - name: projectDir
           in: query
+          description: "absolute path to the compose project"
           required: true
           schema:
             type: string
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
         - name: tail
           in: query
+          description: "number of log lines (default 100)"
           required: false
           schema:
             type: integer
@@ -3005,7 +3139,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -3029,6 +3164,7 @@ paths:
       parameters:
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
@@ -3047,7 +3183,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -3071,10 +3208,12 @@ paths:
       parameters:
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
       requestBody:
+        description: "projectDir"
         required: true
         content:
           application/json:
@@ -3095,7 +3234,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -3119,10 +3259,12 @@ paths:
       parameters:
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
       requestBody:
+        description: "projectDir"
         required: true
         content:
           application/json:
@@ -3143,7 +3285,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -3167,10 +3310,12 @@ paths:
       parameters:
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
       requestBody:
+        description: "projectDir"
         required: true
         content:
           application/json:
@@ -3191,7 +3336,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -3215,10 +3361,12 @@ paths:
       parameters:
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
       requestBody:
+        description: "projectDir: absolute path to the compose project"
         required: true
         content:
           application/json:
@@ -3239,7 +3387,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -3263,6 +3412,7 @@ paths:
       parameters:
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
@@ -3281,7 +3431,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -3305,6 +3456,7 @@ paths:
       parameters:
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
@@ -3323,7 +3475,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -3347,16 +3500,19 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "container ID or name"
           required: true
           schema:
             type: string
         - name: force
           in: query
+          description: "force remove a running container"
           required: false
           schema:
             type: boolean
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
@@ -3375,7 +3531,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -3398,11 +3555,13 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "container ID or name"
           required: true
           schema:
             type: string
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
@@ -3421,7 +3580,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -3445,16 +3605,19 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "container ID or name"
           required: true
           schema:
             type: string
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
         - name: tail
           in: query
+          description: "number of log lines (default 200)"
           required: false
           schema:
             type: integer
@@ -3473,7 +3636,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -3497,11 +3661,13 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "container ID or name"
           required: true
           schema:
             type: string
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
@@ -3526,7 +3692,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -3550,11 +3717,13 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "container ID or name"
           required: true
           schema:
             type: string
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
@@ -3579,7 +3748,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -3603,11 +3773,13 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "container ID or name"
           required: true
           schema:
             type: string
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
@@ -3632,7 +3804,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -3656,10 +3829,12 @@ paths:
       parameters:
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
       requestBody:
+        description: "command: docker command string (e.g. \"info\")"
         required: true
         content:
           application/json:
@@ -3680,7 +3855,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -3697,6 +3873,7 @@ paths:
       parameters:
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
@@ -3715,7 +3892,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -3739,6 +3917,7 @@ paths:
       parameters:
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
@@ -3763,7 +3942,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -3787,10 +3967,12 @@ paths:
       parameters:
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
       requestBody:
+        description: "name: image name/tag"
         required: true
         content:
           application/json:
@@ -3811,7 +3993,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -3835,16 +4018,19 @@ paths:
       parameters:
         - name: limit
           in: query
+          description: "max results (default 20, max 100)"
           required: false
           schema:
             type: integer
         - name: q
           in: query
+          description: "search query"
           required: true
           schema:
             type: string
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
@@ -3863,7 +4049,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -3887,6 +4074,7 @@ paths:
       parameters:
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
@@ -3905,7 +4093,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -3922,11 +4111,13 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "image ID or name (supports path wildcard)"
           required: true
           schema:
             type: string
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
@@ -3945,7 +4136,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -3969,11 +4161,13 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "image ID or name"
           required: true
           schema:
             type: string
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
@@ -3992,7 +4186,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -4016,6 +4211,7 @@ paths:
       parameters:
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
@@ -4034,7 +4230,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -4057,10 +4254,12 @@ paths:
       parameters:
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
       requestBody:
+        description: "name: network name"
         required: true
         content:
           application/json:
@@ -4081,7 +4280,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -4105,11 +4305,13 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "network ID or name"
           required: true
           schema:
             type: string
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
@@ -4128,7 +4330,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -4164,7 +4367,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
   /api/ext/docker/volumes:
     get:
       tags: [Docker]
@@ -4174,6 +4378,7 @@ paths:
       parameters:
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
@@ -4192,7 +4397,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -4216,6 +4422,7 @@ paths:
       parameters:
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
@@ -4240,7 +4447,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -4264,11 +4472,13 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "volume name"
           required: true
           schema:
             type: string
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
@@ -4287,7 +4497,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -4311,11 +4522,13 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "volume name"
           required: true
           schema:
             type: string
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
@@ -4334,7 +4547,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -4358,11 +4572,13 @@ paths:
       parameters:
         - name: path
           in: query
+          description: "relative path to delete"
           required: true
           schema:
             type: string
         - name: recursive
           in: query
+          description: "set true to delete a non-empty directory"
           required: false
           schema:
             type: boolean
@@ -4381,7 +4597,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -4404,6 +4621,7 @@ paths:
       parameters:
         - name: path
           in: query
+          description: "relative path (e.g. apps/myapp); defaults to root"
           required: false
           schema:
             type: string
@@ -4421,7 +4639,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -4442,6 +4661,7 @@ paths:
       description: "Creates a file (with optional initial content) or an empty directory. Superuser only."
       operationId: post_api_ext_iac
       requestBody:
+        description: "path, type (file|dir), content (optional)"
         required: true
         content:
           application/json:
@@ -4462,7 +4682,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -4486,6 +4707,7 @@ paths:
       parameters:
         - name: path
           in: query
+          description: "relative file path (e.g. apps/myapp/docker-compose.yml)"
           required: true
           schema:
             type: string
@@ -4503,7 +4725,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -4538,6 +4761,7 @@ paths:
       description: "Overwrites the text content of an existing file. Superuser only."
       operationId: put_api_ext_iac_content
       requestBody:
+        description: "path, content"
         required: true
         content:
           application/json:
@@ -4558,7 +4782,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -4582,6 +4807,7 @@ paths:
       parameters:
         - name: path
           in: query
+          description: "relative file path"
           required: true
           schema:
             type: string
@@ -4599,7 +4825,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -4623,6 +4850,7 @@ paths:
       parameters:
         - name: path
           in: query
+          description: "relative path under apps/ (e.g. myapp)"
           required: false
           schema:
             type: string
@@ -4640,7 +4868,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -4664,6 +4893,7 @@ paths:
       parameters:
         - name: path
           in: query
+          description: "relative file path (e.g. apps/wordpress/docker-compose.yml)"
           required: true
           schema:
             type: string
@@ -4681,7 +4911,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -4710,6 +4941,7 @@ paths:
       description: "Copies /appos/library/apps/{sourceKey}/ to /appos/data/templates/apps/{destKey}/. Superuser only."
       operationId: post_api_ext_iac_library_copy
       requestBody:
+        description: "sourceKey (library app name), destKey (optional, defaults to sourceKey)"
         required: true
         content:
           application/json:
@@ -4730,7 +4962,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -4752,6 +4985,7 @@ paths:
       description: "Moves a file or directory from one path to another within /appos/data. Superuser only."
       operationId: post_api_ext_iac_move
       requestBody:
+        description: "from, to (relative paths)"
         required: true
         content:
           application/json:
@@ -4772,7 +5006,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -4823,7 +5058,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -4866,7 +5102,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "500":
           description: Internal Server Error
           content:
@@ -4880,6 +5117,7 @@ paths:
       description: "Creates a new reverse proxy domain binding (virtual host). Superuser only."
       operationId: post_api_ext_proxy_domains
       requestBody:
+        description: "domain binding configuration"
         required: true
         content:
           application/json:
@@ -4900,7 +5138,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -4924,6 +5163,7 @@ paths:
       parameters:
         - name: domain
           in: path
+          description: "domain name to remove"
           required: true
           schema:
             type: string
@@ -4942,7 +5182,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -4973,6 +5214,7 @@ paths:
       parameters:
         - name: domain
           in: path
+          description: "domain to issue certificate for"
           required: true
           schema:
             type: string
@@ -4997,7 +5239,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -5046,7 +5289,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "500":
           description: Internal Server Error
           content:
@@ -5222,6 +5466,7 @@ paths:
       parameters:
         - name: path
           in: query
+          description: "directory path to list"
           required: false
           schema:
             type: string
@@ -5240,7 +5485,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "500":
           description: Internal Server Error
           content:
@@ -5269,7 +5515,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "500":
           description: Internal Server Error
           content:
@@ -5286,6 +5533,7 @@ paths:
       parameters:
         - name: collection
           in: path
+          description: "auth collection"
           required: true
           schema:
             type: string
@@ -5294,10 +5542,12 @@ paths:
               - "_superusers"
         - name: id
           in: path
+          description: "record ID"
           required: true
           schema:
             type: string
       requestBody:
+        description: "password and passwordConfirm"
         required: true
         content:
           application/json:
@@ -5318,7 +5568,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -5349,6 +5600,7 @@ paths:
       parameters:
         - name: kind
           in: query
+          description: "comma-separated instance kinds"
           required: false
           schema:
             type: string
@@ -5368,7 +5620,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "500":
           description: Internal Server Error
           content:
@@ -5382,6 +5635,7 @@ paths:
       description: "Creates a service instance. Superuser only."
       operationId: post_api_instances
       requestBody:
+        description: "instance payload"
         required: true
         content:
           application/json:
@@ -5401,7 +5655,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -5430,6 +5685,7 @@ paths:
       description: "Probes TCP reachability for one or more service instances visible to the authenticated user."
       operationId: post_api_instances_reachability
       requestBody:
+        description: "instance id filter"
         required: true
         content:
           application/json:
@@ -5451,7 +5707,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -5489,7 +5746,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
   /api/instances/templates/{id}:
     get:
       tags: [Service Instances]
@@ -5499,6 +5757,7 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "template id"
           required: true
           schema:
             type: string
@@ -5517,7 +5776,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "404":
           description: Not Found
           content:
@@ -5534,6 +5794,7 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "instance id"
           required: true
           schema:
             type: string
@@ -5547,7 +5808,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "404":
           description: Not Found
           content:
@@ -5570,6 +5832,7 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "instance id"
           required: true
           schema:
             type: string
@@ -5587,7 +5850,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "404":
           description: Not Found
           content:
@@ -5603,10 +5867,12 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "instance id"
           required: true
           schema:
             type: string
       requestBody:
+        description: "instance payload"
         required: true
         content:
           application/json:
@@ -5626,7 +5892,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -5675,14 +5942,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: '#/components/schemas/MonitorErrorResponse'
         "500":
           description: Internal Server Error
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
+                $ref: '#/components/schemas/MonitorErrorResponse'
   /api/monitor/servers/{id}/container-telemetry:
     get:
       tags: [Monitoring]
@@ -5692,16 +5958,19 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "server record ID"
           required: true
           schema:
             type: string
         - name: containerId
           in: query
+          description: "container ID filter; repeat to request multiple containers"
           required: false
           schema:
             type: string
         - name: window
           in: query
+          description: "fixed time window"
           required: false
           schema:
             type: string
@@ -5728,21 +5997,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: '#/components/schemas/MonitorErrorResponse'
         "400":
           description: Bad Request
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
+                $ref: '#/components/schemas/MonitorErrorResponse'
         "404":
           description: Not Found
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
+                $ref: '#/components/schemas/MonitorErrorResponse'
   /api/monitor/targets/{targetType}/{targetId}:
     get:
       tags: [Monitoring]
@@ -5752,6 +6019,7 @@ paths:
       parameters:
         - name: targetType
           in: path
+          description: "monitor target type"
           required: true
           schema:
             type: string
@@ -5763,6 +6031,7 @@ paths:
               - "platform"
         - name: targetId
           in: path
+          description: "monitor target ID"
           required: true
           schema:
             type: string
@@ -5780,14 +6049,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: '#/components/schemas/MonitorErrorResponse'
         "404":
           description: Not Found
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
+                $ref: '#/components/schemas/MonitorErrorResponse'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitorErrorResponse'
   /api/monitor/targets/{targetType}/{targetId}/series:
     get:
       tags: [Monitoring]
@@ -5797,6 +6071,7 @@ paths:
       parameters:
         - name: targetType
           in: path
+          description: "monitor target type"
           required: true
           schema:
             type: string
@@ -5807,21 +6082,25 @@ paths:
               - "platform"
         - name: targetId
           in: path
+          description: "monitor target ID; platform uses appos-core for AppOS host metrics"
           required: true
           schema:
             type: string
         - name: endAt
           in: query
+          description: "custom range end time in RFC3339 format"
           required: false
           schema:
             type: string
         - name: networkInterface
           in: query
+          description: "network interface for network series; use all or omit for aggregate"
           required: false
           schema:
             type: string
         - name: series
           in: query
+          description: "metric series alias"
           required: false
           schema:
             type: string
@@ -5834,11 +6113,13 @@ paths:
               - "network_traffic"
         - name: startAt
           in: query
+          description: "custom range start time in RFC3339 format"
           required: false
           schema:
             type: string
         - name: window
           in: query
+          description: "fixed time window; ignored when startAt and endAt are both set"
           required: false
           schema:
             type: string
@@ -5865,40 +6146,74 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: '#/components/schemas/MonitorErrorResponse'
         "400":
           description: Bad Request
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
+                $ref: '#/components/schemas/MonitorErrorResponse'
   /api/monitor/write:
     post:
       tags: [Monitoring Ingest]
-      summary: Create or execute monitor write
+      summary: Write Netdata metrics
+      description: "Receives Prometheus remote-write protobuf payloads from managed-server Netdata agents. This endpoint is served by the AppOS backend and forwards accepted payloads to the embedded time-series database. Authenticate with HTTP Basic Auth where username is the server record ID and password is the per-server monitor agent token issued during Netdata install/update. Reverse-proxy forwarding headers used elsewhere for agent URL generation are parsed defensively only the first comma-separated host/port value is used and forwarded ports must be numeric."
       operationId: post_api_monitor_write
+      parameters:
+        - name: Authorization
+          in: header
+          description: "Basic base64(serverId:monitorAgentToken)"
+          required: true
+          schema:
+            type: string
+        - name: Content-Encoding
+          in: header
+          description: "remote-write compression, usually snappy"
+          required: false
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          description: "application/x-protobuf"
+          required: true
+          schema:
+            type: string
+        - name: X-Prometheus-Remote-Write-Version
+          in: header
+          description: "Prometheus remote-write protocol version"
+          required: false
+          schema:
+            type: string
       requestBody:
-        required: false
+        required: true
         content:
-          application/json:
+          application/x-protobuf:
             schema:
-              $ref: '#/components/schemas/GenericRequest'
+              type: string
+              format: binary
       security:
-        - bearerAuth: []
+        - basicAuth: []
       responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
+        "204":
+          description: No Content
         "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: '#/components/schemas/MonitorErrorResponse'
+        "413":
+          description: Payload Too Large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitorErrorResponse'
+        "502":
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitorErrorResponse'
   /api/pipelines:
     get:
       tags: [Pipelines]
@@ -5954,6 +6269,7 @@ paths:
       parameters:
         - name: kind
           in: query
+          description: "comma-separated provider-account kinds"
           required: false
           schema:
             type: string
@@ -5973,7 +6289,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "500":
           description: Internal Server Error
           content:
@@ -5987,6 +6304,7 @@ paths:
       description: "Creates a provider account. Superuser only."
       operationId: post_api_provider-accounts
       requestBody:
+        description: "provider account payload"
         required: true
         content:
           application/json:
@@ -6006,7 +6324,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -6051,7 +6370,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
   /api/provider-accounts/templates/{id}:
     get:
       tags: [Provider Accounts]
@@ -6061,6 +6381,7 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "template id"
           required: true
           schema:
             type: string
@@ -6079,7 +6400,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "404":
           description: Not Found
           content:
@@ -6096,6 +6418,7 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "provider account id"
           required: true
           schema:
             type: string
@@ -6109,7 +6432,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "404":
           description: Not Found
           content:
@@ -6132,6 +6456,7 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "provider account id"
           required: true
           schema:
             type: string
@@ -6149,7 +6474,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "404":
           description: Not Found
           content:
@@ -6165,10 +6491,12 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "provider account id"
           required: true
           schema:
             type: string
       requestBody:
+        description: "provider account payload"
         required: true
         content:
           application/json:
@@ -6188,7 +6516,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -6370,7 +6699,8 @@ paths:
   /api/servers/connection:
     get:
       tags: [Servers]
-      summary: Get servers connection
+      summary: List server view items
+      description: "Returns the server registry read model used by the UI, including unified connection aggregate facts plus access and tunnel diagnostics. Superuser only."
       operationId: get_api_servers_connection
       security:
         - bearerAuth: []  # superuser required
@@ -6380,13 +6710,22 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
+                type: object
+                additionalProperties: true
         "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
   /api/servers/local/docker-bridge:
     get:
       tags: [Servers]
@@ -6423,7 +6762,8 @@ paths:
           required: false
           schema:
             type: string
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -6431,56 +6771,118 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/servers/{serverId}/ops/monitor-agent/install:
     post:
       tags: [Servers]
-      summary: Create or execute servers by serverId ops monitor agent install
+      summary: Install monitor agent on a managed server
+      description: "Installs and starts the server metrics collector, writes the remote-write configuration, and issues or reuses the per-server monitor-agent token. Optional apposBaseUrl overrides the callback base URL used in the generated collector configuration."
       operationId: post_api_servers_serverid_ops_monitor-agent_install
       parameters:
         - name: serverId
           in: path
+          description: "server record ID"
           required: true
           schema:
             type: string
       requestBody:
+        description: "optional AppOS callback base URL override"
         required: false
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericRequest'
-      security: []  # public
+              $ref: '#/components/schemas/MonitorAgentDeployRequest'
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
+                $ref: '#/components/schemas/MonitorAgentDeployResponse'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitorErrorResponse'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitorErrorResponse'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitorErrorResponse'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitorErrorResponse'
   /api/servers/{serverId}/ops/monitor-agent/update:
     post:
       tags: [Servers]
-      summary: Create or execute servers by serverId ops monitor agent update
+      summary: Update monitor agent on a managed server
+      description: "Reinstalls the server metrics collector, refreshes the remote-write configuration, and returns current service status details. Optional apposBaseUrl overrides the callback base URL used in the generated collector configuration."
       operationId: post_api_servers_serverid_ops_monitor-agent_update
       parameters:
         - name: serverId
           in: path
+          description: "server record ID"
           required: true
           schema:
             type: string
       requestBody:
+        description: "optional AppOS callback base URL override"
         required: false
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenericRequest'
-      security: []  # public
+              $ref: '#/components/schemas/MonitorAgentDeployRequest'
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
+                $ref: '#/components/schemas/MonitorAgentDeployResponse'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitorErrorResponse'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitorErrorResponse'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitorErrorResponse'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitorErrorResponse'
   /api/servers/{serverId}/ops/ports:
     get:
       tags: [Servers]
@@ -6492,7 +6894,8 @@ paths:
           required: true
           schema:
             type: string
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -6500,6 +6903,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/servers/{serverId}/ops/ports/{port}:
     get:
       tags: [Servers]
@@ -6516,7 +6925,8 @@ paths:
           required: true
           schema:
             type: string
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -6524,6 +6934,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/servers/{serverId}/ops/ports/{port}/release:
     post:
       tags: [Servers]
@@ -6546,7 +6962,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/GenericRequest'
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -6554,6 +6971,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/servers/{serverId}/ops/power:
     post:
       tags: [Servers]
@@ -6571,7 +6994,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/GenericRequest'
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -6579,6 +7003,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/servers/{serverId}/ops/systemd/services:
     get:
       tags: [Servers]
@@ -6590,7 +7020,8 @@ paths:
           required: true
           schema:
             type: string
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -6598,6 +7029,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/servers/{serverId}/ops/systemd/{service}/action:
     post:
       tags: [Servers]
@@ -6620,7 +7057,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/GenericRequest'
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -6628,6 +7066,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/servers/{serverId}/ops/systemd/{service}/content:
     get:
       tags: [Servers]
@@ -6644,7 +7088,8 @@ paths:
           required: true
           schema:
             type: string
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -6652,6 +7097,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/servers/{serverId}/ops/systemd/{service}/logs:
     get:
       tags: [Servers]
@@ -6668,7 +7119,8 @@ paths:
           required: true
           schema:
             type: string
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -6676,6 +7128,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/servers/{serverId}/ops/systemd/{service}/status:
     get:
       tags: [Servers]
@@ -6692,7 +7150,8 @@ paths:
           required: true
           schema:
             type: string
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -6700,6 +7159,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/servers/{serverId}/ops/systemd/{service}/unit:
     get:
       tags: [Servers]
@@ -6716,7 +7181,8 @@ paths:
           required: true
           schema:
             type: string
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -6724,6 +7190,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
     put:
       tags: [Servers]
       summary: Update servers by serverId ops systemd by service unit
@@ -6745,7 +7217,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/GenericRequest'
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -6753,6 +7226,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/servers/{serverId}/ops/systemd/{service}/unit/apply:
     post:
       tags: [Servers]
@@ -6775,7 +7254,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/GenericRequest'
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -6783,6 +7263,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/servers/{serverId}/ops/systemd/{service}/unit/verify:
     post:
       tags: [Servers]
@@ -6805,7 +7291,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/GenericRequest'
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -6813,6 +7300,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/servers/{serverId}/software:
     get:
       tags: [Software]
@@ -6822,6 +7315,7 @@ paths:
       parameters:
         - name: serverId
           in: path
+          description: "Server ID"
           required: true
           schema:
             type: string
@@ -6857,6 +7351,7 @@ paths:
       parameters:
         - name: serverId
           in: path
+          description: "Server ID"
           required: true
           schema:
             type: string
@@ -6892,11 +7387,13 @@ paths:
       parameters:
         - name: serverId
           in: path
+          description: "Server ID"
           required: true
           schema:
             type: string
         - name: component
           in: query
+          description: "Filter by component key"
           required: false
           schema:
             type: string
@@ -6925,11 +7422,13 @@ paths:
       parameters:
         - name: serverId
           in: path
+          description: "Server ID"
           required: true
           schema:
             type: string
         - name: operationId
           in: path
+          description: "Operation ID"
           required: true
           schema:
             type: string
@@ -6965,11 +7464,13 @@ paths:
       parameters:
         - name: serverId
           in: path
+          description: "Server ID"
           required: true
           schema:
             type: string
         - name: componentKey
           in: path
+          description: "Component key (e.g. docker, monitor-agent)"
           required: true
           schema:
             type: string
@@ -7012,16 +7513,19 @@ paths:
       parameters:
         - name: serverId
           in: path
+          description: "Server ID"
           required: true
           schema:
             type: string
         - name: componentKey
           in: path
+          description: "Component key (e.g. docker, monitor-agent)"
           required: true
           schema:
             type: string
         - name: action
           in: path
+          description: "Action name: install | upgrade | start | stop | restart | verify | reinstall | uninstall"
           required: true
           schema:
             type: string
@@ -7070,10 +7574,12 @@ paths:
       parameters:
         - name: actionId
           in: path
+          description: "settings action id"
           required: true
           schema:
             type: string
       requestBody:
+        description: "settings action payload"
         required: true
         content:
           application/json:
@@ -7089,7 +7595,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -7118,7 +7625,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "500":
           description: Internal Server Error
           content:
@@ -7135,6 +7643,7 @@ paths:
       parameters:
         - name: entryId
           in: path
+          description: "settings entry id"
           required: true
           schema:
             type: string
@@ -7153,7 +7662,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -7176,10 +7686,12 @@ paths:
       parameters:
         - name: entryId
           in: path
+          description: "settings entry id"
           required: true
           schema:
             type: string
       requestBody:
+        description: "settings entry payload"
         required: true
         content:
           application/json:
@@ -7200,7 +7712,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -7236,7 +7749,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
   /api/software/local:
     get:
       tags: [Software]
@@ -7275,6 +7789,7 @@ paths:
       parameters:
         - name: componentKey
           in: path
+          description: "Component key"
           required: true
           schema:
             type: string
@@ -7346,6 +7861,7 @@ paths:
       parameters:
         - name: componentKey
           in: path
+          description: "Component key"
           required: true
           schema:
             type: string
@@ -7386,6 +7902,7 @@ paths:
       description: "Downloads a remote URL and stores the result as a user_files record. Auth required."
       operationId: post_api_space_fetch
       requestBody:
+        description: "url, optional name and parent folder ID"
         required: true
         content:
           application/json:
@@ -7406,7 +7923,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -7430,11 +7948,13 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "user_files record ID"
           required: true
           schema:
             type: string
         - name: token
           in: query
+          description: "auth token (for browser embed contexts)"
           required: false
           schema:
             type: string
@@ -7488,7 +8008,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
   /api/space/share/{id}:
     delete:
       tags: [Space & User Files]
@@ -7498,6 +8019,7 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "user_files record ID"
           required: true
           schema:
             type: string
@@ -7534,10 +8056,12 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "user_files record ID"
           required: true
           schema:
             type: string
       requestBody:
+        description: "minutes (optional)"
         required: false
         content:
           application/json:
@@ -7589,6 +8113,7 @@ paths:
       parameters:
         - name: token
           in: path
+          description: "share token"
           required: true
           schema:
             type: string
@@ -7624,6 +8149,7 @@ paths:
       parameters:
         - name: token
           in: path
+          description: "share token"
           required: true
           schema:
             type: string
@@ -7658,16 +8184,19 @@ paths:
       parameters:
         - name: containerId
           in: path
+          description: "container ID or name"
           required: true
           schema:
             type: string
         - name: server_id
           in: query
+          description: "server ID (omit for local)"
           required: false
           schema:
             type: string
         - name: shell
           in: query
+          description: "shell binary"
           required: false
           schema:
             type: string
@@ -7683,7 +8212,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -7705,7 +8235,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
   /api/terminal/sftp/{serverId}/chmod:
     post:
       tags: [Terminal]
@@ -7715,16 +8246,19 @@ paths:
       parameters:
         - name: serverId
           in: path
+          description: "server record ID"
           required: true
           schema:
             type: string
       requestBody:
+        description: "path, mode (octal string, e.g. \"755\"), recursive (bool)"
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/GenericRequest'
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -7733,15 +8267,15 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
-        "400":
-          description: Bad Request
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        "401":
-          description: Unauthorized
+        "400":
+          description: Bad Request
           content:
             application/json:
               schema:
@@ -7763,16 +8297,19 @@ paths:
       parameters:
         - name: serverId
           in: path
+          description: "server record ID"
           required: true
           schema:
             type: string
       requestBody:
+        description: "path, owner (username string), group (group name string)"
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/GenericRequest'
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -7781,15 +8318,15 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
-        "400":
-          description: Bad Request
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        "401":
-          description: Unauthorized
+        "400":
+          description: Bad Request
           content:
             application/json:
               schema:
@@ -7811,10 +8348,12 @@ paths:
       parameters:
         - name: serverId
           in: path
+          description: "server record ID"
           required: true
           schema:
             type: string
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -7839,16 +8378,19 @@ paths:
       parameters:
         - name: serverId
           in: path
+          description: "server record ID"
           required: true
           schema:
             type: string
       requestBody:
+        description: "from, to (remote paths)"
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/GenericRequest'
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -7857,15 +8399,15 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
-        "400":
-          description: Bad Request
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        "401":
-          description: Unauthorized
+        "400":
+          description: Bad Request
           content:
             application/json:
               schema:
@@ -7887,20 +8429,24 @@ paths:
       parameters:
         - name: serverId
           in: path
+          description: "server record ID"
           required: true
           schema:
             type: string
         - name: from
           in: query
+          description: "source remote path"
           required: true
           schema:
             type: string
         - name: to
           in: query
+          description: "destination remote path"
           required: true
           schema:
             type: string
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -7908,15 +8454,15 @@ paths:
             application/json:
               schema:
                 type: string
-        "400":
-          description: Bad Request
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        "401":
-          description: Unauthorized
+        "400":
+          description: Bad Request
           content:
             application/json:
               schema:
@@ -7931,27 +8477,30 @@ paths:
       parameters:
         - name: serverId
           in: path
+          description: "server record ID"
           required: true
           schema:
             type: string
         - name: path
           in: query
+          description: "remote path to delete"
           required: true
           schema:
             type: string
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "204":
           description: No Content
-        "400":
-          description: Bad Request
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        "401":
-          description: Unauthorized
+        "400":
+          description: Bad Request
           content:
             application/json:
               schema:
@@ -7973,15 +8522,18 @@ paths:
       parameters:
         - name: serverId
           in: path
+          description: "server record ID"
           required: true
           schema:
             type: string
         - name: path
           in: query
+          description: "remote file path"
           required: true
           schema:
             type: string
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -7989,15 +8541,15 @@ paths:
             application/json:
               schema:
                 type: string
-        "400":
-          description: Bad Request
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        "401":
-          description: Unauthorized
+        "400":
+          description: Bad Request
           content:
             application/json:
               schema:
@@ -8019,15 +8571,18 @@ paths:
       parameters:
         - name: serverId
           in: path
+          description: "server record ID"
           required: true
           schema:
             type: string
         - name: path
           in: query
+          description: "directory path (default /)"
           required: false
           schema:
             type: string
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -8036,15 +8591,15 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
-        "400":
-          description: Bad Request
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        "401":
-          description: Unauthorized
+        "400":
+          description: Bad Request
           content:
             application/json:
               schema:
@@ -8066,16 +8621,19 @@ paths:
       parameters:
         - name: serverId
           in: path
+          description: "server record ID"
           required: true
           schema:
             type: string
       requestBody:
+        description: "path: directory to create"
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/GenericRequest'
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -8084,15 +8642,15 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
-        "400":
-          description: Bad Request
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        "401":
-          description: Unauthorized
+        "400":
+          description: Bad Request
           content:
             application/json:
               schema:
@@ -8114,16 +8672,19 @@ paths:
       parameters:
         - name: serverId
           in: path
+          description: "server record ID"
           required: true
           schema:
             type: string
       requestBody:
+        description: "from, to (remote paths)"
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/GenericRequest'
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -8132,15 +8693,15 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
-        "400":
-          description: Bad Request
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        "401":
-          description: Unauthorized
+        "400":
+          description: Bad Request
           content:
             application/json:
               schema:
@@ -8162,15 +8723,18 @@ paths:
       parameters:
         - name: serverId
           in: path
+          description: "server record ID"
           required: true
           schema:
             type: string
         - name: path
           in: query
+          description: "remote file path"
           required: true
           schema:
             type: string
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -8179,15 +8743,15 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
-        "400":
-          description: Bad Request
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        "401":
-          description: Unauthorized
+        "400":
+          description: Bad Request
           content:
             application/json:
               schema:
@@ -8216,16 +8780,19 @@ paths:
       parameters:
         - name: serverId
           in: path
+          description: "server record ID"
           required: true
           schema:
             type: string
       requestBody:
+        description: "from, to (remote paths)"
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/GenericRequest'
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -8234,15 +8801,15 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
-        "400":
-          description: Bad Request
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        "401":
-          description: Unauthorized
+        "400":
+          description: Bad Request
           content:
             application/json:
               schema:
@@ -8264,20 +8831,24 @@ paths:
       parameters:
         - name: serverId
           in: path
+          description: "server record ID"
           required: true
           schema:
             type: string
         - name: path
           in: query
+          description: "base path (default /)"
           required: false
           schema:
             type: string
         - name: query
           in: query
+          description: "search term"
           required: true
           schema:
             type: string
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -8286,15 +8857,15 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
-        "400":
-          description: Bad Request
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        "401":
-          description: Unauthorized
+        "400":
+          description: Bad Request
           content:
             application/json:
               schema:
@@ -8316,15 +8887,18 @@ paths:
       parameters:
         - name: serverId
           in: path
+          description: "server record ID"
           required: true
           schema:
             type: string
         - name: path
           in: query
+          description: "remote path"
           required: true
           schema:
             type: string
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -8333,15 +8907,15 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
-        "400":
-          description: Bad Request
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        "401":
-          description: Unauthorized
+        "400":
+          description: Bad Request
           content:
             application/json:
               schema:
@@ -8363,16 +8937,19 @@ paths:
       parameters:
         - name: serverId
           in: path
+          description: "server record ID"
           required: true
           schema:
             type: string
       requestBody:
+        description: "target (link destination), link_path (new symlink path)"
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/GenericRequest'
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -8381,15 +8958,15 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
-        "400":
-          description: Bad Request
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        "401":
-          description: Unauthorized
+        "400":
+          description: Bad Request
           content:
             application/json:
               schema:
@@ -8411,11 +8988,13 @@ paths:
       parameters:
         - name: serverId
           in: path
+          description: "server record ID"
           required: true
           schema:
             type: string
         - name: path
           in: query
+          description: "remote destination directory"
           required: true
           schema:
             type: string
@@ -8431,7 +9010,8 @@ paths:
                   format: binary
               required:
                 - file
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -8440,15 +9020,15 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
-        "400":
-          description: Bad Request
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        "401":
-          description: Unauthorized
+        "400":
+          description: Bad Request
           content:
             application/json:
               schema:
@@ -8477,16 +9057,19 @@ paths:
       parameters:
         - name: serverId
           in: path
+          description: "server record ID"
           required: true
           schema:
             type: string
       requestBody:
+        description: "path, content"
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/GenericRequest'
-      security: []  # public
+      security:
+        - bearerAuth: []  # superuser required
       responses:
         "200":
           description: OK
@@ -8495,15 +9078,15 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
-        "400":
-          description: Bad Request
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
-        "401":
-          description: Unauthorized
+        "400":
+          description: Bad Request
           content:
             application/json:
               schema:
@@ -8525,11 +9108,13 @@ paths:
       parameters:
         - name: serverId
           in: path
+          description: "server record ID"
           required: true
           schema:
             type: string
         - name: token
           in: query
+          description: "auth token (for WebSocket clients that cannot set headers)"
           required: false
           schema:
             type: string
@@ -8541,7 +9126,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -8558,6 +9144,7 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "topic id"
           required: true
           schema:
             type: string
@@ -8571,7 +9158,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "403":
           description: Forbidden
           content:
@@ -8601,10 +9189,12 @@ paths:
       parameters:
         - name: id
           in: path
+          description: "topic id"
           required: true
           schema:
             type: string
       requestBody:
+        description: "share token options"
         required: true
         content:
           application/json:
@@ -8624,7 +9214,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                type: object
+                additionalProperties: true
         "400":
           description: Bad Request
           content:
@@ -8662,6 +9253,7 @@ paths:
       parameters:
         - name: token
           in: path
+          description: "share token"
           required: true
           schema:
             type: string
@@ -8696,10 +9288,12 @@ paths:
       parameters:
         - name: token
           in: path
+          description: "share token"
           required: true
           schema:
             type: string
       requestBody:
+        description: "comment payload"
         required: true
         content:
           application/json:

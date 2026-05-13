@@ -161,6 +161,9 @@ func (w *Worker) Start() {
 	if err := w.recoverOrphanedOperations(); err != nil {
 		log.Printf("recover orphaned operations: %v", err)
 	}
+	if err := w.recoverOrphanedSoftwareOperations(); err != nil {
+		log.Printf("recover orphaned software operations: %v", err)
+	}
 
 	mux := asynq.NewServeMux()
 	mux.HandleFunc(TaskDeployApp, w.handleDeployApp)

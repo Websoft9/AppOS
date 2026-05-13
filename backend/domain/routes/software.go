@@ -20,6 +20,7 @@ func registerSoftwareRoutes(servers *router.RouterGroup[*core.RequestEvent]) {
 	sw := servers.Group("/{serverId}/software")
 	sw.GET("/capabilities", handleSoftwareCapabilityList)
 	sw.GET("/operations/{operationId}", handleSoftwareOperationGet)
+	sw.DELETE("/operations/{operationId}", handleSoftwareOperationDelete)
 	sw.GET("/operations", handleSoftwareOperationList)
 	sw.GET("", handleSoftwareComponentList)
 	sw.GET("/{componentKey}", handleSoftwareComponentGet)
@@ -65,6 +66,49 @@ func handleSoftwareOperationGet(e *core.RequestEvent) error {
 	}
 
 	return e.JSON(http.StatusOK, record)
+}
+
+// @Summary Delete a software delivery operation
+// @Description Deletes one terminal software delivery operation history record for a server. In-flight operations cannot be deleted.
+// @Tags Software
+// @Security BearerAuth
+// @Param serverId path string true "Server ID"
+// @Param operationId path string true "Operation ID"
+// @Success 204
+// @Failure 404 {object} map[string]any
+// @Failure 409 {object} map[string]any
+// @Router /api/servers/{serverId}/software/operations/{operationId} [delete]
+func handleSoftwareOperationDelete(e *core.RequestEvent) error {
+	serverID := e.Request.PathValue("serverId")
+	operationID := e.Request.PathValue("operationId")
+
+	record, err := e.App.FindRecordById(collections.SoftwareOperations, operationID)
+	if err != nil {
+		return e.JSON(http.StatusNotFound, map[string]any{
+			"error":   "operation_not_found",
+			"message": "software operation not found",
+		})
+	}
+	if record.GetString("server_id") != serverID {
+		return e.JSON(http.StatusNotFound, map[string]any{
+			"error":   "operation_not_found",
+			"message": "software operation not found",
+		})
+	}
+	if record.GetString("terminal_status") == string(software.TerminalStatusNone) {
+		return e.JSON(http.StatusConflict, map[string]any{
+			"error":   "operation_in_flight",
+			"message": "in-flight software operations cannot be deleted",
+		})
+	}
+	if err := e.App.Delete(record); err != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{
+			"error":   "delete_failed",
+			"message": err.Error(),
+		})
+	}
+
+	return e.NoContent(http.StatusNoContent)
 }
 
 // @Summary List software delivery operations

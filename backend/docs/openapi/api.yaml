@@ -305,6 +305,36 @@ components:
                 path:
                     type: string
             type: object
+        MonitorAgentDeployRequest:
+            properties:
+                apposBaseUrl:
+                    type: string
+            type: object
+        MonitorAgentDeployResponse:
+            properties:
+                binary_path:
+                    type: string
+                config_path:
+                    type: string
+                output:
+                    type: string
+                packaged_version:
+                    type: string
+                server_id:
+                    type: string
+                service:
+                    type: string
+                status:
+                    type: string
+                status_text:
+                    type: string
+                systemd:
+                    additionalProperties:
+                        type: string
+                    type: object
+                unit_path:
+                    type: string
+            type: object
         MonitorContainerTelemetryResponse:
             properties:
                 items:
@@ -320,6 +350,15 @@ components:
                 stepSeconds:
                     type: integer
                 window:
+                    type: string
+            type: object
+        MonitorErrorResponse:
+            properties:
+                error:
+                    type: string
+                maxBytes:
+                    type: integer
+                message:
                     type: string
             type: object
         MonitorMetricSeriesResponse:
@@ -627,6 +666,9 @@ components:
                     type: string
             type: object
     securitySchemes:
+        basicAuth:
+            scheme: basic
+            type: http
         bearerAuth:
             bearerFormat: PocketBase token
             scheme: bearer
@@ -829,6 +871,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: git compose install preflight payload
                 required: true
             responses:
                 "200":
@@ -849,7 +892,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -899,6 +943,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: manual compose install preflight payload
                 required: true
             responses:
                 "200":
@@ -919,7 +964,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -942,6 +988,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: name availability payload
                 required: true
             responses:
                 "200":
@@ -962,7 +1009,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -1172,7 +1220,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -1191,12 +1240,14 @@ paths:
             description: Creates a shared lifecycle uninstall operation for an installed app. Superuser only.
             operationId: delete_api_apps_id
             parameters:
-                - in: path
+                - description: app instance ID
+                  in: path
                   name: id
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: remove named volumes
+                  in: query
                   name: removeVolumes
                   required: false
                   schema:
@@ -1220,7 +1271,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -1245,7 +1297,8 @@ paths:
             description: Returns one installed app with normalized runtime status. Superuser only.
             operationId: get_api_apps_id
             parameters:
-                - in: path
+                - description: app instance ID
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -1269,7 +1322,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -1288,7 +1342,8 @@ paths:
             description: Updates operator-maintained access hints for one installed app. Superuser only.
             operationId: put_api_apps_id_access
             parameters:
-                - in: path
+                - description: app instance ID
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -1298,6 +1353,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: access hints
                 required: true
             responses:
                 "200":
@@ -1318,7 +1374,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -1344,7 +1401,8 @@ paths:
             description: Returns docker-compose.yml content for one installed app. Supports local and remote servers. Superuser only.
             operationId: get_api_apps_id_config
             parameters:
-                - in: path
+                - description: app instance ID
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -1368,7 +1426,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -1393,7 +1452,8 @@ paths:
             description: Overwrites docker-compose.yml for one installed app. Supports local and remote servers. Superuser only.
             operationId: put_api_apps_id_config
             parameters:
-                - in: path
+                - description: app instance ID
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -1403,6 +1463,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: content
                 required: true
             responses:
                 "200":
@@ -1423,7 +1484,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -1449,7 +1511,8 @@ paths:
             description: Restores the latest saved docker-compose rollback point for one installed app. Supports local and remote servers. Superuser only.
             operationId: post_api_apps_id_config_rollback
             parameters:
-                - in: path
+                - description: app instance ID
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -1479,7 +1542,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -1505,7 +1569,8 @@ paths:
             description: Validates draft docker-compose.yml content for one installed app before saving. Supports local and remote servers. Superuser only.
             operationId: post_api_apps_id_config_validate
             parameters:
-                - in: path
+                - description: app instance ID
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -1515,6 +1580,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: content
                 required: true
             responses:
                 "200":
@@ -1535,7 +1601,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -1620,12 +1687,14 @@ paths:
             description: Returns docker compose logs for one installed app. Superuser only.
             operationId: get_api_apps_id_logs
             parameters:
-                - in: path
+                - description: app instance ID
+                  in: path
                   name: id
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: number of log lines (default 200)
+                  in: query
                   name: tail
                   required: false
                   schema:
@@ -1649,7 +1718,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -1675,7 +1745,8 @@ paths:
             description: Creates a redeploy operation using the currently installed compose config and existing project directory. Superuser only.
             operationId: post_api_apps_id_redeploy
             parameters:
-                - in: path
+                - description: app instance ID
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -1705,7 +1776,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -1785,7 +1857,8 @@ paths:
             description: Creates a shared lifecycle restart operation for an installed app. Superuser only.
             operationId: post_api_apps_id_restart
             parameters:
-                - in: path
+                - description: app instance ID
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -1815,7 +1888,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -1841,7 +1915,8 @@ paths:
             description: Creates a shared lifecycle start operation for an installed app. Superuser only.
             operationId: post_api_apps_id_start
             parameters:
-                - in: path
+                - description: app instance ID
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -1871,7 +1946,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -1897,7 +1973,8 @@ paths:
             description: Creates a shared lifecycle stop operation for an installed app. Superuser only.
             operationId: post_api_apps_id_stop
             parameters:
-                - in: path
+                - description: app instance ID
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -1927,7 +2004,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -1953,7 +2031,8 @@ paths:
             description: Creates an upgrade operation using the currently installed compose config and existing project directory. Superuser only.
             operationId: post_api_apps_id_upgrade
             parameters:
-                - in: path
+                - description: app instance ID
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -1983,7 +2062,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -2186,7 +2266,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -2205,7 +2286,8 @@ paths:
             description: Idempotently sets the authenticated caller's favorite state for one catalog app.
             operationId: put_api_catalog_me_apps_key_favorite
             parameters:
-                - in: path
+                - description: catalog app key
+                  in: path
                   name: key
                   required: true
                   schema:
@@ -2215,6 +2297,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: favorite payload
                 required: true
             responses:
                 "200":
@@ -2234,7 +2317,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -2260,7 +2344,8 @@ paths:
             description: Clears the authenticated caller's note for one catalog app.
             operationId: delete_api_catalog_me_apps_key_note
             parameters:
-                - in: path
+                - description: catalog app key
+                  in: path
                   name: key
                   required: true
                   schema:
@@ -2283,7 +2368,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -2308,7 +2394,8 @@ paths:
             description: Creates or updates the authenticated caller's note for one catalog app.
             operationId: put_api_catalog_me_apps_key_note
             parameters:
-                - in: path
+                - description: catalog app key
+                  in: path
                   name: key
                   required: true
                   schema:
@@ -2318,6 +2405,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: note payload
                 required: true
             responses:
                 "200":
@@ -2337,7 +2425,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -2363,7 +2452,8 @@ paths:
             description: Generates certificate material for a self-signed certificate record.
             operationId: post_api_certificates_id_generate-self-signed
             parameters:
-                - in: path
+                - description: certificate id
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -2373,6 +2463,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/SelfSignedGenerateRequest'
+                description: generation options
                 required: false
             responses:
                 "200":
@@ -2392,7 +2483,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "403":
                     content:
@@ -2432,7 +2524,8 @@ paths:
             description: Regenerates certificate material for an existing self-signed certificate record.
             operationId: post_api_certificates_id_renew-self-signed
             parameters:
-                - in: path
+                - description: certificate id
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -2442,6 +2535,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/SelfSignedRenewRequest'
+                description: renewal options
                 required: false
             responses:
                 "200":
@@ -2461,7 +2555,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "403":
                     content:
@@ -3629,7 +3724,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -3659,7 +3755,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -3678,17 +3775,20 @@ paths:
             description: Returns service logs for one component service. Auth required.
             operationId: get_api_components_services_name_logs
             parameters:
-                - in: path
+                - description: service name
+                  in: path
                   name: name
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: stdout or stderr
+                  in: query
                   name: stream
                   required: false
                   schema:
                     type: string
-                - in: query
+                - description: approximate line count
+                  in: query
                   name: tail
                   required: false
                   schema:
@@ -3710,7 +3810,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -3743,7 +3844,8 @@ paths:
             description: Returns connectors visible to the authenticated user. Use the optional kind query parameter to filter by one or more connector kinds.
             operationId: get_api_connectors
             parameters:
-                - in: query
+                - description: comma-separated connector kinds
+                  in: query
                   name: kind
                   required: false
                   schema:
@@ -3761,7 +3863,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -3783,6 +3886,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/ConnectorUpsertRequest'
+                description: connector payload
                 required: true
             responses:
                 "201":
@@ -3802,7 +3906,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "403":
                     content:
@@ -3828,7 +3933,8 @@ paths:
             description: Deletes a connector. Superuser only.
             operationId: delete_api_connectors_id
             parameters:
-                - in: path
+                - description: connector id
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -3840,7 +3946,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -3865,7 +3972,8 @@ paths:
             description: Returns a single connector by id.
             operationId: get_api_connectors_id
             parameters:
-                - in: path
+                - description: connector id
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -3881,7 +3989,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -3899,7 +4008,8 @@ paths:
             description: Updates an existing connector. Superuser only.
             operationId: put_api_connectors_id
             parameters:
-                - in: path
+                - description: connector id
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -3909,6 +4019,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/ConnectorUpsertRequest'
+                description: connector payload
                 required: true
             responses:
                 "200":
@@ -3928,7 +4039,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "403":
                     content:
@@ -3974,7 +4086,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
             security:
                 - bearerAuth: []
@@ -3986,7 +4099,8 @@ paths:
             description: Returns a single built-in connector template.
             operationId: get_api_connectors_templates_id
             parameters:
-                - in: path
+                - description: template id
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -4003,7 +4117,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -4047,9 +4162,11 @@ paths:
                 - System Cron
     /api/crons/{jobId}/logs:
         get:
+            description: Returns recent structured execution log lines for one cron job, filtered from PocketBase _logs. Superuser only.
             operationId: get_api_crons_jobid_logs
             parameters:
-                - in: path
+                - description: Cron job ID
+                  in: path
                   name: jobId
                   required: true
                   schema:
@@ -4059,17 +4176,19 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: OK
                 "401":
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
             security:
                 - bearerAuth: []
-            summary: Get crons by jobId logs
+            summary: Get cron job execution logs
             tags:
                 - System Cron
     /api/exposures:
@@ -4149,6 +4268,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: 'name: backup filename (without extension)'
                 required: true
             responses:
                 "202":
@@ -4169,7 +4289,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "503":
                     content:
@@ -4199,7 +4320,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -4222,6 +4344,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: 'name: backup filename to restore'
                 required: true
             responses:
                 "200":
@@ -4242,7 +4365,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -4261,7 +4385,8 @@ paths:
             description: Returns the raw docker-compose.yml content for the specified project directory (local server only). Superuser only.
             operationId: get_api_ext_docker_compose_config
             parameters:
-                - in: query
+                - description: absolute path to the compose project
+                  in: query
                   name: projectDir
                   required: true
                   schema:
@@ -4285,7 +4410,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -4307,6 +4433,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: projectDir, content
                 required: true
             responses:
                 "200":
@@ -4327,7 +4454,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -4346,7 +4474,8 @@ paths:
             description: Runs `docker compose down` in the given project directory. Writes audit entry. Superuser only.
             operationId: post_api_ext_docker_compose_down
             parameters:
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -4356,6 +4485,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: projectDir, removeVolumes (optional bool)
                 required: true
             responses:
                 "200":
@@ -4376,7 +4506,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -4395,17 +4526,20 @@ paths:
             description: Returns recent log output for all services in the compose project. Superuser only.
             operationId: get_api_ext_docker_compose_logs
             parameters:
-                - in: query
+                - description: absolute path to the compose project
+                  in: query
                   name: projectDir
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
                     type: string
-                - in: query
+                - description: number of log lines (default 100)
+                  in: query
                   name: tail
                   required: false
                   schema:
@@ -4429,7 +4563,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -4448,7 +4583,8 @@ paths:
             description: Returns all docker compose projects on the specified server. Superuser only.
             operationId: get_api_ext_docker_compose_ls
             parameters:
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -4472,7 +4608,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -4491,7 +4628,8 @@ paths:
             description: Runs `docker compose restart` in the given project directory. Writes audit entry. Superuser only.
             operationId: post_api_ext_docker_compose_restart
             parameters:
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -4501,6 +4639,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: projectDir
                 required: true
             responses:
                 "200":
@@ -4521,7 +4660,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -4540,7 +4680,8 @@ paths:
             description: Runs `docker compose start` in the given project directory. Writes audit entry. Superuser only.
             operationId: post_api_ext_docker_compose_start
             parameters:
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -4550,6 +4691,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: projectDir
                 required: true
             responses:
                 "200":
@@ -4570,7 +4712,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -4589,7 +4732,8 @@ paths:
             description: Runs `docker compose stop` in the given project directory. Writes audit entry. Superuser only.
             operationId: post_api_ext_docker_compose_stop
             parameters:
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -4599,6 +4743,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: projectDir
                 required: true
             responses:
                 "200":
@@ -4619,7 +4764,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -4638,7 +4784,8 @@ paths:
             description: Runs `docker compose up -d` in the given project directory. Writes audit entry. Superuser only.
             operationId: post_api_ext_docker_compose_up
             parameters:
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -4648,6 +4795,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: 'projectDir: absolute path to the compose project'
                 required: true
             responses:
                 "200":
@@ -4668,7 +4816,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -4687,7 +4836,8 @@ paths:
             description: Returns all containers (running and stopped) on the specified server. Superuser only.
             operationId: get_api_ext_docker_containers
             parameters:
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -4711,7 +4861,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -4730,17 +4881,20 @@ paths:
             description: Removes the specified container. Use ?force=true to force-remove a running container. Superuser only.
             operationId: delete_api_ext_docker_containers_id
             parameters:
-                - in: path
+                - description: container ID or name
+                  in: path
                   name: id
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: force remove a running container
+                  in: query
                   name: force
                   required: false
                   schema:
                     type: boolean
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -4764,7 +4918,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -4782,12 +4937,14 @@ paths:
             description: Returns docker inspect output for the given container ID. Superuser only.
             operationId: get_api_ext_docker_containers_id
             parameters:
-                - in: path
+                - description: container ID or name
+                  in: path
                   name: id
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -4811,7 +4968,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -4830,17 +4988,20 @@ paths:
             description: Returns recent stdout/stderr output for the given container. Superuser only.
             operationId: get_api_ext_docker_containers_id_logs
             parameters:
-                - in: path
+                - description: container ID or name
+                  in: path
                   name: id
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
                     type: string
-                - in: query
+                - description: number of log lines (default 200)
+                  in: query
                   name: tail
                   required: false
                   schema:
@@ -4864,7 +5025,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -4883,12 +5045,14 @@ paths:
             description: Restarts the specified container. Superuser only.
             operationId: post_api_ext_docker_containers_id_restart
             parameters:
-                - in: path
+                - description: container ID or name
+                  in: path
                   name: id
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -4918,7 +5082,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -4937,12 +5102,14 @@ paths:
             description: Starts the specified container. Superuser only.
             operationId: post_api_ext_docker_containers_id_start
             parameters:
-                - in: path
+                - description: container ID or name
+                  in: path
                   name: id
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -4972,7 +5139,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -4991,12 +5159,14 @@ paths:
             description: Stops the specified container. Superuser only.
             operationId: post_api_ext_docker_containers_id_stop
             parameters:
-                - in: path
+                - description: container ID or name
+                  in: path
                   name: id
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -5026,7 +5196,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -5045,7 +5216,8 @@ paths:
             description: Returns CPU/memory/network usage for all running containers. Superuser only.
             operationId: get_api_ext_docker_containers_stats
             parameters:
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -5069,7 +5241,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -5088,7 +5261,8 @@ paths:
             description: Executes a docker CLI command string on the specified server. Superuser only.
             operationId: post_api_ext_docker_exec
             parameters:
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -5098,6 +5272,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: 'command: docker command string (e.g. "info")'
                 required: true
             responses:
                 "200":
@@ -5118,7 +5293,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
             security:
                 - bearerAuth: []
@@ -5130,7 +5306,8 @@ paths:
             description: Returns all local images on the specified server. Superuser only.
             operationId: get_api_ext_docker_images
             parameters:
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -5154,7 +5331,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -5173,12 +5351,14 @@ paths:
             description: Removes the specified image from the server. Superuser only.
             operationId: delete_api_ext_docker_images_id
             parameters:
-                - in: path
+                - description: image ID or name (supports path wildcard)
+                  in: path
                   name: id
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -5202,7 +5382,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -5221,12 +5402,14 @@ paths:
             description: Returns docker inspect output for the given image ID or name. Superuser only.
             operationId: get_api_ext_docker_images_id_inspect
             parameters:
-                - in: path
+                - description: image ID or name
+                  in: path
                   name: id
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -5250,7 +5433,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -5269,7 +5453,8 @@ paths:
             description: Removes all dangling and unused Docker images. Superuser only.
             operationId: post_api_ext_docker_images_prune
             parameters:
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -5299,7 +5484,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -5318,7 +5504,8 @@ paths:
             description: Pulls the specified image from the registry. Superuser only.
             operationId: post_api_ext_docker_images_pull
             parameters:
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -5328,6 +5515,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: 'name: image name/tag'
                 required: true
             responses:
                 "200":
@@ -5348,7 +5536,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -5367,17 +5556,20 @@ paths:
             description: Searches Docker Hub for images matching the query string. Superuser only.
             operationId: get_api_ext_docker_images_registry_search
             parameters:
-                - in: query
+                - description: max results (default 20, max 100)
+                  in: query
                   name: limit
                   required: false
                   schema:
                     type: integer
-                - in: query
+                - description: search query
+                  in: query
                   name: q
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -5401,7 +5593,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -5420,7 +5613,8 @@ paths:
             description: Pings Docker Hub to verify registry connectivity from the target server. Superuser only.
             operationId: get_api_ext_docker_images_registry_status
             parameters:
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -5444,7 +5638,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
             security:
                 - bearerAuth: []
@@ -5456,7 +5651,8 @@ paths:
             description: Returns all Docker networks on the specified server. Superuser only.
             operationId: get_api_ext_docker_networks
             parameters:
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -5480,7 +5676,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -5498,7 +5695,8 @@ paths:
             description: Creates a new Docker user-defined network. Superuser only.
             operationId: post_api_ext_docker_networks
             parameters:
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -5508,6 +5706,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: 'name: network name'
                 required: true
             responses:
                 "200":
@@ -5528,7 +5727,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -5547,12 +5747,14 @@ paths:
             description: Removes the specified Docker network. Superuser only.
             operationId: delete_api_ext_docker_networks_id
             parameters:
-                - in: path
+                - description: network ID or name
+                  in: path
                   name: id
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -5576,7 +5778,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -5606,7 +5809,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
             security:
                 - bearerAuth: []
@@ -5618,7 +5822,8 @@ paths:
             description: Returns all Docker volumes on the specified server. Superuser only.
             operationId: get_api_ext_docker_volumes
             parameters:
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -5642,7 +5847,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -5661,12 +5867,14 @@ paths:
             description: Removes the specified Docker volume. Superuser only.
             operationId: delete_api_ext_docker_volumes_id
             parameters:
-                - in: path
+                - description: volume name
+                  in: path
                   name: id
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -5690,7 +5898,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -5709,12 +5918,14 @@ paths:
             description: Returns docker inspect output for the given volume. Superuser only.
             operationId: get_api_ext_docker_volumes_id_inspect
             parameters:
-                - in: path
+                - description: volume name
+                  in: path
                   name: id
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -5738,7 +5949,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -5757,7 +5969,8 @@ paths:
             description: Removes all unused Docker volumes. Superuser only.
             operationId: post_api_ext_docker_volumes_prune
             parameters:
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
@@ -5787,7 +6000,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -5806,12 +6020,14 @@ paths:
             description: Deletes a file or directory. Directories require recursive=true. Root directories cannot be deleted. Superuser only.
             operationId: delete_api_ext_iac
             parameters:
-                - in: query
+                - description: relative path to delete
+                  in: query
                   name: path
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: set true to delete a non-empty directory
+                  in: query
                   name: recursive
                   required: false
                   schema:
@@ -5835,7 +6051,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -5853,7 +6070,8 @@ paths:
             description: Returns a sorted directory listing under /appos/data (dirs first). Superuser only.
             operationId: get_api_ext_iac
             parameters:
-                - in: query
+                - description: relative path (e.g. apps/myapp); defaults to root
+                  in: query
                   name: path
                   required: false
                   schema:
@@ -5876,7 +6094,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -5898,6 +6117,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/CreateRequest'
+                description: path, type (file|dir), content (optional)
                 required: true
             responses:
                 "201":
@@ -5918,7 +6138,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "409":
                     content:
@@ -5937,7 +6158,8 @@ paths:
             description: Returns the UTF-8 text content of a file under /appos/data. Binary files are rejected. Superuser only.
             operationId: get_api_ext_iac_content
             parameters:
-                - in: query
+                - description: relative file path (e.g. apps/myapp/docker-compose.yml)
+                  in: query
                   name: path
                   required: true
                   schema:
@@ -5960,7 +6182,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -5996,6 +6219,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/UpdateRequest'
+                description: path, content
                 required: true
             responses:
                 "200":
@@ -6016,7 +6240,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -6035,7 +6260,8 @@ paths:
             description: Streams the raw file content as an attachment (Content-Disposition attachment). Superuser only.
             operationId: get_api_ext_iac_download
             parameters:
-                - in: query
+                - description: relative file path
+                  in: query
                   name: path
                   required: true
                   schema:
@@ -6058,7 +6284,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -6077,7 +6304,8 @@ paths:
             description: Returns a directory listing under /appos/library (read-only). Used for custom-app template pre-fill. Superuser only.
             operationId: get_api_ext_iac_library
             parameters:
-                - in: query
+                - description: relative path under apps/ (e.g. myapp)
+                  in: query
                   name: path
                   required: false
                   schema:
@@ -6100,7 +6328,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -6119,7 +6348,8 @@ paths:
             description: Returns the text content of a read-only library file under /appos/library. Superuser only.
             operationId: get_api_ext_iac_library_content
             parameters:
-                - in: query
+                - description: relative file path (e.g. apps/wordpress/docker-compose.yml)
+                  in: query
                   name: path
                   required: true
                   schema:
@@ -6142,7 +6372,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -6172,6 +6403,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: sourceKey (library app name), destKey (optional, defaults to sourceKey)
                 required: true
             responses:
                 "200":
@@ -6192,7 +6424,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -6215,6 +6448,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/MoveRequest'
+                description: from, to (relative paths)
                 required: true
             responses:
                 "200":
@@ -6235,7 +6469,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -6287,7 +6522,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "413":
                     content:
@@ -6324,7 +6560,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -6346,6 +6583,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: domain binding configuration
                 required: true
             responses:
                 "200":
@@ -6366,7 +6604,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -6385,7 +6624,8 @@ paths:
             description: Deletes a reverse proxy domain binding. Superuser only.
             operationId: delete_api_ext_proxy_domains_domain
             parameters:
-                - in: path
+                - description: domain name to remove
+                  in: path
                   name: domain
                   required: true
                   schema:
@@ -6409,7 +6649,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -6435,7 +6676,8 @@ paths:
             description: Triggers SSL certificate provisioning for the given domain. Superuser only.
             operationId: post_api_ext_proxy_domains_domain_ssl
             parameters:
-                - in: path
+                - description: domain to issue certificate for
+                  in: path
                   name: domain
                   required: true
                   schema:
@@ -6465,7 +6707,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -6508,7 +6751,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -6693,7 +6937,8 @@ paths:
             description: Returns a directory listing for the local server filesystem. Superuser only.
             operationId: get_api_ext_system_files
             parameters:
-                - in: query
+                - description: directory path to list
+                  in: query
                   name: path
                   required: false
                   schema:
@@ -6710,7 +6955,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -6740,7 +6986,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -6759,7 +7006,8 @@ paths:
             description: Force-resets a user's password (no current password required). Invalidates all existing tokens. Superuser only.
             operationId: post_api_ext_users_collection_id_reset-password
             parameters:
-                - in: path
+                - description: auth collection
+                  in: path
                   name: collection
                   required: true
                   schema:
@@ -6767,7 +7015,8 @@ paths:
                         - users
                         - _superusers
                     type: string
-                - in: path
+                - description: record ID
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -6777,6 +7026,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: password and passwordConfirm
                 required: true
             responses:
                 "200":
@@ -6797,7 +7047,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -6885,7 +7136,8 @@ paths:
             description: Returns service instances visible to the authenticated user. Use the optional kind query parameter to filter by one or more instance kinds.
             operationId: get_api_instances
             parameters:
-                - in: query
+                - description: comma-separated instance kinds
+                  in: query
                   name: kind
                   required: false
                   schema:
@@ -6903,7 +7155,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -6925,6 +7178,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/InstanceUpsertRequest'
+                description: instance payload
                 required: true
             responses:
                 "201":
@@ -6944,7 +7198,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "403":
                     content:
@@ -6970,7 +7225,8 @@ paths:
             description: Deletes a service instance. Superuser only.
             operationId: delete_api_instances_id
             parameters:
-                - in: path
+                - description: instance id
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -6982,7 +7238,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -7007,7 +7264,8 @@ paths:
             description: Returns a single service instance by id.
             operationId: get_api_instances_id
             parameters:
-                - in: path
+                - description: instance id
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -7023,7 +7281,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -7041,7 +7300,8 @@ paths:
             description: Updates an existing service instance. Superuser only.
             operationId: put_api_instances_id
             parameters:
-                - in: path
+                - description: instance id
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -7051,6 +7311,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/InstanceUpsertRequest'
+                description: instance payload
                 required: true
             responses:
                 "200":
@@ -7070,7 +7331,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "403":
                     content:
@@ -7107,6 +7369,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/InstanceReachabilityRequest'
+                description: instance id filter
                 required: true
             responses:
                 "200":
@@ -7128,7 +7391,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -7160,7 +7424,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
             security:
                 - bearerAuth: []
@@ -7172,7 +7437,8 @@ paths:
             description: Returns a single built-in instance template.
             operationId: get_api_instances_templates_id
             parameters:
-                - in: path
+                - description: template id
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -7189,7 +7455,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -7218,14 +7485,13 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                $ref: '#/components/schemas/MonitorErrorResponse'
                     description: Unauthorized
                 "500":
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/MonitorErrorResponse'
                     description: Internal Server Error
             security:
                 - bearerAuth: []
@@ -7237,17 +7503,20 @@ paths:
             description: Returns latest and time-series telemetry for containers on one managed server. The optional containerId query parameter may be repeated.
             operationId: get_api_monitor_servers_id_container-telemetry
             parameters:
-                - in: path
+                - description: server record ID
+                  in: path
                   name: id
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: container ID filter; repeat to request multiple containers
+                  in: query
                   name: containerId
                   required: false
                   schema:
                     type: string
-                - in: query
+                - description: fixed time window
+                  in: query
                   name: window
                   required: false
                   schema:
@@ -7272,21 +7541,19 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/MonitorErrorResponse'
                     description: Bad Request
                 "401":
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                $ref: '#/components/schemas/MonitorErrorResponse'
                     description: Unauthorized
                 "404":
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/MonitorErrorResponse'
                     description: Not Found
             security:
                 - bearerAuth: []
@@ -7298,7 +7565,8 @@ paths:
             description: Returns the latest projected status for a monitor target. targetType accepts server, app, container, resource, or platform.
             operationId: get_api_monitor_targets_targettype_targetid
             parameters:
-                - in: path
+                - description: monitor target type
+                  in: path
                   name: targetType
                   required: true
                   schema:
@@ -7309,7 +7577,8 @@ paths:
                         - resource
                         - platform
                     type: string
-                - in: path
+                - description: monitor target ID
+                  in: path
                   name: targetId
                   required: true
                   schema:
@@ -7325,15 +7594,20 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                $ref: '#/components/schemas/MonitorErrorResponse'
                     description: Unauthorized
                 "404":
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/MonitorErrorResponse'
                     description: Not Found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MonitorErrorResponse'
+                    description: Internal Server Error
             security:
                 - bearerAuth: []
             summary: Get monitor target status
@@ -7344,7 +7618,8 @@ paths:
             description: Returns metric series for a monitor target. targetType accepts server, app, container, or platform. series accepts cpu, memory, disk, disk_usage, network, or network_traffic depending on target type. Use startAt and endAt together for a custom RFC3339 range.
             operationId: get_api_monitor_targets_targettype_targetid_series
             parameters:
-                - in: path
+                - description: monitor target type
+                  in: path
                   name: targetType
                   required: true
                   schema:
@@ -7354,22 +7629,26 @@ paths:
                         - container
                         - platform
                     type: string
-                - in: path
+                - description: monitor target ID; platform uses appos-core for AppOS host metrics
+                  in: path
                   name: targetId
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: custom range end time in RFC3339 format
+                  in: query
                   name: endAt
                   required: false
                   schema:
                     type: string
-                - in: query
+                - description: network interface for network series; use all or omit for aggregate
+                  in: query
                   name: networkInterface
                   required: false
                   schema:
                     type: string
-                - in: query
+                - description: metric series alias
+                  in: query
                   name: series
                   required: false
                   schema:
@@ -7381,12 +7660,14 @@ paths:
                         - network
                         - network_traffic
                     type: string
-                - in: query
+                - description: custom range start time in RFC3339 format
+                  in: query
                   name: startAt
                   required: false
                   schema:
                     type: string
-                - in: query
+                - description: fixed time window; ignored when startAt and endAt are both set
+                  in: query
                   name: window
                   required: false
                   schema:
@@ -7411,14 +7692,13 @@ paths:
                     content:
                         application/json:
                             schema:
-                                additionalProperties: true
-                                type: object
+                                $ref: '#/components/schemas/MonitorErrorResponse'
                     description: Bad Request
                 "401":
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                $ref: '#/components/schemas/MonitorErrorResponse'
                     description: Unauthorized
             security:
                 - bearerAuth: []
@@ -7427,29 +7707,64 @@ paths:
                 - Monitoring
     /api/monitor/write:
         post:
+            description: Receives Prometheus remote-write protobuf payloads from managed-server Netdata agents. This endpoint is served by the AppOS backend and forwards accepted payloads to the embedded time-series database. Authenticate with HTTP Basic Auth where username is the server record ID and password is the per-server monitor agent token issued during Netdata install/update. Reverse-proxy forwarding headers used elsewhere for agent URL generation are parsed defensively only the first comma-separated host/port value is used and forwarded ports must be numeric.
             operationId: post_api_monitor_write
+            parameters:
+                - description: Basic base64(serverId:monitorAgentToken)
+                  in: header
+                  name: Authorization
+                  required: true
+                  schema:
+                    type: string
+                - description: remote-write compression, usually snappy
+                  in: header
+                  name: Content-Encoding
+                  required: false
+                  schema:
+                    type: string
+                - description: application/x-protobuf
+                  in: header
+                  name: Content-Type
+                  required: true
+                  schema:
+                    type: string
+                - description: Prometheus remote-write protocol version
+                  in: header
+                  name: X-Prometheus-Remote-Write-Version
+                  required: false
+                  schema:
+                    type: string
             requestBody:
                 content:
-                    application/json:
+                    application/x-protobuf:
                         schema:
-                            $ref: '#/components/schemas/GenericRequest'
-                required: false
+                            format: binary
+                            type: string
+                required: true
             responses:
-                "200":
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
-                    description: OK
+                "204":
+                    description: No Content
                 "401":
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                $ref: '#/components/schemas/MonitorErrorResponse'
                     description: Unauthorized
+                "413":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MonitorErrorResponse'
+                    description: Payload Too Large
+                "502":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MonitorErrorResponse'
+                    description: Bad Gateway
             security:
-                - bearerAuth: []
-            summary: Create or execute monitor write
+                - basicAuth: []
+            summary: Write Netdata metrics
             tags:
                 - Monitoring Ingest
     /api/pipelines:
@@ -7505,7 +7820,8 @@ paths:
             description: Returns provider accounts visible to the authenticated user. Use the optional kind query parameter to filter by one or more provider-account kinds.
             operationId: get_api_provider-accounts
             parameters:
-                - in: query
+                - description: comma-separated provider-account kinds
+                  in: query
                   name: kind
                   required: false
                   schema:
@@ -7523,7 +7839,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -7545,6 +7862,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/ProviderAccountUpsertRequest'
+                description: provider account payload
                 required: true
             responses:
                 "201":
@@ -7564,7 +7882,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "403":
                     content:
@@ -7590,7 +7909,8 @@ paths:
             description: Deletes a provider account. Superuser only.
             operationId: delete_api_provider-accounts_id
             parameters:
-                - in: path
+                - description: provider account id
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -7602,7 +7922,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -7627,7 +7948,8 @@ paths:
             description: Returns a single provider account by id.
             operationId: get_api_provider-accounts_id
             parameters:
-                - in: path
+                - description: provider account id
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -7643,7 +7965,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -7661,7 +7984,8 @@ paths:
             description: Updates an existing provider account. Superuser only.
             operationId: put_api_provider-accounts_id
             parameters:
-                - in: path
+                - description: provider account id
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -7671,6 +7995,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/ProviderAccountUpsertRequest'
+                description: provider account payload
                 required: true
             responses:
                 "200":
@@ -7690,7 +8015,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "403":
                     content:
@@ -7736,7 +8062,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
             security:
                 - bearerAuth: []
@@ -7748,7 +8075,8 @@ paths:
             description: Returns a single built-in provider account template.
             operationId: get_api_provider-accounts_templates_id
             parameters:
-                - in: path
+                - description: template id
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -7765,7 +8093,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "404":
                     content:
@@ -7975,15 +8304,24 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-            security: []
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
             summary: Get servers by serverId ops connectivity
             tags:
                 - Servers
     /api/servers/{serverId}/ops/monitor-agent/install:
         post:
+            description: Installs and starts the server metrics collector, writes the remote-write configuration, and issues or reuses the per-server monitor-agent token. Optional apposBaseUrl overrides the callback base URL used in the generated collector configuration.
             operationId: post_api_servers_serverid_ops_monitor-agent_install
             parameters:
-                - in: path
+                - description: server record ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
@@ -7992,24 +8330,52 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/GenericRequest'
+                            $ref: '#/components/schemas/MonitorAgentDeployRequest'
+                description: optional AppOS callback base URL override
                 required: false
             responses:
                 "200":
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
+                                $ref: '#/components/schemas/MonitorAgentDeployResponse'
                     description: OK
-            security: []
-            summary: Create or execute servers by serverId ops monitor agent install
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MonitorErrorResponse'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MonitorErrorResponse'
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MonitorErrorResponse'
+                    description: Not Found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MonitorErrorResponse'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Install monitor agent on a managed server
             tags:
                 - Servers
     /api/servers/{serverId}/ops/monitor-agent/update:
         post:
+            description: Reinstalls the server metrics collector, refreshes the remote-write configuration, and returns current service status details. Optional apposBaseUrl overrides the callback base URL used in the generated collector configuration.
             operationId: post_api_servers_serverid_ops_monitor-agent_update
             parameters:
-                - in: path
+                - description: server record ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
@@ -8018,17 +8384,43 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/GenericRequest'
+                            $ref: '#/components/schemas/MonitorAgentDeployRequest'
+                description: optional AppOS callback base URL override
                 required: false
             responses:
                 "200":
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
+                                $ref: '#/components/schemas/MonitorAgentDeployResponse'
                     description: OK
-            security: []
-            summary: Create or execute servers by serverId ops monitor agent update
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MonitorErrorResponse'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MonitorErrorResponse'
+                    description: Unauthorized
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MonitorErrorResponse'
+                    description: Not Found
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MonitorErrorResponse'
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Update monitor agent on a managed server
             tags:
                 - Servers
     /api/servers/{serverId}/ops/ports:
@@ -8047,7 +8439,14 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-            security: []
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
             summary: Get servers by serverId ops ports
             tags:
                 - Servers
@@ -8072,7 +8471,14 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-            security: []
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
             summary: Get servers by serverId ops ports by port
             tags:
                 - Servers
@@ -8103,7 +8509,14 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-            security: []
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
             summary: Create or execute servers by serverId ops ports by port release
             tags:
                 - Servers
@@ -8129,7 +8542,14 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-            security: []
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
             summary: Create or execute servers by serverId ops power
             tags:
                 - Servers
@@ -8160,7 +8580,14 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-            security: []
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
             summary: Create or execute servers by serverId ops systemd by service action
             tags:
                 - Servers
@@ -8185,7 +8612,14 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-            security: []
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
             summary: Get servers by serverId ops systemd by service content
             tags:
                 - Servers
@@ -8210,7 +8644,14 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-            security: []
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
             summary: Get servers by serverId ops systemd by service logs
             tags:
                 - Servers
@@ -8235,7 +8676,14 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-            security: []
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
             summary: Get servers by serverId ops systemd by service status
             tags:
                 - Servers
@@ -8260,7 +8708,14 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-            security: []
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
             summary: Get servers by serverId ops systemd by service unit
             tags:
                 - Servers
@@ -8290,7 +8745,14 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-            security: []
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
             summary: Update servers by serverId ops systemd by service unit
             tags:
                 - Servers
@@ -8321,7 +8783,14 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-            security: []
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
             summary: Create or execute servers by serverId ops systemd by service unit apply
             tags:
                 - Servers
@@ -8352,7 +8821,14 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-            security: []
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
             summary: Create or execute servers by serverId ops systemd by service unit verify
             tags:
                 - Servers
@@ -8372,7 +8848,14 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/SuccessEnvelope'
                     description: OK
-            security: []
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorEnvelope'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
             summary: Get servers by serverId ops systemd services
             tags:
                 - Servers
@@ -8381,7 +8864,8 @@ paths:
             description: Returns the catalog components for a managed server with their latest installed and verification state.
             operationId: get_api_servers_serverid_software
             parameters:
-                - in: path
+                - description: Server ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
@@ -8417,12 +8901,14 @@ paths:
             description: Returns catalog metadata and the latest installed/verification state for one component.
             operationId: get_api_servers_serverid_software_componentkey
             parameters:
-                - in: path
+                - description: Server ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
                     type: string
-                - in: path
+                - description: Component key (e.g. docker, monitor-agent)
+                  in: path
                   name: componentKey
                   required: true
                   schema:
@@ -8465,17 +8951,20 @@ paths:
             description: Enqueues an async software delivery action (install, upgrade, start, stop, restart, verify, reinstall, uninstall) for a component on the given server.
             operationId: post_api_servers_serverid_software_componentkey_action
             parameters:
-                - in: path
+                - description: Server ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
                     type: string
-                - in: path
+                - description: Component key (e.g. docker, monitor-agent)
+                  in: path
                   name: componentKey
                   required: true
                   schema:
                     type: string
-                - in: path
+                - description: 'Action name: install | upgrade | start | stop | restart | verify | reinstall | uninstall'
+                  in: path
                   name: action
                   required: true
                   schema:
@@ -8524,7 +9013,8 @@ paths:
             description: Returns readiness status for each AppOS-managed capability on the given server.
             operationId: get_api_servers_serverid_software_capabilities
             parameters:
-                - in: path
+                - description: Server ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
@@ -8560,12 +9050,14 @@ paths:
             description: Returns recent software delivery operations for a server.
             operationId: get_api_servers_serverid_software_operations
             parameters:
-                - in: path
+                - description: Server ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: Filter by component key
+                  in: query
                   name: component
                   required: false
                   schema:
@@ -8594,12 +9086,14 @@ paths:
             description: Returns the current state of one async software delivery operation.
             operationId: get_api_servers_serverid_software_operations_operationid
             parameters:
-                - in: path
+                - description: Server ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
                     type: string
-                - in: path
+                - description: Operation ID
+                  in: path
                   name: operationId
                   required: true
                   schema:
@@ -8632,23 +9126,33 @@ paths:
                 - Software
     /api/servers/connection:
         get:
+            description: Returns the server registry read model used by the UI, including unified connection aggregate facts plus access and tunnel diagnostics. Superuser only.
             operationId: get_api_servers_connection
             responses:
                 "200":
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/SuccessEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: OK
                 "401":
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
             security:
                 - bearerAuth: []
-            summary: Get servers connection
+            summary: List server view items
             tags:
                 - Servers
     /api/servers/local/docker-bridge:
@@ -8702,7 +9206,8 @@ paths:
             description: Executes a supported settings action such as SMTP or S3 connectivity tests. Superuser only.
             operationId: post_api_settings_actions_actionid
             parameters:
-                - in: path
+                - description: settings action id
+                  in: path
                   name: actionId
                   required: true
                   schema:
@@ -8712,6 +9217,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: settings action payload
                 required: true
             responses:
                 "204":
@@ -8727,7 +9233,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
             security:
                 - bearerAuth: []
@@ -8761,7 +9268,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -8780,7 +9288,8 @@ paths:
             description: Returns the current masked or normalized value for a single settings entry. Superuser only.
             operationId: get_api_settings_entries_entryid
             parameters:
-                - in: path
+                - description: settings entry id
+                  in: path
                   name: entryId
                   required: true
                   schema:
@@ -8804,7 +9313,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -8822,7 +9332,8 @@ paths:
             description: Updates a single settings entry while preserving masking, defaults, and validation rules for its source. Superuser only.
             operationId: patch_api_settings_entries_entryid
             parameters:
-                - in: path
+                - description: settings entry id
+                  in: path
                   name: entryId
                   required: true
                   schema:
@@ -8832,6 +9343,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: settings entry payload
                 required: true
             responses:
                 "200":
@@ -8852,7 +9364,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "422":
                     content:
@@ -8882,7 +9395,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
             security:
                 - bearerAuth: []
@@ -8946,7 +9460,8 @@ paths:
             description: Returns local catalog metadata and current detected state for one AppOS-local component.
             operationId: get_api_software_local_componentkey
             parameters:
-                - in: path
+                - description: Component key
+                  in: path
                   name: componentKey
                   required: true
                   schema:
@@ -9019,7 +9534,8 @@ paths:
             description: Returns one read-only AppOS-managed server software catalog entry.
             operationId: get_api_software_server-catalog_componentkey
             parameters:
-                - in: path
+                - description: Component key
+                  in: path
                   name: componentKey
                   required: true
                   schema:
@@ -9066,6 +9582,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: url, optional name and parent folder ID
                 required: true
             responses:
                 "200":
@@ -9086,7 +9603,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "500":
                     content:
@@ -9105,12 +9623,14 @@ paths:
             description: Streams a file for inline browser preview. Public route (token validated internally).
             operationId: get_api_space_preview_id
             parameters:
-                - in: path
+                - description: user_files record ID
+                  in: path
                   name: id
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: auth token (for browser embed contexts)
+                  in: query
                   name: token
                   required: false
                   schema:
@@ -9163,7 +9683,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
             security:
                 - bearerAuth: []
@@ -9175,7 +9696,8 @@ paths:
             description: Deletes the share token, immediately invalidating public share links. Auth required.
             operationId: delete_api_space_share_id
             parameters:
-                - in: path
+                - description: user_files record ID
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -9212,7 +9734,8 @@ paths:
             description: Creates or refreshes a share link (max shareMaxMinutes). Auth required.
             operationId: post_api_space_share_id
             parameters:
-                - in: path
+                - description: user_files record ID
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -9222,6 +9745,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: minutes (optional)
                 required: false
             responses:
                 "200":
@@ -9268,7 +9792,8 @@ paths:
             description: Returns file metadata for a valid share token. Public.
             operationId: get_api_space_share_token
             parameters:
-                - in: path
+                - description: share token
+                  in: path
                   name: token
                   required: true
                   schema:
@@ -9304,7 +9829,8 @@ paths:
             description: Streams the file content for a valid public share token. No authentication required.
             operationId: get_api_space_share_token_download
             parameters:
-                - in: path
+                - description: share token
+                  in: path
                   name: token
                   required: true
                   schema:
@@ -9339,17 +9865,20 @@ paths:
             description: Upgrades to a WebSocket PTY session inside the given container via docker exec. Supports remote servers via server_id. Superuser only.
             operationId: get_api_terminal_docker_containerid
             parameters:
-                - in: path
+                - description: container ID or name
+                  in: path
                   name: containerId
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: server ID (omit for local)
+                  in: query
                   name: server_id
                   required: false
                   schema:
                     type: string
-                - in: query
+                - description: shell binary
+                  in: query
                   name: shell
                   required: false
                   schema:
@@ -9370,7 +9899,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
             security:
                 - bearerAuth: []
@@ -9386,7 +9916,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
             security:
                 - bearerAuth: []
@@ -9398,7 +9929,8 @@ paths:
             description: Sets file permissions (octal mode) on a remote path. Superuser only.
             operationId: post_api_terminal_sftp_serverid_chmod
             parameters:
-                - in: path
+                - description: server record ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
@@ -9408,6 +9940,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: path, mode (octal string, e.g. "755"), recursive (bool)
                 required: true
             responses:
                 "200":
@@ -9438,7 +9971,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Change permissions
             tags:
                 - Terminal
@@ -9447,7 +9981,8 @@ paths:
             description: Sets owner and group for a remote path by name. Superuser only.
             operationId: post_api_terminal_sftp_serverid_chown
             parameters:
-                - in: path
+                - description: server record ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
@@ -9457,6 +9992,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: path, owner (username string), group (group name string)
                 required: true
             responses:
                 "200":
@@ -9487,7 +10023,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Change owner
             tags:
                 - Terminal
@@ -9496,7 +10033,8 @@ paths:
             description: Returns effective upload limits (max_upload_files) from sysconfig. Superuser only.
             operationId: get_api_terminal_sftp_serverid_constraints
             parameters:
-                - in: path
+                - description: server record ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
@@ -9516,7 +10054,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Unauthorized
-            security: []
+            security:
+                - bearerAuth: []
             summary: File constraints
             tags:
                 - Terminal
@@ -9525,7 +10064,8 @@ paths:
             description: Copies a remote file or directory to the destination path. Returns final progress. Superuser only.
             operationId: post_api_terminal_sftp_serverid_copy
             parameters:
-                - in: path
+                - description: server record ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
@@ -9535,6 +10075,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: from, to (remote paths)
                 required: true
             responses:
                 "200":
@@ -9565,7 +10106,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Copy
             tags:
                 - Terminal
@@ -9574,17 +10116,20 @@ paths:
             description: Copies a remote file/directory and streams Server-Sent Events with progress updates. Superuser only.
             operationId: get_api_terminal_sftp_serverid_copy-stream
             parameters:
-                - in: path
+                - description: server record ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: source remote path
+                  in: query
                   name: from
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: destination remote path
+                  in: query
                   name: to
                   required: true
                   schema:
@@ -9610,7 +10155,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Unauthorized
-            security: []
+            security:
+                - bearerAuth: []
             summary: Copy with progress
             tags:
                 - Terminal
@@ -9619,12 +10165,14 @@ paths:
             description: Deletes the file or directory at the given remote path. Writes an audit entry. Superuser only.
             operationId: delete_api_terminal_sftp_serverid_delete
             parameters:
-                - in: path
+                - description: server record ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: remote path to delete
+                  in: query
                   name: path
                   required: true
                   schema:
@@ -9653,7 +10201,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Delete
             tags:
                 - Terminal
@@ -9662,12 +10211,14 @@ paths:
             description: Streams a remote file as Content-Disposition attachment. Writes an audit entry. Superuser only.
             operationId: get_api_terminal_sftp_serverid_download
             parameters:
-                - in: path
+                - description: server record ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: remote file path
+                  in: query
                   name: path
                   required: true
                   schema:
@@ -9700,7 +10251,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Download file
             tags:
                 - Terminal
@@ -9709,12 +10261,14 @@ paths:
             description: Returns a directory listing for the given path on the remote server. Superuser only.
             operationId: get_api_terminal_sftp_serverid_list
             parameters:
-                - in: path
+                - description: server record ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: directory path (default /)
+                  in: query
                   name: path
                   required: false
                   schema:
@@ -9748,7 +10302,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: List directory
             tags:
                 - Terminal
@@ -9757,7 +10312,8 @@ paths:
             description: Creates the given directory (and parents) on the remote server. Superuser only.
             operationId: post_api_terminal_sftp_serverid_mkdir
             parameters:
-                - in: path
+                - description: server record ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
@@ -9767,6 +10323,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: 'path: directory to create'
                 required: true
             responses:
                 "200":
@@ -9797,7 +10354,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Create directory
             tags:
                 - Terminal
@@ -9806,7 +10364,8 @@ paths:
             description: Moves (renames) a remote file or directory. Superuser only.
             operationId: post_api_terminal_sftp_serverid_move
             parameters:
-                - in: path
+                - description: server record ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
@@ -9816,6 +10375,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: from, to (remote paths)
                 required: true
             responses:
                 "200":
@@ -9846,7 +10406,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Move
             tags:
                 - Terminal
@@ -9855,12 +10416,14 @@ paths:
             description: Returns UTF-8 text content of a remote file via SFTP (max 2 MB). Superuser only.
             operationId: get_api_terminal_sftp_serverid_read
             parameters:
-                - in: path
+                - description: server record ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: remote file path
+                  in: query
                   name: path
                   required: true
                   schema:
@@ -9901,7 +10464,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Read file
             tags:
                 - Terminal
@@ -9910,7 +10474,8 @@ paths:
             description: Renames a file or directory from one path to another on the remote server. Superuser only.
             operationId: post_api_terminal_sftp_serverid_rename
             parameters:
-                - in: path
+                - description: server record ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
@@ -9920,6 +10485,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: from, to (remote paths)
                 required: true
             responses:
                 "200":
@@ -9950,7 +10516,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Rename
             tags:
                 - Terminal
@@ -9959,17 +10526,20 @@ paths:
             description: Recursively searches for files matching the query under the base path. Superuser only.
             operationId: get_api_terminal_sftp_serverid_search
             parameters:
-                - in: path
+                - description: server record ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: base path (default /)
+                  in: query
                   name: path
                   required: false
                   schema:
                     type: string
-                - in: query
+                - description: search term
+                  in: query
                   name: query
                   required: true
                   schema:
@@ -10003,7 +10573,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Search files
             tags:
                 - Terminal
@@ -10012,12 +10583,14 @@ paths:
             description: Returns stat attributes (size, permissions, mtime, etc.) for the given remote path. Superuser only.
             operationId: get_api_terminal_sftp_serverid_stat
             parameters:
-                - in: path
+                - description: server record ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: remote path
+                  in: query
                   name: path
                   required: true
                   schema:
@@ -10051,7 +10624,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Stat path
             tags:
                 - Terminal
@@ -10060,7 +10634,8 @@ paths:
             description: Creates a symbolic link on the remote server. Superuser only.
             operationId: post_api_terminal_sftp_serverid_symlink
             parameters:
-                - in: path
+                - description: server record ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
@@ -10070,6 +10645,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: target (link destination), link_path (new symlink path)
                 required: true
             responses:
                 "200":
@@ -10100,7 +10676,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Create symlink
             tags:
                 - Terminal
@@ -10109,12 +10686,14 @@ paths:
             description: Accepts a multipart upload and saves the file to the given remote directory. Writes an audit entry. Superuser only.
             operationId: post_api_terminal_sftp_serverid_upload
             parameters:
-                - in: path
+                - description: server record ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: remote destination directory
+                  in: query
                   name: path
                   required: true
                   schema:
@@ -10167,7 +10746,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Upload file
             tags:
                 - Terminal
@@ -10176,7 +10756,8 @@ paths:
             description: Overwrites the content of a remote file with the provided text. Writes audit entry. Superuser only.
             operationId: post_api_terminal_sftp_serverid_write
             parameters:
-                - in: path
+                - description: server record ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
@@ -10186,6 +10767,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/GenericRequest'
+                description: path, content
                 required: true
             responses:
                 "200":
@@ -10216,7 +10798,8 @@ paths:
                                 additionalProperties: true
                                 type: object
                     description: Internal Server Error
-            security: []
+            security:
+                - bearerAuth: []
             summary: Write file
             tags:
                 - Terminal
@@ -10225,12 +10808,14 @@ paths:
             description: Upgrades to a WebSocket PTY session for the given server via SSH. Auth via ?token= or Authorization header. Superuser only.
             operationId: get_api_terminal_ssh_serverid
             parameters:
-                - in: path
+                - description: server record ID
+                  in: path
                   name: serverId
                   required: true
                   schema:
                     type: string
-                - in: query
+                - description: auth token (for WebSocket clients that cannot set headers)
+                  in: query
                   name: token
                   required: false
                   schema:
@@ -10247,7 +10832,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
             security:
                 - bearerAuth: []
@@ -10259,7 +10845,8 @@ paths:
             description: Revokes the current public share token for a topic owned by the authenticated user.
             operationId: delete_api_topics_share_id
             parameters:
-                - in: path
+                - description: topic id
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -10271,7 +10858,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "403":
                     content:
@@ -10303,7 +10891,8 @@ paths:
             description: Creates or refreshes a public share token for a topic owned by the authenticated user.
             operationId: post_api_topics_share_id
             parameters:
-                - in: path
+                - description: topic id
+                  in: path
                   name: id
                   required: true
                   schema:
@@ -10313,6 +10902,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/TopicShareCreateRequest'
+                description: share token options
                 required: true
             responses:
                 "200":
@@ -10332,7 +10922,8 @@ paths:
                     content:
                         application/json:
                             schema:
-                                $ref: '#/components/schemas/ErrorEnvelope'
+                                additionalProperties: true
+                                type: object
                     description: Unauthorized
                 "403":
                     content:
@@ -10365,7 +10956,8 @@ paths:
             description: Resolves a public share token and returns the topic with its visible comments.
             operationId: get_api_topics_share_token
             parameters:
-                - in: path
+                - description: share token
+                  in: path
                   name: token
                   required: true
                   schema:
@@ -10400,7 +10992,8 @@ paths:
             description: Creates an anonymous comment through a valid public share link.
             operationId: post_api_topics_share_token_comments
             parameters:
-                - in: path
+                - description: share token
+                  in: path
                   name: token
                   required: true
                   schema:
@@ -10410,6 +11003,7 @@ paths:
                     application/json:
                         schema:
                             $ref: '#/components/schemas/TopicShareCommentRequest'
+                description: comment payload
                 required: true
             responses:
                 "200":

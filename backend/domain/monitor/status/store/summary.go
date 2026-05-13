@@ -38,20 +38,59 @@ func summaryFromAny(value any) (map[string]any, error) {
 func mustSummaryFromAny(value any) map[string]any {
 	summary, err := summaryFromAny(value)
 	if err != nil || summary == nil {
-		return nil
+		return map[string]any{}
 	}
 	return summary
 }
 
+// CloneSummary returns a deep copy of summary, so nested values such as embedded
+// app slices are not shared with the original.
 func CloneSummary(summary map[string]any) map[string]any {
 	if len(summary) == 0 {
 		return map[string]any{}
 	}
+	return cloneSummaryMap(summary)
+}
+
+func cloneSummaryMap(summary map[string]any) map[string]any {
 	cloned := make(map[string]any, len(summary))
 	for key, value := range summary {
-		cloned[key] = value
+		cloned[key] = cloneSummaryValue(value)
 	}
 	return cloned
+}
+
+func cloneSummaryValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return cloneSummaryMap(typed)
+	case []any:
+		cloned := make([]any, len(typed))
+		for i, item := range typed {
+			cloned[i] = cloneSummaryValue(item)
+		}
+		return cloned
+	case []map[string]any:
+		cloned := make([]map[string]any, len(typed))
+		for i, item := range typed {
+			cloned[i] = cloneSummaryMap(item)
+		}
+		return cloned
+	case map[string]string:
+		cloned := make(map[string]string, len(typed))
+		for key, item := range typed {
+			cloned[key] = item
+		}
+		return cloned
+	case []string:
+		return append([]string(nil), typed...)
+	case []int:
+		return append([]int(nil), typed...)
+	case []float64:
+		return append([]float64(nil), typed...)
+	default:
+		return typed
+	}
 }
 
 func ApplyReasonCode(summary map[string]any, reasonCode string) {

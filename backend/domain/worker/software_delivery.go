@@ -2,20 +2,27 @@ package worker
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"net/url"
 	"strings"
+	"time"
 
 	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/audit"
+	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/domain/software"
 	swcatalog "github.com/websoft9/appos/backend/domain/software/catalog"
 	swexecutor "github.com/websoft9/appos/backend/domain/software/executor"
 	swprojection "github.com/websoft9/appos/backend/domain/software/projection"
 	"github.com/websoft9/appos/backend/infra/collections"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // ─── Task Type Constants ──────────────────────────────────
@@ -38,6 +45,8 @@ const (
 	// TaskSoftwareUninstall is the Asynq task type for a software uninstall action.
 	TaskSoftwareUninstall = "software:uninstall"
 )
+
+var softwareActionTitleCaser = cases.Title(language.English)
 
 // softwareTaskTypeByAction maps Action → Asynq task type name.
 var softwareTaskTypeByAction = map[software.Action]string{
@@ -65,6 +74,15 @@ type SoftwareActionPayload struct {
 }
 
 var ErrSoftwareOperationInFlight = errors.New("software operation already in flight")
+
+const softwareOperationOrphanThreshold = 10 * time.Minute
+const monitorAgentTokenPrefix = "monitor-agent-token-"
+const monitorAgentRemoteWritePath = "/api/monitor/write"
+
+type softwareOutputLogger interface {
+	SetOutputLogger(func(string))
+}
+
 var ErrSoftwareComponentNotFound = errors.New("software component not found in server catalog")
 var ErrSoftwareActionUnsupported = errors.New("software action unsupported for component")
 
@@ -258,12 +276,63 @@ func allowsConcurrentSoftwareAction(nextAction, inFlightAction software.Action) 
 	return nextAction == software.ActionInstall && inFlightAction == software.ActionVerify
 }
 
-func hasSoftwareOperationInFlight(app core.App, serverID, componentKey string) (bool, error) {
-	record, err := findInFlightSoftwareOperation(app, serverID, componentKey)
+// recoverOrphanedSoftwareOperations marks stale non-terminal software_operations records
+// as failed. It is intentionally conservative: recently updated records may still have
+// an Asynq task pending/running/retrying, so only old executing/verifying records are
+// treated as true orphans.
+func (w *Worker) recoverOrphanedSoftwareOperations() error {
+	col, err := w.app.FindCollectionByNameOrId(collections.SoftwareOperations)
 	if err != nil {
-		return false, err
+		return nil // collection not yet created; nothing to recover
 	}
-	return record != nil, nil
+
+	records, err := w.app.FindRecordsByFilter(
+		col,
+		fmt.Sprintf("terminal_status = '%s'", escapePBFilterValue(string(software.TerminalStatusNone))),
+		"-created",
+		500,
+		0,
+	)
+	if err != nil {
+		return err
+	}
+
+	for _, record := range records {
+		orphanedPhase := record.GetString("phase")
+		if orphanedPhase != string(software.OperationPhaseExecuting) && orphanedPhase != string(software.OperationPhaseVerifying) {
+			continue
+		}
+		updatedAt := record.GetDateTime("updated").Time()
+		if updatedAt.IsZero() || time.Since(updatedAt) < softwareOperationOrphanThreshold {
+			continue
+		}
+		failureCode := orphanedPhaseToFailureCode(software.OperationPhase(orphanedPhase))
+		record.Set("phase", string(software.OperationPhaseFailed))
+		record.Set("terminal_status", string(software.TerminalStatusFailed))
+		if orphanedPhase != "" {
+			record.Set("failure_phase", orphanedPhase)
+		}
+		record.Set("failure_code", string(failureCode))
+		record.Set("failure_reason", "operation orphaned after worker restart")
+		appendSoftwareOperationEvent(record, "Operation marked failed because it was stale after worker restart.")
+		if err := w.app.Save(record); err != nil {
+			log.Printf("recover orphaned software operation %s: %v", record.Id, err)
+		}
+	}
+	return nil
+}
+
+func orphanedPhaseToFailureCode(phase software.OperationPhase) software.FailureCode {
+	switch phase {
+	case software.OperationPhasePreflight:
+		return software.FailureCodePreflightError
+	case software.OperationPhaseExecuting:
+		return software.FailureCodeExecutionError
+	case software.OperationPhaseVerifying:
+		return software.FailureCodeVerificationError
+	default:
+		return software.FailureCodeExecutionError
+	}
 }
 
 func findInFlightSoftwareOperation(app core.App, serverID, componentKey string) (*core.Record, error) {
@@ -306,10 +375,231 @@ func createSoftwareOperationRecord(app core.App, payload SoftwareActionPayload) 
 	record.Set("action", string(payload.Action))
 	record.Set("phase", string(software.OperationPhaseAccepted))
 	record.Set("terminal_status", string(software.TerminalStatusNone))
+	record.Set("event_log", formatSoftwareOperationEvent(fmt.Sprintf("Accepted %s request for %s.", payload.Action, payload.ComponentKey)))
 	if err := app.Save(record); err != nil {
 		return nil, err
 	}
 	return record, nil
+}
+
+func formatSoftwareOperationEvent(message string) string {
+	trimmed := strings.TrimSpace(message)
+	if trimmed == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s · %s", time.Now().UTC().Format(time.RFC3339), trimmed)
+}
+
+func appendSoftwareOperationEvent(record *core.Record, message string) {
+	entry := formatSoftwareOperationEvent(message)
+	if entry == "" {
+		return
+	}
+	current := strings.TrimSpace(record.GetString("event_log"))
+	if current == "" {
+		record.Set("event_log", entry)
+		return
+	}
+	lines := append(strings.Split(current, "\n"), entry)
+	if len(lines) > 80 {
+		lines = lines[len(lines)-80:]
+	}
+	record.Set("event_log", strings.Join(lines, "\n"))
+}
+
+func (w *Worker) logSoftwareOperationEvent(record *core.Record, message string) {
+	appendSoftwareOperationEvent(record, message)
+	if err := w.app.Save(record); err != nil {
+		log.Printf("software operation %s: save event log: %v", record.Id, err)
+	}
+}
+
+func describeSoftwareExecutionPlan(action software.Action, resolved software.ResolvedTemplate) []string {
+	plan := []string{}
+	switch action {
+	case software.ActionInstall:
+		plan = append(plan, describeSoftwareStep("Install", resolved.Install.Strategy, resolved.Install.PackageName, resolved.Install.PackageNames, resolved.Install.ScriptPath, resolved.Install.ScriptURL, resolved.Verify.ServiceName))
+	case software.ActionUpgrade:
+		plan = append(plan, describeSoftwareStep("Upgrade/Fix", resolved.Upgrade.Strategy, resolved.Upgrade.PackageName, resolved.Upgrade.PackageNames, resolved.Upgrade.ScriptPath, resolved.Upgrade.ScriptURL, resolved.Verify.ServiceName))
+	case software.ActionReinstall:
+		if resolved.Reinstall.Strategy == "reinstall" {
+			plan = append(plan, "Reinstall delegates to the install workflow.")
+			plan = append(plan, describeSoftwareStep("Install", resolved.Install.Strategy, resolved.Install.PackageName, resolved.Install.PackageNames, resolved.Install.ScriptPath, resolved.Install.ScriptURL, resolved.Verify.ServiceName))
+		} else {
+			plan = append(plan, describeSoftwareStep("Reinstall", resolved.Reinstall.Strategy, "", nil, "", "", resolved.Verify.ServiceName))
+		}
+	case software.ActionUninstall:
+		plan = append(plan, describeSoftwareStep("Uninstall", resolved.Uninstall.Strategy, resolved.Uninstall.PackageName, resolved.Uninstall.PackageNames, resolved.Uninstall.ScriptPath, resolved.Uninstall.ScriptURL, resolved.Verify.ServiceName))
+	case software.ActionStart, software.ActionStop, software.ActionRestart:
+		if strings.TrimSpace(resolved.Verify.ServiceName) != "" {
+			plan = append(plan, fmt.Sprintf("%s service %s via systemd.", softwareActionTitleCaser.String(string(action)), resolved.Verify.ServiceName))
+		} else {
+			plan = append(plan, fmt.Sprintf("Run %s action.", action))
+		}
+	case software.ActionVerify:
+		plan = append(plan, fmt.Sprintf("Verify runtime state for %s.", resolved.ComponentKey))
+	}
+	filtered := plan[:0]
+	for _, item := range plan {
+		if strings.TrimSpace(item) != "" {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
+}
+
+func describeSoftwareStep(label, strategy, packageName string, packageNames []string, scriptPath, scriptURL, serviceName string) string {
+	strategy = strings.TrimSpace(strategy)
+	switch strategy {
+	case "package":
+		name := strings.TrimSpace(packageName)
+		if name == "" && len(packageNames) > 0 {
+			name = strings.Join(packageNames, ", ")
+		}
+		if name == "" {
+			name = "configured package set"
+		}
+		return fmt.Sprintf("%s via package manager for %s.", label, name)
+	case "script":
+		source := strings.TrimSpace(scriptPath)
+		if source == "" {
+			source = strings.TrimSpace(scriptURL)
+		}
+		if source == "" {
+			source = "managed script"
+		}
+		return fmt.Sprintf("%s via script %s.", label, source)
+	case "reinstall":
+		return fmt.Sprintf("%s via reinstall delegation.", label)
+	case "":
+		if strings.TrimSpace(serviceName) != "" {
+			return fmt.Sprintf("%s for service %s.", label, serviceName)
+		}
+		return fmt.Sprintf("%s requested.", label)
+	default:
+		return fmt.Sprintf("%s using %s strategy.", label, strategy)
+	}
+}
+
+func monitorAgentTokenSecretName(serverID string) string {
+	return monitorAgentTokenPrefix + strings.TrimSpace(serverID)
+}
+
+func getOrIssueSoftwareMonitorAgentToken(app core.App, serverID string) (string, error) {
+	name := monitorAgentTokenSecretName(serverID)
+	secret, err := secrets.FindSystemSecretByNameAndType(app, name, "token")
+	if err == nil && secret != nil {
+		value, readErr := secrets.ReadSystemSingleValue(secret)
+		if readErr != nil {
+			return "", readErr
+		}
+		if strings.TrimSpace(value) != "" {
+			return value, nil
+		}
+	}
+
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	token := base64.RawURLEncoding.EncodeToString(raw)
+	_, err = secrets.UpsertSystemSingleValue(app, secret, name, "token", token)
+	if err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+func buildSoftwareMonitorRemoteWriteURL(app core.App, payload SoftwareActionPayload) (string, error) {
+	_ = app
+	baseURL := software.NormalizeAppOSBaseURL(payload.AppOSBaseURL)
+	if baseURL == "" {
+		return "", fmt.Errorf("AppOS callback URL is required to configure monitor-agent remote write")
+	}
+	return baseURL + monitorAgentRemoteWritePath, nil
+}
+
+func buildSoftwareNetdataExportingConfig(serverID string, remoteWriteURL string, agentToken string) (string, error) {
+	parsed, err := url.Parse(strings.TrimSpace(remoteWriteURL))
+	if err != nil {
+		return "", err
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return "", fmt.Errorf("remote write url must include scheme and host")
+	}
+	destinationHost := parsed.Hostname()
+	if destinationHost == "" {
+		return "", fmt.Errorf("remote write url must include destination host")
+	}
+	agentToken = strings.TrimSpace(agentToken)
+	if agentToken == "" {
+		return "", fmt.Errorf("agent token is required")
+	}
+	port := parsed.Port()
+	if port == "" {
+		switch strings.ToLower(parsed.Scheme) {
+		case "https":
+			port = "443"
+		default:
+			port = "80"
+		}
+	}
+	section := "[prometheus_remote_write:appos]"
+	if strings.EqualFold(parsed.Scheme, "https") {
+		section = "[prometheus_remote_write:https:appos]"
+	}
+	return strings.Join([]string{
+		"# Managed by AppOS. Changes may be overwritten by Components monitor-agent actions.",
+		section,
+		"    enabled = yes",
+		fmt.Sprintf("    destination = %s:%s", destinationHost, port),
+		fmt.Sprintf("    remote write URL path = %s", parsed.EscapedPath()),
+		fmt.Sprintf("    username = %s", strings.TrimSpace(serverID)),
+		fmt.Sprintf("    password = %s", agentToken),
+		"    data source = average",
+		"    prefix = netdata",
+		fmt.Sprintf("    hostname = %s", strings.TrimSpace(serverID)),
+		"    update every = 10",
+		"    send charts matching = system.cpu system.ram system.io system.net net.net disk_space.*",
+		"    send names instead of ids = yes",
+		"    send configured labels = no",
+		"    send automatic labels = no",
+		"",
+	}, "\n"), nil
+}
+
+func prepareMonitorAgentRuntimeTemplate(app core.App, payload SoftwareActionPayload, resolved software.ResolvedTemplate) (software.ResolvedTemplate, string, error) {
+	if payload.ComponentKey != software.ComponentKeyMonitorAgent {
+		return resolved, "", nil
+	}
+	remoteWriteURL, err := buildSoftwareMonitorRemoteWriteURL(app, payload)
+	if err != nil {
+		return resolved, "", err
+	}
+	agentToken, err := getOrIssueSoftwareMonitorAgentToken(app, payload.ServerID)
+	if err != nil {
+		return resolved, "", err
+	}
+	exportingConfig, err := buildSoftwareNetdataExportingConfig(payload.ServerID, remoteWriteURL, agentToken)
+	if err != nil {
+		return resolved, "", err
+	}
+	env := map[string]string{
+		"APPOS_MONITOR_EXPORTING_CONFIG_B64": base64.StdEncoding.EncodeToString([]byte(exportingConfig)),
+	}
+	mergeEnv := func(current map[string]string) map[string]string {
+		next := make(map[string]string, len(current)+len(env))
+		for key, value := range current {
+			next[key] = value
+		}
+		for key, value := range env {
+			next[key] = value
+		}
+		return next
+	}
+	resolved.Install.Env = mergeEnv(resolved.Install.Env)
+	resolved.Upgrade.Env = mergeEnv(resolved.Upgrade.Env)
+	return resolved, remoteWriteURL, nil
 }
 
 // advanceSoftwarePhase updates the operation record to a new phase, if the transition is forward.
@@ -321,6 +611,7 @@ func (w *Worker) advanceSoftwarePhase(record *core.Record, phase software.Operat
 		return
 	}
 	record.Set("phase", string(phase))
+	appendSoftwareOperationEvent(record, fmt.Sprintf("Phase moved to %s.", phase))
 	if err := w.app.Save(record); err != nil {
 		log.Printf("software operation %s: advance phase to %q: %v", record.Id, phase, err)
 	}
@@ -337,6 +628,7 @@ func (w *Worker) failSoftwareOperation(record *core.Record, failurePhase softwar
 		record.Set("failure_code", string(failureCode))
 	}
 	record.Set("failure_reason", reason)
+	appendSoftwareOperationEvent(record, fmt.Sprintf("Failed during %s: %s", failurePhase, reason))
 	if err := w.app.Save(record); err != nil {
 		log.Printf("software operation %s: save failure state: %v", record.Id, err)
 	}
@@ -362,6 +654,7 @@ func (w *Worker) markSoftwareOperationAttentionRequired(record *core.Record, fai
 		record.Set("failure_code", string(failureCode))
 	}
 	record.Set("failure_reason", reason)
+	appendSoftwareOperationEvent(record, fmt.Sprintf("Attention required after %s: %s", failurePhase, reason))
 	if err := w.app.Save(record); err != nil {
 		log.Printf("software operation %s: save attention_required state: %v", record.Id, err)
 	}
@@ -387,6 +680,10 @@ func classifyVerificationFailure(action software.Action, err error) software.Fai
 func (w *Worker) succeedSoftwareOperation(record *core.Record) {
 	record.Set("phase", string(software.OperationPhaseSucceeded))
 	record.Set("terminal_status", string(software.TerminalStatusSuccess))
+	record.Set("failure_phase", "")
+	record.Set("failure_code", "")
+	record.Set("failure_reason", "")
+	appendSoftwareOperationEvent(record, "Operation completed successfully.")
 	if err := w.app.Save(record); err != nil {
 		log.Printf("software operation %s: save success state: %v", record.Id, err)
 	}
@@ -434,9 +731,27 @@ func (w *Worker) verifySoftwareActionOutcome(ctx context.Context, serverID strin
 
 // runSoftwarePhaseLoop implements the phase-step loop for a single software delivery operation.
 func (w *Worker) runSoftwarePhaseLoop(ctx context.Context, record *core.Record, payload SoftwareActionPayload) {
+	// Safety net: if any downstream code panics, mark the operation as failed rather
+	// than leaving the record permanently in-flight.
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("software operation %s: caught panic: %v", record.Id, r)
+			if software.TerminalStatus(record.GetString("terminal_status")) == software.TerminalStatusNone {
+				record.Set("phase", string(software.OperationPhaseFailed))
+				record.Set("terminal_status", string(software.TerminalStatusFailed))
+				record.Set("failure_reason", fmt.Sprintf("internal panic: %v", r))
+				appendSoftwareOperationEvent(record, fmt.Sprintf("Internal panic: %v", r))
+				if err := w.app.Save(record); err != nil {
+					log.Printf("software operation %s: save panic failure state: %v", record.Id, err)
+				}
+			}
+		}
+	}()
+
 	serverID := payload.ServerID
 	componentKey := payload.ComponentKey
 	action := payload.Action
+	w.logSoftwareOperationEvent(record, fmt.Sprintf("Preparing %s workflow for %s.", action, componentKey))
 
 	// ── Phase: Preflight ─────────────────────────────────
 	w.advanceSoftwarePhase(record, software.OperationPhasePreflight)
@@ -472,11 +787,27 @@ func (w *Worker) runSoftwarePhaseLoop(ctx context.Context, record *core.Record, 
 
 	entry = software.ApplyRuntimeBindings(w.app, entry)
 	resolved := swcatalog.ResolveTemplate(entry, tpl)
+	resolved, monitorRemoteWriteURL, monitorBindErr := prepareMonitorAgentRuntimeTemplate(w.app, payload, resolved)
+	if monitorBindErr != nil {
+		w.failSoftwareOperationWithAudit(record, payload, software.OperationPhasePreflight, software.FailureCodePreflightError, fmt.Sprintf("configure monitor agent runtime binding: %v", monitorBindErr))
+		return
+	}
+	for _, step := range describeSoftwareExecutionPlan(action, resolved) {
+		w.logSoftwareOperationEvent(record, step)
+	}
+	if monitorRemoteWriteURL != "" {
+		w.logSoftwareOperationEvent(record, fmt.Sprintf("Configure Netdata remote write endpoint %s.", monitorRemoteWriteURL))
+	}
 
 	executor, exErr := softwareExecutorFactory(w.app, serverID, payload.UserID)
 	if exErr != nil {
 		w.failSoftwareOperationWithAudit(record, payload, software.OperationPhasePreflight, software.FailureCodePreflightError, fmt.Sprintf("create executor: %v", exErr))
 		return
+	}
+	if logger, ok := executor.(softwareOutputLogger); ok {
+		logger.SetOutputLogger(func(line string) {
+			w.logSoftwareOperationEvent(record, line)
+		})
 	}
 
 	readiness, err := executor.RunPreflight(ctx, serverID, resolved)
@@ -488,9 +819,11 @@ func (w *Worker) runSoftwarePhaseLoop(ctx context.Context, record *core.Record, 
 		w.failSoftwareOperationAndRefreshSnapshot(ctx, record, payload, software.OperationPhasePreflight, software.FailureCodePreflightBlocked, fmt.Sprintf("preflight failed: %v", readiness.Issues), entry, resolved, executor)
 		return
 	}
+	w.logSoftwareOperationEvent(record, "Preflight checks passed.")
 
 	// ── Phase: Executing ─────────────────────────────────
 	w.advanceSoftwarePhase(record, software.OperationPhaseExecuting)
+	w.logSoftwareOperationEvent(record, fmt.Sprintf("Running %s action.", action))
 
 	switch action {
 	case software.ActionInstall:
@@ -518,14 +851,17 @@ func (w *Worker) runSoftwarePhaseLoop(ctx context.Context, record *core.Record, 
 		w.failSoftwareOperationAndRefreshSnapshot(ctx, record, payload, software.OperationPhaseExecuting, software.FailureCodeExecutionError, fmt.Sprintf("execute %q: %v", action, err), entry, resolved, executor)
 		return
 	}
+	w.logSoftwareOperationEvent(record, "Execution step completed.")
 
 	// ── Phase: Verifying ─────────────────────────────────
 	w.advanceSoftwarePhase(record, software.OperationPhaseVerifying)
+	w.logSoftwareOperationEvent(record, "Running post-action verification.")
 
 	if err := w.verifySoftwareActionOutcome(ctx, serverID, action, resolved, executor); err != nil {
 		w.markSoftwareOperationAttentionRequiredAndRefreshSnapshot(ctx, record, payload, software.OperationPhaseVerifying, classifyVerificationFailure(action, err), fmt.Sprintf("post-action verification failed: %v", err), entry, resolved, executor)
 		return
 	}
+	w.logSoftwareOperationEvent(record, "Verification passed.")
 
 	// ── Phase: Succeeded ─────────────────────────────────
 	w.succeedSoftwareOperationAndRefreshSnapshot(ctx, record, payload, entry, resolved, executor)
@@ -571,6 +907,9 @@ func (w *Worker) refreshSoftwareSnapshot(ctx context.Context, record *core.Recor
 	verification := &software.SoftwareVerificationResult{State: software.VerificationStateUnknown}
 	verifiedDetail, verifyErr := executor.Verify(ctx, payload.ServerID, resolved)
 	if verifyErr == nil {
+		if verifiedDetail.Verification != nil {
+			verification = verifiedDetail.Verification
+		}
 		if verifiedDetail.InstalledState != "" {
 			summary.InstalledState = verifiedDetail.InstalledState
 			detail.InstalledState = verifiedDetail.InstalledState
@@ -590,7 +929,9 @@ func (w *Worker) refreshSoftwareSnapshot(ctx context.Context, record *core.Recor
 		}
 		verification.State = summary.VerificationState
 		if verifiedDetail.VerificationState == software.VerificationStateDegraded {
-			verification.Reason = "service verification returned degraded state"
+			if strings.TrimSpace(verification.Reason) == "" {
+				verification.Reason = "service verification returned degraded state"
+			}
 		}
 	} else {
 		verification.Reason = verifyErr.Error()

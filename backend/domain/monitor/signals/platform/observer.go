@@ -2,6 +2,7 @@ package platform
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"runtime"
 	"time"
@@ -89,7 +90,9 @@ func (o *PlatformObserver) Collect() error {
 }
 
 func (o *PlatformObserver) run(ctx context.Context) {
-	_ = o.Collect()
+	if err := o.Collect(); err != nil {
+		slog.Error("platform observer collect failed", "error", err)
+	}
 	ticker := time.NewTicker(PlatformObserverInterval)
 	defer ticker.Stop()
 	for {
@@ -97,7 +100,9 @@ func (o *PlatformObserver) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			_ = o.Collect()
+			if err := o.Collect(); err != nil {
+				slog.Error("platform observer collect failed", "error", err)
+			}
 		}
 	}
 }

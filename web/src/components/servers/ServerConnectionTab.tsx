@@ -16,7 +16,10 @@ type ServerConnectionTabProps = {
   tunnelState: string
   tunnel: Record<string, unknown> | null
   services: TunnelService[]
-  onExecutePrimaryAction: (item: Record<string, unknown>, actionId: ServerConnectionActionId) => void
+  onExecutePrimaryAction: (
+    item: Record<string, unknown>,
+    actionId: ServerConnectionActionId
+  ) => void
   onOpenTab: (item: Record<string, unknown>, tab?: ServerDetailTab) => void
 }
 
@@ -55,8 +58,7 @@ export function ServerConnectionTab({
                 variant={
                   presentation.state === 'online'
                     ? 'default'
-                    : presentation.state === 'paused' ||
-                        presentation.state === 'needs_attention'
+                    : presentation.state === 'paused' || presentation.state === 'needs_attention'
                       ? 'secondary'
                       : 'outline'
                 }
@@ -80,7 +82,10 @@ export function ServerConnectionTab({
               Primary Action
             </div>
             <div className="mt-1">
-              <Button size="sm" onClick={() => onExecutePrimaryAction(item, presentation.primaryAction.id)}>
+              <Button
+                size="sm"
+                onClick={() => onExecutePrimaryAction(item, presentation.primaryAction.id)}
+              >
                 {presentation.primaryAction.label}
               </Button>
             </div>
@@ -142,7 +147,8 @@ export function ServerConnectionTab({
               <div className="text-sm">
                 <div className="font-medium">Runtime Session</div>
                 <div className="mt-2 text-muted-foreground">
-                  State: {tunnelStateLabel(tunnelState)} · Last seen: {formatTimestamp(tunnel?.last_seen)}
+                  State: {tunnelStateLabel(tunnelState)} · Last seen:{' '}
+                  {formatTimestamp(tunnel?.last_seen)}
                 </div>
               </div>
               <div className="text-sm">
@@ -248,7 +254,9 @@ export function ServerConnectionTab({
             <div className="mt-1">{presentation.diagnostics.pauseUntil}</div>
           </div>
           <div>
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">Current Reason</div>
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">
+              Current Reason
+            </div>
             <div className="mt-1">{presentation.diagnostics.currentReason}</div>
           </div>
         </div>
@@ -263,7 +271,9 @@ export function ServerConnectionTab({
         </div>
         <div>
           {presentation.timeline.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No lifecycle events are available yet.</div>
+            <div className="text-sm text-muted-foreground">
+              No lifecycle events are available yet.
+            </div>
           ) : (
             <div className="space-y-3">
               {presentation.timeline.map(event => (

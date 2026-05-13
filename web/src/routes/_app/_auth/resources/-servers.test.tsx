@@ -13,6 +13,8 @@ const getLocalDockerBridgeAddressMock = vi.fn()
 const getSystemdStatusMock = vi.fn()
 const installMonitorAgentMock = vi.fn()
 const updateMonitorAgentMock = vi.fn()
+const pingServerStatusMock = vi.fn()
+const windowOpenMock = vi.fn()
 let searchState: Record<string, unknown> = {}
 
 function isSecretSummaryRequest(path: string) {
@@ -84,7 +86,7 @@ vi.mock('@/lib/pb', () => ({
 }))
 
 vi.mock('@/lib/connect-api', () => ({
-  checkServerStatus: vi.fn(),
+  checkServerStatus: (...args: unknown[]) => pingServerStatusMock(...args),
   getLocalDockerBridgeAddress: (...args: unknown[]) => getLocalDockerBridgeAddressMock(...args),
   getSystemdStatus: (...args: unknown[]) => getSystemdStatusMock(...args),
   installMonitorAgent: (...args: unknown[]) => installMonitorAgentMock(...args),
@@ -178,11 +180,16 @@ describe('ServersPage layout', () => {
     createServerMock.mockReset()
     getSecretMock.mockReset()
     updateSecretMock.mockReset()
+    windowOpenMock.mockReset()
+    pingServerStatusMock.mockReset()
     getLocalDockerBridgeAddressMock.mockReset()
     getSystemdStatusMock.mockReset()
     installMonitorAgentMock.mockReset()
     updateMonitorAgentMock.mockReset()
     searchState = {}
+    vi.stubGlobal('open', windowOpenMock)
+    window.open = windowOpenMock as typeof window.open
+    pingServerStatusMock.mockResolvedValue({ status: 'online' })
     sendMock.mockImplementation((path: string) => {
       if (path === '/api/servers/connection') {
         return Promise.resolve({
@@ -525,13 +532,13 @@ describe('ServersPage layout', () => {
     render(<ServersPage />)
 
     expect(await screen.findByText('alpha')).toBeInTheDocument()
-    expect(screen.getByText('Awaiting Connection')).toBeInTheDocument()
+    expect(screen.getByText('Needs Attention')).toBeInTheDocument()
     expect(screen.getByText('Not Configured')).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: 'User' })).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: 'Secret Type' })).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: 'Monitor' })).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: 'Host' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Test Connection' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Fix Configuration' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Start Setup' })).toBeInTheDocument()
   }, 20000)
 
@@ -620,6 +627,10 @@ describe('ServersPage layout', () => {
               user: 'root',
               credential: 'secret-1',
               credential_type: 'Password',
+              connection: {
+                state_code: 'online',
+                config_ready: true,
+              },
               access: {
                 status: 'available',
                 reason: '',
@@ -805,6 +816,31 @@ describe('ServersPage layout', () => {
     expect(await screen.findByRole('button', { name: 'Expand detail width' })).toBeInTheDocument()
   })
 
+  it('opens terminal from server detail actions in a new browser tab and overview can launch edit', async () => {
+    searchState = { server: 'server-1', tab: 'overview' }
+
+    render(<ServersPage />)
+
+    expect(await screen.findByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Connection' }))
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/resources/servers',
+      search: expect.any(Function),
+    })
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Server actions' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Open Terminal' }))
+
+    await waitFor(() => {
+      expect(windowOpenMock).toHaveBeenCalledWith(
+        'http://localhost:3000/terminal/server/server-1',
+        '_blank',
+        'noopener,noreferrer'
+      )
+    })
+  })
+
   it('opens the ports tab in server detail', async () => {
     searchState = { server: 'server-1', tab: 'ports' }
 
@@ -829,7 +865,8 @@ describe('ServersPage layout', () => {
     render(<ServersPage />)
 
     expect(await screen.findByRole('tab', { name: 'Monitor', selected: true })).toBeInTheDocument()
-    expect(screen.getByText('Netdata Agent')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Monitor' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Monitor conclusions' })).toBeInTheDocument()
     expect(screen.getByText('Monitor panel for server-1')).toBeInTheDocument()
   })
 
@@ -993,7 +1030,9 @@ describe('ServersPage layout', () => {
 
     render(<ServersPage />)
 
-    expect(await screen.findByRole('tab', { name: 'Components', selected: true })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('tab', { name: 'Components', selected: true })
+    ).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Prerequisites' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Addons' })).toBeInTheDocument()
   })

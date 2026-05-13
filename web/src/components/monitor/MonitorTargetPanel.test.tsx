@@ -595,7 +595,7 @@ describe('MonitorTargetPanel', () => {
     expect(await screen.findByText('prod-02')).toBeInTheDocument()
     expect(await screen.findByText('Trend History')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: '5小时' }))
+    fireEvent.click(screen.getByRole('button', { name: '5h' }))
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
@@ -608,7 +608,7 @@ describe('MonitorTargetPanel', () => {
       screen.getByText('Last five hours trends from the monitoring time-series backend.')
     ).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: '12小时' }))
+    fireEvent.click(screen.getByRole('button', { name: '12h' }))
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
@@ -620,7 +620,7 @@ describe('MonitorTargetPanel', () => {
       screen.getByText('Last twelve hours trends from the monitoring time-series backend.')
     ).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: '1天' }))
+    fireEvent.click(screen.getByRole('button', { name: '1d' }))
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
@@ -629,7 +629,7 @@ describe('MonitorTargetPanel', () => {
       )
     })
 
-    fireEvent.click(screen.getByRole('button', { name: '7天' }))
+    fireEvent.click(screen.getByRole('button', { name: '7d' }))
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
@@ -638,9 +638,9 @@ describe('MonitorTargetPanel', () => {
       )
     })
 
-    fireEvent.click(screen.getByRole('button', { name: '自定义' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Custom' }))
 
-    expect(screen.getByText('自定义时间区间')).toBeInTheDocument()
+    expect(screen.getByText('Custom time range')).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Trend range start'), {
       target: { value: '2026-04-14T08:00' },
@@ -664,8 +664,8 @@ describe('MonitorTargetPanel', () => {
     )
     expect(customSeriesRequest).toEqual(expect.stringContaining('startAt='))
     expect(customSeriesRequest).toEqual(expect.stringContaining('endAt='))
-    expect(screen.queryByText('自定义时间区间')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '自定义' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Custom time range')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Custom' })).not.toBeInTheDocument()
   }, 15000)
 
   it('switches server network trends by interface', async () => {

@@ -1,6 +1,7 @@
 package checks
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -20,12 +21,13 @@ func RunAppHealthSweep(app core.App, now time.Time) error {
 		return err
 	}
 	entry := monitor.ResolveAppBaselineTarget()
+	var sweepErrors []error
 	for _, record := range records {
 		if err := projectAppHealth(app, entry, record, now); err != nil {
-			return err
+			sweepErrors = append(sweepErrors, err)
 		}
 	}
-	return nil
+	return errors.Join(sweepErrors...)
 }
 
 func projectAppHealth(app core.App, entry monitor.TargetRegistryEntry, record *core.Record, now time.Time) error {

@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getConnectTerminalSettings, installMonitorAgent } from './connect-api'
+import {
+  getConnectTerminalSettings,
+  installMonitorAgent,
+  listServerPorts,
+  listSystemdServices,
+} from './connect-api'
 import { settingsEntryPath } from './settings-api'
 
 const sendMock = vi.fn()
@@ -52,6 +57,20 @@ describe('getConnectTerminalSettings', () => {
     expect(sendMock).toHaveBeenCalledWith('/api/servers/srv-1/ops/monitor-agent/install', {
       method: 'POST',
       body: { apposBaseUrl: 'https://console.example.com:8443' },
+    })
+  })
+
+  it('disables PocketBase auto-cancellation for realtime SSH list requests', async () => {
+    sendMock.mockResolvedValue({ services: [], ports: [] })
+
+    await listSystemdServices('srv-1')
+    await listServerPorts('srv-1', 'all', 'tcp')
+
+    expect(sendMock).toHaveBeenCalledWith('/api/servers/srv-1/ops/systemd/services', {
+      requestKey: null,
+    })
+    expect(sendMock).toHaveBeenCalledWith('/api/servers/srv-1/ops/ports?view=all&protocol=tcp', {
+      requestKey: null,
     })
   })
 })

@@ -3,10 +3,12 @@ package routes
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -42,34 +44,6 @@ func (te *testEnv) doMonitor(t *testing.T, method, url, body string, authHeader 
 	req.Header.Set("Content-Type", "application/json")
 	if authHeader != "" {
 		req.Header.Set("Authorization", authHeader)
-	}
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-	return rec
-}
-
-func (te *testEnv) doMonitorWithHeaders(t *testing.T, method, url, body string, authHeader string, headers map[string]string) *httptest.ResponseRecorder {
-	t.Helper()
-
-	r, err := apis.NewRouter(te.app)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	registerMonitorRoutes(&core.ServeEvent{App: te.app, Router: r})
-
-	mux, err := r.BuildMux()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	req := httptest.NewRequest(method, url, strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	if authHeader != "" {
-		req.Header.Set("Authorization", authHeader)
-	}
-	for key, value := range headers {
-		req.Header.Set(key, value)
 	}
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -121,6 +95,7 @@ func TestMonitorWriteRequiresBasicAuth(t *testing.T) {
 }
 
 func TestMonitorWriteForwardsAuthenticatedRemoteWritePayload(t *testing.T) {
+	ensureConnectorSecretRuntime(t)
 	te := newMonitorTestEnv(t)
 	defer te.cleanup()
 
@@ -169,6 +144,98 @@ func TestMonitorWriteForwardsAuthenticatedRemoteWritePayload(t *testing.T) {
 	}
 	if gotContentType != "application/x-protobuf" {
 		t.Fatalf("expected content-type to be forwarded, got %q", gotContentType)
+	}
+}
+
+func TestMonitorWriteRejectsOversizedPayload(t *testing.T) {
+	ensureConnectorSecretRuntime(t)
+	te := newMonitorTestEnv(t)
+	defer te.cleanup()
+
+	server := createMonitorServer(t, te, "prod-01")
+	token, err := getOrIssueMonitorAgentToken(te.app, server.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := apis.NewRouter(te.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registerMonitorRoutes(&core.ServeEvent{App: te.app, Router: r})
+	mux, err := r.BuildMux()
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/monitor/write", strings.NewReader("remote-write-payload"))
+	req.SetBasicAuth(server.Id, token)
+	req.Header.Set("Content-Type", "application/x-protobuf")
+	req.ContentLength = maxMonitorWriteBodyBytes + 1
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected 413, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestMonitorWriteRejectsStreamThatExceedsLimit(t *testing.T) {
+	reader := &monitorWriteLimitReadCloser{body: io.NopCloser(strings.NewReader("abcdef")), remaining: 3}
+	buf := make([]byte, 3)
+	if n, err := reader.Read(buf); n != 3 || err != nil {
+		t.Fatalf("expected initial limited read to succeed, n=%d err=%v", n, err)
+	}
+	if _, err := reader.Read(buf); !errors.Is(err, errMonitorWritePayloadTooLarge) {
+		t.Fatalf("expected explicit payload-too-large error, got %v", err)
+	}
+}
+
+func TestMonitorOpenAPIDocumentsWriteAndSeriesContracts(t *testing.T) {
+	raw, err := os.ReadFile("../../docs/openapi/api.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := string(raw)
+	for _, want := range []string{
+		"MonitorAgentDeployRequest:\n            properties:",
+		"MonitorAgentDeployResponse:\n            properties:",
+		"MonitorErrorResponse:\n            properties:",
+		"MonitorMetricSeriesResponse:\n            properties:",
+		"MonitorContainerTelemetryResponse:\n            properties:",
+		"MonitorOverviewResponse:\n            properties:",
+		"MonitorTargetStatusResponse:\n            properties:",
+		"/api/monitor/write:",
+		"name: Content-Encoding",
+		"name: X-Prometheus-Remote-Write-Version",
+		"application/x-protobuf:",
+		"\"204\":",
+		"- basicAuth: []",
+		"/api/servers/{serverId}/ops/monitor-agent/install:",
+		"$ref: '#/components/schemas/MonitorAgentDeployRequest'",
+		"$ref: '#/components/schemas/MonitorAgentDeployResponse'",
+	} {
+		if !strings.Contains(spec, want) {
+			t.Fatalf("expected OpenAPI spec to contain %q", want)
+		}
+	}
+	matrixRaw, err := os.ReadFile("../../docs/openapi/group-matrix.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	matrix := string(matrixRaw)
+	for _, want := range []string{
+		"POST /api/monitor/write",
+		"GET /api/monitor/overview",
+		"GET /api/monitor/servers/{id}/container-telemetry",
+		"GET /api/monitor/targets/{targetType}/{targetId}",
+		"GET /api/monitor/targets/{targetType}/{targetId}/series",
+		"POST /api/servers/{serverId}/ops/monitor-agent/install",
+		"POST /api/servers/{serverId}/ops/monitor-agent/update",
+		"server_monitor_agent.go",
+	} {
+		if !strings.Contains(matrix, want) {
+			t.Fatalf("expected OpenAPI matrix to contain %q", want)
+		}
 	}
 }
 

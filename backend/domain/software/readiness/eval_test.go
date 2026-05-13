@@ -188,7 +188,7 @@ func TestEvaluateReadiness_MultipleIssues(t *testing.T) {
 	if result.OK {
 		t.Error("expected OK=false for multiple failures")
 	}
-if len(result.Issues) < 6 {
+	if len(result.Issues) < 6 {
 		t.Errorf("expected at least 6 issues (os baseline, privilege, network advisory, dependency, service manager, package manager), got %d: %v", len(result.Issues), result.Issues)
 	}
 }

@@ -447,6 +447,59 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 	}
 }
 
+func TestServersViewUsesControlReachabilityAccessCache(t *testing.T) {
+	ensureConnectorSecretRuntime(t)
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	secret := createRouteSecret(t, te, "global", "")
+	direct := createServerRecord(t, te, "direct-offline", "10.0.0.99", 22, "root", "password")
+	direct.Set("connect_type", "direct")
+	direct.Set("credential", secret.Id)
+	direct.Set("access_status", "unavailable")
+	direct.Set("access_reason", "control_unreachable")
+	direct.Set("access_checked_at", "2026-05-13 10:00:00.000Z")
+	if err := te.app.Save(direct); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := te.doServer(t, http.MethodGet, "/api/servers/connection", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []struct {
+			Name       string `json:"name"`
+			Connection struct {
+				StateCode  string `json:"state_code"`
+				ReasonCode string `json:"reason_code"`
+			} `json:"connection"`
+			Access struct {
+				Status string `json:"status"`
+				Reason string `json:"reason"`
+				Source string `json:"source"`
+			} `json:"access"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if len(payload.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(payload.Items))
+	}
+	item := payload.Items[0]
+	if item.Name != "direct-offline" {
+		t.Fatalf("unexpected server row: %#v", item)
+	}
+	if item.Access.Status != "unavailable" || item.Access.Reason != "control_unreachable" || item.Access.Source != "cached" {
+		t.Fatalf("unexpected access projection: %#v", item.Access)
+	}
+	if item.Connection.StateCode != "needs_attention" || item.Connection.ReasonCode != "control_unreachable" {
+		t.Fatalf("expected needs_attention/control_unreachable connection, got %#v", item.Connection)
+	}
+}
+
 func TestServersViewMarksTunnelSetupRequired(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()

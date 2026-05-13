@@ -58,7 +58,7 @@ func TestScanFile_WithHelperSeedsDiscoversSoftwareRoutes(t *testing.T) {
 		t.Fatalf("load route function seeds: %v", err)
 	}
 
-	routes, _ := scanFile(filepath.Join(routesDir, "software.go"), seeds)
+	routes, _ := scanFile(filepath.Join(routesDir, "software.go"), seeds, handlerMetadata{})
 	if len(routes) == 0 {
 		t.Fatal("expected software routes to be discovered")
 	}
@@ -70,6 +70,7 @@ func TestScanFile_WithHelperSeedsDiscoversSoftwareRoutes(t *testing.T) {
 		"GET /api/servers/{serverId}/software/capabilities":             "auth",
 		"GET /api/servers/{serverId}/software/operations":               "auth",
 		"GET /api/servers/{serverId}/software/operations/{operationId}": "auth",
+		"DELETE /api/servers/{serverId}/software/operations/{operationId}": "auth",
 		"GET /api/software/local":                                       "auth",
 		"GET /api/software/local/{componentKey}":                        "auth",
 		"GET /api/software/server-catalog":                              "auth",
@@ -103,7 +104,7 @@ func TestScanFile_WithInlineGroupHelperDiscoversSecretsRoutes(t *testing.T) {
 		t.Fatalf("load route function seeds: %v", err)
 	}
 
-	routes, _ := scanFile(filepath.Join(routesDir, "secrets.go"), seeds)
+	routes, _ := scanFile(filepath.Join(routesDir, "secrets.go"), seeds, handlerMetadata{})
 	if len(routes) == 0 {
 		t.Fatal("expected secrets routes to be discovered")
 	}

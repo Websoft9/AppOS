@@ -28,37 +28,39 @@ import (
 	"regexp"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 )
 
 // ── regex patterns ────────────────────────────────────────────────────────────
 
 var (
-	reGroupAssign        = regexp.MustCompile(`(\w+)\s*:?=\s*(\w+)\.Group\("([^"]*)"\)`)
-	reRouterGroupAssign  = regexp.MustCompile(`(\w+)\s*:?=\s*(\w+)\.Router\.Group\("([^"]*)"\)`)
-	reInlineGroupCall    = regexp.MustCompile(`\b(register[A-Za-z_][A-Za-z0-9_]*)\((\w+)(\.Router)?\.Group\("([^"]*)"\)\)`)
-	reRouteMethod        = regexp.MustCompile(`(\w+)\.(GET|POST|PUT|DELETE|PATCH|HEAD)\("([^"]*)"`)
-	reRootRouterMethod   = regexp.MustCompile(`(\w+)\.Router\.(GET|POST|PUT|DELETE|PATCH|HEAD)\("([^"]*)"`)
-	reRouteMethodHandler = regexp.MustCompile(`(\w+)\.(GET|POST|PUT|DELETE|PATCH|HEAD)\("([^"]*)"\s*,\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)`)
-	reAuthBind           = regexp.MustCompile(`(\w+)\.Bind\(apis\.RequireAuth\(\)\)`)
-	reSuperuserBind      = regexp.MustCompile(`(\w+)\.Bind\(apis\.RequireSuperuserAuth\(\)\)`)
-	rePathParam          = regexp.MustCompile(`\{([^}]+)\}`)
-	reFuncStart          = regexp.MustCompile(`^func\s*(\([^)]*\)\s*)?([A-Za-z_][A-Za-z0-9_]*)\s*\(`)
-	reFuncSignature      = regexp.MustCompile(`^func\s*(\([^)]*\)\s*)?([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)`)
-	reQueryGet           = regexp.MustCompile(`Query\(\)\.Get\("([^"]+)"\)`)
-	reQueryVarAssign     = regexp.MustCompile(`([A-Za-z_][A-Za-z0-9_]*)\s*:?=\s*.*\.Query\(\)`)
-	reVarGet             = regexp.MustCompile(`([A-Za-z_][A-Za-z0-9_]*)\.Get\("([^"]+)"\)`)
-	reHelperQueryKey     = regexp.MustCompile(`\b(?:firstQuery|getQueryParam|queryParam)\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,\s*"([^"]+)"\s*\)`)
-	reFuncQueryMapParam  = regexp.MustCompile(`([A-Za-z_][A-Za-z0-9_]*)\s+map\[string\]\[\]string`)
-	reSwaggerKV          = regexp.MustCompile(`(group|summary|auth)=("[^"]+"|\S+)`)
-	reSwaggerParam       = regexp.MustCompile(`@Param\s+([A-Za-z_][A-Za-z0-9_]*)\s+(path|query|header|cookie|body|formData)\s+(\S+)\s+(true|false)\b`)
-	reSwaggerParamEnums  = regexp.MustCompile(`Enums\(([^)]*)\)`)
-	reSwaggerSummary     = regexp.MustCompile(`@Summary\s+(.+)`)
-	reSwaggerDescription = regexp.MustCompile(`@Description\s+(.+)`)
-	reSwaggerSuccessCode = regexp.MustCompile(`@Success\s+([0-9]{3})\b`)
-	reSwaggerFailureCode = regexp.MustCompile(`@Failure\s+([0-9]{3})\b`)
-	reSwaggerResponse    = regexp.MustCompile(`@(Success|Failure)\s+([0-9]{3})\s+\{([^}]+)\}\s+(\S+)`)
-	reRegisterCall       = regexp.MustCompile(`\b(register[A-Za-z_][A-Za-z0-9_]*)\((\w+)\)`)
+	reGroupAssign             = regexp.MustCompile(`(\w+)\s*:?=\s*(\w+)\.Group\("([^"]*)"\)`)
+	reRouterGroupAssign       = regexp.MustCompile(`(\w+)\s*:?=\s*(\w+)\.Router\.Group\("([^"]*)"\)`)
+	reInlineGroupCall         = regexp.MustCompile(`\b(register[A-Za-z_][A-Za-z0-9_]*)\((\w+)(\.Router)?\.Group\("([^"]*)"\)\)`)
+	reRouteMethod             = regexp.MustCompile(`(\w+)\.(GET|POST|PUT|DELETE|PATCH|HEAD)\("([^"]*)"`)
+	reRootRouterMethod        = regexp.MustCompile(`(\w+)\.Router\.(GET|POST|PUT|DELETE|PATCH|HEAD)\("([^"]*)"`)
+	reRouteMethodHandler      = regexp.MustCompile(`(\w+)\.(GET|POST|PUT|DELETE|PATCH|HEAD)\("([^"]*)"\s*,\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)`)
+	reRootRouterMethodHandler = regexp.MustCompile(`(\w+)\.Router\.(GET|POST|PUT|DELETE|PATCH|HEAD)\("([^"]*)"\s*,\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)`)
+	reAuthBind                = regexp.MustCompile(`(\w+)\.Bind\(apis\.RequireAuth\(\)\)`)
+	reSuperuserBind           = regexp.MustCompile(`(\w+)\.Bind\(apis\.RequireSuperuserAuth\(\)\)`)
+	rePathParam               = regexp.MustCompile(`\{([^}]+)\}`)
+	reFuncStart               = regexp.MustCompile(`^func\s*(\([^)]*\)\s*)?([A-Za-z_][A-Za-z0-9_]*)\s*\(`)
+	reFuncSignature           = regexp.MustCompile(`^func\s*(\([^)]*\)\s*)?([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)`)
+	reQueryGet                = regexp.MustCompile(`Query\(\)\.Get\("([^"]+)"\)`)
+	reQueryVarAssign          = regexp.MustCompile(`([A-Za-z_][A-Za-z0-9_]*)\s*:?=\s*.*\.Query\(\)`)
+	reVarGet                  = regexp.MustCompile(`([A-Za-z_][A-Za-z0-9_]*)\.Get\("([^"]+)"\)`)
+	reHelperQueryKey          = regexp.MustCompile(`\b(?:firstQuery|getQueryParam|queryParam)\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,\s*"([^"]+)"\s*\)`)
+	reFuncQueryMapParam       = regexp.MustCompile(`([A-Za-z_][A-Za-z0-9_]*)\s+map\[string\]\[\]string`)
+	reSwaggerKV               = regexp.MustCompile(`(group|summary|auth)=("[^"]+"|\S+)`)
+	reSwaggerParam            = regexp.MustCompile(`@Param\s+([A-Za-z_][A-Za-z0-9_-]*)\s+(path|query|header|cookie|body|formData)\s+(\S+)\s+(true|false)\b(.*)`)
+	reSwaggerParamEnums       = regexp.MustCompile(`Enums\(([^)]*)\)`)
+	reSwaggerSummary          = regexp.MustCompile(`@Summary\s+(.+)`)
+	reSwaggerDescription      = regexp.MustCompile(`@Description\s+(.+)`)
+	reSwaggerSuccessCode      = regexp.MustCompile(`@Success\s+([0-9]{3})\b`)
+	reSwaggerFailureCode      = regexp.MustCompile(`@Failure\s+([0-9]{3})\b`)
+	reSwaggerResponse         = regexp.MustCompile(`@(Success|Failure)\s+([0-9]{3})\s+\{([^}]+)\}\s+(\S+)`)
+	reRegisterCall            = regexp.MustCompile(`\b(register[A-Za-z_][A-Za-z0-9_]*)\((\w+)\)`)
 )
 
 // publicPrefixes: routes whose full path starts with these are unauthenticated.
@@ -113,11 +115,23 @@ type route struct {
 }
 
 type swaggerParamHint struct {
-	name       string
-	location   string
-	dataType   string
-	required   bool
-	enumValues []string
+	name        string
+	location    string
+	dataType    string
+	required    bool
+	enumValues  []string
+	description string
+}
+
+type handlerMetadata struct {
+	queries        map[string][]string
+	paramHints     map[string][]swaggerParamHint
+	successCodes   map[string][]int
+	failureCodes   map[string][]int
+	successSchemas map[string]map[int]swaggerSchemaHint
+	failureSchemas map[string]map[int]swaggerSchemaHint
+	summaries      map[string]string
+	descriptions   map[string]string
 }
 
 type groupEntry struct {
@@ -144,15 +158,8 @@ type functionSeed struct {
 
 // ── per-file scanner ──────────────────────────────────────────────────────────
 
-func scanFile(filePath string, seeds map[string]functionSeed) ([]route, map[string]bool) {
+func scanFile(filePath string, seeds map[string]functionSeed, metadata handlerMetadata) ([]route, map[string]bool) {
 	data, _ := os.ReadFile(filePath)
-	handlerQueries := extractHandlerQueryParams(string(data))
-	handlerParamHints := extractHandlerParamHints(string(data))
-	handlerSuccessCodes := extractHandlerSuccessCodes(string(data))
-	handlerFailureCodes := extractHandlerFailureCodes(string(data))
-	handlerSuccessSchemas, handlerFailureSchemas := extractHandlerResponseSchemas(string(data))
-	handlerSummaries := extractHandlerSummaries(string(data))
-	handlerDescriptions := extractHandlerDescriptions(string(data))
 
 	defaultG := "/api/ext"
 	if strings.HasPrefix(filepath.Base(filePath), "server") {
@@ -222,6 +229,17 @@ func scanFile(filePath string, seeds map[string]functionSeed) ([]route, map[stri
 			pendingMarker = parseSwaggerMarker(line)
 		}
 
+		if m := reRegisterCall.FindStringSubmatch(line); m != nil {
+			funcName, argName := m[1], m[2]
+			if basePath, ok := vars[argName]; ok && basePath != "" {
+				seeds[funcName] = functionSeed{
+					paramName: argName,
+					basePath:  basePath,
+					auth:      varAuth[argName],
+				}
+			}
+		}
+
 		// Track Group assignments
 		if m := reGroupAssign.FindStringSubmatch(line); m != nil {
 			newVar, parent, suffix := m[1], m[2], m[3]
@@ -272,7 +290,7 @@ func scanFile(filePath string, seeds map[string]functionSeed) ([]route, map[stri
 				if hm := reRouteMethodHandler.FindStringSubmatch(line); hm != nil {
 					h := hm[4]
 					r.handler = h
-					r.queryParams = append([]string{}, handlerQueries[h]...)
+					r.queryParams = append([]string{}, metadata.queries[h]...)
 					r.queryRequired = map[string]bool{}
 					r.queryParamHints = map[string]swaggerParamHint{}
 					r.pathParamHints = []swaggerParamHint{}
@@ -284,7 +302,7 @@ func scanFile(filePath string, seeds map[string]functionSeed) ([]route, map[stri
 					for _, p := range r.queryParams {
 						r.queryRequired[p] = false
 					}
-					for _, hint := range handlerParamHints[h] {
+					for _, hint := range metadata.paramHints[h] {
 						switch hint.location {
 						case "path":
 							r.pathParamHints = append(r.pathParamHints, hint)
@@ -297,7 +315,7 @@ func scanFile(filePath string, seeds map[string]functionSeed) ([]route, map[stri
 						case "body":
 							required := hint.required
 							r.bodyRequired = &required
-							r.bodySchema = &swaggerSchemaHint{container: "object", dataType: hint.dataType}
+							r.bodySchema = &swaggerSchemaHint{container: "object", dataType: hint.dataType, description: hint.description}
 						case "header":
 							r.headerParams = append(r.headerParams, hint)
 						case "cookie":
@@ -307,16 +325,16 @@ func scanFile(filePath string, seeds map[string]functionSeed) ([]route, map[stri
 						}
 					}
 					sort.Strings(r.queryParams)
-					r.successCodes = handlerSuccessCodes[h]
-					r.failureCodes = handlerFailureCodes[h]
-					for code, hint := range handlerSuccessSchemas[h] {
+					r.successCodes = metadata.successCodes[h]
+					r.failureCodes = metadata.failureCodes[h]
+					for code, hint := range metadata.successSchemas[h] {
 						r.successSchemas[code] = hint
 					}
-					for code, hint := range handlerFailureSchemas[h] {
+					for code, hint := range metadata.failureSchemas[h] {
 						r.failureSchemas[code] = hint
 					}
-					r.summary = handlerSummaries[h]
-					r.description = handlerDescriptions[h]
+					r.summary = metadata.summaries[h]
+					r.description = metadata.descriptions[h]
 				}
 				if pendingMarker != nil {
 					r.markerGroup = pendingMarker["group"]
@@ -333,12 +351,65 @@ func scanFile(filePath string, seeds map[string]functionSeed) ([]route, map[stri
 			if base, ok := vars[varName]; ok {
 				fullPath := base + suffix
 				if strings.HasPrefix(fullPath, "/api/") || strings.HasPrefix(fullPath, "/tunnel/setup") {
-					routes = append(routes, route{method: method, path: fullPath, detectedAuth: authForPath(fullPath, superuserVarPaths)})
+					r := route{method: method, path: fullPath, detectedAuth: authForPath(fullPath, superuserVarPaths)}
+					if hm := reRootRouterMethodHandler.FindStringSubmatch(line); hm != nil {
+						attachHandlerMetadata(&r, hm[4], metadata)
+					}
+					routes = append(routes, r)
 				}
 			}
 		}
 	}
 	return routes, superuserVarPaths
+}
+
+func attachHandlerMetadata(r *route, handler string, metadata handlerMetadata) {
+	r.handler = handler
+	r.queryParams = append([]string{}, metadata.queries[handler]...)
+	r.queryRequired = map[string]bool{}
+	r.queryParamHints = map[string]swaggerParamHint{}
+	r.pathParamHints = []swaggerParamHint{}
+	r.headerParams = []swaggerParamHint{}
+	r.cookieParams = []swaggerParamHint{}
+	r.formDataParams = []swaggerParamHint{}
+	r.successSchemas = map[int]swaggerSchemaHint{}
+	r.failureSchemas = map[int]swaggerSchemaHint{}
+	for _, p := range r.queryParams {
+		r.queryRequired[p] = false
+	}
+	for _, hint := range metadata.paramHints[handler] {
+		switch hint.location {
+		case "path":
+			r.pathParamHints = append(r.pathParamHints, hint)
+		case "query":
+			if _, ok := r.queryRequired[hint.name]; !ok {
+				r.queryParams = append(r.queryParams, hint.name)
+			}
+			r.queryRequired[hint.name] = hint.required
+			r.queryParamHints[hint.name] = hint
+		case "body":
+			required := hint.required
+			r.bodyRequired = &required
+			r.bodySchema = &swaggerSchemaHint{container: "object", dataType: hint.dataType, description: hint.description}
+		case "header":
+			r.headerParams = append(r.headerParams, hint)
+		case "cookie":
+			r.cookieParams = append(r.cookieParams, hint)
+		case "formData":
+			r.formDataParams = append(r.formDataParams, hint)
+		}
+	}
+	sort.Strings(r.queryParams)
+	r.successCodes = metadata.successCodes[handler]
+	r.failureCodes = metadata.failureCodes[handler]
+	for code, hint := range metadata.successSchemas[handler] {
+		r.successSchemas[code] = hint
+	}
+	for code, hint := range metadata.failureSchemas[handler] {
+		r.failureSchemas[code] = hint
+	}
+	r.summary = metadata.summaries[handler]
+	r.description = metadata.descriptions[handler]
 }
 
 func firstParamName(params string) string {
@@ -420,6 +491,95 @@ func loadRouteFunctionSeeds(routesDir string) (map[string]functionSeed, error) {
 	}
 
 	return seeds, nil
+}
+
+func buildHandlerMetadata(files []string) (handlerMetadata, error) {
+	metadata := handlerMetadata{
+		queries:        map[string][]string{},
+		paramHints:     map[string][]swaggerParamHint{},
+		successCodes:   map[string][]int{},
+		failureCodes:   map[string][]int{},
+		successSchemas: map[string]map[int]swaggerSchemaHint{},
+		failureSchemas: map[string]map[int]swaggerSchemaHint{},
+		summaries:      map[string]string{},
+		descriptions:   map[string]string{},
+	}
+	for _, filePath := range files {
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			return metadata, err
+		}
+		src := string(data)
+		mergeStringSlices(metadata.queries, extractHandlerQueryParams(src))
+		mergeParamHints(metadata.paramHints, extractHandlerParamHints(src))
+		mergeIntSlices(metadata.successCodes, extractHandlerSuccessCodes(src))
+		mergeIntSlices(metadata.failureCodes, extractHandlerFailureCodes(src))
+		successSchemas, failureSchemas := extractHandlerResponseSchemas(src)
+		mergeSchemaHints(metadata.successSchemas, successSchemas)
+		mergeSchemaHints(metadata.failureSchemas, failureSchemas)
+		mergeStrings(metadata.summaries, extractHandlerSummaries(src))
+		mergeStrings(metadata.descriptions, extractHandlerDescriptions(src))
+	}
+	return metadata, nil
+}
+
+func mergeStringSlices(dst map[string][]string, src map[string][]string) {
+	for key, values := range src {
+		seen := map[string]struct{}{}
+		for _, existing := range dst[key] {
+			seen[existing] = struct{}{}
+		}
+		for _, value := range values {
+			if _, ok := seen[value]; ok {
+				continue
+			}
+			dst[key] = append(dst[key], value)
+			seen[value] = struct{}{}
+		}
+		sort.Strings(dst[key])
+	}
+}
+
+func mergeParamHints(dst map[string][]swaggerParamHint, src map[string][]swaggerParamHint) {
+	for key, values := range src {
+		dst[key] = append(dst[key], values...)
+	}
+}
+
+func mergeIntSlices(dst map[string][]int, src map[string][]int) {
+	for key, values := range src {
+		seen := map[int]struct{}{}
+		for _, existing := range dst[key] {
+			seen[existing] = struct{}{}
+		}
+		for _, value := range values {
+			if _, ok := seen[value]; ok {
+				continue
+			}
+			dst[key] = append(dst[key], value)
+			seen[value] = struct{}{}
+		}
+		sort.Ints(dst[key])
+	}
+}
+
+func mergeSchemaHints(dst map[string]map[int]swaggerSchemaHint, src map[string]map[int]swaggerSchemaHint) {
+	for handler, schemas := range src {
+		if dst[handler] == nil {
+			dst[handler] = map[int]swaggerSchemaHint{}
+		}
+		for code, hint := range schemas {
+			dst[handler][code] = hint
+		}
+	}
+}
+
+func mergeStrings(dst map[string]string, src map[string]string) {
+	for key, value := range src {
+		if strings.TrimSpace(value) != "" {
+			dst[key] = value
+		}
+	}
 }
 
 func extractHandlerSummaries(src string) map[string]string {
@@ -541,15 +701,31 @@ func parseParamHintsFromComments(lines []string) []swaggerParamHint {
 			location := strings.TrimSpace(m[2])
 			dataType := strings.TrimSpace(m[3])
 			required := strings.EqualFold(strings.TrimSpace(m[4]), "true")
+			description := ""
+			if len(m) > 5 {
+				description = parseParamDescription(m[5])
+			}
 			key := location + ":" + name + ":" + dataType
 			if _, ok := seen[key]; ok {
 				continue
 			}
 			seen[key] = struct{}{}
-			out = append(out, swaggerParamHint{name: name, location: location, dataType: dataType, required: required, enumValues: parseParamEnumValues(line)})
+			out = append(out, swaggerParamHint{name: name, location: location, dataType: dataType, required: required, enumValues: parseParamEnumValues(line), description: description})
 		}
 	}
 	return out
+}
+
+func parseParamDescription(raw string) string {
+	text := strings.TrimSpace(reSwaggerParamEnums.ReplaceAllString(raw, ""))
+	if text == "" {
+		return ""
+	}
+	if unquoted, err := strconv.Unquote(text); err == nil {
+		return strings.TrimSpace(unquoted)
+	}
+	text = strings.Trim(text, `"`)
+	return strings.TrimSpace(text)
 }
 
 func parseParamEnumValues(line string) []string {
@@ -1126,6 +1302,7 @@ func routeFilesFromMatrix(routesDir string, groups []groupEntry) ([]string, erro
 func methodBlock(method, path, tag, auth string, queryParams []string, queryRequired map[string]bool, queryParamHints map[string]swaggerParamHint, pathParamHints []swaggerParamHint, headerParams []swaggerParamHint, cookieParams []swaggerParamHint, formDataParams []swaggerParamHint, bodyRequired *bool, bodySchema *swaggerSchemaHint, successCodes []int, failureCodes []int, successSchemas map[int]swaggerSchemaHint, failureSchemas map[int]swaggerSchemaHint, componentNames map[string]string) string {
 	var buf bytes.Buffer
 	lm := strings.ToLower(method)
+	isMonitorWrite := lm == "post" && path == "/api/monitor/write"
 	fmt.Fprintf(&buf, "    %s:\n", lm)
 	fmt.Fprintf(&buf, "      tags: [%s]\n", tag)
 	fmt.Fprintf(&buf, "      summary: %s\n", summaryFrom(method, path))
@@ -1140,7 +1317,15 @@ func methodBlock(method, path, tag, auth string, queryParams []string, queryRequ
 		}
 	}
 
-	if lm == "post" || lm == "put" || lm == "patch" {
+	if isMonitorWrite {
+		fmt.Fprintf(&buf, "      requestBody:\n")
+		fmt.Fprintf(&buf, "        required: true\n")
+		fmt.Fprintf(&buf, "        content:\n")
+		fmt.Fprintf(&buf, "          application/x-protobuf:\n")
+		fmt.Fprintf(&buf, "            schema:\n")
+		fmt.Fprintf(&buf, "              type: string\n")
+		fmt.Fprintf(&buf, "              format: binary\n")
+	} else if lm == "post" || lm == "put" || lm == "patch" {
 		if len(formDataParams) > 0 {
 			renderMultipartRequestBody(&buf, formDataParams)
 		} else {
@@ -1149,6 +1334,9 @@ func methodBlock(method, path, tag, auth string, queryParams []string, queryRequ
 				required = *bodyRequired
 			}
 			fmt.Fprintf(&buf, "      requestBody:\n")
+			if bodySchema != nil && strings.TrimSpace(bodySchema.description) != "" {
+				fmt.Fprintf(&buf, "        description: %s\n", yamlQuotedScalar(bodySchema.description))
+			}
 			fmt.Fprintf(&buf, "        required: %t\n", required)
 			fmt.Fprintf(&buf, "        content:\n")
 			fmt.Fprintf(&buf, "          application/json:\n")
@@ -1157,13 +1345,21 @@ func methodBlock(method, path, tag, auth string, queryParams []string, queryRequ
 		}
 	}
 
-	switch auth {
-	case "superuser":
-		fmt.Fprintf(&buf, "      security:\n        - bearerAuth: []  # superuser required\n")
-	case "auth":
-		fmt.Fprintf(&buf, "      security:\n        - bearerAuth: []\n")
-	default:
-		fmt.Fprintf(&buf, "      security: []  # public\n")
+	if isMonitorWrite {
+		fmt.Fprintf(&buf, "      security:\n        - basicAuth: []\n")
+	} else {
+		switch auth {
+		case "superuser":
+			fmt.Fprintf(&buf, "      security:\n        - bearerAuth: []  # superuser required\n")
+		case "auth":
+			fmt.Fprintf(&buf, "      security:\n        - bearerAuth: []\n")
+		default:
+			fmt.Fprintf(&buf, "      security: []  # public\n")
+		}
+	}
+	if isMonitorWrite {
+		successCodes = []int{204}
+		failureCodes = appendUniqueStatusCodes(failureCodes, 413, 502)
 	}
 	fmt.Fprintf(&buf, "      responses:\n")
 	hasExplicitSuccess := len(successCodes) > 0 || len(successSchemas) > 0
@@ -1203,7 +1399,11 @@ func methodBlock(method, path, tag, auth string, queryParams []string, queryRequ
 		fmt.Fprintf(&buf, "          content:\n")
 		fmt.Fprintf(&buf, "            application/json:\n")
 		fmt.Fprintf(&buf, "              schema:\n")
-		fmt.Fprintf(&buf, "                $ref: '#/components/schemas/ErrorEnvelope'\n")
+		if hint, ok := failureSchemas[401]; ok {
+			renderSchemaRef(&buf, "                ", &hint, componentNames, "ErrorEnvelope")
+		} else {
+			fmt.Fprintf(&buf, "                $ref: '#/components/schemas/ErrorEnvelope'\n")
+		}
 	}
 	for _, code := range failureCodes {
 		if code == 401 && auth != "public" {
@@ -1273,6 +1473,15 @@ func hasStatusCode(codes []int, want int) bool {
 	return false
 }
 
+func appendUniqueStatusCodes(codes []int, values ...int) []int {
+	for _, value := range values {
+		if !hasStatusCode(codes, value) {
+			codes = append(codes, value)
+		}
+	}
+	return codes
+}
+
 func hasResponseSchema(schemas map[int]swaggerSchemaHint, want int) bool {
 	if schemas == nil {
 		return false
@@ -1289,6 +1498,7 @@ func renderParameters(pathParams, queryParams []string, queryRequired map[string
 		out = append(out,
 			fmt.Sprintf("        - name: %s\n", p)+
 				"          in: path\n"+
+				renderParameterDescription(hint.description)+
 				"          required: true\n"+
 				"          schema:\n"+
 				renderParameterSchema(hint.dataType, hint.enumValues),
@@ -1317,6 +1527,7 @@ func renderParameters(pathParams, queryParams []string, queryRequired map[string
 		out = append(out,
 			fmt.Sprintf("        - name: %s\n", q)+
 				"          in: query\n"+
+				renderParameterDescription(hint.description)+
 				fmt.Sprintf("          required: %t\n", required)+
 				"          schema:\n"+
 				renderParameterSchema(hint.dataType, hint.enumValues),
@@ -1328,6 +1539,7 @@ func renderParameters(pathParams, queryParams []string, queryRequired map[string
 		out = append(out,
 			fmt.Sprintf("        - name: %s\n", p.name)+
 				"          in: header\n"+
+				renderParameterDescription(p.description)+
 				fmt.Sprintf("          required: %t\n", required)+
 				"          schema:\n"+
 				renderSimpleSchemaLine(p.dataType),
@@ -1339,6 +1551,7 @@ func renderParameters(pathParams, queryParams []string, queryRequired map[string
 		out = append(out,
 			fmt.Sprintf("        - name: %s\n", p.name)+
 				"          in: cookie\n"+
+				renderParameterDescription(p.description)+
 				fmt.Sprintf("          required: %t\n", required)+
 				"          schema:\n"+
 				renderSimpleSchemaLine(p.dataType),
@@ -1346,6 +1559,14 @@ func renderParameters(pathParams, queryParams []string, queryRequired map[string
 	}
 
 	return out
+}
+
+func renderParameterDescription(description string) string {
+	description = strings.TrimSpace(description)
+	if description == "" {
+		return ""
+	}
+	return fmt.Sprintf("          description: %s\n", yamlQuotedScalar(description))
 }
 
 func hintsByName(params []swaggerParamHint) map[string]swaggerParamHint {
@@ -1383,6 +1604,12 @@ func dedupeParamHints(params []swaggerParamHint) []swaggerParamHint {
 			existing.required = existing.required || p.required
 			if existing.dataType == "" {
 				existing.dataType = p.dataType
+			}
+			if existing.description == "" {
+				existing.description = p.description
+			}
+			if len(existing.enumValues) == 0 {
+				existing.enumValues = p.enumValues
 			}
 			merged[key] = existing
 			continue
@@ -1552,6 +1779,10 @@ func runGen() error {
 	if err != nil {
 		return fmt.Errorf("cannot resolve route function seeds: %w", err)
 	}
+	handlerMetadata, err := buildHandlerMetadata(files)
+	if err != nil {
+		return fmt.Errorf("cannot resolve handler metadata: %w", err)
+	}
 	schemaFiles, err := parseDirsForSchemas(files)
 	if err != nil {
 		return fmt.Errorf("cannot resolve schema files: %w", err)
@@ -1563,7 +1794,7 @@ func runGen() error {
 
 	ops := map[string]route{} // key: METHOD + space + path
 	for _, f := range files {
-		routes, superuserPaths := scanFile(f, functionSeeds)
+		routes, superuserPaths := scanFile(f, functionSeeds, handlerMetadata)
 		for r, v := range superuserPaths {
 			if v {
 				allSuperuserPaths[r] = true
@@ -1627,6 +1858,9 @@ func runGen() error {
 	out.WriteString("      type: http\n")
 	out.WriteString("      scheme: bearer\n")
 	out.WriteString("      bearerFormat: PocketBase token\n")
+	out.WriteString("    basicAuth:\n")
+	out.WriteString("      type: http\n")
+	out.WriteString("      scheme: basic\n")
 	out.WriteString("  schemas:\n")
 	out.WriteString("    GenericRequest:\n")
 	out.WriteString("      type: object\n")

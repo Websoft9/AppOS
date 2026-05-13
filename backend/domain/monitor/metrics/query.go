@@ -19,6 +19,10 @@ var (
 	metricQueryOverride   metricQueryOverrideFunc
 )
 
+// metricsHTTPClient is reused across metric series queries to enable TCP
+// connection pooling to the local VictoriaMetrics instance.
+var metricsHTTPClient = &http.Client{Timeout: 5 * time.Second}
+
 func SetMetricQueryFuncForTest(fn metricQueryOverrideFunc) func() {
 	metricQueryOverrideMu.Lock()
 	previous := metricQueryOverride
@@ -87,7 +91,7 @@ func queryMetricSeriesVM(ctx context.Context, targetType, targetID, window strin
 	if baseURL == "" {
 		return response, nil
 	}
-	service := monitortsdb.NewService(&http.Client{Timeout: 5 * time.Second}, baseURL)
+	service := monitortsdb.NewService(metricsHTTPClient, baseURL)
 	start := windowSpec.Start
 	end := windowSpec.End
 	if supportsNetworkInterfaceSelection(targetType, targetID) && (containsRequestedSeries(requestedSeries, "network") || containsRequestedSeries(requestedSeries, "network_traffic")) {

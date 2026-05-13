@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -26,6 +27,11 @@ type LatestStatusUpsert struct {
 	Summary                 map[string]any
 	StatusPriorityMap       map[string]int
 	PreserveStrongerFailure bool
+	// IncomingCheckKind, when non-empty, derives PreserveStrongerFailure atomically
+	// from the already-loaded record: preservation is enabled only when the existing
+	// record's check_kind in summary_json differs from this value. This eliminates
+	// the separate HasDifferentCheckKind DB round-trip and the associated TOCTOU gap.
+	IncomingCheckKind string
 }
 
 func UpsertLatestStatus(app core.App, input LatestStatusUpsert) (*core.Record, error) {
@@ -47,6 +53,20 @@ func UpsertLatestStatus(app core.App, input LatestStatusUpsert) (*core.Record, e
 	}
 
 	existingStatus := record.GetString("status")
+
+	// When IncomingCheckKind is set, compute PreserveStrongerFailure from the record
+	// we already hold—no extra DB query, no TOCTOU window.
+	if input.IncomingCheckKind != "" {
+		existingCheckKind := ""
+		if existingSummary, summaryErr := SummaryFromRecord(record); summaryErr == nil && existingSummary != nil {
+			if checkKind, ok := existingSummary["check_kind"].(string); ok {
+				existingCheckKind = strings.TrimSpace(checkKind)
+			}
+		}
+		input.PreserveStrongerFailure = existingCheckKind != "" &&
+			!strings.EqualFold(existingCheckKind, strings.TrimSpace(input.IncomingCheckKind))
+	}
+
 	if input.PreserveStrongerFailure && monitor.IsStrongerFailure(existingStatus, input.Status, input.StatusPriorityMap) {
 		input.Status = existingStatus
 		input.Reason = record.GetString("reason")

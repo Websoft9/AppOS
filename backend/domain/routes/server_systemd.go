@@ -32,8 +32,18 @@ func handleSystemdServices(e *core.RequestEvent) error {
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
+	release, gateErr := acquireServerRealtimeSSHRead(e.Request.Context(), serverID)
+	if gateErr != nil {
+		return e.JSON(http.StatusServiceUnavailable, map[string]any{"message": gateErr.Error()})
+	}
+	defer release()
+	run, cleanup, runnerErr := reusableRouteSSHCommandRunner(e.Request.Context(), cfg)
+	if runnerErr != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runnerErr.Error()})
+	}
+	defer cleanup()
 
-	raw, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, "systemctl list-units --type=service --all --plain --no-legend --no-pager", 20*time.Second)
+	raw, runErr := run(e.Request.Context(), "systemctl list-units --type=service --all --plain --no-legend --no-pager", 20*time.Second)
 	if runErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error()})
 	}
@@ -160,15 +170,25 @@ func handleSystemdServiceStatus(e *core.RequestEvent) error {
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
+	release, gateErr := acquireServerRealtimeSSHRead(e.Request.Context(), serverID)
+	if gateErr != nil {
+		return e.JSON(http.StatusServiceUnavailable, map[string]any{"message": gateErr.Error()})
+	}
+	defer release()
+	run, cleanup, runnerErr := reusableRouteSSHCommandRunner(e.Request.Context(), cfg)
+	if runnerErr != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runnerErr.Error()})
+	}
+	defer cleanup()
 
-	showCmd := fmt.Sprintf("systemctl show %s --no-pager --property=Id,Description,LoadState,ActiveState,SubState,UnitFileState,MainPID,ExecMainStatus,ExecMainCode,StateChangeTimestamp", service)
-	showRaw, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, showCmd, 20*time.Second)
+	showCmd := fmt.Sprintf("systemctl show %s --no-pager --property=Id,Description,LoadState,ActiveState,SubState,UnitFileState,MainPID,ExecMainStatus,ExecMainCode,StateChangeTimestamp,FragmentPath", service)
+	showRaw, runErr := run(e.Request.Context(), showCmd, 20*time.Second)
 	if runErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error()})
 	}
 
 	statusCmd := fmt.Sprintf("systemctl status %s --no-pager --full --lines=40", service)
-	statusRaw, _ := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, statusCmd, 20*time.Second)
+	statusRaw, _ := run(e.Request.Context(), statusCmd, 20*time.Second)
 
 	details := make(map[string]string)
 	for _, line := range strings.Split(showRaw, "\n") {
@@ -226,9 +246,19 @@ func handleSystemdServiceLogs(e *core.RequestEvent) error {
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
+	release, gateErr := acquireServerRealtimeSSHRead(e.Request.Context(), serverID)
+	if gateErr != nil {
+		return e.JSON(http.StatusServiceUnavailable, map[string]any{"message": gateErr.Error()})
+	}
+	defer release()
+	run, cleanup, runnerErr := reusableRouteSSHCommandRunner(e.Request.Context(), cfg)
+	if runnerErr != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runnerErr.Error()})
+	}
+	defer cleanup()
 
 	cmd := fmt.Sprintf("journalctl -u %s -n %d --no-pager --output=short-iso", service, lines)
-	raw, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, cmd, 25*time.Second)
+	raw, runErr := run(e.Request.Context(), cmd, 25*time.Second)
 	if runErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error()})
 	}
@@ -273,9 +303,19 @@ func handleSystemdServiceContent(e *core.RequestEvent) error {
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
+	release, gateErr := acquireServerRealtimeSSHRead(e.Request.Context(), serverID)
+	if gateErr != nil {
+		return e.JSON(http.StatusServiceUnavailable, map[string]any{"message": gateErr.Error()})
+	}
+	defer release()
+	run, cleanup, runnerErr := reusableRouteSSHCommandRunner(e.Request.Context(), cfg)
+	if runnerErr != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runnerErr.Error()})
+	}
+	defer cleanup()
 
 	cmd := fmt.Sprintf("systemctl cat %s --no-pager", service)
-	raw, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, cmd, 20*time.Second)
+	raw, runErr := run(e.Request.Context(), cmd, 20*time.Second)
 	if runErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error()})
 	}
@@ -371,13 +411,23 @@ func handleSystemdServiceUnitRead(e *core.RequestEvent) error {
 	if resolveErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
+	release, gateErr := acquireServerRealtimeSSHRead(e.Request.Context(), serverID)
+	if gateErr != nil {
+		return e.JSON(http.StatusServiceUnavailable, map[string]any{"message": gateErr.Error()})
+	}
+	defer release()
+	run, cleanup, runnerErr := reusableRouteSSHCommandRunner(e.Request.Context(), cfg)
+	if runnerErr != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runnerErr.Error()})
+	}
+	defer cleanup()
 
-	unitPath, pathErr := resolveSystemdUnitPath(e.Request.Context(), cfg, service)
+	unitPath, pathErr := resolveSystemdUnitPathWithRunner(e.Request.Context(), run, service)
 	if pathErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": pathErr.Error()})
 	}
 
-	raw, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, fmt.Sprintf("cat %s", terminal.ShellQuote(unitPath)), 20*time.Second)
+	raw, runErr := run(e.Request.Context(), fmt.Sprintf("cat %s", terminal.ShellQuote(unitPath)), 20*time.Second)
 	if runErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error()})
 	}
@@ -558,8 +608,12 @@ func handleSystemdServiceUnitApply(e *core.RequestEvent) error {
 }
 
 func resolveSystemdUnitPath(ctx context.Context, cfg terminal.ConnectorConfig, service string) (string, error) {
+	return resolveSystemdUnitPathWithRunner(ctx, defaultRouteSSHCommandRunner(cfg), service)
+}
+
+func resolveSystemdUnitPathWithRunner(ctx context.Context, run routeSSHCommandRunner, service string) (string, error) {
 	cmd := fmt.Sprintf("systemctl show %s --property=FragmentPath --value --no-pager", service)
-	raw, err := terminal.ExecuteSSHCommand(ctx, cfg, cmd, 20*time.Second)
+	raw, err := run(ctx, cmd, 20*time.Second)
 	if err != nil {
 		return "", err
 	}

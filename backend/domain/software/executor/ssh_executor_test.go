@@ -102,6 +102,9 @@ func TestBuildScriptCommand_NoArgs(t *testing.T) {
 	if !containsSubstring(cmd, "trap") {
 		t.Errorf("expected trap cleanup in command, got: %s", cmd)
 	}
+	if !containsSubstring(cmd, "case \"$(head -n 1 \"$_tmp\"") {
+		t.Errorf("expected downloaded scripts to use shebang-aware runner, got: %s", cmd)
+	}
 }
 
 func TestBuildScriptCommand_WithArgs(t *testing.T) {
@@ -142,6 +145,9 @@ func TestBuildManagedScriptCommand_EmbeddedScript(t *testing.T) {
 	}
 	if !containsSubstring(cmd, "docker-install") {
 		t.Fatalf("expected embedded docker-install.sh contents, got: %s", cmd)
+	}
+	if !containsSubstring(cmd, "bash \"$_tmp\"") {
+		t.Fatalf("expected bash shebang embedded script to run with bash, got: %s", cmd)
 	}
 }
 

@@ -1,6 +1,8 @@
 import { Link } from '@tanstack/react-router'
+import { Pencil } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 
 import type { ServerFactsView } from './server-detail-shared'
 import { accessLabel, tunnelStateLabel } from './server-detail-shared'
@@ -15,9 +17,22 @@ type ServerOverviewTabProps = {
   credentialType: string
   credentialId: string
   createdBy: string
+  onEditServer?: () => void
 }
 
 const detailSectionTitleClassName = 'text-sm font-semibold text-foreground'
+
+function firstStringValue(
+  item: Record<string, unknown>,
+  keys: string[],
+  fallback = 'Unavailable'
+): string {
+  for (const key of keys) {
+    const value = item[key]
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+  return fallback
+}
 
 export function ServerOverviewTab({
   item,
@@ -29,11 +44,39 @@ export function ServerOverviewTab({
   credentialType,
   credentialId,
   createdBy,
+  onEditServer,
 }: ServerOverviewTabProps) {
+  const cloudProviderName = firstStringValue(item, [
+    'cloud_provider_name',
+    'cloud_provider',
+    'provider_name',
+    'provider',
+  ])
+  const cloudProviderRegion = firstStringValue(item, [
+    'cloud_region',
+    'region',
+    'provider_region',
+    'cloud_provider_region',
+  ])
+
   return (
     <div className="space-y-8">
       <section className="space-y-4">
-        <h3 className={detailSectionTitleClassName}>Server Metadata</h3>
+        <div className="flex items-center justify-between gap-3">
+          <h3 className={detailSectionTitleClassName}>Server Metadata</h3>
+          {onEditServer ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 px-2.5 text-xs"
+              onClick={onEditServer}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Edit Connection
+            </Button>
+          ) : null}
+        </div>
         <dl className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2 xl:grid-cols-3">
           <div className="sm:col-span-2 xl:col-span-3">
             <dt className="text-xs uppercase tracking-wide text-muted-foreground">ID</dt>
@@ -125,6 +168,20 @@ export function ServerOverviewTab({
               <dd className="mt-1 text-muted-foreground">{String(item.description)}</dd>
             </div>
           ) : null}
+        </dl>
+      </section>
+
+      <section className="space-y-4">
+        <h3 className={detailSectionTitleClassName}>Cloud Provider</h3>
+        <dl className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2 xl:grid-cols-3">
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Provider</dt>
+            <dd className="mt-1">{cloudProviderName}</dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Region</dt>
+            <dd className="mt-1">{cloudProviderRegion}</dd>
+          </div>
         </dl>
       </section>
 

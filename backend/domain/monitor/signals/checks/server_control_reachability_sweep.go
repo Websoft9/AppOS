@@ -2,6 +2,7 @@ package checks
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -23,11 +24,35 @@ func RunServerControlReachabilitySweep(app core.App, now time.Time) error {
 			continue
 		}
 		result := ProbeServerControlReachability(record)
+		if err := writeServerControlAccessCache(app, record, result, now); err != nil {
+			sweepErrors = append(sweepErrors, err)
+		}
 		if err := projectServerControlReachability(app, server, result, now); err != nil {
 			sweepErrors = append(sweepErrors, err)
 		}
 	}
 	return errors.Join(sweepErrors...)
+}
+
+func writeServerControlAccessCache(app core.App, record *core.Record, result ServerControlReachabilityResult, now time.Time) error {
+	if record == nil {
+		return nil
+	}
+	status := "unavailable"
+	reason := serverControlReachabilityReasonCode(result.Outcome)
+	if result.Outcome == ControlReachabilityReachable {
+		status = "available"
+		reason = ""
+	} else if strings.TrimSpace(reason) == "" {
+		reason = strings.TrimSpace(result.Reason)
+	}
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	record.Set("access_status", status)
+	record.Set("access_reason", reason)
+	record.Set("access_checked_at", now.UTC().Format("2006-01-02 15:04:05.000Z"))
+	return app.Save(record)
 }
 
 func projectServerControlReachability(app core.App, server *servers.ManagedServer, result ServerControlReachabilityResult, now time.Time) error {
@@ -61,20 +86,20 @@ func projectServerControlReachability(app core.App, server *servers.ManagedServe
 
 	failures, lastSuccessAt, lastFailureAt := monitorstatus.ResourceCheckFailureState(app, monitor.TargetTypeServer, server.ID, status, now)
 	_, err = store.UpsertLatestStatus(app, store.LatestStatusUpsert{
-		TargetType:              monitor.TargetTypeServer,
-		TargetID:                server.ID,
-		DisplayName:             firstNonEmptyString(server.Name, server.ID),
-		Status:                  status,
-		Reason:                  reason,
-		SignalSource:            monitor.SignalSourceAppOS,
-		LastTransitionAt:        now.UTC(),
-		LastSuccessAt:           lastSuccessAt,
-		LastFailureAt:           lastFailureAt,
-		LastCheckedAt:           &now,
-		ConsecutiveFailures:     &failures,
-		Summary:                 summary,
-		StatusPriorityMap:       entry.StatusPriority,
-		PreserveStrongerFailure: true,
+		TargetType:          monitor.TargetTypeServer,
+		TargetID:            server.ID,
+		DisplayName:         firstNonEmptyString(server.Name, server.ID),
+		Status:              status,
+		Reason:              reason,
+		SignalSource:        monitor.SignalSourceAppOS,
+		LastTransitionAt:    now.UTC(),
+		LastSuccessAt:       lastSuccessAt,
+		LastFailureAt:       lastFailureAt,
+		LastCheckedAt:       &now,
+		ConsecutiveFailures: &failures,
+		Summary:             summary,
+		StatusPriorityMap:   entry.StatusPriority,
+		IncomingCheckKind:   monitor.CheckKindControlReachability,
 	})
 	return err
 }

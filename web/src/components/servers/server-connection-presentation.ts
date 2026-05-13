@@ -263,8 +263,12 @@ function reasonMessageFromCode(
   if (reasonCode === 'tcp_connect_failed' || reasonCode === 'connectivity_check_failed') {
     return 'AppOS cannot reach this server.'
   }
+  if (reasonCode === 'control_unreachable') return 'AppOS cannot reach this server.'
+  if (reasonCode === 'control_reachability_unknown')
+    return 'Connection status could not be verified.'
   if (reasonCode === 'server_host_empty') return 'Server host is missing.'
   if (reasonCode === 'tunnel_offline') return 'Tunnel session is offline.'
+  if (reasonCode === 'tunnel_unavailable') return 'Tunnel session is unavailable.'
   return 'This connection needs attention.'
 }
 
@@ -295,8 +299,11 @@ function getConnectionReason(facts: ServerConnectionFacts, state: ServerConnecti
   }
 
   if (reason === 'tcp_connect_failed') return 'AppOS cannot reach this server.'
+  if (reason === 'control_unreachable') return 'AppOS cannot reach this server.'
+  if (reason === 'control_reachability_unknown') return 'Connection status could not be verified.'
   if (reason === 'server_host_empty') return 'Server host is missing.'
   if (reason === 'tunnel_offline') return 'Tunnel session is offline.'
+  if (reason === 'tunnel_unavailable') return 'Tunnel session is unavailable.'
 
   return String(tunnel?.reason ?? '').trim() || 'This connection needs attention.'
 }

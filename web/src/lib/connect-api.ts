@@ -124,6 +124,7 @@ export interface MonitorAgentDeployOptions {
 export type SystemdControlAction = 'start' | 'stop' | 'restart' | 'enable' | 'disable'
 
 export type ServerPortProtocol = 'tcp' | 'udp'
+export type ServerPortProtocolFilter = ServerPortProtocol | 'all'
 export type ServerPortView = 'occupancy' | 'reservation' | 'all'
 
 export interface ServerPortProcess {
@@ -167,13 +168,14 @@ export interface ServerPortReservation {
 
 export interface ServerPortItem {
   port: number
+  protocol?: ServerPortProtocol
   occupancy?: ServerPortOccupancy
   reservation?: ServerPortReservation
 }
 
 export interface ServerPortsResponse {
   server_id: string
-  protocol: ServerPortProtocol
+  protocol: ServerPortProtocolFilter
   view: ServerPortView
   detected_at: string
   ports: ServerPortItem[]
@@ -387,11 +389,11 @@ export async function serverPower(serverId: string, action: 'restart' | 'shutdow
 export async function listServerPorts(
   serverId: string,
   view: ServerPortView = 'all',
-  protocol: ServerPortProtocol = 'tcp'
+  protocol: ServerPortProtocolFilter = 'tcp'
 ): Promise<ServerPortsResponse> {
   return pb.send<ServerPortsResponse>(
     `/api/servers/${serverId}/ops/ports?view=${encodeURIComponent(view)}&protocol=${encodeURIComponent(protocol)}`,
-    {}
+    { requestKey: null }
   )
 }
 
@@ -418,7 +420,7 @@ export async function listSystemdServices(
   const query = keyword.trim() ? `?keyword=${encodeURIComponent(keyword.trim())}` : ''
   const response = await pb.send<{ services?: SystemdService[] }>(
     `/api/servers/${serverId}/ops/systemd/services${query}`,
-    {}
+    { requestKey: null }
   )
   return Array.isArray(response?.services) ? response.services : []
 }
@@ -429,7 +431,7 @@ export async function getSystemdStatus(
 ): Promise<SystemdStatusResponse> {
   return pb.send<SystemdStatusResponse>(
     `/api/servers/${serverId}/ops/systemd/${encodeURIComponent(service)}/status`,
-    {}
+    { requestKey: null }
   )
 }
 
@@ -440,7 +442,7 @@ export async function getSystemdLogs(
 ): Promise<SystemdLogsResponse> {
   return pb.send<SystemdLogsResponse>(
     `/api/servers/${serverId}/ops/systemd/${encodeURIComponent(service)}/logs?lines=${Math.max(20, Math.min(1000, lines))}`,
-    {}
+    { requestKey: null }
   )
 }
 
@@ -450,7 +452,7 @@ export async function getSystemdContent(
 ): Promise<SystemdContentResponse> {
   return pb.send<SystemdContentResponse>(
     `/api/servers/${serverId}/ops/systemd/${encodeURIComponent(service)}/content`,
-    {}
+    { requestKey: null }
   )
 }
 
@@ -472,7 +474,7 @@ export async function getSystemdUnit(
 ): Promise<SystemdUnitResponse> {
   return pb.send<SystemdUnitResponse>(
     `/api/servers/${serverId}/ops/systemd/${encodeURIComponent(service)}/unit`,
-    {}
+    { requestKey: null }
   )
 }
 

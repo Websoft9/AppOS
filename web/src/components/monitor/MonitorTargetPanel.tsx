@@ -57,30 +57,30 @@ type MonitorSeriesResponse = {
 const SERIES_WINDOWS = [
   {
     value: '1h',
-    label: '1小时',
+    label: '1h',
     description: 'Last hour trends from the monitoring time-series backend.',
   },
   {
     value: '5h',
-    label: '5小时',
+    label: '5h',
     description: 'Last five hours trends from the monitoring time-series backend.',
   },
   {
     value: '12h',
-    label: '12小时',
+    label: '12h',
     description: 'Last twelve hours trends from the monitoring time-series backend.',
   },
   {
     value: '1d',
-    label: '1天',
+    label: '1d',
     description: 'Last day trends from the monitoring time-series backend.',
   },
   {
     value: '7d',
-    label: '7天',
+    label: '7d',
     description: 'Last seven days trends from the monitoring time-series backend.',
   },
-  { value: 'custom', label: '自定义', description: 'Custom trends for a chosen time range.' },
+  { value: 'custom', label: 'Custom', description: 'Custom trends for a chosen time range.' },
 ] as const
 
 function toLocalDateTimeInputValue(value: Date): string {
@@ -130,7 +130,7 @@ function formatCustomRangeLabel(range: CustomRangeState): string {
   const start = parseLocalDateTime(range.startLocal)
   const end = parseLocalDateTime(range.endLocal)
   if (!start || !end || end.getTime() <= start.getTime()) {
-    return '自定义'
+    return 'Custom'
   }
   const sameDay = start.toDateString() === end.toDateString()
   const startText = start.toLocaleString(undefined, {
@@ -266,10 +266,14 @@ export function MonitorTargetPanel({
   targetType,
   targetId,
   emptyMessage,
+  layout = 'default',
+  refreshKey = 0,
 }: {
   targetType: string
   targetId: string
   emptyMessage?: string
+  layout?: 'default' | 'detail'
+  refreshKey?: number
 }) {
   const [data, setData] = useState<MonitorTargetResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -393,6 +397,12 @@ export function MonitorTargetPanel({
   }, [loadSeries])
 
   useEffect(() => {
+    if (refreshKey > 0) {
+      void handleRefresh()
+    }
+  }, [handleRefresh, refreshKey])
+
+  useEffect(() => {
     setSelectedNetworkInterface('all')
   }, [targetId, targetType])
 
@@ -401,6 +411,219 @@ export function MonitorTargetPanel({
   }, [targetId, targetType])
 
   const summaryEntries = Object.entries(data?.summary ?? {})
+  const detailLayout = layout === 'detail'
+  const snapshotItems = (series?.series ?? [])
+    .filter(item =>
+      ['cpu', 'memory', 'disk_usage', 'disk', 'network', 'network_traffic'].includes(item.name)
+    )
+    .map(item => ({
+      key: item.name,
+      label: formatLabel(item.name),
+      value: formatSeriesLatestLabel(item),
+      unit: item.unit,
+    }))
+
+  if (detailLayout) {
+    return (
+      <div className="space-y-4">
+        {error ? (
+          <Alert>
+            <AlertDescription>{emptyMessage || error}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Current Snapshot</CardTitle>
+            <CardDescription>
+              {data?.hasData
+                ? data.reason || 'Latest current values from monitor series.'
+                : 'Unavailable until monitoring data is connected.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading || (seriesLoading && snapshotItems.length === 0) ? (
+              <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading current values...
+              </div>
+            ) : snapshotItems.length === 0 ? (
+              <div className="rounded-md border border-dashed px-3 py-6 text-sm text-muted-foreground">
+                {emptyMessage || 'Current values are unavailable until monitoring data arrives.'}
+              </div>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {snapshotItems.map(item => (
+                  <div key={item.key} className="rounded-md border bg-background px-3 py-2">
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                      {item.label}
+                    </div>
+                    <div className="mt-1 break-words text-sm font-medium">{item.value}</div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">{item.unit}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1">
+              <CardTitle className="text-sm">Trend History</CardTitle>
+              <CardDescription>{selectedWindowMeta.description}</CardDescription>
+            </div>
+            <div
+              className="inline-flex flex-wrap items-center rounded-lg border bg-muted/20 p-1"
+              role="tablist"
+              aria-label="trend window selector"
+            >
+              {SERIES_WINDOWS.filter(window => window.value !== 'custom').map(window => {
+                const active = window.value === selectedWindow
+                return (
+                  <Button
+                    key={window.value}
+                    type="button"
+                    size="xs"
+                    variant={active ? 'secondary' : 'ghost'}
+                    aria-pressed={active}
+                    onClick={() => setSelectedWindow(window.value)}
+                    disabled={seriesLoading}
+                  >
+                    {window.label}
+                  </Button>
+                )
+              })}
+              <Popover open={customRangeOpen} onOpenChange={setCustomRangeOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant={selectedWindow === 'custom' ? 'secondary' : 'ghost'}
+                    aria-pressed={selectedWindow === 'custom'}
+                    disabled={seriesLoading}
+                  >
+                    {selectedWindow === 'custom'
+                      ? formatCustomRangeLabel(appliedCustomRange)
+                      : 'Custom'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-[min(24rem,calc(100vw-2rem))] space-y-3">
+                  <div className="space-y-1">
+                    <div className="text-sm font-medium">Custom time range</div>
+                    <div className="text-xs text-muted-foreground">
+                      Choose start and end time, then apply them to the current trend charts.
+                    </div>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="space-y-1 text-sm">
+                      <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Start
+                      </span>
+                      <Input
+                        aria-label="Trend range start"
+                        type="datetime-local"
+                        value={draftCustomRange.startLocal}
+                        onChange={event =>
+                          setDraftCustomRange(current => ({
+                            ...current,
+                            startLocal: event.target.value,
+                          }))
+                        }
+                        max={draftCustomRange.endLocal || undefined}
+                      />
+                    </label>
+                    <label className="space-y-1 text-sm">
+                      <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                        End
+                      </span>
+                      <Input
+                        aria-label="Trend range end"
+                        type="datetime-local"
+                        value={draftCustomRange.endLocal}
+                        onChange={event =>
+                          setDraftCustomRange(current => ({
+                            ...current,
+                            endLocal: event.target.value,
+                          }))
+                        }
+                        min={draftCustomRange.startLocal || undefined}
+                      />
+                    </label>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-xs text-muted-foreground">
+                      {formatCustomRangeDescription(draftCustomRange)}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setAppliedCustomRange(draftCustomRange)
+                        setSelectedWindow('custom')
+                        setCustomRangeOpen(false)
+                      }}
+                      disabled={
+                        seriesLoading ||
+                        !isValidCustomRange(draftCustomRange) ||
+                        (selectedWindow === 'custom' && !customRangeDirty)
+                      }
+                    >
+                      Apply
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {seriesLoading ? (
+              <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading trend data...
+              </div>
+            ) : (series?.series?.length ?? 0) === 0 ? (
+              <div className="rounded-md border border-dashed px-3 py-6 text-sm text-muted-foreground">
+                {emptyMessage || 'Trend history is unavailable until monitoring data arrives.'}
+              </div>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {series?.series.map(item => (
+                  <TrendCard
+                    key={item.name}
+                    name={item.name}
+                    unit={item.unit}
+                    window={selectedWindow}
+                    points={item.points ?? []}
+                    segments={item.segments}
+                    metadata={item.metadata}
+                    rangeStartAt={series?.rangeStartAt}
+                    rangeEndAt={series?.rangeEndAt}
+                    stepSeconds={series?.stepSeconds}
+                    availableNetworkInterfaces={
+                      item.name === 'network' || item.name === 'network_traffic'
+                        ? series.availableNetworkInterfaces
+                        : undefined
+                    }
+                    selectedNetworkInterface={
+                      item.name === 'network' || item.name === 'network_traffic'
+                        ? selectedNetworkInterface
+                        : undefined
+                    }
+                    onNetworkInterfaceChange={
+                      item.name === 'network' || item.name === 'network_traffic'
+                        ? setSelectedNetworkInterface
+                        : undefined
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -412,6 +635,7 @@ export function MonitorTargetPanel({
           </p>
         </div>
         <Button
+          type="button"
           variant="outline"
           size="sm"
           onClick={() => void handleRefresh()}
@@ -546,7 +770,7 @@ export function MonitorTargetPanel({
                       >
                         {selectedWindow === 'custom'
                           ? formatCustomRangeLabel(appliedCustomRange)
-                          : '自定义'}
+                          : 'Custom'}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent
@@ -554,9 +778,9 @@ export function MonitorTargetPanel({
                       className="w-[min(24rem,calc(100vw-2rem))] space-y-3"
                     >
                       <div className="space-y-1">
-                        <div className="text-sm font-medium">自定义时间区间</div>
+                        <div className="text-sm font-medium">Custom time range</div>
                         <div className="text-xs text-muted-foreground">
-                          选择起止时间后应用到当前趋势图。
+                          Choose start and end time, then apply them to the current trend charts.
                         </div>
                       </div>
                       <div className="grid gap-3 sm:grid-cols-2">
@@ -675,6 +899,45 @@ export function MonitorTargetPanel({
 function latestValue(points: number[][]): number | null {
   const values = points.map(point => point[1]).filter(value => Number.isFinite(value))
   return values.length > 0 ? values[values.length - 1] : null
+}
+
+function formatSeriesLatestLabel(item: MonitorSeriesResponse['series'][number]): string {
+  const latest = latestValue(item.points ?? [])
+  const used = item.segments?.find(segment => segment.name === 'used')
+  const available = item.segments?.find(segment => segment.name === 'available')
+  const free = item.segments?.find(segment => segment.name === 'free')
+  const read = item.segments?.find(segment => segment.name === 'read')
+  const write = item.segments?.find(segment => segment.name === 'write')
+  const inbound = item.segments?.find(segment => segment.name === 'in')
+  const outbound = item.segments?.find(segment => segment.name === 'out')
+  const latestUsed = used ? latestValue(used.points) : null
+  const latestAvailable = available ? latestValue(available.points) : null
+  const latestFree = free ? latestValue(free.points) : null
+  const latestRead = read ? latestValue(read.points) : null
+  const latestWrite = write ? latestValue(write.points) : null
+  const latestInbound = inbound ? latestValue(inbound.points) : null
+  const latestOutbound = outbound ? latestValue(outbound.points) : null
+
+  if (latest !== null) {
+    return formatTrendValue(item.unit, item.name, latest)
+  }
+  if (item.name === 'memory' && latestUsed !== null) {
+    const total = latestUsed + (latestAvailable ?? 0)
+    return `${formatBytes(latestUsed)} used / ${formatBytes(total)} total`
+  }
+  if (item.name === 'disk_usage' && (latestUsed !== null || latestFree !== null)) {
+    return `${latestUsed === null ? '—' : formatBytes(latestUsed)} used${latestFree === null ? '' : ` / ${formatBytes(latestFree)} free`}`
+  }
+  if (item.name === 'disk' && (latestRead !== null || latestWrite !== null)) {
+    return `${latestRead === null ? '—' : `${formatRateBytes(latestRead)}/s`} read${latestWrite === null ? '' : ` / ${formatRateBytes(latestWrite)}/s write`}`
+  }
+  if (item.name === 'network' && (latestInbound !== null || latestOutbound !== null)) {
+    return `${latestInbound === null ? '—' : `${formatRateBytes(latestInbound)}/s`} in${latestOutbound === null ? '' : ` / ${formatRateBytes(latestOutbound)}/s out`}`
+  }
+  if (item.name === 'network_traffic' && (latestInbound !== null || latestOutbound !== null)) {
+    return `${latestInbound === null ? '—' : formatTrendValue('GB', `${item.name}_in`, latestInbound)} in${latestOutbound === null ? '' : ` / ${formatTrendValue('GB', `${item.name}_out`, latestOutbound)} out`}`
+  }
+  return '—'
 }
 
 function TrendCard({

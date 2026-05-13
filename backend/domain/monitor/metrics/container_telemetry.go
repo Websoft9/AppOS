@@ -3,7 +3,6 @@ package metrics
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"sort"
 	"strings"
@@ -77,7 +76,7 @@ func queryContainerTelemetryVM(ctx context.Context, serverID string, containerID
 		response.Items = flattenContainerTelemetryItems(itemsByID)
 		return response, nil
 	}
-	service := monitortsdb.NewService(&http.Client{Timeout: 5 * time.Second}, baseURL)
+	service := monitortsdb.NewService(metricsHTTPClient, baseURL)
 	selector := buildContainerTelemetrySelector(serverID, requestedIDs)
 	queries := []struct {
 		name    string

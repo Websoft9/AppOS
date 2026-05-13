@@ -81,8 +81,9 @@ components:
     capability: monitor_agent
     template_ref: script-systemd
     binary: netdata
+    version_command: "netdata -V"
     service_name: netdata.service
-    script_url: https://get.netdata.cloud/kickstart.sh
+    script_path: monitor-agent-install.sh
     description: Managed monitoring agent installer for connected servers.
     readiness_requirements:
       - verified_os_baseline

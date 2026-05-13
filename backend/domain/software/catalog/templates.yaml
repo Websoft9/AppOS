@@ -94,15 +94,18 @@ templates:
       service_manager: systemd
     install:
       strategy: script
+      script_path: "{{script_path}}"
       script_url: "{{script_url}}"
       args: []
     upgrade:
       strategy: script
+      script_path: "{{script_path}}"
       script_url: "{{script_url}}"
       args:
         - --upgrade
     uninstall:
       strategy: script
+      script_path: "{{script_path}}"
       script_url: "{{script_url}}"
       args:
         - --uninstall

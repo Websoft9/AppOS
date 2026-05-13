@@ -89,6 +89,26 @@ func normalizePortInspectParams(e *core.RequestEvent) (string, string, error) {
 	return protocol, view, nil
 }
 
+func normalizePortListParams(e *core.RequestEvent) (string, string, error) {
+	protocol := strings.ToLower(strings.TrimSpace(e.Request.URL.Query().Get("protocol")))
+	if protocol == "" {
+		protocol = "tcp"
+	}
+	if protocol != "tcp" && protocol != "udp" && protocol != "all" {
+		return "", "", fmt.Errorf("protocol must be tcp, udp, or all")
+	}
+
+	view := strings.ToLower(strings.TrimSpace(e.Request.URL.Query().Get("view")))
+	if view == "" {
+		view = "all"
+	}
+	if view != "occupancy" && view != "reservation" && view != "all" {
+		return "", "", fmt.Errorf("view must be occupancy, reservation, or all")
+	}
+
+	return protocol, view, nil
+}
+
 func normalizePortReleaseMode(raw string) (string, error) {
 	mode := strings.ToLower(strings.TrimSpace(raw))
 	if mode == "" {

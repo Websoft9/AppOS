@@ -2,13 +2,14 @@
 // Backend: /api/servers/{serverId}/software
 
 import { pb } from '@/lib/pb'
+import { settingsEntryPath } from '@/lib/settings-api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type SoftwareActionType = 'install' | 'upgrade' | 'verify' | 'reinstall' | 'uninstall'
 export type InstalledState = 'installed' | 'not_installed' | 'unknown'
 export type VerificationState = 'healthy' | 'degraded' | 'unknown'
-export type TemplateKind = 'package' | 'script' | 'binary'
+export type TemplateKind = 'package' | 'script' | 'binary' | 'docker'
 export type CatalogVisibility =
   | 'server_operations'
   | 'supported_software_discovery'
@@ -24,7 +25,7 @@ export type OperationPhase =
   | 'failed'
   | 'attention_required'
 
-export type TerminalStatusType = 'none' | 'success' | 'failed'
+export type TerminalStatusType = 'none' | 'success' | 'failed' | 'attention_required'
 
 export interface SoftwareLastAction {
   action: string
@@ -64,6 +65,7 @@ export interface SoftwareOperation {
   phase: OperationPhase
   terminal_status: TerminalStatusType
   failure_reason: string
+  event_log?: string
   created: string
   updated: string
 }
@@ -217,6 +219,15 @@ export async function getSoftwareOperation(
   })
 }
 
+export async function deleteSoftwareOperation(
+  serverId: string,
+  operationId: string
+): Promise<void> {
+  await pb.send(`${softwareBasePath(serverId)}/operations/${operationId}`, {
+    method: 'DELETE',
+  })
+}
+
 export async function invokeSoftwareAction(
   serverId: string,
   componentKey: string,
@@ -230,4 +241,11 @@ export async function invokeSoftwareAction(
       body: options?.apposBaseUrl ? { apposBaseUrl: options.apposBaseUrl } : undefined,
     }
   )
+}
+
+export async function getConfiguredAppURL(): Promise<string> {
+  const response = await pb.send<{ value?: { appURL?: string } }>(settingsEntryPath('basic'), {
+    method: 'GET',
+  })
+  return typeof response.value?.appURL === 'string' ? response.value.appURL : ''
 }

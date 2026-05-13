@@ -19,13 +19,18 @@ import (
 // Port inspection & release handlers (Story 20.4)
 // ════════════════════════════════════════════════════════════
 
+type portProtocolKey struct {
+	port     int
+	protocol string
+}
+
 func handleServerPortsList(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
 	if serverID == "" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": "serverId required"})
 	}
 
-	protocol, view, paramErr := normalizePortInspectParams(e)
+	protocol, view, paramErr := normalizePortListParams(e)
 	if paramErr != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": paramErr.Error()})
 	}
@@ -34,10 +39,42 @@ func handleServerPortsList(e *core.RequestEvent) error {
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
+	release, gateErr := acquireServerRealtimeSSHRead(e.Request.Context(), serverID)
+	if gateErr != nil {
+		return e.JSON(http.StatusServiceUnavailable, map[string]any{"message": gateErr.Error()})
+	}
+	defer release()
+	run, cleanup, runnerErr := reusableRouteSSHCommandRunner(e.Request.Context(), cfg)
+	if runnerErr != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runnerErr.Error()})
+	}
+	defer cleanup()
+
+	if protocol == "all" {
+		result, total, buildErr := buildAllProtocolPortsList(e.Request.Context(), run, serverID, view)
+		if buildErr != nil {
+			return e.JSON(http.StatusInternalServerError, map[string]any{"message": buildErr.Error()})
+		}
+		userID, _, ip, _ := clientInfo(e)
+		audit.Write(e.App, audit.Entry{
+			UserID:       userID,
+			Action:       "server.ops.ports.list",
+			ResourceType: "server",
+			ResourceID:   serverID,
+			Status:       audit.StatusSuccess,
+			IP:           ip,
+			Detail: map[string]any{
+				"protocol": protocol,
+				"view":     view,
+				"total":    total,
+			},
+		})
+		return e.JSON(http.StatusOK, result)
+	}
 
 	occupancyByPort := map[int]map[string]any{}
 	if view == "occupancy" || view == "all" {
-		occupancyByPort, err = detectAllPortOccupancy(e.Request.Context(), cfg, protocol)
+		occupancyByPort, err = detectAllPortOccupancyWithRunner(e.Request.Context(), run, protocol)
 		if err != nil {
 			return e.JSON(http.StatusInternalServerError, map[string]any{"message": err.Error()})
 		}
@@ -46,7 +83,7 @@ func handleServerPortsList(e *core.RequestEvent) error {
 	reservationByPort := map[int][]map[string]any{}
 	containerProbe := map[string]any{"available": true, "status": "ok"}
 	if view == "reservation" || view == "all" {
-		reservationByPort, containerProbe, err = detectAllPortReservations(e.Request.Context(), cfg, protocol)
+		reservationByPort, containerProbe, err = detectAllPortReservationsWithRunner(e.Request.Context(), run, protocol)
 		if err != nil {
 			return e.JSON(http.StatusInternalServerError, map[string]any{"message": err.Error()})
 		}
@@ -117,6 +154,87 @@ func handleServerPortsList(e *core.RequestEvent) error {
 	})
 
 	return e.JSON(http.StatusOK, result)
+}
+
+func buildAllProtocolPortsList(ctx context.Context, run routeSSHCommandRunner, serverID string, view string) (map[string]any, int, error) {
+	occupancyByKey := map[portProtocolKey]map[string]any{}
+	if view == "occupancy" || view == "all" {
+		for _, proto := range []string{"tcp", "udp"} {
+			byPort, err := detectAllPortOccupancyWithRunner(ctx, run, proto)
+			if err != nil {
+				return nil, 0, err
+			}
+			for port, occupancy := range byPort {
+				occupancyByKey[portProtocolKey{port: port, protocol: proto}] = occupancy
+			}
+		}
+	}
+
+	reservationByKey := map[portProtocolKey][]map[string]any{}
+	containerProbe := map[string]any{"available": true, "status": "ok"}
+	if view == "reservation" || view == "all" {
+		var err error
+		reservationByKey, containerProbe, err = detectAllProtocolPortReservationsWithRunner(ctx, run)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+
+	keySet := make(map[portProtocolKey]struct{})
+	for key := range occupancyByKey {
+		keySet[key] = struct{}{}
+	}
+	for key := range reservationByKey {
+		keySet[key] = struct{}{}
+	}
+
+	keys := make([]portProtocolKey, 0, len(keySet))
+	for key := range keySet {
+		keys = append(keys, key)
+	}
+	slices.SortFunc(keys, func(left, right portProtocolKey) int {
+		if left.port != right.port {
+			return left.port - right.port
+		}
+		return strings.Compare(left.protocol, right.protocol)
+	})
+
+	items := make([]map[string]any, 0, len(keys))
+	for _, key := range keys {
+		item := map[string]any{"port": key.port, "protocol": key.protocol}
+		if view == "occupancy" || view == "all" {
+			if occupancy, ok := occupancyByKey[key]; ok {
+				item["occupancy"] = occupancy
+			} else {
+				item["occupancy"] = map[string]any{"occupied": false, "listeners": []map[string]any{}}
+			}
+		}
+		if view == "reservation" || view == "all" {
+			sources := reservationByKey[key]
+			item["reservation"] = map[string]any{
+				"reserved":        len(sources) > 0,
+				"sources":         sources,
+				"container_probe": containerProbe,
+			}
+		}
+		items = append(items, item)
+	}
+
+	result := map[string]any{
+		"server_id":   serverID,
+		"protocol":    "all",
+		"view":        view,
+		"detected_at": time.Now().UTC().Format(time.RFC3339),
+		"ports":       items,
+		"total":       len(items),
+	}
+	if view == "reservation" || view == "all" {
+		result["reservation_meta"] = map[string]any{
+			"container_probe": containerProbe,
+		}
+	}
+
+	return result, len(items), nil
 }
 
 func handleServerPortInspect(e *core.RequestEvent) error {
@@ -361,12 +479,16 @@ func detectPortOccupancy(ctx context.Context, cfg terminal.ConnectorConfig, port
 }
 
 func detectAllPortOccupancy(ctx context.Context, cfg terminal.ConnectorConfig, protocol string) (map[int]map[string]any, error) {
+	return detectAllPortOccupancyWithRunner(ctx, defaultRouteSSHCommandRunner(cfg), protocol)
+}
+
+func detectAllPortOccupancyWithRunner(ctx context.Context, run routeSSHCommandRunner, protocol string) (map[int]map[string]any, error) {
 	command := "ss -lntpH 2>/dev/null || true"
 	if protocol == "udp" {
 		command = "ss -lnupH 2>/dev/null || true"
 	}
 
-	raw, err := terminal.ExecuteSSHCommand(ctx, cfg, command, 20*time.Second)
+	raw, err := run(ctx, command, 20*time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -492,9 +614,13 @@ func detectPortReservation(ctx context.Context, cfg terminal.ConnectorConfig, po
 }
 
 func detectAllPortReservations(ctx context.Context, cfg terminal.ConnectorConfig, protocol string) (map[int][]map[string]any, map[string]any, error) {
+	return detectAllPortReservationsWithRunner(ctx, defaultRouteSSHCommandRunner(cfg), protocol)
+}
+
+func detectAllPortReservationsWithRunner(ctx context.Context, run routeSSHCommandRunner, protocol string) (map[int][]map[string]any, map[string]any, error) {
 	byPort := make(map[int][]map[string]any)
 
-	systemdByPort, err := detectSystemdSocketReservationsAll(ctx, cfg)
+	systemdByPort, err := detectSystemdSocketReservationsAllWithRunner(ctx, run)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -506,7 +632,7 @@ func detectAllPortReservations(ctx context.Context, cfg terminal.ConnectorConfig
 		})
 	}
 
-	kernelPorts, kernelRanges, err := detectKernelReservedPorts(ctx, cfg)
+	kernelPorts, kernelRanges, err := detectKernelReservedPortsWithRunner(ctx, run)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -520,7 +646,7 @@ func detectAllPortReservations(ctx context.Context, cfg terminal.ConnectorConfig
 		})
 	}
 
-	containerByPort, containerProbe, err := detectContainerDeclaredReservationsAll(ctx, cfg, protocol)
+	containerByPort, containerProbe, err := detectContainerDeclaredReservationsAllWithRunner(ctx, run, protocol)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -535,8 +661,58 @@ func detectAllPortReservations(ctx context.Context, cfg terminal.ConnectorConfig
 	return byPort, containerProbe, nil
 }
 
-func detectSystemdSocketReservationsAll(ctx context.Context, cfg terminal.ConnectorConfig) (map[int][]map[string]any, error) {
-	raw, err := terminal.ExecuteSSHCommand(ctx, cfg, "systemctl list-sockets --all --no-legend --no-pager 2>/dev/null || true", 20*time.Second)
+func detectAllProtocolPortReservationsWithRunner(ctx context.Context, run routeSSHCommandRunner) (map[portProtocolKey][]map[string]any, map[string]any, error) {
+	byKey := make(map[portProtocolKey][]map[string]any)
+
+	systemdByPort, err := detectSystemdSocketReservationsAllWithRunner(ctx, run)
+	if err != nil {
+		return nil, nil, err
+	}
+	for port, systemdMatches := range systemdByPort {
+		for _, proto := range []string{"tcp", "udp"} {
+			key := portProtocolKey{port: port, protocol: proto}
+			byKey[key] = append(byKey[key], map[string]any{
+				"type":       "systemd_socket",
+				"confidence": "high",
+				"matches":    systemdMatches,
+			})
+		}
+	}
+
+	kernelPorts, kernelRanges, err := detectKernelReservedPortsWithRunner(ctx, run)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, port := range kernelPorts {
+		for _, proto := range []string{"tcp", "udp"} {
+			key := portProtocolKey{port: port, protocol: proto}
+			byKey[key] = append(byKey[key], map[string]any{
+				"type":       "kernel_reserved",
+				"confidence": "high",
+				"matches": []map[string]any{{
+					"ranges": kernelRanges,
+				}},
+			})
+		}
+	}
+
+	containerByKey, containerProbe, err := detectContainerDeclaredReservationsAllProtocolsWithRunner(ctx, run)
+	if err != nil {
+		return nil, nil, err
+	}
+	for key, containerMatches := range containerByKey {
+		byKey[key] = append(byKey[key], map[string]any{
+			"type":       "container_declared",
+			"confidence": "medium",
+			"matches":    containerMatches,
+		})
+	}
+
+	return byKey, containerProbe, nil
+}
+
+func detectSystemdSocketReservationsAllWithRunner(ctx context.Context, run routeSSHCommandRunner) (map[int][]map[string]any, error) {
+	raw, err := run(ctx, "systemctl list-sockets --all --no-legend --no-pager 2>/dev/null || true", 20*time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -567,8 +743,8 @@ func detectSystemdSocketReservationsAll(ctx context.Context, cfg terminal.Connec
 	return byPort, nil
 }
 
-func detectKernelReservedPorts(ctx context.Context, cfg terminal.ConnectorConfig) ([]int, string, error) {
-	raw, err := terminal.ExecuteSSHCommand(ctx, cfg, "cat /proc/sys/net/ipv4/ip_local_reserved_ports 2>/dev/null || true", 20*time.Second)
+func detectKernelReservedPortsWithRunner(ctx context.Context, run routeSSHCommandRunner) ([]int, string, error) {
+	raw, err := run(ctx, "cat /proc/sys/net/ipv4/ip_local_reserved_ports 2>/dev/null || true", 20*time.Second)
 	if err != nil {
 		return nil, "", err
 	}
@@ -627,14 +803,24 @@ func parseRangePorts(ranges string) []int {
 	return ports
 }
 
-func detectContainerDeclaredReservationsAll(ctx context.Context, cfg terminal.ConnectorConfig, protocol string) (map[int][]map[string]any, map[string]any, error) {
+func detectContainerDeclaredReservationsAllWithRunner(ctx context.Context, run routeSSHCommandRunner, protocol string) (map[int][]map[string]any, map[string]any, error) {
 	command := "if command -v docker >/dev/null 2>&1; then (docker ps -a --format '{{.ID}}\\t{{.Names}}\\t{{.Status}}\\t{{.Ports}}' 2>/dev/null || echo '__DOCKER_CLI_ERROR__'); else echo '__DOCKER_NOT_AVAILABLE__'; fi"
-	raw, err := terminal.ExecuteSSHCommand(ctx, cfg, command, 20*time.Second)
+	raw, err := run(ctx, command, 20*time.Second)
 	if err != nil {
 		return nil, nil, err
 	}
 	matchesByPort, probe := parseContainerDeclaredReservationsAll(raw, protocol)
 	return matchesByPort, probe, nil
+}
+
+func detectContainerDeclaredReservationsAllProtocolsWithRunner(ctx context.Context, run routeSSHCommandRunner) (map[portProtocolKey][]map[string]any, map[string]any, error) {
+	command := "if command -v docker >/dev/null 2>&1; then (docker ps -a --format '{{.ID}}\\t{{.Names}}\\t{{.Status}}\\t{{.Ports}}' 2>/dev/null || echo '__DOCKER_CLI_ERROR__'); else echo '__DOCKER_NOT_AVAILABLE__'; fi"
+	raw, err := run(ctx, command, 20*time.Second)
+	if err != nil {
+		return nil, nil, err
+	}
+	matchesByKey, probe := parseContainerDeclaredReservationsAllProtocols(raw)
+	return matchesByKey, probe, nil
 }
 
 func detectRunningContainerByPort(ctx context.Context, cfg terminal.ConnectorConfig, port int, protocol string) (map[string]string, map[string]any, error) {
@@ -697,6 +883,47 @@ func parseContainerDeclaredReservationsAll(raw string, protocol string) (map[int
 	}
 
 	return byPort, probe
+}
+
+func parseContainerDeclaredReservationsAllProtocols(raw string) (map[portProtocolKey][]map[string]any, map[string]any) {
+	probe := map[string]any{"available": true, "status": "ok"}
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "__DOCKER_NOT_AVAILABLE__" {
+		probe["available"] = false
+		probe["status"] = "not_available"
+		return map[portProtocolKey][]map[string]any{}, probe
+	}
+	if strings.Contains(trimmed, "__DOCKER_CLI_ERROR__") {
+		probe["available"] = false
+		probe["status"] = "error"
+		return map[portProtocolKey][]map[string]any{}, probe
+	}
+
+	byKey := make(map[portProtocolKey][]map[string]any)
+	for _, line := range strings.Split(raw, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 4)
+		if len(parts) < 4 {
+			continue
+		}
+		portsField := strings.TrimSpace(parts[3])
+		if portsField == "" {
+			continue
+		}
+		for _, key := range parseDockerPublishedPortKeys(portsField) {
+			byKey[key] = append(byKey[key], map[string]any{
+				"container_id":     parts[0],
+				"container_name":   parts[1],
+				"container_status": parts[2],
+				"ports":            portsField,
+			})
+		}
+	}
+
+	return byKey, probe
 }
 
 func parseContainerDeclaredReservations(raw string, port int, protocol string) ([]map[string]any, map[string]any) {
@@ -810,4 +1037,33 @@ func parseDockerPublishedPorts(portsField string, protocol string) []int {
 	}
 	slices.Sort(ports)
 	return ports
+}
+
+func parseDockerPublishedPortKeys(portsField string) []portProtocolKey {
+	keySet := make(map[portProtocolKey]struct{})
+	for _, match := range dockerPublishedPortPattern.FindAllStringSubmatch(strings.ToLower(portsField), -1) {
+		if len(match) != 3 {
+			continue
+		}
+		port, err := strconv.Atoi(match[1])
+		if err != nil || port < 1 || port > 65535 {
+			continue
+		}
+		protocol := strings.TrimSpace(match[2])
+		if protocol != "tcp" && protocol != "udp" {
+			continue
+		}
+		keySet[portProtocolKey{port: port, protocol: protocol}] = struct{}{}
+	}
+	keys := make([]portProtocolKey, 0, len(keySet))
+	for key := range keySet {
+		keys = append(keys, key)
+	}
+	slices.SortFunc(keys, func(left, right portProtocolKey) int {
+		if left.port != right.port {
+			return left.port - right.port
+		}
+		return strings.Compare(left.protocol, right.protocol)
+	})
+	return keys
 }

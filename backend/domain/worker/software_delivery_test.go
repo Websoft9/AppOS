@@ -393,6 +393,24 @@ func TestRunSoftwarePhaseLoopRefreshesSnapshotOnSuccess(t *testing.T) {
 			},
 			ServiceName: "docker",
 		},
+		verifyDetail: software.SoftwareComponentDetail{
+			SoftwareComponentSummary: software.SoftwareComponentSummary{
+				InstalledState:    software.InstalledStateInstalled,
+				DetectedVersion:   "1.2.3",
+				PackagedVersion:   "1.2.3",
+				VerificationState: software.VerificationStateHealthy,
+			},
+			ServiceName: "docker",
+			Verification: &software.SoftwareVerificationResult{
+				State:  software.VerificationStateHealthy,
+				Reason: "",
+				Details: map[string]any{
+					"engine_version":    "1.2.3",
+					"compose_available": true,
+					"compose_version":   "2.27.0",
+				},
+			},
+		},
 	}
 	softwareExecutorFactory = func(app core.App, serverID, userID string) (software.ComponentExecutor, error) {
 		return fakeExecutor, nil
@@ -434,6 +452,20 @@ func TestRunSoftwarePhaseLoopRefreshesSnapshotOnSuccess(t *testing.T) {
 	lastAction := decodeWorkerJSONObject(t, snapshots[0].Get("last_action_json"))
 	if lastAction["result"] != "success" {
 		t.Fatalf("expected successful snapshot action result, got %#v", lastAction)
+	}
+	verification := decodeWorkerJSONObject(t, snapshots[0].Get("verification_json"))
+	if verification["state"] != string(software.VerificationStateHealthy) {
+		t.Fatalf("expected snapshot verification state healthy, got %#v", verification)
+	}
+	details, ok := verification["details"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected snapshot verification details, got %#v", verification)
+	}
+	if details["compose_available"] != true {
+		t.Fatalf("expected compose_available=true in snapshot verification, got %#v", details)
+	}
+	if details["compose_version"] != "2.27.0" {
+		t.Fatalf("expected compose_version=2.27.0 in snapshot verification, got %#v", details)
 	}
 }
 
@@ -627,6 +659,72 @@ func TestRunSoftwarePhaseLoopMarksVerificationErrorCodeForVerifyErrors(t *testin
 	}
 	if updated.GetString("phase") != string(software.OperationPhaseAttentionRequired) {
 		t.Fatalf("expected attention_required phase, got %q", updated.GetString("phase"))
+	}
+}
+
+func TestRecoverOrphanedSoftwareOperationsSkipsAcceptedRecords(t *testing.T) {
+	app := newWorkerTestApp(t)
+	w := &Worker{app: app}
+	record, err := createSoftwareOperationRecord(app, SoftwareActionPayload{ServerID: "srv-orphan", ComponentKey: software.ComponentKeyDocker, Action: software.ActionInstall})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := w.recoverOrphanedSoftwareOperations(); err != nil {
+		t.Fatal(err)
+	}
+
+	updated, err := app.FindRecordById("software_operations", record.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.GetString("terminal_status") != string(software.TerminalStatusNone) {
+		t.Fatalf("expected accepted operation to remain in-flight, got %q", updated.GetString("terminal_status"))
+	}
+	if updated.GetString("failure_reason") != "" {
+		t.Fatalf("expected no orphan failure reason, got %q", updated.GetString("failure_reason"))
+	}
+}
+
+func TestRunSoftwarePhaseLoopSuccessClearsStaleFailureFields(t *testing.T) {
+	app := newWorkerTestApp(t)
+
+	oldFactory := softwareExecutorFactory
+	defer func() { softwareExecutorFactory = oldFactory }()
+
+	fakeExecutor := &fakeSoftwareExecutor{
+		preflight:     software.TargetReadinessResult{OK: true, OSSupported: true, PrivilegeOK: true, NetworkOK: true, DependencyReady: true},
+		installDetail: software.SoftwareComponentDetail{SoftwareComponentSummary: software.SoftwareComponentSummary{InstalledState: software.InstalledStateInstalled}},
+		verifyDetail:  software.SoftwareComponentDetail{SoftwareComponentSummary: software.SoftwareComponentSummary{InstalledState: software.InstalledStateInstalled, VerificationState: software.VerificationStateHealthy}},
+	}
+	softwareExecutorFactory = func(app core.App, serverID, userID string) (software.ComponentExecutor, error) {
+		return fakeExecutor, nil
+	}
+
+	w := &Worker{app: app}
+	record, err := createSoftwareOperationRecord(app, SoftwareActionPayload{ServerID: "srv-success", ComponentKey: software.ComponentKeyDocker, Action: software.ActionInstall})
+	if err != nil {
+		t.Fatal(err)
+	}
+	record.Set("failure_phase", string(software.OperationPhaseExecuting))
+	record.Set("failure_code", string(software.FailureCodeExecutionError))
+	record.Set("failure_reason", "operation orphaned after worker restart")
+	if err := app.Save(record); err != nil {
+		t.Fatal(err)
+	}
+
+	payload := SoftwareActionPayload{OperationID: record.Id, ServerID: "srv-success", ComponentKey: software.ComponentKeyDocker, Action: software.ActionInstall}
+	w.runSoftwarePhaseLoop(context.Background(), record, payload)
+
+	updated, err := app.FindRecordById("software_operations", record.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.GetString("terminal_status") != string(software.TerminalStatusSuccess) {
+		t.Fatalf("expected success terminal_status, got %q", updated.GetString("terminal_status"))
+	}
+	if updated.GetString("failure_phase") != "" || updated.GetString("failure_code") != "" || updated.GetString("failure_reason") != "" {
+		t.Fatalf("expected stale failure fields to be cleared, got phase=%q code=%q reason=%q", updated.GetString("failure_phase"), updated.GetString("failure_code"), updated.GetString("failure_reason"))
 	}
 }
 

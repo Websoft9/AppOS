@@ -48,7 +48,8 @@ const basePresentation: ServerConnectionPresentationSpec = {
 
 describe('ServerConnectionTab', () => {
   it('renders tunnel-specific sections and triggers callback actions', () => {
-    const executePrimaryAction = vi.fn<(item: Record<string, unknown>, actionId: ServerConnectionActionId) => void>()
+    const executePrimaryAction =
+      vi.fn<(item: Record<string, unknown>, actionId: ServerConnectionActionId) => void>()
     const openTab = vi.fn<(item: Record<string, unknown>, tab?: ServerDetailTab) => void>()
 
     render(
@@ -89,7 +90,8 @@ describe('ServerConnectionTab', () => {
           stateLabel: 'Needs Attention',
           reason: 'SSH access is failing.',
           modeLabel: 'Direct SSH',
-          primaryActionDescription: 'SSH access needs recovery before workspace access is available.',
+          primaryActionDescription:
+            'SSH access needs recovery before workspace access is available.',
           diagnostics: {
             ...basePresentation.diagnostics,
             evidenceSource: 'ssh_probe',

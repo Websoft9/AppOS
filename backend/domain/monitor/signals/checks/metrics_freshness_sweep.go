@@ -23,7 +23,7 @@ func RunServerMetricsFreshnessSweep(app core.App, now time.Time) error {
 			continue
 		}
 		observation, err := metrics.QueryServerMetricsFreshness(ctx, server.ID, now)
-		projection := monitorstatus.MetricsFreshnessProjection{}
+		var projection monitorstatus.MetricsFreshnessProjection
 		if err != nil {
 			projection = monitorstatus.MetricsFreshnessUnknown(err.Error())
 			sweepErrors = append(sweepErrors, err)

@@ -156,8 +156,13 @@ func ResolveTemplate(entry software.CatalogEntry, tpl software.ComponentTemplate
 		TemplateRef:  entry.TemplateRef,
 		TemplateKind: tpl.TemplateKind,
 		Detect: software.DetectSpec{
-			VersionCommand: sub(tpl.Detect.VersionCommand),
-			InstalledHint:  subSlice(tpl.Detect.InstalledHint),
+			VersionCommand: func() string {
+				if entry.VersionCommand != "" {
+					return entry.VersionCommand
+				}
+				return sub(tpl.Detect.VersionCommand)
+			}(),
+			InstalledHint: subSlice(tpl.Detect.InstalledHint),
 		},
 		Preflight: tpl.Preflight,
 		Install: software.InstallSpec{

@@ -44,7 +44,10 @@ import { ServerMonitorTab } from '@/components/servers/ServerMonitorTab'
 import { ServerOverviewTab } from '@/components/servers/ServerOverviewTab'
 import { SecretCreateDialog } from '@/components/secrets/SecretCreateDialog'
 import { SecretForm, type SecretTemplate } from '@/components/secrets/SecretForm'
-import { ServerComponentsPanel } from '@/components/servers/ServerComponentsPanel'
+import {
+  ServerComponentsPanel,
+  type ServerComponentActionIntent,
+} from '@/components/servers/ServerComponentsPanel'
 import { ServerPortsPanel } from '@/components/servers/ServerPortsPanel'
 import { ServerServicesPanel } from '@/components/servers/ServerServicesPanel'
 import { DockerPanel } from '@/components/connect/DockerPanel'
@@ -70,6 +73,7 @@ import {
   getLocalDockerBridgeAddress,
   serverPower,
 } from '@/lib/connect-api'
+import type { SoftwareActionType } from '@/lib/software-api'
 
 // Template-id → display alias used in the credential dropdown
 const TEMPLATE_ALIASES: Record<string, string> = {
@@ -358,7 +362,10 @@ export function ServersPage() {
   const bgChecksFiredRef = useRef(false)
   const [wizardServerId, setWizardServerId] = useState<string | null>(null)
   const [selectedServerId, setSelectedServerId] = useState<string | undefined>(server)
-  const [serverDetailDrawerTier, setServerDetailDrawerTier] = useState<ServerDetailDrawerTier>('full')
+  const [componentActionIntent, setComponentActionIntent] =
+    useState<ServerComponentActionIntent | null>(null)
+  const [serverDetailDrawerTier, setServerDetailDrawerTier] =
+    useState<ServerDetailDrawerTier>('full')
   const [serverPageSize, setServerPageSize] = useState(10)
   const [visibleOptionalColumns, setVisibleOptionalColumns] = useState<Set<string>>(
     () => new Set(['host_summary', 'monitor_status', 'user', 'secret_type_label'])
@@ -694,9 +701,13 @@ export function ServersPage() {
       }
 
       setConnectingOpen(false)
-      await navigate({ to: '/terminal/server/$serverId', params: { serverId: id }, search: {} })
+
+      if (typeof window !== 'undefined') {
+        const targetUrl = new URL(`/terminal/server/${encodeURIComponent(id)}`, window.location.origin)
+        window.open(targetUrl.toString(), '_blank', 'noopener,noreferrer')
+      }
     },
-    [connectingOpen, navigate]
+    [connectingOpen]
   )
 
   const handlePowerRequest = useCallback(
@@ -728,10 +739,7 @@ export function ServersPage() {
   }, [checkServerStatus, powerAction, powerTarget])
 
   const handleOpenServer = useCallback(
-    (
-      item: Record<string, unknown> | null,
-      nextTab: ServerDetailTab = 'overview'
-    ) => {
+    (item: Record<string, unknown> | null, nextTab: ServerDetailTab = 'overview') => {
       const nextServerId = item ? String(item.id ?? '') : ''
       const opening = nextServerId !== ''
       setSelectedServerId(opening ? nextServerId : undefined)
@@ -807,8 +815,19 @@ export function ServersPage() {
   // pingResults so the Connection badge reflects the new state without any poll.
   useEffect(() => {
     let unsubscribe: (() => void) | null = null
+    const serversCollection = pb.collection('servers') as {
+      subscribe?: (
+        topic: string,
+        callback: (ev: { record: unknown }) => void
+      ) => Promise<() => void>
+      unsubscribe?: (topic: string) => Promise<void>
+    }
 
-    pb.collection('servers')
+    if (typeof serversCollection.subscribe !== 'function') {
+      return
+    }
+
+    serversCollection
       .subscribe('*', ev => {
         const rec = ev.record as Record<string, unknown>
         const id = String(rec.id ?? '').trim()
@@ -840,7 +859,9 @@ export function ServersPage() {
 
     return () => {
       unsubscribe?.()
-      pb.collection('servers').unsubscribe('*').catch(() => {})
+      if (typeof serversCollection.unsubscribe === 'function') {
+        serversCollection.unsubscribe('*').catch(() => {})
+      }
     }
   }, [])
 
@@ -1158,7 +1179,7 @@ export function ServersPage() {
             ? 'overview'
             : requestedTab === 'software'
               ? 'components'
-            : requestedTab
+              : requestedTab
       const tunnel = asObject(item.tunnel)
       const services = parseTunnelServices(tunnel?.services ?? item.tunnel_services)
       const status = getStatusValue(item)
@@ -1182,11 +1203,7 @@ export function ServersPage() {
             title={detailExpanded ? 'Restore detail width' : 'Expand detail width'}
             onClick={() => setServerDetailDrawerTier(prev => (prev === 'full' ? 'lg' : 'full'))}
           >
-            {detailExpanded ? (
-              <SquareMinus className="size-4" />
-            ) : (
-              <Square className="size-4" />
-            )}
+            {detailExpanded ? <SquareMinus className="size-4" /> : <Square className="size-4" />}
           </button>
 
           <div className="flex items-start justify-between gap-4 pr-16">
@@ -1301,6 +1318,7 @@ export function ServersPage() {
                 credentialType={credentialType}
                 credentialId={credentialId}
                 createdBy={createdBy}
+                onEditServer={() => handleEditServer(item)}
               />
             </TabsContent>
 
@@ -1322,6 +1340,16 @@ export function ServersPage() {
                 serverId={String(item.id || '')}
                 serverName={String(item.name || item.id || '')}
                 connectionStatus={status}
+                onOpenComponents={() => handleOpenServer(item, 'components')}
+                onMonitorAgentAction={(action: 'install' | 'upgrade') => {
+                  setComponentActionIntent({
+                    serverId: id,
+                    componentKey: 'monitor-agent',
+                    action: action as SoftwareActionType,
+                    nonce: Date.now(),
+                  })
+                  handleOpenServer(item, 'components')
+                }}
               />
             </TabsContent>
 
@@ -1347,7 +1375,13 @@ export function ServersPage() {
             </TabsContent>
 
             <TabsContent value="components" className="pt-4">
-              <ServerComponentsPanel serverId={String(item.id || '')} />
+              <ServerComponentsPanel
+                serverId={String(item.id || '')}
+                actionIntent={componentActionIntent}
+                onActionIntentConsumed={nonce => {
+                  setComponentActionIntent(current => (current?.nonce === nonce ? null : current))
+                }}
+              />
             </TabsContent>
           </Tabs>
         </div>

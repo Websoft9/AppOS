@@ -110,6 +110,7 @@ describe('ServerServicesPanel', () => {
         SubState: 'running',
         UnitFileState: 'enabled',
         MainPID: '2184',
+        FragmentPath: '/etc/systemd/system/docker.service',
       },
       status_text: 'active (running)',
     })
@@ -145,10 +146,14 @@ describe('ServerServicesPanel', () => {
     })
 
     expect(screen.getByRole('heading', { name: 'Systemd' })).toBeInTheDocument()
-    expect(screen.getByText(/Inspect service status, open logs, and work with unit files/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/Inspect service status, open logs, and work with unit files/i)
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Refresh systemd data' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Selected Service' })).toBeInTheDocument()
-    expect(screen.getByText('Choose a service to inspect its status, logs, and unit details.')).toBeInTheDocument()
+    expect(
+      screen.getByText('Choose a service to inspect its status, logs, and unit details.')
+    ).toBeInTheDocument()
 
     const inventory = screen.getByRole('region', { name: 'Systemd inventory' })
     expect(within(inventory).queryByRole('button', { name: 'Refresh systemd data' })).toBeNull()
@@ -163,7 +168,9 @@ describe('ServerServicesPanel', () => {
     expect(within(inventory).getByText('1/1')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'AppOS Focus Services' })).toBeNull()
     expect(screen.queryByLabelText('Boot filter')).toBeNull()
-    expect(within(inventory).getByRole('button', { name: /Name sorted ascending/i })).toBeInTheDocument()
+    expect(
+      within(inventory).getByRole('button', { name: /Name sorted ascending/i })
+    ).toBeInTheDocument()
     expect(within(inventory).getByRole('button', { name: /Summary sortable/i })).toBeInTheDocument()
     expect(within(inventory).queryByText('A-Z')).toBeNull()
     expect(within(inventory).queryByText('Sort')).toBeNull()
@@ -182,7 +189,9 @@ describe('ServerServicesPanel', () => {
     expect(within(inventory).getByText('1/1')).toBeInTheDocument()
 
     expect(within(inventory).getByRole('button', { name: /^docker$/i })).toBeInTheDocument()
-    expect(within(inventory).getByRole('button', { name: /service actions for docker/i })).toBeInTheDocument()
+    expect(
+      within(inventory).getByRole('button', { name: /service actions for docker/i })
+    ).toBeInTheDocument()
 
     const getRowLabels = () =>
       within(inventory)
@@ -198,15 +207,33 @@ describe('ServerServicesPanel', () => {
             !label.startsWith('Summary ')
         )
 
-    expect(getRowLabels()).toEqual(['docker', 'netdata', 'appos-tunnel', 'auditd', 'backup-task', 'connman'])
+    expect(getRowLabels()).toEqual([
+      'docker',
+      'netdata',
+      'appos-tunnel',
+      'auditd',
+      'backup-task',
+      'connman',
+    ])
 
     fireEvent.click(within(inventory).getByRole('button', { name: /Name sorted ascending/i }))
 
-    expect(within(inventory).getByRole('button', { name: /Name sorted descending/i })).toBeInTheDocument()
+    expect(
+      within(inventory).getByRole('button', { name: /Name sorted descending/i })
+    ).toBeInTheDocument()
     expect(within(inventory).queryByText('Z-A')).toBeNull()
-    expect(getRowLabels()).toEqual(['docker', 'netdata', 'appos-tunnel', 'connman', 'backup-task', 'auditd'])
+    expect(getRowLabels()).toEqual([
+      'docker',
+      'netdata',
+      'appos-tunnel',
+      'connman',
+      'backup-task',
+      'auditd',
+    ])
 
-    fireEvent.change(within(inventory).getByLabelText('Status filter'), { target: { value: 'failed' } })
+    fireEvent.change(within(inventory).getByLabelText('Status filter'), {
+      target: { value: 'failed' },
+    })
     expect(within(inventory).getByText('appos-tunnel')).toBeInTheDocument()
     expect(within(inventory).queryByText('docker')).toBeNull()
   })
@@ -235,8 +262,8 @@ describe('ServerServicesPanel', () => {
 
     await waitFor(() => {
       expect(getSystemdStatusMock).toHaveBeenCalledWith('server-1', 'docker.service')
-      expect(getSystemdUnitMock).toHaveBeenCalledWith('server-1', 'docker.service')
     })
+    expect(getSystemdUnitMock).not.toHaveBeenCalled()
 
     const detailHeading = await screen.findByRole('heading', { name: 'Selected Service' })
     expect(detailHeading).toBeInTheDocument()
@@ -246,15 +273,21 @@ describe('ServerServicesPanel', () => {
       throw new Error('Expected selected service section')
     }
 
-    expect(within(detailSection).queryByRole('button', { name: /selected service actions/i })).toBeNull()
+    expect(
+      within(detailSection).queryByRole('button', { name: /selected service actions/i })
+    ).toBeNull()
     expect(within(detailSection).getAllByText('docker').length).toBeGreaterThan(0)
     expect(within(detailSection).getAllByText('running').length).toBeGreaterThan(0)
     expect(within(detailSection).getByText('Name:')).toBeInTheDocument()
     expect(within(detailSection).getByText('Description:')).toBeInTheDocument()
     expect(within(detailSection).getByText('Status:')).toBeInTheDocument()
     expect(within(detailSection).getByText('Path:')).toBeInTheDocument()
-    expect(within(detailSection).getByText('/etc/systemd/system/docker.service')).toBeInTheDocument()
-    expect(within(detailSection).getByText('Docker Application Container Engine')).toBeInTheDocument()
+    expect(
+      within(detailSection).getByText('/etc/systemd/system/docker.service')
+    ).toBeInTheDocument()
+    expect(
+      within(detailSection).getByText('Docker Application Container Engine')
+    ).toBeInTheDocument()
     expect(within(detailSection).getAllByText('enabled').length).toBeGreaterThan(0)
     expect(within(detailSection).getAllByText('2184').length).toBeGreaterThan(0)
     expect(within(detailSection).queryByRole('button', { name: 'Start' })).toBeNull()
@@ -265,17 +298,49 @@ describe('ServerServicesPanel', () => {
     expect(within(detailSection).queryByRole('button', { name: 'Edit unit' })).toBeNull()
 
     fireEvent.click(within(detailSection).getByRole('button', { name: 'Logs' }))
-    expect(await within(detailSection).findByText('Jul 09 09:41:22 dockerd started')).toBeInTheDocument()
+    expect(
+      await within(detailSection).findByText('Jul 09 09:41:22 dockerd started')
+    ).toBeInTheDocument()
     expect(within(detailSection).getByRole('button', { name: /Copy/i })).toBeInTheDocument()
     expect(within(detailSection).queryByText('Name:')).toBeNull()
     expect(within(detailSection).queryByText('Service Path:')).toBeNull()
 
-    fireEvent.pointerDown(within(inventory).getByRole('button', { name: /service actions for docker/i }))
+    fireEvent.pointerDown(
+      within(inventory).getByRole('button', { name: /service actions for docker/i })
+    )
     expect(await screen.findByRole('menuitem', { name: 'Open overview' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Open logs' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Open unit' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Edit unit' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Enable' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Disable' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Open unit' }))
+    expect(await within(detailSection).findByText('Unit')).toBeInTheDocument()
+    expect(within(detailSection).getByRole('button', { name: 'Edit unit' })).toBeInTheDocument()
+
+    fireEvent.click(within(detailSection).getByRole('button', { name: 'Edit unit' }))
+    expect(await within(detailSection).findByRole('textbox')).toBeInTheDocument()
+    expect(within(detailSection).getByRole('button', { name: 'Validate' })).toBeInTheDocument()
+    expect(within(detailSection).getByRole('button', { name: 'Apply' })).toBeInTheDocument()
+    expect(within(detailSection).getByRole('button', { name: 'Cancel edit' })).toBeInTheDocument()
+  })
+
+  it('renders load errors inside the systemd inventory', async () => {
+    listSystemdServicesMock.mockRejectedValue(new Error('ssh failed'))
+
+    render(<ServerServicesPanel serverId="server-1" />)
+
+    const inventory = screen.getByRole('region', { name: 'Systemd inventory' })
+    expect(await within(inventory).findByText('ssh failed')).toBeInTheDocument()
+
+    const detailSection = screen
+      .getByRole('heading', { name: 'Selected Service' })
+      .closest('section')
+    if (!detailSection) {
+      throw new Error('Expected selected service section')
+    }
+
+    expect(within(detailSection).queryByText('ssh failed')).toBeNull()
   })
 })

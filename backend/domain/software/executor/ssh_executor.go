@@ -52,9 +52,18 @@ var executeSSHCommand = terminal.ExecuteSSHCommand
 // avoiding per-command TCP+SSH handshake overhead.
 // It is created once per operation scope and is not safe for concurrent use.
 type SSHExecutor struct {
-	cfg         terminal.ConnectorConfig
-	client      *cryptossh.Client                   // nil in unit-test mode (uses executeSSHCommand fallback)
-	detectCache map[string]software.DetectionResult // keyed by ComponentKey; avoids re-running Detect inside verifySystemd
+	cfg          terminal.ConnectorConfig
+	client       *cryptossh.Client                   // nil in unit-test mode (uses executeSSHCommand fallback)
+	detectCache  map[string]software.DetectionResult // keyed by ComponentKey; avoids re-running Detect inside verifySystemd
+	outputLogger func(string)
+}
+
+// SetOutputLogger attaches a best-effort line logger for long-running command output.
+func (e *SSHExecutor) SetOutputLogger(logger func(string)) {
+	if e == nil {
+		return
+	}
+	e.outputLogger = logger
 }
 
 // Close releases the underlying SSH client connection if one was established.
@@ -76,6 +85,18 @@ func (e *SSHExecutor) runCommand(ctx context.Context, command string, timeout ti
 		return terminal.RunSSHSession(ctx, e.client, command, timeout)
 	}
 	return executeSSHCommand(ctx, e.cfg, command, timeout)
+}
+
+func (e *SSHExecutor) runCommandStreaming(ctx context.Context, command string, timeout time.Duration) (string, error) {
+	if e.client != nil && e.outputLogger != nil {
+		return terminal.RunSSHSessionStreaming(ctx, e.client, command, timeout, func(line string) {
+			line = strings.TrimSpace(line)
+			if line != "" {
+				e.outputLogger("Script output: " + line)
+			}
+		})
+	}
+	return e.runCommand(ctx, command, timeout)
 }
 
 // NewSSHExecutor resolves the SSH configuration for serverID and establishes the
@@ -247,7 +268,7 @@ func (e *SSHExecutor) RunPreflight(ctx context.Context, _ string, tpl software.R
 }
 
 // Install executes the install step defined by the template strategy.
-// Supported strategies: "package" (apt-get), "script" (curl|sh).
+// Supported strategies: "package" (apt-get), "script" (managed script).
 // An empty strategy means the component is not installable via Software Delivery.
 func (e *SSHExecutor) Install(ctx context.Context, serverID string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
 	switch tpl.Install.Strategy {
@@ -264,7 +285,7 @@ func (e *SSHExecutor) Install(ctx context.Context, serverID string, tpl software
 		if err != nil {
 			return software.SoftwareComponentDetail{}, fmt.Errorf("component %s install script resolution failed: %w", tpl.ComponentKey, err)
 		}
-		if _, err := e.runCommand(ctx, cmd, installTimeout); err != nil {
+		if _, err := e.runCommandStreaming(ctx, cmd, installTimeout); err != nil {
 			return software.SoftwareComponentDetail{}, fmt.Errorf("install %s via script: %w", tpl.ComponentKey, err)
 		}
 	case "":
@@ -282,7 +303,7 @@ func (e *SSHExecutor) Install(ctx context.Context, serverID string, tpl software
 }
 
 // Upgrade executes the upgrade step defined by the template strategy.
-// Supported strategies: "package" (apt-get --only-upgrade), "script" (curl|sh with args).
+// Supported strategies: "package" (apt-get --only-upgrade), "script" (managed script with args).
 func (e *SSHExecutor) Upgrade(ctx context.Context, serverID string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
 	switch tpl.Upgrade.Strategy {
 	case "package":
@@ -298,7 +319,7 @@ func (e *SSHExecutor) Upgrade(ctx context.Context, serverID string, tpl software
 		if err != nil {
 			return software.SoftwareComponentDetail{}, fmt.Errorf("component %s upgrade script resolution failed: %w", tpl.ComponentKey, err)
 		}
-		if _, err := e.runCommand(ctx, cmd, upgradeTimeout); err != nil {
+		if _, err := e.runCommandStreaming(ctx, cmd, upgradeTimeout); err != nil {
 			return software.SoftwareComponentDetail{}, fmt.Errorf("upgrade %s via script: %w", tpl.ComponentKey, err)
 		}
 	case "":
@@ -349,7 +370,7 @@ func (e *SSHExecutor) Restart(ctx context.Context, _ string, tpl software.Resolv
 }
 
 // Uninstall executes the uninstall step defined by the template strategy.
-// Supported strategies: "package" (apt-get remove), "script" (curl|sh with args).
+// Supported strategies: "package" (apt-get remove), "script" (managed script with args).
 func (e *SSHExecutor) Uninstall(ctx context.Context, serverID string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
 	if tpl.Verify.Strategy == "systemd" && strings.TrimSpace(tpl.Verify.ServiceName) != "" {
 		stopCmd := fmt.Sprintf("systemctl stop %s", terminal.ShellQuote(tpl.Verify.ServiceName))
@@ -372,7 +393,7 @@ func (e *SSHExecutor) Uninstall(ctx context.Context, serverID string, tpl softwa
 		if err != nil {
 			return software.SoftwareComponentDetail{}, fmt.Errorf("component %s uninstall script resolution failed: %w", tpl.ComponentKey, err)
 		}
-		if _, err := e.runCommand(ctx, cmd, uninstallTimeout); err != nil {
+		if _, err := e.runCommandStreaming(ctx, cmd, uninstallTimeout); err != nil {
 			return software.SoftwareComponentDetail{}, fmt.Errorf("uninstall %s via script: %w", tpl.ComponentKey, err)
 		}
 	case "":
@@ -523,7 +544,8 @@ func containsString(items []string, want string) bool {
 
 // buildScriptCommand builds a safe shell snippet that downloads a script via curl or
 // wget and runs it with optional arguments. The script URL and arguments come
-// exclusively from catalog metadata and are shell-quoted before use.
+// exclusively from catalog metadata and are shell-quoted before use. Downloaded
+// scripts are run with bash when their shebang asks for it; otherwise sh is used.
 func buildScriptCommand(scriptURL string, args []string, env map[string]string) string {
 	quotedArgs := make([]string, len(args))
 	for i, a := range args {
@@ -537,11 +559,11 @@ func buildScriptCommand(scriptURL string, args []string, env map[string]string) 
 	return fmt.Sprintf(
 		"set -eu; %s_tmp=$(mktemp); trap 'rm -f \"$_tmp\"' EXIT; "+
 			"(curl -fsSL %s -o \"$_tmp\" 2>/dev/null || wget -qO \"$_tmp\" %s); "+
-			"chmod +x \"$_tmp\"; sh \"$_tmp\"%s",
+			"chmod +x \"$_tmp\"; %s",
 		envScript,
 		terminal.ShellQuote(scriptURL),
 		terminal.ShellQuote(scriptURL),
-		argsStr,
+		buildDownloadedScriptRunner(argsStr),
 	)
 }
 
@@ -555,12 +577,29 @@ func buildEmbeddedScriptCommand(scriptBody string, args []string, env map[string
 		argsStr = " " + strings.Join(quotedArgs, " ")
 	}
 	envScript := buildEnvScript(env)
+	runner := buildEmbeddedScriptRunner(scriptBody, argsStr)
 	return fmt.Sprintf(
-		"set -eu; %s_tmp=$(mktemp); trap 'rm -f \"$_tmp\"' EXIT; cat > \"$_tmp\" <<'APPOS_EMBEDDED_SCRIPT'\n%s\nAPPOS_EMBEDDED_SCRIPT\nchmod +x \"$_tmp\"; sh \"$_tmp\"%s",
+		"set -eu; %s_tmp=$(mktemp); trap 'rm -f \"$_tmp\"' EXIT; cat > \"$_tmp\" <<'APPOS_EMBEDDED_SCRIPT'\n%s\nAPPOS_EMBEDDED_SCRIPT\nchmod +x \"$_tmp\"; %s",
 		envScript,
 		scriptBody,
-		argsStr,
+		runner,
 	)
+}
+
+func buildEmbeddedScriptRunner(scriptBody, argsStr string) string {
+	if scriptRequiresBash(scriptBody) {
+		return fmt.Sprintf("command -v bash >/dev/null 2>&1 || { echo 'bash is required to run this script' >&2; exit 127; }; bash \"$_tmp\"%s", argsStr)
+	}
+	return fmt.Sprintf("sh \"$_tmp\"%s", argsStr)
+}
+
+func buildDownloadedScriptRunner(argsStr string) string {
+	return fmt.Sprintf("case \"$(head -n 1 \"$_tmp\" 2>/dev/null || true)\" in *bash*) command -v bash >/dev/null 2>&1 || { echo 'bash is required to run this script' >&2; exit 127; }; bash \"$_tmp\"%s ;; *) sh \"$_tmp\"%s ;; esac", argsStr, argsStr)
+}
+
+func scriptRequiresBash(scriptBody string) bool {
+	first := strings.TrimSpace(firstLine(scriptBody))
+	return strings.HasPrefix(first, "#!") && strings.Contains(first, "bash")
 }
 
 func buildManagedScriptCommand(scriptPath, scriptURL string, args []string, env map[string]string) (string, error) {

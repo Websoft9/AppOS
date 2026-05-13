@@ -392,6 +392,7 @@ groups:
       extRouteFiles:
         - docker.go
         - server.go
+        - server_monitor_agent.go
         - server_ops.go
         - server_view.go
       nativeRefs:

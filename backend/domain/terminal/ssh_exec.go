@@ -1,10 +1,12 @@
 package terminal
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	cryptossh "golang.org/x/crypto/ssh"
@@ -97,6 +99,91 @@ func RunSSHSession(ctx context.Context, client *cryptossh.Client, command string
 		}
 		return output, nil
 	}
+}
+
+// RunSSHSessionStreaming runs a command and streams stdout/stderr lines to onOutput
+// while also returning the combined output after the command exits.
+func RunSSHSessionStreaming(ctx context.Context, client *cryptossh.Client, command string, timeout time.Duration, onOutput func(string)) (string, error) {
+	if timeout <= 0 {
+		timeout = 20 * time.Second
+	}
+	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	session, err := client.NewSession()
+	if err != nil {
+		return "", fmt.Errorf("ssh new session failed: %w", err)
+	}
+	defer session.Close()
+
+	stdout, err := session.StdoutPipe()
+	if err != nil {
+		return "", fmt.Errorf("ssh stdout pipe failed: %w", err)
+	}
+	stderr, err := session.StderrPipe()
+	if err != nil {
+		return "", fmt.Errorf("ssh stderr pipe failed: %w", err)
+	}
+
+	if err := session.Start(command); err != nil {
+		return "", err
+	}
+
+	var mu sync.Mutex
+	var callbackMu sync.Mutex
+	var output []string
+	appendLine := func(line string) {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			return
+		}
+		mu.Lock()
+		output = append(output, line)
+		mu.Unlock()
+		if onOutput != nil {
+			callbackMu.Lock()
+			defer callbackMu.Unlock()
+			onOutput(line)
+		}
+	}
+
+	readerDone := make(chan struct{}, 2)
+	readPipe := func(scanner *bufio.Scanner) {
+		defer func() { readerDone <- struct{}{} }()
+		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+		for scanner.Scan() {
+			appendLine(scanner.Text())
+		}
+	}
+	go readPipe(bufio.NewScanner(stdout))
+	go readPipe(bufio.NewScanner(stderr))
+
+	waitCh := make(chan error, 1)
+	go func() {
+		waitCh <- session.Wait()
+	}()
+
+	var waitErr error
+	select {
+	case <-cmdCtx.Done():
+		_ = session.Close()
+		return "", cmdCtx.Err()
+	case waitErr = <-waitCh:
+	}
+
+	<-readerDone
+	<-readerDone
+
+	mu.Lock()
+	combined := strings.TrimSpace(strings.Join(output, "\n"))
+	mu.Unlock()
+	if waitErr != nil {
+		if combined == "" {
+			return combined, waitErr
+		}
+		return combined, fmt.Errorf("%w: %s", waitErr, combined)
+	}
+	return combined, nil
 }
 
 // ExecuteSSHCommand runs a one-shot command on a remote server via SSH and

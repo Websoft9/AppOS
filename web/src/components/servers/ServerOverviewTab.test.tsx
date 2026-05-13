@@ -1,5 +1,5 @@
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ServerOverviewTab } from './ServerOverviewTab'
@@ -41,6 +41,7 @@ const facts: ServerFactsView = {
 
 describe('ServerOverviewTab', () => {
   it('renders server metadata and collected system facts', () => {
+    const onEditServer = vi.fn()
     render(
       <ServerOverviewTab
         item={baseItem}
@@ -52,10 +53,12 @@ describe('ServerOverviewTab', () => {
         credentialType="Password"
         credentialId="secret-1"
         createdBy="owner@example.com"
+        onEditServer={onEditServer}
       />
     )
 
     expect(screen.getByText('Server Metadata')).toBeInTheDocument()
+    expect(screen.getByText('Cloud Provider')).toBeInTheDocument()
     expect(screen.getByText('System Information')).toBeInTheDocument()
     expect(screen.getByText('alpha')).toBeInTheDocument()
     expect(screen.getByText('Direct')).toBeInTheDocument()
@@ -68,6 +71,10 @@ describe('ServerOverviewTab', () => {
     expect(screen.getByText('4')).toBeInTheDocument()
     expect(screen.getByText('8.0 GiB')).toBeInTheDocument()
     expect(screen.getByText(facts.observedAt)).toBeInTheDocument()
+    expect(screen.getAllByText('Unavailable')).toHaveLength(2)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Connection' }))
+    expect(onEditServer).toHaveBeenCalledTimes(1)
   })
 
   it('shows tunnel metadata and empty facts state when host facts are missing', () => {
@@ -88,6 +95,31 @@ describe('ServerOverviewTab', () => {
     expect(screen.getByText('Tunnel')).toBeInTheDocument()
     expect(screen.getByText('Unknown')).toBeInTheDocument()
     expect(screen.getByText('Paused')).toBeInTheDocument()
-    expect(screen.getByText('No host facts have been collected for this server yet.')).toBeInTheDocument()
+    expect(
+      screen.getByText('No host facts have been collected for this server yet.')
+    ).toBeInTheDocument()
+  })
+
+  it('renders provider name and region when server metadata includes cloud fields', () => {
+    render(
+      <ServerOverviewTab
+        item={{
+          ...baseItem,
+          cloud_provider: 'AWS',
+          cloud_region: 'ap-southeast-1',
+        }}
+        serverId="server-1"
+        facts={facts}
+        status="online"
+        tunnelState="ready"
+        isTunnel={false}
+        credentialType="Password"
+        credentialId="secret-1"
+        createdBy="owner@example.com"
+      />
+    )
+
+    expect(screen.getByText('AWS')).toBeInTheDocument()
+    expect(screen.getByText('ap-southeast-1')).toBeInTheDocument()
   })
 })

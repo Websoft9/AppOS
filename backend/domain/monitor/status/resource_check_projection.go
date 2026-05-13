@@ -21,20 +21,20 @@ func ProjectResourceCheckLatestStatus(app core.App, targetType, targetID, displa
 	failures, lastSuccessAt, lastFailureAt := ResourceCheckFailureState(app, targetType, targetID, status, now)
 
 	_, err := store.UpsertLatestStatus(app, store.LatestStatusUpsert{
-		TargetType:              targetType,
-		TargetID:                targetID,
-		DisplayName:             displayName,
-		Status:                  strings.TrimSpace(status),
-		Reason:                  strings.TrimSpace(reason),
-		SignalSource:            signalSource,
-		LastTransitionAt:        now,
-		LastSuccessAt:           lastSuccessAt,
-		LastFailureAt:           lastFailureAt,
-		LastCheckedAt:           &now,
-		ConsecutiveFailures:     &failures,
-		Summary:                 summary,
-		StatusPriorityMap:       statusPriorityMap,
-		PreserveStrongerFailure: PreserveStrongerFailureFromOtherCheck(app, targetType, targetID, checkKind),
+		TargetType:          targetType,
+		TargetID:            targetID,
+		DisplayName:         displayName,
+		Status:              strings.TrimSpace(status),
+		Reason:              strings.TrimSpace(reason),
+		SignalSource:        signalSource,
+		LastTransitionAt:    now,
+		LastSuccessAt:       lastSuccessAt,
+		LastFailureAt:       lastFailureAt,
+		LastCheckedAt:       &now,
+		ConsecutiveFailures: &failures,
+		Summary:             summary,
+		StatusPriorityMap:   statusPriorityMap,
+		IncomingCheckKind:   checkKind,
 	})
 	return err
 }
@@ -43,6 +43,10 @@ func ResourceCheckFailureState(app core.App, targetType, targetID, status string
 	return FailureStateFromPrevious(store.PreviousFailureCount(app, targetType, targetID), status, "healthy", now)
 }
 
+// Deprecated: PreserveStrongerFailureFromOtherCheck is superseded by setting
+// LatestStatusUpsert.IncomingCheckKind, which derives the same result atomically
+// from the record already loaded inside UpsertLatestStatus. Retained for external
+// callers and direct testing.
 func PreserveStrongerFailureFromOtherCheck(app core.App, targetType, targetID, checkKind string) bool {
 	return store.HasDifferentCheckKind(app, targetType, targetID, checkKind)
 }

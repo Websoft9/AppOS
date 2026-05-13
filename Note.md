@@ -166,7 +166,7 @@ Current version
 3. Status 列应该表示这个组件的真实运行态，installed 其实不属于这个态。
 
 
-server detail 的所有tab，当 Connection 都要验证ssh 连接是否存在，如何无法连接，直接显示无法连接，而不是默认的布局
+
 
 
 ports tab 不稳定，经常打开显示  somethins wrong

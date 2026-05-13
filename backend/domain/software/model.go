@@ -224,6 +224,7 @@ type SoftwareDeliveryOperation struct {
 	FailurePhase   OperationPhase `json:"failure_phase,omitempty"`
 	FailureCode    FailureCode    `json:"failure_code,omitempty"`
 	FailureReason  string         `json:"failure_reason,omitempty"`
+	EventLog       string         `json:"event_log,omitempty"`
 	CreatedAt      string         `json:"created_at"`
 	UpdatedAt      string         `json:"updated_at"`
 }
@@ -330,6 +331,7 @@ type CatalogEntry struct {
 	Label                 string              `yaml:"label"`
 	Capability            Capability          `yaml:"capability"`
 	TemplateRef           string              `yaml:"template_ref"`
+	VersionCommand        string              `yaml:"version_command"`
 	Binary                string              `yaml:"binary"`
 	ServiceName           string              `yaml:"service_name"`
 	PackageName           string              `yaml:"package_name"`
