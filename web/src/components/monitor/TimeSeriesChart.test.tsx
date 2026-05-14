@@ -15,6 +15,45 @@ function formatValue(_unit: string, _name: string, value: number): string {
 }
 
 describe('TimeSeriesChart', () => {
+  it('renders a single sparse point for 24h history instead of empty state', () => {
+    const { container, queryByText } = render(
+      <TimeSeriesChart
+        name="cpu"
+        unit="percent"
+        window="24h"
+        rangeStartAt="2026-05-13T02:30:00Z"
+        rangeEndAt="2026-05-14T02:30:00Z"
+        stepSeconds={900}
+        formatValue={formatValue}
+        points={[[1778723100, 4.9]]}
+      />
+    )
+
+    expect(queryByText('No trend yet')).toBeNull()
+    expect(container.querySelectorAll('circle.recharts-dot').length).toBeGreaterThan(0)
+  })
+
+  it('renders visible point markers for sparse 24h data without connecting gaps', () => {
+    const { container } = render(
+      <TimeSeriesChart
+        name="cpu"
+        unit="percent"
+        window="24h"
+        rangeStartAt="2026-05-13T02:30:00Z"
+        rangeEndAt="2026-05-14T02:30:00Z"
+        stepSeconds={900}
+        formatValue={formatValue}
+        points={[
+          [1778669100, 5.38],
+          [1778723100, 4.9],
+          [1778724000, 4.6],
+        ]}
+      />
+    )
+
+    expect(container.querySelectorAll('circle.recharts-dot').length).toBeGreaterThan(0)
+  })
+
   it('removes the fixed-capacity top stroke for memory and disk usage stacks', () => {
     const { container } = render(
       <div>

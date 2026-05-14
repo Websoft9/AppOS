@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -548,7 +549,7 @@ func TestVerifySystemd_ActiveService_ReturnsHealthy(t *testing.T) {
 
 	tpl := packageTemplate("docker.io", "docker.service")
 	ex := &SSHExecutor{}
-	detail, err := ex.verifySystemd(context.Background(), tpl)
+	detail, err := ex.verifySystemd(context.Background(), "srv-1", tpl)
 	if err != nil {
 		t.Fatalf("verifySystemd error: %v", err)
 	}
@@ -570,12 +571,82 @@ func TestVerifySystemd_InactiveService_ReturnsDegraded(t *testing.T) {
 
 	tpl := packageTemplate("docker.io", "docker.service")
 	ex := &SSHExecutor{}
-	detail, err := ex.verifySystemd(context.Background(), tpl)
+	detail, err := ex.verifySystemd(context.Background(), "srv-1", tpl)
 	if err != nil {
 		t.Fatalf("verifySystemd error: %v", err)
 	}
 	if detail.VerificationState != software.VerificationStateDegraded {
 		t.Errorf("expected degraded, got %q", detail.VerificationState)
+	}
+}
+
+func TestVerifySystemd_MonitorAgentActiveWithoutReportingConfig_ReturnsDegraded(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		if containsSubstring(cmd, "is-active") {
+			return "active", nil
+		}
+		if containsSubstring(cmd, "exporting.conf") {
+			return "config_present=false", nil
+		}
+		if containsSubstring(cmd, "command -v") {
+			return "/usr/sbin/netdata", nil
+		}
+		return "netdata v2.10.3", nil
+	}
+
+	tpl := packageTemplate("netdata", "netdata.service")
+	tpl.ComponentKey = software.ComponentKeyMonitorAgent
+	ex := &SSHExecutor{}
+	detail, err := ex.verifySystemd(context.Background(), "srv-1", tpl)
+	if err != nil {
+		t.Fatalf("verifySystemd error: %v", err)
+	}
+	if detail.VerificationState != software.VerificationStateDegraded {
+		t.Fatalf("expected degraded, got %q", detail.VerificationState)
+	}
+	if detail.Verification == nil || detail.Verification.Reason != "monitor remote-write configuration is incomplete" {
+		t.Fatalf("expected remote-write reason, got %#v", detail.Verification)
+	}
+}
+
+func TestVerifySystemd_MonitorAgentActiveWithReportingConfig_ReturnsHealthy(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		if containsSubstring(cmd, "is-active") {
+			return "active", nil
+		}
+		if containsSubstring(cmd, "exporting.conf") {
+			return strings.Join([]string{
+				"config_present=true",
+				"enabled=true",
+				"destination_configured=true",
+				"username_ok=true",
+				"password_configured=true",
+			}, "\n"), nil
+		}
+		if containsSubstring(cmd, "command -v") {
+			return "/usr/sbin/netdata", nil
+		}
+		return "netdata v2.10.3", nil
+	}
+
+	tpl := packageTemplate("netdata", "netdata.service")
+	tpl.ComponentKey = software.ComponentKeyMonitorAgent
+	ex := &SSHExecutor{}
+	detail, err := ex.verifySystemd(context.Background(), "srv-1", tpl)
+	if err != nil {
+		t.Fatalf("verifySystemd error: %v", err)
+	}
+	if detail.VerificationState != software.VerificationStateHealthy {
+		t.Fatalf("expected healthy, got %q", detail.VerificationState)
+	}
+	if detail.Verification == nil || detail.Verification.Reason != "" {
+		t.Fatalf("expected healthy reporting verification, got %#v", detail.Verification)
 	}
 }
 

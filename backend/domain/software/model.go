@@ -20,7 +20,7 @@ var reservedSoftwareRouteKeys = map[string]struct{}{
 const (
 	// Server-target components — referenced by CapabilityComponentMap and provisioning logic.
 	ComponentKeyDocker       ComponentKey = "docker"
-	ComponentKeyMonitorAgent ComponentKey = "monitor-agent"
+	ComponentKeyMonitorAgent ComponentKey = "appos-monitor-collector"
 	ComponentKeyReverseProxy ComponentKey = "reverse-proxy"
 	// Local-target components are purely catalog-data-driven: their component_key strings
 	// are defined in catalog/catalog_local.yaml and flow through the system as opaque values.
@@ -71,6 +71,29 @@ const (
 	VerificationStateHealthy  VerificationState = "healthy"
 	VerificationStateDegraded VerificationState = "degraded"
 	VerificationStateUnknown  VerificationState = "unknown"
+)
+
+type ServiceStatus string
+
+const (
+	ServiceStatusRunning        ServiceStatus = "running"
+	ServiceStatusStopped        ServiceStatus = "stopped"
+	ServiceStatusInstalled      ServiceStatus = "installed"
+	ServiceStatusNotInstalled   ServiceStatus = "not_installed"
+	ServiceStatusNeedsAttention ServiceStatus = "needs_attention"
+	ServiceStatusUnknown        ServiceStatus = "unknown"
+)
+
+type AppOSConnectionStatus string
+
+const (
+	AppOSConnectionConnected     AppOSConnectionStatus = "connected"
+	AppOSConnectionStale         AppOSConnectionStatus = "stale"
+	AppOSConnectionNotConnected  AppOSConnectionStatus = "not_connected"
+	AppOSConnectionAuthFailed    AppOSConnectionStatus = "auth_failed"
+	AppOSConnectionMisconfigured AppOSConnectionStatus = "misconfigured"
+	AppOSConnectionUnknown       AppOSConnectionStatus = "unknown"
+	AppOSConnectionNotApplicable AppOSConnectionStatus = "not_applicable"
 )
 
 type Action string
@@ -188,6 +211,9 @@ type SoftwareComponentSummary struct {
 	SourceEvidence    string                      `json:"source_evidence,omitempty"`
 	PackagedVersion   string                      `json:"packaged_version,omitempty"`
 	VerificationState VerificationState           `json:"verification_state"`
+	ServiceStatus     ServiceStatus               `json:"service_status"`
+	AppOSConnection   AppOSConnectionStatus       `json:"appos_connection"`
+	HealthReasons     []string                    `json:"health_reasons,omitempty"`
 	AvailableActions  []Action                    `json:"available_actions,omitempty"`
 	LastAction        *SoftwareDeliveryLastAction `json:"last_action,omitempty"`
 }

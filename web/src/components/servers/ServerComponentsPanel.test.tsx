@@ -194,6 +194,7 @@ describe('ServerComponentsPanel', () => {
     expect(within(prerequisitesSection).getByRole('button', { name: 'Upgrade/Fix' })).toBeEnabled()
     expect(within(prerequisitesSection).queryByRole('button', { name: 'Install' })).toBeNull()
     expect(within(prerequisitesSection).queryByText('No corrective action available')).toBeNull()
+
     expect(
       within(prerequisitesSection).queryByText(
         'Container runtime required for platform-managed workloads.'
@@ -204,6 +205,8 @@ describe('ServerComponentsPanel', () => {
     expect(within(addonsSection).queryByText('Docker Engine')).toBeNull()
     expect(within(addonsSection).getByText('Reverse Proxy')).toBeInTheDocument()
     expect(within(addonsSection).getByRole('button', { name: 'Addons help' })).toBeInTheDocument()
+    expect(within(addonsSection).getByText('Artifact')).toBeInTheDocument()
+    expect(within(addonsSection).queryByText('Package Type')).toBeNull()
 
     const inventory = within(addonsSection).getByRole('region', { name: 'Addon inventory' })
     fireEvent.click(within(inventory).getByRole('button', { name: 'Reverse Proxy' }))
@@ -212,8 +215,315 @@ describe('ServerComponentsPanel', () => {
     expect(
       within(selectedAddon).getByText('dependency_not_ready: docker is not ready')
     ).toBeInTheDocument()
-    expect(within(selectedAddon).getByRole('button', { name: 'reinstall' })).toBeInTheDocument()
+    expect(within(selectedAddon).getByRole('button', { name: 'Repair' })).toBeInTheDocument()
     expect(within(selectedAddon).getByRole('button', { name: 'More actions' })).toBeInTheDocument()
+  })
+
+  it('selects the addon details when an inventory action is clicked', async () => {
+    const user = userEvent.setup()
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    expect(await screen.findByRole('heading', { name: 'Addons' })).toBeInTheDocument()
+
+    const inventory = screen.getByRole('region', { name: 'Addon inventory' })
+    await user.click(within(inventory).getByRole('button', { name: 'Repair' }))
+
+    await waitFor(() => {
+      expect(invokeSoftwareActionMock).toHaveBeenCalledWith('server-1', 'reverse-proxy', 'reinstall', {
+        apposBaseUrl: window.location.origin,
+      })
+    })
+
+    const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
+    expect(within(selectedAddon).getByText('Reverse Proxy')).toBeInTheDocument()
+    expect(within(selectedAddon).getByRole('button', { name: 'Live Log' })).toBeInTheDocument()
+  })
+
+  it('shows service status and AppOS connection for reporting-aware addons', async () => {
+    listSoftwareComponentsMock.mockResolvedValue([
+      {
+        component_key: 'docker',
+        label: 'Docker Engine',
+        target_type: 'server',
+        template_kind: 'package',
+        installed_state: 'installed',
+        detected_version: '27.0.1',
+        verification_state: 'healthy',
+        service_status: 'running',
+        appos_connection: 'not_applicable',
+        preflight: {
+          ok: true,
+          os_supported: true,
+          privilege_ok: true,
+          network_ok: true,
+          dependency_ready: true,
+        },
+        available_actions: ['verify'],
+      },
+      {
+        component_key: 'appos-monitor-collector',
+        label: 'Netdata Agent',
+        target_type: 'server',
+        template_kind: 'script',
+        installed_state: 'installed',
+        detected_version: '2.10.3',
+        packaged_version: '2.10.3',
+        verification_state: 'healthy',
+        service_status: 'running',
+        appos_connection: 'connected',
+        health_reasons: ['verification_state:healthy', 'metrics_freshness:fresh'],
+        preflight: {
+          ok: true,
+          os_supported: true,
+          privilege_ok: true,
+          network_ok: true,
+          dependency_ready: true,
+        },
+        available_actions: ['verify', 'restart', 'stop'],
+      },
+    ])
+
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    expect(await screen.findByRole('heading', { name: 'Addons' })).toBeInTheDocument()
+    const inventory = screen.getByRole('region', { name: 'Addon inventory' })
+    expect(within(inventory).getByText('Service: Running')).toBeInTheDocument()
+    expect(within(inventory).getByText('AppOS: Connected')).toBeInTheDocument()
+
+    fireEvent.click(within(inventory).getByRole('button', { name: 'Netdata Agent' }))
+
+    const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
+    expect(within(selectedAddon).getByText('Service Status:')).toBeInTheDocument()
+    expect(within(selectedAddon).getByText('Running')).toBeInTheDocument()
+    expect(within(selectedAddon).getByText('AppOS Connection:')).toBeInTheDocument()
+    expect(within(selectedAddon).getByText('Connected')).toBeInTheDocument()
+    expect(
+      within(selectedAddon).getByText('verification_state:healthy | metrics_freshness:fresh')
+    ).toBeInTheDocument()
+  })
+
+  it('selects the addon details when Check is clicked from the inventory action menu', async () => {
+    const user = userEvent.setup()
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    expect(await screen.findByRole('heading', { name: 'Addons' })).toBeInTheDocument()
+
+    const inventory = screen.getByRole('region', { name: 'Addon inventory' })
+    await user.click(within(inventory).getByRole('button', { name: 'More actions for Reverse Proxy' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Check' }))
+
+    await waitFor(() => {
+      expect(invokeSoftwareActionMock).toHaveBeenCalledWith('server-1', 'reverse-proxy', 'verify', {
+        apposBaseUrl: window.location.origin,
+      })
+    })
+
+    const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
+    expect(within(selectedAddon).getByText('Reverse Proxy')).toBeInTheDocument()
+    expect(within(selectedAddon).getByText('Operation History')).toBeInTheDocument()
+  })
+
+  it('shows complete grouped addon action menu with locked unavailable actions', async () => {
+    const user = userEvent.setup()
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    expect(await screen.findByRole('heading', { name: 'Addons' })).toBeInTheDocument()
+
+    const inventory = screen.getByRole('region', { name: 'Addon inventory' })
+    await user.click(within(inventory).getByRole('button', { name: 'More actions for Reverse Proxy' }))
+
+    expect(screen.getByText('Recommended')).toBeInTheDocument()
+    expect(screen.getByText('Secondary')).toBeInTheDocument()
+    expect(screen.getByText('Dangerous')).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'InstallLocked' })).toHaveAttribute(
+      'data-disabled'
+    )
+    expect(screen.getByRole('menuitem', { name: 'Check' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'StartLocked' })).toHaveAttribute(
+      'data-disabled'
+    )
+    expect(screen.getByRole('menuitem', { name: 'RestartLocked' })).toHaveAttribute(
+      'data-disabled'
+    )
+    expect(screen.getByRole('menuitem', { name: 'StopLocked' })).toHaveAttribute('data-disabled')
+    expect(screen.getByRole('menuitem', { name: 'Remove' })).toBeInTheDocument()
+  })
+
+  it('prefers start or restart over stop as the primary addon action', async () => {
+    listSoftwareComponentsMock.mockResolvedValue([
+      {
+        component_key: 'caddy',
+        label: 'Caddy',
+        target_type: 'server',
+        template_kind: 'binary',
+        installed_state: 'installed',
+        detected_version: '2.9.0',
+        verification_state: 'healthy',
+        preflight: {
+          ok: true,
+          os_supported: true,
+          privilege_ok: true,
+          network_ok: true,
+          dependency_ready: true,
+        },
+        available_actions: ['verify', 'restart', 'stop'],
+      },
+      {
+        component_key: 'web-cache',
+        label: 'Web Cache',
+        target_type: 'server',
+        template_kind: 'package',
+        installed_state: 'installed',
+        detected_version: '1.0.0',
+        verification_state: 'degraded',
+        preflight: {
+          ok: true,
+          os_supported: true,
+          privilege_ok: true,
+          network_ok: true,
+          dependency_ready: true,
+        },
+        available_actions: ['verify', 'start', 'restart', 'stop'],
+      },
+    ])
+
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    expect(await screen.findByRole('heading', { name: 'Addons' })).toBeInTheDocument()
+
+    const inventory = screen.getByRole('region', { name: 'Addon inventory' })
+    expect(within(inventory).getByRole('button', { name: 'Restart' })).toBeInTheDocument()
+    expect(within(inventory).getByRole('button', { name: 'Start' })).toBeInTheDocument()
+    expect(within(inventory).queryByRole('button', { name: 'Stop' })).toBeNull()
+  })
+
+  it('distinguishes stopped addons from other attention states', async () => {
+    listSoftwareComponentsMock.mockResolvedValue([
+      {
+        component_key: 'web-cache',
+        label: 'Web Cache',
+        target_type: 'server',
+        template_kind: 'package',
+        installed_state: 'installed',
+        detected_version: '1.0.0',
+        verification_state: 'degraded',
+        verification: {
+          state: 'degraded',
+          checked_at: '2026-04-16T02:03:04Z',
+          reason: 'service is inactive',
+        },
+        preflight: {
+          ok: true,
+          os_supported: true,
+          privilege_ok: true,
+          network_ok: true,
+          dependency_ready: true,
+        },
+        available_actions: ['verify', 'start', 'restart', 'stop'],
+      },
+      {
+        component_key: 'reverse-proxy',
+        label: 'Reverse Proxy',
+        target_type: 'server',
+        template_kind: 'package',
+        installed_state: 'installed',
+        detected_version: '1.27.0',
+        verification_state: 'degraded',
+        verification: {
+          state: 'degraded',
+          checked_at: '2026-04-16T02:03:04Z',
+          reason: 'config validation failed',
+        },
+        preflight: {
+          ok: true,
+          os_supported: true,
+          privilege_ok: true,
+          network_ok: true,
+          dependency_ready: true,
+        },
+        available_actions: ['verify', 'reinstall'],
+      },
+    ])
+
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    expect(await screen.findByRole('heading', { name: 'Addons' })).toBeInTheDocument()
+    const inventory = screen.getByRole('region', { name: 'Addon inventory' })
+    expect(within(inventory).getByText('Service: Stopped')).toBeInTheDocument()
+    expect(within(inventory).getByText('Service: Needs Attention')).toBeInTheDocument()
+  })
+
+  it('shows addon live log after an addon action starts', async () => {
+    const user = userEvent.setup()
+    getSoftwareOperationMock.mockResolvedValue({
+      id: 'op-123',
+      server_id: 'server-1',
+      component_key: 'reverse-proxy',
+      action: 'reinstall',
+      phase: 'executing',
+      terminal_status: 'none',
+      failure_reason: '',
+      event_log: '2026-04-16T02:03:04Z · Repair is running.',
+      created: '2026-04-16T02:03:04Z',
+      updated: '2026-04-16T02:03:10Z',
+    })
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    expect(await screen.findByRole('heading', { name: 'Addons' })).toBeInTheDocument()
+
+    const inventory = screen.getByRole('region', { name: 'Addon inventory' })
+    fireEvent.click(within(inventory).getByRole('button', { name: 'Reverse Proxy' }))
+
+    const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
+    await user.click(within(selectedAddon).getByRole('button', { name: 'Repair' }))
+
+    expect(within(selectedAddon).getByRole('button', { name: 'Live Log' })).toBeInTheDocument()
+    expect(within(selectedAddon).getByText('Repair requested...')).toBeInTheDocument()
+    expect(within(selectedAddon).getByText('Repair accepted (op-123)')).toBeInTheDocument()
+  })
+
+  it('keeps the addon live log tab available with an empty-state hint', async () => {
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    expect(await screen.findByRole('heading', { name: 'Addons' })).toBeInTheDocument()
+
+    const inventory = screen.getByRole('region', { name: 'Addon inventory' })
+    fireEvent.click(within(inventory).getByRole('button', { name: 'Reverse Proxy' }))
+
+    const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
+    fireEvent.click(within(selectedAddon).getByRole('button', { name: 'Live Log' }))
+
+    expect(
+      within(selectedAddon).getByText('No live log yet. Run an action to stream updates here.')
+    ).toBeInTheDocument()
+  })
+
+  it('switches addon live log back to history after the operation completes', async () => {
+    const user = userEvent.setup()
+    getSoftwareOperationMock.mockResolvedValue({
+      id: 'op-123',
+      server_id: 'server-1',
+      component_key: 'reverse-proxy',
+      action: 'reinstall',
+      phase: 'succeeded',
+      terminal_status: 'success',
+      failure_reason: '',
+      event_log: '2026-04-16T02:03:10Z · Repair completed.',
+      created: '2026-04-16T02:03:04Z',
+      updated: '2026-04-16T02:03:10Z',
+    })
+
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    expect(await screen.findByRole('heading', { name: 'Addons' })).toBeInTheDocument()
+
+    const inventory = screen.getByRole('region', { name: 'Addon inventory' })
+    fireEvent.click(within(inventory).getByRole('button', { name: 'Reverse Proxy' }))
+
+    const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
+    await user.click(within(selectedAddon).getByRole('button', { name: 'Repair' }))
+
+    await within(selectedAddon).findByText('No operation history yet.')
   })
 
   it('invokes component actions and surfaces the accepted operation message', async () => {
@@ -227,7 +537,7 @@ describe('ServerComponentsPanel', () => {
 
     const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
     await user.click(within(selectedAddon).getByRole('button', { name: 'More actions' }))
-    await user.click(screen.getByRole('menuitem', { name: 'verify' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Check' }))
 
     await waitFor(() => {
       expect(invokeSoftwareActionMock).toHaveBeenCalledWith('server-1', 'reverse-proxy', 'verify', {
@@ -254,7 +564,7 @@ describe('ServerComponentsPanel', () => {
   it('executes an external monitor-agent addon action intent', async () => {
     listSoftwareComponentsMock.mockResolvedValue([
       {
-        component_key: 'monitor-agent',
+        component_key: 'appos-monitor-collector',
         label: 'Netdata Agent',
         target_type: 'server',
         template_kind: 'script-systemd',
@@ -276,7 +586,7 @@ describe('ServerComponentsPanel', () => {
         serverId="server-1"
         actionIntent={{
           serverId: 'server-1',
-          componentKey: 'monitor-agent',
+          componentKey: 'appos-monitor-collector',
           action: 'install',
           nonce: 101,
         }}
@@ -289,7 +599,7 @@ describe('ServerComponentsPanel', () => {
     await waitFor(() => {
       expect(invokeSoftwareActionMock).toHaveBeenCalledWith(
         'server-1',
-        'monitor-agent',
+        'appos-monitor-collector',
         'install',
         {
           apposBaseUrl: window.location.origin,
@@ -297,7 +607,7 @@ describe('ServerComponentsPanel', () => {
       )
     })
     expect(
-      await screen.findByText('install accepted for monitor-agent (op-123)')
+      await screen.findByText('install accepted for appos-monitor-collector (op-123)')
     ).toBeInTheDocument()
   })
 
@@ -305,7 +615,7 @@ describe('ServerComponentsPanel', () => {
     getConfiguredAppURLMock.mockResolvedValue('https://appos.example.com')
     listSoftwareComponentsMock.mockResolvedValue([
       {
-        component_key: 'monitor-agent',
+        component_key: 'appos-monitor-collector',
         label: 'Netdata Agent',
         target_type: 'server',
         template_kind: 'script-systemd',
@@ -327,7 +637,7 @@ describe('ServerComponentsPanel', () => {
         serverId="server-1"
         actionIntent={{
           serverId: 'server-1',
-          componentKey: 'monitor-agent',
+          componentKey: 'appos-monitor-collector',
           action: 'install',
           nonce: 102,
         }}
@@ -344,7 +654,7 @@ describe('ServerComponentsPanel', () => {
     await waitFor(() => {
       expect(invokeSoftwareActionMock).toHaveBeenCalledWith(
         'server-1',
-        'monitor-agent',
+        'appos-monitor-collector',
         'install',
         {
           apposBaseUrl: 'https://appos.example.com',
@@ -870,7 +1180,7 @@ describe('ServerComponentsPanel', () => {
     fireEvent.click(within(inventory).getByRole('button', { name: 'Reverse Proxy' }))
 
     const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
-    expect(within(selectedAddon).getByRole('button', { name: 'reinstall' })).toBeDisabled()
+    expect(within(selectedAddon).getByRole('button', { name: 'Repair' })).toBeDisabled()
     expect(within(selectedAddon).getByRole('button', { name: 'More actions' })).toBeDisabled()
   })
 

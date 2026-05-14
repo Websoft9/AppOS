@@ -294,7 +294,7 @@ export function TimeSeriesChart({
           .length
       : data.filter(item => Number.isFinite(item.value ?? NaN)).length
 
-  if (actualPointCount < 2) {
+  if (actualPointCount < 1) {
     return (
       <div className="flex h-24 items-center justify-center rounded-md border border-dashed text-xs text-muted-foreground">
         No trend yet
@@ -304,6 +304,7 @@ export function TimeSeriesChart({
 
   const palette = SERIES_PALETTE[name] ?? { stroke: '#475569', fill: '#94a3b8' }
   const resolvedWidth = Math.max(chartWidth, 240)
+  const showSparsePointDots = actualPointCount <= 8 && data.length > actualPointCount * 3
 
   return (
     <div
@@ -375,7 +376,11 @@ export function TimeSeriesChart({
                 stroke={hideStroke ? 'none' : segmentPalette.stroke}
                 strokeWidth={1.75}
                 fill={`url(#${gradientId})`}
-                dot={false}
+                dot={
+                  showSparsePointDots && !hideStroke
+                    ? { r: 2, strokeWidth: 0, fill: segmentPalette.stroke }
+                    : false
+                }
                 activeDot={
                   hideStroke ? false : { r: 3, strokeWidth: 0, fill: segmentPalette.stroke }
                 }
@@ -390,7 +395,7 @@ export function TimeSeriesChart({
             stroke={palette.stroke}
             strokeWidth={2}
             fill={`url(#monitor-series-${name}-value)`}
-            dot={false}
+            dot={showSparsePointDots ? { r: 2, strokeWidth: 0, fill: palette.stroke } : false}
             activeDot={{ r: 3, strokeWidth: 0, fill: palette.stroke }}
             isAnimationActive={false}
           />

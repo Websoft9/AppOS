@@ -286,6 +286,7 @@ func markSoftwareOperationEnqueueFailed(e *core.RequestEvent, record *core.Recor
 type softwareComponentListItem struct {
 	software.SoftwareComponentSummary
 	TargetType    software.TargetType                  `json:"target_type"`
+	Description   string                               `json:"description,omitempty"`
 	Preflight     *software.TargetReadinessResult      `json:"preflight,omitempty"`
 	Verification  *software.SoftwareVerificationResult `json:"verification,omitempty"`
 	LastOperation *swservice.OperationSummary          `json:"last_operation,omitempty"`
@@ -321,6 +322,7 @@ func handleSoftwareComponentList(e *core.RequestEvent) error {
 		items = append(items, softwareComponentListItem{
 			SoftwareComponentSummary: item.Summary,
 			TargetType:               item.Entry.TargetType,
+			Description:              item.Entry.Description,
 			Preflight:                item.Detail.Preflight,
 			Verification:             item.Detail.Verification,
 			LastOperation:            item.LastOperation,
@@ -415,6 +417,7 @@ func handleLocalSoftwareComponentList(e *core.RequestEvent) error {
 		resp = append(resp, softwareComponentListItem{
 			SoftwareComponentSummary: item.Summary,
 			TargetType:               item.Entry.TargetType,
+			Description:              item.Entry.Description,
 			Preflight:                item.Detail.Preflight,
 			LastOperation:            item.LastOperation,
 		})

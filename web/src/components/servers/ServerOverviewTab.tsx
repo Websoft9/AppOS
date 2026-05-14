@@ -4,11 +4,11 @@ import { Pencil } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 
-import type { ServerFactsView } from './server-detail-shared'
+import type { ServerFactsView, ServerReadModelItem } from './server-detail-shared'
 import { accessLabel, tunnelStateLabel } from './server-detail-shared'
 
 type ServerOverviewTabProps = {
-  item: Record<string, unknown>
+  item: ServerReadModelItem
   serverId: string
   facts: ServerFactsView
   status: string
@@ -23,14 +23,12 @@ type ServerOverviewTabProps = {
 const detailSectionTitleClassName = 'text-sm font-semibold text-foreground'
 
 function firstStringValue(
-  item: Record<string, unknown>,
-  keys: string[],
+  item: ServerReadModelItem,
+  key: string,
   fallback = 'Unavailable'
 ): string {
-  for (const key of keys) {
-    const value = item[key]
-    if (typeof value === 'string' && value.trim()) return value.trim()
-  }
+  const value = item[key]
+  if (typeof value === 'string' && value.trim()) return value.trim()
   return fallback
 }
 
@@ -46,18 +44,10 @@ export function ServerOverviewTab({
   createdBy,
   onEditServer,
 }: ServerOverviewTabProps) {
-  const cloudProviderName = firstStringValue(item, [
-    'cloud_provider_name',
-    'cloud_provider',
-    'provider_name',
-    'provider',
-  ])
-  const cloudProviderRegion = firstStringValue(item, [
-    'cloud_region',
-    'region',
-    'provider_region',
-    'cloud_provider_region',
-  ])
+  const cloudProviderName = firstStringValue(item, 'cloud_provider_name')
+  const cloudProviderRegion = firstStringValue(item, 'cloud_region')
+  const cloudProviderZone = firstStringValue(item, 'cloud_zone')
+  const cloudProviderSource = firstStringValue(item, 'cloud_provider_source')
 
   return (
     <div className="space-y-8">
@@ -73,7 +63,7 @@ export function ServerOverviewTab({
               onClick={onEditServer}
             >
               <Pencil className="h-3.5 w-3.5" />
-              Edit Connection
+              Edit
             </Button>
           ) : null}
         </div>
@@ -172,20 +162,6 @@ export function ServerOverviewTab({
       </section>
 
       <section className="space-y-4">
-        <h3 className={detailSectionTitleClassName}>Cloud Provider</h3>
-        <dl className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2 xl:grid-cols-3">
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Provider</dt>
-            <dd className="mt-1">{cloudProviderName}</dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Region</dt>
-            <dd className="mt-1">{cloudProviderRegion}</dd>
-          </div>
-        </dl>
-      </section>
-
-      <section className="space-y-4">
         <h3 className={detailSectionTitleClassName}>System Information</h3>
         {facts.hasFacts ? (
           <dl className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2 xl:grid-cols-3">
@@ -225,6 +201,28 @@ export function ServerOverviewTab({
             No host facts have been collected for this server yet.
           </div>
         )}
+      </section>
+
+      <section className="space-y-4">
+        <h3 className={detailSectionTitleClassName}>Cloud Provider</h3>
+        <dl className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2 xl:grid-cols-3">
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Provider</dt>
+            <dd className="mt-1">{cloudProviderName}</dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Region</dt>
+            <dd className="mt-1">{cloudProviderRegion}</dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Zone</dt>
+            <dd className="mt-1">{cloudProviderZone}</dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Source</dt>
+            <dd className="mt-1">{cloudProviderSource}</dd>
+          </div>
+        </dl>
       </section>
     </div>
   )

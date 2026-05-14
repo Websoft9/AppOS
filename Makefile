@@ -222,6 +222,11 @@ redo:
 	@docker rm -f $$(docker ps -aq --filter name=$(CONTAINER)) 2>/dev/null || true
 	@$(COMPOSE_CMD) down --timeout 5 -v 2>/dev/null || true
 	@echo "✓ Container and volumes removed"
+	@if grep -q '^APPOS_SECRET_KEY=replace-with-a-random-base64-secret' build/.env 2>/dev/null; then \
+		NEW_KEY=$$(openssl rand -base64 32); \
+		sed -i "s|^APPOS_SECRET_KEY=replace-with-a-random-base64-secret|APPOS_SECRET_KEY=$$NEW_KEY|" build/.env; \
+		echo "✓ Generated APPOS_SECRET_KEY in build/.env"; \
+	fi
 	@$(MAKE) build
 	@$(MAKE) image build-local
 	@$(MAKE) start dev
@@ -894,6 +899,11 @@ endif
 # Container Management
 # ============================================================
 start:
+	@if grep -q '^APPOS_SECRET_KEY=replace-with-a-random-base64-secret' build/.env 2>/dev/null; then \
+		NEW_KEY=$$(openssl rand -base64 32); \
+		sed -i "s|^APPOS_SECRET_KEY=replace-with-a-random-base64-secret|APPOS_SECRET_KEY=$$NEW_KEY|" build/.env; \
+		echo "✓ Generated APPOS_SECRET_KEY in build/.env"; \
+	fi
 	@if [ "$(ARG2)" = "dev" ] || [ "$(ARG2)" = "latest" ]; then \
 		IMAGE_TAG=$(ARG2); \
 		PORT=9091; \

@@ -7,7 +7,7 @@ import {
   ArrowUpDown,
   Loader2,
   MoreVertical,
-  RotateCw,
+  RefreshCw,
 } from 'lucide-react'
 
 import {
@@ -45,7 +45,7 @@ type PortsSortColumn = 'port' | 'status' | 'protocol' | 'process'
 type PortsSortDirection = 'asc' | 'desc'
 type PortStatusFilter = 'all' | 'occupied' | 'reserved'
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = 12
 const PORTS_INVENTORY_GRID_CLASS = 'grid-cols-[4.5rem_5rem_4.75rem_5.25rem_minmax(0,1fr)_2rem]'
 
 function getPortStatusLabel(row: ServerPortItem) {
@@ -335,16 +335,19 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <Button
-              size="icon"
+              size="sm"
               variant="ghost"
-              className="h-8 w-8 shrink-0"
+              className="shrink-0"
               onClick={() => void loadPorts()}
               disabled={loading || releaseSubmitting}
               aria-label="Refresh ports data"
+              title="Refresh ports data"
             >
-              <RotateCw
-                className={cn('h-4 w-4', (loading || releaseSubmitting) && 'animate-spin')}
-              />
+              {loading || releaseSubmitting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
             </Button>
           </div>
         </div>

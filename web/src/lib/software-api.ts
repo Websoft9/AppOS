@@ -6,9 +6,32 @@ import { settingsEntryPath } from '@/lib/settings-api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type SoftwareActionType = 'install' | 'upgrade' | 'verify' | 'reinstall' | 'uninstall'
+export type SoftwareActionType =
+  | 'install'
+  | 'upgrade'
+  | 'verify'
+  | 'reinstall'
+  | 'uninstall'
+  | 'start'
+  | 'stop'
+  | 'restart'
 export type InstalledState = 'installed' | 'not_installed' | 'unknown'
 export type VerificationState = 'healthy' | 'degraded' | 'unknown'
+export type ServiceStatus =
+  | 'running'
+  | 'stopped'
+  | 'installed'
+  | 'not_installed'
+  | 'needs_attention'
+  | 'unknown'
+export type AppOSConnectionStatus =
+  | 'connected'
+  | 'stale'
+  | 'not_connected'
+  | 'auth_failed'
+  | 'misconfigured'
+  | 'unknown'
+  | 'not_applicable'
 export type TemplateKind = 'package' | 'script' | 'binary' | 'docker'
 export type CatalogVisibility =
   | 'server_operations'
@@ -73,6 +96,7 @@ export interface SoftwareOperation {
 export interface SoftwareComponentSummary {
   component_key: string
   label: string
+  description?: string
   target_type: 'server' | 'local'
   template_kind: TemplateKind
   installed_state: InstalledState
@@ -81,6 +105,9 @@ export interface SoftwareComponentSummary {
   source_evidence?: string
   packaged_version?: string
   verification_state: VerificationState
+  service_status?: ServiceStatus
+  appos_connection?: AppOSConnectionStatus
+  health_reasons?: string[]
   available_actions: SoftwareActionType[]
   last_action?: SoftwareLastAction
   last_operation?: SoftwareLastOperation

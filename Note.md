@@ -154,19 +154,6 @@ Docker tab 的 container
 2. 分页 <> 中的页号与分页操作图标之间建议保持一个字符的距离即可
 
 
-Components 的 Addos 优化：
-
-1. version 列显示两个版本： 
-Target version
-Current version
-没有安装时，仅显示 target  version
-
-2. 增加一列表示安装制品格式，包含：package, binary, docker 等
-3. Component 列表格内容，增加问号，点击查看这个组件的介绍。
-3. Status 列应该表示这个组件的真实运行态，installed 其实不属于这个态。
-
-
-
 
 
 ports tab 不稳定，经常打开显示  somethins wrong

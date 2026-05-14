@@ -11,6 +11,8 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/monitor"
+	monitorstore "github.com/websoft9/appos/backend/domain/monitor/status/store"
 	"github.com/websoft9/appos/backend/domain/software"
 	swcatalog "github.com/websoft9/appos/backend/domain/software/catalog"
 	swexecutor "github.com/websoft9/appos/backend/domain/software/executor"
@@ -338,6 +340,7 @@ func (s *Service) computeComponent(
 		preflight.Issues = append(preflight.Issues, "executor_unavailable: "+executorErr.Error())
 		summary.AvailableActions = deriveAvailableActions(entry.SupportedActions, summary.InstalledState, preflight, lastOp)
 		detail.Preflight = &preflight
+		s.applyHealthProjection(entry.TargetType, targetID, entry, lastOp, &summary, &detail)
 		detail.SoftwareComponentSummary = summary
 		return ComputedComponent{Entry: entry, Resolved: resolved, Summary: summary, Detail: detail, Preflight: preflight, LastOperation: lastOp}
 	}
@@ -412,9 +415,61 @@ func (s *Service) computeComponent(
 	}
 	detail.Verification = verification
 	summary.AvailableActions = deriveAvailableActions(entry.SupportedActions, detail.InstalledState, preflight, lastOp)
+	s.applyHealthProjection(entry.TargetType, targetID, entry, lastOp, &summary, &detail)
 	detail.SoftwareComponentSummary = summary
 
 	return ComputedComponent{Entry: entry, Resolved: resolved, Summary: summary, Detail: detail, Preflight: preflight, LastOperation: lastOp}
+}
+
+func (s *Service) applyHealthProjection(
+	targetType software.TargetType,
+	targetID string,
+	entry software.CatalogEntry,
+	lastOp *OperationSummary,
+	summary *software.SoftwareComponentSummary,
+	detail *software.SoftwareComponentDetail,
+) {
+	reportingExpected := entry.ComponentKey == software.ComponentKeyMonitorAgent && targetType == software.TargetTypeServer
+	metricsFreshnessState, hasMonitorEvidence := s.monitorMetricsFreshness(targetType, targetID, reportingExpected)
+	terminal := software.TerminalStatus("")
+	if lastOp != nil {
+		terminal = lastOp.TerminalStatus
+	}
+	serviceStatus, apposConnection, reasons := software.ResolveComponentHealth(software.HealthResolutionEvidence{
+		ComponentKey:                 entry.ComponentKey,
+		InstalledState:               detail.InstalledState,
+		VerificationState:            detail.VerificationState,
+		Verification:                 detail.Verification,
+		LastOperationTerminalStatus:  terminal,
+		ReportingExpected:            reportingExpected,
+		MetricsFreshnessState:        metricsFreshnessState,
+		HasMonitorConnectionEvidence: hasMonitorEvidence,
+	})
+	summary.ServiceStatus = serviceStatus
+	summary.AppOSConnection = apposConnection
+	summary.HealthReasons = reasons
+	detail.ServiceStatus = serviceStatus
+	detail.AppOSConnection = apposConnection
+	detail.HealthReasons = reasons
+}
+
+func (s *Service) monitorMetricsFreshness(targetType software.TargetType, targetID string, reportingExpected bool) (string, bool) {
+	if !reportingExpected || targetType != software.TargetTypeServer || strings.TrimSpace(targetID) == "" {
+		return "", false
+	}
+	record, err := s.app.FindFirstRecordByFilter(
+		collections.MonitorLatestStatus,
+		"target_type = {:targetType} && target_id = {:targetID}",
+		map[string]any{"targetType": monitor.TargetTypeServer, "targetID": strings.TrimSpace(targetID)},
+	)
+	if err != nil || record == nil {
+		return "", false
+	}
+	summary, err := monitorstore.SummaryFromRecord(record)
+	if err != nil {
+		return "", true
+	}
+	return strings.TrimSpace(fmt.Sprint(summary["metrics_freshness_state"])), true
 }
 
 func (s *Service) loadProjectedComponents(
@@ -535,6 +590,8 @@ func projectedComponentFromRecord(
 		}
 	}
 	summary.AvailableActions = deriveAvailableActions(entry.SupportedActions, detail.InstalledState, preflightValue, lastOp)
+	service := Service{app: app}
+	service.applyHealthProjection(entry.TargetType, record.GetString("target_id"), entry, lastOp, &summary, &detail)
 	detail.SoftwareComponentSummary = summary
 	return ComputedComponent{
 		Entry:         entry,
@@ -583,10 +640,11 @@ func isActionAvailable(action software.Action, installedState software.Installed
 		switch action {
 		case software.ActionInstall:
 			return false
+		case software.ActionStop,
+			software.ActionRestart:
+			return true
 		case software.ActionUpgrade,
 			software.ActionStart,
-			software.ActionStop,
-			software.ActionRestart,
 			software.ActionVerify,
 			software.ActionReinstall,
 			software.ActionUninstall:

@@ -1,6 +1,7 @@
 package servers
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -47,6 +48,10 @@ type ServerViewItem struct {
 	Description     string         `json:"description"`
 	Created         string         `json:"created"`
 	Updated         string         `json:"updated"`
+	CloudProvider   string         `json:"cloud_provider_name,omitempty"`
+	CloudRegion     string         `json:"cloud_region,omitempty"`
+	CloudZone       string         `json:"cloud_zone,omitempty"`
+	CloudSource     string         `json:"cloud_provider_source,omitempty"`
 	FactsJSON       any            `json:"facts_json,omitempty"`
 	FactsObservedAt string         `json:"facts_observed_at,omitempty"`
 	Connection      ConnectionView `json:"connection"`
@@ -88,6 +93,7 @@ func BuildServerViewItem(record *core.Record, credentialType string, createdByNa
 	if item.FactsObservedAt == "0001-01-01T00:00:00Z" {
 		item.FactsObservedAt = ""
 	}
+	item.CloudProvider, item.CloudRegion, item.CloudZone, item.CloudSource = projectCloudFacts(item.FactsJSON)
 
 	if managed.ConnectType != ConnectionModeTunnel {
 		// Read the cached result of the last TCP probe (written back by the
@@ -113,6 +119,93 @@ func BuildServerViewItem(record *core.Record, credentialType string, createdByNa
 	item.Access = access
 	item.Tunnel = &tunnelView
 	return item
+}
+
+func projectCloudFacts(facts any) (provider string, region string, zone string, source string) {
+	factsMap, ok := normalizeFactsMap(facts)
+	if !ok {
+		return "", "", "", ""
+	}
+	cloudMap, ok := normalizeFactsMap(factsMap["cloud"])
+	if !ok {
+		return "", "", "", ""
+	}
+	provider = nestedString(cloudMap, "provider")
+	region = nestedString(cloudMap, "region")
+	zone = nestedString(cloudMap, "zone")
+	source = nestedString(cloudMap, "source")
+	if region == "" {
+		region = deriveRegionFromZone(zone)
+	}
+	return provider, region, zone, source
+}
+
+func nestedString(group map[string]any, key string) string {
+	if group == nil {
+		return ""
+	}
+	value, ok := group[key]
+	if !ok {
+		return ""
+	}
+	text, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(text)
+}
+
+func deriveRegionFromZone(zone string) string {
+	zone = strings.TrimSpace(zone)
+	if zone == "" {
+		return ""
+	}
+	if parts := strings.Split(zone, "-"); len(parts) > 1 {
+		last := parts[len(parts)-1]
+		if len(last) == 1 {
+			return strings.Join(parts[:len(parts)-1], "-")
+		}
+	}
+	if len(zone) < 2 {
+		return zone
+	}
+	last := zone[len(zone)-1]
+	if last >= 'a' && last <= 'z' {
+		return zone[:len(zone)-1]
+	}
+	if last >= 'A' && last <= 'Z' {
+		return zone[:len(zone)-1]
+	}
+	return zone
+}
+
+func normalizeFactsMap(value any) (map[string]any, bool) {
+	switch typed := value.(type) {
+	case map[string]any:
+		return typed, true
+	case []byte:
+		var decoded map[string]any
+		if err := json.Unmarshal(typed, &decoded); err != nil {
+			return nil, false
+		}
+		return decoded, true
+	case string:
+		var decoded map[string]any
+		if err := json.Unmarshal([]byte(typed), &decoded); err != nil {
+			return nil, false
+		}
+		return decoded, true
+	default:
+		payload, err := json.Marshal(typed)
+		if err != nil || len(payload) == 0 || string(payload) == "null" {
+			return nil, false
+		}
+		var decoded map[string]any
+		if err := json.Unmarshal(payload, &decoded); err != nil {
+			return nil, false
+		}
+		return decoded, true
+	}
 }
 
 func buildTunnelViews(server *ManagedServer, runtime TunnelRuntime, sessions *tunnelcore.Registry) (TunnelView, AccessView) {

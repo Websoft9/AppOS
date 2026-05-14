@@ -1067,7 +1067,9 @@ export function ResourcePage({ config }: { config: ResourcePageConfig }) {
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <span className="min-w-5 text-center font-medium text-foreground">{page}</span>
+            <span className="min-w-12 text-center font-medium text-foreground">
+              {page}/{totalPages}
+            </span>
             <button
               type="button"
               className="rounded p-0.5 transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"

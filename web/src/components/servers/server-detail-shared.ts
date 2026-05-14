@@ -8,6 +8,33 @@ export type ServerFactsView = {
   hasFacts: boolean
 }
 
+export type ServerReadModelItem = {
+  [key: string]: unknown
+  id?: string
+  name?: string
+  host?: string
+  port?: number | string
+  user?: string
+  created_by?: string
+  created_by_name?: string
+  connect_type?: string
+  credential?: string
+  credential_type?: string
+  description?: string
+  created?: string
+  updated?: string
+  cloud_provider_name?: string
+  cloud_region?: string
+  cloud_zone?: string
+  cloud_provider_source?: string
+  facts_json?: unknown
+  facts_observed_at?: string
+  connection?: Record<string, unknown>
+  access?: Record<string, unknown>
+  tunnel?: Record<string, unknown>
+  connection_presentation?: unknown
+}
+
 export type TunnelService = {
   service_name: string
   tunnel_port: number

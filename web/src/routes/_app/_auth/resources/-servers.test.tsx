@@ -379,7 +379,7 @@ describe('ServersPage layout', () => {
     expect(await screen.findByText('server-1')).toBeInTheDocument()
     expect(screen.getByText('Total 11 items')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Previous page' })).toBeInTheDocument()
-    expect(screen.getByText('1')).toBeInTheDocument()
+    expect(screen.getByText('1/2')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Next page' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'List settings' })).toBeInTheDocument()
   })
@@ -691,7 +691,9 @@ describe('ServersPage layout', () => {
     render(<ServersPage />)
 
     expect(await screen.findByText('alpha')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Open monitor for alpha' })).toBeInTheDocument()
+    const monitorShortcut = screen.getByRole('button', { name: 'Open monitor for alpha' })
+    expect(monitorShortcut).toBeInTheDocument()
+    expect(monitorShortcut.className).toContain('text-emerald-600')
 
     fireEvent.pointerDown(screen.getByRole('button', { name: 'Filter Secret Type' }))
     fireEvent.click((await screen.findAllByText('SSH Key')).at(-1) as HTMLElement)
@@ -823,7 +825,7 @@ describe('ServersPage layout', () => {
 
     expect(await screen.findByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Connection' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
     expect(navigateMock).toHaveBeenCalledWith({
       to: '/resources/servers',
       search: expect.any(Function),

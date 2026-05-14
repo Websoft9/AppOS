@@ -306,10 +306,13 @@ func TestHandleMonitorFactsPullWritesServerFactsSnapshot(t *testing.T) {
 		if !strings.Contains(command, "os.family") {
 			t.Fatalf("expected facts command to print os.family, got %q", command)
 		}
+		if !strings.Contains(command, "cloud.provider") {
+			t.Fatalf("expected facts command to print cloud.provider when available, got %q", command)
+		}
 		if timeout <= 0 {
 			t.Fatal("expected positive facts pull timeout")
 		}
-		return "os.family=Linux\nos.distribution=Ubuntu\nos.version=24.04\nkernel.release=6.8.0-31-generic\narchitecture=x86_64\ncpu.cores=4\nmemory.total_bytes=8589934592\n", nil
+		return "os.family=Linux\nos.distribution=Ubuntu\nos.version=24.04\nkernel.release=6.8.0-31-generic\narchitecture=x86_64\ncpu.cores=4\nmemory.total_bytes=8589934592\ncloud.provider=aws\ncloud.region=cn-northwest-1\ncloud.zone=cn-northwest-1a\ncloud.source=cloud-init\n", nil
 	})
 	defer restore()
 
@@ -336,6 +339,10 @@ func TestHandleMonitorFactsPullWritesServerFactsSnapshot(t *testing.T) {
 	osFacts := mustWorkerJSONMap(t, facts["os"])
 	if osFacts["distribution"] != "Ubuntu" {
 		t.Fatalf("expected Ubuntu facts distribution, got %+v", facts)
+	}
+	cloudFacts := mustWorkerJSONMap(t, facts["cloud"])
+	if cloudFacts["provider"] != "aws" || cloudFacts["region"] != "cn-northwest-1" || cloudFacts["source"] != "cloud-init" {
+		t.Fatalf("expected cloud facts from facts pull, got %+v", facts)
 	}
 	if got := stored.GetDateTime("facts_observed_at").Time().UTC(); got.IsZero() {
 		t.Fatal("expected facts_observed_at to be set")

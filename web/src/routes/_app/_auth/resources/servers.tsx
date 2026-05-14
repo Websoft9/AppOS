@@ -62,6 +62,7 @@ import {
   compactHostFactsSummary,
   normalizeServerFacts,
   parseTunnelServices,
+  type ServerReadModelItem,
 } from '@/components/servers/server-detail-shared'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatCreator } from '@/lib/groups'
@@ -180,8 +181,15 @@ type MonitorLatestStatusRecord = {
   last_checked_at?: string | null
 }
 
+function monitorShortcutTone(status: string): string {
+  const normalized = status.trim().toLowerCase()
+  return normalized === 'healthy' || normalized === 'online' || normalized === 'ok'
+    ? 'text-emerald-600 hover:text-emerald-700'
+    : 'text-muted-foreground hover:text-foreground'
+}
+
 function buildServerConnectionFacts(
-  item: Record<string, unknown>,
+  item: ServerReadModelItem,
   accessStatusOverride?: 'online' | 'offline'
 ) {
   return {
@@ -201,7 +209,7 @@ function buildServerConnectionFacts(
 }
 
 function readCachedConnectionPresentation(
-  item: Record<string, unknown>
+  item: ServerReadModelItem
 ): ServerConnectionPresentationSpec | null {
   const cached = asObject(item.connection_presentation)
   if (!cached) {
@@ -212,7 +220,7 @@ function readCachedConnectionPresentation(
 }
 
 function mapServerListItem(
-  item: Record<string, unknown>,
+  item: ServerReadModelItem,
   currentUserId: string | undefined,
   currentUserEmail: string | undefined,
   monitorByTargetId: Map<string, MonitorLatestStatusRecord>
@@ -703,7 +711,10 @@ export function ServersPage() {
       setConnectingOpen(false)
 
       if (typeof window !== 'undefined') {
-        const targetUrl = new URL(`/terminal/server/${encodeURIComponent(id)}`, window.location.origin)
+        const targetUrl = new URL(
+          `/terminal/server/${encodeURIComponent(id)}`,
+          window.location.origin
+        )
         window.open(targetUrl.toString(), '_blank', 'noopener,noreferrer')
       }
     },
@@ -867,7 +878,7 @@ export function ServersPage() {
 
   const listItems = useCallback(async () => {
     const [serverResponse, monitorResponse] = await Promise.all([
-      pb.send<{ items?: Array<Record<string, unknown>> }>('/api/servers/connection', {
+      pb.send<{ items?: ServerReadModelItem[] }>('/api/servers/connection', {
         method: 'GET',
       }),
       pb.send<{ items?: MonitorLatestStatusRecord[] }>(
@@ -1009,10 +1020,13 @@ export function ServersPage() {
           return (
             <button
               type="button"
-              className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground"
+              className={cn(
+                'inline-flex items-center transition-colors',
+                monitorShortcutTone(status)
+              )}
               aria-label={`Open monitor for ${name}`}
               title={
-                reason ? `Monitoring active: ${status}. ${reason}` : `Monitoring active: ${status}`
+                reason ? `Monitoring status: ${status}. ${reason}` : `Monitoring status: ${status}`
               }
               onClick={event => {
                 event.stopPropagation()
@@ -1341,7 +1355,7 @@ export function ServersPage() {
                 serverName={String(item.name || item.id || '')}
                 connectionStatus={status}
                 onOpenComponents={() => handleOpenServer(item, 'components')}
-                onMonitorAgentAction={(action: 'install' | 'upgrade') => {
+                onMonitorAgentAction={(action: 'install' | 'upgrade' | 'reinstall') => {
                   setComponentActionIntent({
                     serverId: id,
                     componentKey: 'monitor-agent',

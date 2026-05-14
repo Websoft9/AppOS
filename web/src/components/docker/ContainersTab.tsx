@@ -54,6 +54,7 @@ import {
 import {
   Play,
   Square,
+  RefreshCw,
   RotateCw,
   Trash2,
   MoreVertical,
@@ -791,15 +792,19 @@ export function ContainersTab({
                 </Button>
               </div>
               <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
+                variant="ghost"
+                size="sm"
+                className="shrink-0"
                 onClick={() => onRefresh?.()}
                 disabled={refreshDisabled || refreshing}
                 title="Refresh Docker data"
                 aria-label="Refresh Docker data"
               >
-                <RotateCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
+                {refreshing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

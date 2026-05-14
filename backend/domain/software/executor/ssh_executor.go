@@ -412,10 +412,10 @@ func (e *SSHExecutor) Uninstall(ctx context.Context, serverID string, tpl softwa
 
 // Verify checks the component's current state using the template's verify strategy.
 // Only "systemd" strategy is supported for server-target components.
-func (e *SSHExecutor) Verify(ctx context.Context, _ string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+func (e *SSHExecutor) Verify(ctx context.Context, serverID string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
 	switch tpl.Verify.Strategy {
 	case "systemd":
-		return e.verifySystemd(ctx, tpl)
+		return e.verifySystemd(ctx, serverID, tpl)
 	default:
 		return software.SoftwareComponentDetail{}, fmt.Errorf("unsupported verify strategy %q for component %s", tpl.Verify.Strategy, tpl.ComponentKey)
 	}
@@ -433,7 +433,7 @@ func (e *SSHExecutor) Reinstall(ctx context.Context, serverID string, tpl softwa
 
 // verifySystemd checks a systemd service unit and returns the component detail.
 // It detects installed state and version as part of the same pass.
-func (e *SSHExecutor) verifySystemd(ctx context.Context, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+func (e *SSHExecutor) verifySystemd(ctx context.Context, serverID string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
 	svc := tpl.Verify.ServiceName
 	out, _ := e.runCommand(ctx,
 		fmt.Sprintf("systemctl is-active %s 2>/dev/null; true", terminal.ShellQuote(svc)),
@@ -455,6 +455,9 @@ func (e *SSHExecutor) verifySystemd(ctx context.Context, tpl software.ResolvedTe
 	detail.SourceEvidence = detection.SourceEvidence
 	detail.VerificationState = vState
 	detail.ServiceName = svc
+	if tpl.ComponentKey == software.ComponentKeyMonitorAgent {
+		applyMonitorAgentReportingVerification(ctx, e, &detail, serverID, strings.TrimSpace(out) == "active")
+	}
 	if tpl.ComponentKey == software.ComponentKeyDocker {
 		composeVersionOut, _ := e.runCommand(ctx, "docker compose version --short 2>/dev/null || true", verifyTimeout)
 		composeVersion := strings.TrimSpace(firstLine(composeVersionOut))
@@ -477,6 +480,68 @@ func (e *SSHExecutor) verifySystemd(ctx context.Context, tpl software.ResolvedTe
 		}
 	}
 	return detail, nil
+}
+
+func applyMonitorAgentReportingVerification(ctx context.Context, e *SSHExecutor, detail *software.SoftwareComponentDetail, serverID string, runtimeActive bool) {
+	out, _ := e.runCommand(ctx, monitorAgentReportingConfigCommand(serverID), verifyTimeout)
+	checks := parseBoolKeyValueOutput(out)
+
+	configPresent := checks["config_present"]
+	enabled := checks["enabled"]
+	destinationConfigured := checks["destination_configured"]
+	usernameOK := checks["username_ok"]
+	passwordConfigured := checks["password_configured"]
+	reportingConfigured := configPresent && enabled && destinationConfigured && usernameOK && passwordConfigured
+
+	reason := ""
+	if runtimeActive && !reportingConfigured {
+		detail.VerificationState = software.VerificationStateDegraded
+		reason = "monitor remote-write configuration is incomplete"
+	}
+
+	detail.Verification = &software.SoftwareVerificationResult{
+		State:  detail.VerificationState,
+		Reason: reason,
+		Details: map[string]any{
+			"runtime_active":                   runtimeActive,
+			"remote_write_config_present":      configPresent,
+			"remote_write_enabled":             enabled,
+			"remote_write_destination_present": destinationConfigured,
+			"remote_write_username_matches":    usernameOK,
+			"remote_write_password_present":    passwordConfigured,
+		},
+	}
+}
+
+func monitorAgentReportingConfigCommand(serverID string) string {
+	quotedServerID := terminal.ShellQuote(serverID)
+	return strings.Join([]string{
+		fmt.Sprintf("expected_server_id=%s", quotedServerID),
+		"conf=",
+		"for p in /etc/netdata/exporting.conf /opt/netdata/etc/netdata/exporting.conf; do",
+		"  if sudo test -f \"$p\" 2>/dev/null || test -f \"$p\" 2>/dev/null; then conf=\"$p\"; break; fi",
+		"done",
+		"if [ -z \"$conf\" ]; then echo config_present=false; exit 0; fi",
+		"content=$(sudo cat \"$conf\" 2>/dev/null || cat \"$conf\" 2>/dev/null || true)",
+		"echo config_present=true",
+		"printf '%s\n' \"$content\" | grep -Eiq '^[[:space:]]*enabled[[:space:]]*=[[:space:]]*yes[[:space:]]*$' && echo enabled=true || echo enabled=false",
+		"printf '%s\n' \"$content\" | grep -Eiq '^[[:space:]]*destination[[:space:]]*=[[:space:]]*[^[:space:]]+' && echo destination_configured=true || echo destination_configured=false",
+		"actual_username=$(printf '%s\n' \"$content\" | awk -F= 'tolower($1) ~ /^[[:space:]]*username[[:space:]]*$/ {gsub(/^[ \\t]+|[ \\t]+$/, \"\", $2); print $2; exit}')",
+		"[ \"$actual_username\" = \"$expected_server_id\" ] && echo username_ok=true || echo username_ok=false",
+		"printf '%s\n' \"$content\" | grep -Eiq '^[[:space:]]*password[[:space:]]*=[[:space:]]*.+' && echo password_configured=true || echo password_configured=false",
+	}, "\n")
+}
+
+func parseBoolKeyValueOutput(out string) map[string]bool {
+	result := map[string]bool{}
+	for _, line := range strings.Split(out, "\n") {
+		key, value, ok := strings.Cut(strings.TrimSpace(line), "=")
+		if !ok {
+			continue
+		}
+		result[strings.TrimSpace(key)] = strings.EqualFold(strings.TrimSpace(value), "true")
+	}
+	return result
 }
 
 func (e *SSHExecutor) detectDockerInstallSource(ctx context.Context, tpl software.ResolvedTemplate) (software.InstallSource, string) {

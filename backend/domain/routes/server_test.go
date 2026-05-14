@@ -287,6 +287,12 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 		"memory": map[string]any{
 			"total_bytes": float64(8589934592),
 		},
+		"cloud": map[string]any{
+			"provider": "aws",
+			"region":   "cn-northwest-1",
+			"zone":     "cn-northwest-1a",
+			"source":   "cloud-init",
+		},
 	})
 	direct.Set("facts_observed_at", "2026-04-22 10:30:00.000Z")
 	// Simulate a previously successful probe persisted to the DB (the new
@@ -325,6 +331,10 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 			Name            string         `json:"name"`
 			CreatedByName   string         `json:"created_by_name"`
 			CredentialType  string         `json:"credential_type"`
+			CloudProvider   string         `json:"cloud_provider_name"`
+			CloudRegion     string         `json:"cloud_region"`
+			CloudZone       string         `json:"cloud_zone"`
+			CloudSource     string         `json:"cloud_provider_source"`
 			FactsJSON       map[string]any `json:"facts_json"`
 			FactsObservedAt string         `json:"facts_observed_at"`
 			Connection      struct {
@@ -423,6 +433,9 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 		if item.FactsJSON["architecture"] != "amd64" {
 			t.Fatalf("expected direct facts_json architecture, got %#v", item.FactsJSON)
 		}
+		if item.CloudProvider != "aws" || item.CloudRegion != "cn-northwest-1" || item.CloudZone != "cn-northwest-1a" || item.CloudSource != "cloud-init" {
+			t.Fatalf("expected projected cloud fields, got provider=%q region=%q zone=%q source=%q", item.CloudProvider, item.CloudRegion, item.CloudZone, item.CloudSource)
+		}
 		osFacts, ok := item.FactsJSON["os"].(map[string]any)
 		if !ok || osFacts["distribution"] != "ubuntu" {
 			t.Fatalf("expected direct os facts, got %#v", item.FactsJSON)
@@ -445,6 +458,69 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 	if got := byName["tunnel-b"]; got.CredentialType != "Password" {
 		t.Fatalf("expected tunnel credential type Password, got %#v", got)
 	}
+}
+
+func TestServersViewDerivesCloudRegionFromZone(t *testing.T) {
+	ensureConnectorSecretRuntime(t)
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	secret := createRouteSecret(t, te, "global", "")
+	server := createServerRecord(t, te, "direct-zone-only", "10.0.0.3", 22, "root", "password")
+	server.Set("connect_type", "direct")
+	server.Set("credential", secret.Id)
+	server.Set("facts_json", map[string]any{
+		"os": map[string]any{
+			"family":       "linux",
+			"distribution": "ubuntu",
+			"version":      "24.04",
+		},
+		"kernel": map[string]any{
+			"release": "6.8.0",
+		},
+		"architecture": "amd64",
+		"cpu": map[string]any{
+			"cores": float64(4),
+		},
+		"memory": map[string]any{
+			"total_bytes": float64(8589934592),
+		},
+		"cloud": map[string]any{
+			"provider": "gcp",
+			"zone":     "us-central1-a",
+			"source":   "cloud-init",
+		},
+	})
+	if err := te.app.Save(server); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := te.doServer(t, http.MethodGet, "/api/servers/connection", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []struct {
+			Name          string `json:"name"`
+			CloudProvider string `json:"cloud_provider_name"`
+			CloudRegion   string `json:"cloud_region"`
+			CloudZone     string `json:"cloud_zone"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	for _, item := range payload.Items {
+		if item.Name != "direct-zone-only" {
+			continue
+		}
+		if item.CloudProvider != "gcp" || item.CloudRegion != "us-central1" || item.CloudZone != "us-central1-a" {
+			t.Fatalf("expected projected zone-derived region, got %+v", item)
+		}
+		return
+	}
+	t.Fatal("expected direct-zone-only item in response")
 }
 
 func TestServersViewUsesControlReachabilityAccessCache(t *testing.T) {

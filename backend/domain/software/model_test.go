@@ -30,7 +30,7 @@ func TestComponentKeyConstants(t *testing.T) {
 	}{
 		// Only server-target keys are constants; local keys live in catalog YAML.
 		{ComponentKeyDocker, "docker"},
-		{ComponentKeyMonitorAgent, "monitor-agent"},
+		{ComponentKeyMonitorAgent, "appos-monitor-collector"},
 		{ComponentKeyReverseProxy, "reverse-proxy"},
 	}
 	for _, c := range cases {
@@ -219,6 +219,9 @@ func TestSoftwareComponentSummaryJSON(t *testing.T) {
 		SourceEvidence:    "apt:docker-ce",
 		PackagedVersion:   "26.1.4",
 		VerificationState: VerificationStateHealthy,
+		ServiceStatus:     ServiceStatusRunning,
+		AppOSConnection:   AppOSConnectionNotApplicable,
+		HealthReasons:     []string{"verification_state:healthy", "appos_connection:not_applicable"},
 		AvailableActions:  []Action{ActionUpgrade, ActionVerify},
 		LastAction: &SoftwareDeliveryLastAction{
 			Action: "verify",
@@ -252,6 +255,9 @@ func TestSoftwareComponentSummaryJSON(t *testing.T) {
 	mustHaveKey("source_evidence")
 	mustHaveKey("packaged_version")
 	mustHaveKey("verification_state")
+	mustHaveKey("service_status")
+	mustHaveKey("appos_connection")
+	mustHaveKey("health_reasons")
 	mustHaveKey("available_actions")
 	mustHaveKey("last_action")
 
@@ -260,6 +266,12 @@ func TestSoftwareComponentSummaryJSON(t *testing.T) {
 	}
 	if m["installed_state"] != "installed" {
 		t.Errorf("installed_state: got %v, want installed", m["installed_state"])
+	}
+	if m["service_status"] != "running" {
+		t.Errorf("service_status: got %v, want running", m["service_status"])
+	}
+	if m["appos_connection"] != "not_applicable" {
+		t.Errorf("appos_connection: got %v, want not_applicable", m["appos_connection"])
 	}
 }
 

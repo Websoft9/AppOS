@@ -173,7 +173,7 @@ describe('MonitorTargetPanel', () => {
     expect(screen.getByText('CPU')).toBeInTheDocument()
     expect(screen.getByText('Memory')).toBeInTheDocument()
     expect(screen.getByText('Disk Usage')).toBeInTheDocument()
-    expect(screen.getByText('Disk')).toBeInTheDocument()
+    expect(screen.getByText('Disk IO')).toBeInTheDocument()
     expect(screen.getByText('Network Traffic')).toBeInTheDocument()
     expect(screen.getByText('Network Speed')).toBeInTheDocument()
     expect(screen.getByLabelText('Network interface')).toBeInTheDocument()
@@ -522,7 +522,7 @@ describe('MonitorTargetPanel', () => {
       .mockResolvedValueOnce({
         targetType: 'server',
         targetId: 'srv-2',
-        window: '1d',
+        window: '24h',
         selectedNetworkInterface: 'all',
         series: [
           {
@@ -620,11 +620,11 @@ describe('MonitorTargetPanel', () => {
       screen.getByText('Last twelve hours trends from the monitoring time-series backend.')
     ).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: '1d' }))
+    fireEvent.click(screen.getByRole('button', { name: '24h' }))
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
-        '/api/monitor/targets/server/srv-2/series?window=1d&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
+        '/api/monitor/targets/server/srv-2/series?window=24h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
         { method: 'GET' }
       )
     })
@@ -667,6 +667,166 @@ describe('MonitorTargetPanel', () => {
     expect(screen.queryByText('Custom time range')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Custom' })).not.toBeInTheDocument()
   }, 15000)
+
+  it('keeps current snapshot on a short window when trend window changes', async () => {
+    sendMock
+      .mockResolvedValueOnce({
+        hasData: true,
+        targetType: 'server',
+        targetId: 'srv-detail',
+        displayName: 'detail-server',
+        status: 'healthy',
+        reason: null,
+        signalSource: 'agent',
+        lastTransitionAt: '2026-04-14T12:03:00Z',
+        lastSuccessAt: '2026-04-14T12:03:00Z',
+        lastFailureAt: null,
+        lastCheckedAt: null,
+        lastReportedAt: '2026-04-14T12:03:00Z',
+        consecutiveFailures: 0,
+        summary: {},
+      })
+      .mockResolvedValueOnce({
+        targetType: 'server',
+        targetId: 'srv-detail',
+        window: '1h',
+        selectedNetworkInterface: 'all',
+        series: [
+          {
+            name: 'cpu',
+            unit: 'percent',
+            points: [
+              [1713096000, 20],
+              [1713096060, 21],
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        targetType: 'server',
+        targetId: 'srv-detail',
+        window: '15m',
+        selectedNetworkInterface: 'all',
+        series: [
+          {
+            name: 'cpu',
+            unit: 'percent',
+            points: [
+              [1713096060, 28],
+              [1713096120, 30],
+            ],
+          },
+          {
+            name: 'disk',
+            unit: 'bytes/s',
+            segments: [
+              { name: 'read', points: [[1713096120, 8192]] },
+              { name: 'write', points: [[1713096120, 4096]] },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        targetType: 'server',
+        targetId: 'srv-detail',
+        window: '24h',
+        selectedNetworkInterface: 'all',
+        series: [
+          {
+            name: 'cpu',
+            unit: 'percent',
+            points: [
+              [1713096000, 22],
+              [1713182400, 25],
+            ],
+          },
+        ],
+      })
+
+    render(<MonitorTargetPanel targetType="server" targetId="srv-detail" layout="detail" />)
+
+    expect(await screen.findByText('Current Snapshot')).toBeInTheDocument()
+    expect(await screen.findByText('Disk IO')).toBeInTheDocument()
+    expect(screen.getByLabelText('Live current snapshot')).toBeInTheDocument()
+    expect(sendMock).toHaveBeenCalledWith(
+      '/api/monitor/targets/server/srv-detail/series?window=15m&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
+      { method: 'GET' }
+    )
+    expect(sendMock).toHaveBeenCalledWith(
+      '/api/monitor/targets/server/srv-detail/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
+      { method: 'GET' }
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '24h' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(
+        '/api/monitor/targets/server/srv-detail/series?window=24h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
+        { method: 'GET' }
+      )
+    })
+  })
+
+  it('shows a write-path warning when monitor status reports missing metrics', async () => {
+    sendMock
+      .mockResolvedValueOnce({
+        hasData: true,
+        targetType: 'server',
+        targetId: 'srv-missing-metrics',
+        displayName: 'stalled-server',
+        status: 'unknown',
+        reason: 'metrics missing',
+        signalSource: 'appos_active_check',
+        lastTransitionAt: '2026-04-14T12:03:00Z',
+        lastSuccessAt: '2026-04-14T12:03:00Z',
+        lastFailureAt: null,
+        lastCheckedAt: '2026-04-14T12:03:00Z',
+        lastReportedAt: '2026-04-14T12:03:00Z',
+        consecutiveFailures: 0,
+        summary: {
+          metrics_freshness_state: 'missing',
+          metrics_reason_code: 'metrics_missing',
+        },
+      })
+      .mockResolvedValueOnce({
+        targetType: 'server',
+        targetId: 'srv-missing-metrics',
+        window: '1h',
+        selectedNetworkInterface: 'all',
+        series: [],
+      })
+      .mockResolvedValueOnce({
+        targetType: 'server',
+        targetId: 'srv-missing-metrics',
+        window: '15m',
+        selectedNetworkInterface: 'all',
+        series: [],
+      })
+
+    const onRepair = vi.fn()
+
+    render(
+      <MonitorTargetPanel
+        targetType="server"
+        targetId="srv-missing-metrics"
+        layout="detail"
+        metricsPipelineAction={{
+          label: 'Repair monitor agent',
+          description: 'Rewrites remote-write credentials and restarts Netdata.',
+          onClick: onRepair,
+        }}
+      />
+    )
+
+    expect(
+      await screen.findByText(
+        'AppOS is not receiving usable metrics from this target. This usually indicates a monitor write-path or credential problem, not a chart rendering issue.'
+      )
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Repair monitor agent' }))
+    expect(onRepair).toHaveBeenCalledTimes(1)
+  })
 
   it('switches server network trends by interface', async () => {
     sendMock

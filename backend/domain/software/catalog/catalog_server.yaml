@@ -72,18 +72,23 @@ components:
       - install
       - upgrade
       - verify
+      - start
+      - restart
+      - stop
+      - reinstall
       - uninstall
 
   # Observability
-  - component_key: monitor-agent
+  - component_key: appos-monitor-collector
     target_type: server
     label: Netdata Agent
     capability: monitor_agent
-    template_ref: script-systemd
+    template_ref: script-install-package-systemd
     binary: netdata
     version_command: "netdata -V"
     service_name: netdata.service
     script_path: monitor-agent-install.sh
+    package_name: netdata
     description: Managed monitoring agent installer for connected servers.
     readiness_requirements:
       - verified_os_baseline
@@ -97,4 +102,8 @@ components:
       - install
       - upgrade
       - verify
+      - start
+      - restart
+      - stop
+      - reinstall
       - uninstall

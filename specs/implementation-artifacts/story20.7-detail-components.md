@@ -27,6 +27,7 @@ As a superuser, I can understand which baseline requirements are missing and whi
 3. Keep Docker-style baseline requirements out of the addon inventory group.
 4. Reduce confusion between AppOS-managed components and application-level software.
 5. Preserve one compact operational surface instead of fragmenting detail navigation.
+6. Make control-plane-reporting addons readable through separate `Service Status` and `AppOS Connection` signals.
 
 ## Out of Scope
 
@@ -204,10 +205,9 @@ Purpose:
 Show for each addon:
 
 - label
-- runtime status badge (`Running` / `Installed` / `Degraded` / `Not Installed`)
+- health/status summary, using `Service Status` and `AppOS Connection` when the component reports back to AppOS
 - detected version; show upgrade-available hint when `packaged_version` is newer
-- **artifact format** (`package` / `binary` / `docker`) — how the component is distributed and installed
-- last operation summary (action + result + relative timestamp)
+- **artifact** (`package` / `binary` / `docker` / `script`) — how the component is distributed and installed
 - available lifecycle actions driven by backend `available_actions[]`
 
 Do not show in this section:
@@ -217,25 +217,49 @@ Do not show in this section:
 - product discovery marketing content
 - generic package-manager controls
 
-### Status Semantics
+### Health Semantics
 
-Status represents the **runtime state** of the component, not just whether the files are present.
-Derive it from two backend fields: `installed_state` and `verification_state`.
+Health represents the component's current operator-facing condition, not just whether files are present.
+
+For ordinary addons, the compact inventory cell may show one service-oriented line. For control-plane-reporting addons such as the monitor agent, the UI must show two distinct dimensions:
+
+1. `Service: <status>` — whether the component itself is installed and running on the server.
+2. `AppOS: <status>` — whether the component is connected to, authenticated with, and reporting to the AppOS control plane.
+
+The detail panel uses the full field labels:
+
+| Detail label | Meaning |
+|--------------|---------|
+| `Service Status` | The addon/software runtime state on the selected server. |
+| `AppOS Connection` | The addon's connection and reporting state with the AppOS control plane. |
+
+Do not use `Host Status`, `Local Health`, or `Reporting Health` for these fields. The first dimension describes the managed software, not the host. The second dimension should name AppOS directly because the operator needs to know whether the component is connected to this control plane.
+
+Recommended value sets:
+
+| Field | Values |
+|-------|--------|
+| `Service Status` | `Running`, `Stopped`, `Installed`, `Not Installed`, `Needs Attention`, `Unknown` |
+| `AppOS Connection` | `Connected`, `Stale`, `Not Connected`, `Auth Failed`, `Misconfigured`, `Unknown` |
+
+Baseline service status still derives from backend software evidence such as `installed_state` and `verification_state`.
 
 | `installed_state` | `verification_state` | Display    | Color intent |
 |-------------------|----------------------|------------|--------------|
 | `not_installed`   | (any)                | Not Installed | muted gray |
 | `installed`       | `healthy`            | ● Running  | green       |
 | `installed`       | `unknown`            | ○ Installed | gray        |
-| `installed`       | `degraded`           | ✕ Degraded | red         |
+| `installed`       | `degraded`           | ✕ Needs Attention | red         |
 
 Rules:
 
 - Do not use `Installed` as a synonym for `Running`. `Installed` means the component is deployed but its runtime health has not been confirmed in this session.
 - Do not omit the status indicator for degraded items; it is the primary affordance for knowing where to act next.
 - `unknown` verification is expected after initial install before the first verify cycle completes.
+- For connection-aware addons, do not collapse a failed `AppOS Connection` into only a generic `Needs Attention` label. Show the connection dimension explicitly so the operator can distinguish a running service from a reporting problem.
+- The frontend displays backend-resolved service and connection fields. It should not duplicate the backend health decision tree with component-specific conditional logic.
 
-### Format Column
+### Artifact Column
 
 Display the artifact distribution format of the component, sourced from `template_kind` in the backend.
 
@@ -251,43 +275,57 @@ Rules:
 - Render as a compact muted badge or plain text label; not an action affordance.
 - If `template_kind` is absent or unrecognised, omit the cell rather than showing a placeholder.
 - `docker` is planned as a future `template_kind` value; the column should handle it when the backend exposes it.
+- Use `Artifact` as the column label. Do not use `Package Type` or `Format` as the final product-facing column label.
 
 ### Version Column
 
-- Primary value: `detected_version` from the latest verification pass.
-- If `detected_version` is absent (not verified yet), show `—`.
-- If backend `packaged_version` is available and is greater than `detected_version`, append a secondary line: `(x.y.z avail)` to signal an upgrade is available.
-- Do not show `packaged_version` alone without also showing the current version.
+- Primary line: `Installed: <detected_version>` from the latest verification pass.
+- If `detected_version` is absent, show `Installed: —`.
+- Secondary line: `Latest: <packaged_version>` when backend `packaged_version` is available.
+- If `packaged_version` is newer or different from `detected_version`, emphasize the `Latest` line as an upgrade hint.
+- Do not show `packaged_version` as the only value without making clear that the installed version is unknown.
 
 ### Actions Pattern
 
-- Each row exposes a `[···]` dropdown menu listing all entries in `available_actions[]`.
-- When a component has a high-priority corrective action implied by its status, surface it as an additional inline button alongside the dropdown:
-  - `Not Installed` state → `[Install]` inline
-  - `Degraded` state → `[Reinstall]` inline
-- While an operation is in flight for a component, disable all its action controls and show a spinner.
+- Each row exposes one primary recommended action plus a vertical three-dot dropdown.
+- The dropdown lists the complete known action set, grouped as `Recommended`, `Secondary`, and `Dangerous`.
+- The full action set is `Install`, `Check`, `Start`, `Restart`, `Stop`, `Upgrade`, `Repair`, `Remove`.
+- Product-facing labels must map backend actions as follows:
+  - `verify` → `Check`
+  - `reinstall` → `Repair`
+  - `uninstall` → `Remove`
+- Unavailable actions remain visible but disabled/locked so the operator can understand the lifecycle model without guessing what is hidden.
+- While any addon operation is in flight, disable other addon action controls to prevent overlapping lifecycle mutations.
 - Lifecycle actions are asynchronous. On trigger, the API returns `202 Accepted` with an `operation_id`. The UI must not block waiting for the response to become `succeeded`.
 
 ### Async Operation Progress
 
-When the operator triggers a lifecycle action, an inline progress area expands at the bottom of the Addons section (not a modal, not a separate page).
+When the operator triggers a lifecycle action, the UI keeps the operator in the Addons context and opens the affected component in the `Selected Addon` panel.
 
-The inline progress area shows:
+The `Selected Addon` panel has three tabs:
+
+1. `Details`
+2. `Live Log`
+3. `History`
+
+`Live Log` is always visible. Before any action runs, its empty state is:
+
+`No live log yet. Run an action to stream updates here.`
+
+When an action starts, the panel switches to `Live Log` and shows:
 
 1. **Component name and action being run**, e.g. `Monitor Agent — upgrade in progress`
 2. **Phase indicator**: current phase from `accepted → preflight → executing → verifying → succeeded / failed`
-3. **Progress bar**: advances as phase progresses; exact percentage is not available, so animate as indeterminate within each phase segment
-4. **Live execution log**: tail of `execution_log` from the operation record, updated by polling `GET /software/operations/{operation_id}` every 2 seconds while `terminal_status = none`
-5. **Elapsed timer**: counts up from 0 from the moment the action was triggered
-6. **Cancel button**: visible while the operation is in flight (maps to a cancel endpoint if available)
+3. **Live execution log**: request, acceptance, and operation poll events from the operation record, updated by polling `GET /software/operations/{operation_id}` every 2 seconds while `terminal_status = none`
+4. **Failure reason** when the terminal state is failed or attention-required
 
 Polling stops when `terminal_status` is `success` or `failed`.
 
 On terminal state:
-- **success**: collapse the progress area after a brief delay (2–3 s), reload the component list to reflect the new state
-- **failed**: keep the progress area open, show `failure_reason` prominently, offer a retry or alternative action button
+- **success**: reload the component list to reflect the new state and switch the selected component panel back to `History`
+- **failed**: keep the log and failure reason visible, then allow the operator to inspect `History` or run a retry/repair action when available
 
-Only one operation progress area is shown at a time. If the operator triggers a second action while one is running, show a confirmation or queue notice.
+Only one addon lifecycle operation should be active at a time in this tab. While one addon operation is in flight, other addon actions are disabled/locked until the operation completes.
 
 Data source for the progress area (`SoftwareOperation` record):
 
@@ -298,7 +336,7 @@ Data source for the progress area (`SoftwareOperation` record):
 | `phase`          | phase indicator; step through the phase sequence |
 | `terminal_status`| `none` = in-flight; `success` / `failed` = done  |
 | `failure_reason` | displayed when `terminal_status = failed`        |
-| `execution_log`  | scrolling tail in the log area                   |
+| `execution_log` or `event_log` | scrolling tail in the Live Log area |
 | `updated`        | used to derive elapsed time                      |
 
 ## UX Contract
@@ -315,8 +353,8 @@ Data source for the progress area (`SoftwareOperation` record):
 - Prerequisites should surface one best corrective action when available.
 - Addons should continue to expose supported lifecycle actions from backend truth.
 - Blocked addons should explain which prerequisite is missing instead of silently disabling actionability.
-- Triggering a lifecycle action on an addon must show progress inline within the Addons section; do not navigate away or open a modal.
-- While an operation is in flight, disable action controls on the affected addon row only; other rows remain interactive.
+- Triggering a lifecycle action on an addon must select/open that addon and show progress in the `Selected Addon` panel; do not navigate away or open a modal.
+- While an addon operation is in flight, disable addon action controls globally until that operation reaches a terminal state.
 
 ### Language
 
@@ -359,73 +397,67 @@ ADDONS
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │ Addons                                                                         [↻ Refresh] │
 │ Optional components AppOS can inspect, verify, install or repair.                          │
-├──────────────────┬──────────────┬─────────────┬──────────┬──────────────────┬─────────────┤
-│ Component        │ Status       │ Version     │ Format   │ Last Activity    │ Actions     │
-├──────────────────┼──────────────┼─────────────┼──────────┼──────────────────┼─────────────┤
-│ Nginx            │ ● Running    │ 1.26.2      │ package  │ Verified 2h ago  │ [···]       │
-│ Reverse Proxy    │              │             │          │                  │             │
-├──────────────────┼──────────────┼─────────────┼──────────┼──────────────────┼─────────────┤
-│ Monitor Agent    │ ○ Installed  │ 1.44.1      │ docker   │ Installed 1d ago │ [···]       │
-│                  │              │ (1.45.0 avail         │                  │             │
-├──────────────────┼──────────────┼─────────────┼──────────┼──────────────────┼─────────────┤
-│ AppOS Agent      │ ✕ Degraded   │ 2.1.0       │ binary   │ Failed 10m ago   │ [Reinstall] │
-│                  │              │             │          │ service inactive │ [···]       │
-├──────────────────┼──────────────┼─────────────┼──────────┼──────────────────┼─────────────┤
-│ Certbot          │   Not        │ —           │ binary   │ Never            │ [Install]   │
-│                  │   Installed  │             │          │                  │             │
-└──────────────────┴──────────────┴─────────────┴──────────┴──────────────────┴─────────────┘
+├──────────────────┬────────────────────┬────────────────┬──────────────┬─────────────┤
+│ Component        │ Health             │ Version        │ Artifact     │ Actions     │
+├──────────────────┼────────────────────┼────────────────┼──────────────┼─────────────┤
+│ Reverse Proxy    │ Service: Running   │ Installed: 1.26│ package      │ [Check] [⋮] │
+│                  │                    │ Latest: 1.26   │              │             │
+├──────────────────┼────────────────────┼────────────────┼──────────────┼─────────────┤
+│ Monitor Agent    │ Service: Running   │ Installed: 1.44│ script       │ [Check] [⋮] │
+│                  │ AppOS: Connected   │ Latest: 1.45   │              │             │
+├──────────────────┼────────────────────┼────────────────┼──────────────┼─────────────┤
+│ Web Cache        │ Service: Needs Attn│ Installed: 2.1 │ binary       │ [Repair][⋮] │
+│                  │                    │ Latest: 2.1    │              │             │
+├──────────────────┼────────────────────┼────────────────┼──────────────┼─────────────┤
+│ Certbot          │ Service: Not Inst. │ Installed: —   │ binary       │ [Install][⋮]│
+│                  │                    │ Latest: 1.2    │              │             │
+└──────────────────┴────────────────────┴────────────────┴──────────────┴─────────────┘
 ```
 
 ### In-flight state (operation triggered on Monitor Agent)
 
-The inline progress area expands below the Addons table. No modal, no page change.
+The selected addon panel switches to `Live Log`. No modal, no page change.
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │ Addons                                                                         [↻ Refresh] │
-├──────────────────┬──────────────┬─────────────┬──────────┬──────────────────┬─────────────┤
-│ Component        │ Status       │ Version     │ Format   │ Last Activity    │ Actions     │
-├──────────────────┼──────────────┼─────────────┼──────────┼──────────────────┼─────────────┤
-│ Nginx            │ ● Running    │ 1.26.2      │ package  │ Verified 2h ago  │ [···]       │
-├──────────────────┼──────────────┼─────────────┼──────────┼──────────────────┼─────────────┤
-│ Monitor Agent    │ ○ Installed  │ 1.44.1      │ docker   │ upgrade ...  ⟳   │ [···] (dis.)│
-│                  │              │(1.45.0 avail│          │                  │             │
-├──────────────────┼──────────────┼─────────────┼──────────┼──────────────────┼─────────────┤
-│ AppOS Agent      │ ✕ Degraded   │ 2.1.0       │ binary   │ Failed 10m ago   │ [Reinstall] │
-├──────────────────┼──────────────┼─────────────┼──────────┼──────────────────┼─────────────┤
-│ Certbot          │   Not Inst.  │ —           │ binary   │ Never            │ [Install]   │
-├──────────────────┴──────────────┴─────────────┴──────────┴──────────────────┴─────────────┤
+├──────────────────┬────────────────────┬────────────────┬──────────────┬─────────────┤
+│ Component        │ Health             │ Version        │ Artifact     │ Actions     │
+├──────────────────┼────────────────────┼────────────────┼──────────────┼─────────────┤
+│ Reverse Proxy    │ Service: Running   │ Installed: 1.26│ package      │ [⋮] locked │
+├──────────────────┼────────────────────┼────────────────┼──────────────┼─────────────┤
+│ Monitor Agent    │ Service: Running   │ Installed: 1.44│ script       │ [⋮] active │
+│                  │ AppOS: Connected   │ Latest: 1.45   │              │             │
+├──────────────────┼────────────────────┼────────────────┼──────────────┼─────────────┤
+│ Certbot          │ Service: Not Inst. │ Installed: —   │ binary       │ [⋮] locked │
+└──────────────────┴────────────────────┴────────────────┴──────────────┴─────────────┘
+
+SELECTED ADDON
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ Monitor Agent                                                   [Check] [⋮]     │
+│ [Details] [Live Log] [History]                         Monitor Agent Log       │
 │                                                                                 │
-│  ▼ Monitor Agent — upgrade in progress ─────────────────────────── ⏱ 0:42      │
-│  ┌───────────────────────────────────────────────────────────────────────────┐  │
-│  │ phase: executing                                                          │  │
-│  │ accepted ──► preflight ──► [executing] ──► verifying ──► succeeded       │  │
-│  │ ░░░░░░░░░░░░░░░░░░██████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │  │
-│  │                                                                           │  │
-│  │ → Stopping monitor-agent.service                                          │  │
-│  │ → Downloading netdata v1.45.0...                                          │  │
-│  │ → Installing package...                                          ▌ live   │  │
-│  └───────────────────────────────────────────────────────────────────────────┘  │
-│  [Cancel]                                                                       │
+│ → Check requested...                                                            │
+│ → Check accepted (op-123)                                                       │
+│ → phase: executing                                                              │
+│ → Verifying netdata.service                                                     │
+│ → Checking AppOS remote-write configuration                                     │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Failed state (operation ended with failure_reason)
 
 ```text
-│  ▼ Monitor Agent — upgrade failed ──────────────────────────────── ⏱ 1:13      │
-│  ┌───────────────────────────────────────────────────────────────────────────┐  │
-│  │ phase: failed                                                             │  │
-│  │ accepted ──► preflight ──► executing ──► [failed]                        │  │
-│  │                                                                           │  │
-│  │ Failure: package checksum mismatch, installation rolled back              │  │
-│  │                                                                           │  │
-│  │ → Stopping monitor-agent.service                                          │  │
-│  │ → Downloading netdata v1.45.0...                                          │  │
-│  │ ERROR: checksum mismatch — expected abc123, got 000000                    │  │
-│  │ → Rolling back to 1.44.1...                                     ✓ done   │  │
-│  └───────────────────────────────────────────────────────────────────────────┘  │
-│  [Retry]  [Dismiss]                                                             │
+SELECTED ADDON
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ Monitor Agent                                                   [Repair] [⋮]    │
+│ [Details] [Live Log] [History]                         Monitor Agent Log       │
+│                                                                                 │
+│ → phase: failed                                                                 │
+│ → Failure: remote-write credentials are missing                                 │
+│ → netdata.service is running                                                    │
+│ → AppOS connection is not configured                                            │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Ownership Boundary
@@ -453,24 +485,27 @@ Story 29.3 owns:
 - Docker Engine and Docker Compose version facts are visible as compact prerequisite facts
 - addon rows remain operational and lifecycle-oriented rather than becoming a discovery catalog
 - the tab language reduces confusion between managed server components and application-level software
-- addon `Status` column reflects runtime state using the four-value semantics: `Running`, `Installed`, `Degraded`, `Not Installed` — derived from `installed_state` + `verification_state`
+- addon `Health` column reflects service status using the semantics: `Running`, `Stopped`, `Installed`, `Needs Attention`, `Not Installed`, `Unknown` — derived from backend-resolved component status
+- connection-aware addons show `Service: <status>` and `AppOS: <status>` in the inventory row, and `Service Status` plus `AppOS Connection` in the selected addon detail panel
+- the UI does not use `Host Status`, `Local Health`, or `Reporting Health` for the addon status dimensions
 - `Running` and `Installed` are never used interchangeably: `Running` requires `verification_state = healthy`
-- the version column shows `detected_version` and a secondary upgrade-available hint when `packaged_version` is newer
-- each addon row shows an artifact format cell (`package` / `binary` / `docker` / `script`) derived from `template_kind`; the cell is omitted when `template_kind` is absent
-- each addon row exposes available lifecycle actions from `available_actions[]` via a `[···]` dropdown
-- high-priority corrective actions (`Install` for uninstalled, `Reinstall` for degraded) are surfaced as inline buttons alongside the dropdown
-- triggering a lifecycle action opens an inline progress area within the Addons section (no modal, no page navigation)
-- the inline progress area shows: current phase, phase sequence indicator, live execution log tail, elapsed timer
+- the version column shows `Installed: <detected_version>` and `Latest: <packaged_version>` when available, emphasizing `Latest` when it differs from the installed version
+- each addon row shows an `Artifact` cell (`package` / `binary` / `docker` / `script`) derived from `template_kind`; the cell is omitted when `template_kind` is absent
+- each addon row exposes a primary recommended action plus a vertical three-dot dropdown
+- the dropdown shows the complete known lifecycle action set with unavailable actions visible but disabled/locked
+- triggering a lifecycle action selects the addon and opens the `Live Log` tab in the `Selected Addon` panel (no modal, no page navigation)
+- `Live Log` is always visible and shows the empty-state text `No live log yet. Run an action to stream updates here.` before any action runs
+- the `Live Log` tab shows: current phase, request/acceptance messages, live execution log tail, and failure reason when present
 - the progress area polls `GET /software/operations/{operation_id}` every 2 seconds while `terminal_status = none`
-- on `terminal_status = success`: progress area auto-collapses and the component list reloads
-- on `terminal_status = failed`: progress area stays open with `failure_reason` displayed and a retry affordance
-- action controls on the affected component are disabled while its operation is in flight
+- on terminal success: the component list reloads and the selected addon panel switches to `History`
+- on terminal failure: the log remains available with `failure_reason` displayed and retry/repair affordances when available
+- addon action controls are disabled globally while an addon operation is in flight
 
 ## Implementation Notes
 
-- preferred first implementation shape: `Components` tab + `Prerequisites` section (checklist card) + `Addons` section (table with inline progress area)
-- Status badge derives from both `installed_state` and `verification_state`; never display only one of the two as the full status
-- the inline progress area should be anchored inside the Addons section, not in a portal/overlay, so the user keeps context of what triggered it
+- preferred first implementation shape: `Components` tab + `Prerequisites` section (checklist card) + `Addons` section (table plus `Selected Addon` detail panel)
+- Health display derives from backend-resolved service and connection fields; never display only raw `installed_state` as the full status
+- addon operation progress should be anchored in the `Selected Addon` panel, not in a portal/overlay, so the user keeps context of what triggered it
 - polling is safe to implement with a `useEffect` cleanup that clears the interval when `terminal_status` is no longer `none` or the component unmounts
 - if future prerequisite capability coverage grows, keep the Prerequisites section compact and summary-first rather than turning it into a second full inventory grid
 - if a capability is not truly platform-gating, keep it in `Addons`

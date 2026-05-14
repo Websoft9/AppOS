@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { TimeSeriesChart } from '@/components/monitor/TimeSeriesChart'
 
-type MonitorSeriesWindow = '1h' | '5h' | '12h' | '1d' | '7d' | 'custom'
+type MonitorSeriesWindow = '1h' | '5h' | '12h' | '24h' | '7d' | 'custom'
 
 type CustomRangeState = {
   startLocal: string
@@ -71,9 +72,9 @@ const SERIES_WINDOWS = [
     description: 'Last twelve hours trends from the monitoring time-series backend.',
   },
   {
-    value: '1d',
-    label: '1d',
-    description: 'Last day trends from the monitoring time-series backend.',
+    value: '24h',
+    label: '24h',
+    description: 'Last 24 hours trends from the monitoring time-series backend.',
   },
   {
     value: '7d',
@@ -82,6 +83,9 @@ const SERIES_WINDOWS = [
   },
   { value: 'custom', label: 'Custom', description: 'Custom trends for a chosen time range.' },
 ] as const
+
+const SNAPSHOT_WINDOW = '15m'
+const SNAPSHOT_REALTIME_INTERVAL_MS = 2000
 
 function toLocalDateTimeInputValue(value: Date): string {
   const year = value.getFullYear()
@@ -191,6 +195,7 @@ function formatDurationSeconds(value: number): string {
 function formatLabel(value: string): string {
   const normalized = value.trim().toLowerCase()
   if (normalized === 'cpu') return 'CPU'
+  if (normalized === 'disk') return 'Disk IO'
   if (normalized === 'network') return 'Network Speed'
   if (normalized === 'network_traffic') return 'Network Traffic'
 
@@ -262,18 +267,53 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
   }
 }
 
+function monitorMetricsPipelineWarning(data: MonitorTargetResponse | null): string | null {
+  if (!data) return null
+  const status = String(data.status ?? '')
+    .trim()
+    .toLowerCase()
+  const reason = String(data.reason ?? '')
+    .trim()
+    .toLowerCase()
+  const metricsFreshnessState = String(data.summary?.metrics_freshness_state ?? '')
+    .trim()
+    .toLowerCase()
+  const metricsReasonCode = String(data.summary?.metrics_reason_code ?? '')
+    .trim()
+    .toLowerCase()
+
+  const missingMetrics =
+    reason.includes('metrics missing') ||
+    metricsFreshnessState === 'missing' ||
+    metricsReasonCode === 'metrics_missing'
+
+  if (!missingMetrics) return null
+
+  if (status === 'unknown' || status === 'degraded' || status === 'healthy') {
+    return 'AppOS is not receiving usable metrics from this target. This usually indicates a monitor write-path or credential problem, not a chart rendering issue.'
+  }
+
+  return null
+}
+
 export function MonitorTargetPanel({
   targetType,
   targetId,
   emptyMessage,
   layout = 'default',
   refreshKey = 0,
+  metricsPipelineAction,
 }: {
   targetType: string
   targetId: string
   emptyMessage?: string
   layout?: 'default' | 'detail'
   refreshKey?: number
+  metricsPipelineAction?: {
+    label: string
+    description?: string
+    onClick: () => void
+  }
 }) {
   const [data, setData] = useState<MonitorTargetResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -281,6 +321,9 @@ export function MonitorTargetPanel({
   const [error, setError] = useState('')
   const [series, setSeries] = useState<MonitorSeriesResponse | null>(null)
   const [seriesLoading, setSeriesLoading] = useState(false)
+  const [snapshotSeries, setSnapshotSeries] = useState<MonitorSeriesResponse | null>(null)
+  const [snapshotLoading, setSnapshotLoading] = useState(false)
+  const [snapshotRealtime, setSnapshotRealtime] = useState(false)
   const [selectedWindow, setSelectedWindow] = useState<MonitorSeriesWindow>('1h')
   const [selectedNetworkInterface, setSelectedNetworkInterface] = useState('all')
   const [draftCustomRange, setDraftCustomRange] = useState<CustomRangeState>(() =>
@@ -290,6 +333,7 @@ export function MonitorTargetPanel({
     createDefaultCustomRange()
   )
   const [customRangeOpen, setCustomRangeOpen] = useState(false)
+  const detailLayout = layout === 'detail'
 
   const load = useCallback(
     async (silent = false) => {
@@ -371,6 +415,53 @@ export function MonitorTargetPanel({
     }
   }, [appliedCustomRange, selectedNetworkInterface, selectedWindow, targetId, targetType])
 
+  const loadSnapshotSeries = useCallback(
+    async (silent = false) => {
+      if (
+        !detailLayout ||
+        !targetId ||
+        (targetType !== 'server' && targetType !== 'platform' && targetType !== 'app')
+      ) {
+        setSnapshotSeries(null)
+        return
+      }
+
+      const params = new URLSearchParams({
+        window: SNAPSHOT_WINDOW,
+        series: seriesQueryForTarget(targetType, targetId),
+      })
+      if (
+        supportsNetworkInterfaceSelection(targetType, targetId) &&
+        selectedNetworkInterface !== 'all'
+      ) {
+        params.set('networkInterface', selectedNetworkInterface)
+      }
+
+      if (!silent) {
+        setSnapshotLoading(true)
+      }
+      try {
+        const response = await pb.send<MonitorSeriesResponse>(
+          `/api/monitor/targets/${encodeURIComponent(targetType)}/${encodeURIComponent(targetId)}/series?${params.toString()}`,
+          { method: 'GET' }
+        )
+        setSnapshotSeries({
+          ...response,
+          series: Array.isArray(response.series) ? response.series : [],
+        })
+      } catch {
+        if (!silent) {
+          setSnapshotSeries(null)
+        }
+      } finally {
+        if (!silent) {
+          setSnapshotLoading(false)
+        }
+      }
+    },
+    [detailLayout, selectedNetworkInterface, targetId, targetType]
+  )
+
   const selectedWindowMeta =
     selectedWindow === 'custom'
       ? {
@@ -385,8 +476,8 @@ export function MonitorTargetPanel({
     draftCustomRange.endLocal !== appliedCustomRange.endLocal
 
   const handleRefresh = useCallback(async () => {
-    await Promise.all([load(true), loadSeries()])
-  }, [load, loadSeries])
+    await Promise.all([load(true), loadSeries(), loadSnapshotSeries(true)])
+  }, [load, loadSeries, loadSnapshotSeries])
 
   useEffect(() => {
     void load()
@@ -395,6 +486,18 @@ export function MonitorTargetPanel({
   useEffect(() => {
     void loadSeries()
   }, [loadSeries])
+
+  useEffect(() => {
+    void loadSnapshotSeries()
+  }, [loadSnapshotSeries])
+
+  useEffect(() => {
+    if (!detailLayout || !snapshotRealtime) return
+    const interval = window.setInterval(() => {
+      void loadSnapshotSeries(true)
+    }, SNAPSHOT_REALTIME_INTERVAL_MS)
+    return () => window.clearInterval(interval)
+  }, [detailLayout, loadSnapshotSeries, snapshotRealtime])
 
   useEffect(() => {
     if (refreshKey > 0) {
@@ -411,17 +514,8 @@ export function MonitorTargetPanel({
   }, [targetId, targetType])
 
   const summaryEntries = Object.entries(data?.summary ?? {})
-  const detailLayout = layout === 'detail'
-  const snapshotItems = (series?.series ?? [])
-    .filter(item =>
-      ['cpu', 'memory', 'disk_usage', 'disk', 'network', 'network_traffic'].includes(item.name)
-    )
-    .map(item => ({
-      key: item.name,
-      label: formatLabel(item.name),
-      value: formatSeriesLatestLabel(item),
-      unit: item.unit,
-    }))
+  const snapshotItems = buildSnapshotItems(snapshotSeries?.series ?? [])
+  const pipelineWarning = monitorMetricsPipelineWarning(data)
 
   if (detailLayout) {
     return (
@@ -432,17 +526,60 @@ export function MonitorTargetPanel({
           </Alert>
         ) : null}
 
+            {pipelineWarning ? (
+              <Alert>
+                <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span>{pipelineWarning}</span>
+                  {metricsPipelineAction ? (
+                    <span className="flex shrink-0 flex-col gap-1 sm:items-end">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={metricsPipelineAction.onClick}
+                        className="h-7 px-2 text-xs"
+                      >
+                        {metricsPipelineAction.label}
+                      </Button>
+                      {metricsPipelineAction.description ? (
+                        <span className="text-[10px] text-muted-foreground">
+                          {metricsPipelineAction.description}
+                        </span>
+                      ) : null}
+                    </span>
+                  ) : null}
+                </AlertDescription>
+              </Alert>
+        ) : null}
+
         <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Current Snapshot</CardTitle>
-            <CardDescription>
-              {data?.hasData
-                ? data.reason || 'Latest current values from monitor series.'
-                : 'Unavailable until monitoring data is connected.'}
-            </CardDescription>
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1">
+              <CardTitle className="text-sm">Current Snapshot</CardTitle>
+              <CardDescription>
+                {data?.hasData
+                  ? data.reason || 'Latest values from a short current-data window.'
+                  : 'Unavailable until monitoring data is connected.'}
+              </CardDescription>
+            </div>
+            <label className="inline-flex shrink-0 items-center gap-2 rounded-md border bg-muted/20 px-2 py-1.5 text-xs text-muted-foreground">
+              <Checkbox
+                aria-label="Live current snapshot"
+                checked={snapshotRealtime}
+                onCheckedChange={checked => {
+                  const enabled = checked === true
+                  setSnapshotRealtime(enabled)
+                  if (enabled) {
+                    void loadSnapshotSeries(true)
+                  }
+                }}
+                disabled={!targetId || snapshotLoading}
+              />
+              <span>Live</span>
+            </label>
           </CardHeader>
           <CardContent>
-            {loading || (seriesLoading && snapshotItems.length === 0) ? (
+            {loading || (snapshotLoading && snapshotItems.length === 0) ? (
               <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Loading current values...
@@ -452,14 +589,27 @@ export function MonitorTargetPanel({
                 {emptyMessage || 'Current values are unavailable until monitoring data arrives.'}
               </div>
             ) : (
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="space-y-3">
                 {snapshotItems.map(item => (
                   <div key={item.key} className="rounded-md border bg-background px-3 py-2">
-                    <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                      {item.label}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-xs uppercase tracking-wide text-muted-foreground">
+                          {item.label}
+                        </div>
+                        <div className="mt-1 break-words text-sm font-medium">{item.value}</div>
+                      </div>
+                      <div className="shrink-0 text-xs text-muted-foreground">{item.unit}</div>
                     </div>
-                    <div className="mt-1 break-words text-sm font-medium">{item.value}</div>
-                    <div className="mt-0.5 text-xs text-muted-foreground">{item.unit}</div>
+                    <div
+                      className="mt-2 h-2 overflow-hidden rounded-full bg-muted"
+                      aria-label={`${item.label} current value bar`}
+                    >
+                      <div
+                        className="h-full rounded-full bg-primary transition-all"
+                        style={{ width: `${item.barPercent}%` }}
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -587,7 +737,7 @@ export function MonitorTargetPanel({
                 {emptyMessage || 'Trend history is unavailable until monitoring data arrives.'}
               </div>
             ) : (
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-3 lg:grid-cols-2">
                 {series?.series.map(item => (
                   <TrendCard
                     key={item.name}
@@ -851,7 +1001,7 @@ export function MonitorTargetPanel({
                     Loading trend data...
                   </div>
                 ) : (
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="grid gap-3 lg:grid-cols-2">
                     {series?.series.map(item => (
                       <TrendCard
                         key={item.name}
@@ -899,6 +1049,71 @@ export function MonitorTargetPanel({
 function latestValue(points: number[][]): number | null {
   const values = points.map(point => point[1]).filter(value => Number.isFinite(value))
   return values.length > 0 ? values[values.length - 1] : null
+}
+
+function clampPercent(value: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.max(0, Math.min(100, value))
+}
+
+function latestSegmentValue(
+  item: MonitorSeriesResponse['series'][number],
+  name: string
+): number | null {
+  const segment = item.segments?.find(candidate => candidate.name === name)
+  return segment ? latestValue(segment.points) : null
+}
+
+function snapshotMetricMagnitude(item: MonitorSeriesResponse['series'][number]): number {
+  const latest = latestValue(item.points ?? [])
+  if (latest !== null) return Math.abs(latest)
+  const names = ['used', 'free', 'available', 'read', 'write', 'in', 'out']
+  return names.reduce((total, name) => {
+    const value = latestSegmentValue(item, name)
+    return total + (value === null ? 0 : Math.abs(value))
+  }, 0)
+}
+
+function snapshotMetricPercent(item: MonitorSeriesResponse['series'][number]): number | null {
+  const latest = latestValue(item.points ?? [])
+  if (item.unit === 'percent' && latest !== null) return clampPercent(latest)
+  if (item.name === 'memory') {
+    const used = latestSegmentValue(item, 'used') ?? latest
+    const available = latestSegmentValue(item, 'available')
+    if (used !== null && available !== null && used + available > 0) {
+      return clampPercent((used / (used + available)) * 100)
+    }
+  }
+  if (item.name === 'disk_usage') {
+    if (latest !== null) return clampPercent(latest)
+    const used = latestSegmentValue(item, 'used')
+    const free = latestSegmentValue(item, 'free')
+    if (used !== null && free !== null && used + free > 0) {
+      return clampPercent((used / (used + free)) * 100)
+    }
+  }
+  return null
+}
+
+function buildSnapshotItems(series: MonitorSeriesResponse['series']) {
+  const supported = series.filter(item =>
+    ['cpu', 'memory', 'disk_usage', 'disk', 'network', 'network_traffic'].includes(item.name)
+  )
+  const magnitudes = supported.map(snapshotMetricMagnitude)
+  const maxMagnitude = Math.max(...magnitudes, 0)
+
+  return supported.map((item, index) => {
+    const percent = snapshotMetricPercent(item)
+    const relativePercent =
+      percent === null && maxMagnitude > 0 ? (magnitudes[index] / maxMagnitude) * 100 : 0
+    return {
+      key: item.name,
+      label: formatLabel(item.name),
+      value: formatSeriesLatestLabel(item),
+      unit: item.unit,
+      barPercent: Math.max(2, clampPercent(percent ?? relativePercent)),
+    }
+  })
 }
 
 function formatSeriesLatestLabel(item: MonitorSeriesResponse['series'][number]): string {

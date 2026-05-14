@@ -264,8 +264,8 @@ func TestSoftwareComponentSummaryShouldNotHardcodePackageTemplate(t *testing.T) 
 		if !ok {
 			t.Fatalf("missing template ref %q", entry.TemplateRef)
 		}
-		if entry.ComponentKey == software.ComponentKeyMonitorAgent && tpl.TemplateKind != software.TemplateKindScript {
-			t.Fatalf("monitor-agent should resolve to script template, got %q", tpl.TemplateKind)
+		if entry.ComponentKey == software.ComponentKeyMonitorAgent && tpl.TemplateKind != software.TemplateKindPackage {
+			t.Fatalf("appos-monitor-collector should resolve to package template, got %q", tpl.TemplateKind)
 		}
 	}
 }
@@ -484,7 +484,7 @@ func TestSoftwareOperationListSupportsComponentFilter(t *testing.T) {
 		componentKey string
 	}{
 		{serverID: "srv-1", componentKey: "docker"},
-		{serverID: "srv-1", componentKey: "monitor-agent"},
+		{serverID: "srv-1", componentKey: "appos-monitor-collector"},
 		{serverID: "srv-2", componentKey: "docker"},
 	} {
 		record := core.NewRecord(col)

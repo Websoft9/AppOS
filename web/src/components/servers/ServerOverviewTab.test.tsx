@@ -71,9 +71,9 @@ describe('ServerOverviewTab', () => {
     expect(screen.getByText('4')).toBeInTheDocument()
     expect(screen.getByText('8.0 GiB')).toBeInTheDocument()
     expect(screen.getByText(facts.observedAt)).toBeInTheDocument()
-    expect(screen.getAllByText('Unavailable')).toHaveLength(2)
+    expect(screen.getAllByText('Unavailable')).toHaveLength(4)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Connection' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
     expect(onEditServer).toHaveBeenCalledTimes(1)
   })
 
@@ -105,8 +105,10 @@ describe('ServerOverviewTab', () => {
       <ServerOverviewTab
         item={{
           ...baseItem,
-          cloud_provider: 'AWS',
+          cloud_provider_name: 'AWS',
           cloud_region: 'ap-southeast-1',
+          cloud_zone: 'ap-southeast-1a',
+          cloud_provider_source: 'cloud-init',
         }}
         serverId="server-1"
         facts={facts}
@@ -121,5 +123,7 @@ describe('ServerOverviewTab', () => {
 
     expect(screen.getByText('AWS')).toBeInTheDocument()
     expect(screen.getByText('ap-southeast-1')).toBeInTheDocument()
+    expect(screen.getByText('ap-southeast-1a')).toBeInTheDocument()
+    expect(screen.getByText('cloud-init')).toBeInTheDocument()
   })
 })

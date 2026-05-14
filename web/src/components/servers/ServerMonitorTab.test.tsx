@@ -14,15 +14,22 @@ vi.mock('@/components/monitor/MonitorTargetPanel', () => ({
     targetId,
     emptyMessage,
     layout,
+    metricsPipelineAction,
   }: {
     targetId: string
     emptyMessage: string
     layout?: string
+    metricsPipelineAction?: { label: string; onClick: () => void }
   }) => (
     <div>
       <div>Monitor panel for {targetId}</div>
       <div>Monitor panel layout {layout}</div>
       <div>{emptyMessage}</div>
+      {metricsPipelineAction ? (
+        <button type="button" onClick={metricsPipelineAction.onClick}>
+          {metricsPipelineAction.label}
+        </button>
+      ) : null}
     </div>
   ),
 }))
@@ -59,6 +66,10 @@ describe('ServerMonitorTab', () => {
     expect(screen.getAllByText('Control reachable').length).toBeGreaterThan(0)
     expect(screen.getByText('Trend data available')).toBeInTheDocument()
     expect(screen.getByText('Resource pressure')).toBeInTheDocument()
+    expect(screen.getAllByText(/Updated \d{2}:\d{2}:\d{2}/).length).toBeGreaterThan(0)
+    expect(
+      screen.getByRole('button', { name: 'Delete conclusion Resource pressure' })
+    ).toBeInTheDocument()
     expect(screen.queryByText('Monitor agent runtime')).toBeNull()
     expect(screen.getByText('Monitor panel for server-1')).toBeInTheDocument()
     expect(screen.getByText('Monitor panel layout detail')).toBeInTheDocument()
@@ -67,6 +78,26 @@ describe('ServerMonitorTab', () => {
         'No monitoring data available yet for alpha. Current connectivity status is online.'
       )
     ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete conclusion Resource pressure' }))
+    expect(screen.queryByText('Resource pressure')).toBeNull()
+  })
+
+  it('routes metrics pipeline repair to monitor-agent reinstall', async () => {
+    const onMonitorAgentAction = vi.fn()
+
+    render(
+      <ServerMonitorTab
+        serverId="server-1"
+        serverName="alpha"
+        connectionStatus="online"
+        onMonitorAgentAction={onMonitorAgentAction}
+      />
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Repair monitor agent' }))
+
+    expect(onMonitorAgentAction).toHaveBeenCalledWith('reinstall')
   })
 
   it('shows a strong intervention state and opens Components when the agent is missing', async () => {

@@ -13,6 +13,7 @@ import {
   Play,
   Power,
   PowerOff,
+  RefreshCw,
   RotateCw,
   ScrollText,
   Star,
@@ -69,7 +70,7 @@ type DetailRow = {
 
 const APPOS_FOCUS_SERVICES = ['docker.service', 'netdata.service', 'appos-tunnel.service'] as const
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = 12
 const DETAIL_STATUS_KEYS = new Set([
   'Id',
   'Description',
@@ -364,41 +365,41 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
         setLogs([])
       }
       if (nextTab !== 'unit') {
-    setUnitResult('')
+        setUnitResult('')
+      }
+      try {
+        const statusResponse = await getSystemdStatus(serverId, serviceName)
+        if (requestSeqRef.current !== requestSeq) return
+        const nextStatusDetails = statusResponse.status || {}
+
+        let unitResponse: SystemdUnitResponse | null = null
+        let logsResponse: SystemdLogsResponse | null = null
+
+        if (nextTab === 'unit' || (nextTab === 'overview' && !nextStatusDetails.FragmentPath)) {
+          unitResponse = await getSystemdUnit(serverId, serviceName).catch(() => null)
+          if (requestSeqRef.current !== requestSeq) return
         }
-        try {
-    const statusResponse = await getSystemdStatus(serverId, serviceName)
-    if (requestSeqRef.current !== requestSeq) return
-    const nextStatusDetails = statusResponse.status || {}
 
-    let unitResponse: SystemdUnitResponse | null = null
-    let logsResponse: SystemdLogsResponse | null = null
-
-    if (nextTab === 'unit' || (nextTab === 'overview' && !nextStatusDetails.FragmentPath)) {
-      unitResponse = await getSystemdUnit(serverId, serviceName).catch(() => null)
-      if (requestSeqRef.current !== requestSeq) return
-    }
-
-    if (nextTab === 'logs') {
-      logsResponse = await getSystemdLogs(serverId, serviceName, 200)
-      if (requestSeqRef.current !== requestSeq) return
-    }
-
-    if (requestSeqRef.current !== requestSeq) return
-    setStatusDetails(nextStatusDetails)
-    setUnitPath(unitResponse?.path || nextStatusDetails.FragmentPath || '')
-    setUnitContent(unitResponse?.content || '')
-    setLogs(Array.isArray(logsResponse?.entries) ? logsResponse.entries : [])
-    setDetailTab(nextTab)
-    setEditMode(nextTab === 'unit' && editUnit)
-        } catch (loadError) {
-    if (requestSeqRef.current !== requestSeq || isRequestCancellation(loadError)) return
-    setError(getApiErrorMessage(loadError, 'Operation failed'))
-        } finally {
-    if (requestSeqRef.current === requestSeq) {
-      setActionLoading(false)
-    }
+        if (nextTab === 'logs') {
+          logsResponse = await getSystemdLogs(serverId, serviceName, 200)
+          if (requestSeqRef.current !== requestSeq) return
         }
+
+        if (requestSeqRef.current !== requestSeq) return
+        setStatusDetails(nextStatusDetails)
+        setUnitPath(unitResponse?.path || nextStatusDetails.FragmentPath || '')
+        setUnitContent(unitResponse?.content || '')
+        setLogs(Array.isArray(logsResponse?.entries) ? logsResponse.entries : [])
+        setDetailTab(nextTab)
+        setEditMode(nextTab === 'unit' && editUnit)
+      } catch (loadError) {
+        if (requestSeqRef.current !== requestSeq || isRequestCancellation(loadError)) return
+        setError(getApiErrorMessage(loadError, 'Operation failed'))
+      } finally {
+        if (requestSeqRef.current === requestSeq) {
+          setActionLoading(false)
+        }
+      }
     },
     [serverId]
   )
@@ -569,16 +570,19 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <Button
-              size="icon"
+              size="sm"
               variant="ghost"
-              className="h-8 w-8 shrink-0"
+              className="shrink-0"
               onClick={() => void refreshPanel()}
               disabled={inventoryLoading || actionLoading}
               aria-label="Refresh systemd data"
+              title="Refresh systemd data"
             >
-              <RotateCw
-                className={cn('h-4 w-4', (inventoryLoading || actionLoading) && 'animate-spin')}
-              />
+              {inventoryLoading || actionLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
             </Button>
           </div>
         </div>

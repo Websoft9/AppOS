@@ -94,6 +94,12 @@ func normalizeFactsSnapshot(facts map[string]any) (map[string]any, error) {
 				return nil, err
 			}
 			normalized["memory"] = group
+		case "cloud":
+			group, err := normalizeCloudFacts(value)
+			if err != nil {
+				return nil, err
+			}
+			normalized["cloud"] = group
 		default:
 			return nil, fmt.Errorf("unknown facts group %q", key)
 		}
@@ -193,6 +199,36 @@ func normalizeMemoryFacts(value any) (map[string]any, error) {
 	}
 	if len(normalized) == 0 {
 		return nil, fmt.Errorf("memory facts are empty")
+	}
+	return normalized, nil
+}
+
+func normalizeCloudFacts(value any) (map[string]any, error) {
+	group, err := requireMap(value, "cloud")
+	if err != nil {
+		return nil, err
+	}
+	normalized := make(map[string]any, len(group))
+	for key, nested := range group {
+		switch strings.TrimSpace(key) {
+		case "provider":
+			text, err := normalizeRequiredString(nested, "cloud.provider")
+			if err != nil {
+				return nil, err
+			}
+			normalized[key] = text
+		case "region", "zone", "source":
+			text, err := normalizeRequiredString(nested, "cloud."+key)
+			if err != nil {
+				return nil, err
+			}
+			normalized[key] = text
+		default:
+			return nil, fmt.Errorf("unknown facts field %q", "cloud."+key)
+		}
+	}
+	if strings.TrimSpace(fmt.Sprint(normalized["provider"])) == "" {
+		return nil, fmt.Errorf("cloud.provider must be a non-empty string")
 	}
 	return normalized, nil
 }

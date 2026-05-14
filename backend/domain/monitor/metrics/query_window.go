@@ -48,7 +48,7 @@ func resolveMetricSeriesWindow(window string, options MetricSeriesQueryOptions, 
 	if !ok {
 		return metricSeriesWindowSpec{}, fmt.Errorf("window %q is not allowed", window)
 	}
-	end := now.UTC()
+	end := alignTimeToStepBoundary(now.UTC(), windowSpec.Step)
 	start := end.Add(-windowSpec.Duration)
 	return metricSeriesWindowSpec{
 		Label: window,
@@ -56,6 +56,18 @@ func resolveMetricSeriesWindow(window string, options MetricSeriesQueryOptions, 
 		End:   end,
 		Step:  windowSpec.Step,
 	}, nil
+}
+
+func alignTimeToStepBoundary(value time.Time, step time.Duration) time.Time {
+	if step <= 0 {
+		return value
+	}
+	unix := value.Unix()
+	stepSeconds := int64(step / time.Second)
+	if stepSeconds <= 0 {
+		return value
+	}
+	return time.Unix((unix/stepSeconds)*stepSeconds, 0).UTC()
 }
 
 func stepForSeriesDuration(duration time.Duration) time.Duration {
@@ -117,4 +129,13 @@ func normalizeRequestedSeries(seriesNames []string) []string {
 		}
 	}
 	return normalized
+}
+
+// ResolveMetricSeriesWindowForTest exposes fixed-window resolution to external tests.
+func ResolveMetricSeriesWindowForTest(window string, options MetricSeriesQueryOptions, now time.Time) (time.Time, time.Time, time.Duration, error) {
+	spec, err := resolveMetricSeriesWindow(window, options, now)
+	if err != nil {
+		return time.Time{}, time.Time{}, 0, err
+	}
+	return spec.Start, spec.End, spec.Step, nil
 }

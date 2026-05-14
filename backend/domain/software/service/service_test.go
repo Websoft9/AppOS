@@ -699,6 +699,30 @@ func TestDeriveAvailableActions_PreflightBlocked(t *testing.T) {
 	}
 }
 
+func TestDeriveAvailableActions_PreflightBlockedKeepsRestartAndStop(t *testing.T) {
+	actions := deriveAvailableActions(
+		[]software.Action{
+			software.ActionVerify,
+			software.ActionRestart,
+			software.ActionStop,
+			software.ActionReinstall,
+		},
+		software.InstalledStateInstalled,
+		software.TargetReadinessResult{OK: false},
+		nil,
+	)
+
+	want := []software.Action{software.ActionRestart, software.ActionStop}
+	if len(actions) != len(want) {
+		t.Fatalf("available actions len = %d, want %d (%v)", len(actions), len(want), actions)
+	}
+	for i := range want {
+		if actions[i] != want[i] {
+			t.Fatalf("available action[%d] = %q, want %q", i, actions[i], want[i])
+		}
+	}
+}
+
 func TestDeriveAvailableActions_InFlightOperation(t *testing.T) {
 	actions := deriveAvailableActions(
 		[]software.Action{software.ActionUpgrade, software.ActionVerify},

@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -18,6 +19,21 @@ import (
 // localDockerClient is the Docker client for the local host, shared across all local requests.
 var localDockerClient *docker.Client
 
+const dockerImageListCacheTTL = 15 * time.Second
+
+type dockerImageListCacheEntry struct {
+	output    string
+	host      string
+	fetchedAt time.Time
+}
+
+var dockerImageListCache = struct {
+	mu      sync.RWMutex
+	entries map[string]dockerImageListCacheEntry
+}{
+	entries: map[string]dockerImageListCacheEntry{},
+}
+
 func init() {
 	exec := docker.NewLocalExecutor("")
 	if os.Getuid() != 0 {
@@ -26,6 +42,42 @@ func init() {
 		exec.SudoEnabled = true
 	}
 	localDockerClient = docker.New(exec)
+}
+
+func dockerImageListCacheKey(e *core.RequestEvent, client *docker.Client) string {
+	if serverID := e.Request.URL.Query().Get("server_id"); serverID != "" {
+		return "server:" + serverID
+	}
+	return "host:" + client.Host()
+}
+
+func getCachedDockerImageList(key string) (dockerImageListCacheEntry, bool) {
+	dockerImageListCache.mu.RLock()
+	entry, ok := dockerImageListCache.entries[key]
+	dockerImageListCache.mu.RUnlock()
+	if !ok || time.Since(entry.fetchedAt) > dockerImageListCacheTTL {
+		if ok {
+			invalidateDockerImageListCache(key)
+		}
+		return dockerImageListCacheEntry{}, false
+	}
+	return entry, true
+}
+
+func setCachedDockerImageList(key, output, host string) {
+	dockerImageListCache.mu.Lock()
+	dockerImageListCache.entries[key] = dockerImageListCacheEntry{
+		output:    output,
+		host:      host,
+		fetchedAt: time.Now(),
+	}
+	dockerImageListCache.mu.Unlock()
+}
+
+func invalidateDockerImageListCache(key string) {
+	dockerImageListCache.mu.Lock()
+	delete(dockerImageListCache.entries, key)
+	dockerImageListCache.mu.Unlock()
 }
 
 // registerDockerRoutes registers all Docker operation routes.
@@ -634,10 +686,15 @@ func handleImageList(e *core.RequestEvent) error {
 	if err != nil {
 		return dockerError(e, http.StatusBadRequest, "server not found", err)
 	}
+	cacheKey := dockerImageListCacheKey(e, client)
+	if cached, ok := getCachedDockerImageList(cacheKey); ok {
+		return e.JSON(http.StatusOK, map[string]any{"output": cached.output, "host": cached.host})
+	}
 	output, err := client.ImageList(e.Request.Context())
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "list images failed", err)
 	}
+	setCachedDockerImageList(cacheKey, output, client.Host())
 	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": client.Host()})
 }
 
@@ -769,6 +826,7 @@ func handleImagePull(e *core.RequestEvent) error {
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "pull image failed", err)
 	}
+	invalidateDockerImageListCache(dockerImageListCacheKey(e, client))
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
@@ -798,6 +856,7 @@ func handleImageRemove(e *core.RequestEvent) error {
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "remove image failed", err)
 	}
+	invalidateDockerImageListCache(dockerImageListCacheKey(e, client))
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
@@ -822,6 +881,7 @@ func handleImagePrune(e *core.RequestEvent) error {
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "prune images failed", err)
 	}
+	invalidateDockerImageListCache(dockerImageListCacheKey(e, client))
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 

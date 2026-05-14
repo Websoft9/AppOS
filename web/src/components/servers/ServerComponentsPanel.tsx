@@ -4,7 +4,7 @@ import {
   ChevronDown,
   CircleHelp,
   Loader2,
-  MoreHorizontal,
+  MoreVertical,
   RefreshCw,
   Trash2,
   X,
@@ -27,9 +27,12 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   deleteSoftwareOperation,
   getConfiguredAppURL,
@@ -52,6 +55,17 @@ const MONITOR_AGENT_ADDRESS_ACTIONS = new Set<SoftwareActionType>([
   'upgrade',
   'reinstall',
 ])
+const ADDON_ACTIONS: SoftwareActionType[] = [
+  'install',
+  'verify',
+  'start',
+  'restart',
+  'stop',
+  'upgrade',
+  'reinstall',
+  'uninstall',
+]
+const DANGEROUS_ADDON_ACTIONS = new Set<SoftwareActionType>(['stop', 'reinstall', 'uninstall'])
 
 export type ServerComponentActionIntent = {
   serverId: string
@@ -66,25 +80,79 @@ function isPrerequisiteComponent(component: SoftwareComponentSummary): boolean {
 
 function primaryAddonAction(component: SoftwareComponentSummary): SoftwareActionType | null {
   const actions = new Set(component.available_actions ?? [])
+  const detected = component.detected_version?.trim() || ''
+  const packaged = component.packaged_version?.trim() || ''
   if (component.installed_state !== 'installed' && actions.has('install')) return 'install'
   if (component.verification_state === 'degraded' && actions.has('reinstall')) return 'reinstall'
+  if (detected && packaged && packaged !== detected && actions.has('upgrade')) return 'upgrade'
+  if (component.verification_state !== 'healthy' && actions.has('start')) return 'start'
+  if (component.verification_state === 'healthy' && actions.has('verify')) return 'verify'
+  if (component.installed_state === 'installed' && actions.has('restart')) return 'restart'
+  if (actions.has('verify')) return 'verify'
+  if (component.verification_state !== 'healthy' && actions.has('stop')) return 'stop'
   return null
 }
 
-function addonVersionLabel(component: SoftwareComponentSummary): string {
-  const detected = component.detected_version
-  const packaged = component.packaged_version
-  if (!detected) return packaged || '—'
-  if (packaged && packaged !== detected) return `${detected} (${packaged} avail)`
-  return detected
+function isStoppedAddon(component: SoftwareComponentSummary): boolean {
+  const reason = component.verification?.reason?.toLowerCase() ?? ''
+  return (
+    component.installed_state === 'installed' &&
+    component.verification_state === 'degraded' &&
+    ((component.available_actions ?? []).includes('start') ||
+      reason.includes('stopped') ||
+      reason.includes('inactive') ||
+      reason.includes('not running'))
+  )
+}
+
+function addonActionLabel(action: SoftwareActionType): string {
+  if (action === 'verify') return 'Check'
+  if (action === 'reinstall') return 'Repair'
+  if (action === 'uninstall') return 'Remove'
+  return action.charAt(0).toUpperCase() + action.slice(1)
+}
+
+function addonActionGroups(component: SoftwareComponentSummary): Array<{
+  label: 'Recommended' | 'Secondary' | 'Dangerous'
+  actions: SoftwareActionType[]
+}> {
+  const primary = primaryAddonAction(component)
+  const recommended = primary ? [primary] : []
+  const secondary = ADDON_ACTIONS.filter(
+    action => action !== primary && !DANGEROUS_ADDON_ACTIONS.has(action)
+  )
+  const dangerous = ADDON_ACTIONS.filter(
+    action => action !== primary && DANGEROUS_ADDON_ACTIONS.has(action)
+  )
+  const groups: Array<{
+    label: 'Recommended' | 'Secondary' | 'Dangerous'
+    actions: SoftwareActionType[]
+  }> = [
+    { label: 'Recommended', actions: recommended },
+    { label: 'Secondary', actions: secondary },
+    { label: 'Dangerous', actions: dangerous },
+  ]
+  return groups.filter(group => group.actions.length > 0)
+}
+
+function actionLogTone(operation: SoftwareOperation): ActionLogEntry['tone'] {
+  if (operation.phase === 'failed' || operation.terminal_status === 'failed') return 'error'
+  if (operation.phase === 'succeeded' || operation.terminal_status === 'success') return 'success'
+  if (
+    operation.phase === 'attention_required' ||
+    operation.terminal_status === 'attention_required'
+  ) {
+    return 'error'
+  }
+  return 'muted'
 }
 
 // Returns a human-readable format label for artifact distribution kind.
-// script is an installation method, not an artifact format, so it is not shown.
 function addonFormatLabel(kind: string | undefined): string | null {
   if (kind === 'package') return 'package'
   if (kind === 'binary') return 'binary'
   if (kind === 'docker') return 'docker'
+  if (kind === 'script') return 'script'
   return null
 }
 
@@ -315,6 +383,11 @@ function latestOperationEventLine(op: SoftwareOperation): string {
 function statusTone(
   component: SoftwareComponentSummary
 ): 'default' | 'secondary' | 'outline' | 'destructive' {
+  if (component.service_status === 'needs_attention') return 'destructive'
+  if (component.service_status === 'stopped') return 'outline'
+  if (component.service_status === 'running') return 'default'
+  if (component.service_status === 'not_installed') return 'secondary'
+  if (isStoppedAddon(component)) return 'outline'
   if (component.verification_state === 'degraded') return 'destructive'
   if (component.installed_state === 'installed' && component.verification_state === 'healthy')
     return 'default'
@@ -323,7 +396,22 @@ function statusTone(
 }
 
 function statusLabel(component: SoftwareComponentSummary): string {
-  if (component.verification_state === 'degraded') return 'Degraded'
+  switch (component.service_status) {
+    case 'running':
+      return 'Running'
+    case 'stopped':
+      return 'Stopped'
+    case 'installed':
+      return 'Installed'
+    case 'not_installed':
+      return 'Not Installed'
+    case 'needs_attention':
+      return 'Needs Attention'
+    case 'unknown':
+      return 'Unknown'
+  }
+  if (isStoppedAddon(component)) return 'Stopped'
+  if (component.verification_state === 'degraded') return 'Needs Attention'
   // installed + healthy = runtime verified running — distinct from merely being installed
   if (component.installed_state === 'installed' && component.verification_state === 'healthy')
     return 'Running'
@@ -331,6 +419,31 @@ function statusLabel(component: SoftwareComponentSummary): string {
   if (component.installed_state === 'installed') return 'Installed'
   if (component.installed_state === 'not_installed') return 'Not Installed'
   return 'Unknown'
+}
+
+function appOSConnectionLabel(component: SoftwareComponentSummary): string | null {
+  switch (component.appos_connection) {
+    case 'connected':
+      return 'Connected'
+    case 'stale':
+      return 'Stale'
+    case 'not_connected':
+      return 'Not Connected'
+    case 'auth_failed':
+      return 'Auth Failed'
+    case 'misconfigured':
+      return 'Misconfigured'
+    case 'unknown':
+      return 'Unknown'
+    case 'not_applicable':
+    case undefined:
+      return null
+  }
+}
+
+function healthReasonLabel(component: SoftwareComponentSummary): string {
+  const reasons = component.health_reasons ?? []
+  return reasons.length > 0 ? reasons.join(' | ') : '—'
 }
 
 function prerequisiteStatusLabel(component: SoftwareComponentSummary): string {
@@ -379,6 +492,8 @@ type ActionLogEntry = {
   tone: 'muted' | 'success' | 'error'
   text: string
 }
+
+type AddonPanelMode = 'details' | 'operation' | 'history'
 
 type MonitorAgentAddressChoice = {
   componentKey: string
@@ -551,21 +666,22 @@ function OperationHistory({
 
 function AddonDetailRows({ component }: { component: SoftwareComponentSummary }) {
   const installSource = installSourceSummary(component)
-  const versionLabel = addonVersionLabel(component)
   const lastOp = component.last_operation
   const lastActionAt = formatTimestamp(component.last_action?.at || lastOp?.updated_at)
   const readinessIssues = component.preflight?.issues ?? []
+  const detected = component.detected_version?.trim() || null
+  const packaged = component.packaged_version?.trim() || null
+  const hasUpgrade = Boolean(detected && packaged && packaged !== detected)
+  const apposConnection = appOSConnectionLabel(component)
   return [
-    { label: 'Status', value: statusLabel(component) },
-    {
-      label: 'Version',
-      value: addonFormatLabel(component.template_kind)
-        ? `${versionLabel}  ·  ${addonFormatLabel(component.template_kind)}`
-        : versionLabel,
-    },
+    { label: 'Service Status', value: statusLabel(component) },
+    ...(apposConnection ? [{ label: 'AppOS Connection', value: apposConnection }] : []),
+    { label: 'Installed', value: detected || '—' },
+    ...(hasUpgrade ? [{ label: 'Latest', value: packaged! }] : []),
+    { label: 'Artifact', value: addonFormatLabel(component.template_kind) || '—' },
     { label: 'Install Source', value: installSource?.replace(/^Install source:\s*/i, '') || '—' },
     {
-      label: 'Last Activity',
+      label: 'Last Action',
       value:
         phaseLabel(lastOp) ||
         (component.last_action
@@ -574,48 +690,190 @@ function AddonDetailRows({ component }: { component: SoftwareComponentSummary })
     },
     { label: 'Updated', value: lastActionAt || '—' },
     { label: 'Issues', value: readinessIssues.length ? readinessIssues.join(' | ') : '—' },
+    {
+      label: 'Verification',
+      value: component.verification?.reason || component.verification_state || '—',
+    },
+    { label: 'Health Reasons', value: healthReasonLabel(component) },
   ]
+}
+
+function AddonActions({
+  component,
+  onAction,
+  actionsLocked,
+  actionLoading,
+  moreActionsLabel,
+  onBeforeAction,
+}: {
+  component: SoftwareComponentSummary
+  onAction: (componentKey: string, action: SoftwareActionType) => void
+  actionsLocked: boolean
+  actionLoading: string | null
+  moreActionsLabel: string
+  onBeforeAction?: () => void
+}) {
+  const primary = primaryAddonAction(component)
+  const availableActions = new Set(component.available_actions ?? [])
+
+  const runAction = (action: SoftwareActionType) => {
+    if (!availableActions.has(action) || actionsLocked) return
+    onBeforeAction?.()
+    onAction(component.component_key, action)
+  }
+
+  return (
+    <div className="flex items-center justify-end gap-1">
+      {primary ? (
+        <Button
+          variant="default"
+          size="sm"
+          disabled={actionsLocked || actionLoading === `${component.component_key}:${primary}`}
+          onClick={() => runAction(primary)}
+          className="h-7 px-2 text-xs"
+        >
+          {actionLoading === `${component.component_key}:${primary}` ? (
+            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+          ) : null}
+          {addonActionLabel(primary)}
+        </Button>
+      ) : null}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={actionsLocked}
+            className="h-7 px-2 text-xs"
+            aria-label={moreActionsLabel}
+          >
+            <MoreVertical className="h-3.5 w-3.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-44">
+          {addonActionGroups(component).map((group, groupIndex) => (
+            <div key={group.label}>
+              {groupIndex > 0 ? <DropdownMenuSeparator /> : null}
+              <DropdownMenuLabel className="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                {group.label}
+              </DropdownMenuLabel>
+              {group.actions.map(action => {
+                const available = availableActions.has(action)
+                const loading = actionLoading === `${component.component_key}:${action}`
+                return (
+                  <DropdownMenuItem
+                    key={`${group.label}:${action}`}
+                    disabled={!available || actionsLocked}
+                    variant={DANGEROUS_ADDON_ACTIONS.has(action) ? 'destructive' : 'default'}
+                    onSelect={() => runAction(action)}
+                    className="cursor-pointer text-xs"
+                  >
+                    {loading ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+                    <span>{addonActionLabel(action)}</span>
+                    {!available ? <span className="ml-auto text-[10px]">Locked</span> : null}
+                  </DropdownMenuItem>
+                )
+              })}
+            </div>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  )
 }
 
 function AddonInventoryRow({
   component,
   selected,
   onSelect,
+  onAction,
+  actionsLocked,
+  actionLoading,
 }: {
   component: SoftwareComponentSummary
   selected: boolean
   onSelect: (componentKey: string) => void
+  onAction: (componentKey: string, action: SoftwareActionType) => void
+  actionsLocked: boolean
+  actionLoading: string | null
 }) {
-  const lastOp = component.last_operation
-  const inProgress = isInProgress(lastOp)
-  const phase = phaseLabel(lastOp)
-  const activityLabel = inProgress ? phase : phase || statusLabel(component)
-  const versionLabel = addonVersionLabel(component)
+  const detected = component.detected_version?.trim() || null
+  const packaged = component.packaged_version?.trim() || null
+  const hasUpgrade = Boolean(detected && packaged && packaged !== detected)
+  const apposConnection = appOSConnectionLabel(component)
+
+  const handleSelect = () => onSelect(component.component_key)
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      handleSelect()
+    }
+  }
+
+  const stopRowSelection = (event: React.SyntheticEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+  }
 
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(component.component_key)}
-      className={`grid w-full grid-cols-[minmax(0,1.2fr)_8rem_5rem_7rem] items-center gap-3 px-3 py-2 text-left text-sm ${selected ? 'bg-accent/40' : 'hover:bg-accent/20'}`}
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={handleSelect}
+      onKeyDown={handleKeyDown}
+      className={`grid w-full grid-cols-[minmax(0,1.1fr)_11rem_6rem_9rem_10rem] items-center gap-3 px-3 py-2 text-left text-sm ${selected ? 'bg-accent/40' : 'hover:bg-accent/20'}`}
       aria-label={component.label}
     >
       <div className="min-w-0 space-y-1">
-        <div className="truncate font-medium text-foreground">{component.label}</div>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="truncate font-medium text-foreground">{component.label}</div>
+            </TooltipTrigger>
+            {component.description ? (
+              <TooltipContent side="right" className="max-w-xs">
+                {component.description}
+              </TooltipContent>
+            ) : null}
+          </Tooltip>
+        </TooltipProvider>
         <div className="truncate text-[11px] font-mono text-muted-foreground">
           {component.component_key}
         </div>
       </div>
       <div className="min-w-0 space-y-0.5">
-        <div className="truncate text-xs text-muted-foreground">{versionLabel}</div>
-        {addonFormatLabel(component.template_kind) ? (
-          <div className="truncate text-[10px] text-muted-foreground/60">
-            {addonFormatLabel(component.template_kind)}
-          </div>
-        ) : null}
+        <div className="truncate text-xs text-muted-foreground/70">
+          Installed: {detected || '—'}
+        </div>
+        <div
+          className={`truncate text-xs ${hasUpgrade ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground/70'}`}
+        >
+          Latest: {packaged || detected || '—'}
+        </div>
       </div>
-      <div className="truncate text-xs text-muted-foreground">{statusLabel(component)}</div>
-      <div className="truncate text-xs text-muted-foreground">{activityLabel || '—'}</div>
-    </button>
+      <div className="truncate text-xs text-muted-foreground">
+        {addonFormatLabel(component.template_kind) || '—'}
+      </div>
+      <div className="min-w-0 space-y-0.5 text-xs text-muted-foreground">
+        <div className="truncate">Service: {statusLabel(component)}</div>
+        {apposConnection ? <div className="truncate">AppOS: {apposConnection}</div> : null}
+      </div>
+      <div
+        className="flex items-center justify-end gap-1"
+        onClick={stopRowSelection}
+        onKeyDown={stopRowSelection}
+        onPointerDown={stopRowSelection}
+      >
+        <AddonActions
+          component={component}
+          onAction={onAction}
+          actionsLocked={actionsLocked}
+          actionLoading={actionLoading}
+          moreActionsLabel={`More actions for ${component.label}`}
+          onBeforeAction={handleSelect}
+        />
+      </div>
+    </div>
   )
 }
 
@@ -949,6 +1207,11 @@ export function ServerComponentsPanel({
     Record<string, ActionLogEntry[]>
   >({})
   const [selectedAddonKey, setSelectedAddonKey] = useState<string | null>(null)
+  const [addonPanelMode, setAddonPanelMode] = useState<Record<string, AddonPanelMode>>({})
+  const [addonActiveActionLabel, setAddonActiveActionLabel] = useState<
+    Record<string, string | null>
+  >({})
+  const [addonActionLogs, setAddonActionLogs] = useState<Record<string, ActionLogEntry[]>>({})
 
   const [prerequisiteComponents, setPrerequisiteComponents] = useState<SoftwareComponentSummary[]>(
     []
@@ -980,9 +1243,7 @@ export function ServerComponentsPanel({
 
   const actionsLocked =
     actionLoading !== null ||
-    Object.values(activeOperationKeys).some(Boolean) ||
-    prerequisiteComponents.some(component => isInProgress(component.last_operation)) ||
-    addonComponents.some(component => isInProgress(component.last_operation))
+    Object.values(activeOperationKeys).some(Boolean)
 
   useEffect(() => {
     setPrerequisiteOpen(current => {
@@ -1022,8 +1283,33 @@ export function ServerComponentsPanel({
     }
   }, [addonComponents, selectedAddonKey])
 
+  useEffect(() => {
+    setAddonPanelMode(current => {
+      const next = { ...current }
+      for (const component of addonComponents) {
+        if (!(component.component_key in next)) {
+          next[component.component_key] = 'details'
+        }
+      }
+      return next
+    })
+  }, [addonComponents])
+
   const appendPrerequisiteLog = useCallback((componentKey: string, entry: ActionLogEntry) => {
     setPrerequisiteActionLogs(current => {
+      const previous = current[componentKey] ?? []
+      if (previous.some(item => item.id === entry.id)) {
+        return current
+      }
+      return {
+        ...current,
+        [componentKey]: [...previous, entry],
+      }
+    })
+  }, [])
+
+  const appendAddonLog = useCallback((componentKey: string, entry: ActionLogEntry) => {
+    setAddonActionLogs(current => {
       const previous = current[componentKey] ?? []
       if (previous.some(item => item.id === entry.id)) {
         return current
@@ -1110,7 +1396,12 @@ export function ServerComponentsPanel({
   }, [serverId])
 
   const startOperationPolling = useCallback(
-    (componentKey: string, operationId: string, actionLabel: string) => {
+    (
+      componentKey: string,
+      operationId: string,
+      actionLabel: string,
+      kind: 'prerequisite' | 'addon'
+    ) => {
       stopOperationPolling(componentKey, false)
 
       const poll = async () => {
@@ -1125,34 +1416,34 @@ export function ServerComponentsPanel({
 
           if (eventLines.length > 0) {
             eventLines.forEach((line, index) => {
-              appendPrerequisiteLog(componentKey, {
+              const entry = {
                 id: `${operation.id}:event:${index}:${line}`,
-                tone:
-                  operation.phase === 'failed' || operation.terminal_status === 'failed'
-                    ? 'error'
-                    : operation.phase === 'succeeded' || operation.terminal_status === 'success'
-                      ? 'success'
-                      : operation.phase === 'attention_required' ||
-                          operation.terminal_status === 'attention_required'
-                        ? 'error'
-                        : 'muted',
+                tone: actionLogTone(operation),
                 text: line,
-              })
+              }
+              if (kind === 'prerequisite') {
+                appendPrerequisiteLog(componentKey, entry)
+              } else {
+                appendAddonLog(componentKey, entry)
+              }
             })
           } else {
-            appendPrerequisiteLog(componentKey, {
+            const entry = {
               id: `${operation.id}:${operation.phase}:${operation.terminal_status}:${operation.updated}`,
-              tone:
-                operation.phase === 'failed' || operation.terminal_status === 'failed'
-                  ? 'error'
-                  : operation.phase === 'succeeded' || operation.terminal_status === 'success'
-                    ? 'success'
-                    : 'muted',
+              tone: actionLogTone(operation),
               text: `${formatTimestamp(operation.updated) || 'Now'} · ${actionLabel}: ${phaseLabelFromOperation(operation)}`,
-            })
+            }
+            if (kind === 'prerequisite') {
+              appendPrerequisiteLog(componentKey, entry)
+            } else {
+              appendAddonLog(componentKey, entry)
+            }
           }
 
           if (terminal) {
+            if (kind === 'addon') {
+              setAddonPanelMode(current => ({ ...current, [componentKey]: 'history' }))
+            }
             stopOperationPolling(componentKey)
             await loadComponents()
             return
@@ -1178,7 +1469,7 @@ export function ServerComponentsPanel({
 
       void poll()
     },
-    [appendPrerequisiteLog, loadComponents, serverId, stopOperationPolling]
+    [appendAddonLog, appendPrerequisiteLog, loadComponents, serverId, stopOperationPolling]
   )
 
   useEffect(() => {
@@ -1191,19 +1482,20 @@ export function ServerComponentsPanel({
       setActionError('')
       setActionMessage('')
       const isPrerequisite = PREREQUISITE_COMPONENT_KEYS.has(componentKey)
-      const actionLabel =
-        action === 'verify'
+      const actionLabel = isPrerequisite
+        ? action === 'verify'
           ? 'Recheck'
           : action === 'reinstall' || action === 'upgrade'
             ? 'Upgrade/Fix'
             : action === 'install'
               ? 'Install'
-              : action
+              : addonActionLabel(action)
+        : addonActionLabel(action)
 
       if (isPrerequisite) {
         setPrerequisiteOpen(current => ({ ...current, [componentKey]: true }))
-        setActiveOperationKeys(current => ({ ...current, [componentKey]: true }))
       }
+      setActiveOperationKeys(current => ({ ...current, [componentKey]: true }))
 
       try {
         const response = await invokeSoftwareAction(serverId, componentKey, action, {
@@ -1231,6 +1523,27 @@ export function ServerComponentsPanel({
             ],
           }))
           stopOperationPolling(componentKey)
+        } else {
+          setAddonPanelMode(current => ({ ...current, [componentKey]: 'operation' }))
+          setAddonActiveActionLabel(current => ({ ...current, [componentKey]: actionLabel }))
+          setAddonActionLogs(current => ({
+            ...current,
+            [componentKey]: [
+              {
+                id: `${componentKey}:${action}:requested`,
+                tone: 'muted',
+                text: `${actionLabel} requested...`,
+              },
+              {
+                id: `${componentKey}:${action}:accepted:${response.operation_id || 'local'}`,
+                tone: 'muted',
+                text: response.operation_id
+                  ? `${actionLabel} accepted (${response.operation_id})`
+                  : `${actionLabel} accepted`,
+              },
+            ],
+          }))
+          stopOperationPolling(componentKey)
         }
 
         setActionMessage(
@@ -1241,23 +1554,25 @@ export function ServerComponentsPanel({
 
         if (isPrerequisite && response.operation_id) {
           setActiveOperationKeys(current => ({ ...current, [componentKey]: true }))
-          startOperationPolling(componentKey, response.operation_id, actionLabel)
+          startOperationPolling(componentKey, response.operation_id, actionLabel, 'prerequisite')
+        } else if (response.operation_id) {
+          setActiveOperationKeys(current => ({ ...current, [componentKey]: true }))
+          startOperationPolling(componentKey, response.operation_id, actionLabel, 'addon')
         } else {
-          if (isPrerequisite) {
-            setActiveOperationKeys(current => {
-              if (!current[componentKey]) return current
-              return { ...current, [componentKey]: false }
-            })
-          }
-          await loadComponents()
-        }
-      } catch (err) {
-        if (isPrerequisite) {
           setActiveOperationKeys(current => {
             if (!current[componentKey]) return current
             return { ...current, [componentKey]: false }
           })
+          await loadComponents()
+          if (!isPrerequisite) {
+            setAddonPanelMode(current => ({ ...current, [componentKey]: 'history' }))
+          }
         }
+      } catch (err) {
+        setActiveOperationKeys(current => {
+          if (!current[componentKey]) return current
+          return { ...current, [componentKey]: false }
+        })
         setActionError(err instanceof Error ? err.message : `${action} failed`)
       } finally {
         setActionLoading(null)
@@ -1527,11 +1842,12 @@ export function ServerComponentsPanel({
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
           <section className="space-y-4 rounded-md border p-4" aria-label="Addon inventory">
-            <div className="grid grid-cols-[minmax(0,1.2fr)_8rem_5rem_7rem] gap-3 px-3 py-2 text-sm font-medium text-muted-foreground">
+            <div className="grid grid-cols-[minmax(0,1.1fr)_11rem_6rem_9rem_10rem] gap-3 px-3 py-2 text-sm font-medium text-muted-foreground">
               <span>Component</span>
               <span>Version</span>
-              <span>Status</span>
-              <span>Activity</span>
+              <span>Artifact</span>
+              <span>Health</span>
+              <span className="text-right">Actions</span>
             </div>
 
             {addonError ? <p className="px-3 py-2 text-sm text-destructive">{addonError}</p> : null}
@@ -1548,6 +1864,11 @@ export function ServerComponentsPanel({
                     component={component}
                     selected={selectedAddonKey === component.component_key}
                     onSelect={setSelectedAddonKey}
+                    onAction={(componentKey, action) => {
+                      void handleAction(componentKey, action)
+                    }}
+                    actionsLocked={actionsLocked}
+                    actionLoading={actionLoading}
                   />
                 ))}
               </div>
@@ -1558,78 +1879,13 @@ export function ServerComponentsPanel({
             className="max-h-[calc(100vh-50px)] self-start overflow-auto space-y-4 rounded-md border p-4"
             aria-labelledby="selected-addon-heading"
           >
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h3 id="selected-addon-heading" className="text-sm font-semibold">
-                  Selected Addon
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  {selectedAddon ? selectedAddon.label : 'Select one addon from the inventory.'}
-                </p>
-              </div>
-              {selectedAddon ? (
-                <div className="flex flex-wrap justify-end gap-1">
-                  {(() => {
-                    const primary = primaryAddonAction(selectedAddon)
-                    const secondaryActions = (selectedAddon.available_actions ?? []).filter(
-                      a => a !== primary
-                    )
-                    const allActions = selectedAddon.available_actions ?? []
-                    return (
-                      <>
-                        {primary ? (
-                          <Button
-                            variant="default"
-                            size="sm"
-                            disabled={
-                              actionsLocked ||
-                              actionLoading === `${selectedAddon.component_key}:${primary}`
-                            }
-                            onClick={() => void handleAction(selectedAddon.component_key, primary)}
-                            className="h-7 px-2 text-xs capitalize"
-                          >
-                            {actionLoading === `${selectedAddon.component_key}:${primary}` ? (
-                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                            ) : null}
-                            {primary}
-                          </Button>
-                        ) : null}
-                        {(primary ? secondaryActions : allActions).length > 0 ? (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={actionsLocked}
-                                className="h-7 px-2 text-xs"
-                                aria-label="More actions"
-                              >
-                                <MoreHorizontal className="h-3.5 w-3.5" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              {(primary ? secondaryActions : allActions).map(action => (
-                                <DropdownMenuItem
-                                  key={action}
-                                  onClick={() =>
-                                    void handleAction(selectedAddon.component_key, action)
-                                  }
-                                  className="cursor-pointer capitalize text-xs"
-                                >
-                                  {actionLoading === `${selectedAddon.component_key}:${action}` ? (
-                                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                                  ) : null}
-                                  {action}
-                                </DropdownMenuItem>
-                              ))}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        ) : null}
-                      </>
-                    )
-                  })()}
-                </div>
-              ) : null}
+            <div>
+              <h3 id="selected-addon-heading" className="text-sm font-semibold">
+                Selected Addon
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                {selectedAddon ? selectedAddon.label : 'Select one addon from the inventory.'}
+              </p>
             </div>
 
             {!selectedAddon ? (
@@ -1640,31 +1896,123 @@ export function ServerComponentsPanel({
             ) : (
               <div className="space-y-4 text-sm">
                 <div className="space-y-2">
-                  {AddonDetailRows({ component: selectedAddon }).map(item => (
-                    <div
-                      key={`${selectedAddon.component_key}:${item.label}`}
-                      className="flex flex-col gap-1 sm:flex-row sm:gap-2"
-                    >
-                      <span className="shrink-0 font-medium text-foreground">{item.label}:</span>
-                      <span className="break-words text-muted-foreground">{item.value}</span>
+                  <div className="flex min-w-0 items-center justify-between gap-3">
+                    <div className="inline-flex shrink-0 items-center gap-1 rounded-md bg-muted/35 p-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          setAddonPanelMode(current => ({
+                            ...current,
+                            [selectedAddon.component_key]: 'details',
+                          }))
+                        }
+                        className={`h-7 rounded-sm px-2.5 text-xs ${
+                          (addonPanelMode[selectedAddon.component_key] ?? 'details') === 'details'
+                            ? 'bg-background text-foreground shadow-sm'
+                            : 'text-muted-foreground hover:bg-transparent hover:text-foreground'
+                        }`}
+                      >
+                        Details
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          setAddonPanelMode(current => ({
+                            ...current,
+                            [selectedAddon.component_key]: 'operation',
+                          }))
+                        }
+                        className={`h-7 rounded-sm px-2.5 text-xs ${
+                          (addonPanelMode[selectedAddon.component_key] ?? 'details') ===
+                          'operation'
+                            ? 'bg-background text-foreground shadow-sm'
+                            : 'text-muted-foreground hover:bg-transparent hover:text-foreground'
+                        }`}
+                      >
+                        Live Log
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          setAddonPanelMode(current => ({
+                            ...current,
+                            [selectedAddon.component_key]: 'history',
+                          }))
+                        }
+                        className={`h-7 rounded-sm px-2.5 text-xs ${
+                          (addonPanelMode[selectedAddon.component_key] ?? 'details') === 'history'
+                            ? 'bg-background text-foreground shadow-sm'
+                            : 'text-muted-foreground hover:bg-transparent hover:text-foreground'
+                        }`}
+                      >
+                        History
+                      </Button>
                     </div>
-                  ))}
-                </div>
+                    <div className="min-w-0 truncate text-sm font-medium text-foreground">
+                      {(addonPanelMode[selectedAddon.component_key] ?? 'details') === 'operation'
+                        ? `${addonActiveActionLabel[selectedAddon.component_key] || 'Action'} Log`
+                        : (addonPanelMode[selectedAddon.component_key] ?? 'details') === 'history'
+                          ? 'Operation History'
+                          : 'Addon Details'}
+                    </div>
+                  </div>
 
-                <div className="space-y-2">
-                  <div className="text-sm font-medium text-foreground">Verification</div>
-                  <div className="rounded-md border px-3 py-2 text-sm text-muted-foreground">
-                    {selectedAddon.verification?.reason ||
-                      selectedAddon.verification_state ||
-                      'No verification details.'}
+                  <div className="rounded-md border px-3 py-3">
+                    {(addonPanelMode[selectedAddon.component_key] ?? 'details') === 'operation' ? (
+                      (addonActionLogs[selectedAddon.component_key]?.length ?? 0) > 0 ? (
+                        <div
+                          aria-label="Addon action log entries"
+                          className="max-h-72 space-y-2 overflow-y-auto pr-1 text-sm"
+                        >
+                          {(addonActionLogs[selectedAddon.component_key] ?? []).map(entry => (
+                            <div
+                              key={entry.id}
+                              className={
+                                entry.tone === 'error'
+                                  ? 'text-destructive'
+                                  : entry.tone === 'success'
+                                    ? 'text-green-600 dark:text-green-400'
+                                    : 'text-muted-foreground'
+                              }
+                            >
+                              {entry.text}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-muted-foreground">
+                          {addonActiveActionLabel[selectedAddon.component_key]
+                            ? 'Waiting for operation updates...'
+                            : 'No live log yet. Run an action to stream updates here.'}
+                        </div>
+                      )
+                    ) : (addonPanelMode[selectedAddon.component_key] ?? 'details') === 'history' ? (
+                      <OperationHistory
+                        serverId={serverId}
+                        componentKey={selectedAddon.component_key}
+                        reloadKey={selectedAddon.last_operation?.updated_at}
+                      />
+                    ) : (
+                      <div className="space-y-2">
+                        {AddonDetailRows({ component: selectedAddon }).map(item => (
+                          <div
+                            key={`${selectedAddon.component_key}:${item.label}`}
+                            className="flex flex-col gap-1 sm:flex-row sm:gap-2"
+                          >
+                            <span className="shrink-0 font-medium text-foreground">{item.label}:</span>
+                            <span className="break-words text-muted-foreground">{item.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
-
-                <OperationHistory
-                  serverId={serverId}
-                  componentKey={selectedAddon.component_key}
-                  reloadKey={selectedAddon.last_operation?.updated_at}
-                />
               </div>
             )}
           </section>

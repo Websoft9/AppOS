@@ -410,3 +410,33 @@ func TestQueryMetricSeriesRejectsPartialCustomRange(t *testing.T) {
 		t.Fatalf("expected partial custom range rejection, got %v", err)
 	}
 }
+
+func TestResolveMetricSeriesWindowAlignsFixedWindowToStepBoundary(t *testing.T) {
+	now := time.Date(2026, time.May, 14, 10, 7, 23, 0, time.UTC)
+	start, end, step, err := metrics.ResolveMetricSeriesWindowForTest("24h", metrics.MetricSeriesQueryOptions{}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantEnd := time.Date(2026, time.May, 14, 10, 0, 0, 0, time.UTC)
+	if !end.Equal(wantEnd) {
+		t.Fatalf("expected aligned end %s, got %s", wantEnd, end)
+	}
+	if got := end.Sub(start); got != 24*time.Hour {
+		t.Fatalf("expected 24h duration, got %s", got)
+	}
+	if step != 15*time.Minute {
+		t.Fatalf("expected 15m step, got %s", step)
+	}
+
+	_, end7d, step7d, err := metrics.ResolveMetricSeriesWindowForTest("7d", metrics.MetricSeriesQueryOptions{}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want7dEnd := time.Date(2026, time.May, 14, 10, 0, 0, 0, time.UTC)
+	if !end7d.Equal(want7dEnd) {
+		t.Fatalf("expected aligned 7d end %s, got %s", want7dEnd, end7d)
+	}
+	if step7d != time.Hour {
+		t.Fatalf("expected 1h step, got %s", step7d)
+	}
+}

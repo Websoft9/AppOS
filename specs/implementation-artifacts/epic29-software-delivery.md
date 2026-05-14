@@ -48,7 +48,14 @@ For the same software component, the split is:
   Monitor is a consumer of Software Delivery inventory events. It does not own
   install, upgrade, or readiness workflows.
 
-  New monitoring direction: Software Delivery should not deliver or manage a custom `appos-agent`. Managed servers keep Netdata as the only continuous monitoring agent. Any non-metric facts, runtime snapshots, or manageability checks are collected by the AppOS control plane through SSH/tunnel pull or temporary collectors, not by a Software Delivery-managed AppOS agent component.
+For control-plane-reporting components such as the monitor agent, the operator-facing inventory needs two dimensions:
+
+- `Service Status`: whether the managed component itself is installed and running on the selected server.
+- `AppOS Connection`: whether that component is connected to, authenticated with, and reporting to the AppOS control plane.
+
+Story 29.1 owns the backend contract for projecting these fields into component inventory responses. Monitor/control-plane telemetry remains the evidence source for reporting freshness and history. Health/status projection must be implemented as an explicit decision tree or rule table so precedence is reviewable and reusable across components, not as scattered component-specific `if/else` logic.
+
+New monitoring direction: Software Delivery should not deliver or manage a custom `appos-agent`. Managed servers keep Netdata as the only continuous monitoring agent. Any non-metric facts, runtime snapshots, or manageability checks are collected by the AppOS control plane through SSH/tunnel pull or temporary collectors, not by a Software Delivery-managed AppOS agent component.
 
 ## Subdomains
 
@@ -154,6 +161,7 @@ Legacy implementation history from the superseded split stories is preserved in 
 - define the shared software-delivery language across catalog, inventory, provisioning, and target-readiness
 - consolidate boundary, template, and catalog rules into one canonical contract story
 - keep component identity, template kinds, capability mapping, and initial managed catalog entries explicit
+- define reporting-aware `Service Status` / `AppOS Connection` projection and the decision-tree health resolver contract
 
 ### 29.2 Software Lifecycle Execution
 

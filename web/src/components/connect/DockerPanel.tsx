@@ -9,7 +9,7 @@ import {
   HardDrive,
   LayoutDashboard,
   Network,
-  RotateCw,
+  RefreshCw,
   TerminalSquare,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -569,26 +569,6 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
         queryClient.invalidateQueries({ queryKey: ['docker', 'networks', serverId] }),
         queryClient.invalidateQueries({ queryKey: ['docker', 'volumes', serverId] }),
         queryClient.invalidateQueries({ queryKey: ['docker', 'compose', serverId] }),
-        queryClient.refetchQueries(
-          { queryKey: ['docker', 'containers', serverId], type: 'active' },
-          { throwOnError: true }
-        ),
-        queryClient.refetchQueries(
-          { queryKey: ['docker', 'images', serverId], type: 'active' },
-          { throwOnError: true }
-        ),
-        queryClient.refetchQueries(
-          { queryKey: ['docker', 'networks', serverId], type: 'active' },
-          { throwOnError: true }
-        ),
-        queryClient.refetchQueries(
-          { queryKey: ['docker', 'volumes', serverId], type: 'active' },
-          { throwOnError: true }
-        ),
-        queryClient.refetchQueries(
-          { queryKey: ['docker', 'compose', serverId], type: 'active' },
-          { throwOnError: true }
-        ),
       ])
     } catch (err) {
       setRefreshError(getApiErrorMessage(err, 'Failed to refresh Docker data'))
@@ -698,15 +678,15 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
                 <div className="flex min-w-0 flex-col gap-2 sm:items-end">
                   <div className="flex items-center gap-2 self-end sm:self-auto">
                     <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-8 w-8"
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0"
                       onClick={refreshDockerData}
                       disabled={dockerDisabled || refreshing}
                       title="Refresh Docker data"
                       aria-label="Refresh Docker data"
                     >
-                      <RotateCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
+                      <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
                     </Button>
                   </div>
                 </div>
