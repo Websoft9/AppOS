@@ -1,6 +1,7 @@
 import { Fragment, useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { pb } from '@/lib/pb'
+import { dockerApiPath } from '@/lib/docker-api'
 import {
   Table,
   TableBody,
@@ -43,6 +44,7 @@ import {
   Loader2,
 } from 'lucide-react'
 import { getApiErrorMessage } from '@/lib/api-error'
+import { cn } from '@/lib/utils'
 
 const COMPOSE_SORT_KEY = 'docker.compose.sort'
 const DOCKER_PAGE_SIZE_KEY = 'docker.list.page_size'
@@ -127,11 +129,13 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
 
 export function ComposeTab({
   serverId,
+  embeddedInWorkspace = false,
   filterPreset,
   onClearFilterPreset,
   onOpenContainerFilter,
 }: {
   serverId: string
+  embeddedInWorkspace?: boolean
   filterPreset?: string
   onClearFilterPreset?: () => void
   onOpenContainerFilter?: (containerName: string) => void
@@ -205,7 +209,7 @@ export function ComposeTab({
   } = useQuery<ComposeProject[]>({
     queryKey: ['docker', 'compose', serverId],
     queryFn: async () => {
-      const res = await pb.send(`/api/ext/docker/compose/ls?server_id=${serverId}`, {
+      const res = await pb.send(dockerApiPath(serverId, '/compose/ls'), {
         method: 'GET',
       })
       return parseProjects(res.output)
@@ -240,17 +244,16 @@ export function ComposeTab({
         return next
       })
       try {
-        const containersRes = await pb.send(`/api/ext/docker/containers?server_id=${serverId}`, {
+        const containersRes = await pb.send(dockerApiPath(serverId, '/containers'), {
           method: 'GET',
         })
         const containers = parseContainers(containersRes.output)
         const inspectEntries = await Promise.all(
           containers.map(async container => {
             try {
-              const inspectRes = await pb.send(
-                `/api/ext/docker/containers/${container.ID}?server_id=${serverId}`,
-                { method: 'GET' }
-              )
+              const inspectRes = await pb.send(dockerApiPath(serverId, `/containers/${container.ID}`), {
+                method: 'GET',
+              })
               return [container, parseInspect(inspectRes.output)] as const
             } catch {
               return [container, null] as const
@@ -317,7 +320,7 @@ export function ComposeTab({
   const composeAction = async (action: string, projectDir: string, method: string = 'POST') => {
     try {
       setActionError(null)
-      await pb.send(`/api/ext/docker/compose/${action}?server_id=${serverId}`, {
+      await pb.send(dockerApiPath(serverId, `/compose/${action}`), {
         method,
         body: { projectDir },
       })
@@ -338,9 +341,9 @@ export function ComposeTab({
     setLogsOpen(true)
     setLogsLoading(true)
     try {
-      const res = await pb.send('/api/ext/docker/compose/logs', {
+      const res = await pb.send(dockerApiPath(serverId, '/compose/logs'), {
         method: 'GET',
-        query: { projectDir, tail: '200', server_id: serverId },
+        query: { projectDir, tail: '200' },
       })
       setLogsContent(res.output || 'No logs available')
     } catch (err) {
@@ -394,7 +397,7 @@ export function ComposeTab({
     setConfigOpen(true)
     setConfigLoading(true)
     try {
-      const res = await pb.send('/api/ext/docker/compose/config', {
+      const res = await pb.send(dockerApiPath(serverId, '/compose/config'), {
         method: 'GET',
         query: { projectDir },
       })
@@ -409,7 +412,7 @@ export function ComposeTab({
   const openInlineConfig = async (projectName: string, projectDir: string) => {
     setInlineConfigLoading(state => ({ ...state, [projectName]: true }))
     try {
-      const res = await pb.send('/api/ext/docker/compose/config', {
+      const res = await pb.send(dockerApiPath(serverId, '/compose/config'), {
         method: 'GET',
         query: { projectDir },
       })
@@ -428,7 +431,7 @@ export function ComposeTab({
     setConfigSaving(true)
     try {
       setActionError(null)
-      await pb.send('/api/ext/docker/compose/config', {
+      await pb.send(dockerApiPath(serverId, '/compose/config'), {
         method: 'PUT',
         body: { projectDir: configProject, content: configContent },
       })
@@ -529,17 +532,22 @@ export function ComposeTab({
   const loadError = error ? getApiErrorMessage(error, 'Failed to load compose projects') : null
 
   return (
-    <div className="h-full min-h-0 flex flex-col gap-4 pt-4">
+    <div
+      className={cn(
+        'h-full min-h-0 flex flex-col gap-4',
+        embeddedInWorkspace ? 'pt-0' : 'pt-4'
+      )}
+    >
       {(loadError || actionError) && (
         <Alert variant="destructive" className="shrink-0">
           <AlertDescription>{loadError || actionError}</AlertDescription>
         </Alert>
       )}
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 px-3 py-3 shrink-0">
         <input
           type="text"
           placeholder="Filter projects..."
-          className="border rounded-md px-3 py-1.5 text-sm bg-background"
+          className="h-9 min-w-[14rem] rounded-md border bg-background px-3 text-sm"
           value={filter}
           onChange={e => setFilter(e.target.value)}
         />
@@ -557,7 +565,7 @@ export function ComposeTab({
           </Button>
         )}
       </div>
-      <div className="flex items-center gap-2 flex-wrap shrink-0">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed bg-muted/10 px-3 py-2 shrink-0">
         {filterPreset && <Badge variant="outline">Linked project: {filterPreset}</Badge>}
         {hasProjectContainerLoading && (
           <Badge variant="outline">Loading project containers...</Badge>
@@ -670,7 +678,7 @@ export function ComposeTab({
                           <DropdownMenuItem
                             onClick={() => {
                               setActionError(null)
-                              pb.send(`/api/ext/docker/compose/down?server_id=${serverId}`, {
+                              pb.send(dockerApiPath(serverId, '/compose/down'), {
                                 method: 'POST',
                                 body: { projectDir: dir, removeVolumes: true },
                               })

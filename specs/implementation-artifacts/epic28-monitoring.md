@@ -18,6 +18,10 @@ This epic adopts a Netdata-plus-control-plane-pull model:
 
 The goal is not to build a full observability platform. The goal is to provide a small, reliable operator signal surface that answers: what is unhealthy, why, and since when.
 
+For Docker specifically, Epic 28 is a consumer of Docker runtime objects, not the owner of Docker inventory or Docker actions.
+Epic 4 remains the control-plane surface for listing, inspecting, logging, and operating Docker resources.
+Epic 28 should only add runtime evidence and status judgment on top of those objects.
+
 ---
 
 ## Scope Boundaries
@@ -31,6 +35,12 @@ The goal is not to build a full observability platform. The goal is to provide a
 | Resource credential usability checks | Per-tenant observability isolation |
 | AppOS self metrics and monitor pipeline health | Large historical analytics or BI-style reporting |
 | Minimal overview and detail-page observability surfaces | Highly customized dashboards |
+
+Docker boundary for MVP:
+
+- in scope: container runtime telemetry, telemetry freshness, and monitor-backed status summaries
+- out of scope: replacing Docker inventory APIs for containers, images, networks, volumes, or compose
+- out of scope: moving Docker actions such as start, stop, restart, remove, pull, prune, or compose up/down into monitor
 
 ---
 
@@ -349,6 +359,8 @@ Exact route placement can still shift during implementation, but the separation 
 - `story28.3-active-checks.md`
 - `story28.4-operator-surfaces.md`
 - `story28.5-platform-status-frontend.md`
+- `story28.6-container-stats-ui.md`
+- `story28.7-docker-monitor-handoff.md`
 
 ---
 
@@ -376,6 +388,8 @@ Implement this epic in the following order:
 3. `28.3 Active Checks for Resource and App Availability`
 4. `28.4 Minimal Operator Surfaces`
 5. `28.5 Platform Status Frontend Page`
+6. `28.6 Container Stats UI in Server Detail`
+7. `28.7 Docker and Monitor Surface Handoff`
 
 Reasoning:
 
@@ -384,6 +398,8 @@ Reasoning:
 - 28.3 adds AppOS-owned judgment so monitoring does not depend only on self-report.
 - 28.4 should consume stable read contracts instead of inventing UI-specific logic.
 - 28.5 converges the operator-facing platform status experience into one simple page after the monitor contracts are stable.
+- 28.6 brings monitor-backed container evidence into existing Docker-facing server detail without changing Docker control-plane ownership.
+- 28.7 standardizes the handoff between Docker and Monitor surfaces after both sides already have stable destinations.
 
 ## First Delivery Slice
 

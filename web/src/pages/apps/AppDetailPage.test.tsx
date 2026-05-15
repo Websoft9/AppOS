@@ -251,7 +251,7 @@ describe('AppDetailPage', () => {
             },
           ])
         }
-        if (path === '/api/ext/docker/containers' && options?.method === 'GET') {
+        if (path === '/api/servers/local/docker/containers' && options?.method === 'GET') {
           return Promise.resolve({
             output: [
               JSON.stringify({
@@ -273,7 +273,7 @@ describe('AppDetailPage', () => {
             ].join('\n'),
           })
         }
-        if (path === '/api/ext/docker/volumes' && options?.method === 'GET') {
+        if (path === '/api/servers/local/docker/volumes' && options?.method === 'GET') {
           return Promise.resolve({
             output: [
               JSON.stringify({
@@ -289,7 +289,7 @@ describe('AppDetailPage', () => {
             ].join('\n'),
           })
         }
-        if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET') {
+        if (path === '/api/servers/local/docker/containers/stats' && options?.method === 'GET') {
           return Promise.resolve({
             output: [
               JSON.stringify({
@@ -308,14 +308,14 @@ describe('AppDetailPage', () => {
           })
         }
         if (
-          path === '/api/ext/docker/containers/container-1/logs?tail=200' &&
+          path === '/api/servers/local/docker/containers/container-1/logs?tail=200' &&
           options?.method === 'GET'
         ) {
           return Promise.resolve({
             output: 'demo log line 1\ndemo log line 2',
           })
         }
-        if (path === '/api/ext/docker/containers/container-1' && options?.method === 'GET') {
+        if (path === '/api/servers/local/docker/containers/container-1' && options?.method === 'GET') {
           return Promise.resolve({
             output: JSON.stringify([
               {
@@ -424,13 +424,13 @@ describe('AppDetailPage', () => {
         if (path === '/api/instances' && options?.method === 'GET') {
           return Promise.resolve([])
         }
-        if (path === '/api/ext/docker/containers' && options?.method === 'GET') {
+        if (path === '/api/servers/local/docker/containers' && options?.method === 'GET') {
           return Promise.resolve({ output: '' })
         }
-        if (path === '/api/ext/docker/volumes' && options?.method === 'GET') {
+        if (path === '/api/servers/local/docker/volumes' && options?.method === 'GET') {
           return Promise.resolve({ output: '' })
         }
-        if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET') {
+        if (path === '/api/servers/local/docker/containers/stats' && options?.method === 'GET') {
           return Promise.resolve({ output: '' })
         }
         if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
@@ -525,13 +525,13 @@ describe('AppDetailPage', () => {
         if (path === '/api/instances' && options?.method === 'GET') {
           return Promise.resolve([])
         }
-        if (path === '/api/ext/docker/containers' && options?.method === 'GET') {
+        if (path === '/api/servers/server-1/docker/containers' && options?.method === 'GET') {
           return Promise.resolve({ output: '' })
         }
-        if (path === '/api/ext/docker/volumes' && options?.method === 'GET') {
+        if (path === '/api/servers/server-1/docker/volumes' && options?.method === 'GET') {
           return Promise.resolve({ output: '' })
         }
-        if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET') {
+        if (path === '/api/servers/server-1/docker/containers/stats' && options?.method === 'GET') {
           return Promise.resolve({ output: '' })
         }
         if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
@@ -595,11 +595,11 @@ describe('AppDetailPage', () => {
           return Promise.resolve([])
         if (path === '/api/actions' && options?.method === 'GET') return Promise.resolve([])
         if (path === '/api/instances' && options?.method === 'GET') return Promise.resolve([])
-        if (path === '/api/ext/docker/containers' && options?.method === 'GET')
+        if (path === '/api/servers/local/docker/containers' && options?.method === 'GET')
           return Promise.resolve({ output: '' })
-        if (path === '/api/ext/docker/volumes' && options?.method === 'GET')
+        if (path === '/api/servers/local/docker/volumes' && options?.method === 'GET')
           return Promise.resolve({ output: '' })
-        if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET')
+        if (path === '/api/servers/local/docker/containers/stats' && options?.method === 'GET')
           return Promise.resolve({ output: '' })
         if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
           return Promise.resolve({
@@ -664,11 +664,11 @@ describe('AppDetailPage', () => {
           return Promise.resolve([])
         if (path === '/api/actions' && options?.method === 'GET') return Promise.resolve([])
         if (path === '/api/instances' && options?.method === 'GET') return Promise.resolve([])
-        if (path === '/api/ext/docker/containers' && options?.method === 'GET')
+        if (path === '/api/servers/local/docker/containers' && options?.method === 'GET')
           return Promise.resolve({ output: '' })
-        if (path === '/api/ext/docker/volumes' && options?.method === 'GET')
+        if (path === '/api/servers/local/docker/volumes' && options?.method === 'GET')
           return Promise.resolve({ output: '' })
-        if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET')
+        if (path === '/api/servers/local/docker/containers/stats' && options?.method === 'GET')
           return Promise.resolve({ output: '' })
         if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
           return Promise.resolve({
@@ -739,11 +739,11 @@ describe('AppDetailPage', () => {
           return Promise.resolve([])
         if (path === '/api/actions' && options?.method === 'GET') return Promise.resolve([])
         if (path === '/api/instances' && options?.method === 'GET') return Promise.resolve([])
-        if (path === '/api/ext/docker/containers' && options?.method === 'GET')
+        if (path === '/api/servers/local/docker/containers' && options?.method === 'GET')
           return Promise.resolve({ output: '' })
-        if (path === '/api/ext/docker/volumes' && options?.method === 'GET')
+        if (path === '/api/servers/local/docker/volumes' && options?.method === 'GET')
           return Promise.resolve({ output: '' })
-        if (path === '/api/ext/docker/containers/stats' && options?.method === 'GET')
+        if (path === '/api/servers/local/docker/containers/stats' && options?.method === 'GET')
           return Promise.resolve({ output: '' })
         if (path === '/api/apps/app-1/logs' && options?.method === 'GET') {
           return Promise.resolve({
@@ -936,8 +936,8 @@ describe('AppDetailPage', () => {
     fireEvent.click(runtimeTab)
 
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith('/api/ext/docker/containers', { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith('/api/ext/docker/containers/stats', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith('/api/servers/local/docker/containers', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith('/api/servers/local/docker/containers/stats', { method: 'GET' })
       expect(screen.getByText('demo-app-web-1')).toBeInTheDocument()
       expect(screen.queryByText('other-app-web-1')).not.toBeInTheDocument()
       expect(screen.getByText('12.5%')).toBeInTheDocument()
@@ -961,7 +961,7 @@ describe('AppDetailPage', () => {
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
-        '/api/ext/docker/containers/container-1/logs?tail=200',
+        '/api/servers/local/docker/containers/container-1/logs?tail=200',
         { method: 'GET' }
       )
     })
@@ -985,8 +985,8 @@ describe('AppDetailPage', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/apps/app-1/logs', { method: 'GET' })
       expect(sendMock).toHaveBeenCalledWith('/api/actions', { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith('/api/ext/docker/containers', { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith('/api/ext/docker/containers/stats', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith('/api/servers/local/docker/containers', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith('/api/servers/local/docker/containers/stats', { method: 'GET' })
       expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/app/app-1', { method: 'GET' })
       expect(sendMock).toHaveBeenCalledWith(
         '/api/monitor/targets/app/app-1/series?window=1h&series=cpu%2Cmemory',
@@ -1022,7 +1022,7 @@ describe('AppDetailPage', () => {
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/instances', { method: 'GET' })
-      expect(sendMock).toHaveBeenCalledWith('/api/ext/docker/volumes', { method: 'GET' })
+      expect(sendMock).toHaveBeenCalledWith('/api/servers/local/docker/volumes', { method: 'GET' })
       expect(sendMock).toHaveBeenCalledWith('/api/ext/backup/list', { method: 'GET' })
     })
 
@@ -1034,7 +1034,7 @@ describe('AppDetailPage', () => {
       await screen.findByText('Platform backup inventory is not connected yet.')
     ).toBeInTheDocument()
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith('/api/ext/docker/containers/container-1', {
+      expect(sendMock).toHaveBeenCalledWith('/api/servers/local/docker/containers/container-1', {
         method: 'GET',
       })
     })

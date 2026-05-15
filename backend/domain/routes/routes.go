@@ -1,7 +1,6 @@
 // Package routes registers all custom API routes for AppOS.
 //
 // Route groups:
-//   - /api/ext/docker     — Docker operations (compose, images, containers, networks, volumes)
 //   - /api/ext/proxy      — reverse proxy domain/SSL management
 //   - /api/ext/system     — system metrics, file browser
 //   - /api/ext/backup     — backup/restore operations
@@ -17,7 +16,7 @@
 //   - /api/topics         — Topic share management (authenticated + public share token)
 //   - /api/ext/iac        — IaC file management (Epic 14, superuser-only)
 //   - /api/tunnel         — tunnel setup and operations APIs (Epic 16)
-//   - /api/servers        — Server catalog: ops, ports, systemd (Epic 20)
+//   - /api/servers        — Server catalog plus server-scoped Docker/ops/software routes (Epic 4, Epic 20)
 //   - /api/software       — AppOS-local software inventory APIs
 //   - /api/terminal       — Interactive terminal sessions: SSH, Docker, SFTP, local (Epic 20)
 package routes
@@ -86,7 +85,6 @@ func Register(se *core.ServeEvent) {
 	terminalGroup.Bind(wsTokenAuth())
 	terminalGroup.Bind(apis.RequireSuperuserAuth())
 
-	registerDockerRoutes(g)
 	registerProxyRoutes(g)
 	registerSystemRoutes(g)
 	registerBackupRoutes(g)
@@ -104,6 +102,7 @@ func Register(se *core.ServeEvent) {
 	registerExposureRoutes(deployments)
 	registerIaCRoutes(g)
 	registerServerRoutes(servers)
+	registerDockerRoutes(servers)
 	registerSoftwareRoutes(servers)
 	registerLocalSoftwareRoutes(softwareGroup)
 	registerTerminalRoutes(terminalGroup)

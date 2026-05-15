@@ -168,6 +168,14 @@ function isDangerousPrerequisiteAction(action: SoftwareActionType): boolean {
   return action === 'upgrade' || action === 'reinstall'
 }
 
+function prerequisiteActionLabel(action: SoftwareActionType): string {
+  if (action === 'verify') return 'Recheck'
+  if (action === 'reinstall') return 'Repair'
+  if (action === 'upgrade') return 'Upgrade'
+  if (action === 'install') return 'Install'
+  return addonActionLabel(action)
+}
+
 function prerequisiteChecks(component: SoftwareComponentSummary): Array<{
   label: string
   ready: boolean
@@ -456,12 +464,17 @@ function prerequisiteStatusLabel(component: SoftwareComponentSummary): string {
 }
 
 function prerequisiteActionSlots(component: SoftwareComponentSummary): Array<{
-  label: 'Recheck' | 'Upgrade/Fix' | 'Install'
+  label: string
   action: SoftwareActionType | null
 }> {
   const actions = new Set(component.available_actions ?? [])
+  const repairOrUpgradeAction = actions.has('reinstall')
+    ? 'reinstall'
+    : actions.has('upgrade')
+      ? 'upgrade'
+      : null
   const slots: Array<{
-    label: 'Recheck' | 'Upgrade/Fix' | 'Install'
+    label: string
     action: SoftwareActionType | null
   }> = [
     {
@@ -469,8 +482,8 @@ function prerequisiteActionSlots(component: SoftwareComponentSummary): Array<{
       action: actions.has('verify') ? 'verify' : null,
     },
     {
-      label: 'Upgrade/Fix',
-      action: actions.has('reinstall') ? 'reinstall' : actions.has('upgrade') ? 'upgrade' : null,
+      label: repairOrUpgradeAction ? prerequisiteActionLabel(repairOrUpgradeAction) : 'Repair',
+      action: repairOrUpgradeAction,
     },
     {
       label: 'Install',
@@ -1482,15 +1495,7 @@ export function ServerComponentsPanel({
       setActionError('')
       setActionMessage('')
       const isPrerequisite = PREREQUISITE_COMPONENT_KEYS.has(componentKey)
-      const actionLabel = isPrerequisite
-        ? action === 'verify'
-          ? 'Recheck'
-          : action === 'reinstall' || action === 'upgrade'
-            ? 'Upgrade/Fix'
-            : action === 'install'
-              ? 'Install'
-              : addonActionLabel(action)
-        : addonActionLabel(action)
+      const actionLabel = isPrerequisite ? prerequisiteActionLabel(action) : addonActionLabel(action)
 
       if (isPrerequisite) {
         setPrerequisiteOpen(current => ({ ...current, [componentKey]: true }))
@@ -1618,7 +1623,7 @@ export function ServerComponentsPanel({
         setConfirmDangerAction({
           componentKey,
           action,
-          label: action === 'reinstall' ? 'Upgrade/Fix' : 'Upgrade/Fix',
+          label: prerequisiteActionLabel(action),
         })
         return
       }
@@ -1681,10 +1686,13 @@ export function ServerComponentsPanel({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Upgrade/Fix</AlertDialogTitle>
+            <AlertDialogTitle>Confirm {confirmDangerAction?.label ?? 'Action'}</AlertDialogTitle>
             <AlertDialogDescription>
-              Upgrade/Fix may reinstall or replace Docker components on this server. Continue only
-              if you are ready to interrupt the current runtime and repair the installation.
+              {confirmDangerAction?.label ?? 'This action'} may{' '}
+              {confirmDangerAction?.action === 'upgrade'
+                ? 'upgrade or replace Docker components'
+                : 'reinstall or replace Docker components'}{' '}
+              on this server. Continue only if you are ready to interrupt the current runtime.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

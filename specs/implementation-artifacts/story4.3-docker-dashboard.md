@@ -1,5 +1,8 @@
 # Story 4.3: Frontend — Docker Resource Dashboard
 
+> Historical implementation record: this document preserves the originally delivered `/docker` dashboard contract.
+> Current product-facing IA replan for Story 4.3 now lives in `specs/implementation-artifacts/story4.3-docker-workspace-replan.md`.
+
 **Epic**: Epic 4 - Docker Operations Layer  
 **Priority**: P1  
 **Status**: Complete  

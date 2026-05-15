@@ -71,7 +71,8 @@ groups:
     description: Docker operations including compose, image, container, network and volume management.
     apiType: Ext
     extSurface:
-      - /api/ext/docker/*
+      - /api/servers/{serverId}/docker/*
+      - GET /api/servers/docker-targets
     nativeSurface: []
     sources:
       extRouteFiles:
@@ -363,7 +364,7 @@ groups:
     description: Server registry CRUD and remote operations APIs for connectivity, power, ports, monitor-agent deployment, and systemd management.
     apiType: Mixed
     extSurface:
-      - GET /api/ext/docker/servers
+      - GET /api/servers/docker-targets
       - GET /api/servers/connection
       - GET /api/servers/local/docker-bridge
       - GET /api/servers/{serverId}/ops/connectivity

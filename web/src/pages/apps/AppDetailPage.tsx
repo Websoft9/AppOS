@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { ArrowUp, MoreVertical, Play, RotateCcw, Square, Trash2 } from 'lucide-react'
 import { pb } from '@/lib/pb'
+import { dockerApiPath, dockerApiUrl } from '@/lib/docker-api'
 import { getApiErrorMessage } from '@/lib/api-error'
 import { copyToClipboard } from '@/lib/clipboard'
 import { iacRead, iacSaveFile } from '@/lib/iac-api'
@@ -332,15 +333,15 @@ export function AppDetailPage({ appId }: { appId: string }) {
   }, [])
 
   const fetchRuntimeInventory = useCallback(async () => {
-    const query =
-      app?.server_id && app.server_id !== 'local'
-        ? `?server_id=${encodeURIComponent(app.server_id)}`
-        : ''
     setRuntimeLoading(true)
     try {
       const [containersResponse, statsResponse] = await Promise.all([
-        pb.send<{ output?: string }>(`/api/ext/docker/containers${query}`, { method: 'GET' }),
-        pb.send<{ output?: string }>(`/api/ext/docker/containers/stats${query}`, { method: 'GET' }),
+        pb.send<{ output?: string }>(dockerApiPath(app?.server_id, '/containers'), {
+          method: 'GET',
+        }),
+        pb.send<{ output?: string }>(dockerApiPath(app?.server_id, '/containers/stats'), {
+          method: 'GET',
+        }),
       ])
       const nextContainers = parseDockerJsonLines<RuntimeContainer>(containersResponse.output || '')
       const nextStats = parseDockerJsonLines<RuntimeContainerStats>(statsResponse.output || '')
@@ -359,15 +360,11 @@ export function AppDetailPage({ appId }: { appId: string }) {
   const fetchRuntimeInspect = useCallback(
     async (containerIds: string[]) => {
       if (containerIds.length === 0) return
-      const query =
-        app?.server_id && app.server_id !== 'local'
-          ? `?server_id=${encodeURIComponent(app.server_id)}`
-          : ''
       const results = await Promise.all(
         containerIds.map(async containerId => {
           try {
             const response = await pb.send<{ output?: string }>(
-              `/api/ext/docker/containers/${containerId}${query}`,
+              dockerApiPath(app?.server_id, `/containers/${containerId}`),
               { method: 'GET' }
             )
             return [containerId, parseDockerInspect(response.output)] as const
@@ -388,16 +385,12 @@ export function AppDetailPage({ appId }: { appId: string }) {
   )
 
   const fetchDataResources = useCallback(async () => {
-    const volumeQuery =
-      app?.server_id && app.server_id !== 'local'
-        ? `?server_id=${encodeURIComponent(app.server_id)}`
-        : ''
     setDataLoading(true)
     setDataError('')
 
     const [instanceResult, volumeResult, backupResult] = await Promise.allSettled([
       pb.send<unknown>('/api/instances', { method: 'GET' }),
-      pb.send<{ output?: string }>(`/api/ext/docker/volumes${volumeQuery}`, { method: 'GET' }),
+      pb.send<{ output?: string }>(dockerApiPath(app?.server_id, '/volumes'), { method: 'GET' }),
       pb.send<unknown>('/api/ext/backup/list', { method: 'GET' }),
     ])
 
@@ -1122,15 +1115,11 @@ export function AppDetailPage({ appId }: { appId: string }) {
 
   const openRuntimeContainerLogs = useCallback(
     async (container: RuntimeContainer) => {
-      const query =
-        app?.server_id && app.server_id !== 'local'
-          ? `?server_id=${encodeURIComponent(app.server_id)}&tail=200`
-          : '?tail=200'
       setRuntimeLogsTarget(container)
       setRuntimeLogsLoading(true)
       try {
         const response = await pb.send<{ output?: string }>(
-          `/api/ext/docker/containers/${container.ID}/logs${query}`,
+          dockerApiUrl(app?.server_id, `/containers/${container.ID}/logs`, { tail: 200 }),
           { method: 'GET' }
         )
         setRuntimeLogsContent(typeof response.output === 'string' ? response.output : '')

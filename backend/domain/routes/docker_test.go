@@ -71,7 +71,7 @@ func doDocker(t *testing.T, te *testEnv, method, url, body, token string) *httpt
 		t.Fatal(err)
 	}
 
-	g := r.Group("/api/ext")
+	g := r.Group("/api/servers")
 	g.Bind(apis.RequireAuth())
 	registerDockerRoutes(g)
 
@@ -118,12 +118,12 @@ func TestDockerRoutesRequireSuperuser(t *testing.T) {
 
 	userToken := createRegularUserToken(t, te)
 
-	rec := doDocker(t, te, http.MethodGet, "/api/ext/docker/servers", "", userToken)
+	rec := doDocker(t, te, http.MethodGet, "/api/servers/docker-targets", "", userToken)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("expected 403 for non-superuser, got %d: %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doDocker(t, te, http.MethodGet, "/api/ext/docker/servers", "", te.token)
+	rec = doDocker(t, te, http.MethodGet, "/api/servers/docker-targets", "", te.token)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 for superuser, got %d: %s", rec.Code, rec.Body.String())
 	}

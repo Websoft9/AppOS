@@ -46,7 +46,7 @@ describe('ContainersTab', () => {
   beforeEach(() => {
     sendMock.mockReset()
     sendMock.mockImplementation((path: string) => {
-      if (path === '/api/ext/docker/containers?server_id=srv-1') {
+      if (path === '/api/servers/srv-1/docker/containers') {
         return Promise.resolve({
           output: [
             JSON.stringify({
@@ -154,13 +154,13 @@ describe('ContainersTab', () => {
           ],
         })
       }
-      if (path === '/api/ext/docker/containers/ctr-1?server_id=srv-1') {
+      if (path === '/api/servers/srv-1/docker/containers/ctr-1') {
         return Promise.resolve({
           output:
             '[{"Created":"2026-04-29T00:00:00Z","Config":{"Labels":{}},"NetworkSettings":{"Networks":{}},"Mounts":[]}]',
         })
       }
-      if (path === '/api/ext/docker/containers/ctr-2?server_id=srv-1') {
+      if (path === '/api/servers/srv-1/docker/containers/ctr-2') {
         return Promise.resolve({
           output:
             '[{"Created":"2026-04-29T00:05:00Z","Config":{"Labels":{}},"NetworkSettings":{"Networks":{}},"Mounts":[]}]',
@@ -185,7 +185,7 @@ describe('ContainersTab', () => {
 
     await waitFor(() => {
       expect(sendMock).not.toHaveBeenCalledWith(
-        '/api/ext/docker/containers/stats?server_id=srv-1',
+        '/api/servers/srv-1/docker/containers/stats',
         {
           method: 'GET',
         }

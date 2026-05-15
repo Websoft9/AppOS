@@ -380,6 +380,30 @@ describe('ServerPortsPanel', () => {
     expect(within(inventory).queryByRole('button', { name: /^80\/TCP$/ })).toBeNull()
   })
 
+  it('opens details from non-actions row clicks and keeps actions isolated', async () => {
+    render(<ServerPortsPanel serverId="server-1" />)
+
+    const inventory = await screen.findByRole('region', { name: 'Port inventory' })
+
+    fireEvent.click(within(inventory).getByText('nginx'))
+
+    const detailSection = screen.getByRole('heading', { name: 'Selected Port' }).closest('section')
+    if (!detailSection) {
+      throw new Error('Expected selected port section')
+    }
+
+    expect(within(detailSection).getByText('8080')).toBeInTheDocument()
+    expect(within(detailSection).getByText('nginx')).toBeInTheDocument()
+
+    fireEvent.pointerDown(
+      within(inventory).getByRole('button', { name: /Port actions for 53\/UDP/i })
+    )
+
+    expect(within(detailSection).queryByText('53')).toBeNull()
+    expect(await screen.findByRole('menuitem', { name: 'Open details' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Release port' })).toBeInTheDocument()
+  })
+
   it('renders load errors inside the port inventory', async () => {
     listServerPortsMock.mockRejectedValue(new Error('ssh failed'))
 

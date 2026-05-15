@@ -135,6 +135,10 @@ function compareRows(
   return sortDirection === 'desc' ? result * -1 : result
 }
 
+function isRowKeyboardActivation(event: { key: string }) {
+  return event.key === 'Enter' || event.key === ' '
+}
+
 export function ServerPortsPanel({ serverId }: { serverId: string }) {
   const requestSeqRef = useRef(0)
   const [protocol, setProtocol] = useState<ServerPortProtocolFilter>('all')
@@ -484,20 +488,24 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
                   return (
                     <div
                       key={rowKey}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setSelectedPortKey(rowKey)}
+                      onKeyDown={event => {
+                        if (!isRowKeyboardActivation(event)) return
+                        event.preventDefault()
+                        setSelectedPortKey(rowKey)
+                      }}
+                      aria-label={`${portLabel}/${row.protocol.toUpperCase()}`}
                       className={cn(
-                        'grid items-center gap-2 px-3 py-1.5 text-sm',
+                        'grid items-center gap-2 px-3 py-1.5 text-sm transition-colors hover:bg-accent/30 focus-visible:bg-accent/30 focus-visible:outline-none',
                         PORTS_INVENTORY_GRID_CLASS,
                         selectedPortKey === rowKey && 'bg-accent/40'
                       )}
                     >
-                      <button
-                        type="button"
-                        onClick={() => setSelectedPortKey(rowKey)}
-                        className="min-w-0 text-left"
-                        aria-label={`${portLabel}/${row.protocol.toUpperCase()}`}
-                      >
+                      <div className="min-w-0 text-left">
                         <span className="block truncate font-medium leading-5">{portLabel}</span>
-                      </button>
+                      </div>
                       <span
                         className={cn(
                           'truncate py-1 text-left',
@@ -527,11 +535,19 @@ export function ServerPortsPanel({ serverId }: { serverId: string }) {
                             className="h-8 w-8 justify-self-center p-0"
                             disabled={loading || releaseSubmitting}
                             aria-label={`Port actions for ${portLabel}/${row.protocol.toUpperCase()}`}
+                            onClick={event => event.stopPropagation()}
+                            onPointerDown={event => event.stopPropagation()}
+                            onKeyDown={event => event.stopPropagation()}
                           >
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                        <DropdownMenuContent
+                          align="end"
+                          onClick={event => event.stopPropagation()}
+                          onPointerDown={event => event.stopPropagation()}
+                          onKeyDown={event => event.stopPropagation()}
+                        >
                           <DropdownMenuItem onClick={() => setSelectedPortKey(rowKey)}>
                             Open details
                           </DropdownMenuItem>

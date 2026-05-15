@@ -454,6 +454,7 @@ Establish the `servers` collection and its full CRUD surface. This is a pure dat
 | 20.4 | SFTP Enhancements | file properties, symlink, copy/move progress, upload limits |
 | 20.5 | Server Ops | connectivity check (with error category), power, ports, systemd backend route family |
 | 20.8 | Server Detail Systemd Tab | server-detail `Systemd` tab UX, paginated service inventory, search, featured services |
+| 20.11 | Server Detail Docker Tabs | server-detail `Docker` tab shell, inherited server context, inner tab IA, `/docker` transition direction |
 
 | Story | Status |
 |-------|--------|
@@ -463,6 +464,7 @@ Establish the `servers` collection and its full CRUD surface. This is a pure dat
 | 20.4 | ✅ Complete |
 | 20.5 | 🟡 In Review |
 | 20.8 | Draft |
+| 20.11 | Draft |
 
 ---
 

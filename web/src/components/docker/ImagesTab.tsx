@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { pb } from '@/lib/pb'
+import { dockerApiPath, dockerApiUrl } from '@/lib/docker-api'
 import {
   Table,
   TableBody,
@@ -51,6 +52,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { getApiErrorMessage } from '@/lib/api-error'
+import { cn } from '@/lib/utils'
 
 const IMAGES_SORT_KEY = 'docker.images.sort'
 const DOCKER_PAGE_SIZE_KEY = 'docker.list.page_size'
@@ -174,7 +176,13 @@ function isImageUsed(image: DockerImage, containers: DockerContainerRow[]): bool
   return false
 }
 
-export function ImagesTab({ serverId }: { serverId: string }) {
+export function ImagesTab({
+  serverId,
+  embeddedInWorkspace = false,
+}: {
+  serverId: string
+  embeddedInWorkspace?: boolean
+}) {
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState('')
   const [usageFilter, setUsageFilter] = useState<'all' | 'used' | 'unused'>('all')
@@ -238,7 +246,7 @@ export function ImagesTab({ serverId }: { serverId: string }) {
   } = useQuery<DockerImage[]>({
     queryKey: ['docker', 'images', serverId],
     queryFn: async () => {
-      const res = await pb.send(`/api/ext/docker/images?server_id=${serverId}`, { method: 'GET' })
+      const res = await pb.send(dockerApiPath(serverId, '/images'), { method: 'GET' })
       return parseImages(res.output)
     },
     staleTime: 10_000,
@@ -248,7 +256,7 @@ export function ImagesTab({ serverId }: { serverId: string }) {
   const { data: containers = [] } = useQuery<DockerContainerRow[]>({
     queryKey: ['docker', 'containers', 'for-images', serverId],
     queryFn: async () => {
-      const res = await pb.send(`/api/ext/docker/containers?server_id=${serverId}`, {
+      const res = await pb.send(dockerApiPath(serverId, '/containers'), {
         method: 'GET',
       })
       return parseContainers(res.output)
@@ -273,7 +281,7 @@ export function ImagesTab({ serverId }: { serverId: string }) {
     if (!id || inspectMap[id] || inspectLoadingMap[id]) return
     setInspectLoadingMap(state => ({ ...state, [id]: true }))
     try {
-      const res = await pb.send(`/api/ext/docker/images/${id}/inspect?server_id=${serverId}`, {
+      const res = await pb.send(dockerApiPath(serverId, `/images/${id}/inspect`), {
         method: 'GET',
       })
       setInspectMap(state => ({ ...state, [id]: String(res.output || '') }))
@@ -290,7 +298,7 @@ export function ImagesTab({ serverId }: { serverId: string }) {
   const removeImage = async (id: string) => {
     try {
       setActionError(null)
-      await pb.send(`/api/ext/docker/images/${id}?server_id=${serverId}`, { method: 'DELETE' })
+      await pb.send(dockerApiPath(serverId, `/images/${id}`), { method: 'DELETE' })
       setSelectedIds(state => state.filter(item => item !== id))
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['docker', 'images', serverId] }),
@@ -309,7 +317,7 @@ export function ImagesTab({ serverId }: { serverId: string }) {
       setActionError(null)
       const results = await Promise.allSettled(
         selectedIds.map(async id => {
-          await pb.send(`/api/ext/docker/images/${id}?server_id=${serverId}`, { method: 'DELETE' })
+          await pb.send(dockerApiPath(serverId, `/images/${id}`), { method: 'DELETE' })
           return id
         })
       )
@@ -336,7 +344,7 @@ export function ImagesTab({ serverId }: { serverId: string }) {
     try {
       setActionError(null)
       setMockPruneNotice(null)
-      await pb.send(`/api/ext/docker/images/prune?server_id=${serverId}`, { method: 'POST' })
+      await pb.send(dockerApiPath(serverId, '/images/prune'), { method: 'POST' })
       setMockPruneNotice('Prune completed.')
       setSelectedIds([])
       await Promise.all([
@@ -355,7 +363,7 @@ export function ImagesTab({ serverId }: { serverId: string }) {
     setRegistryReason('')
     setRegistryAvailable(null)
     try {
-      const res = (await pb.send(`/api/ext/docker/images/registry/status?server_id=${serverId}`, {
+      const res = (await pb.send(dockerApiPath(serverId, '/images/registry/status'), {
         method: 'GET',
       })) as { available?: boolean; registry?: string; reason?: string }
       setRegistryAvailable(!!res.available)
@@ -384,10 +392,9 @@ export function ImagesTab({ serverId }: { serverId: string }) {
     setSearching(true)
     setSearchResults([])
     try {
-      const res = await pb.send(
-        `/api/ext/docker/images/registry/search?server_id=${serverId}&q=${encodeURIComponent(keyword)}&limit=30`,
-        { method: 'GET' }
-      )
+      const res = await pb.send(dockerApiUrl(serverId, '/images/registry/search', { q: keyword, limit: 30 }), {
+        method: 'GET',
+      })
       setSearchResults(parseRegistrySearch(String(res.output || '')))
     } catch (err) {
       setActionError(getApiErrorMessage(err, 'Failed to search registry'))
@@ -403,7 +410,7 @@ export function ImagesTab({ serverId }: { serverId: string }) {
       setActionError(null)
       setPulling(true)
       setPullLog(`Pulling ${name}...`)
-      const res = await pb.send(`/api/ext/docker/images/pull?server_id=${serverId}`, {
+      const res = await pb.send(dockerApiPath(serverId, '/images/pull'), {
         method: 'POST',
         body: { name },
       })
@@ -528,22 +535,27 @@ export function ImagesTab({ serverId }: { serverId: string }) {
   )
 
   return (
-    <div className="h-full min-h-0 flex flex-col gap-4 pt-4">
+    <div
+      className={cn(
+        'h-full min-h-0 flex flex-col gap-4',
+        embeddedInWorkspace ? 'pt-0' : 'pt-4'
+      )}
+    >
       {(loadError || actionError) && (
         <Alert variant="destructive" className="shrink-0">
           <AlertDescription>{loadError || actionError}</AlertDescription>
         </Alert>
       )}
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 px-3 py-3 shrink-0">
         <input
           type="text"
           placeholder="Filter images..."
-          className="border rounded-md px-3 py-1.5 text-sm bg-background"
+          className="h-9 min-w-[14rem] rounded-md border bg-background px-3 text-sm"
           value={filter}
           onChange={e => setFilter(e.target.value)}
         />
         <select
-          className="border rounded-md px-2 py-1.5 text-sm bg-background"
+          className="h-9 rounded-md border bg-background px-3 text-sm"
           value={usageFilter}
           onChange={e => setUsageFilter(e.target.value as 'all' | 'used' | 'unused')}
         >
@@ -572,7 +584,7 @@ export function ImagesTab({ serverId }: { serverId: string }) {
         </Button>
       </div>
 
-      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed bg-muted/10 px-3 py-2 shrink-0">
         {usageFilter === 'unused' && <Badge variant="outline">Only unused images</Badge>}
         {usageFilter === 'used' && <Badge variant="outline">Only used images</Badge>}
         {mockPruneNotice && <Badge variant="secondary">{mockPruneNotice}</Badge>}

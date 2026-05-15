@@ -241,6 +241,10 @@ function buildDetailRows(
   return rows
 }
 
+function isRowKeyboardActivation(event: { key: string }) {
+  return event.key === 'Enter' || event.key === ' '
+}
+
 export function ServerServicesPanel({ serverId }: { serverId: string }) {
   const requestSeqRef = useRef(0)
   const [services, setServices] = useState<SystemdServiceWithBoot[]>([])
@@ -688,17 +692,21 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                   return (
                     <div
                       key={service.name}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => void loadServiceContext(service.name, 'overview')}
+                      onKeyDown={event => {
+                        if (!isRowKeyboardActivation(event)) return
+                        event.preventDefault()
+                        void loadServiceContext(service.name, 'overview')
+                      }}
+                      aria-label={serviceDisplayName}
                       className={cn(
-                        'grid grid-cols-[minmax(0,0.9fr)_5.5rem_minmax(0,1.7fr)_3rem] items-center gap-2 px-3 py-1.5 text-sm',
+                        'grid grid-cols-[minmax(0,0.9fr)_5.5rem_minmax(0,1.7fr)_3rem] items-center gap-2 px-3 py-1.5 text-sm transition-colors hover:bg-accent/30 focus-visible:bg-accent/30 focus-visible:outline-none',
                         selected === service.name && 'bg-accent/40'
                       )}
                     >
-                      <button
-                        type="button"
-                        onClick={() => void loadServiceContext(service.name, 'overview')}
-                        className="min-w-0 text-left"
-                        aria-label={serviceDisplayName}
-                      >
+                      <div className="min-w-0 text-left">
                         <span className="flex min-w-0 items-center gap-1.5">
                           {focusService ? (
                             <Star
@@ -710,7 +718,7 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                             {serviceDisplayName}
                           </span>
                         </span>
-                      </button>
+                      </div>
                       <span className="truncate py-1 text-left">{getStatusLabel(service)}</span>
                       <span className="truncate py-1 text-left text-muted-foreground">
                         {getSummary(service)}
@@ -723,11 +731,19 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
                             className="h-8 w-8 justify-self-start"
                             disabled={actionLoading}
                             aria-label={`Service actions for ${serviceDisplayName}`}
+                            onClick={event => event.stopPropagation()}
+                            onPointerDown={event => event.stopPropagation()}
+                            onKeyDown={event => event.stopPropagation()}
                           >
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                        <DropdownMenuContent
+                          align="end"
+                          onClick={event => event.stopPropagation()}
+                          onPointerDown={event => event.stopPropagation()}
+                          onKeyDown={event => event.stopPropagation()}
+                        >
                           <DropdownMenuItem
                             onClick={() => void loadServiceContext(service.name, 'overview')}
                           >

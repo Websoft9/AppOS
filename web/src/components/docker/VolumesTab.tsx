@@ -1,6 +1,7 @@
 import { Fragment, useState, useEffect, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { pb } from '@/lib/pb'
+import { dockerApiPath } from '@/lib/docker-api'
 import {
   Table,
   TableBody,
@@ -40,6 +41,7 @@ import {
 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { getApiErrorMessage } from '@/lib/api-error'
+import { cn } from '@/lib/utils'
 
 const VOLUMES_SORT_KEY = 'docker.volumes.sort'
 const DOCKER_PAGE_SIZE_KEY = 'docker.list.page_size'
@@ -128,11 +130,13 @@ function parentMountPath(path: string): string {
 export function VolumesTab({
   serverId,
   refreshSignal = 0,
+  embeddedInWorkspace = false,
   onOpenContainerFilter,
   onOpenVolumePath,
 }: {
   serverId: string
   refreshSignal?: number
+  embeddedInWorkspace?: boolean
   onOpenContainerFilter?: (volumeName: string, containerNames: string[]) => void
   onOpenVolumePath?: (targetPath: string, lockedRootPath: string) => void
 }) {
@@ -182,10 +186,10 @@ export function VolumesTab({
   } = useQuery<{ volumes: Volume[]; volumeContainers: Record<string, string[]> }>({
     queryKey: ['docker', 'volumes', serverId, refreshSignal],
     queryFn: async () => {
-      const res = await pb.send(`/api/ext/docker/volumes?server_id=${serverId}`, { method: 'GET' })
+      const res = await pb.send(dockerApiPath(serverId, '/volumes'), { method: 'GET' })
       const nextVolumes = parseVolumes(res.output)
 
-      const containersRes = await pb.send(`/api/ext/docker/containers?server_id=${serverId}`, {
+      const containersRes = await pb.send(dockerApiPath(serverId, '/containers'), {
         method: 'GET',
       })
       const containers = parseContainers(containersRes.output)
@@ -193,10 +197,9 @@ export function VolumesTab({
       const inspectEntries = await Promise.all(
         containers.map(async container => {
           try {
-            const inspectRes = await pb.send(
-              `/api/ext/docker/containers/${container.ID}?server_id=${serverId}`,
-              { method: 'GET' }
-            )
+            const inspectRes = await pb.send(dockerApiPath(serverId, `/containers/${container.ID}`), {
+              method: 'GET',
+            })
             return [container.Names, parseInspect(inspectRes.output)] as const
           } catch {
             return [container.Names, null] as const
@@ -236,7 +239,7 @@ export function VolumesTab({
     if (!name || inspectMap[name] || inspectLoadingMap[name]) return
     setInspectLoadingMap(state => ({ ...state, [name]: true }))
     try {
-      const res = await pb.send(`/api/ext/docker/volumes/${name}/inspect?server_id=${serverId}`, {
+      const res = await pb.send(dockerApiPath(serverId, `/volumes/${name}/inspect`), {
         method: 'GET',
       })
       setInspectMap(state => ({ ...state, [name]: String(res.output || '') }))
@@ -253,7 +256,7 @@ export function VolumesTab({
   const removeVolume = async (name: string) => {
     try {
       setActionError(null)
-      await pb.send(`/api/ext/docker/volumes/${name}?server_id=${serverId}`, { method: 'DELETE' })
+      await pb.send(dockerApiPath(serverId, `/volumes/${name}`), { method: 'DELETE' })
       await queryClient.invalidateQueries({ queryKey: ['docker', 'volumes', serverId] })
     } catch (err) {
       setActionError(getApiErrorMessage(err, 'Failed to remove volume'))
@@ -263,7 +266,7 @@ export function VolumesTab({
   const pruneVolumes = async () => {
     try {
       setActionError(null)
-      await pb.send(`/api/ext/docker/volumes/prune?server_id=${serverId}`, { method: 'POST' })
+      await pb.send(dockerApiPath(serverId, '/volumes/prune'), { method: 'POST' })
       await queryClient.invalidateQueries({ queryKey: ['docker', 'volumes', serverId] })
     } catch (err) {
       setActionError(getApiErrorMessage(err, 'Failed to prune volumes'))
@@ -356,17 +359,22 @@ export function VolumesTab({
   )
 
   return (
-    <div className="h-full min-h-0 flex flex-col gap-4 pt-4">
+    <div
+      className={cn(
+        'h-full min-h-0 flex flex-col gap-4',
+        embeddedInWorkspace ? 'pt-0' : 'pt-4'
+      )}
+    >
       {(loadError || actionError) && (
         <Alert variant="destructive" className="shrink-0">
           <AlertDescription>{loadError || actionError}</AlertDescription>
         </Alert>
       )}
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 px-3 py-3 shrink-0">
         <input
           type="text"
           placeholder="Filter volumes..."
-          className="border rounded-md px-3 py-1.5 text-sm bg-background"
+          className="h-9 min-w-[14rem] rounded-md border bg-background px-3 text-sm"
           value={filter}
           onChange={e => setFilter(e.target.value)}
         />

@@ -316,7 +316,9 @@ describe('ServerServicesPanel', () => {
     expect(screen.getByRole('menuitem', { name: 'Disable' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('menuitem', { name: 'Open unit' }))
-    expect(await within(detailSection).findByText('Unit')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(getSystemdUnitMock).toHaveBeenCalledWith('server-1', 'docker.service')
+    })
     expect(within(detailSection).getByRole('button', { name: 'Edit unit' })).toBeInTheDocument()
 
     fireEvent.click(within(detailSection).getByRole('button', { name: 'Edit unit' }))
@@ -324,6 +326,34 @@ describe('ServerServicesPanel', () => {
     expect(within(detailSection).getByRole('button', { name: 'Validate' })).toBeInTheDocument()
     expect(within(detailSection).getByRole('button', { name: 'Apply' })).toBeInTheDocument()
     expect(within(detailSection).getByRole('button', { name: 'Cancel edit' })).toBeInTheDocument()
+  })
+
+  it('opens overview from non-actions row clicks and keeps actions isolated', async () => {
+    render(<ServerServicesPanel serverId="server-1" />)
+
+    const inventory = await screen.findByRole('region', { name: 'Systemd inventory' })
+
+    fireEvent.click(within(inventory).getByText('Docker Application Container Engine'))
+
+    await waitFor(() => {
+      expect(getSystemdStatusMock).toHaveBeenCalledWith('server-1', 'docker.service')
+    })
+
+    const detailSection = screen
+      .getByRole('heading', { name: 'Selected Service' })
+      .closest('section')
+    if (!detailSection) {
+      throw new Error('Expected selected service section')
+    }
+
+    expect(within(detailSection).getAllByText('docker').length).toBeGreaterThan(0)
+
+    fireEvent.pointerDown(
+      within(inventory).getByRole('button', { name: /service actions for netdata/i })
+    )
+
+    expect(await screen.findByRole('menuitem', { name: 'Open overview' })).toBeInTheDocument()
+    expect(within(detailSection).queryByText('netdata')).toBeNull()
   })
 
   it('renders load errors inside the systemd inventory', async () => {

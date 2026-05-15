@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { getLocale } from '@/lib/i18n'
 import { iacLoadLibraryAppFiles, iacRead } from '@/lib/iac-api'
 import { pb } from '@/lib/pb'
+import { dockerTargetsPath } from '@/lib/docker-api'
 import { fetchStoreJson } from '@/lib/store-api'
 import { type PrimaryCategory, type Product, type ProductWithCategories } from '@/lib/store-types'
 import { useUserApps } from '@/lib/store-user-api'
@@ -671,7 +672,7 @@ export function useActionsController({
 
   async function fetchServers() {
     try {
-      const response = await pb.send<ServerEntry[]>('/api/ext/docker/servers', { method: 'GET' })
+      const response = await pb.send<ServerEntry[]>(dockerTargetsPath(), { method: 'GET' })
       if (Array.isArray(response) && response.length > 0) {
         setServers(response)
         setServerId(current =>

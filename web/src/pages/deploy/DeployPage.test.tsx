@@ -68,7 +68,7 @@ describe('DeployPage homepage', () => {
     sendMock.mockReset()
     navigateMock.mockReset()
     sendMock.mockImplementation((path: string, options?: { method?: string }) => {
-      if (path === '/api/ext/docker/servers') {
+      if (path === '/api/servers/docker-targets') {
         return Promise.resolve([
           { id: 'local', label: 'local', host: '127.0.0.1', status: 'online' },
         ])

@@ -39,6 +39,18 @@ Docker ext APIs still own:
 
 The UI must keep this split explicit. Do not redesign the Docker tab as a monitoring console.
 
+## Unified Product Principle
+
+For Docker in AppOS, keep one simple rule:
+
+- Epic 4 owns Docker inventory and Docker actions
+- Epic 28 owns runtime evidence and health judgment
+- bridge stories may embed Epic 28 evidence inside Docker views, but must not move Docker control-plane ownership into monitor
+
+Use this rule whenever a Docker-facing surface needs monitor-backed data.
+If a feature answers what exists or what action can be executed, it belongs to Docker operations.
+If it answers what is consuming resources, whether telemetry is fresh, or what is unhealthy, it belongs to monitoring.
+
 ## UX Contract
 
 Primary operator questions:

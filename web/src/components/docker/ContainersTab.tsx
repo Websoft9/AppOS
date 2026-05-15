@@ -1,6 +1,7 @@
 import { Fragment, useState, useEffect, useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { pb } from '@/lib/pb'
+import { dockerApiPath, dockerApiUrl } from '@/lib/docker-api'
 import {
   getServerContainerTelemetry,
   type MonitorContainerTelemetryItem,
@@ -280,6 +281,7 @@ export function ContainersTab({
   onVisibleColumnsChange,
   onRefresh,
   onOpenComposeFilter,
+  showPanelChrome = true,
 }: {
   serverId: string
   searchQuery?: string
@@ -300,6 +302,7 @@ export function ContainersTab({
   onVisibleColumnsChange?: (columns: ContainerVisibleColumns) => void
   onRefresh?: () => void
   onOpenComposeFilter?: (composeName: string) => void
+  showPanelChrome?: boolean
 }) {
   type PendingAction = {
     container: Container
@@ -359,7 +362,7 @@ export function ContainersTab({
   } = useQuery<Container[]>({
     queryKey: ['docker', 'containers', serverId],
     queryFn: async () => {
-      const res = await pb.send(`/api/ext/docker/containers?server_id=${serverId}`, {
+      const res = await pb.send(dockerApiPath(serverId, '/containers'), {
         method: 'GET',
       })
       return parseContainers(res.output)
@@ -421,10 +424,9 @@ export function ContainersTab({
 
       setDetailsLoadingMap(state => ({ ...state, [containerId]: true }))
       try {
-        const inspectRes = await pb.send(
-          `/api/ext/docker/containers/${containerId}?server_id=${serverId}`,
-          { method: 'GET' }
-        )
+        const inspectRes = await pb.send(dockerApiPath(serverId, `/containers/${containerId}`), {
+          method: 'GET',
+        })
         const inspect = parseInspect(inspectRes.output)
         if (inspect) {
           setInspectMap(state => ({ ...state, [containerId]: inspect }))
@@ -448,7 +450,7 @@ export function ContainersTab({
         containers.map(async container => {
           try {
             const inspectRes = await pb.send(
-              `/api/ext/docker/containers/${container.ID}?server_id=${serverId}`,
+              dockerApiPath(serverId, `/containers/${container.ID}`),
               { method: 'GET' }
             )
             return [container.ID, parseInspect(inspectRes.output)] as const
@@ -511,12 +513,11 @@ export function ContainersTab({
     try {
       setActionError(null)
       if (act === 'remove') {
-        const force = options?.force ? '&force=1' : ''
-        await pb.send(`/api/ext/docker/containers/${id}?server_id=${serverId}${force}`, {
+        await pb.send(dockerApiUrl(serverId, `/containers/${id}`, { force: options?.force ? 1 : undefined }), {
           method: 'DELETE',
         })
       } else {
-        await pb.send(`/api/ext/docker/containers/${id}/${act}?server_id=${serverId}`, {
+        await pb.send(dockerApiPath(serverId, `/containers/${id}/${act}`), {
           method: 'POST',
         })
       }
@@ -535,12 +536,9 @@ export function ContainersTab({
       try {
         setLogsLoading(true)
         setLogsContainer(container)
-        const res = await pb.send(
-          `/api/ext/docker/containers/${container.ID}/logs?server_id=${serverId}&tail=300`,
-          {
-            method: 'GET',
-          }
-        )
+        const res = await pb.send(dockerApiUrl(serverId, `/containers/${container.ID}/logs`, { tail: 300 }), {
+          method: 'GET',
+        })
         setLogsContent(typeof res.output === 'string' ? res.output : '')
       } catch (err) {
         setLogsContent(String(err))
@@ -756,10 +754,14 @@ export function ContainersTab({
       <div className="overflow-hidden bg-background">
         <div className="flex flex-col gap-3 px-3 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <ContainerIcon className="h-4 w-4 text-muted-foreground" />
-              <span>Containers</span>
-            </div>
+            {showPanelChrome ? (
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <ContainerIcon className="h-4 w-4 text-muted-foreground" />
+                <span>Containers</span>
+              </div>
+            ) : (
+              <div />
+            )}
             <div className="flex flex-wrap items-center justify-end gap-2">
               <input
                 value={searchQuery ?? ''}
@@ -791,21 +793,23 @@ export function ContainersTab({
                   <ChevronRight className="h-3.5 w-3.5" />
                 </Button>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="shrink-0"
-                onClick={() => onRefresh?.()}
-                disabled={refreshDisabled || refreshing}
-                title="Refresh Docker data"
-                aria-label="Refresh Docker data"
-              >
-                {refreshing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-              </Button>
+              {showPanelChrome ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => onRefresh?.()}
+                  disabled={refreshDisabled || refreshing}
+                  title="Refresh Docker data"
+                  aria-label="Refresh Docker data"
+                >
+                  {refreshing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                </Button>
+              ) : null}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button

@@ -27,6 +27,7 @@ import { NetworksTab } from '@/components/docker/NetworksTab'
 import { VolumesTab } from '@/components/docker/VolumesTab'
 import { ComposeTab } from '@/components/docker/ComposeTab'
 import { TerminalPanel } from '@/components/connect/TerminalPanel'
+import { dockerApiPath, dockerTargetsPath } from '@/lib/docker-api'
 import { cn } from '@/lib/utils'
 
 interface HostEntry {
@@ -40,6 +41,7 @@ interface DockerPanelProps {
   serverId: string
   className?: string
   onOpenFilesAtPath?: (targetPath: string, lockedRootPath: string) => void
+  showWorkspaceHeader?: boolean
 }
 
 type ContainerPageSize = 25 | 50 | 100
@@ -144,11 +146,19 @@ function statusTone(status: string): 'default' | 'secondary' | 'destructive' {
   return 'secondary'
 }
 
-function OverviewTab({ serverId, disabled }: { serverId: string; disabled: boolean }) {
+function OverviewTab({
+  serverId,
+  disabled,
+  embeddedInWorkspace = false,
+}: {
+  serverId: string
+  disabled: boolean
+  embeddedInWorkspace?: boolean
+}) {
   const containersQuery = useQuery<OverviewContainer[]>({
     queryKey: ['docker', 'containers', serverId],
     queryFn: async () => {
-      const res = await pb.send(`/api/ext/docker/containers?server_id=${serverId}`, {
+      const res = await pb.send(dockerApiPath(serverId, '/containers'), {
         method: 'GET',
       })
       return parseDockerJsonLines<OverviewContainer>(res.output)
@@ -162,7 +172,7 @@ function OverviewTab({ serverId, disabled }: { serverId: string; disabled: boole
   const imagesQuery = useQuery<OverviewImage[]>({
     queryKey: ['docker', 'images', serverId],
     queryFn: async () => {
-      const res = await pb.send(`/api/ext/docker/images?server_id=${serverId}`, {
+      const res = await pb.send(dockerApiPath(serverId, '/images'), {
         method: 'GET',
       })
       return parseDockerJsonLines<OverviewImage>(res.output)
@@ -176,7 +186,7 @@ function OverviewTab({ serverId, disabled }: { serverId: string; disabled: boole
   const volumesQuery = useQuery<OverviewVolume[]>({
     queryKey: ['docker', 'volumes', serverId],
     queryFn: async () => {
-      const res = await pb.send(`/api/ext/docker/volumes?server_id=${serverId}`, {
+      const res = await pb.send(dockerApiPath(serverId, '/volumes'), {
         method: 'GET',
       })
       return parseDockerJsonLines<OverviewVolume>(res.output)
@@ -190,7 +200,7 @@ function OverviewTab({ serverId, disabled }: { serverId: string; disabled: boole
   const networksQuery = useQuery<OverviewNetwork[]>({
     queryKey: ['docker', 'networks', serverId],
     queryFn: async () => {
-      const res = await pb.send(`/api/ext/docker/networks?server_id=${serverId}`, {
+      const res = await pb.send(dockerApiPath(serverId, '/networks'), {
         method: 'GET',
       })
       return parseDockerJsonLines<OverviewNetwork>(res.output)
@@ -204,7 +214,7 @@ function OverviewTab({ serverId, disabled }: { serverId: string; disabled: boole
   const composeQuery = useQuery<OverviewComposeProject[]>({
     queryKey: ['docker', 'compose', serverId],
     queryFn: async () => {
-      const res = await pb.send(`/api/ext/docker/compose/ls?server_id=${serverId}`, {
+      const res = await pb.send(dockerApiPath(serverId, '/compose/ls'), {
         method: 'GET',
       })
       return parseComposeProjects(res.output)
@@ -296,7 +306,7 @@ function OverviewTab({ serverId, disabled }: { serverId: string; disabled: boole
   }
 
   return (
-    <div className="flex min-h-0 flex-col gap-4 pt-4">
+    <div className={cn('flex min-h-0 flex-col gap-4', embeddedInWorkspace ? 'pt-0' : 'pt-4')}>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {summaryCards.map(card => {
           const Icon = card.icon
@@ -467,7 +477,12 @@ function OverviewTab({ serverId, disabled }: { serverId: string; disabled: boole
   )
 }
 
-export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPanelProps) {
+export function DockerPanel({
+  serverId,
+  className,
+  onOpenFilesAtPath,
+  showWorkspaceHeader = true,
+}: DockerPanelProps) {
   const queryClient = useQueryClient()
   const rootRef = useRef<HTMLDivElement | null>(null)
   const [hosts, setHosts] = useState<HostEntry[]>([])
@@ -491,7 +506,7 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
   const [refreshError, setRefreshError] = useState<string | null>(null)
 
   useEffect(() => {
-    pb.send('/api/ext/docker/servers', { method: 'GET' })
+    pb.send(dockerTargetsPath(), { method: 'GET' })
       .then(res => {
         if (Array.isArray(res)) setHosts(res as HostEntry[])
       })
@@ -506,32 +521,26 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
       overview: {
         label: 'Overview',
         description: 'Dashboard summary across containers, compose stacks, and storage objects.',
-        icon: LayoutDashboard,
       },
       containers: {
         label: 'Containers',
         description: 'Inspect runtime containers, status, ports, and container-level actions.',
-        icon: Container,
       },
       images: {
         label: 'Images',
         description: 'Manage cached images and review image usage.',
-        icon: Box,
       },
       volumes: {
         label: 'Volumes',
         description: 'Track persistent storage and linked containers.',
-        icon: HardDrive,
       },
       networks: {
         label: 'Networks',
         description: 'Review Docker networks and connectivity surface.',
-        icon: Network,
       },
       compose: {
         label: 'Compose',
         description: 'Manage compose projects and open linked containers.',
-        icon: Boxes,
       },
     }[activeTab]
   }, [activeTab])
@@ -588,8 +597,38 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
   return (
     <div
       ref={rootRef}
-      className={cn('flex h-full min-h-0 min-w-0 flex-col gap-3 overflow-hidden', className)}
+      className={cn('flex h-full min-h-0 min-w-0 flex-col gap-4 overflow-hidden', className)}
     >
+      {showWorkspaceHeader ? (
+        <div className="shrink-0 space-y-1">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1 min-w-0">
+              <h2 className="text-sm font-semibold">Docker</h2>
+              <p className="text-sm text-muted-foreground">
+              Inspect containers, compose projects, images, volumes, and networks on this server.
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="shrink-0"
+                onClick={refreshDockerData}
+                disabled={dockerDisabled || refreshing}
+                title="Refresh Docker data"
+                aria-label="Refresh Docker data"
+              >
+                {refreshing ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <Tabs
         value={activeTab}
         onValueChange={value =>
@@ -598,29 +637,20 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
           )
         }
         orientation="vertical"
-        className="flex flex-1 min-h-0 min-w-0 overflow-hidden"
+        className="flex h-full flex-1 min-h-0 min-w-0 overflow-hidden"
       >
-        <div className="flex flex-1 min-h-0 min-w-0 flex-col gap-3 md:flex-row">
+        <div className="flex h-full flex-1 min-h-0 min-w-0 flex-col gap-4 md:flex-row">
           <div
             className={cn(
-              'relative shrink-0 rounded-xl border bg-muted/20 p-2 transition-all md:min-h-0 md:self-stretch',
+              'relative shrink-0 overflow-y-auto rounded-xl bg-muted/20 p-2 transition-all md:h-full md:min-h-0 md:self-stretch',
               navCollapsed ? 'md:w-14' : 'md:w-48'
             )}
           >
-            <div
-              className={cn(
-                'relative mb-2 flex h-10 items-center text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground',
-                navCollapsed ? 'justify-center px-2' : 'justify-start px-3 pr-8'
-              )}
-            >
-              <div className="flex items-center gap-2">
-                <Box className="h-4 w-4 shrink-0" />
-                {!navCollapsed && <span>Docker</span>}
-              </div>
+            <div className="relative mb-2 h-6">
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute right-0 top-1/2 hidden h-5 w-5 -translate-y-1/2 translate-x-1/2 p-0 hover:bg-transparent md:inline-flex"
+                className="absolute right-1 top-0 hidden h-5 w-5 p-0 hover:bg-transparent md:inline-flex"
                 onClick={() => setNavCollapsed(value => !value)}
                 aria-label={navCollapsed ? 'Expand Docker tabs' : 'Collapse Docker tabs'}
                 title={navCollapsed ? 'Expand Docker tabs' : 'Collapse Docker tabs'}
@@ -645,7 +675,7 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
                     value={item.value}
                     disabled={dockerDisabled}
                     className={cn(
-                      'h-10 rounded-lg border px-3 text-sm after:hidden',
+                      'h-10 rounded-lg px-3 text-sm after:hidden',
                       navCollapsed && 'justify-center px-2'
                     )}
                     aria-label={item.label}
@@ -659,50 +689,20 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
             </TabsList>
           </div>
 
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border bg-background">
-            {activeTab === 'containers' ? null : (
-              <div className="flex shrink-0 flex-col gap-3 p-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <activeTabMeta.icon className="h-4 w-4 text-muted-foreground" />
-                    <div className="text-sm font-medium">{activeTabMeta.label}</div>
-                    {activeTab === 'overview' && !dockerDisabled ? (
-                      <Badge variant="outline" className="text-[11px]">
-                        {activeHost?.label ?? 'Docker host'}
-                      </Badge>
-                    ) : null}
-                  </div>
-                  <p className="mt-1 text-sm text-muted-foreground">{activeTabMeta.description}</p>
-                </div>
-
-                <div className="flex min-w-0 flex-col gap-2 sm:items-end">
-                  <div className="flex items-center gap-2 self-end sm:self-auto">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="shrink-0"
-                      onClick={refreshDockerData}
-                      disabled={dockerDisabled || refreshing}
-                      title="Refresh Docker data"
-                      aria-label="Refresh Docker data"
-                    >
-                      <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'containers' ? null : <div className="border-t" />}
+          <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border bg-background">
+            <div className="shrink-0 border-b bg-muted/10 px-4 py-4">
+              <h3 className="text-sm font-semibold text-foreground">{activeTabMeta.label}</h3>
+              <p className="mt-1 text-sm text-muted-foreground">{activeTabMeta.description}</p>
+            </div>
 
             {dockerDisabled && (
-              <div className="mx-3 mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <div className="mx-4 mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 Docker is disabled for current server: {dockerDisabledReason}
               </div>
             )}
 
             {refreshError && (
-              <Alert variant="destructive" className="mx-3 mt-3">
+              <Alert variant="destructive" className="mx-4 mt-4">
                 <AlertDescription>{refreshError}</AlertDescription>
               </Alert>
             )}
@@ -710,14 +710,18 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
             <div className="min-h-0 flex-1 overflow-hidden">
               <TabsContent
                 value="overview"
-                className="mt-0 min-h-0 min-w-0 overflow-y-auto p-4 data-[state=active]:block"
+                className="mt-0 min-h-0 min-w-0 flex-1 overflow-y-auto p-4 data-[state=active]:flex data-[state=active]:flex-col"
                 data-docker-active-panel={activeTab === 'overview' ? 'true' : 'false'}
               >
-                <OverviewTab serverId={serverId} disabled={dockerDisabled} />
+                <OverviewTab
+                  serverId={serverId}
+                  disabled={dockerDisabled}
+                  embeddedInWorkspace
+                />
               </TabsContent>
               <TabsContent
                 value="containers"
-                className="mt-0 min-h-0 min-w-0 overflow-y-auto data-[state=active]:block"
+                className="mt-0 min-h-0 min-w-0 flex-1 overflow-y-auto data-[state=active]:flex data-[state=active]:flex-col"
                 data-docker-active-panel={activeTab === 'containers' ? 'true' : 'false'}
               >
                 <ContainersTab
@@ -746,23 +750,25 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
                     setActiveTab('compose')
                   }}
                   onOpenTerminal={id => setTerminalContainerId(id)}
+                  showPanelChrome={false}
                 />
               </TabsContent>
               <TabsContent
                 value="images"
-                className="mt-0 min-h-0 min-w-0 overflow-y-auto p-4 data-[state=active]:block"
+                className="mt-0 min-h-0 min-w-0 flex-1 overflow-y-auto p-4 data-[state=active]:flex data-[state=active]:flex-col"
                 data-docker-active-panel={activeTab === 'images' ? 'true' : 'false'}
               >
-                <ImagesTab serverId={serverId} />
+                <ImagesTab serverId={serverId} embeddedInWorkspace />
               </TabsContent>
               <TabsContent
                 value="volumes"
-                className="mt-0 min-h-0 min-w-0 overflow-y-auto p-4 data-[state=active]:block"
+                className="mt-0 min-h-0 min-w-0 flex-1 overflow-y-auto p-4 data-[state=active]:flex data-[state=active]:flex-col"
                 data-docker-active-panel={activeTab === 'volumes' ? 'true' : 'false'}
               >
                 <VolumesTab
                   serverId={serverId}
                   refreshSignal={refreshSignal}
+                  embeddedInWorkspace
                   onOpenContainerFilter={(_name, containerNames) => {
                     setContainerFilter('')
                     setContainerFilterNames(containerNames)
@@ -775,18 +781,23 @@ export function DockerPanel({ serverId, className, onOpenFilesAtPath }: DockerPa
               </TabsContent>
               <TabsContent
                 value="networks"
-                className="mt-0 min-h-0 min-w-0 overflow-y-auto p-4 data-[state=active]:block"
+                className="mt-0 min-h-0 min-w-0 flex-1 overflow-y-auto p-4 data-[state=active]:flex data-[state=active]:flex-col"
                 data-docker-active-panel={activeTab === 'networks' ? 'true' : 'false'}
               >
-                <NetworksTab serverId={serverId} refreshSignal={refreshSignal} />
+                <NetworksTab
+                  serverId={serverId}
+                  refreshSignal={refreshSignal}
+                  embeddedInWorkspace
+                />
               </TabsContent>
               <TabsContent
                 value="compose"
-                className="mt-0 min-h-0 min-w-0 overflow-y-auto p-4 data-[state=active]:block"
+                className="mt-0 min-h-0 min-w-0 flex-1 overflow-y-auto p-4 data-[state=active]:flex data-[state=active]:flex-col"
                 data-docker-active-panel={activeTab === 'compose' ? 'true' : 'false'}
               >
                 <ComposeTab
                   serverId={serverId}
+                  embeddedInWorkspace
                   filterPreset={composeFilter}
                   onClearFilterPreset={() => setComposeFilter('')}
                   onOpenContainerFilter={containerName => {

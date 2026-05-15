@@ -2961,1608 +2961,6 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
-  /api/ext/docker/compose/config:
-    get:
-      tags: [Docker]
-      summary: Get Compose config
-      description: "Returns the raw docker-compose.yml content for the specified project directory (local server only). Superuser only."
-      operationId: get_api_ext_docker_compose_config
-      parameters:
-        - name: projectDir
-          in: query
-          description: "absolute path to the compose project"
-          required: true
-          schema:
-            type: string
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-    put:
-      tags: [Docker]
-      summary: Write Compose config
-      description: "Overwrites docker-compose.yml for the specified project directory. Writes audit entry. Superuser only."
-      operationId: put_api_ext_docker_compose_config
-      requestBody:
-        description: "projectDir, content"
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenericRequest'
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/compose/down:
-    post:
-      tags: [Docker]
-      summary: Tear down Compose project
-      description: "Runs `docker compose down` in the given project directory. Writes audit entry. Superuser only."
-      operationId: post_api_ext_docker_compose_down
-      parameters:
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      requestBody:
-        description: "projectDir, removeVolumes (optional bool)"
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenericRequest'
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/compose/logs:
-    get:
-      tags: [Docker]
-      summary: Get Compose logs
-      description: "Returns recent log output for all services in the compose project. Superuser only."
-      operationId: get_api_ext_docker_compose_logs
-      parameters:
-        - name: projectDir
-          in: query
-          description: "absolute path to the compose project"
-          required: true
-          schema:
-            type: string
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-        - name: tail
-          in: query
-          description: "number of log lines (default 100)"
-          required: false
-          schema:
-            type: integer
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/compose/ls:
-    get:
-      tags: [Docker]
-      summary: List Compose projects
-      description: "Returns all docker compose projects on the specified server. Superuser only."
-      operationId: get_api_ext_docker_compose_ls
-      parameters:
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/compose/restart:
-    post:
-      tags: [Docker]
-      summary: Restart Compose project
-      description: "Runs `docker compose restart` in the given project directory. Writes audit entry. Superuser only."
-      operationId: post_api_ext_docker_compose_restart
-      parameters:
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      requestBody:
-        description: "projectDir"
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenericRequest'
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/compose/start:
-    post:
-      tags: [Docker]
-      summary: Start Compose project
-      description: "Runs `docker compose start` in the given project directory. Writes audit entry. Superuser only."
-      operationId: post_api_ext_docker_compose_start
-      parameters:
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      requestBody:
-        description: "projectDir"
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenericRequest'
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/compose/stop:
-    post:
-      tags: [Docker]
-      summary: Stop Compose project
-      description: "Runs `docker compose stop` in the given project directory. Writes audit entry. Superuser only."
-      operationId: post_api_ext_docker_compose_stop
-      parameters:
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      requestBody:
-        description: "projectDir"
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenericRequest'
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/compose/up:
-    post:
-      tags: [Docker]
-      summary: Deploy Compose project
-      description: "Runs `docker compose up -d` in the given project directory. Writes audit entry. Superuser only."
-      operationId: post_api_ext_docker_compose_up
-      parameters:
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      requestBody:
-        description: "projectDir: absolute path to the compose project"
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenericRequest'
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/containers:
-    get:
-      tags: [Docker]
-      summary: List containers
-      description: "Returns all containers (running and stopped) on the specified server. Superuser only."
-      operationId: get_api_ext_docker_containers
-      parameters:
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/containers/stats:
-    get:
-      tags: [Docker]
-      summary: Get container stats
-      description: "Returns CPU/memory/network usage for all running containers. Superuser only."
-      operationId: get_api_ext_docker_containers_stats
-      parameters:
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/containers/{id}:
-    delete:
-      tags: [Docker]
-      summary: Remove container
-      description: "Removes the specified container. Use ?force=true to force-remove a running container. Superuser only."
-      operationId: delete_api_ext_docker_containers_id
-      parameters:
-        - name: id
-          in: path
-          description: "container ID or name"
-          required: true
-          schema:
-            type: string
-        - name: force
-          in: query
-          description: "force remove a running container"
-          required: false
-          schema:
-            type: boolean
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-    get:
-      tags: [Docker]
-      summary: Inspect container
-      description: "Returns docker inspect output for the given container ID. Superuser only."
-      operationId: get_api_ext_docker_containers_id
-      parameters:
-        - name: id
-          in: path
-          description: "container ID or name"
-          required: true
-          schema:
-            type: string
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/containers/{id}/logs:
-    get:
-      tags: [Docker]
-      summary: Get container logs
-      description: "Returns recent stdout/stderr output for the given container. Superuser only."
-      operationId: get_api_ext_docker_containers_id_logs
-      parameters:
-        - name: id
-          in: path
-          description: "container ID or name"
-          required: true
-          schema:
-            type: string
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-        - name: tail
-          in: query
-          description: "number of log lines (default 200)"
-          required: false
-          schema:
-            type: integer
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/containers/{id}/restart:
-    post:
-      tags: [Docker]
-      summary: Restart container
-      description: "Restarts the specified container. Superuser only."
-      operationId: post_api_ext_docker_containers_id_restart
-      parameters:
-        - name: id
-          in: path
-          description: "container ID or name"
-          required: true
-          schema:
-            type: string
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenericRequest'
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/containers/{id}/start:
-    post:
-      tags: [Docker]
-      summary: Start container
-      description: "Starts the specified container. Superuser only."
-      operationId: post_api_ext_docker_containers_id_start
-      parameters:
-        - name: id
-          in: path
-          description: "container ID or name"
-          required: true
-          schema:
-            type: string
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenericRequest'
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/containers/{id}/stop:
-    post:
-      tags: [Docker]
-      summary: Stop container
-      description: "Stops the specified container. Superuser only."
-      operationId: post_api_ext_docker_containers_id_stop
-      parameters:
-        - name: id
-          in: path
-          description: "container ID or name"
-          required: true
-          schema:
-            type: string
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenericRequest'
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/exec:
-    post:
-      tags: [Docker]
-      summary: Run arbitrary Docker command
-      description: "Executes a docker CLI command string on the specified server. Superuser only."
-      operationId: post_api_ext_docker_exec
-      parameters:
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      requestBody:
-        description: "command: docker command string (e.g. \"info\")"
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenericRequest'
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/images:
-    get:
-      tags: [Docker]
-      summary: List Docker images
-      description: "Returns all local images on the specified server. Superuser only."
-      operationId: get_api_ext_docker_images
-      parameters:
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/images/prune:
-    post:
-      tags: [Docker]
-      summary: Prune unused images
-      description: "Removes all dangling and unused Docker images. Superuser only."
-      operationId: post_api_ext_docker_images_prune
-      parameters:
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenericRequest'
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/images/pull:
-    post:
-      tags: [Docker]
-      summary: Pull Docker image
-      description: "Pulls the specified image from the registry. Superuser only."
-      operationId: post_api_ext_docker_images_pull
-      parameters:
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      requestBody:
-        description: "name: image name/tag"
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenericRequest'
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/images/registry/search:
-    get:
-      tags: [Docker]
-      summary: Search image registry
-      description: "Searches Docker Hub for images matching the query string. Superuser only."
-      operationId: get_api_ext_docker_images_registry_search
-      parameters:
-        - name: limit
-          in: query
-          description: "max results (default 20, max 100)"
-          required: false
-          schema:
-            type: integer
-        - name: q
-          in: query
-          description: "search query"
-          required: true
-          schema:
-            type: string
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/images/registry/status:
-    get:
-      tags: [Docker]
-      summary: Check registry status
-      description: "Pings Docker Hub to verify registry connectivity from the target server. Superuser only."
-      operationId: get_api_ext_docker_images_registry_status
-      parameters:
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/images/{id...}:
-    delete:
-      tags: [Docker]
-      summary: Remove Docker image
-      description: "Removes the specified image from the server. Superuser only."
-      operationId: delete_api_ext_docker_images_id
-      parameters:
-        - name: id
-          in: path
-          description: "image ID or name (supports path wildcard)"
-          required: true
-          schema:
-            type: string
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/images/{id}/inspect:
-    get:
-      tags: [Docker]
-      summary: Inspect Docker image
-      description: "Returns docker inspect output for the given image ID or name. Superuser only."
-      operationId: get_api_ext_docker_images_id_inspect
-      parameters:
-        - name: id
-          in: path
-          description: "image ID or name"
-          required: true
-          schema:
-            type: string
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/networks:
-    get:
-      tags: [Docker]
-      summary: List networks
-      description: "Returns all Docker networks on the specified server. Superuser only."
-      operationId: get_api_ext_docker_networks
-      parameters:
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-    post:
-      tags: [Docker]
-      summary: Create network
-      description: "Creates a new Docker user-defined network. Superuser only."
-      operationId: post_api_ext_docker_networks
-      parameters:
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      requestBody:
-        description: "name: network name"
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenericRequest'
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/networks/{id}:
-    delete:
-      tags: [Docker]
-      summary: Remove network
-      description: "Removes the specified Docker network. Superuser only."
-      operationId: delete_api_ext_docker_networks_id
-      parameters:
-        - name: id
-          in: path
-          description: "network ID or name"
-          required: true
-          schema:
-            type: string
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/servers:
-    get:
-      tags: [Servers]
-      summary: List Docker servers
-      description: "Returns all configured servers with concurrent online/offline ping status. Superuser only."
-      operationId: get_api_ext_docker_servers
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/volumes:
-    get:
-      tags: [Docker]
-      summary: List volumes
-      description: "Returns all Docker volumes on the specified server. Superuser only."
-      operationId: get_api_ext_docker_volumes
-      parameters:
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/volumes/prune:
-    post:
-      tags: [Docker]
-      summary: Prune unused volumes
-      description: "Removes all unused Docker volumes. Superuser only."
-      operationId: post_api_ext_docker_volumes_prune
-      parameters:
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenericRequest'
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/volumes/{id}:
-    delete:
-      tags: [Docker]
-      summary: Remove volume
-      description: "Removes the specified Docker volume. Superuser only."
-      operationId: delete_api_ext_docker_volumes_id
-      parameters:
-        - name: id
-          in: path
-          description: "volume name"
-          required: true
-          schema:
-            type: string
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-  /api/ext/docker/volumes/{id}/inspect:
-    get:
-      tags: [Docker]
-      summary: Inspect volume
-      description: "Returns docker inspect output for the given volume. Superuser only."
-      operationId: get_api_ext_docker_volumes_id_inspect
-      parameters:
-        - name: id
-          in: path
-          description: "volume name"
-          required: true
-          schema:
-            type: string
-        - name: server_id
-          in: query
-          description: "server ID (omit for local)"
-          required: false
-          schema:
-            type: string
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
   /api/ext/iac:
     delete:
       tags: [IaC]
@@ -6726,6 +5124,29 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
+  /api/servers/docker-targets:
+    get:
+      tags: [Docker]
+      summary: List Docker servers
+      description: "Returns all configured servers with concurrent online/offline ping status. Superuser only."
+      operationId: get_api_servers_docker-targets
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
   /api/servers/local/docker-bridge:
     get:
       tags: [Servers]
@@ -6746,6 +5167,1598 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/servers/{serverId}/docker/compose/config:
+    get:
+      tags: [Docker]
+      summary: Get Compose config
+      description: "Returns the raw docker-compose.yml content for the specified project directory (local server only). Superuser only."
+      operationId: get_api_servers_serverid_docker_compose_config
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+        - name: projectDir
+          in: query
+          description: "absolute path to the compose project"
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+    put:
+      tags: [Docker]
+      summary: Write Compose config
+      description: "Overwrites docker-compose.yml for the specified project directory. Writes audit entry. Superuser only."
+      operationId: put_api_servers_serverid_docker_compose_config
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: "projectDir, content"
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/compose/down:
+    post:
+      tags: [Docker]
+      summary: Tear down Compose project
+      description: "Runs `docker compose down` in the given project directory. Writes audit entry. Superuser only."
+      operationId: post_api_servers_serverid_docker_compose_down
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: "projectDir, removeVolumes (optional bool)"
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/compose/logs:
+    get:
+      tags: [Docker]
+      summary: Get Compose logs
+      description: "Returns recent log output for all services in the compose project. Superuser only."
+      operationId: get_api_servers_serverid_docker_compose_logs
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+        - name: projectDir
+          in: query
+          description: "absolute path to the compose project"
+          required: true
+          schema:
+            type: string
+        - name: tail
+          in: query
+          description: "number of log lines (default 100)"
+          required: false
+          schema:
+            type: integer
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/compose/ls:
+    get:
+      tags: [Docker]
+      summary: List Compose projects
+      description: "Returns all docker compose projects on the specified server. Superuser only."
+      operationId: get_api_servers_serverid_docker_compose_ls
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/compose/restart:
+    post:
+      tags: [Docker]
+      summary: Restart Compose project
+      description: "Runs `docker compose restart` in the given project directory. Writes audit entry. Superuser only."
+      operationId: post_api_servers_serverid_docker_compose_restart
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: "projectDir"
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/compose/start:
+    post:
+      tags: [Docker]
+      summary: Start Compose project
+      description: "Runs `docker compose start` in the given project directory. Writes audit entry. Superuser only."
+      operationId: post_api_servers_serverid_docker_compose_start
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: "projectDir"
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/compose/stop:
+    post:
+      tags: [Docker]
+      summary: Stop Compose project
+      description: "Runs `docker compose stop` in the given project directory. Writes audit entry. Superuser only."
+      operationId: post_api_servers_serverid_docker_compose_stop
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: "projectDir"
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/compose/up:
+    post:
+      tags: [Docker]
+      summary: Deploy Compose project
+      description: "Runs `docker compose up -d` in the given project directory. Writes audit entry. Superuser only."
+      operationId: post_api_servers_serverid_docker_compose_up
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: "projectDir: absolute path to the compose project"
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/containers:
+    get:
+      tags: [Docker]
+      summary: List containers
+      description: "Returns all containers (running and stopped) on the specified server. Superuser only."
+      operationId: get_api_servers_serverid_docker_containers
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/containers/stats:
+    get:
+      tags: [Docker]
+      summary: Get container stats
+      description: "Returns CPU/memory/network usage for all running containers. Superuser only."
+      operationId: get_api_servers_serverid_docker_containers_stats
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/containers/{id}:
+    delete:
+      tags: [Docker]
+      summary: Remove container
+      description: "Removes the specified container. Use ?force=true to force-remove a running container. Superuser only."
+      operationId: delete_api_servers_serverid_docker_containers_id
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          description: "container ID or name"
+          required: true
+          schema:
+            type: string
+        - name: force
+          in: query
+          description: "force remove a running container"
+          required: false
+          schema:
+            type: boolean
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+    get:
+      tags: [Docker]
+      summary: Inspect container
+      description: "Returns docker inspect output for the given container ID. Superuser only."
+      operationId: get_api_servers_serverid_docker_containers_id
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          description: "container ID or name"
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/containers/{id}/logs:
+    get:
+      tags: [Docker]
+      summary: Get container logs
+      description: "Returns recent stdout/stderr output for the given container. Superuser only."
+      operationId: get_api_servers_serverid_docker_containers_id_logs
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          description: "container ID or name"
+          required: true
+          schema:
+            type: string
+        - name: tail
+          in: query
+          description: "number of log lines (default 200)"
+          required: false
+          schema:
+            type: integer
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/containers/{id}/restart:
+    post:
+      tags: [Docker]
+      summary: Restart container
+      description: "Restarts the specified container. Superuser only."
+      operationId: post_api_servers_serverid_docker_containers_id_restart
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          description: "container ID or name"
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/containers/{id}/start:
+    post:
+      tags: [Docker]
+      summary: Start container
+      description: "Starts the specified container. Superuser only."
+      operationId: post_api_servers_serverid_docker_containers_id_start
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          description: "container ID or name"
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/containers/{id}/stop:
+    post:
+      tags: [Docker]
+      summary: Stop container
+      description: "Stops the specified container. Superuser only."
+      operationId: post_api_servers_serverid_docker_containers_id_stop
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          description: "container ID or name"
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/exec:
+    post:
+      tags: [Docker]
+      summary: Run arbitrary Docker command
+      description: "Executes a docker CLI command string on the specified server. Superuser only."
+      operationId: post_api_servers_serverid_docker_exec
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: "command: docker command string (e.g. \"info\")"
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/images:
+    get:
+      tags: [Docker]
+      summary: List Docker images
+      description: "Returns all local images on the specified server. Superuser only."
+      operationId: get_api_servers_serverid_docker_images
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/images/prune:
+    post:
+      tags: [Docker]
+      summary: Prune unused images
+      description: "Removes all dangling and unused Docker images. Superuser only."
+      operationId: post_api_servers_serverid_docker_images_prune
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/images/pull:
+    post:
+      tags: [Docker]
+      summary: Pull Docker image
+      description: "Pulls the specified image from the registry. Superuser only."
+      operationId: post_api_servers_serverid_docker_images_pull
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: "name: image name/tag"
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/images/registry/search:
+    get:
+      tags: [Docker]
+      summary: Search image registry
+      description: "Searches Docker Hub for images matching the query string. Superuser only."
+      operationId: get_api_servers_serverid_docker_images_registry_search
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: "max results (default 20, max 100)"
+          required: false
+          schema:
+            type: integer
+        - name: q
+          in: query
+          description: "search query"
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/images/registry/status:
+    get:
+      tags: [Docker]
+      summary: Check registry status
+      description: "Pings Docker Hub to verify registry connectivity from the target server. Superuser only."
+      operationId: get_api_servers_serverid_docker_images_registry_status
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/images/{id...}:
+    delete:
+      tags: [Docker]
+      summary: Remove Docker image
+      description: "Removes the specified image from the server. Superuser only."
+      operationId: delete_api_servers_serverid_docker_images_id
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          description: "image ID or name (supports path wildcard)"
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/images/{id}/inspect:
+    get:
+      tags: [Docker]
+      summary: Inspect Docker image
+      description: "Returns docker inspect output for the given image ID or name. Superuser only."
+      operationId: get_api_servers_serverid_docker_images_id_inspect
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          description: "image ID or name"
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/networks:
+    get:
+      tags: [Docker]
+      summary: List networks
+      description: "Returns all Docker networks on the specified server. Superuser only."
+      operationId: get_api_servers_serverid_docker_networks
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+    post:
+      tags: [Docker]
+      summary: Create network
+      description: "Creates a new Docker user-defined network. Superuser only."
+      operationId: post_api_servers_serverid_docker_networks
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: "name: network name"
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/networks/{id}:
+    delete:
+      tags: [Docker]
+      summary: Remove network
+      description: "Removes the specified Docker network. Superuser only."
+      operationId: delete_api_servers_serverid_docker_networks_id
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          description: "network ID or name"
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/volumes:
+    get:
+      tags: [Docker]
+      summary: List volumes
+      description: "Returns all Docker volumes on the specified server. Superuser only."
+      operationId: get_api_servers_serverid_docker_volumes
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/volumes/prune:
+    post:
+      tags: [Docker]
+      summary: Prune unused volumes
+      description: "Removes all unused Docker volumes. Superuser only."
+      operationId: post_api_servers_serverid_docker_volumes_prune
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/volumes/{id}:
+    delete:
+      tags: [Docker]
+      summary: Remove volume
+      description: "Removes the specified Docker volume. Superuser only."
+      operationId: delete_api_servers_serverid_docker_volumes_id
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          description: "volume name"
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/volumes/{id}/inspect:
+    get:
+      tags: [Docker]
+      summary: Inspect volume
+      description: "Returns docker inspect output for the given volume. Superuser only."
+      operationId: get_api_servers_serverid_docker_volumes_id_inspect
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          description: "volume name"
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
   /api/servers/{serverId}/ops/connectivity:
     get:
       tags: [Servers]

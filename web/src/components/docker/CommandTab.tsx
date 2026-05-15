@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { pb } from '@/lib/pb'
 import { Button } from '@/components/ui/button'
 import { Play, Loader2 } from 'lucide-react'
+import { dockerApiPath } from '@/lib/docker-api'
 
 interface HistoryEntry {
   command: string
@@ -11,7 +12,7 @@ interface HistoryEntry {
   timestamp: number
 }
 
-export function CommandTab() {
+export function CommandTab({ serverId = 'local' }: { serverId?: string }) {
   const [command, setCommand] = useState('')
   const [running, setRunning] = useState(false)
   const [history, setHistory] = useState<HistoryEntry[]>([])
@@ -27,7 +28,7 @@ export function CommandTab() {
 
     setRunning(true)
     try {
-      const res = await pb.send('/api/ext/docker/exec', {
+      const res = await pb.send(dockerApiPath(serverId, '/exec'), {
         method: 'POST',
         body: { command: cmd },
       })
@@ -49,7 +50,7 @@ export function CommandTab() {
           command: cmd,
           output: '',
           error: String(err),
-          host: 'local',
+          host: serverId || 'local',
           timestamp: Date.now(),
         },
       ])

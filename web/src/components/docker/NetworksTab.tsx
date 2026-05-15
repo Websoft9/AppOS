@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { pb } from '@/lib/pb'
+import { dockerApiPath } from '@/lib/docker-api'
 import {
   Table,
   TableBody,
@@ -19,6 +20,7 @@ import {
 import { Trash2, MoreVertical, Plus, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { getApiErrorMessage } from '@/lib/api-error'
+import { cn } from '@/lib/utils'
 
 const NETWORKS_SORT_KEY = 'docker.networks.sort'
 const DOCKER_PAGE_SIZE_KEY = 'docker.list.page_size'
@@ -58,9 +60,11 @@ function parseNetworks(output: string): Network[] {
 export function NetworksTab({
   serverId,
   refreshSignal = 0,
+  embeddedInWorkspace = false,
 }: {
   serverId: string
   refreshSignal?: number
+  embeddedInWorkspace?: boolean
 }) {
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState('')
@@ -104,7 +108,7 @@ export function NetworksTab({
   } = useQuery<Network[]>({
     queryKey: ['docker', 'networks', serverId, refreshSignal],
     queryFn: async () => {
-      const res = await pb.send(`/api/ext/docker/networks?server_id=${serverId}`, { method: 'GET' })
+      const res = await pb.send(dockerApiPath(serverId, '/networks'), { method: 'GET' })
       return parseNetworks(res.output)
     },
     staleTime: 10_000,
@@ -114,7 +118,7 @@ export function NetworksTab({
   const removeNetwork = async (id: string) => {
     try {
       setActionError(null)
-      await pb.send(`/api/ext/docker/networks/${id}?server_id=${serverId}`, { method: 'DELETE' })
+      await pb.send(dockerApiPath(serverId, `/networks/${id}`), { method: 'DELETE' })
       await queryClient.invalidateQueries({ queryKey: ['docker', 'networks', serverId] })
     } catch (err) {
       setActionError(getApiErrorMessage(err, 'Failed to remove network'))
@@ -125,7 +129,7 @@ export function NetworksTab({
     if (!newName.trim()) return
     try {
       setActionError(null)
-      await pb.send(`/api/ext/docker/networks?server_id=${serverId}`, {
+      await pb.send(dockerApiPath(serverId, '/networks'), {
         method: 'POST',
         body: { name: newName.trim() },
       })
@@ -222,17 +226,22 @@ export function NetworksTab({
   )
 
   return (
-    <div className="h-full min-h-0 flex flex-col gap-4 pt-4">
+    <div
+      className={cn(
+        'h-full min-h-0 flex flex-col gap-4',
+        embeddedInWorkspace ? 'pt-0' : 'pt-4'
+      )}
+    >
       {(loadError || actionError) && (
         <Alert variant="destructive" className="shrink-0">
           <AlertDescription>{loadError || actionError}</AlertDescription>
         </Alert>
       )}
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 px-3 py-3 shrink-0">
         <input
           type="text"
           placeholder="Filter networks..."
-          className="border rounded-md px-3 py-1.5 text-sm bg-background"
+          className="h-9 min-w-[14rem] rounded-md border bg-background px-3 text-sm"
           value={filter}
           onChange={e => setFilter(e.target.value)}
         />
@@ -240,7 +249,7 @@ export function NetworksTab({
         <input
           type="text"
           placeholder="Network name"
-          className="border rounded-md px-3 py-1.5 text-sm bg-background w-48"
+          className="h-9 w-48 rounded-md border bg-background px-3 text-sm"
           value={newName}
           onChange={e => setNewName(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && createNetwork()}

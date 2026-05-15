@@ -142,7 +142,7 @@ describe('CreateDeploymentPage', () => {
     iacMkdirMock.mockResolvedValue(undefined)
     sendMock.mockImplementation(
       (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
-        if (path === '/api/ext/docker/servers') {
+        if (path === '/api/servers/docker-targets') {
           return Promise.resolve([
             { id: 'local', label: 'local', host: '127.0.0.1', status: 'online' },
           ])
@@ -277,7 +277,7 @@ describe('CreateDeploymentPage', () => {
   it('blocks create when auto preflight check fails', async () => {
     sendMock.mockImplementation(
       (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
-        if (path === '/api/ext/docker/servers') {
+        if (path === '/api/servers/docker-targets') {
           return Promise.resolve([
             { id: 'local', label: 'local', host: '127.0.0.1', status: 'online' },
           ])
@@ -396,7 +396,7 @@ describe('CreateDeploymentPage', () => {
   it('allows create when auto preflight returns warnings only', async () => {
     sendMock.mockImplementation(
       (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
-        if (path === '/api/ext/docker/servers') {
+        if (path === '/api/servers/docker-targets') {
           return Promise.resolve([
             { id: 'local', label: 'local', host: '127.0.0.1', status: 'online' },
           ])
@@ -491,7 +491,7 @@ describe('CreateDeploymentPage', () => {
   it('blocks create when estimated app disk exceeds available disk', async () => {
     sendMock.mockImplementation(
       (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
-        if (path === '/api/ext/docker/servers') {
+        if (path === '/api/servers/docker-targets') {
           return Promise.resolve([
             { id: 'local', label: 'local', host: '127.0.0.1', status: 'online' },
           ])
