@@ -1368,7 +1368,7 @@ export function ServersPage() {
             </TabsContent>
 
             <TabsContent value="docker" className="pt-4">
-              <div className="h-[clamp(36rem,calc(100vh-14rem),72rem)] min-h-0 min-w-0">
+              <div className="min-h-[32rem] min-w-0">
                 <DockerPanel serverId={String(item.id || '')} className="h-full" />
               </div>
             </TabsContent>

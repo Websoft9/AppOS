@@ -543,34 +543,38 @@ export function ComposeTab({
           <AlertDescription>{loadError || actionError}</AlertDescription>
         </Alert>
       )}
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 px-3 py-3 shrink-0">
-        <input
-          type="text"
-          placeholder="Filter projects..."
-          className="h-9 min-w-[14rem] rounded-md border bg-background px-3 text-sm"
-          value={filter}
-          onChange={e => setFilter(e.target.value)}
-        />
-        <div className="flex-1" />
-        {filterPreset && onClearFilterPreset && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setFilter('')
-              onClearFilterPreset()
-            }}
-          >
-            Clear linked filter
-          </Button>
-        )}
-      </div>
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed bg-muted/10 px-3 py-2 shrink-0">
-        {filterPreset && <Badge variant="outline">Linked project: {filterPreset}</Badge>}
-        {hasProjectContainerLoading && (
-          <Badge variant="outline">Loading project containers...</Badge>
-        )}
-      </div>
+      {!embeddedInWorkspace && (
+        <>
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 px-3 py-3 shrink-0">
+            <input
+              type="text"
+              placeholder="Filter projects..."
+              className="h-9 min-w-[14rem] rounded-md border bg-background px-3 text-sm"
+              value={filter}
+              onChange={e => setFilter(e.target.value)}
+            />
+            <div className="flex-1" />
+            {filterPreset && onClearFilterPreset && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setFilter('')
+                  onClearFilterPreset()
+                }}
+              >
+                Clear linked filter
+              </Button>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed bg-muted/10 px-3 py-2 shrink-0">
+            {filterPreset && <Badge variant="outline">Linked project: {filterPreset}</Badge>}
+            {hasProjectContainerLoading && (
+              <Badge variant="outline">Loading project containers...</Badge>
+            )}
+          </div>
+        </>
+      )}
 
       <div className="rounded-md border">
         <Table>

@@ -61,10 +61,12 @@ export function NetworksTab({
   serverId,
   refreshSignal = 0,
   embeddedInWorkspace = false,
+  externalFilter,
 }: {
   serverId: string
   refreshSignal?: number
   embeddedInWorkspace?: boolean
+  externalFilter?: string
 }) {
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState('')
@@ -92,6 +94,10 @@ export function NetworksTab({
   const [pageSize, setPageSize] = useState<25 | 50 | 100>(loadGlobalPageSize)
   const [page, setPage] = useState(1)
   const [actionError, setActionError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (externalFilter !== undefined) setFilter(externalFilter)
+  }, [externalFilter])
 
   useEffect(() => {
     localStorage.setItem(NETWORKS_SORT_KEY, JSON.stringify({ key: sortKey, dir: sortDir }))
@@ -237,27 +243,45 @@ export function NetworksTab({
           <AlertDescription>{loadError || actionError}</AlertDescription>
         </Alert>
       )}
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 px-3 py-3 shrink-0">
-        <input
-          type="text"
-          placeholder="Filter networks..."
-          className="h-9 min-w-[14rem] rounded-md border bg-background px-3 text-sm"
-          value={filter}
-          onChange={e => setFilter(e.target.value)}
-        />
-        <div className="flex-1" />
-        <input
-          type="text"
-          placeholder="Network name"
-          className="h-9 w-48 rounded-md border bg-background px-3 text-sm"
-          value={newName}
-          onChange={e => setNewName(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && createNetwork()}
-        />
-        <Button variant="outline" size="sm" onClick={createNetwork}>
-          <Plus className="h-4 w-4 mr-1" /> Create
-        </Button>
-      </div>
+      {!embeddedInWorkspace && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 px-3 py-3 shrink-0">
+          <input
+            type="text"
+            placeholder="Filter networks..."
+            className="h-9 min-w-[14rem] rounded-md border bg-background px-3 text-sm"
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+          />
+          <div className="flex-1" />
+          <input
+            type="text"
+            placeholder="Network name"
+            className="h-9 w-48 rounded-md border bg-background px-3 text-sm"
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && createNetwork()}
+          />
+          <Button variant="outline" size="sm" onClick={createNetwork}>
+            <Plus className="h-4 w-4 mr-1" /> Create
+          </Button>
+        </div>
+      )}
+      {embeddedInWorkspace && (
+        <div className="flex flex-wrap items-center gap-2 shrink-0 pb-2">
+          <div className="flex-1" />
+          <input
+            type="text"
+            placeholder="Network name"
+            className="h-8 w-44 rounded-md border bg-background px-3 text-sm"
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && createNetwork()}
+          />
+          <Button variant="outline" size="sm" onClick={createNetwork}>
+            <Plus className="h-4 w-4 mr-1" /> Create
+          </Button>
+        </div>
+      )}
       <div className="rounded-md border">
         <Table>
           <TableHeader className="sticky top-0 bg-background z-10">

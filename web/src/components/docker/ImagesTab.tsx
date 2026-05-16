@@ -179,9 +179,13 @@ function isImageUsed(image: DockerImage, containers: DockerContainerRow[]): bool
 export function ImagesTab({
   serverId,
   embeddedInWorkspace = false,
+  externalFilter,
+  externalUsageFilter,
 }: {
   serverId: string
   embeddedInWorkspace?: boolean
+  externalFilter?: string
+  externalUsageFilter?: 'all' | 'used' | 'unused'
 }) {
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState('')
@@ -230,6 +234,13 @@ export function ImagesTab({
   const [selectedPullImage, setSelectedPullImage] = useState('')
   const [pulling, setPulling] = useState(false)
   const [pullLog, setPullLog] = useState('')
+
+  useEffect(() => {
+    if (externalFilter !== undefined) setFilter(externalFilter)
+  }, [externalFilter])
+  useEffect(() => {
+    if (externalUsageFilter !== undefined) setUsageFilter(externalUsageFilter)
+  }, [externalUsageFilter])
 
   useEffect(() => {
     localStorage.setItem(IMAGES_SORT_KEY, JSON.stringify({ key: sortKey, dir: sortDir }))
@@ -546,49 +557,73 @@ export function ImagesTab({
           <AlertDescription>{loadError || actionError}</AlertDescription>
         </Alert>
       )}
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 px-3 py-3 shrink-0">
-        <input
-          type="text"
-          placeholder="Filter images..."
-          className="h-9 min-w-[14rem] rounded-md border bg-background px-3 text-sm"
-          value={filter}
-          onChange={e => setFilter(e.target.value)}
-        />
-        <select
-          className="h-9 rounded-md border bg-background px-3 text-sm"
-          value={usageFilter}
-          onChange={e => setUsageFilter(e.target.value as 'all' | 'used' | 'unused')}
-        >
-          <option value="all">All images</option>
-          <option value="used">Used</option>
-          <option value="unused">Unused</option>
-        </select>
+      {!embeddedInWorkspace && (
+        <>
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 px-3 py-3 shrink-0">
+            <input
+              type="text"
+              placeholder="Filter images..."
+              className="h-9 min-w-[14rem] rounded-md border bg-background px-3 text-sm"
+              value={filter}
+              onChange={e => setFilter(e.target.value)}
+            />
+            <select
+              className="h-9 rounded-md border bg-background px-3 text-sm"
+              value={usageFilter}
+              onChange={e => setUsageFilter(e.target.value as 'all' | 'used' | 'unused')}
+            >
+              <option value="all">All images</option>
+              <option value="used">Used</option>
+              <option value="unused">Unused</option>
+            </select>
 
-        <div className="flex-1" />
+            <div className="flex-1" />
 
-        <Button variant="link" size="sm" onClick={() => openPullDialog()}>
-          Pull image
-        </Button>
+            <Button variant="link" size="sm" onClick={() => openPullDialog()}>
+              Pull image
+            </Button>
 
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={selectedIds.length === 0}
-          onClick={() => setBatchDeleteOpen(true)}
-        >
-          <Trash2 className="h-4 w-4 mr-1" /> Remove selected ({selectedIds.length})
-        </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={selectedIds.length === 0}
+              onClick={() => setBatchDeleteOpen(true)}
+            >
+              <Trash2 className="h-4 w-4 mr-1" /> Remove selected ({selectedIds.length})
+            </Button>
 
-        <Button variant="outline" size="sm" onClick={() => setPruneConfirmOpen(true)}>
-          <Eraser className="h-4 w-4 mr-1" /> Prune
-        </Button>
-      </div>
+            <Button variant="outline" size="sm" onClick={() => setPruneConfirmOpen(true)}>
+              <Eraser className="h-4 w-4 mr-1" /> Prune
+            </Button>
+          </div>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed bg-muted/10 px-3 py-2 shrink-0">
-        {usageFilter === 'unused' && <Badge variant="outline">Only unused images</Badge>}
-        {usageFilter === 'used' && <Badge variant="outline">Only used images</Badge>}
-        {mockPruneNotice && <Badge variant="secondary">{mockPruneNotice}</Badge>}
-      </div>
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed bg-muted/10 px-3 py-2 shrink-0">
+            {usageFilter === 'unused' && <Badge variant="outline">Only unused images</Badge>}
+            {usageFilter === 'used' && <Badge variant="outline">Only used images</Badge>}
+            {mockPruneNotice && <Badge variant="secondary">{mockPruneNotice}</Badge>}
+          </div>
+        </>
+      )}
+      {embeddedInWorkspace && (
+        <div className="flex flex-wrap items-center gap-2 shrink-0 pb-2">
+          <Button variant="link" size="sm" onClick={() => openPullDialog()}>
+            Pull image
+          </Button>
+          <div className="flex-1" />
+          {selectedIds.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setBatchDeleteOpen(true)}
+            >
+              <Trash2 className="h-4 w-4 mr-1" /> Remove selected ({selectedIds.length})
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={() => setPruneConfirmOpen(true)}>
+            <Eraser className="h-4 w-4 mr-1" /> Prune
+          </Button>
+        </div>
+      )}
 
       <div className="rounded-md border">
         <Table>

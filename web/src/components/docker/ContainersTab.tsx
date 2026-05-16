@@ -61,11 +61,10 @@ import {
   MoreVertical,
   Container as ContainerIcon,
   TerminalSquare,
-  ScrollText,
+  FileText,
   Activity,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
@@ -158,10 +157,24 @@ function telemetrySeries(
 
 function telemetryBadge(item?: MonitorContainerTelemetryItem) {
   if (!item || item.freshness.state === 'missing') {
-    return <Badge variant="outline">No telemetry</Badge>
+    return (
+      <Badge
+        variant="outline"
+        className="border-dashed border-border/60 bg-transparent text-[11px] font-normal text-muted-foreground"
+      >
+        No telemetry
+      </Badge>
+    )
   }
   if (item.freshness.state === 'stale') {
-    return <Badge variant="outline">Stale telemetry</Badge>
+    return (
+      <Badge
+        variant="outline"
+        className="border-dashed border-amber-500/40 bg-amber-500/5 text-[11px] font-normal text-amber-700"
+      >
+        Stale telemetry
+      </Badge>
+    )
   }
   return null
 }
@@ -254,9 +267,31 @@ function inspectNetworks(inspect?: Record<string, any> | null): string[] {
   return Object.keys(networks)
 }
 
+function shortImageLabel(image: string): string {
+  if (!image) return '-'
+  const compact = image.split('@')[0] || image
+  return compact
+}
+
+function formatStateLabel(state: string): string {
+  if (!state) return 'Unknown'
+  return state.charAt(0).toUpperCase() + state.slice(1)
+}
+
 function statusBadge(state: string) {
-  const variant = state === 'running' ? 'default' : 'secondary'
-  return <Badge variant={variant}>{state}</Badge>
+  const normalized = state.toLowerCase()
+  const className =
+    normalized === 'running'
+      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700'
+      : normalized === 'paused'
+        ? 'border-amber-500/30 bg-amber-500/10 text-amber-700'
+        : 'border-border/70 bg-muted/40 text-foreground'
+
+  return (
+    <Badge variant="outline" className={cn('text-[11px] font-medium', className)}>
+      {formatStateLabel(state)}
+    </Badge>
+  )
 }
 
 type SortKey = 'name' | 'created' | 'cpu' | 'mem' | 'compose'
@@ -264,6 +299,8 @@ type SortKey = 'name' | 'created' | 'cpu' | 'mem' | 'compose'
 export function ContainersTab({
   serverId,
   searchQuery,
+  stateFilter,
+  onStateFilterChange,
   onSearchQueryChange,
   page,
   pageSize,
@@ -285,6 +322,8 @@ export function ContainersTab({
 }: {
   serverId: string
   searchQuery?: string
+  stateFilter: 'all' | 'running' | 'exited' | 'paused' | 'created'
+  onStateFilterChange?: (value: 'all' | 'running' | 'exited' | 'paused' | 'created') => void
   onSearchQueryChange?: (value: string) => void
   page: number
   pageSize: ContainerPageSize
@@ -298,7 +337,11 @@ export function ContainersTab({
   onClearIncludeNames?: () => void
   onPageChange?: (page: number) => void
   onPageSizeChange?: (pageSize: ContainerPageSize) => void
-  onSummaryChange?: (summary: { totalItems: number; totalPages: number }) => void
+  onSummaryChange?: (summary: {
+    totalItems: number
+    totalPages: number
+    stateCounts: Record<'all' | 'running' | 'exited' | 'paused' | 'created', number>
+  }) => void
   onVisibleColumnsChange?: (columns: ContainerVisibleColumns) => void
   onRefresh?: () => void
   onOpenComposeFilter?: (composeName: string) => void
@@ -317,9 +360,6 @@ export function ContainersTab({
   const [logsContent, setLogsContent] = useState('')
   const [logsLoading, setLogsLoading] = useState(false)
   const [logsActionTip, setLogsActionTip] = useState('')
-  const [stateFilter, setStateFilter] = useState<
-    'all' | 'running' | 'exited' | 'paused' | 'created'
-  >('all')
   const [sortKey, setSortKey] = useState<SortKey>(() => {
     try {
       const raw = localStorage.getItem(CONTAINERS_SORT_KEY)
@@ -583,21 +623,56 @@ export function ContainersTab({
     .trim()
     .toLowerCase()
 
-  const filtered = containers.filter(
-    c =>
-      c.Names?.toLowerCase().includes(activeSearchQuery) ||
-      c.Image?.toLowerCase().includes(activeSearchQuery)
+  const filtered = useMemo(
+    () =>
+      containers.filter(
+        c =>
+          c.Names?.toLowerCase().includes(activeSearchQuery) ||
+          c.Image?.toLowerCase().includes(activeSearchQuery)
+      ),
+    [containers, activeSearchQuery]
   )
 
-  const stateFiltered = filtered.filter(container => {
-    if (stateFilter === 'all') return true
-    return (container.State || '').toLowerCase() === stateFilter
-  })
+  const stateFiltered = useMemo(
+    () =>
+      filtered.filter(container => {
+        if (stateFilter === 'all') return true
+        return (container.State || '').toLowerCase() === stateFilter
+      }),
+    [filtered, stateFilter]
+  )
 
-  const nameFiltered = stateFiltered.filter(container => {
-    if (!includeNames || includeNames.length === 0) return true
-    return includeNames.includes(container.Names)
-  })
+  const stateOptionCounts = useMemo(() => {
+    let running = 0
+    let exited = 0
+    let paused = 0
+    let created = 0
+
+    for (const container of filtered) {
+      const state = (container.State || '').toLowerCase()
+      if (state === 'running') running += 1
+      else if (state === 'exited') exited += 1
+      else if (state === 'paused') paused += 1
+      else if (state === 'created') created += 1
+    }
+
+    return {
+      all: filtered.length,
+      running,
+      exited,
+      paused,
+      created,
+    }
+  }, [filtered])
+
+  const nameFiltered = useMemo(
+    () =>
+      stateFiltered.filter(container => {
+        if (!includeNames || includeNames.length === 0) return true
+        return includeNames.includes(container.Names)
+      }),
+    [stateFiltered, includeNames]
+  )
 
   const sorted = useMemo(() => {
     const items = [...nameFiltered]
@@ -677,8 +752,8 @@ export function ContainersTab({
   }, [onPageChange, page, totalPages])
 
   useEffect(() => {
-    onSummaryChange?.({ totalItems: sorted.length, totalPages })
-  }, [onSummaryChange, sorted.length, totalPages])
+    onSummaryChange?.({ totalItems: sorted.length, totalPages, stateCounts: stateOptionCounts })
+  }, [onSummaryChange, sorted.length, totalPages, stateOptionCounts])
 
   const copyText = async (value: string, label: string) => {
     try {
@@ -709,21 +784,23 @@ export function ContainersTab({
     keyName: SortKey
     className?: string
   }) => (
-    <Button
-      variant="ghost"
-      size="sm"
-      className={cn('h-7 justify-start px-0 text-xs', className)}
+    <button
+      type="button"
+      className={cn(
+        'inline-flex h-7 cursor-pointer items-center gap-1 rounded text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground',
+        className
+      )}
       onClick={() => toggleSort(keyName)}
     >
       {label}
       {sortKey !== keyName ? (
-        <ArrowUpDown className="h-3 w-3 ml-1" />
+        <ArrowUpDown className="h-3 w-3" />
       ) : sortDir === 'asc' ? (
-        <ArrowUp className="h-3 w-3 ml-1" />
+        <ArrowUp className="h-3 w-3" />
       ) : (
-        <ArrowDown className="h-3 w-3 ml-1" />
+        <ArrowDown className="h-3 w-3" />
       )}
-    </Button>
+    </button>
   )
 
   const loadError = containersError
@@ -734,9 +811,9 @@ export function ContainersTab({
 
   const detailsColumnsVisible = visibleColumns.cpu || visibleColumns.mem || visibleColumns.compose
   const tableColSpan =
-    3 +
-    (visibleColumns.ports ? 1 : 0) +
+    4 +
     (visibleColumns.status ? 1 : 0) +
+    (visibleColumns.ports ? 1 : 0) +
     (detailsColumnsVisible ? 1 : 0) +
     (visibleColumns.cpu ? 1 : 0) +
     (visibleColumns.mem ? 1 : 0) +
@@ -753,16 +830,13 @@ export function ContainersTab({
       )}
       <div className="overflow-hidden bg-background">
         <div className="flex flex-col gap-3 px-3 py-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {showPanelChrome ? (
+          {showPanelChrome ? (
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <ContainerIcon className="h-4 w-4 text-muted-foreground" />
                 <span>Containers</span>
               </div>
-            ) : (
-              <div />
-            )}
-            <div className="flex flex-wrap items-center justify-end gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2">
               <input
                 value={searchQuery ?? ''}
                 onChange={event => onSearchQueryChange?.(event.target.value)}
@@ -781,7 +855,7 @@ export function ContainersTab({
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
                 </Button>
-                <span className="text-center font-medium tabular-nums">{page}</span>
+                <span className="text-center font-medium tabular-nums">{page}/{totalPages}</span>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -793,23 +867,21 @@ export function ContainersTab({
                   <ChevronRight className="h-3.5 w-3.5" />
                 </Button>
               </div>
-              {showPanelChrome ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="shrink-0"
-                  onClick={() => onRefresh?.()}
-                  disabled={refreshDisabled || refreshing}
-                  title="Refresh Docker data"
-                  aria-label="Refresh Docker data"
-                >
-                  {refreshing ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
-                  )}
-                </Button>
-              ) : null}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0"
+                onClick={() => onRefresh?.()}
+                disabled={refreshDisabled || refreshing}
+                title="Refresh Docker data"
+                aria-label="Refresh Docker data"
+              >
+                {refreshing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -848,7 +920,7 @@ export function ContainersTab({
                       onVisibleColumnsChange?.({ ...visibleColumns, status: checked === true })
                     }
                   >
-                    Status
+                    Lifecycle
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
                     checked={visibleColumns.cpu}
@@ -885,7 +957,8 @@ export function ContainersTab({
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-          </div>
+            </div>
+          ) : null}
           {((filterPreset && onClearFilterPreset) || (includeNames && includeNames.length > 0)) && (
             <div className="flex items-center justify-end gap-2 shrink-0">
               <Button
@@ -923,94 +996,114 @@ export function ContainersTab({
           {copiedTip && <div className="text-xs text-muted-foreground shrink-0">{copiedTip}</div>}
         </div>
 
-        <div className="border-t" />
-
-        <Table>
-          <TableHeader className="sticky top-0 bg-background z-10">
-            <TableRow>
-              <TableHead className="px-2">
-                <div className="grid grid-cols-[0.75rem_minmax(0,1fr)] items-center gap-1">
-                  <span aria-hidden="true" />
-                  <SortHead label="Name" keyName="name" />
-                </div>
-              </TableHead>
-              <TableHead>
-                <div className="flex items-center gap-1">
-                  <span className="text-xs font-medium text-foreground">State</span>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        aria-label="Filter container state"
-                        title={
-                          stateFilter === 'all'
-                            ? 'Filter container state'
-                            : `Container state: ${stateFilter}`
-                        }
-                      >
-                        <Filter
-                          className={
-                            stateFilter === 'all' ? 'h-3.5 w-3.5' : 'h-3.5 w-3.5 text-foreground'
-                          }
-                        />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                      <DropdownMenuRadioGroup
-                        value={stateFilter}
-                        onValueChange={value =>
-                          setStateFilter(
-                            value as 'all' | 'running' | 'exited' | 'paused' | 'created'
-                          )
-                        }
-                      >
-                        <DropdownMenuRadioItem value="all">All states</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="running">Running</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="exited">Exited</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="paused">Paused</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="created">Created</DropdownMenuRadioItem>
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </TableHead>
-              {visibleColumns.ports && (
-                <TableHead className="text-xs font-medium text-foreground">Ports</TableHead>
-              )}
-              {detailsColumnsVisible && (
-                <TableHead>
-                  <SortHead label="Created" keyName="created" />
-                </TableHead>
-              )}
-              {visibleColumns.status && (
-                <TableHead className="text-xs font-medium text-foreground">Status</TableHead>
-              )}
-              {visibleColumns.cpu && (
-                <TableHead>
-                  <SortHead label="CPU%" keyName="cpu" />
-                </TableHead>
-              )}
-              {visibleColumns.mem && (
-                <TableHead>
-                  <SortHead label="Mem" keyName="mem" />
-                </TableHead>
-              )}
-              {visibleColumns.network && (
-                <TableHead className="text-xs font-medium text-foreground">Net</TableHead>
-              )}
-              {visibleColumns.compose && (
-                <TableHead>
-                  <SortHead label="Compose" keyName="compose" />
-                </TableHead>
-              )}
-              <TableHead className="w-[60px] text-xs font-medium text-foreground">
-                Actions
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+        <div className="overflow-hidden rounded-lg bg-background">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90">
+                <TableRow>
+                  <TableHead className="w-[32%] min-w-[260px] pl-4 pr-2">
+                    <div className="flex items-center">
+                      <SortHead label="Name" keyName="name" />
+                    </div>
+                  </TableHead>
+                  <TableHead className="w-[16%] min-w-[160px]">
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-medium text-foreground">Runtime</span>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            aria-label="Filter container state"
+                            title={
+                              stateFilter === 'all'
+                                ? 'Filter container state'
+                                : `Container state: ${stateFilter}`
+                            }
+                          >
+                            <Filter
+                              className={
+                                stateFilter === 'all'
+                                  ? 'h-3.5 w-3.5'
+                                  : 'h-3.5 w-3.5 text-foreground'
+                              }
+                            />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          <DropdownMenuRadioGroup
+                            value={stateFilter}
+                            onValueChange={value =>
+                              onStateFilterChange?.(
+                                value as 'all' | 'running' | 'exited' | 'paused' | 'created'
+                              )
+                            }
+                          >
+                            <DropdownMenuRadioItem value="all">
+                              All states ({stateOptionCounts.all})
+                            </DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="running">
+                              Running ({stateOptionCounts.running})
+                            </DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="exited">
+                              Exited ({stateOptionCounts.exited})
+                            </DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="paused">
+                              Paused ({stateOptionCounts.paused})
+                            </DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="created">
+                              Created ({stateOptionCounts.created})
+                            </DropdownMenuRadioItem>
+                          </DropdownMenuRadioGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </TableHead>
+                  <TableHead className="w-[112px] min-w-[112px] text-xs font-medium text-foreground">
+                    Quick
+                  </TableHead>
+                  {visibleColumns.status && (
+                    <TableHead className="min-w-[150px] text-xs font-medium text-foreground">
+                      Lifecycle
+                    </TableHead>
+                  )}
+                  {visibleColumns.ports && (
+                    <TableHead className="min-w-[140px] text-xs font-medium text-foreground">
+                      Ports
+                    </TableHead>
+                  )}
+                  {detailsColumnsVisible && (
+                    <TableHead className="min-w-[160px]">
+                      <SortHead label="Created" keyName="created" />
+                    </TableHead>
+                  )}
+                  {visibleColumns.cpu && (
+                    <TableHead className="w-[88px] min-w-[88px]">
+                      <SortHead label="CPU%" keyName="cpu" />
+                    </TableHead>
+                  )}
+                  {visibleColumns.mem && (
+                    <TableHead className="w-[110px] min-w-[110px]">
+                      <SortHead label="Mem" keyName="mem" />
+                    </TableHead>
+                  )}
+                  {visibleColumns.network && (
+                    <TableHead className="min-w-[170px] text-xs font-medium text-foreground">
+                      Net
+                    </TableHead>
+                  )}
+                  {visibleColumns.compose && (
+                    <TableHead className="min-w-[140px]">
+                      <SortHead label="Compose" keyName="compose" />
+                    </TableHead>
+                  )}
+                  <TableHead className="w-[52px] text-xs font-medium text-foreground">
+                    Actions
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
             {loading && (
               <TableRow>
                 <TableCell colSpan={tableColSpan} className="text-center text-muted-foreground">
@@ -1026,11 +1119,17 @@ export function ContainersTab({
               const telemetryItem = telemetryMap[c.ID]
               return (
                 <Fragment key={c.ID}>
-                  <TableRow className="hover:bg-muted/30">
-                    <TableCell className="px-2 font-mono text-xs">
+                  <TableRow
+                    className={cn(
+                      'border-b border-border/60 align-top transition-colors hover:bg-muted/30',
+                      c.State.toLowerCase() === 'running' && 'bg-emerald-500/[0.015]',
+                      expandedId === c.ID && 'bg-muted/35'
+                    )}
+                  >
+                    <TableCell className="pl-4 pr-3 py-3 text-xs">
                       <Button
                         variant="link"
-                        className="grid h-auto w-full grid-cols-[0.75rem_minmax(0,1fr)] items-center gap-1 p-0 text-left font-mono text-xs"
+                        className="h-auto w-full justify-start p-0 text-left no-underline hover:no-underline"
                         onClick={() => {
                           setExpandedId(id => {
                             const nextId = id === c.ID ? null : c.ID
@@ -1041,27 +1140,87 @@ export function ContainersTab({
                           })
                         }}
                       >
-                        {expandedId === c.ID ? (
-                          <ChevronDown className="h-3 w-3" />
-                        ) : (
-                          <ChevronRight className="h-3 w-3" />
-                        )}
-                        <span className="truncate text-left" title={c.Names}>
-                          {shortName(c.Names)}
-                        </span>
+                        <div className="min-w-0 space-y-1 text-left">
+                          <div
+                            className="truncate text-sm font-semibold leading-tight text-foreground"
+                            title={c.Names}
+                          >
+                            {shortName(c.Names)}
+                          </div>
+                          <div
+                            className="truncate font-mono text-[11px] leading-tight text-muted-foreground"
+                            title={c.Image}
+                          >
+                            {shortImageLabel(c.Image)}
+                          </div>
+                        </div>
                       </Button>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap items-center gap-2">
+                    <TableCell className="py-3">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         {statusBadge(c.State)}
                         {telemetryBadge(telemetryItem)}
                       </div>
                     </TableCell>
+                    <TableCell className="py-3">
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground"
+                          onClick={event => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            void fetchLogs(c)
+                          }}
+                          aria-label={`Open logs for ${c.Names}`}
+                          title="Logs"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground"
+                          onClick={event => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            setStatsContainer(c)
+                          }}
+                          aria-label={`Open monitor for ${c.Names}`}
+                          title="Monitor"
+                        >
+                          <Activity className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground"
+                          onClick={event => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            onOpenTerminal?.(c.ID)
+                          }}
+                          disabled={c.State !== 'running' || !onOpenTerminal}
+                          aria-label={`Open exec for ${c.Names}`}
+                          title={c.State === 'running' ? 'Exec' : 'Exec unavailable'}
+                        >
+                          <TerminalSquare className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                    {visibleColumns.status && (
+                      <TableCell className="py-3 text-xs text-muted-foreground">
+                        {c.Status || '-'}
+                      </TableCell>
+                    )}
                     {visibleColumns.ports && (
-                      <TableCell className="text-xs">{hostPublishedPorts(c.Ports)}</TableCell>
+                      <TableCell className="py-3 text-xs text-foreground/90">
+                        {hostPublishedPorts(c.Ports)}
+                      </TableCell>
                     )}
                     {detailsColumnsVisible && (
-                      <TableCell className="text-xs">
+                      <TableCell className="py-3 text-xs text-muted-foreground">
                         {allDetailsLoading
                           ? '...'
                           : inspect?.Created
@@ -1069,32 +1228,31 @@ export function ContainersTab({
                             : '-'}
                       </TableCell>
                     )}
-                    {visibleColumns.status && <TableCell className="text-xs">{c.Status}</TableCell>}
                     {visibleColumns.cpu && (
-                      <TableCell className="text-xs">
+                      <TableCell className="py-3 text-xs tabular-nums text-foreground/90">
                         {telemetryLoading
                           ? '...'
                           : telemetryItem?.freshness.state === 'missing'
-                            ? 'No telemetry'
-                            : formatPercent(telemetryItem?.latest.cpuPercent)}
+                            ? <span className="text-muted-foreground">-</span>
+                            : <span className="font-medium text-foreground">{formatPercent(telemetryItem?.latest.cpuPercent)}</span>}
                       </TableCell>
                     )}
                     {visibleColumns.mem && (
-                      <TableCell className="text-xs">
+                      <TableCell className="py-3 text-xs tabular-nums text-foreground/90">
                         {telemetryLoading
                           ? '...'
                           : telemetryItem?.freshness.state === 'missing'
-                            ? 'No telemetry'
-                            : formatBytesCompact(telemetryItem?.latest.memoryBytes)}
+                            ? <span className="text-muted-foreground">-</span>
+                            : <span className="font-medium text-foreground">{formatBytesCompact(telemetryItem?.latest.memoryBytes)}</span>}
                       </TableCell>
                     )}
                     {visibleColumns.network && (
-                      <TableCell className="text-xs">
+                      <TableCell className="py-3 text-[11px] text-muted-foreground">
                         {telemetryLoading ? '...' : formatNetworkSummary(telemetryItem)}
                       </TableCell>
                     )}
                     {visibleColumns.compose && (
-                      <TableCell className="text-xs">
+                      <TableCell className="py-3 text-xs">
                         {composeName(inspect) !== '-' ? (
                           <Button
                             variant="link"
@@ -1108,45 +1266,85 @@ export function ContainersTab({
                         )}
                       </TableCell>
                     )}
-                    <TableCell>
+                    <TableCell className="py-3">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-7 w-7">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={event => event.stopPropagation()}
+                          >
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           {c.State === 'running' && onOpenTerminal && (
-                            <DropdownMenuItem onClick={() => onOpenTerminal(c.ID)}>
+                            <DropdownMenuItem
+                              onSelect={event => {
+                                event.stopPropagation()
+                                window.setTimeout(() => onOpenTerminal(c.ID), 0)
+                              }}
+                            >
                               <TerminalSquare className="h-4 w-4 mr-2" /> Terminal
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuItem onClick={() => setStatsContainer(c)}>
+                          <DropdownMenuItem
+                            onSelect={event => {
+                              event.stopPropagation()
+                              window.setTimeout(() => setStatsContainer(c), 0)
+                            }}
+                          >
                             <Activity className="h-4 w-4 mr-2" /> Stats
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => fetchLogs(c)}>
-                            <ScrollText className="h-4 w-4 mr-2" /> Logs
+                          <DropdownMenuItem
+                            onSelect={event => {
+                              event.stopPropagation()
+                              window.setTimeout(() => void fetchLogs(c), 0)
+                            }}
+                          >
+                            <FileText className="h-4 w-4 mr-2" /> Logs
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => action(c.ID, 'start')}
+                            onSelect={event => {
+                              event.stopPropagation()
+                              window.setTimeout(() => void action(c.ID, 'start'), 0)
+                            }}
                             disabled={(c.State || '').toLowerCase() === 'running'}
                           >
                             <Play className="h-4 w-4 mr-2" /> Start
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => setPendingAction({ container: c, action: 'stop' })}
+                            onSelect={event => {
+                              event.stopPropagation()
+                              window.setTimeout(
+                                () => setPendingAction({ container: c, action: 'stop' }),
+                                0
+                              )
+                            }}
                           >
                             <Square className="h-4 w-4 mr-2" /> Stop
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => setPendingAction({ container: c, action: 'restart' })}
+                            onSelect={event => {
+                              event.stopPropagation()
+                              window.setTimeout(
+                                () => setPendingAction({ container: c, action: 'restart' }),
+                                0
+                              )
+                            }}
                           >
                             <RotateCw className="h-4 w-4 mr-2" /> Restart
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() =>
-                              setPendingAction({ container: c, action: 'remove', force: false })
-                            }
+                            onSelect={event => {
+                              event.stopPropagation()
+                              window.setTimeout(
+                                () =>
+                                  setPendingAction({ container: c, action: 'remove', force: false }),
+                                0
+                              )
+                            }}
                             className="text-destructive"
                           >
                             <Trash2 className="h-4 w-4 mr-2" /> Remove
@@ -1263,8 +1461,10 @@ export function ContainersTab({
                 </TableCell>
               </TableRow>
             )}
-          </TableBody>
-        </Table>
+              </TableBody>
+            </Table>
+          </div>
+        </div>
       </div>
 
       <AlertDialog

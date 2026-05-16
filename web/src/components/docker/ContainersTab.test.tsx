@@ -27,6 +27,7 @@ function renderTab() {
     <QueryClientProvider client={queryClient}>
       <ContainersTab
         serverId="srv-1"
+        stateFilter="all"
         page={1}
         pageSize={50}
         visibleColumns={{
