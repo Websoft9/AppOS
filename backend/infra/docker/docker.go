@@ -17,6 +17,8 @@ type Client struct {
 	exec Executor
 }
 
+const registryStatusProbeImage = "hello-world:latest"
+
 // New creates a new Docker client with the given Executor.
 func New(exec Executor) *Client {
 	return &Client{exec: exec}
@@ -25,6 +27,16 @@ func New(exec Executor) *Client {
 // Host returns the executor's host label.
 func (c *Client) Host() string {
 	return c.exec.Host()
+}
+
+// SetProxyEnv applies proxy-related environment variables to compatible executors.
+func (c *Client) SetProxyEnv(env map[string]string) {
+	switch exec := c.exec.(type) {
+	case *LocalExecutor:
+		exec.SetEnv(env)
+	case *SSHExecutor:
+		exec.SetEnv(env)
+	}
 }
 
 // Exec runs an arbitrary docker command. The args are passed directly to "docker <args...>".
@@ -150,7 +162,21 @@ func (c *Client) RegistrySearch(ctx context.Context, keyword string, limit int) 
 
 // RegistryStatus probes whether the default registry is reachable.
 func (c *Client) RegistryStatus(ctx context.Context) (string, error) {
-	return c.exec.Run(ctx, "docker", "search", "hello-world", "--limit", "1", "--format", "json")
+	probeExisted := false
+	if _, err := c.exec.Run(ctx, "docker", "image", "inspect", registryStatusProbeImage); err == nil {
+		probeExisted = true
+	}
+
+	output, err := c.exec.Run(ctx, "docker", "pull", "--quiet", registryStatusProbeImage)
+	if err != nil {
+		return "", err
+	}
+
+	if !probeExisted {
+		_, _ = c.exec.Run(ctx, "docker", "image", "rm", registryStatusProbeImage)
+	}
+
+	return output, nil
 }
 
 // ImageRemove removes an image by ID.
@@ -173,6 +199,15 @@ func (c *Client) ContainerList(ctx context.Context) (string, error) {
 // ContainerInspect returns detailed info for a container.
 func (c *Client) ContainerInspect(ctx context.Context, id string) (string, error) {
 	return c.exec.Run(ctx, "docker", "inspect", id)
+}
+
+// ContainerInspectMany returns detailed info for multiple containers in one inspect call.
+func (c *Client) ContainerInspectMany(ctx context.Context, ids []string) (string, error) {
+	if len(ids) == 0 {
+		return "[]", nil
+	}
+	args := append([]string{"inspect"}, ids...)
+	return c.exec.Run(ctx, "docker", args...)
 }
 
 // ContainerStats returns one-shot stats for all containers in JSON format.
@@ -213,6 +248,11 @@ func (c *Client) ContainerRemove(ctx context.Context, id string, force bool) (st
 // NetworkList returns networks in JSON format.
 func (c *Client) NetworkList(ctx context.Context) (string, error) {
 	return c.exec.Run(ctx, "docker", "network", "ls", "--format", "json")
+}
+
+// NetworkInspect returns inspect output for a network id or name.
+func (c *Client) NetworkInspect(ctx context.Context, id string) (string, error) {
+	return c.exec.Run(ctx, "docker", "network", "inspect", id)
 }
 
 // NetworkCreate creates a network.

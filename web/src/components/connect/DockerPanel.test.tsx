@@ -1,0 +1,260 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { DockerPanel } from './DockerPanel'
+
+const sendMock = vi.fn()
+let scenario: 'attention' | 'healthy' | 'many' = 'attention'
+
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({ children, className }: { children: React.ReactNode; className?: string }) => (
+    <a href="/deploy/create" className={className}>
+      {children}
+    </a>
+  ),
+}))
+
+vi.mock('@/lib/pb', () => ({
+  pb: {
+    send: (...args: unknown[]) => sendMock(...args),
+  },
+}))
+
+vi.mock('@/components/docker/ContainersTab', () => ({
+  ContainersTab: ({ includeNames }: { includeNames?: string[] }) => (
+    <div data-testid="containers-tab">Containers tab {includeNames?.join(',')}</div>
+  ),
+}))
+
+vi.mock('@/components/docker/ImagesTab', () => ({
+  ImagesTab: () => <div data-testid="images-tab">Images tab</div>,
+}))
+
+vi.mock('@/components/docker/VolumesTab', () => ({
+  VolumesTab: () => <div data-testid="volumes-tab">Volumes tab</div>,
+}))
+
+vi.mock('@/components/docker/NetworksTab', () => ({
+  NetworksTab: () => <div data-testid="networks-tab">Networks tab</div>,
+}))
+
+vi.mock('@/components/docker/ComposeTab', () => ({
+  ComposeTab: () => <div data-testid="compose-tab">Compose tab</div>,
+}))
+
+vi.mock('@/components/connect/TerminalPanel', () => ({
+  TerminalPanel: () => <div data-testid="terminal-panel" />,
+}))
+
+function dockerJsonLines(items: unknown[]) {
+  return items.map(item => JSON.stringify(item)).join('\n')
+}
+
+function renderPanel() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  })
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <DockerPanel serverId="srv-1" />
+    </QueryClientProvider>
+  )
+}
+
+function mockDockerEndpoints() {
+  sendMock.mockImplementation((path: string) => {
+    if (path === '/api/servers/docker-targets') {
+      return Promise.resolve([{ id: 'srv-1', label: 'Server 1', status: 'online' }])
+    }
+
+    if (scenario === 'healthy') {
+      if (path === '/api/servers/srv-1/docker/containers') {
+        return Promise.resolve({
+          output: dockerJsonLines([
+            {
+              ID: 'ctr-1',
+              Names: 'web',
+              Image: 'nginx:alpine',
+              State: 'running',
+              Status: 'Up 2 hours',
+            },
+          ]),
+        })
+      }
+      if (path === '/api/servers/srv-1/docker/compose/ls') {
+        return Promise.resolve({ output: JSON.stringify([{ Name: 'stack-a', Status: 'running(1)' }]) })
+      }
+    } else if (scenario === 'many') {
+      if (path === '/api/servers/srv-1/docker/containers') {
+        return Promise.resolve({
+          output: dockerJsonLines(
+            Array.from({ length: 8 }, (_, index) => ({
+              ID: `ctr-${index + 1}`,
+              Names: `stopped-${index + 1}`,
+              Image: 'busybox:latest',
+              State: 'exited',
+              Status: 'Exited (0) 10 minutes ago',
+            }))
+          ),
+        })
+      }
+      if (path === '/api/servers/srv-1/docker/compose/ls') {
+        return Promise.resolve({
+          output: JSON.stringify([
+            { Name: 'stack-a', Status: 'running(1)' },
+            { Name: 'broken-stack', Status: 'exited(1)' },
+          ]),
+        })
+      }
+    } else {
+      if (path === '/api/servers/srv-1/docker/containers') {
+        return Promise.resolve({
+          output: dockerJsonLines([
+            {
+              ID: 'ctr-1',
+              Names: 'web',
+              Image: 'nginx:alpine',
+              State: 'running',
+              Status: 'Up 2 hours',
+            },
+            {
+              ID: 'ctr-2',
+              Names: 'worker',
+              Image: 'busybox:latest',
+              State: 'exited',
+              Status: 'Exited (0) 10 minutes ago',
+            },
+            {
+              ID: 'ctr-3',
+              Names: 'paused-one',
+              Image: 'redis:7',
+              State: 'paused',
+              Status: 'Up 1 hour (Paused)',
+            },
+          ]),
+        })
+      }
+      if (path === '/api/servers/srv-1/docker/compose/ls') {
+        return Promise.resolve({
+          output: JSON.stringify([
+            { Name: 'stack-a', Status: 'running(1)' },
+            { Name: 'stack-b', Status: 'exited(1)' },
+          ]),
+        })
+      }
+    }
+
+    if (path === '/api/servers/srv-1/docker/images') {
+      return Promise.resolve({
+        output: dockerJsonLines([
+          { ID: 'img-1', Repository: 'nginx', Tag: 'alpine' },
+          { ID: 'img-2', Repository: 'busybox', Tag: 'latest' },
+          { ID: 'img-3', Repository: '<none>', Tag: '<none>' },
+        ]),
+      })
+    }
+
+    if (path === '/api/servers/srv-1/docker/volumes') {
+      return Promise.resolve({
+        output: dockerJsonLines([{ Name: 'data' }, { Name: 'cache' }]),
+      })
+    }
+
+    if (path === '/api/servers/srv-1/docker/networks') {
+      return Promise.resolve({
+        output: dockerJsonLines([{ ID: 'net-1', Name: 'bridge' }]),
+      })
+    }
+
+    return Promise.reject(new Error(`Unexpected request: ${path}`))
+  })
+}
+
+describe('DockerPanel overview', () => {
+  beforeEach(() => {
+    sendMock.mockReset()
+    scenario = 'attention'
+    mockDockerEndpoints()
+  })
+
+  afterEach(() => {
+    cleanup()
+  })
+
+  it('renders simplified resource cards, attention issues, and quick actions', async () => {
+    renderPanel()
+
+    expect(await screen.findByText('Needs Attention')).toBeInTheDocument()
+    expect(screen.getByText('2 stopped')).toBeInTheDocument()
+    expect(screen.getByText('1 attention')).toBeInTheDocument()
+    expect(screen.getByText('2 tagged')).toBeInTheDocument()
+    expect(screen.getByText('clean')).toBeInTheDocument()
+    expect(screen.getByText('ok')).toBeInTheDocument()
+
+    expect(screen.getByText('worker')).toBeInTheDocument()
+    expect(screen.getByText('exited container')).toBeInTheDocument()
+    expect(screen.getByText('paused-one')).toBeInTheDocument()
+    expect(screen.getByText('paused container')).toBeInTheDocument()
+    expect(screen.getByText('stack-b')).toBeInTheDocument()
+    expect(screen.getByText('Compose project needs attention')).toBeInTheDocument()
+
+    const quickActions = screen.getByText('Quick Actions').closest('div')?.parentElement?.parentElement
+    expect(quickActions).toBeTruthy()
+    expect(within(quickActions as HTMLElement).getByText('Create Compose')).toBeInTheDocument()
+    expect(within(quickActions as HTMLElement).getByText('Pull Image')).toBeInTheDocument()
+    expect(within(quickActions as HTMLElement).getByText('Prune Resources')).toBeInTheDocument()
+    expect(within(quickActions as HTMLElement).getByText('Refresh')).toBeInTheDocument()
+
+    expect(screen.queryByText('Container Health')).not.toBeInTheDocument()
+    expect(screen.queryByText('Compose Stacks')).not.toBeInTheDocument()
+    expect(screen.queryByText('Inventory Split')).not.toBeInTheDocument()
+  })
+
+  it('shows the empty attention state when inventory is operational', async () => {
+    scenario = 'healthy'
+    mockDockerEndpoints()
+
+    renderPanel()
+
+    expect(await screen.findByText('No issues detected')).toBeInTheDocument()
+    expect(
+      screen.getByText('All discovered Docker resources look operational from current inventory data.')
+    ).toBeInTheDocument()
+    expect(screen.getByText('0 issues')).toBeInTheDocument()
+  })
+
+  it('routes a container issue to the Containers tab with a name filter', async () => {
+    renderPanel()
+
+    const issue = await screen.findByRole('button', { name: /worker exited container/i })
+    fireEvent.click(issue)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('containers-tab')).toHaveTextContent('worker')
+    })
+  })
+
+  it('caps long attention lists and offers type-specific drilldowns', async () => {
+    scenario = 'many'
+    mockDockerEndpoints()
+
+    renderPanel()
+
+    expect(await screen.findByText('Showing first 6 of 9 issues.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /view containers/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /view compose/i })).toBeInTheDocument()
+    expect(screen.getByText('stopped-1')).toBeInTheDocument()
+    expect(screen.queryByText('stopped-8')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /view compose/i }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('compose-tab')).toBeInTheDocument()
+    })
+  })
+})

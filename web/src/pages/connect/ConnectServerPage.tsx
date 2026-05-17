@@ -17,7 +17,6 @@ import {
   ScrollText,
   Plus,
   SquareTerminal,
-  PanelsLeftRight,
   Search,
   Loader2,
   ChevronLeft,
@@ -103,6 +102,24 @@ function loadSplitRatio(): number {
     // ignore invalid local storage
   }
   return 0.5
+}
+
+function SplitRectangleIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <rect x="2.5" y="3" width="11" height="10" rx="1.5" />
+      <path d="M8 3v10" />
+    </svg>
+  )
 }
 
 function normalizeSystemdServiceUnitName(value: string): string {
@@ -818,52 +835,61 @@ export function ConnectServerPage({
     >
       <div className="flex items-start gap-2 px-3 py-2 border-b shrink-0">
         <div className="mr-1">
-          <h1 className="text-2xl font-bold tracking-tight leading-none">Connect Servers</h1>
+          <h1 className="text-2xl font-bold tracking-tight leading-none">Terminal Workspace</h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Manage terminal sessions, files, and containers for selected servers
+            Work with server shells and files in one workspace.
           </p>
         </div>
 
         <div className="flex-1" />
 
-        <Button
-          variant={sidePanel === 'none' ? 'secondary' : 'ghost'}
-          size="sm"
-          className="gap-1.5 h-7"
-          onClick={() => setSidePanel('none')}
-        >
-          <SquareTerminal className="h-4 w-4" />
-          Shell
-        </Button>
+        <div className="inline-flex h-8 items-center rounded-md border bg-muted/40 p-0.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              'gap-1.5 h-7 rounded-sm px-2.5 hover:bg-background/80',
+              sidePanel === 'none' && 'bg-background text-foreground shadow-sm hover:bg-background'
+            )}
+            onClick={() => setSidePanel('none')}
+          >
+            <SquareTerminal className="h-4 w-4" />
+            Shell
+          </Button>
 
-        <Button
-          variant={sidePanel === 'files' ? 'secondary' : 'ghost'}
-          size="sm"
-          className="gap-1.5 h-7"
-          onClick={() => {
-            if (sidePanel === 'files') {
-              setSidePanel('none')
-              return
-            }
-            setTabRailCollapsed(true)
-            setFilePanelPresets(state => {
-              if (state[activeServerId]) return state
-              return {
-                ...state,
-                [activeServerId]: { path: '/', lockedRoot: null, nonce: 0 },
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              'gap-1.5 h-7 rounded-sm px-2.5 hover:bg-background/80',
+              sidePanel === 'files' && 'bg-background text-foreground shadow-sm hover:bg-background'
+            )}
+            onClick={() => {
+              if (sidePanel === 'files') {
+                setSidePanel('none')
+                return
               }
-            })
-            setSidePanel('files')
-          }}
-        >
-          <FolderOpen className="h-4 w-4" />
-          Files
-        </Button>
+              setTabRailCollapsed(true)
+              setFilePanelPresets(state => {
+                if (state[activeServerId]) return state
+                return {
+                  ...state,
+                  [activeServerId]: { path: '/', lockedRoot: null, nonce: 0 },
+                }
+              })
+              setSplitRatio(0.5)
+              setSidePanel('files')
+            }}
+          >
+            <FolderOpen className="h-4 w-4" />
+            Files
+          </Button>
+        </div>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-1.5 h-7">
-              Action
+              Tools
               <ChevronDown className="h-3 w-3 opacity-50" />
             </Button>
           </DropdownMenuTrigger>
@@ -945,7 +971,7 @@ export function ConnectServerPage({
                     className="h-7 w-7 relative"
                     aria-label="Layout presets"
                   >
-                    <PanelsLeftRight className="h-4 w-4" />
+                    <SplitRectangleIcon className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
               </TooltipTrigger>
@@ -1090,7 +1116,7 @@ export function ConnectServerPage({
       <div
         ref={contentRef}
         className={cn(
-          'flex-1 flex min-h-0 overflow-hidden',
+          'flex-1 flex min-h-0 overflow-hidden p-2 gap-2',
           isResizing && 'select-none cursor-col-resize'
         )}
       >

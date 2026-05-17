@@ -6904,6 +6904,58 @@ paths:
             summary: List Compose projects
             tags:
                 - Docker
+    /api/servers/{serverId}/docker/compose/metadata:
+        post:
+            description: Returns compact metadata for the requested Compose projects, including linked containers. Superuser only.
+            operationId: post_api_servers_serverid_docker_compose_metadata
+            parameters:
+                - description: server ID
+                  in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                description: 'projects: array of Compose project names'
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Get Compose metadata
+            tags:
+                - Docker
     /api/servers/{serverId}/docker/compose/restart:
         post:
             description: Runs `docker compose restart` in the given project directory. Writes audit entry. Superuser only.
@@ -7492,6 +7544,58 @@ paths:
             summary: Stop container
             tags:
                 - Docker
+    /api/servers/{serverId}/docker/containers/metadata:
+        post:
+            description: Returns compact metadata for the requested container IDs, including created time, compose project, and linked volume names. Superuser only.
+            operationId: post_api_servers_serverid_docker_containers_metadata
+            parameters:
+                - description: server ID
+                  in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                description: 'ids: array of container IDs or names'
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Get container metadata
+            tags:
+                - Docker
     /api/servers/{serverId}/docker/containers/stats:
         get:
             description: Returns CPU/memory/network usage for all running containers. Superuser only.
@@ -8072,6 +8176,57 @@ paths:
             security:
                 - bearerAuth: []
             summary: Remove network
+            tags:
+                - Docker
+    /api/servers/{serverId}/docker/networks/{id}/inspect:
+        get:
+            description: Returns docker network inspect output for the given network ID or name. Superuser only.
+            operationId: get_api_servers_serverid_docker_networks_id_inspect
+            parameters:
+                - description: server ID
+                  in: path
+                  name: serverId
+                  required: true
+                  schema:
+                    type: string
+                - description: network ID or name
+                  in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Internal Server Error
+            security:
+                - bearerAuth: []
+            summary: Inspect network
             tags:
                 - Docker
     /api/servers/{serverId}/docker/volumes:

@@ -70,6 +70,7 @@ import {
   ArrowDown,
   Copy,
   Download,
+  ExternalLink,
   Filter,
   Loader2,
   Settings2,
@@ -81,6 +82,7 @@ type ContainerPageSize = 25 | 50 | 100
 
 type ContainerVisibleColumns = {
   ports: boolean
+  volumes: boolean
   status: boolean
   cpu: boolean
   mem: boolean
@@ -96,6 +98,12 @@ interface Container {
   Status: string
   Ports?: string
   RunningFor?: string
+}
+
+interface ContainerMetadataItem {
+  created?: string
+  compose_project?: string
+  volume_names?: string[]
 }
 
 function parseContainers(output: string): Container[] {
@@ -218,6 +226,37 @@ function parseInspect(output: string): Record<string, any> | null {
   }
 }
 
+function parseContainerMetadataItems(payload: unknown): Record<string, ContainerMetadataItem> {
+  if (!payload || typeof payload !== 'object') return {}
+  const items = (payload as { items?: unknown }).items
+  if (!items || typeof items !== 'object') return {}
+
+  const next: Record<string, ContainerMetadataItem> = {}
+  for (const [id, raw] of Object.entries(items as Record<string, unknown>)) {
+    if (!raw || typeof raw !== 'object') continue
+    const entry = raw as Record<string, unknown>
+    next[id] = {
+      created: typeof entry.created === 'string' ? entry.created : undefined,
+      compose_project:
+        typeof entry.compose_project === 'string' ? entry.compose_project : undefined,
+      volume_names: Array.isArray(entry.volume_names)
+        ? entry.volume_names.filter((value): value is string => typeof value === 'string')
+        : undefined,
+    }
+  }
+
+  return next
+}
+
+function chunkContainerIds(ids: string[], chunkSize: number): string[][] {
+  if (ids.length === 0) return []
+  const chunks: string[][] = []
+  for (let index = 0; index < ids.length; index += chunkSize) {
+    chunks.push(ids.slice(index, index + chunkSize))
+  }
+  return chunks
+}
+
 function containerIP(inspect?: Record<string, any> | null): string {
   const networks = inspect?.NetworkSettings?.Networks as Record<string, any> | undefined
   if (!networks) return '-'
@@ -228,9 +267,8 @@ function containerIP(inspect?: Record<string, any> | null): string {
   return '-'
 }
 
-function composeName(inspect?: Record<string, any> | null): string {
-  const labels = inspect?.Config?.Labels as Record<string, string> | undefined
-  return labels?.['com.docker.compose.project'] || '-'
+function metadataComposeName(metadata?: ContainerMetadataItem): string {
+  return metadata?.compose_project || '-'
 }
 
 function inspectPorts(inspect?: Record<string, any> | null): string[] {
@@ -298,6 +336,7 @@ type SortKey = 'name' | 'created' | 'cpu' | 'mem' | 'compose'
 
 export function ContainersTab({
   serverId,
+  refreshSignal = 0,
   searchQuery,
   stateFilter,
   onStateFilterChange,
@@ -318,9 +357,11 @@ export function ContainersTab({
   onVisibleColumnsChange,
   onRefresh,
   onOpenComposeFilter,
+  onOpenVolumeFilter,
   showPanelChrome = true,
 }: {
   serverId: string
+  refreshSignal?: number
   searchQuery?: string
   stateFilter: 'all' | 'running' | 'exited' | 'paused' | 'created'
   onStateFilterChange?: (value: 'all' | 'running' | 'exited' | 'paused' | 'created') => void
@@ -345,6 +386,7 @@ export function ContainersTab({
   onVisibleColumnsChange?: (columns: ContainerVisibleColumns) => void
   onRefresh?: () => void
   onOpenComposeFilter?: (composeName: string) => void
+  onOpenVolumeFilter?: (volumeNames: string[]) => void
   showPanelChrome?: boolean
 }) {
   type PendingAction = {
@@ -385,11 +427,11 @@ export function ContainersTab({
   const [copiedTip, setCopiedTip] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
   const [inspectMap, setInspectMap] = useState<Record<string, Record<string, any>>>({})
+  const [metadataMap, setMetadataMap] = useState<Record<string, ContainerMetadataItem>>({})
   const [detailsLoadingMap, setDetailsLoadingMap] = useState<Record<string, boolean>>({})
   const [allDetailsLoading, setAllDetailsLoading] = useState(false)
   const [allDetailsCached, setAllDetailsCached] = useState(false)
   const [detailsErrorMessage, setDetailsErrorMessage] = useState<string | null>(null)
-  const [fakeLoadingProgress, setFakeLoadingProgress] = useState(0)
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
 
   useEffect(() => {
@@ -400,13 +442,14 @@ export function ContainersTab({
     isLoading: loading,
     error: containersError,
   } = useQuery<Container[]>({
-    queryKey: ['docker', 'containers', serverId],
+    queryKey: ['docker', 'containers', serverId, refreshSignal],
     queryFn: async () => {
       const res = await pb.send(dockerApiPath(serverId, '/containers'), {
         method: 'GET',
       })
       return parseContainers(res.output)
     },
+    placeholderData: previousData => previousData,
     staleTime: 60_000,
     gcTime: 5 * 60_000,
     refetchOnMount: false,
@@ -420,6 +463,13 @@ export function ContainersTab({
       const next: Record<string, Record<string, any>> = {}
       for (const [id, inspect] of Object.entries(state)) {
         if (idSet.has(id)) next[id] = inspect
+      }
+      return next
+    })
+    setMetadataMap(state => {
+      const next: Record<string, ContainerMetadataItem> = {}
+      for (const [id, metadata] of Object.entries(state)) {
+        if (idSet.has(id)) next[id] = metadata
       }
       return next
     })
@@ -441,13 +491,19 @@ export function ContainersTab({
     isLoading: telemetryLoading,
     error: telemetryError,
   } = useQuery<MonitorContainerTelemetryResponse>({
-    queryKey: ['monitor', 'container-telemetry', serverId, telemetryIds.join(','), '15m'],
+    queryKey: ['monitor', 'container-telemetry', serverId, telemetryIds.join(','), '15m', refreshSignal],
     queryFn: () => getServerContainerTelemetry(serverId, telemetryIds, '15m'),
     enabled: telemetryIds.length > 0,
+    placeholderData: previousData => previousData,
     staleTime: 60_000,
     gcTime: 5 * 60_000,
     refetchOnMount: false,
   })
+
+  useEffect(() => {
+    setAllDetailsCached(false)
+    setDetailsErrorMessage(null)
+  }, [refreshSignal])
 
   const telemetryMap = useMemo(() => {
     const next: Record<string, MonitorContainerTelemetryItem> = {}
@@ -486,60 +542,41 @@ export function ContainersTab({
     setAllDetailsLoading(true)
     setDetailsErrorMessage(null)
     try {
-      const inspectEntries = await Promise.all(
-        containers.map(async container => {
-          try {
-            const inspectRes = await pb.send(
-              dockerApiPath(serverId, `/containers/${container.ID}`),
-              { method: 'GET' }
-            )
-            return [container.ID, parseInspect(inspectRes.output)] as const
-          } catch {
-            return [container.ID, null] as const
-          }
-        })
+      const ids = containers.map(container => container.ID).filter(Boolean)
+      const responses = await Promise.all(
+        chunkContainerIds(ids, 200).map(chunk =>
+          pb.send(dockerApiPath(serverId, '/containers/metadata'), {
+            method: 'POST',
+            body: { ids: chunk },
+          })
+        )
       )
 
-      const nextInspect: Record<string, Record<string, any>> = {}
-      for (const [id, inspect] of inspectEntries) {
-        if (inspect) nextInspect[id] = inspect
+      const nextMetadata: Record<string, ContainerMetadataItem> = {}
+      for (const response of responses) {
+        Object.assign(nextMetadata, parseContainerMetadataItems(response))
       }
 
-      setInspectMap(state => ({ ...state, ...nextInspect }))
+      setMetadataMap(state => ({ ...state, ...nextMetadata }))
       setAllDetailsCached(true)
     } catch (err) {
-      setDetailsErrorMessage(getApiErrorMessage(err, 'Failed to load container details'))
+      setDetailsErrorMessage(getApiErrorMessage(err, 'Failed to load container metadata'))
     } finally {
       setAllDetailsLoading(false)
     }
   }, [allDetailsCached, allDetailsLoading, containers, serverId])
 
   useEffect(() => {
-    if (!visibleColumns.cpu && !visibleColumns.mem && !visibleColumns.compose) return
-    void loadAllDetails()
-  }, [loadAllDetails, visibleColumns.compose, visibleColumns.cpu, visibleColumns.mem])
-
-  useEffect(() => {
-    if (!allDetailsLoading) {
-      if (fakeLoadingProgress > 0 && fakeLoadingProgress < 100) {
-        setFakeLoadingProgress(100)
-        const doneTimer = window.setTimeout(() => setFakeLoadingProgress(0), 260)
-        return () => window.clearTimeout(doneTimer)
-      }
+    if (
+      !visibleColumns.cpu &&
+      !visibleColumns.mem &&
+      !visibleColumns.compose &&
+      !visibleColumns.volumes
+    ) {
       return
     }
-
-    setFakeLoadingProgress(8)
-    const timer = window.setInterval(() => {
-      setFakeLoadingProgress(value => {
-        if (value >= 92) return value
-        const increment = Math.max(1, Math.round((100 - value) * 0.08))
-        return Math.min(92, value + increment)
-      })
-    }, 180)
-
-    return () => window.clearInterval(timer)
-  }, [allDetailsLoading])
+    void loadAllDetails()
+  }, [loadAllDetails, visibleColumns.compose, visibleColumns.cpu, visibleColumns.mem, visibleColumns.volumes])
 
   useEffect(() => {
     if (visibleColumns.cpu || visibleColumns.mem || visibleColumns.compose) return
@@ -564,6 +601,7 @@ export function ContainersTab({
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['docker', 'containers', serverId] }),
       ])
+      setMetadataMap({})
       setAllDetailsCached(false)
       setDetailsErrorMessage(null)
     } catch (err) {
@@ -677,8 +715,8 @@ export function ContainersTab({
   const sorted = useMemo(() => {
     const items = [...nameFiltered]
     items.sort((left, right) => {
-      const leftInspect = inspectMap[left.ID]
-      const rightInspect = inspectMap[right.ID]
+      const leftMetadata = metadataMap[left.ID]
+      const rightMetadata = metadataMap[right.ID]
       const leftTelemetry = telemetryMap[left.ID]
       const rightTelemetry = telemetryMap[right.ID]
 
@@ -701,9 +739,9 @@ export function ContainersTab({
       const leftValue = (() => {
         switch (sortKey) {
           case 'created':
-            return String(leftInspect?.Created || '')
+            return String(leftMetadata?.created || '')
           case 'compose':
-            return composeName(leftInspect)
+            return metadataComposeName(leftMetadata)
           default:
             return left.Names
         }
@@ -712,9 +750,9 @@ export function ContainersTab({
       const rightValue = (() => {
         switch (sortKey) {
           case 'created':
-            return String(rightInspect?.Created || '')
+            return String(rightMetadata?.created || '')
           case 'compose':
-            return composeName(rightInspect)
+            return metadataComposeName(rightMetadata)
           default:
             return right.Names
         }
@@ -725,7 +763,7 @@ export function ContainersTab({
       return 0
     })
     return items
-  }, [inspectMap, nameFiltered, sortDir, sortKey, telemetryMap])
+  }, [metadataMap, nameFiltered, sortDir, sortKey, telemetryMap])
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
   const paged = useMemo(() => {
@@ -814,12 +852,16 @@ export function ContainersTab({
     4 +
     (visibleColumns.status ? 1 : 0) +
     (visibleColumns.ports ? 1 : 0) +
+    (visibleColumns.volumes ? 1 : 0) +
     (detailsColumnsVisible ? 1 : 0) +
     (visibleColumns.cpu ? 1 : 0) +
     (visibleColumns.mem ? 1 : 0) +
     (visibleColumns.network ? 1 : 0) +
     (visibleColumns.compose ? 1 : 0)
   const totalItems = sorted.length
+  const hasLinkedFilter = (filterPreset && onClearFilterPreset) || (includeNames && includeNames.length > 0)
+  const hasStatusBadges =
+    (includeNames && includeNames.length > 0) || telemetryLoading || copiedTip
 
   return (
     <div className="min-h-0 flex flex-col gap-3">
@@ -828,8 +870,13 @@ export function ContainersTab({
           <AlertDescription>{loadError || actionError}</AlertDescription>
         </Alert>
       )}
-      <div className="overflow-hidden bg-background">
-        <div className="flex flex-col gap-3 px-3 py-3">
+      <div className="overflow-hidden rounded-lg bg-background">
+        <div
+          className={cn(
+            'flex flex-col',
+            showPanelChrome ? 'gap-3 px-3 py-3' : 'gap-2'
+          )}
+        >
           {showPanelChrome ? (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-sm font-semibold">
@@ -843,7 +890,7 @@ export function ContainersTab({
                 placeholder="Search containers"
                 className="h-8 w-full min-w-0 rounded-md border bg-background px-3 text-sm sm:mr-[5ch] sm:w-[20ch]"
               />
-              <span className="text-xs text-muted-foreground">Total {totalItems} items</span>
+              <span className="text-xs text-muted-foreground">{totalItems} total</span>
               <div className="flex items-center gap-0.5 text-xs">
                 <Button
                   variant="ghost"
@@ -915,6 +962,14 @@ export function ContainersTab({
                     Ports
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
+                    checked={visibleColumns.volumes}
+                    onCheckedChange={checked =>
+                      onVisibleColumnsChange?.({ ...visibleColumns, volumes: checked === true })
+                    }
+                  >
+                    Volumes
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
                     checked={visibleColumns.status}
                     onCheckedChange={checked =>
                       onVisibleColumnsChange?.({ ...visibleColumns, status: checked === true })
@@ -959,7 +1014,7 @@ export function ContainersTab({
             </div>
             </div>
           ) : null}
-          {((filterPreset && onClearFilterPreset) || (includeNames && includeNames.length > 0)) && (
+          {hasLinkedFilter && (
             <div className="flex items-center justify-end gap-2 shrink-0">
               <Button
                 variant="outline"
@@ -973,27 +1028,15 @@ export function ContainersTab({
               </Button>
             </div>
           )}
-          <div className="flex items-center gap-2 flex-wrap shrink-0">
-            {includeNames && includeNames.length > 0 && (
-              <Badge variant="outline">Linked containers: {includeNames.length}</Badge>
-            )}
-            {allDetailsLoading && <Badge variant="outline">Loading container details...</Badge>}
-            {telemetryLoading && <Badge variant="outline">Loading telemetry...</Badge>}
-          </div>
-          {(allDetailsLoading || (fakeLoadingProgress > 0 && fakeLoadingProgress < 100)) && (
-            <div className="shrink-0 space-y-1">
-              <div className="h-1.5 w-full rounded bg-muted overflow-hidden">
-                <div
-                  className="h-full bg-primary transition-all duration-200"
-                  style={{ width: `${Math.max(6, Math.min(100, fakeLoadingProgress))}%` }}
-                />
-              </div>
-              <div className="text-[11px] text-muted-foreground">
-                Preparing container metrics... {Math.min(100, Math.round(fakeLoadingProgress))}%
-              </div>
+          {hasStatusBadges && (
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              {includeNames && includeNames.length > 0 && (
+                <Badge variant="outline">Linked containers: {includeNames.length}</Badge>
+              )}
+              {telemetryLoading && <Badge variant="outline">Loading telemetry...</Badge>}
+              {copiedTip && <div className="text-xs text-muted-foreground shrink-0">{copiedTip}</div>}
             </div>
           )}
-          {copiedTip && <div className="text-xs text-muted-foreground shrink-0">{copiedTip}</div>}
         </div>
 
         <div className="overflow-hidden rounded-lg bg-background">
@@ -1060,7 +1103,7 @@ export function ContainersTab({
                       </DropdownMenu>
                     </div>
                   </TableHead>
-                  <TableHead className="w-[112px] min-w-[112px] text-xs font-medium text-foreground">
+                  <TableHead className="w-[150px] min-w-[150px] text-xs font-medium text-foreground">
                     Quick
                   </TableHead>
                   {visibleColumns.status && (
@@ -1071,6 +1114,11 @@ export function ContainersTab({
                   {visibleColumns.ports && (
                     <TableHead className="min-w-[140px] text-xs font-medium text-foreground">
                       Ports
+                    </TableHead>
+                  )}
+                  {visibleColumns.volumes && (
+                    <TableHead className="min-w-[150px] text-xs font-medium text-foreground">
+                      Volumes
                     </TableHead>
                   )}
                   {detailsColumnsVisible && (
@@ -1116,6 +1164,8 @@ export function ContainersTab({
             )}
             {paged.map(c => {
               const inspect = inspectMap[c.ID]
+              const metadata = metadataMap[c.ID]
+              const linkedVolumes = metadata?.volume_names || []
               const telemetryItem = telemetryMap[c.ID]
               return (
                 <Fragment key={c.ID}>
@@ -1142,7 +1192,7 @@ export function ContainersTab({
                       >
                         <div className="min-w-0 space-y-1 text-left">
                           <div
-                            className="truncate text-sm font-semibold leading-tight text-foreground"
+                            className="truncate text-xs font-medium leading-tight text-foreground"
                             title={c.Names}
                           >
                             {shortName(c.Names)}
@@ -1163,11 +1213,11 @@ export function ContainersTab({
                       </div>
                     </TableCell>
                     <TableCell className="py-3">
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-0.5">
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 text-muted-foreground"
+                          className="h-6 w-6 text-muted-foreground"
                           onClick={event => {
                             event.preventDefault()
                             event.stopPropagation()
@@ -1176,12 +1226,12 @@ export function ContainersTab({
                           aria-label={`Open logs for ${c.Names}`}
                           title="Logs"
                         >
-                          <FileText className="h-3.5 w-3.5" />
+                          <FileText className="h-3 w-3" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 text-muted-foreground"
+                          className="h-6 w-6 text-muted-foreground"
                           onClick={event => {
                             event.preventDefault()
                             event.stopPropagation()
@@ -1190,12 +1240,12 @@ export function ContainersTab({
                           aria-label={`Open monitor for ${c.Names}`}
                           title="Monitor"
                         >
-                          <Activity className="h-3.5 w-3.5" />
+                          <Activity className="h-3 w-3" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 text-muted-foreground"
+                          className="h-6 w-6 text-muted-foreground"
                           onClick={event => {
                             event.preventDefault()
                             event.stopPropagation()
@@ -1205,7 +1255,7 @@ export function ContainersTab({
                           aria-label={`Open exec for ${c.Names}`}
                           title={c.State === 'running' ? 'Exec' : 'Exec unavailable'}
                         >
-                          <TerminalSquare className="h-3.5 w-3.5" />
+                          <TerminalSquare className="h-3 w-3" />
                         </Button>
                       </div>
                     </TableCell>
@@ -1219,12 +1269,31 @@ export function ContainersTab({
                         {hostPublishedPorts(c.Ports)}
                       </TableCell>
                     )}
+                    {visibleColumns.volumes && (
+                      <TableCell className="py-3 text-xs">
+                        {linkedVolumes.length > 0 ? (
+                          <Button
+                            variant="link"
+                            className="h-auto p-0 text-left text-xs"
+                            title={linkedVolumes.join(', ')}
+                            onClick={() => onOpenVolumeFilter?.(linkedVolumes)}
+                          >
+                            <span className="truncate">
+                              {linkedVolumes.length} volume{linkedVolumes.length > 1 ? 's' : ''}
+                            </span>
+                            <ExternalLink className="ml-1 h-3 w-3" />
+                          </Button>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                    )}
                     {detailsColumnsVisible && (
                       <TableCell className="py-3 text-xs text-muted-foreground">
                         {allDetailsLoading
                           ? '...'
-                          : inspect?.Created
-                            ? new Date(inspect.Created).toLocaleString()
+                          : metadata?.created
+                            ? new Date(metadata.created).toLocaleString()
                             : '-'}
                       </TableCell>
                     )}
@@ -1253,13 +1322,13 @@ export function ContainersTab({
                     )}
                     {visibleColumns.compose && (
                       <TableCell className="py-3 text-xs">
-                        {composeName(inspect) !== '-' ? (
+                        {metadataComposeName(metadata) !== '-' ? (
                           <Button
                             variant="link"
                             className="h-auto p-0 text-xs"
-                            onClick={() => onOpenComposeFilter?.(composeName(inspect))}
+                            onClick={() => onOpenComposeFilter?.(metadataComposeName(metadata))}
                           >
-                            {composeName(inspect)}
+                            {metadataComposeName(metadata)}
                           </Button>
                         ) : (
                           '-'
@@ -1358,11 +1427,6 @@ export function ContainersTab({
                       <TableCell colSpan={tableColSpan} className="bg-muted/20 px-3 py-3">
                         <div className="space-y-3 rounded-lg bg-background/80 p-3">
                           <div className="text-sm font-medium">Container Details</div>
-                          {detailsLoadingMap[c.ID] && (
-                            <div className="text-xs text-muted-foreground">
-                              Loading container details...
-                            </div>
-                          )}
                           <div className="grid gap-3 text-xs md:grid-cols-2 xl:grid-cols-3">
                             <div className="min-w-0 space-y-2 overflow-x-auto">
                               <div className="mb-2 font-semibold text-foreground">Basics</div>

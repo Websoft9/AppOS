@@ -18,7 +18,7 @@ It answers:
 
 It does not own runtime telemetry trends or health judgment. Those belong to Epic 28 Monitoring.
 
-**Status**: Stories 4.1-4.3 Complete, 4.4 Deferred | **Priority**: P0 | **Depends on**: Epic 1, Epic 3
+**Status**: Stories 4.1-4.3 Complete, 4.4 Ready for Dev, 4.5 Deferred | **Priority**: P0 | **Depends on**: Epic 1, Epic 3
 
 ## API Direction
 
@@ -174,7 +174,7 @@ List responses may still include `host` or `server_id` fields for operator clari
 
 ### 4.3: Frontend — Docker Resource Dashboard ✅
 
-Historical delivery note: the originally implemented standalone `/docker` dashboard remains recorded in `story4.3-docker-dashboard.md`, but the current product-facing IA replan for Story 4.3 now lives in `story4.3-docker-workspace-replan.md`.
+Historical delivery note: the originally implemented standalone `/docker` dashboard remains recorded in `story4.3-history-docker-dashboard.md`, but the current product-facing IA replan for Story 4.3 now lives in `story4.3-canonical-docker-workspace-replan.md`.
 
 - Tabbed page: Containers | Images | Volumes | Networks | Compose
 - Single toolbar row: server selector → TabsList → Refresh → Run Command button
@@ -185,7 +185,14 @@ Historical delivery note: the originally implemented standalone `/docker` dashbo
 - Compose: logs viewer (full tier dialog) + config editor
 - Depends on: Epic 7 (design system, layout), Story 4.1 + 4.2 (API)
 
-### 4.4: Remote Execution (Future)
+### 4.4: Docker Overview Simplification
+- simplify `Server Detail > Docker > Overview` around resource counts and actionable issues
+- replace dense overview dashboard sections with five resource cards, `Needs Attention`, and compact quick actions
+- remove duplicate `Container Health`, `Compose Stacks`, and `Inventory Split` overview sections
+- keep Overview inventory-first, not monitoring-first
+- Depends on: Story 4.3 canonical replan (`story4.3-canonical-docker-workspace-replan.md`), Story 4.3 UI supplement (`story4.3-supplement-docker-tabs-ui.md`), Story 28.6
+
+### 4.5: Remote Execution (Future)
 - `RemoteExecutor` via `crypto/ssh` with connection pooling
 - PB collection `servers` (host, port, ssh_user, ssh_key_path, is_default), auto-migration
 - converge all Docker routes on `/api/servers/{serverId}/docker/...`
@@ -196,7 +203,7 @@ Historical delivery note: the originally implemented standalone `/docker` dashbo
 ## Implementation Order
 
 ```
-4.1 (Executor + Compose) → 4.2 (Resources) → 4.3 (Frontend) → 4.4 (Remote, future)
+4.1 (Executor + Compose) → 4.2 (Resources) → 4.3 (Frontend workspace) → 4.4 (Overview simplification) → 4.5 (Remote, future)
 ```
 
 ## Definition of Done
@@ -235,6 +242,13 @@ Target follow-up still pending for Story 4.3 scope:
 - [ ] frontend routes and API clients use explicit server-scoped Docker paths consistently
 
 ### Story 4.4
+- [ ] Docker Overview shows five compact resource cards: Containers, Compose, Images, Volumes, Networks
+- [ ] `Needs Attention` becomes the primary Overview section for actionable Docker issues
+- [ ] `Container Health`, `Compose Stacks`, and `Inventory Split` are removed or folded into the simplified Overview model
+- [ ] Quick Actions are compact and reuse existing Docker actions where practical
+- [ ] Overview remains server-scoped and avoids monitoring-console duplication
+
+### Story 4.5
 - [ ] RemoteExecutor connects via SSH key auth
 - [ ] `servers` collection auto-created on migration
 - [ ] All Story 4.1/4.2 tests pass with RemoteExecutor

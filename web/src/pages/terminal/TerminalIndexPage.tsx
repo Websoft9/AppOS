@@ -20,8 +20,14 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { listServers, checkServerStatus, type Server as ServerType } from '@/lib/connect-api'
-import { loadConnectSession } from '@/lib/connect-session'
+import {
+  listServers,
+  checkServerStatus,
+  getConnectTerminalSettings,
+  type ConnectTerminalSettings,
+  type Server as ServerType,
+} from '@/lib/connect-api'
+import { loadConnectSession, type PersistedTerminalTab } from '@/lib/connect-session'
 import {
   Dialog,
   DialogContent,
@@ -30,6 +36,21 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
+
+const DEFAULT_CONNECT_SETTINGS: ConnectTerminalSettings = {
+  idleTimeoutSeconds: 1800,
+  maxConnections: 0,
+}
+
+function getSessionCountLabel(count: number) {
+  return count === 1 ? '1 session' : `${count} sessions`
+}
+
+function isSessionIdle(updatedAt: number | null, idleTimeoutSeconds: number) {
+  if (updatedAt == null) return false
+  const timeoutMs = Math.max(60, idleTimeoutSeconds) * 1000
+  return Date.now() - updatedAt >= timeoutMs
+}
 
 // ─── Tab definitions ──────────────────────────────────────────────────────────
 
@@ -130,11 +151,20 @@ function ConnectingDialog({ open, onOpenChange, target, phase, detail }: Connect
 interface ServerCardProps {
   server: ServerType
   isConnected?: boolean
+  isIdle?: boolean
   lastSessionMin?: number
+  sessionCount?: number
   onConnect: (server: ServerType) => void
 }
 
-function ServerCard({ server, isConnected, lastSessionMin, onConnect }: ServerCardProps) {
+function ServerCard({
+  server,
+  isConnected,
+  isIdle,
+  lastSessionMin,
+  sessionCount,
+  onConnect,
+}: ServerCardProps) {
   return (
     <div className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/30 transition-colors group">
       <div className="flex items-center gap-3 min-w-0">
@@ -145,20 +175,36 @@ function ServerCard({ server, isConnected, lastSessionMin, onConnect }: ServerCa
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium truncate">{server.name || server.host}</span>
             {isConnected && (
-              <Badge variant="secondary" className="text-xs h-4 px-1.5 shrink-0">
-                <CheckCircle2 className="h-2.5 w-2.5 mr-1 text-green-500" />
-                Connected
-              </Badge>
+              <>
+                <Badge
+                  variant={isIdle ? 'outline' : 'secondary'}
+                  className={cn(
+                    'text-xs h-4 px-1.5 shrink-0',
+                    isIdle ? 'border-amber-200 text-amber-700 bg-amber-50' : undefined
+                  )}
+                >
+                  <CheckCircle2 className="h-2.5 w-2.5 mr-1 text-green-500" />
+                  {isIdle ? 'Idle' : 'Connected'}
+                </Badge>
+                {sessionCount != null && sessionCount > 1 && (
+                  <Badge variant="outline" className="text-xs h-4 px-1.5 shrink-0">
+                    {getSessionCountLabel(sessionCount)}
+                  </Badge>
+                )}
+              </>
             )}
           </div>
           <div className="flex items-center gap-2 mt-0.5">
             {server.name && (
               <span className="text-xs text-muted-foreground truncate">{server.host}</span>
             )}
+            {isConnected && sessionCount != null && sessionCount === 1 && (
+              <span className="text-xs text-muted-foreground truncate">1 active session</span>
+            )}
             {lastSessionMin != null && (
               <span className="text-xs text-muted-foreground flex items-center gap-1">
                 <Clock className="h-2.5 w-2.5" />
-                {lastSessionMin} min ago
+                Last active {lastSessionMin} min ago
               </span>
             )}
           </div>
@@ -205,8 +251,9 @@ function ComingSoonPanel({ label, icon }: { label: string; icon: React.ReactNode
 interface OverviewPanelProps {
   servers: ServerType[]
   loading: boolean
-  sessionServerIds: Set<string>
+  sessionCounts: Map<string, number>
   sessionUpdatedAt: number | null
+  idleTimeoutSeconds: number
   nowTs: number
   onConnect: (server: ServerType) => void
   onTabChange: (tab: TabId) => void
@@ -215,13 +262,15 @@ interface OverviewPanelProps {
 function OverviewPanel({
   servers,
   loading,
-  sessionServerIds,
+  sessionCounts,
   sessionUpdatedAt,
+  idleTimeoutSeconds,
   nowTs,
   onConnect,
   onTabChange,
 }: OverviewPanelProps) {
-  const connectedServers = servers.filter(s => sessionServerIds.has(s.id))
+  const connectedServers = servers.filter(s => sessionCounts.has(s.id))
+  const idle = isSessionIdle(sessionUpdatedAt, idleTimeoutSeconds)
 
   const sessionMinAgo =
     sessionUpdatedAt != null ? Math.max(1, Math.floor((nowTs - sessionUpdatedAt) / 60000)) : null
@@ -290,12 +339,19 @@ function OverviewPanel({
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold">Connected Resources</h3>
-          {sessionMinAgo != null && (
-            <span className="text-xs text-muted-foreground flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              Last active {sessionMinAgo} min ago
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {idle && connectedServers.length > 0 && (
+              <Badge variant="outline" className="text-[10px] border-amber-200 text-amber-700">
+                Idle session
+              </Badge>
+            )}
+            {sessionMinAgo != null && (
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                Last active {sessionMinAgo} min ago
+              </span>
+            )}
+          </div>
         </div>
 
         {loading ? (
@@ -317,7 +373,9 @@ function OverviewPanel({
                 key={server.id}
                 server={server}
                 isConnected
+                isIdle={idle}
                 lastSessionMin={sessionMinAgo ?? undefined}
+                sessionCount={sessionCounts.get(server.id)}
                 onConnect={onConnect}
               />
             ))}
@@ -335,8 +393,9 @@ interface ServersPanelProps {
   loading: boolean
   error: string | null
   onRetry: () => void
-  sessionServerIds: Set<string>
+  sessionCounts: Map<string, number>
   sessionUpdatedAt: number | null
+  idleTimeoutSeconds: number
   nowTs: number
   onConnect: (server: ServerType) => void
 }
@@ -346,13 +405,15 @@ function ServersPanel({
   loading,
   error,
   onRetry,
-  sessionServerIds,
+  sessionCounts,
   sessionUpdatedAt,
+  idleTimeoutSeconds,
   nowTs,
   onConnect,
 }: ServersPanelProps) {
-  const connectedServers = servers.filter(s => sessionServerIds.has(s.id))
-  const availableServers = servers.filter(s => !sessionServerIds.has(s.id))
+  const connectedServers = servers.filter(s => sessionCounts.has(s.id))
+  const availableServers = servers.filter(s => !sessionCounts.has(s.id))
+  const idle = isSessionIdle(sessionUpdatedAt, idleTimeoutSeconds)
 
   const sessionMinAgo =
     sessionUpdatedAt != null ? Math.max(1, Math.floor((nowTs - sessionUpdatedAt) / 60000)) : null
@@ -387,12 +448,19 @@ function ServersPanel({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold">Active Sessions</h3>
-            {sessionMinAgo != null && (
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                {sessionMinAgo} min ago
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {idle && (
+                <Badge variant="outline" className="text-[10px] border-amber-200 text-amber-700">
+                  Idle session
+                </Badge>
+              )}
+              {sessionMinAgo != null && (
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  Last active {sessionMinAgo} min ago
+                </span>
+              )}
+            </div>
           </div>
           <div className="space-y-2">
             {connectedServers.map(s => (
@@ -400,7 +468,9 @@ function ServersPanel({
                 key={s.id}
                 server={s}
                 isConnected
+                isIdle={idle}
                 lastSessionMin={sessionMinAgo ?? undefined}
+                sessionCount={sessionCounts.get(s.id)}
                 onConnect={onConnect}
               />
             ))}
@@ -467,8 +537,10 @@ export function TerminalIndexPage() {
   const [servers, setServers] = useState<ServerType[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [sessionServerIds, setSessionServerIds] = useState<Set<string>>(new Set())
+  const [sessionTabs, setSessionTabs] = useState<PersistedTerminalTab[]>([])
   const [sessionUpdatedAt, setSessionUpdatedAt] = useState<number | null>(null)
+  const [connectSettings, setConnectSettings] =
+    useState<ConnectTerminalSettings>(DEFAULT_CONNECT_SETTINGS)
   const [nowTs, setNowTs] = useState(() => Date.now())
   const [navOpen, setNavOpen] = useState(false)
 
@@ -485,6 +557,22 @@ export function TerminalIndexPage() {
 
   const navigate = useNavigate()
 
+  const syncSessionSnapshot = useCallback(() => {
+    const session = loadConnectSession()
+    if (!session || session.tabs.length === 0) {
+      setSessionTabs([])
+      setSessionUpdatedAt(null)
+      return
+    }
+    setSessionTabs(session.tabs)
+    setSessionUpdatedAt(session.updatedAt)
+  }, [])
+
+  const sessionCounts = sessionTabs.reduce((counts, tab) => {
+    counts.set(tab.serverId, (counts.get(tab.serverId) ?? 0) + 1)
+    return counts
+  }, new Map<string, number>())
+
   const fetchServers = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -500,18 +588,33 @@ export function TerminalIndexPage() {
 
   useEffect(() => {
     fetchServers()
+    getConnectTerminalSettings()
+      .then(setConnectSettings)
+      .catch(() => {})
   }, [fetchServers])
 
   useEffect(() => {
-    const session = loadConnectSession()
-    if (!session || session.tabs.length === 0) {
-      setSessionServerIds(new Set())
-      setSessionUpdatedAt(null)
-      return
+    syncSessionSnapshot()
+  }, [syncSessionSnapshot])
+
+  useEffect(() => {
+    const syncFromWindow = () => syncSessionSnapshot()
+    const syncFromVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        syncSessionSnapshot()
+      }
     }
-    setSessionServerIds(new Set(session.tabs.map(t => t.serverId)))
-    setSessionUpdatedAt(session.updatedAt)
-  }, [])
+
+    window.addEventListener('focus', syncFromWindow)
+    window.addEventListener('storage', syncFromWindow)
+    document.addEventListener('visibilitychange', syncFromVisibility)
+
+    return () => {
+      window.removeEventListener('focus', syncFromWindow)
+      window.removeEventListener('storage', syncFromWindow)
+      document.removeEventListener('visibilitychange', syncFromVisibility)
+    }
+  }, [syncSessionSnapshot])
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -645,8 +748,9 @@ export function TerminalIndexPage() {
             <OverviewPanel
               servers={servers}
               loading={loading}
-              sessionServerIds={sessionServerIds}
+              sessionCounts={sessionCounts}
               sessionUpdatedAt={sessionUpdatedAt}
+              idleTimeoutSeconds={connectSettings.idleTimeoutSeconds}
               nowTs={nowTs}
               onConnect={handleConnect}
               onTabChange={setActiveTab}
@@ -658,8 +762,9 @@ export function TerminalIndexPage() {
               loading={loading}
               error={error}
               onRetry={fetchServers}
-              sessionServerIds={sessionServerIds}
+              sessionCounts={sessionCounts}
               sessionUpdatedAt={sessionUpdatedAt}
+              idleTimeoutSeconds={connectSettings.idleTimeoutSeconds}
               nowTs={nowTs}
               onConnect={handleConnect}
             />

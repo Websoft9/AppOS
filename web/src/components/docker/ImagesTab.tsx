@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { pb } from '@/lib/pb'
 import { dockerApiPath, dockerApiUrl } from '@/lib/docker-api'
@@ -45,8 +45,9 @@ import {
   ArrowUp,
   ArrowDown,
   Loader2,
+  ChevronLeft,
   ChevronRight,
-  ChevronDown,
+  ExternalLink,
   Search,
 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -77,6 +78,7 @@ interface DockerImage {
 
 interface DockerContainerRow {
   ID: string
+  Names?: string
   Image: string
   ImageID?: string
 }
@@ -176,26 +178,77 @@ function isImageUsed(image: DockerImage, containers: DockerContainerRow[]): bool
   return false
 }
 
-export function ImagesTab({
+function relatedContainersForImage(
+  image: DockerImage,
+  containers: DockerContainerRow[]
+): DockerContainerRow[] {
+  const ref = imageRef(image)
+  const targetId = normalizeImageId(image.ID)
+
+  return containers.filter(container => {
+    const byName = (container.Image || '').toLowerCase()
+    if (ref && byName === ref.toLowerCase()) return true
+
+    const byImageId = normalizeImageId(container.ImageID)
+    if (
+      targetId &&
+      byImageId &&
+      (targetId.startsWith(byImageId.slice(0, 12)) || byImageId.startsWith(targetId.slice(0, 12)))
+    ) {
+      return true
+    }
+
+    return !!(targetId && byName.includes(targetId.slice(0, 12)))
+  })
+}
+
+export type ImagesTabRef = {
+  openPullDialog: (defaultImage?: string) => void
+  openPruneDialog: () => void
+}
+
+export const ImagesTab = forwardRef<
+  ImagesTabRef,
+  {
+    serverId: string
+    refreshSignal?: number
+    embeddedInWorkspace?: boolean
+    externalFilter?: string
+    externalUsageFilter?: 'all' | 'used' | 'unused'
+    page?: number
+    pageSize?: 25 | 50 | 100
+    onPageChange?: (page: number) => void
+    onOpenContainerFilter?: (imageName: string, containerNames: string[]) => void
+    onSummaryChange?: (summary: {
+      totalItems: number
+      totalPages: number
+      usedItems: number
+      unusedItems: number
+    }) => void
+  }
+>(function ImagesTab({
   serverId,
+  refreshSignal = 0,
   embeddedInWorkspace = false,
   externalFilter,
   externalUsageFilter,
-}: {
-  serverId: string
-  embeddedInWorkspace?: boolean
-  externalFilter?: string
-  externalUsageFilter?: 'all' | 'used' | 'unused'
-}) {
+  page: externalPage,
+  pageSize: externalPageSize,
+  onPageChange,
+  onOpenContainerFilter,
+  onSummaryChange,
+}, ref) {
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState('')
   const [usageFilter, setUsageFilter] = useState<'all' | 'used' | 'unused'>('all')
-  const [sortKey, setSortKey] = useState<'repo' | 'tag' | 'id' | 'size' | 'created'>(() => {
+  const [sortKey, setSortKey] = useState<'repo' | 'size' | 'created'>(() => {
     try {
       const raw = localStorage.getItem(IMAGES_SORT_KEY)
       if (!raw) return 'repo'
       const parsed = JSON.parse(raw) as { key?: 'repo' | 'tag' | 'id' | 'size' | 'created' }
-      return parsed.key || 'repo'
+      return parsed.key === 'repo' || parsed.key === 'size' || parsed.key === 'created'
+        ? parsed.key
+        : 'repo'
     } catch {
       return 'repo'
     }
@@ -210,13 +263,28 @@ export function ImagesTab({
       return 'asc'
     }
   })
-  const [pageSize, setPageSize] = useState<25 | 50 | 100>(loadGlobalPageSize)
-  const [page, setPage] = useState(1)
+  const [internalPageSize, setInternalPageSize] = useState<25 | 50 | 100>(loadGlobalPageSize)
+  const [internalPage, setInternalPage] = useState(1)
   const [actionError, setActionError] = useState<string | null>(null)
+
+  const effectivePage = externalPage ?? internalPage
+  const effectivePageSize = externalPageSize ?? internalPageSize
+
+  const changePage = (p: number) => {
+    setInternalPage(p)
+    onPageChange?.(p)
+  }
 
   const [expandedImageId, setExpandedImageId] = useState<string | null>(null)
   const [inspectMap, setInspectMap] = useState<Record<string, string>>({})
   const [inspectLoadingMap, setInspectLoadingMap] = useState<Record<string, boolean>>({})
+
+  const changePageSize = (size: 25 | 50 | 100) => {
+    if (externalPageSize !== undefined) return
+    setInternalPageSize(size)
+    localStorage.setItem(DOCKER_PAGE_SIZE_KEY, String(size))
+    setInternalPage(1)
+  }
 
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false)
@@ -235,6 +303,16 @@ export function ImagesTab({
   const [pulling, setPulling] = useState(false)
   const [pullLog, setPullLog] = useState('')
 
+  const toggleImageExpansion = (imageId: string) => {
+    setExpandedImageId(current => {
+      const next = current === imageId ? null : imageId
+      if (next === imageId) {
+        void loadImageInspect(imageId)
+      }
+      return next
+    })
+  }
+
   useEffect(() => {
     if (externalFilter !== undefined) setFilter(externalFilter)
   }, [externalFilter])
@@ -246,32 +324,30 @@ export function ImagesTab({
     localStorage.setItem(IMAGES_SORT_KEY, JSON.stringify({ key: sortKey, dir: sortDir }))
   }, [sortDir, sortKey])
 
-  useEffect(() => {
-    localStorage.setItem(DOCKER_PAGE_SIZE_KEY, String(pageSize))
-  }, [pageSize])
-
   const {
     data: images = [],
     isLoading: loading,
     error,
   } = useQuery<DockerImage[]>({
-    queryKey: ['docker', 'images', serverId],
+    queryKey: ['docker', 'images', serverId, refreshSignal],
     queryFn: async () => {
       const res = await pb.send(dockerApiPath(serverId, '/images'), { method: 'GET' })
       return parseImages(res.output)
     },
+    placeholderData: previousData => previousData,
     staleTime: 10_000,
     gcTime: 5 * 60_000,
   })
 
   const { data: containers = [] } = useQuery<DockerContainerRow[]>({
-    queryKey: ['docker', 'containers', 'for-images', serverId],
+    queryKey: ['docker', 'containers', 'for-images', serverId, refreshSignal],
     queryFn: async () => {
       const res = await pb.send(dockerApiPath(serverId, '/containers'), {
         method: 'GET',
       })
       return parseContainers(res.output)
     },
+    placeholderData: previousData => previousData,
     staleTime: 15_000,
     gcTime: 5 * 60_000,
   })
@@ -283,6 +359,12 @@ export function ImagesTab({
     }
     return next
   }, [containers, images])
+
+  const usedCount = useMemo(
+    () => images.filter(image => !!usageMap[image.ID]).length,
+    [images, usageMap]
+  )
+  const unusedCount = images.length - usedCount
 
   useEffect(() => {
     setSelectedIds(current => current.filter(id => !usageMap[id]))
@@ -397,6 +479,11 @@ export function ImagesTab({
     void checkRegistry()
   }
 
+  useImperativeHandle(ref, () => ({
+    openPullDialog: (defaultImage?: string) => openPullDialog(defaultImage),
+    openPruneDialog: () => setPruneConfirmOpen(true),
+  }))
+
   const searchRegistry = async () => {
     const keyword = searchQuery.trim()
     if (!keyword) return
@@ -458,10 +545,6 @@ export function ImagesTab({
     items.sort((left, right) => {
       const leftValue = (() => {
         switch (sortKey) {
-          case 'tag':
-            return left.Tag || ''
-          case 'id':
-            return left.ID || ''
           case 'size':
             return left.Size || ''
           case 'created':
@@ -472,10 +555,6 @@ export function ImagesTab({
       })().toLowerCase()
       const rightValue = (() => {
         switch (sortKey) {
-          case 'tag':
-            return right.Tag || ''
-          case 'id':
-            return right.ID || ''
           case 'size':
             return right.Size || ''
           case 'created':
@@ -491,21 +570,32 @@ export function ImagesTab({
     return items
   }, [filtered, sortDir, sortKey])
 
-  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
+  const totalPages = Math.max(1, Math.ceil(sorted.length / effectivePageSize))
   const paged = useMemo(() => {
-    const start = (page - 1) * pageSize
-    return sorted.slice(start, start + pageSize)
-  }, [page, pageSize, sorted])
+    const start = (effectivePage - 1) * effectivePageSize
+    return sorted.slice(start, start + effectivePageSize)
+  }, [effectivePage, effectivePageSize, sorted])
 
   useEffect(() => {
-    setPage(1)
-  }, [filter, usageFilter, sortDir, sortKey, pageSize, serverId])
+    changePage(1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, usageFilter, sortDir, sortKey, effectivePageSize, serverId])
 
   useEffect(() => {
-    if (page > totalPages) setPage(totalPages)
-  }, [page, totalPages])
+    if (effectivePage > totalPages) changePage(totalPages)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectivePage, totalPages])
 
-  const toggleSort = (key: 'repo' | 'tag' | 'id' | 'size' | 'created') => {
+  useEffect(() => {
+    onSummaryChange?.({
+      totalItems: sorted.length,
+      totalPages,
+      usedItems: usedCount,
+      unusedItems: unusedCount,
+    })
+  }, [onSummaryChange, sorted.length, totalPages, unusedCount, usedCount])
+
+  const toggleSort = (key: 'repo' | 'size' | 'created') => {
     if (sortKey === key) {
       setSortDir(dir => (dir === 'asc' ? 'desc' : 'asc'))
       return
@@ -521,28 +611,56 @@ export function ImagesTab({
     )
   }
 
+  const selectableIds = useMemo(
+    () => sorted.filter(image => !usageMap[image.ID]).map(image => image.ID),
+    [sorted, usageMap]
+  )
+  const relatedContainersMap = useMemo(() => {
+    const next: Record<string, string[]> = {}
+    for (const image of images) {
+      next[image.ID] = relatedContainersForImage(image, containers)
+        .map(container => (container.Names || '').trim())
+        .filter(Boolean)
+    }
+    return next
+  }, [containers, images])
+  const allSelectableChecked =
+    selectableIds.length > 0 && selectableIds.every(id => selectedIds.includes(id))
+  const someSelectableChecked = selectableIds.some(id => selectedIds.includes(id))
+
+  const toggleSelectAll = () => {
+    if (selectableIds.length === 0) return
+    setSelectedIds(current => {
+      if (allSelectableChecked) {
+        return current.filter(id => !selectableIds.includes(id))
+      }
+      const next = new Set(current)
+      selectableIds.forEach(id => next.add(id))
+      return Array.from(next)
+    })
+  }
+
   const SortHead = ({
     label,
     keyName,
   }: {
     label: string
-    keyName: 'repo' | 'tag' | 'id' | 'size' | 'created'
+    keyName: 'repo' | 'size' | 'created'
   }) => (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="h-7 -ml-2 px-2 text-xs"
+    <button
+      type="button"
+      className="inline-flex h-7 cursor-pointer items-center gap-1 rounded px-0 text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
       onClick={() => toggleSort(keyName)}
     >
       {label}
       {sortKey !== keyName ? (
-        <ArrowUpDown className="h-3 w-3 ml-1" />
+        <ArrowUpDown className="h-3 w-3" />
       ) : sortDir === 'asc' ? (
-        <ArrowUp className="h-3 w-3 ml-1" />
+        <ArrowUp className="h-3 w-3" />
       ) : (
-        <ArrowDown className="h-3 w-3 ml-1" />
+        <ArrowDown className="h-3 w-3" />
       )}
-    </Button>
+    </button>
   )
 
   return (
@@ -573,8 +691,8 @@ export function ImagesTab({
               onChange={e => setUsageFilter(e.target.value as 'all' | 'used' | 'unused')}
             >
               <option value="all">All images</option>
-              <option value="used">Used</option>
-              <option value="unused">Unused</option>
+              <option value="used">Used ({usedCount})</option>
+              <option value="unused">Unused ({unusedCount})</option>
             </select>
 
             <div className="flex-1" />
@@ -604,195 +722,213 @@ export function ImagesTab({
           </div>
         </>
       )}
-      {embeddedInWorkspace && (
-        <div className="flex flex-wrap items-center gap-2 shrink-0 pb-2">
-          <Button variant="link" size="sm" onClick={() => openPullDialog()}>
-            Pull image
-          </Button>
-          <div className="flex-1" />
-          {selectedIds.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setBatchDeleteOpen(true)}
-            >
-              <Trash2 className="h-4 w-4 mr-1" /> Remove selected ({selectedIds.length})
-            </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={() => setPruneConfirmOpen(true)}>
-            <Eraser className="h-4 w-4 mr-1" /> Prune
+      {embeddedInWorkspace && selectedIds.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 shrink-0 pb-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setBatchDeleteOpen(true)}
+          >
+            <Trash2 className="h-4 w-4 mr-1" /> Remove selected ({selectedIds.length})
           </Button>
         </div>
       )}
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader className="sticky top-0 bg-background z-10">
-            <TableRow>
-              <TableHead className="w-[36px]" />
-              <TableHead>
-                <SortHead label="Repository" keyName="repo" />
-              </TableHead>
-              <TableHead>
-                <SortHead label="Tag" keyName="tag" />
-              </TableHead>
-              <TableHead>
-                <SortHead label="ID" keyName="id" />
-              </TableHead>
-              <TableHead>
-                <SortHead label="Size" keyName="size" />
-              </TableHead>
-              <TableHead>
-                <SortHead label="Created" keyName="created" />
-              </TableHead>
-              <TableHead className="w-[60px]" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading && (
+      <div className="overflow-hidden rounded-lg bg-background">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90">
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
-                  <span className="inline-flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading...
-                  </span>
-                </TableCell>
+                <TableHead className="w-[26%] min-w-[220px] pl-4 pr-2">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={allSelectableChecked ? true : someSelectableChecked ? 'indeterminate' : false}
+                      disabled={selectableIds.length === 0}
+                      onCheckedChange={() => toggleSelectAll()}
+                      aria-label="Select all unused images"
+                    />
+                    <SortHead label="Repository" keyName="repo" />
+                  </div>
+                </TableHead>
+                <TableHead className="min-w-[110px] text-xs font-medium text-foreground">
+                  ID
+                </TableHead>
+                <TableHead className="min-w-[100px] text-xs font-medium text-foreground">
+                  Tag
+                </TableHead>
+                <TableHead className="min-w-[150px] text-xs font-medium text-foreground">
+                  Containers
+                </TableHead>
+                <TableHead className="min-w-[80px]">
+                  <div className="flex items-center">
+                    <SortHead label="Size" keyName="size" />
+                  </div>
+                </TableHead>
+                <TableHead className="min-w-[120px]">
+                  <div className="flex items-center">
+                    <SortHead label="Created" keyName="created" />
+                  </div>
+                </TableHead>
+                <TableHead className="w-[52px] text-xs font-medium text-foreground">Actions</TableHead>
               </TableRow>
-            )}
-            {paged.map(img => {
-              const used = !!usageMap[img.ID]
-              const isExpanded = expandedImageId === img.ID
-              return (
-                <Fragment key={img.ID}>
-                  <TableRow>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedIds.includes(img.ID)}
-                        disabled={used}
-                        onCheckedChange={() => toggleImageSelect(img)}
-                      />
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">
-                      <Button
-                        variant="link"
-                        className="h-auto p-0 text-left font-mono text-xs gap-1"
-                        onClick={() => {
-                          setExpandedImageId(state => {
-                            const next = state === img.ID ? null : img.ID
-                            if (next === img.ID) {
-                              void loadImageInspect(img.ID)
-                            }
-                            return next
-                          })
+            </TableHeader>
+            <TableBody>
+              {loading && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading...
+                    </span>
+                  </TableCell>
+                </TableRow>
+              )}
+              {paged.map(img => {
+                const used = !!usageMap[img.ID]
+                const isExpanded = expandedImageId === img.ID
+                const linkedContainers = relatedContainersMap[img.ID] || []
+                return (
+                  <Fragment key={img.ID}>
+                    <TableRow className={cn(used && 'opacity-60', isExpanded && 'bg-muted/20')}>
+                      <TableCell
+                        className="cursor-pointer pl-4 pr-3 py-3 text-xs"
+                        onClick={event => {
+                          const target = event.target as HTMLElement
+                          if (target.closest('button,input,[role="checkbox"]')) return
+                          toggleImageExpansion(img.ID)
                         }}
                       >
-                        {isExpanded ? (
-                          <ChevronDown className="h-3.5 w-3.5" />
-                        ) : (
-                          <ChevronRight className="h-3.5 w-3.5" />
-                        )}
-                        {img.Repository}
-                      </Button>
-                    </TableCell>
-                    <TableCell className="text-xs">{img.Tag}</TableCell>
-                    <TableCell className="font-mono text-xs" title={img.ID}>
-                      {img.ID?.substring(0, 12)}
-                    </TableCell>
-                    <TableCell className="text-xs">{img.Size}</TableCell>
-                    <TableCell className="text-xs">{img.CreatedSince}</TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-7 w-7">
-                            <MoreVertical className="h-4 w-4" />
+                        <div className="flex min-w-0 items-center gap-2">
+                          <Checkbox
+                            checked={selectedIds.includes(img.ID)}
+                            disabled={used}
+                            onCheckedChange={() => toggleImageSelect(img)}
+                          />
+                          <button
+                            type="button"
+                            className="min-w-0 truncate text-left font-mono text-xs font-semibold leading-tight text-foreground hover:underline"
+                            title={img.Repository}
+                            onClick={() => toggleImageExpansion(img.ID)}
+                          >
+                            {img.Repository}
+                          </button>
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-3 font-mono text-xs" title={img.ID}>
+                        {img.ID?.substring(0, 12)}
+                      </TableCell>
+                      <TableCell className="py-3 text-xs">{img.Tag}</TableCell>
+                      <TableCell className="py-3 text-xs">
+                        {linkedContainers.length > 0 ? (
+                          <Button
+                            variant="link"
+                            className="h-auto p-0 text-left text-xs"
+                            title={linkedContainers.join(', ')}
+                            onClick={() => onOpenContainerFilter?.(imageRef(img) || img.Repository, linkedContainers)}
+                          >
+                            <span className="truncate">{linkedContainers.length} container{linkedContainers.length > 1 ? 's' : ''}</span>
+                            <ExternalLink className="ml-1 h-3 w-3" />
                           </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => openPullDialog(imageRef(img) || img.Repository)}
-                          >
-                            <Download className="h-4 w-4 mr-2" /> Pull
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => removeImage(img.ID)}
-                            className="text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" /> Remove
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                  {isExpanded && (
-                    <TableRow>
-                      <TableCell colSpan={7} className="bg-muted/20 px-4 py-3">
-                        {inspectLoadingMap[img.ID] ? (
-                          <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                            <Loader2 className="h-4 w-4 animate-spin" /> Loading inspect...
-                          </div>
                         ) : (
-                          <pre className="text-xs font-mono bg-muted/40 rounded-md border p-3 overflow-auto max-h-[300px] whitespace-pre-wrap">
-                            {inspectMap[img.ID] || '(empty output)'}
-                          </pre>
+                          <span className="text-muted-foreground">-</span>
                         )}
                       </TableCell>
+                      <TableCell className="py-3 text-xs">{img.Size}</TableCell>
+                      <TableCell className="py-3 text-xs text-muted-foreground">{img.CreatedSince}</TableCell>
+                      <TableCell className="py-3">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onSelect={() => setTimeout(() => openPullDialog(imageRef(img) || img.Repository), 0)}
+                            >
+                              <Download className="h-4 w-4 mr-2" /> Pull
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => setTimeout(() => removeImage(img.ID), 0)}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" /> Remove
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
                     </TableRow>
-                  )}
-                </Fragment>
-              )
-            })}
-            {!loading && sorted.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
-                  No images found
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+                    {isExpanded && (
+                      <TableRow>
+                          <TableCell colSpan={7} className="bg-muted/20 px-0 py-3">
+                          {inspectLoadingMap[img.ID] ? (
+                            <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                              <Loader2 className="h-4 w-4 animate-spin" /> Loading inspect...
+                            </div>
+                          ) : (
+                            <pre className="max-h-[300px] overflow-auto whitespace-pre-wrap rounded-md border bg-muted/40 p-3 font-mono text-xs">
+                              {inspectMap[img.ID] || '(empty output)'}
+                            </pre>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                )
+              })}
+              {!loading && sorted.length === 0 && (
+                <TableRow>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground">
+                    No images found
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
-      <div className="flex items-center justify-between gap-2 shrink-0">
-        <div className="text-xs text-muted-foreground">
-          {sorted.length === 0
-            ? '0 items'
-            : `${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, sorted.length)} of ${sorted.length}`}
+      {!embeddedInWorkspace && (
+        <div className="flex items-center justify-between gap-2 shrink-0">
+          <div className="text-xs text-muted-foreground">
+            {sorted.length === 0
+              ? '0 items'
+              : `${(effectivePage - 1) * effectivePageSize + 1}–${Math.min(effectivePage * effectivePageSize, sorted.length)} of ${sorted.length}`}
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <select
+              className="h-8 rounded-md border bg-background px-2 text-xs"
+              value={String(effectivePageSize)}
+              onChange={event => changePageSize(Number(event.target.value) as 25 | 50 | 100)}
+            >
+              <option value="25">25 / page</option>
+              <option value="50">50 / page</option>
+              <option value="100">100 / page</option>
+            </select>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 min-w-0 px-0.5"
+              onClick={() => changePage(Math.max(1, effectivePage - 1))}
+              disabled={effectivePage <= 1}
+              aria-label="Previous images page"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </Button>
+            <span className="text-center font-medium tabular-nums">{effectivePage}/{totalPages}</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 min-w-0 px-0.5"
+              onClick={() => changePage(Math.min(totalPages, effectivePage + 1))}
+              disabled={effectivePage >= totalPages}
+              aria-label="Next images page"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <select
-            className="h-8 rounded-md border bg-background px-2 text-xs"
-            value={pageSize}
-            onChange={e => {
-              const next = Number(e.target.value) as 25 | 50 | 100
-              setPageSize(next)
-              setPage(1)
-            }}
-          >
-            <option value={25}>25 / page</option>
-            <option value={50}>50 / page</option>
-            <option value={100}>100 / page</option>
-          </select>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            disabled={page <= 1}
-          >
-            Prev
-          </Button>
-          <span className="text-xs text-muted-foreground w-16 text-center">
-            {page} / {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages}
-          >
-            Next
-          </Button>
-        </div>
-      </div>
+      )}
 
       <AlertDialog open={batchDeleteOpen} onOpenChange={setBatchDeleteOpen}>
         <AlertDialogContent>
@@ -948,4 +1084,4 @@ export function ImagesTab({
       </Dialog>
     </div>
   )
-}
+})

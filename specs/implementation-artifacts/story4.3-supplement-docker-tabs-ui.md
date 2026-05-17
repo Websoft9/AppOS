@@ -2,7 +2,7 @@
 
 **Epic**: Epic 4 - Docker Operations Layer  
 **Status**: Implemented  
-**Parent**: Story 4.3 Docker Workspace Replan
+**Parent**: Story 4.3 canonical replan (`story4.3-canonical-docker-workspace-replan.md`)
 
 ---
 

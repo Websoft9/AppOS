@@ -32,6 +32,18 @@ Use one primary rule:
 
 This replan consolidates Docker around the same server-scoped mental model already used by Server Detail.
 
+## Story 4.3 Document Map
+
+Story 4.3 intentionally has three files because they serve different lifecycle purposes:
+
+| File | Purpose | Use For |
+|------|---------|---------|
+| `story4.3-history-docker-dashboard.md` | Historical implementation record for the originally delivered standalone `/docker` dashboard | Auditing what shipped and why older references mention `/docker` or `/api/ext/docker/...` |
+| `story4.3-canonical-docker-workspace-replan.md` | Current product-facing IA contract for the server-scoped Docker workspace | Product decisions, navigation ownership, and canonical `Server Detail > Docker` direction |
+| `story4.3-supplement-docker-tabs-ui.md` | UI implementation supplement for Docker tab conventions | Concrete tab shell, table, row, menu, and React-pattern rules |
+
+Do not merge these documents into one long story file. Treat `story4.3-canonical-docker-workspace-replan.md` as the current Story 4.3 source of truth, and use the other two as supporting records.
+
 ## Ownership Model
 
 This UI belongs to two layers, not one:
@@ -245,7 +257,7 @@ What changes:
 
 ## References
 
-- `specs/implementation-artifacts/story4.3-docker-dashboard.md`
+- `specs/implementation-artifacts/story4.3-history-docker-dashboard.md`
 - `specs/implementation-artifacts/story20.8-detail-systemd.md`
 - `specs/implementation-artifacts/story28.6-container-stats-ui.md`
 - `specs/implementation-artifacts/story28.7-docker-monitor-handoff.md`

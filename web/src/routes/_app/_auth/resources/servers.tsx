@@ -15,6 +15,7 @@ import {
   MoreVertical,
   SlidersHorizontal,
   Activity,
+  SquareTerminal,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -1287,7 +1288,7 @@ export function ServersPage() {
                       void handleConnect(item)
                     }}
                   >
-                    <LinkIcon className="h-4 w-4" />
+                    <SquareTerminal className="h-4 w-4" />
                     Open Terminal
                   </DropdownMenuItem>
                   <DropdownMenuItem

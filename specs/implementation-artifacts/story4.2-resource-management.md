@@ -104,6 +104,6 @@ volumes.POST("/prune", handleVolumePrune)
 ## Dev Notes (added during implementation)
 
 - Image IDs with `sha256:` prefix break standard PocketBase `/:id` path routing → switched to `/{id...}` wildcard route
-- All list responses include `host` field (value from `Executor.Host()`) — anticipates multi-server UI in Story 4.4
+- All list responses include `host` field (value from `Executor.Host()`) — anticipates multi-server UI in Story 4.5
 - Container list endpoint changed to `/containers/list` (avoids conflict with `/:id` catch-all)
 - Similarly: `/images/list`, `/networks/list`, `/volumes/list`

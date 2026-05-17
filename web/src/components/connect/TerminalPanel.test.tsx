@@ -1,4 +1,4 @@
-import { render, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createRef } from 'react'
 import { TerminalPanel, type TerminalPanelHandle } from './TerminalPanel'
@@ -11,13 +11,17 @@ const mocks = vi.hoisted(() => {
     rows = 40
     loadAddonCallCount = 0
     open(container: HTMLElement) {
+      const xterm = document.createElement('div')
+      xterm.className = 'xterm'
+      container.appendChild(xterm)
+
       const screen = document.createElement('div')
       screen.className = 'xterm-screen'
-      container.appendChild(screen)
+      xterm.appendChild(screen)
 
       const viewport = document.createElement('div')
       viewport.className = 'xterm-viewport'
-      container.appendChild(viewport)
+      xterm.appendChild(viewport)
     }
     loadAddon() {
       this.loadAddonCallCount += 1
@@ -25,7 +29,9 @@ const mocks = vi.hoisted(() => {
     focus() {}
     write() {}
     scrollToBottom() {}
-    dispose() {}
+    dispose(container?: HTMLElement) {
+      void container
+    }
     onData() {}
     onResize() {}
 
@@ -108,11 +114,22 @@ describe('TerminalPanel regressions', () => {
       expect(container.querySelector('.xterm-screen')).toBeTruthy()
     })
 
+    const frame = container.querySelector('[data-terminal-frame]') as HTMLElement
+    const xterm = container.querySelector('.xterm') as HTMLElement
     const screen = container.querySelector('.xterm-screen') as HTMLElement
+    expect(frame.className).toContain('bg-[#1a1b26]')
+    expect(frame.style.paddingTop).toBe('0px')
+    expect(frame.style.paddingRight).toBe('0px')
+    expect(xterm.style.boxSizing).toBe('border-box')
+    expect(xterm.style.padding).toBe('1em 1ch 8px 10px')
     expect(screen.style.boxSizing).toBe('border-box')
-    expect(screen.style.padding).toBe('8px 10px')
     expect(screen.style.width).toBe('100%')
-    expect(screen.style.minWidth).toBe('')
+    expect(screen.style.height).toBe('100%')
+
+    const viewport = container.querySelector('.xterm-viewport') as HTMLElement
+    expect(viewport.style.width).toBe('100%')
+    expect(viewport.style.height).toBe('100%')
+    expect(viewport.style.padding).toBe('1em 1ch 8px 10px')
 
     ref.current?.requestFit()
     await waitFor(() => {
@@ -141,6 +158,37 @@ describe('TerminalPanel regressions', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(mutationObserverSpy).not.toHaveBeenCalled()
+  })
+
+  it('reconnects cleanly after a dropped connection even if the old socket closes late', async () => {
+    render(<TerminalPanel serverId="s1" isActive />)
+
+    let initialSocketCount = 0
+    await waitFor(() => {
+      expect(mocks.MockWebSocket.instances.length).toBeGreaterThan(0)
+    })
+    initialSocketCount = mocks.MockWebSocket.instances.length
+
+    const firstSocket = mocks.MockWebSocket.instances[initialSocketCount - 1]
+    firstSocket.onerror?.(new Event('error'))
+
+    const reconnectButton = await screen.findByRole('button', { name: /reconnect/i })
+    fireEvent.click(reconnectButton)
+
+    await waitFor(() => {
+      expect(mocks.MockWebSocket.instances.length).toBe(initialSocketCount + 1)
+    })
+
+    firstSocket.onclose?.(
+      new CloseEvent('close', {
+        code: 1006,
+        reason: 'late close from previous socket',
+      })
+    )
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /reconnect/i })).not.toBeInTheDocument()
+    })
   })
 
   afterAll(() => {

@@ -5418,6 +5418,57 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
+  /api/servers/{serverId}/docker/compose/metadata:
+    post:
+      tags: [Docker]
+      summary: Get Compose metadata
+      description: "Returns compact metadata for the requested Compose projects, including linked containers. Superuser only."
+      operationId: post_api_servers_serverid_docker_compose_metadata
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: "projects: array of Compose project names"
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
   /api/servers/{serverId}/docker/compose/restart:
     post:
       tags: [Docker]
@@ -5635,6 +5686,57 @@ paths:
           required: true
           schema:
             type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/containers/metadata:
+    post:
+      tags: [Docker]
+      summary: Get container metadata
+      description: "Returns compact metadata for the requested container IDs, including created time, compose project, and linked volume names. Superuser only."
+      operationId: post_api_servers_serverid_docker_containers_metadata
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: "ids: array of container IDs or names"
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
       security:
         - bearerAuth: []  # superuser required
       responses:
@@ -6521,6 +6623,56 @@ paths:
       summary: Remove network
       description: "Removes the specified Docker network. Superuser only."
       operationId: delete_api_servers_serverid_docker_networks_id
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          description: "network ID or name"
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/networks/{id}/inspect:
+    get:
+      tags: [Docker]
+      summary: Inspect network
+      description: "Returns docker network inspect output for the given network ID or name. Superuser only."
+      operationId: get_api_servers_serverid_docker_networks_id_inspect
       parameters:
         - name: serverId
           in: path

@@ -73,6 +73,15 @@ export interface TerminalPanelHandle {
   requestFit: () => void
 }
 
+const TERMINAL_FRAME_PADDING = {
+  paddingTop: 0,
+  paddingRight: 0,
+  paddingBottom: 0,
+  paddingLeft: 0,
+} as const
+
+const TERMINAL_SCREEN_PADDING = '1em 1ch 8px 10px'
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>(
@@ -80,6 +89,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     { serverId, containerId, shell, dockerServerId, className, isActive },
     ref
   ) {
+    const frameRef = useRef<HTMLDivElement>(null)
     const termRef = useRef<HTMLDivElement>(null)
     const terminalRef = useRef<Terminal | null>(null)
     const wsRef = useRef<WebSocket | null>(null)
@@ -90,6 +100,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     const fitTimersRef = useRef<number[]>([])
     const isActiveRef = useRef(!!isActive)
     const structuredErrorRef = useRef(false)
+    const connectionAttemptRef = useRef(0)
 
     useEffect(() => {
       isActiveRef.current = !!isActive
@@ -122,12 +133,60 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
 
     const applyViewportInset = useCallback(() => {
       if (!termRef.current) return
+      const xterm = termRef.current.querySelector('.xterm') as HTMLElement | null
       const screen = termRef.current.querySelector('.xterm-screen') as HTMLElement | null
+      const viewport = termRef.current.querySelector('.xterm-viewport') as HTMLElement | null
+      if (xterm) {
+        xterm.style.width = '100%'
+        xterm.style.height = '100%'
+        xterm.style.boxSizing = 'border-box'
+        xterm.style.padding = TERMINAL_SCREEN_PADDING
+      }
       if (!screen) return
       screen.style.boxSizing = 'border-box'
-      screen.style.padding = '8px 10px'
       screen.style.width = '100%'
+      screen.style.height = '100%'
+      screen.style.maxWidth = '100%'
+      screen.style.maxHeight = '100%'
+      if (viewport) {
+        viewport.style.width = '100%'
+        viewport.style.height = '100%'
+        viewport.style.maxWidth = '100%'
+        viewport.style.maxHeight = '100%'
+        viewport.style.boxSizing = 'border-box'
+        viewport.style.padding = TERMINAL_SCREEN_PADDING
+      }
     }, [])
+
+    const disposeTerminal = useCallback(() => {
+      terminalRef.current?.dispose()
+      terminalRef.current = null
+      fitRef.current = null
+      if (termRef.current) {
+        termRef.current.replaceChildren()
+      }
+    }, [])
+
+    const detachSocketHandlers = useCallback((ws: WebSocket | null) => {
+      if (!ws) return
+      ws.onopen = null
+      ws.onmessage = null
+      ws.onclose = null
+      ws.onerror = null
+    }, [])
+
+    const disposeSocket = useCallback(
+      (closeCode = 1000, reason = 'dispose') => {
+        const ws = wsRef.current
+        if (!ws) return
+        detachSocketHandlers(ws)
+        wsRef.current = null
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+          ws.close(closeCode, reason)
+        }
+      },
+      [detachSocketHandlers]
+    )
 
     const scrollToBottom = useCallback(() => {
       if (!isActiveRef.current) return
@@ -160,10 +219,14 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
 
     const connect = useCallback(() => {
       if (!termRef.current) return
+      const attemptId = connectionAttemptRef.current + 1
+      connectionAttemptRef.current = attemptId
       setError(null)
       setErrorCategory(null)
       setConnecting(true)
       structuredErrorRef.current = false
+      disposeSocket(1000, 'reconnect')
+      disposeTerminal()
 
       // Determine WebSocket URL
       let wsUrl: string
@@ -197,11 +260,6 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       // Load preferences
       const prefs = loadPreferences()
 
-      // Clean up previous terminal
-      if (terminalRef.current) {
-        terminalRef.current.dispose()
-      }
-
       // Create terminal
       const terminal = new Terminal({
         fontSize: prefs.terminal_font_size,
@@ -231,7 +289,14 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       ws.binaryType = 'arraybuffer'
       wsRef.current = ws
 
+      const isStaleAttempt = () => connectionAttemptRef.current !== attemptId
+
       ws.onopen = () => {
+        if (isStaleAttempt()) {
+          detachSocketHandlers(ws)
+          ws.close(1000, 'stale-open')
+          return
+        }
         setConnecting(false)
         terminal.focus()
         // Send initial resize
@@ -240,6 +305,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       }
 
       ws.onmessage = event => {
+        if (isStaleAttempt()) return
         if (event.data instanceof ArrayBuffer) {
           const bytes = new Uint8Array(event.data)
           // Control frame: 0x00 prefix + JSON payload (error/close sent by backend)
@@ -274,6 +340,10 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       }
 
       ws.onclose = event => {
+        if (isStaleAttempt()) return
+        if (wsRef.current === ws) {
+          wsRef.current = null
+        }
         setConnecting(false)
         if (structuredErrorRef.current) {
           return
@@ -286,6 +356,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       }
 
       ws.onerror = () => {
+        if (isStaleAttempt()) return
         setConnecting(false)
         setError('WebSocket connection failed')
         setErrorCategory(null)
@@ -330,10 +401,10 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       return () => {
         cancelAnimationFrame(frame)
         clearFitTimers()
-        wsRef.current?.close(1000, 'unmount')
-        terminalRef.current?.dispose()
+        disposeSocket(1000, 'unmount')
+        disposeTerminal()
       }
-    }, [connect, clearFitTimers])
+    }, [connect, clearFitTimers, disposeSocket, disposeTerminal])
 
     // ResizeObserver for container resize → fit + sync
     useEffect(() => {
@@ -362,7 +433,14 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     return (
       <div className={cn('relative flex flex-col h-full overflow-hidden', className)}>
         {/* Terminal container */}
-        <div ref={termRef} className="flex-1 min-h-0 overflow-hidden" />
+        <div
+          ref={frameRef}
+          data-terminal-frame
+          className="flex-1 min-h-0 overflow-hidden bg-[#1a1b26]"
+          style={TERMINAL_FRAME_PADDING}
+        >
+          <div ref={termRef} className="h-full min-h-0 w-full overflow-hidden" />
+        </div>
 
         {/* Error overlay */}
         {(error || connecting) && (

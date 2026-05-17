@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect, useMemo } from 'react'
+import { Fragment, forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { pb } from '@/lib/pb'
 import { dockerApiPath } from '@/lib/docker-api'
@@ -25,6 +25,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -32,12 +34,14 @@ import {
   MoreVertical,
   ArrowUpDown,
   Loader2,
+  ChevronLeft,
   ChevronRight,
-  ChevronDown,
   FolderOpen,
   ArrowUp,
   ArrowDown,
   Eraser,
+  ExternalLink,
+  Filter,
 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { getApiErrorMessage } from '@/lib/api-error'
@@ -112,6 +116,11 @@ function shortVolumeName(name: string): string {
   return name.length > 30 ? `${name.slice(0, 30)}…` : name
 }
 
+function shortMountpoint(path: string): string {
+  if (!path) return '-'
+  return path.length > 45 ? `${path.slice(0, 45)}...` : path
+}
+
 function normalizeContainerName(name: string): string {
   if (!name) return '-'
   return name.replace(/^\/+/, '')
@@ -127,29 +136,49 @@ function parentMountPath(path: string): string {
   return trimmed.slice(0, index)
 }
 
-export function VolumesTab({
+export type VolumesTabRef = {
+  openPruneDialog: () => void
+}
+
+export const VolumesTab = forwardRef<
+  VolumesTabRef,
+  {
+    serverId: string
+    refreshSignal?: number
+    embeddedInWorkspace?: boolean
+    externalFilter?: string
+    includeNames?: string[]
+    page?: number
+    pageSize?: 25 | 50 | 100
+    onPageChange?: (page: number) => void
+    onSummaryChange?: (summary: { totalItems: number; totalPages: number }) => void
+    onOpenContainerFilter?: (volumeName: string, containerNames: string[]) => void
+    onOpenVolumePath?: (targetPath: string, lockedRootPath: string) => void
+    onClearIncludeNames?: () => void
+  }
+>(function VolumesTab({
   serverId,
   refreshSignal = 0,
   embeddedInWorkspace = false,
   externalFilter,
+  includeNames,
+  page: externalPage,
+  pageSize: externalPageSize,
+  onPageChange,
+  onSummaryChange,
   onOpenContainerFilter,
   onOpenVolumePath,
-}: {
-  serverId: string
-  refreshSignal?: number
-  embeddedInWorkspace?: boolean
-  externalFilter?: string
-  onOpenContainerFilter?: (volumeName: string, containerNames: string[]) => void
-  onOpenVolumePath?: (targetPath: string, lockedRootPath: string) => void
-}) {
+  onClearIncludeNames,
+}, ref) {
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState('')
-  const [sortKey, setSortKey] = useState<'name' | 'driver' | 'mountpoint' | 'containers'>(() => {
+  const [driverFilter, setDriverFilter] = useState<string>('all')
+  const [sortKey, setSortKey] = useState<'name' | 'containers'>(() => {
     try {
       const raw = localStorage.getItem(VOLUMES_SORT_KEY)
       if (!raw) return 'name'
       const parsed = JSON.parse(raw) as { key?: 'name' | 'driver' | 'mountpoint' | 'containers' }
-      return parsed.key || 'name'
+      return parsed.key === 'containers' ? 'containers' : 'name'
     } catch {
       return 'name'
     }
@@ -164,14 +193,29 @@ export function VolumesTab({
       return 'asc'
     }
   })
-  const [pageSize, setPageSize] = useState<25 | 50 | 100>(loadGlobalPageSize)
-  const [page, setPage] = useState(1)
+  const [internalPageSize, setInternalPageSize] = useState<25 | 50 | 100>(loadGlobalPageSize)
+  const [internalPage, setInternalPage] = useState(1)
   const [actionError, setActionError] = useState<string | null>(null)
   const [expandedVolume, setExpandedVolume] = useState<string | null>(null)
   const [inspectMap, setInspectMap] = useState<Record<string, string>>({})
   const [inspectLoadingMap, setInspectLoadingMap] = useState<Record<string, boolean>>({})
   const [pendingRemoveVolume, setPendingRemoveVolume] = useState<string | null>(null)
   const [pruneConfirmOpen, setPruneConfirmOpen] = useState(false)
+
+  const effectivePage = externalPage ?? internalPage
+  const effectivePageSize = externalPageSize ?? internalPageSize
+
+  const changePage = (nextPage: number) => {
+    setInternalPage(nextPage)
+    onPageChange?.(nextPage)
+  }
+
+  const changePageSize = (nextPageSize: 25 | 50 | 100) => {
+    if (externalPageSize !== undefined) return
+    setInternalPageSize(nextPageSize)
+    localStorage.setItem(DOCKER_PAGE_SIZE_KEY, String(nextPageSize))
+    setInternalPage(1)
+  }
 
   useEffect(() => {
     if (externalFilter !== undefined) setFilter(externalFilter)
@@ -181,20 +225,33 @@ export function VolumesTab({
     localStorage.setItem(VOLUMES_SORT_KEY, JSON.stringify({ key: sortKey, dir: sortDir }))
   }, [sortDir, sortKey])
 
-  useEffect(() => {
-    localStorage.setItem(DOCKER_PAGE_SIZE_KEY, String(pageSize))
-  }, [pageSize])
+  useImperativeHandle(ref, () => ({
+    openPruneDialog: () => setPruneConfirmOpen(true),
+  }))
 
   const {
-    data: volumesData,
+    data: volumes = [],
     isLoading: loading,
     error,
-  } = useQuery<{ volumes: Volume[]; volumeContainers: Record<string, string[]> }>({
+  } = useQuery<Volume[]>({
     queryKey: ['docker', 'volumes', serverId, refreshSignal],
     queryFn: async () => {
       const res = await pb.send(dockerApiPath(serverId, '/volumes'), { method: 'GET' })
-      const nextVolumes = parseVolumes(res.output)
+      return parseVolumes(res.output)
+    },
+    placeholderData: previousData => previousData,
+    staleTime: 10_000,
+    gcTime: 5 * 60_000,
+  })
 
+  const volumeNamesKey = useMemo(
+    () => volumes.map(volume => volume.Name).sort().join(','),
+    [volumes]
+  )
+
+  const { data: volumeContainers = {} } = useQuery<Record<string, string[]>>({
+    queryKey: ['docker', 'volumes', 'containers', serverId, refreshSignal, volumeNamesKey],
+    queryFn: async () => {
       const containersRes = await pb.send(dockerApiPath(serverId, '/containers'), {
         method: 'GET',
       })
@@ -214,7 +271,7 @@ export function VolumesTab({
       )
 
       const mapping: Record<string, string[]> = {}
-      for (const volume of nextVolumes) mapping[volume.Name] = []
+      for (const volume of volumes) mapping[volume.Name] = []
       for (const [containerName, inspect] of inspectEntries) {
         const mounts = inspect?.Mounts as
           | Array<{ Name?: string; Source?: string; Type?: string }>
@@ -232,14 +289,13 @@ export function VolumesTab({
         mapping[key] = Array.from(new Set(mapping[key]))
       }
 
-      return { volumes: nextVolumes, volumeContainers: mapping }
+      return mapping
     },
+    enabled: volumes.length > 0,
+    placeholderData: previousData => previousData,
     staleTime: 10_000,
     gcTime: 5 * 60_000,
   })
-
-  const volumes = volumesData?.volumes || []
-  const volumeContainers = volumesData?.volumeContainers || {}
 
   const loadVolumeInspect = async (name: string) => {
     if (!name || inspectMap[name] || inspectLoadingMap[name]) return
@@ -281,17 +337,28 @@ export function VolumesTab({
 
   const loadError = error ? getApiErrorMessage(error, 'Failed to load volumes') : null
 
-  const filtered = volumes.filter(v => v.Name?.toLowerCase().includes(filter.toLowerCase()))
+  const driverCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const volume of volumes) {
+      const key = volume.Driver || '-'
+      counts.set(key, (counts.get(key) || 0) + 1)
+    }
+    return Array.from(counts.entries()).sort((left, right) => left[0].localeCompare(right[0]))
+  }, [volumes])
+
+  const filtered = volumes.filter(v => {
+    const nameMatched = v.Name?.toLowerCase().includes(filter.toLowerCase())
+    if (!nameMatched) return false
+    if (includeNames && includeNames.length > 0 && !includeNames.includes(v.Name)) return false
+    if (driverFilter === 'all') return true
+    return (v.Driver || '-') === driverFilter
+  })
 
   const sorted = useMemo(() => {
     const items = [...filtered]
     items.sort((left, right) => {
       const leftValue = (() => {
         switch (sortKey) {
-          case 'driver':
-            return left.Driver || ''
-          case 'mountpoint':
-            return left.Mountpoint || ''
           case 'containers':
             return String(volumeContainers[left.Name]?.length || 0)
           default:
@@ -300,10 +367,6 @@ export function VolumesTab({
       })().toLowerCase()
       const rightValue = (() => {
         switch (sortKey) {
-          case 'driver':
-            return right.Driver || ''
-          case 'mountpoint':
-            return right.Mountpoint || ''
           case 'containers':
             return String(volumeContainers[right.Name]?.length || 0)
           default:
@@ -317,21 +380,27 @@ export function VolumesTab({
     return items
   }, [filtered, sortDir, sortKey, volumeContainers])
 
-  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
+  const totalPages = Math.max(1, Math.ceil(sorted.length / effectivePageSize))
   const paged = useMemo(() => {
-    const start = (page - 1) * pageSize
-    return sorted.slice(start, start + pageSize)
-  }, [page, pageSize, sorted])
+    const start = (effectivePage - 1) * effectivePageSize
+    return sorted.slice(start, start + effectivePageSize)
+  }, [effectivePage, effectivePageSize, sorted])
 
   useEffect(() => {
-    setPage(1)
-  }, [filter, sortDir, sortKey, pageSize, serverId])
+    changePage(1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [driverFilter, filter, sortDir, sortKey, effectivePageSize, serverId])
 
   useEffect(() => {
-    if (page > totalPages) setPage(totalPages)
-  }, [page, totalPages])
+    if (effectivePage > totalPages) changePage(totalPages)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectivePage, totalPages])
 
-  const toggleSort = (key: 'name' | 'driver' | 'mountpoint' | 'containers') => {
+  useEffect(() => {
+    onSummaryChange?.({ totalItems: sorted.length, totalPages })
+  }, [onSummaryChange, sorted.length, totalPages])
+
+  const toggleSort = (key: 'name' | 'containers') => {
     if (sortKey === key) {
       setSortDir(dir => (dir === 'asc' ? 'desc' : 'asc'))
       return
@@ -345,24 +414,33 @@ export function VolumesTab({
     keyName,
   }: {
     label: string
-    keyName: 'name' | 'driver' | 'mountpoint' | 'containers'
+    keyName: 'name' | 'containers'
   }) => (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="h-7 -ml-2 px-2 text-xs"
+    <button
+      type="button"
+      className="inline-flex h-7 cursor-pointer items-center gap-1 rounded px-0 text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
       onClick={() => toggleSort(keyName)}
     >
       {label}
       {sortKey !== keyName ? (
-        <ArrowUpDown className="h-3 w-3 ml-1" />
+        <ArrowUpDown className="h-3 w-3" />
       ) : sortDir === 'asc' ? (
-        <ArrowUp className="h-3 w-3 ml-1" />
+        <ArrowUp className="h-3 w-3" />
       ) : (
-        <ArrowDown className="h-3 w-3 ml-1" />
+        <ArrowDown className="h-3 w-3" />
       )}
-    </Button>
+    </button>
   )
+
+  const toggleVolumeExpansion = (volumeName: string) => {
+    setExpandedVolume(state => {
+      const next = state === volumeName ? null : volumeName
+      if (next === volumeName) {
+        void loadVolumeInspect(volumeName)
+      }
+      return next
+    })
+  }
 
   return (
     <div
@@ -391,31 +469,68 @@ export function VolumesTab({
           </Button>
         </div>
       )}
-      {embeddedInWorkspace && (
-        <div className="flex flex-wrap items-center gap-2 shrink-0 pb-2">
-          <div className="flex-1" />
-          <Button variant="outline" size="sm" onClick={() => setPruneConfirmOpen(true)}>
-            <Eraser className="h-4 w-4 mr-1" /> Prune unused
+      {includeNames && includeNames.length > 0 && onClearIncludeNames && (
+        <div className="flex items-center justify-end gap-2 shrink-0">
+          <Button variant="outline" size="sm" onClick={onClearIncludeNames}>
+            Clear linked filter
           </Button>
         </div>
       )}
-      <div className="rounded-md border">
+      <div className="overflow-hidden rounded-lg bg-background">
+        <div className="overflow-x-auto">
         <Table>
-          <TableHeader className="sticky top-0 bg-background z-10">
+          <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90">
             <TableRow>
-              <TableHead>
+              <TableHead className="min-w-[220px] pl-4 pr-2">
                 <SortHead label="Name" keyName="name" />
               </TableHead>
-              <TableHead>
-                <SortHead label="Driver" keyName="driver" />
+              <TableHead className="min-w-[120px]">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs font-medium text-foreground">Driver</span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        aria-label="Filter volume driver"
+                        title={
+                          driverFilter === 'all'
+                            ? 'Filter volume driver'
+                            : `Volume driver: ${driverFilter}`
+                        }
+                      >
+                        <Filter
+                          className={
+                            driverFilter === 'all'
+                              ? 'h-3.5 w-3.5'
+                              : 'h-3.5 w-3.5 text-foreground'
+                          }
+                        />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      <DropdownMenuRadioGroup value={driverFilter} onValueChange={setDriverFilter}>
+                        <DropdownMenuRadioItem value="all">
+                          All drivers ({volumes.length})
+                        </DropdownMenuRadioItem>
+                        {driverCounts.map(([driver, count]) => (
+                          <DropdownMenuRadioItem key={driver} value={driver}>
+                            {driver} ({count})
+                          </DropdownMenuRadioItem>
+                        ))}
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </TableHead>
-              <TableHead>
-                <SortHead label="Mountpoint" keyName="mountpoint" />
+              <TableHead className="min-w-[280px] text-xs font-medium text-foreground">
+                Mountpoint
               </TableHead>
-              <TableHead>
+              <TableHead className="min-w-[160px]">
                 <SortHead label="Containers" keyName="containers" />
               </TableHead>
-              <TableHead className="w-[60px]" />
+              <TableHead className="w-[52px] text-xs font-medium text-foreground">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -434,34 +549,28 @@ export function VolumesTab({
               const linkedContainers = volumeContainers[v.Name] || []
               return (
                 <Fragment key={v.Name}>
-                  <TableRow>
-                    <TableCell className="font-mono text-xs">
+                  <TableRow className={cn(isExpanded && 'bg-muted/20')}>
+                    <TableCell
+                      className="cursor-pointer pl-4 pr-3 py-3 text-xs"
+                      onClick={event => {
+                        const target = event.target as HTMLElement
+                        if (target.closest('button')) return
+                        toggleVolumeExpansion(v.Name)
+                      }}
+                    >
                       <Button
                         variant="link"
-                        className="h-auto p-0 text-left font-mono text-xs gap-1"
-                        onClick={() => {
-                          setExpandedVolume(state => {
-                            const next = state === v.Name ? null : v.Name
-                            if (next === v.Name) {
-                              void loadVolumeInspect(v.Name)
-                            }
-                            return next
-                          })
-                        }}
+                        className="h-auto p-0 text-left font-mono text-xs"
+                        onClick={() => toggleVolumeExpansion(v.Name)}
                       >
-                        {isExpanded ? (
-                          <ChevronDown className="h-3.5 w-3.5" />
-                        ) : (
-                          <ChevronRight className="h-3.5 w-3.5" />
-                        )}
                         <span title={v.Name}>{shortVolumeName(v.Name)}</span>
                       </Button>
                     </TableCell>
-                    <TableCell className="text-xs">{v.Driver}</TableCell>
-                    <TableCell className="font-mono text-xs truncate max-w-[300px]">
-                      {v.Mountpoint}
+                    <TableCell className="py-3 text-xs">{v.Driver}</TableCell>
+                    <TableCell className="py-3 font-mono text-xs" title={v.Mountpoint}>
+                      {shortMountpoint(v.Mountpoint)}
                     </TableCell>
-                    <TableCell className="text-xs">
+                    <TableCell className="py-3 text-xs">
                       {linkedContainers.length > 0 ? (
                         <Button
                           variant="link"
@@ -469,13 +578,16 @@ export function VolumesTab({
                           onClick={() => onOpenContainerFilter?.(v.Name, linkedContainers)}
                           title={linkedContainers.join(', ')}
                         >
-                          {linkedContainers.join(', ')}
+                          <span className="truncate">
+                            {linkedContainers.length} linked container{linkedContainers.length > 1 ? 's' : ''}
+                          </span>
+                          <ExternalLink className="ml-1 h-3 w-3" />
                         </Button>
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-3">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-7 w-7">
@@ -502,7 +614,7 @@ export function VolumesTab({
                   </TableRow>
                   {isExpanded && (
                     <TableRow>
-                      <TableCell colSpan={5} className="bg-muted/20 px-4 py-3">
+                      <TableCell colSpan={5} className="bg-muted/20 px-0 py-3">
                         {inspectLoadingMap[v.Name] ? (
                           <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
                             <Loader2 className="h-4 w-4 animate-spin" /> Loading inspect...
@@ -527,48 +639,51 @@ export function VolumesTab({
             )}
           </TableBody>
         </Table>
+        </div>
       </div>
+      {!embeddedInWorkspace && (
       <div className="flex items-center justify-between gap-2 shrink-0">
         <div className="text-xs text-muted-foreground">
           {sorted.length === 0
             ? '0 items'
-            : `${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, sorted.length)} of ${sorted.length}`}
+            : `${(effectivePage - 1) * effectivePageSize + 1}-${Math.min(effectivePage * effectivePageSize, sorted.length)} of ${sorted.length}`}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 text-xs">
           <select
             className="h-8 rounded-md border bg-background px-2 text-xs"
-            value={pageSize}
-            onChange={e => {
-              const next = Number(e.target.value) as 25 | 50 | 100
-              setPageSize(next)
-              setPage(1)
-            }}
+            value={String(effectivePageSize)}
+            onChange={e => changePageSize(Number(e.target.value) as 25 | 50 | 100)}
           >
             <option value={25}>25 / page</option>
             <option value={50}>50 / page</option>
             <option value={100}>100 / page</option>
           </select>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            disabled={page <= 1}
+            className="h-7 min-w-0 px-0.5"
+            onClick={() => changePage(Math.max(1, effectivePage - 1))}
+            disabled={effectivePage <= 1}
+            aria-label="Previous volumes page"
           >
-            Prev
+            <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
-          <span className="text-xs text-muted-foreground w-16 text-center">
-            {page} / {totalPages}
+          <span className="w-16 text-center font-medium tabular-nums">
+            {effectivePage} / {totalPages}
           </span>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages}
+            className="h-7 min-w-0 px-0.5"
+            onClick={() => changePage(Math.min(totalPages, effectivePage + 1))}
+            disabled={effectivePage >= totalPages}
+            aria-label="Next volumes page"
           >
-            Next
+            <ChevronRight className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
+      )}
 
       <AlertDialog
         open={!!pendingRemoveVolume}
@@ -626,4 +741,4 @@ export function VolumesTab({
       </AlertDialog>
     </div>
   )
-}
+})

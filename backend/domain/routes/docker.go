@@ -2,6 +2,7 @@ package routes
 
 import (
 	"encoding/json"
+	"net/url"
 	"net/http"
 	"os"
 	"strconv"
@@ -13,6 +14,8 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/websoft9/appos/backend/domain/audit"
+	"github.com/websoft9/appos/backend/domain/config/sysconfig"
+	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
 	"github.com/websoft9/appos/backend/infra/docker"
 )
@@ -94,6 +97,7 @@ func registerDockerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	// ─── Compose ─────────────────────────────────────────
 	compose := serverDocker.Group("/compose")
 	compose.GET("/ls", handleComposeLs)
+	compose.POST("/metadata", handleComposeMetadata)
 	compose.POST("/up", handleComposeUp)
 	compose.POST("/down", handleComposeDown)
 	compose.POST("/start", handleComposeStart)
@@ -118,6 +122,7 @@ func registerDockerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	containers.GET("/stats", handleContainerStats)
 	containers.GET("/{id}/logs", handleContainerLogs)
 	containers.GET("", handleContainerList)
+	containers.POST("/metadata", handleContainerMetadata)
 	containers.GET("/{id}", handleContainerInspect)
 	containers.POST("/{id}/start", handleContainerStart)
 	containers.POST("/{id}/stop", handleContainerStop)
@@ -127,6 +132,7 @@ func registerDockerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	// ─── Networks ────────────────────────────────────────
 	networks := serverDocker.Group("/networks")
 	networks.GET("", handleNetworkList)
+	networks.GET("/{id}/inspect", handleNetworkInspect)
 	networks.POST("", handleNetworkCreate)
 	networks.DELETE("/{id}", handleNetworkRemove)
 
@@ -146,7 +152,72 @@ func registerDockerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 // getDockerClient returns a Docker client for the serverId path parameter.
 func getDockerClient(e *core.RequestEvent) (*docker.Client, error) {
 	serverID := strings.TrimSpace(e.Request.PathValue("serverId"))
-	return servers.NewDockerClient(e.App, serverID, localDockerClient)
+	client, err := servers.NewDockerClient(e.App, serverID, localDockerClient)
+	if err != nil {
+		return nil, err
+	}
+	client.SetProxyEnv(loadDockerProxyEnv(e.App))
+	return client, nil
+}
+
+func loadDockerProxyEnv(app core.App) map[string]string {
+	group, _ := sysconfig.GetGroup(
+		app,
+		"proxy",
+		"network",
+		settingscatalog.DefaultGroup("proxy", "network"),
+	)
+	httpProxy := proxyURLWithCredentials(
+		sysconfig.String(group, "httpProxy", ""),
+		sysconfig.String(group, "username", ""),
+		sysconfig.String(group, "password", ""),
+	)
+	httpsProxy := proxyURLWithCredentials(
+		sysconfig.String(group, "httpsProxy", ""),
+		sysconfig.String(group, "username", ""),
+		sysconfig.String(group, "password", ""),
+	)
+	noProxy := strings.TrimSpace(sysconfig.String(group, "noProxy", ""))
+
+	env := map[string]string{}
+	if httpProxy != "" {
+		env["HTTP_PROXY"] = httpProxy
+		env["http_proxy"] = httpProxy
+	}
+	if httpsProxy != "" {
+		env["HTTPS_PROXY"] = httpsProxy
+		env["https_proxy"] = httpsProxy
+	}
+	if noProxy != "" {
+		env["NO_PROXY"] = noProxy
+		env["no_proxy"] = noProxy
+	}
+	if len(env) == 0 {
+		return nil
+	}
+	return env
+}
+
+func proxyURLWithCredentials(rawValue, username, password string) string {
+	rawValue = strings.TrimSpace(rawValue)
+	if rawValue == "" {
+		return ""
+	}
+	username = strings.TrimSpace(username)
+	password = strings.TrimSpace(password)
+	if username == "" || strings.Contains(rawValue, "@") {
+		return rawValue
+	}
+	parsed, err := url.Parse(rawValue)
+	if err != nil || parsed.Host == "" {
+		return rawValue
+	}
+	if password != "" {
+		parsed.User = url.UserPassword(username, password)
+	} else {
+		parsed.User = url.User(username)
+	}
+	return parsed.String()
 }
 
 // handleDockerServers returns all available servers (local + resource store servers)
@@ -285,6 +356,30 @@ func bodyMap(body map[string]any, key string) map[string]any {
 	return nil
 }
 
+// bodyStringSlice extracts a string slice field from body.
+func bodyStringSlice(body map[string]any, key string) []string {
+	raw, ok := body[key]
+	if !ok || raw == nil {
+		return nil
+	}
+	if values, ok := raw.([]string); ok {
+		return values
+	}
+	items, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+	result := make([]string, 0, len(items))
+	for _, item := range items {
+		value, ok := item.(string)
+		if !ok {
+			continue
+		}
+		result = append(result, value)
+	}
+	return result
+}
+
 // ─── Compose Handlers ────────────────────────────────────
 
 // handleComposeLs lists all Docker Compose projects on the target server.
@@ -309,6 +404,142 @@ func handleComposeLs(e *core.RequestEvent) error {
 		return dockerError(e, http.StatusInternalServerError, "list compose projects failed", err)
 	}
 	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": client.Host()})
+}
+
+type dockerContainerListRow struct {
+	ID     string `json:"ID"`
+	Names  string `json:"Names"`
+	Image  string `json:"Image"`
+	State  string `json:"State"`
+	Status string `json:"Status"`
+}
+
+type composeMetadataContainer struct {
+	ID     string `json:"id,omitempty"`
+	Name   string `json:"name,omitempty"`
+	Image  string `json:"image,omitempty"`
+	State  string `json:"state,omitempty"`
+	Status string `json:"status,omitempty"`
+}
+
+type composeMetadataItem struct {
+	Containers []composeMetadataContainer `json:"containers"`
+}
+
+// handleComposeMetadata returns compact metadata for the requested compose projects.
+//
+// @Summary Get Compose metadata
+// @Description Returns compact metadata for the requested Compose projects, including linked containers. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param serverId path string true "server ID"
+// @Param body body object true "projects: array of Compose project names"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/servers/{serverId}/docker/compose/metadata [post]
+func handleComposeMetadata(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
+	body, err := readBody(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "invalid request body", err)
+	}
+	rawProjects := bodyStringSlice(body, "projects")
+	projects := make([]string, 0, len(rawProjects))
+	projectSet := make(map[string]struct{}, len(rawProjects))
+	for _, rawProject := range rawProjects {
+		project := strings.TrimSpace(rawProject)
+		if project == "" {
+			continue
+		}
+		if _, ok := projectSet[project]; ok {
+			continue
+		}
+		projectSet[project] = struct{}{}
+		projects = append(projects, project)
+	}
+	if len(projects) == 0 {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "projects is required"})
+	}
+	if len(projects) > 200 {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "projects exceeds limit 200"})
+	}
+
+	containerOutput, err := client.ContainerList(e.Request.Context())
+	if err != nil {
+		return dockerError(e, http.StatusInternalServerError, "list containers failed", err)
+	}
+	containers, err := parseDockerContainerListRows(containerOutput)
+	if err != nil {
+		return dockerError(e, http.StatusInternalServerError, "parse containers failed", err)
+	}
+
+	ids := make([]string, 0, len(containers))
+	for _, container := range containers {
+		id := strings.TrimSpace(container.ID)
+		if id != "" {
+			ids = append(ids, id)
+		}
+	}
+
+	metadata := map[string]containerMetadataItem{}
+	if len(ids) > 0 {
+		inspectOutput, err := client.ContainerInspectMany(e.Request.Context(), ids)
+		if err != nil {
+			return dockerError(e, http.StatusInternalServerError, "inspect compose metadata failed", err)
+		}
+		metadata, err = parseContainerMetadataItems(inspectOutput, ids)
+		if err != nil {
+			return dockerError(e, http.StatusInternalServerError, "parse compose metadata failed", err)
+		}
+	}
+
+	items := make(map[string]composeMetadataItem, len(projects))
+	for _, project := range projects {
+		items[project] = composeMetadataItem{Containers: []composeMetadataContainer{}}
+	}
+	for _, container := range containers {
+		item := metadata[container.ID]
+		project := item.ComposeProject
+		if _, ok := projectSet[project]; !ok {
+			continue
+		}
+		projectItem := items[project]
+		projectItem.Containers = append(projectItem.Containers, composeMetadataContainer{
+			ID:     container.ID,
+			Name:   strings.TrimPrefix(container.Names, "/"),
+			Image:  container.Image,
+			State:  container.State,
+			Status: container.Status,
+		})
+		items[project] = projectItem
+	}
+
+	return e.JSON(http.StatusOK, map[string]any{"items": items})
+}
+
+func parseDockerContainerListRows(output string) ([]dockerContainerListRow, error) {
+	output = strings.TrimSpace(output)
+	if output == "" {
+		return []dockerContainerListRow{}, nil
+	}
+	rows := make([]dockerContainerListRow, 0)
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var row dockerContainerListRow
+		if err := json.Unmarshal([]byte(line), &row); err != nil {
+			return nil, err
+		}
+		rows = append(rows, row)
+	}
+	return rows, nil
 }
 
 // handleComposeUp deploys a Docker Compose project (docker compose up -d).
@@ -933,6 +1164,115 @@ func handleContainerInspect(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
+type containerMetadataItem struct {
+	Created        string   `json:"created,omitempty"`
+	ComposeProject string   `json:"compose_project,omitempty"`
+	VolumeNames    []string `json:"volume_names,omitempty"`
+}
+
+type dockerContainerInspectMetadata struct {
+	ID      string `json:"Id"`
+	Created string `json:"Created"`
+	Config  struct {
+		Labels map[string]string `json:"Labels"`
+	} `json:"Config"`
+	Mounts []struct {
+		Name string `json:"Name"`
+		Type string `json:"Type"`
+	} `json:"Mounts"`
+}
+
+// handleContainerMetadata returns compact metadata for the requested container IDs.
+//
+// @Summary Get container metadata
+// @Description Returns compact metadata for the requested container IDs, including created time, compose project, and linked volume names. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param serverId path string true "server ID"
+// @Param body body object true "ids: array of container IDs or names"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/servers/{serverId}/docker/containers/metadata [post]
+func handleContainerMetadata(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
+	body, err := readBody(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "invalid request body", err)
+	}
+	rawIDs := bodyStringSlice(body, "ids")
+	ids := make([]string, 0, len(rawIDs))
+	seen := make(map[string]struct{}, len(rawIDs))
+	for _, rawID := range rawIDs {
+		id := strings.TrimSpace(rawID)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "ids is required"})
+	}
+	if len(ids) > 200 {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "ids exceeds limit 200"})
+	}
+	output, err := client.ContainerInspectMany(e.Request.Context(), ids)
+	if err != nil {
+		return dockerError(e, http.StatusInternalServerError, "inspect container metadata failed", err)
+	}
+	items, err := parseContainerMetadataItems(output, ids)
+	if err != nil {
+		return dockerError(e, http.StatusInternalServerError, "parse container metadata failed", err)
+	}
+	return e.JSON(http.StatusOK, map[string]any{"items": items})
+}
+
+func parseContainerMetadataItems(output string, requestedIDs []string) (map[string]containerMetadataItem, error) {
+	if strings.TrimSpace(output) == "" {
+		return map[string]containerMetadataItem{}, nil
+	}
+	var inspected []dockerContainerInspectMetadata
+	if err := json.Unmarshal([]byte(output), &inspected); err != nil {
+		return nil, err
+	}
+	items := make(map[string]containerMetadataItem, len(inspected))
+	for index, entry := range inspected {
+		volumeNames := make([]string, 0, len(entry.Mounts))
+		seenVolumes := make(map[string]struct{}, len(entry.Mounts))
+		for _, mount := range entry.Mounts {
+			if mount.Type != "volume" || strings.TrimSpace(mount.Name) == "" {
+				continue
+			}
+			if _, ok := seenVolumes[mount.Name]; ok {
+				continue
+			}
+			seenVolumes[mount.Name] = struct{}{}
+			volumeNames = append(volumeNames, mount.Name)
+		}
+		item := containerMetadataItem{
+			Created:        entry.Created,
+			ComposeProject: entry.Config.Labels["com.docker.compose.project"],
+			VolumeNames:    volumeNames,
+		}
+		items[entry.ID] = item
+		if index < len(requestedIDs) {
+			requestedID := strings.TrimSpace(requestedIDs[index])
+			if requestedID != "" {
+				items[requestedID] = item
+			}
+		}
+	}
+	return items, nil
+}
+
 // handleContainerStats returns real-time resource usage stats for all running containers.
 //
 // @Summary Get container stats
@@ -1128,6 +1468,35 @@ func handleNetworkList(e *core.RequestEvent) error {
 	}
 	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": client.Host()})
 }
+
+	// handleNetworkInspect returns detailed metadata for a Docker network.
+	//
+	// @Summary Inspect network
+	// @Description Returns docker network inspect output for the given network ID or name. Superuser only.
+	// @Tags Resource
+	// @Security BearerAuth
+	// @Param serverId path string true "server ID"
+	// @Param id path string true "network ID or name"
+	// @Success 200 {object} map[string]any
+	// @Failure 400 {object} map[string]any
+	// @Failure 401 {object} map[string]any
+	// @Failure 500 {object} map[string]any
+	// @Router /api/servers/{serverId}/docker/networks/{id}/inspect [get]
+	func handleNetworkInspect(e *core.RequestEvent) error {
+		client, err := getDockerClient(e)
+		if err != nil {
+			return dockerError(e, http.StatusBadRequest, "server not found", err)
+		}
+		id := e.Request.PathValue("id")
+		if id == "" {
+			return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "id is required"})
+		}
+		output, err := client.NetworkInspect(e.Request.Context(), id)
+		if err != nil {
+			return dockerError(e, http.StatusInternalServerError, "inspect network failed", err)
+		}
+		return e.JSON(http.StatusOK, map[string]any{"output": output})
+	}
 
 // handleNetworkCreate creates a new Docker network.
 //

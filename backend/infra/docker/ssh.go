@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -28,6 +29,9 @@ type SSHConfig struct {
 	// SudoPassword is the password for `sudo -S`. Empty means passwordless sudo (NOPASSWD).
 	// For password-based auth it defaults to the SSH password credential.
 	SudoPassword string
+
+	// Env are extra environment variables injected into Docker commands.
+	Env map[string]string
 }
 
 // SSHExecutor runs commands on a remote host over SSH.
@@ -95,6 +99,9 @@ func (e *SSHExecutor) Run(ctx context.Context, command string, args ...string) (
 	defer session.Close()
 
 	cmd := buildShellCommand(command, args...)
+	if envPrefix := shellEnvPrefix(e.cfg.Env); envPrefix != "" {
+		cmd = "env " + envPrefix + " " + cmd
+	}
 	if e.cfg.SudoEnabled {
 		if e.cfg.SudoPassword != "" {
 			// -S: read password from stdin; -p '': suppress prompt text
@@ -141,6 +148,9 @@ func (e *SSHExecutor) RunStream(ctx context.Context, command string, args ...str
 	}
 
 	cmd := buildShellCommand(command, args...)
+	if envPrefix := shellEnvPrefix(e.cfg.Env); envPrefix != "" {
+		cmd = "env " + envPrefix + " " + cmd
+	}
 	if e.cfg.SudoEnabled {
 		if e.cfg.SudoPassword != "" {
 			// -S: read password from stdin; -p '': suppress prompt text
@@ -191,6 +201,25 @@ func (e *SSHExecutor) Host() string {
 	return e.cfg.Host
 }
 
+func (e *SSHExecutor) SetEnv(env map[string]string) {
+	if len(env) == 0 {
+		e.cfg.Env = nil
+		return
+	}
+	next := make(map[string]string, len(env))
+	for key, value := range env {
+		if strings.TrimSpace(key) == "" || strings.TrimSpace(value) == "" {
+			continue
+		}
+		next[key] = value
+	}
+	if len(next) == 0 {
+		e.cfg.Env = nil
+		return
+	}
+	e.cfg.Env = next
+}
+
 // sshReadCloser wraps an SSH stdout pipe and closes session+client when done.
 type sshReadCloser struct {
 	io.ReadCloser
@@ -221,6 +250,28 @@ func shellQuote(value string) string {
 		return "''"
 	}
 	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
+}
+
+func shellEnvPrefix(env map[string]string) string {
+	if len(env) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(env))
+	for key, value := range env {
+		if strings.TrimSpace(key) == "" || strings.TrimSpace(value) == "" {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	if len(keys) == 0 {
+		return ""
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		parts = append(parts, key+"="+shellQuote(env[key]))
+	}
+	return strings.Join(parts, " ")
 }
 
 func resolveHostKeyCallback() (ssh.HostKeyCallback, error) {

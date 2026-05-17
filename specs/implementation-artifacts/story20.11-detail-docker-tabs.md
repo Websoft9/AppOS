@@ -28,7 +28,7 @@ This story does not replace:
 
 This story consolidates the Server Detail hosting guidance that was previously described inside:
 
-- `specs/implementation-artifacts/story4.3-docker-workspace-replan.md`
+- `specs/implementation-artifacts/story4.3-canonical-docker-workspace-replan.md`
 
 After this change, `story20.11-detail-docker-tabs.md` is the source of truth for where Docker operations live inside Server Detail.
 
@@ -277,6 +277,6 @@ The handoff should keep server context stable.
 
 - `specs/implementation-artifacts/story20.6-server-ui.md`
 - `specs/implementation-artifacts/story20.8-detail-systemd.md`
-- `specs/implementation-artifacts/story4.3-docker-workspace-replan.md`
+- `specs/implementation-artifacts/story4.3-canonical-docker-workspace-replan.md`
 - `specs/implementation-artifacts/story28.6-container-stats-ui.md`
 - `specs/implementation-artifacts/story28.7-docker-monitor-handoff.md`

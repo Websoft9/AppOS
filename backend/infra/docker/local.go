@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"sort"
 	"strings"
 )
 
@@ -19,6 +20,9 @@ type LocalExecutor struct {
 
 	// SudoPassword is the password for `sudo -S`. Empty means passwordless sudo (NOPASSWD).
 	SudoPassword string
+
+	// Env are extra environment variables injected into Docker commands.
+	Env map[string]string
 }
 
 // NewLocalExecutor creates a LocalExecutor with the given Docker host.
@@ -32,7 +36,13 @@ func NewLocalExecutor(dockerHost string) *LocalExecutor {
 // buildCmd constructs the exec.Cmd, wrapping with sudo when SudoEnabled is set.
 func (e *LocalExecutor) buildCmd(ctx context.Context, command string, args []string) *exec.Cmd {
 	if e.SudoEnabled {
-		allArgs := append([]string{command}, args...)
+		allArgs := make([]string, 0, len(args)+len(e.envPairs())+2)
+		if envPairs := e.envPairs(); len(envPairs) > 0 {
+			allArgs = append(allArgs, "env")
+			allArgs = append(allArgs, envPairs...)
+		}
+		allArgs = append(allArgs, command)
+		allArgs = append(allArgs, args...)
 		if e.SudoPassword != "" {
 			// -S: read password from stdin; -p '': suppress prompt text
 			// #nosec G204 -- command and args are assembled from the validated docker executable and caller-supplied arguments.
@@ -48,7 +58,7 @@ func (e *LocalExecutor) buildCmd(ctx context.Context, command string, args []str
 // Run executes a command and returns buffered stdout.
 func (e *LocalExecutor) Run(ctx context.Context, command string, args ...string) (string, error) {
 	cmd := e.buildCmd(ctx, command, args)
-	cmd.Env = append(cmd.Environ(), "DOCKER_HOST="+e.DockerHost)
+	cmd.Env = e.commandEnv(cmd)
 
 	if e.SudoEnabled && e.SudoPassword != "" {
 		cmd.Stdin = strings.NewReader(e.SudoPassword + "\n")
@@ -67,7 +77,7 @@ func (e *LocalExecutor) Run(ctx context.Context, command string, args ...string)
 // RunStream executes a command and returns a streaming reader for stdout.
 func (e *LocalExecutor) RunStream(ctx context.Context, command string, args ...string) (io.ReadCloser, error) {
 	cmd := e.buildCmd(ctx, command, args)
-	cmd.Env = append(cmd.Environ(), "DOCKER_HOST="+e.DockerHost)
+	cmd.Env = e.commandEnv(cmd)
 
 	if e.SudoEnabled && e.SudoPassword != "" {
 		cmd.Stdin = strings.NewReader(e.SudoPassword + "\n")
@@ -94,4 +104,58 @@ func (e *LocalExecutor) Ping(ctx context.Context) error {
 // Host returns "local" for the local executor.
 func (e *LocalExecutor) Host() string {
 	return "local"
+}
+
+func (e *LocalExecutor) SetEnv(env map[string]string) {
+	if len(env) == 0 {
+		e.Env = nil
+		return
+	}
+	next := make(map[string]string, len(env))
+	for key, value := range env {
+		if strings.TrimSpace(key) == "" || strings.TrimSpace(value) == "" {
+			continue
+		}
+		next[key] = value
+	}
+	if len(next) == 0 {
+		e.Env = nil
+		return
+	}
+	e.Env = next
+}
+
+func (e *LocalExecutor) commandEnv(cmd *exec.Cmd) []string {
+	env := append(cmd.Environ(), "DOCKER_HOST="+e.DockerHost)
+	keys := make([]string, 0, len(e.Env))
+	for key, value := range e.Env {
+		if strings.TrimSpace(key) == "" || strings.TrimSpace(value) == "" {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		env = append(env, key+"="+e.Env[key])
+	}
+	return env
+}
+
+func (e *LocalExecutor) envPairs() []string {
+	if len(e.Env) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(e.Env))
+	for key, value := range e.Env {
+		if strings.TrimSpace(key) == "" || strings.TrimSpace(value) == "" {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	pairs := make([]string, 0, len(keys))
+	for _, key := range keys {
+		pairs = append(pairs, key+"="+e.Env[key])
+	}
+	return pairs
 }
