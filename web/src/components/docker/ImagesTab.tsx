@@ -1,7 +1,7 @@
 import { Fragment, forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { pb } from '@/lib/pb'
-import { dockerApiPath, dockerApiUrl } from '@/lib/docker-api'
+import { dockerApiPath } from '@/lib/docker-api'
 import {
   Table,
   TableBody,
@@ -15,6 +15,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -41,6 +42,7 @@ import {
   Trash2,
   MoreVertical,
   Eraser,
+  FileText,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
@@ -48,10 +50,13 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
-  Search,
+  CircleHelp,
 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { DockerTextDialog } from '@/components/docker/DockerTextDialog'
 import { getApiErrorMessage } from '@/lib/api-error'
 import { cn } from '@/lib/utils'
 
@@ -83,12 +88,48 @@ interface DockerContainerRow {
   ImageID?: string
 }
 
-interface RegistrySearchItem {
-  name: string
-  description?: string
-  star_count?: number
-  is_official?: boolean
+interface DockerImagePullOperation {
+  id: string
+  server_id: string
+  image_name: string
+  normalized_name: string
+  phase: 'accepted' | 'executing' | 'succeeded' | 'failed'
+  terminal_status: 'none' | 'success' | 'failed'
+  failure_phase?: string
+  failure_reason?: string
+  output?: string
+  created?: string
+  updated?: string
 }
+
+interface DockerImagePullOperationListResponse {
+  items?: DockerImagePullOperation[]
+}
+
+type PullRegistryOption = {
+  id: string
+  label: string
+  officialSearchUrl: (query: string) => string
+}
+
+type RegistryStatusResult = {
+  available: boolean
+  registry?: string
+  reason?: string
+}
+
+const PULL_REGISTRY_OPTIONS: PullRegistryOption[] = [
+  {
+    id: 'docker-hub',
+    label: 'Docker Hub',
+    officialSearchUrl: query => {
+      const keyword = query.trim()
+      return keyword
+        ? `https://hub.docker.com/search?q=${encodeURIComponent(keyword)}`
+        : 'https://hub.docker.com/search'
+    },
+  },
+]
 
 function parseImages(output: string): DockerImage[] {
   if (!output.trim()) return []
@@ -120,26 +161,69 @@ function parseContainers(output: string): DockerContainerRow[] {
     .filter(Boolean) as DockerContainerRow[]
 }
 
-function parseRegistrySearch(output: string): RegistrySearchItem[] {
-  if (!output.trim()) return []
-  return output
-    .trim()
-    .split('\n')
-    .map(line => {
-      try {
-        return JSON.parse(line)
-      } catch {
-        return null
-      }
+function parseInspect(output: string): Record<string, any> | null {
+  try {
+    const parsed = JSON.parse(output)
+    if (Array.isArray(parsed) && parsed[0]) return parsed[0] as Record<string, any>
+    return null
+  } catch {
+    return null
+  }
+}
+
+function formatImageNames(inspect?: Record<string, any> | null): string[] {
+  const repoTags = inspect?.RepoTags
+  if (Array.isArray(repoTags)) {
+    const values = repoTags.filter((value: unknown): value is string => typeof value === 'string')
+    if (values.length > 0) return values
+  }
+  return []
+}
+
+function formatImageRepositories(inspect?: Record<string, any> | null): string[] {
+  const repoTags = formatImageNames(inspect)
+  const values = repoTags
+    .map(tag => {
+      const atDigestIndex = tag.indexOf('@')
+      const normalized = atDigestIndex === -1 ? tag : tag.slice(0, atDigestIndex)
+      const lastSlash = normalized.lastIndexOf('/')
+      const lastColon = normalized.lastIndexOf(':')
+      return lastColon > lastSlash ? normalized.slice(0, lastColon) : normalized
     })
     .filter(Boolean)
-    .map((item: any) => ({
-      name: String(item.Name || item.name || ''),
-      description: String(item.Description || item.description || ''),
-      star_count: Number(item.StarCount || item.star_count || 0),
-      is_official: Boolean(item.IsOfficial || item.is_official || false),
-    }))
-    .filter((item: RegistrySearchItem) => !!item.name)
+  return Array.from(new Set(values))
+}
+
+function formatImageCreated(created?: string): string {
+  if (!created) return '-'
+  const timestamp = Date.parse(created)
+  if (Number.isNaN(timestamp)) return created
+  return new Date(timestamp).toLocaleString()
+}
+
+function formatImageBytes(bytes?: unknown): string {
+  if (typeof bytes !== 'number' || Number.isNaN(bytes) || bytes < 0) return '-'
+  if (bytes === 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let value = bytes
+  let index = 0
+  while (value >= 1024 && index < units.length - 1) {
+    value /= 1024
+    index += 1
+  }
+  const digits = value >= 10 || index === 0 ? 0 : 1
+  return `${value.toFixed(digits)} ${units[index]}`
+}
+
+function formatImagePorts(inspect?: Record<string, any> | null): string[] {
+  const ports = inspect?.Config?.ExposedPorts
+  if (!ports || typeof ports !== 'object') return []
+  return Object.keys(ports as Record<string, unknown>).sort((left, right) => left.localeCompare(right))
+}
+
+function metadataValue(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) return value.length > 0 ? value.join(', ') : '-'
+  return value && value.trim() ? value : '-'
 }
 
 function normalizeImageId(id?: string): string {
@@ -202,8 +286,113 @@ function relatedContainersForImage(
   })
 }
 
+function splitImageReference(reference: string): { name: string; tag: string } {
+  const cleaned = reference.trim()
+  if (!cleaned) return { name: '', tag: '' }
+  if (cleaned.includes('@')) {
+    return { name: cleaned, tag: '' }
+  }
+
+  const lastSlash = cleaned.lastIndexOf('/')
+  const lastColon = cleaned.lastIndexOf(':')
+  if (lastColon > lastSlash) {
+    return {
+      name: cleaned.slice(0, lastColon),
+      tag: cleaned.slice(lastColon + 1),
+    }
+  }
+
+  return { name: cleaned, tag: '' }
+}
+
+function parseImageReferenceParts(reference: string): {
+  name: string
+  tag: string
+  namespace: string
+  imageName: string
+} {
+  const parsed = splitImageReference(reference)
+  const segments = parsed.name.split('/').filter(Boolean)
+  return {
+    name: parsed.name,
+    tag: parsed.tag,
+    namespace: segments.slice(0, -1).join('/'),
+    imageName: segments.at(-1) || parsed.name,
+  }
+}
+
+function normalizeReferenceInput(reference: string): string {
+  return reference.trim()
+}
+
+function formatPullOperationTimestamp(value?: string): string {
+  if (!value) return '-'
+  const parsed = Date.parse(value)
+  if (Number.isNaN(parsed)) return value
+  return new Date(parsed).toLocaleString()
+}
+
+function pullOperationTone(operation: DockerImagePullOperation): 'default' | 'secondary' | 'destructive' {
+  if (operation.terminal_status === 'failed') return 'destructive'
+  if (operation.terminal_status === 'success') return 'secondary'
+  return 'default'
+}
+
+function pullOperationLabel(operation: DockerImagePullOperation): string {
+  if (operation.terminal_status === 'failed') return 'Failed'
+  if (operation.terminal_status === 'success') return 'Completed'
+  if (operation.phase === 'accepted') return 'Queued'
+  return 'Pulling'
+}
+
+function scoreReferenceMatch(reference: string, input: string): number {
+  const normalizedReference = reference.toLowerCase()
+  const normalizedInput = input.trim().toLowerCase()
+  if (!normalizedInput) return 0
+
+  if (normalizedReference === normalizedInput) return 100
+
+  const parsedInput = parseImageReferenceParts(normalizedInput)
+  const parsedReference = parseImageReferenceParts(normalizedReference)
+
+  if (parsedInput.name && parsedInput.tag) {
+    if (parsedReference.name === parsedInput.name && parsedReference.tag === parsedInput.tag)
+      return 95
+    if (parsedReference.name === parsedInput.name && parsedReference.tag.startsWith(parsedInput.tag))
+      return 90
+    if (
+      parsedReference.imageName === parsedInput.imageName &&
+      parsedReference.tag.startsWith(parsedInput.tag)
+    ) {
+      return 88
+    }
+    if (normalizedReference.startsWith(normalizedInput)) return 82
+    if (
+      parsedReference.name.includes(parsedInput.name) &&
+      parsedReference.tag.includes(parsedInput.tag)
+    ) {
+      return 72
+    }
+    return 0
+  }
+
+  if (parsedReference.name === parsedInput.name) return 90
+  if (parsedReference.imageName === parsedInput.imageName) return 89
+  if (parsedReference.namespace === parsedInput.name) return 88
+  if (parsedReference.imageName.startsWith(parsedInput.imageName)) return 86
+  if (parsedReference.name.startsWith(parsedInput.name)) return 84
+  if (parsedReference.namespace.startsWith(parsedInput.name)) return 82
+  if (normalizedReference.startsWith(normalizedInput)) return 78
+  if (parsedReference.namespace.includes(parsedInput.name)) return 76
+  if (parsedReference.imageName.includes(parsedInput.imageName)) return 74
+  if (parsedReference.name.includes(parsedInput.name)) return 72
+  if (normalizedReference.includes(normalizedInput)) return 56
+  return 0
+}
+
 export type ImagesTabRef = {
   openPullDialog: (defaultImage?: string) => void
+  openPullHistory: (filter?: 'all' | 'failed') => void
   openPruneDialog: () => void
 }
 
@@ -219,6 +408,11 @@ export const ImagesTab = forwardRef<
     pageSize?: 25 | 50 | 100
     onPageChange?: (page: number) => void
     onOpenContainerFilter?: (imageName: string, containerNames: string[]) => void
+    onPullActivityChange?: (summary: {
+      activeCount: number
+      recentFailedCount: number
+      hasRecentHistory: boolean
+    }) => void
     onSummaryChange?: (summary: {
       totalItems: number
       totalPages: number
@@ -236,6 +430,7 @@ export const ImagesTab = forwardRef<
   pageSize: externalPageSize,
   onPageChange,
   onOpenContainerFilter,
+  onPullActivityChange,
   onSummaryChange,
 }, ref) {
   const queryClient = useQueryClient()
@@ -278,6 +473,7 @@ export const ImagesTab = forwardRef<
   const [expandedImageId, setExpandedImageId] = useState<string | null>(null)
   const [inspectMap, setInspectMap] = useState<Record<string, string>>({})
   const [inspectLoadingMap, setInspectLoadingMap] = useState<Record<string, boolean>>({})
+  const [inspectDialogImage, setInspectDialogImage] = useState<DockerImage | null>(null)
 
   const changePageSize = (size: 25 | 50 | 100) => {
     if (externalPageSize !== undefined) return
@@ -292,16 +488,19 @@ export const ImagesTab = forwardRef<
   const [mockPruneNotice, setMockPruneNotice] = useState<string | null>(null)
 
   const [pullDialogOpen, setPullDialogOpen] = useState(false)
-  const [registryName, setRegistryName] = useState('Docker Hub')
-  const [registryAvailable, setRegistryAvailable] = useState<boolean | null>(null)
-  const [registryChecking, setRegistryChecking] = useState(false)
-  const [registryReason, setRegistryReason] = useState('')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searching, setSearching] = useState(false)
-  const [searchResults, setSearchResults] = useState<RegistrySearchItem[]>([])
-  const [selectedPullImage, setSelectedPullImage] = useState('')
+  const [selectedRegistryId, setSelectedRegistryId] = useState(PULL_REGISTRY_OPTIONS[0]?.id ?? 'docker-hub')
+  const [pullImageInput, setPullImageInput] = useState('')
   const [pulling, setPulling] = useState(false)
   const [pullLog, setPullLog] = useState('')
+  const [pullOperationId, setPullOperationId] = useState<string | null>(null)
+  const [pullHistoryOpen, setPullHistoryOpen] = useState(false)
+  const [pullHistoryFilter, setPullHistoryFilter] = useState<'all' | 'failed'>('all')
+  const [pullViewerOpen, setPullViewerOpen] = useState(false)
+  const [selectedPullOperation, setSelectedPullOperation] =
+    useState<DockerImagePullOperation | null>(null)
+  const [pullSuggestionsDismissed, setPullSuggestionsDismissed] = useState(false)
+  const [registryStatus, setRegistryStatus] = useState<RegistryStatusResult | null>(null)
+  const [checkingRegistry, setCheckingRegistry] = useState(false)
 
   const toggleImageExpansion = (imageId: string) => {
     setExpandedImageId(current => {
@@ -352,6 +551,41 @@ export const ImagesTab = forwardRef<
     gcTime: 5 * 60_000,
   })
 
+  const { data: activePullOperations = [] } = useQuery<DockerImagePullOperation[]>({
+    queryKey: ['docker', 'image-pull-operations', serverId, 'in_progress'],
+    queryFn: async () => {
+      const response = (await pb.send(
+        dockerApiPath(serverId, '/image-pull-operations?status=in_progress&limit=6'),
+        { method: 'GET' }
+      )) as DockerImagePullOperationListResponse
+      return Array.isArray(response.items) ? response.items : []
+    },
+    enabled: !!serverId,
+    refetchInterval: query => {
+      const items = query.state.data ?? []
+      return items.length > 0 || !!pullOperationId ? 3000 : false
+    },
+    placeholderData: previousData => previousData,
+    staleTime: 2_000,
+    gcTime: 5 * 60_000,
+  })
+
+  const { data: recentPullOperations = [] } = useQuery<DockerImagePullOperation[]>({
+    queryKey: ['docker', 'image-pull-operations', serverId, 'all'],
+    queryFn: async () => {
+      const response = (await pb.send(
+        dockerApiPath(serverId, '/image-pull-operations?status=all&limit=10'),
+        { method: 'GET' }
+      )) as DockerImagePullOperationListResponse
+      return Array.isArray(response.items) ? response.items : []
+    },
+    enabled: !!serverId,
+    refetchInterval: pullOperationId ? 3000 : false,
+    placeholderData: previousData => previousData,
+    staleTime: 5_000,
+    gcTime: 5 * 60_000,
+  })
+
   const usageMap = useMemo(() => {
     const next: Record<string, boolean> = {}
     for (const img of images) {
@@ -371,20 +605,46 @@ export const ImagesTab = forwardRef<
   }, [usageMap])
 
   const loadImageInspect = async (id: string) => {
-    if (!id || inspectMap[id] || inspectLoadingMap[id]) return
+    if (!id || inspectMap[id] || inspectLoadingMap[id]) return inspectMap[id] || ''
     setInspectLoadingMap(state => ({ ...state, [id]: true }))
     try {
       const res = await pb.send(dockerApiPath(serverId, `/images/${id}/inspect`), {
         method: 'GET',
       })
-      setInspectMap(state => ({ ...state, [id]: String(res.output || '') }))
+      const output = String(res.output || '')
+      setInspectMap(state => ({ ...state, [id]: output }))
+      return output
     } catch (err) {
+      const message = getApiErrorMessage(err, 'Failed to inspect image')
       setInspectMap(state => ({
         ...state,
-        [id]: getApiErrorMessage(err, 'Failed to inspect image'),
+        [id]: message,
       }))
+      return message
     } finally {
       setInspectLoadingMap(state => ({ ...state, [id]: false }))
+    }
+  }
+
+  const openInspectDialog = (image: DockerImage) => {
+    setInspectDialogImage(image)
+    void loadImageInspect(image.ID)
+  }
+
+  const openPullOperationViewer = async (operation: DockerImagePullOperation) => {
+    setSelectedPullOperation(operation)
+    setPullViewerOpen(true)
+    try {
+      const response = (await pb.send(
+        dockerApiPath(serverId, `/image-pull-operations/${operation.id}`),
+        { method: 'GET' }
+      )) as DockerImagePullOperation
+      setSelectedPullOperation(response)
+    } catch (err) {
+      setSelectedPullOperation({
+        ...operation,
+        output: getApiErrorMessage(err, 'Failed to load pull operation'),
+      })
     }
   }
 
@@ -451,82 +711,174 @@ export const ImagesTab = forwardRef<
     }
   }
 
-  const checkRegistry = async () => {
-    setRegistryChecking(true)
-    setRegistryReason('')
-    setRegistryAvailable(null)
-    try {
-      const res = (await pb.send(dockerApiPath(serverId, '/images/registry/status'), {
-        method: 'GET',
-      })) as { available?: boolean; registry?: string; reason?: string }
-      setRegistryAvailable(!!res.available)
-      setRegistryName(res.registry || 'Docker Hub')
-      setRegistryReason(res.reason || '')
-    } catch (err) {
-      setRegistryAvailable(false)
-      setRegistryReason(getApiErrorMessage(err, 'Registry check failed'))
-    } finally {
-      setRegistryChecking(false)
-    }
-  }
-
   const openPullDialog = (prefill?: string) => {
     setPullDialogOpen(true)
-    setSearchResults([])
-    setSearchQuery(prefill || '')
-    setSelectedPullImage(prefill || '')
+    setSelectedRegistryId(PULL_REGISTRY_OPTIONS[0]?.id ?? 'docker-hub')
+    setPullImageInput(prefill || '')
     setPullLog('')
-    void checkRegistry()
+    setPullOperationId(null)
+    setPulling(false)
+    setPullSuggestionsDismissed(false)
+    setRegistryStatus(null)
   }
 
   useImperativeHandle(ref, () => ({
     openPullDialog: (defaultImage?: string) => openPullDialog(defaultImage),
+    openPullHistory: (filter = 'all') => {
+      setPullHistoryFilter(filter)
+      setPullHistoryOpen(true)
+    },
     openPruneDialog: () => setPruneConfirmOpen(true),
   }))
 
-  const searchRegistry = async () => {
-    const keyword = searchQuery.trim()
-    if (!keyword) return
-    setSearching(true)
-    setSearchResults([])
+  const selectedRegistry = useMemo(
+    () =>
+      PULL_REGISTRY_OPTIONS.find(option => option.id === selectedRegistryId) ||
+      PULL_REGISTRY_OPTIONS[0],
+    [selectedRegistryId]
+  )
+
+  const resolvedPullImage = useMemo(() => {
+    return normalizeReferenceInput(pullImageInput)
+  }, [pullImageInput])
+
+  const referenceKeyword = useMemo(() => {
+    return normalizeReferenceInput(pullImageInput)
+  }, [pullImageInput])
+
+  const openOfficialSearch = () => {
+    if (typeof window === 'undefined') return
+    window.open(selectedRegistry.officialSearchUrl(referenceKeyword), '_blank', 'noopener,noreferrer')
+  }
+
+  const useReference = (reference: string) => {
+    setPullImageInput(reference)
+    setPullSuggestionsDismissed(true)
+  }
+
+  useEffect(() => {
+    if (!pullOperationId) return
+
+    let cancelled = false
+    let timer: number | undefined
+
+    const poll = async () => {
+      try {
+        const response = (await pb.send(
+          dockerApiPath(serverId, `/image-pull-operations/${pullOperationId}`),
+          { method: 'GET' }
+        )) as DockerImagePullOperation
+        if (cancelled) return
+
+        const nextLog = String(response.output || '').trim()
+        setPullLog(nextLog || `Pull ${response.phase}...`)
+
+        if (response.terminal_status === 'none') {
+          setPulling(true)
+          timer = window.setTimeout(() => {
+            void poll()
+          }, 1500)
+          return
+        }
+
+        setPulling(false)
+        setPullOperationId(null)
+
+        if (response.terminal_status === 'success') {
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ['docker', 'images', serverId] }),
+            queryClient.invalidateQueries({
+              queryKey: ['docker', 'containers', 'for-images', serverId],
+            }),
+            queryClient.invalidateQueries({
+              queryKey: ['docker', 'image-pull-operations', serverId],
+            }),
+          ])
+          return
+        }
+
+        setActionError(response.failure_reason || 'Failed to pull image')
+      } catch (err) {
+        if (cancelled) return
+        setPulling(false)
+        setPullOperationId(null)
+        setPullLog(getApiErrorMessage(err, 'Failed to load pull operation'))
+      }
+    }
+
+    void poll()
+
+    return () => {
+      cancelled = true
+      if (timer !== undefined) window.clearTimeout(timer)
+    }
+  }, [pullOperationId, queryClient, serverId])
+
+  const checkRegistryReachable = async () => {
     try {
-      const res = await pb.send(dockerApiUrl(serverId, '/images/registry/search', { q: keyword, limit: 30 }), {
+      setCheckingRegistry(true)
+      setRegistryStatus(null)
+      const response = await pb.send(dockerApiPath(serverId, '/images/registry/status'), {
         method: 'GET',
       })
-      setSearchResults(parseRegistrySearch(String(res.output || '')))
+      setRegistryStatus({
+        available: !!response.available,
+        registry: typeof response.registry === 'string' ? response.registry : selectedRegistry.label,
+        reason: typeof response.reason === 'string' ? response.reason : undefined,
+      })
     } catch (err) {
-      setActionError(getApiErrorMessage(err, 'Failed to search registry'))
+      setRegistryStatus({
+        available: false,
+        registry: selectedRegistry.label,
+        reason: getApiErrorMessage(err, 'Failed to check registry reachability'),
+      })
     } finally {
-      setSearching(false)
+      setCheckingRegistry(false)
     }
   }
 
   const pullSelectedImage = async () => {
-    const name = selectedPullImage.trim()
+    const name = resolvedPullImage.trim()
     if (!name) return
     try {
       setActionError(null)
       setPulling(true)
-      setPullLog(`Pulling ${name}...`)
+      setPullLog(`Submitting pull for ${name}...`)
       const res = await pb.send(dockerApiPath(serverId, '/images/pull'), {
         method: 'POST',
         body: { name },
       })
-      setPullLog(String(res.output || '(no output)'))
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['docker', 'images', serverId] }),
-        queryClient.invalidateQueries({
-          queryKey: ['docker', 'containers', 'for-images', serverId],
-        }),
-      ])
+      const operationId = typeof res.operation_id === 'string' ? res.operation_id : ''
+      setPullOperationId(operationId || null)
+      setPullLog(String(res.message || `Pull accepted for ${name}.`))
+      setPulling(!!operationId)
+      await queryClient.invalidateQueries({
+        queryKey: ['docker', 'image-pull-operations', serverId],
+      })
     } catch (err) {
-      setPullLog(getApiErrorMessage(err, 'Failed to pull image'))
-    } finally {
+      setPullOperationId(null)
       setPulling(false)
+      setPullLog(getApiErrorMessage(err, 'Failed to pull image'))
     }
   }
 
   const loadError = error ? getApiErrorMessage(error, 'Failed to load images') : null
+
+  const recentCompletedPulls = useMemo(
+    () => recentPullOperations.filter(operation => operation.terminal_status !== 'none').slice(0, 6),
+    [recentPullOperations]
+  )
+  const filteredPullHistory = useMemo(
+    () =>
+      pullHistoryFilter === 'failed'
+        ? recentCompletedPulls.filter(operation => operation.terminal_status === 'failed')
+        : recentCompletedPulls,
+    [pullHistoryFilter, recentCompletedPulls]
+  )
+  const recentFailedPullCount = useMemo(
+    () => recentCompletedPulls.filter(operation => operation.terminal_status === 'failed').length,
+    [recentCompletedPulls]
+  )
 
   const filtered = images.filter(image => {
     const textMatched =
@@ -595,6 +947,19 @@ export const ImagesTab = forwardRef<
     })
   }, [onSummaryChange, sorted.length, totalPages, unusedCount, usedCount])
 
+  useEffect(() => {
+    onPullActivityChange?.({
+      activeCount: activePullOperations.length,
+      recentFailedCount: recentFailedPullCount,
+      hasRecentHistory: recentCompletedPulls.length > 0,
+    })
+  }, [
+    activePullOperations.length,
+    onPullActivityChange,
+    recentCompletedPulls.length,
+    recentFailedPullCount,
+  ])
+
   const toggleSort = (key: 'repo' | 'size' | 'created') => {
     if (sortKey === key) {
       setSortDir(dir => (dir === 'asc' ? 'desc' : 'asc'))
@@ -624,6 +989,39 @@ export const ImagesTab = forwardRef<
     }
     return next
   }, [containers, images])
+  const referenceItems = useMemo(() => {
+    const keyword = referenceKeyword.trim().toLowerCase()
+    if (!keyword) return []
+
+    const ranked = images
+      .filter(image => image.Repository && image.Repository !== '<none>')
+      .map(image => {
+        const ref = imageRef(image) || image.Repository
+        const score = scoreReferenceMatch(ref, keyword)
+        return { image, ref, score }
+      })
+      .filter(item => item.score > 0)
+      .sort((left, right) => {
+        if (right.score !== left.score) return right.score - left.score
+        return left.ref.localeCompare(right.ref)
+      })
+
+    const candidates = ranked.slice(0, 8)
+
+    return candidates.map(({ image, ref }) => {
+      const linkedCount = relatedContainersMap[image.ID]?.length || 0
+      const parsed = parseImageReferenceParts(ref)
+      return {
+        id: image.ID,
+        ref,
+        displayRef: parsed.tag ? `${parsed.name}:${parsed.tag}` : parsed.name || ref,
+        organizationLabel: parsed.namespace || 'library',
+        usageLabel: usageMap[image.ID]
+          ? `Used by ${linkedCount} container${linkedCount > 1 ? 's' : ''}`
+          : 'Unused locally',
+      }
+    })
+  }, [images, referenceKeyword, relatedContainersMap, usageMap])
   const allSelectableChecked =
     selectableIds.length > 0 && selectableIds.every(id => selectedIds.includes(id))
   const someSelectableChecked = selectableIds.some(id => selectedIds.includes(id))
@@ -787,6 +1185,14 @@ export const ImagesTab = forwardRef<
                 const used = !!usageMap[img.ID]
                 const isExpanded = expandedImageId === img.ID
                 const linkedContainers = relatedContainersMap[img.ID] || []
+                const inspect = parseInspect(inspectMap[img.ID] || '')
+                const imageNames = formatImageNames(inspect)
+                const repositories = formatImageRepositories(inspect)
+                const imagePorts = formatImagePorts(inspect)
+                const createdAt = formatImageCreated(
+                  typeof inspect?.Created === 'string' ? inspect.Created : undefined
+                )
+                const imageSize = formatImageBytes(inspect?.Size)
                 return (
                   <Fragment key={img.ID}>
                     <TableRow className={cn(used && 'opacity-60', isExpanded && 'bg-muted/20')}>
@@ -806,11 +1212,13 @@ export const ImagesTab = forwardRef<
                           />
                           <button
                             type="button"
-                            className="min-w-0 truncate text-left font-mono text-xs font-semibold leading-tight text-foreground hover:underline"
+                            className="group inline-flex min-h-8 min-w-0 items-center text-left"
                             title={img.Repository}
                             onClick={() => toggleImageExpansion(img.ID)}
                           >
-                            {img.Repository}
+                            <span className="truncate text-xs font-semibold leading-tight text-foreground group-hover:underline">
+                              {img.Repository}
+                            </span>
                           </button>
                         </div>
                       </TableCell>
@@ -844,6 +1252,12 @@ export const ImagesTab = forwardRef<
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem
+                              onSelect={() => setTimeout(() => openInspectDialog(img), 0)}
+                            >
+                              <FileText className="h-4 w-4 mr-2" /> Inspect
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
                               onSelect={() => setTimeout(() => openPullDialog(imageRef(img) || img.Repository), 0)}
                             >
                               <Download className="h-4 w-4 mr-2" /> Pull
@@ -860,15 +1274,73 @@ export const ImagesTab = forwardRef<
                     </TableRow>
                     {isExpanded && (
                       <TableRow>
-                          <TableCell colSpan={7} className="bg-muted/20 px-0 py-3">
+                        <TableCell colSpan={7} className="bg-muted/20 px-3 py-3">
                           {inspectLoadingMap[img.ID] ? (
                             <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
                               <Loader2 className="h-4 w-4 animate-spin" /> Loading inspect...
                             </div>
                           ) : (
-                            <pre className="max-h-[300px] overflow-auto whitespace-pre-wrap rounded-md border bg-muted/40 p-3 font-mono text-xs">
-                              {inspectMap[img.ID] || '(empty output)'}
-                            </pre>
+                            <div className="space-y-4 rounded-lg bg-background/80 p-3 text-xs">
+                              <div className="text-sm font-medium">Image Details</div>
+
+                              <div className="overflow-hidden rounded-md border">
+                                <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">Metadata</div>
+                                <div className="grid gap-x-6 gap-y-3 p-3 md:grid-cols-2 xl:grid-cols-3">
+                                  <div className="space-y-1">
+                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">ID</div>
+                                    <div className="font-mono text-foreground" title={inspect?.Id || img.ID || ''}>
+                                      {img.ID?.substring(0, 12) || '-'}
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Names</div>
+                                    <div className="break-all text-foreground">{metadataValue(imageNames)}</div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Repository</div>
+                                    <div className="break-all text-foreground">{metadataValue(repositories.length > 0 ? repositories : [img.Repository].filter(Boolean))}</div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Size</div>
+                                    <div className="text-foreground">{imageSize !== '-' ? imageSize : img.Size || '-'}</div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Created</div>
+                                    <div className="text-foreground">{createdAt !== '-' ? createdAt : img.CreatedSince || '-'}</div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Workdir</div>
+                                    <div className="break-all text-foreground">{metadataValue(typeof inspect?.Config?.WorkingDir === 'string' ? inspect.Config.WorkingDir : undefined)}</div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Architecture</div>
+                                    <div className="text-foreground">{metadataValue(typeof inspect?.Architecture === 'string' ? inspect.Architecture : undefined)}</div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">OS</div>
+                                    <div className="text-foreground">{metadataValue(typeof inspect?.Os === 'string' ? inspect.Os : undefined)}</div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Ports</div>
+                                    <div className="break-all text-foreground">{metadataValue(imagePorts)}</div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {inspect && inspectMap[img.ID] && (
+                                <div className="flex justify-end">
+                                  <Button
+                                    type="button"
+                                    variant="link"
+                                    size="sm"
+                                    className="h-auto px-0 text-xs"
+                                    onClick={() => openInspectDialog(img)}
+                                  >
+                                    <FileText className="mr-1 h-3.5 w-3.5" /> View full inspect
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
                           )}
                         </TableCell>
                       </TableRow>
@@ -974,95 +1446,143 @@ export const ImagesTab = forwardRef<
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog open={pullDialogOpen} onOpenChange={setPullDialogOpen}>
-        <DialogContent className="max-w-3xl">
+      <Dialog
+        open={pullDialogOpen}
+        onOpenChange={open => {
+          setPullDialogOpen(open)
+          if (!open) {
+            if (!pullOperationId) {
+              setPullLog('')
+            }
+            setRegistryStatus(null)
+            setPullSuggestionsDismissed(false)
+          }
+        }}
+      >
+        <DialogContent className="w-[min(92vw,48rem)] max-w-3xl overflow-hidden">
           <DialogHeader>
             <DialogTitle>Pull image</DialogTitle>
             <DialogDescription>
-              Connect to default registry and search images to pull.
+              Pull directly from the selected registry. Search/reference is optional.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
-            <div className="rounded-md border p-3 text-sm">
-              <div className="font-medium">Registry: {registryName}</div>
-              {registryChecking && (
-                <div className="text-xs text-muted-foreground mt-1">Checking connectivity...</div>
-              )}
-              {!registryChecking && registryAvailable === true && (
-                <div className="text-xs text-green-600 mt-1">Registry is reachable.</div>
-              )}
-              {!registryChecking && registryAvailable === false && (
-                <div className="text-xs text-destructive mt-1">
-                  Registry is not reachable. {registryReason}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Registry</label>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <select
+                  className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                  value={selectedRegistryId}
+                  onChange={event => {
+                    setSelectedRegistryId(event.target.value)
+                    setRegistryStatus(null)
+                  }}
+                >
+                  {PULL_REGISTRY_OPTIONS.map(option => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="sm:shrink-0"
+                  onClick={() => void checkRegistryReachable()}
+                  disabled={checkingRegistry}
+                >
+                  {checkingRegistry ? (
+                    <>
+                      <Loader2 className="mr-1 h-4 w-4 animate-spin" /> Checking...
+                    </>
+                  ) : (
+                    'Check reachable'
+                  )}
+                </Button>
+              </div>
+              {registryStatus && (
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <Badge variant={registryStatus.available ? 'secondary' : 'destructive'}>
+                    {registryStatus.available ? 'Reachable from target server' : 'Not reachable from target server'}
+                  </Badge>
+                  {registryStatus.reason && (
+                    <span className="break-all text-muted-foreground">{registryStatus.reason}</span>
+                  )}
                 </div>
               )}
             </div>
 
-            {registryAvailable && (
-              <>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    placeholder="Search image in registry..."
-                    className="border rounded-md px-3 py-1.5 text-sm bg-background flex-1"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    onKeyDown={e =>
-                      e.key === 'Enter' && (e.preventDefault(), void searchRegistry())
-                    }
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void searchRegistry()}
-                    disabled={searching || !searchQuery.trim()}
-                  >
-                    <Search className="h-4 w-4 mr-1" /> Search
-                  </Button>
-                </div>
-
-                <div className="rounded-md border max-h-[220px] overflow-auto">
-                  {searching ? (
-                    <div className="px-3 py-2 text-xs text-muted-foreground inline-flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" /> Searching...
-                    </div>
-                  ) : searchResults.length > 0 ? (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium">Image</label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      aria-label="Image input help"
+                    >
+                      <CircleHelp className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" sideOffset={6} className="max-w-[260px] leading-5">
+                    Use name:tag when you know the exact reference, for example wordpress:latest.
+                    Leave tag empty only when you want the registry default.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <input
+                type="text"
+                placeholder="wordpress:latest"
+                className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                value={pullImageInput}
+                onChange={event => {
+                  setPullImageInput(event.target.value)
+                  setPullSuggestionsDismissed(false)
+                }}
+              />
+              <div className="flex items-center justify-end">
+                <Button variant="link" size="sm" className="h-auto px-0" onClick={openOfficialSearch}>
+                  <ExternalLink className="mr-1 h-4 w-4" /> Online search
+                </Button>
+              </div>
+              {referenceKeyword && !pullSuggestionsDismissed && (
+                <div className="max-h-[220px] overflow-auto rounded-md border">
+                  {referenceItems.length > 0 ? (
                     <div className="divide-y">
-                      {searchResults.map(item => (
+                      {referenceItems.map(item => (
                         <button
-                          key={item.name}
+                          key={item.id}
                           type="button"
-                          className="w-full text-left px-3 py-2 hover:bg-muted/30"
-                          onClick={() => setSelectedPullImage(item.name)}
+                          className="flex w-full min-w-0 items-center justify-between gap-3 px-3 py-2 text-left hover:bg-muted/30"
+                          onClick={() => useReference(item.ref)}
                         >
-                          <div className="text-sm font-medium flex items-center gap-2">
-                            {item.name}
-                            {item.is_official && <Badge variant="secondary">Official</Badge>}
+                          <div className="min-w-0">
+                            <div className="flex min-w-0 items-center gap-2 text-sm font-medium">
+                              <Badge variant="outline" className="text-[10px] font-normal">LOCAL</Badge>
+                              <span className="truncate">{item.displayRef}</span>
+                            </div>
+                            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                              <span className="truncate">Organization: {item.organizationLabel}</span>
+                              <span className="hidden sm:inline">·</span>
+                              <span>{item.usageLabel}</span>
+                            </div>
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            {item.description || '-'}
-                          </div>
+                          <span className="text-xs text-primary">Use</span>
                         </button>
                       ))}
                     </div>
                   ) : (
-                    <div className="px-3 py-2 text-xs text-muted-foreground">No results</div>
+                    <div className="px-3 py-2 text-xs text-muted-foreground">No precise local matches</div>
                   )}
                 </div>
-              </>
-            )}
+              )}
+            </div>
 
             <div className="space-y-2">
-              <input
-                type="text"
-                placeholder="Selected image name"
-                className="border rounded-md px-3 py-1.5 text-sm bg-background w-full"
-                value={selectedPullImage}
-                onChange={e => setSelectedPullImage(e.target.value)}
-              />
               <div className="rounded-md border bg-muted/20 p-3 max-h-[200px] overflow-auto">
-                <pre className="text-xs font-mono whitespace-pre-wrap">
+                <pre className="break-all text-xs font-mono whitespace-pre-wrap">
                   {pullLog || 'Pull logs will appear here.'}
                 </pre>
               </div>
@@ -1075,13 +1595,145 @@ export const ImagesTab = forwardRef<
             </Button>
             <Button
               onClick={() => void pullSelectedImage()}
-              disabled={pulling || !selectedPullImage.trim() || registryAvailable === false}
+              disabled={pulling || !resolvedPullImage.trim()}
             >
               {pulling ? 'Pulling...' : 'Pull'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={pullViewerOpen} onOpenChange={setPullViewerOpen}>
+        <DialogContent className="max-w-3xl overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>Image pull details</DialogTitle>
+            <DialogDescription>
+              {selectedPullOperation?.image_name || 'Selected image pull operation'}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedPullOperation && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <Badge variant={pullOperationTone(selectedPullOperation)}>
+                  {pullOperationLabel(selectedPullOperation)}
+                </Badge>
+                <span>Started {formatPullOperationTimestamp(selectedPullOperation.created)}</span>
+                <span>Updated {formatPullOperationTimestamp(selectedPullOperation.updated)}</span>
+              </div>
+              {selectedPullOperation.failure_reason && (
+                <Alert variant="destructive">
+                  <AlertDescription>{selectedPullOperation.failure_reason}</AlertDescription>
+                </Alert>
+              )}
+              <ScrollArea className="h-[320px] rounded-md border bg-muted/30 p-3">
+                <pre className="whitespace-pre-wrap break-all font-mono text-xs leading-5">
+                  {selectedPullOperation.output || 'No output available.'}
+                </pre>
+              </ScrollArea>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={pullHistoryOpen} onOpenChange={setPullHistoryOpen}>
+        <DialogContent className="max-w-3xl overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>Recent image pulls</DialogTitle>
+            <DialogDescription>
+              Completed and failed pull operations for this server.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>{recentCompletedPulls.length} recent item{recentCompletedPulls.length === 1 ? '' : 's'}</span>
+              {recentFailedPullCount > 0 && <Badge variant="destructive">{recentFailedPullCount} failed</Badge>}
+            </div>
+            <select
+              value={pullHistoryFilter}
+              onChange={event => setPullHistoryFilter(event.target.value as 'all' | 'failed')}
+              className="h-8 rounded-md border bg-background px-2 text-xs"
+              aria-label="Filter recent pull history"
+            >
+              <option value="all">All recent</option>
+              <option value="failed">Failed only</option>
+            </select>
+          </div>
+          <ScrollArea className="h-[360px] pr-1">
+            <div className="space-y-2">
+              {filteredPullHistory.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {pullHistoryFilter === 'failed'
+                    ? 'No failed pull operations in recent history.'
+                    : 'No recent pull history.'}
+                </p>
+              ) : (
+                filteredPullHistory.map(operation => (
+                  <div
+                    key={operation.id}
+                    className="flex items-start gap-3 rounded-md border bg-background px-3 py-2"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPullHistoryOpen(false)
+                        void openPullOperationViewer(operation)
+                      }}
+                      className="flex min-w-0 flex-1 items-start justify-between gap-3 text-left hover:text-primary"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">{operation.image_name}</div>
+                        <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                          {operation.failure_reason || `Updated ${formatPullOperationTimestamp(operation.updated)}`}
+                        </div>
+                      </div>
+                      <Badge variant={pullOperationTone(operation)}>{pullOperationLabel(operation)}</Badge>
+                    </button>
+                    {operation.terminal_status === 'failed' && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 shrink-0 px-2 text-xs"
+                        onClick={() => {
+                          setPullHistoryOpen(false)
+                          openPullDialog(operation.image_name)
+                        }}
+                      >
+                        Retry pull
+                      </Button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      <DockerTextDialog
+        open={!!inspectDialogImage}
+        onOpenChange={open => !open && setInspectDialogImage(null)}
+        title={`Image Inspect: ${inspectDialogImage ? imageRef(inspectDialogImage) || inspectDialogImage.Repository || inspectDialogImage.ID.slice(0, 12) : ''}`}
+        description="Structured docker inspect output for this image."
+        content={inspectDialogImage ? inspectMap[inspectDialogImage.ID] || '' : ''}
+        loading={!!(inspectDialogImage && inspectLoadingMap[inspectDialogImage.ID])}
+        loadingText="Loading inspect..."
+        emptyText="(no output)"
+        onRefresh={inspectDialogImage ? () => {
+          setInspectMap(state => {
+            const next = { ...state }
+            delete next[inspectDialogImage.ID]
+            return next
+          })
+          return void loadImageInspect(inspectDialogImage.ID)
+        } : undefined}
+        refreshDisabled={!inspectDialogImage}
+        downloadBaseName={`${inspectDialogImage ? (imageRef(inspectDialogImage) || inspectDialogImage.Repository || 'image').replace(/[^a-zA-Z0-9._-]+/g, '-') : 'image'}-inspect`}
+        downloadExtension="json"
+        copySuccessText="Inspect copied"
+        copyFailureText="Failed to copy inspect"
+        downloadFailureText="Failed to download inspect"
+      />
     </div>
   )
 })

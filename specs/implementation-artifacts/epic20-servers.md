@@ -11,7 +11,7 @@
 - no backward-compatibility UX requirement remains for the modal flow
 - the authoritative frontend surface for systemd service management is Server Detail > `Systemd` tab
 - terminal workspace design should not reintroduce a parallel systemd-management modal
-Covers all server-domain business: the `servers` resource registry, SSH-based terminal access, SFTP file management, Docker container exec, and server operations (power, ports, systemd). Both frontend and backend are owned here. The Terminal UI framework (tab rail, TerminalPanel component, ConnectError system) is provided by Epic 15.
+Covers all server-domain business: the `servers` resource registry, SSH-based terminal access, SFTP file management, Docker container exec, and server operations (power, ports, systemd, cron). Both frontend and backend are owned here. The Terminal UI framework (tab rail, TerminalPanel component, ConnectError system) is provided by Epic 15.
 
 ---
 
@@ -23,8 +23,14 @@ Covers all server-domain business: the `servers` resource registry, SSH-based te
 | SSH PTY backend + shell route | Tunnel establishment (→ Epic 16) |
 | SFTP file management | App lifecycle execution and managed app operations (→ Epic 17 / Epic 18) |
 | Docker Exec on server containers | Shared settings delivery for terminal limits (→ Epic 13 Settings Module) |
-| Server Ops: connectivity, power, ports, systemd | Database / cloud resource types (future epics) |
+| Server Ops: connectivity, power, ports, systemd, cron | Database / cloud resource types (future epics) |
 | Server-specific frontend (Files, Docker panels) | |
+
+Clarification:
+
+- Epic 20 owns Linux server cron management on a managed remote server.
+- Epic 25 owns PocketBase native cron inventory and execution logs for AppOS internal jobs.
+- These are separate products and must not be merged into one generic "tasks" abstraction in MVP.
 
 ---
 
@@ -75,7 +81,7 @@ backend/domain/servers/
 backend/domain/routes/
   server_shell.go     # WS: SSH PTY handler
   server_files.go     # REST: SFTP-backed file operations
-  server_ops.go       # REST: connectivity, power, ports, systemd
+  server_ops.go       # REST: connectivity, power, ports, systemd, cron
   server_containers.go  # WS: Docker exec PTY handler
 ```
 
@@ -199,7 +205,7 @@ All custom routes require `RequireSuperuserAuth()`. Server Registry uses PocketB
 | `Server Shell` | SSH PTY WebSocket session |
 | `Server Containers` | Docker exec PTY WebSocket session |
 | `Server Files` | SFTP-backed file management |
-| `Server Ops` | Connectivity, power, ports, systemd |
+| `Server Ops` | Connectivity, power, ports, systemd, cron |
 
 ---
 
@@ -294,6 +300,20 @@ Server lifecycle management and OS-level inspection via SSH.
 | PUT | `/api/servers/:serverId/ops/systemd/:service/unit` | Write unit file |
 | POST | `/api/servers/:serverId/ops/systemd/:service/unit/verify` | Validate unit file syntax |
 | POST | `/api/servers/:serverId/ops/systemd/:service/unit/apply` | Write + reload unit |
+| GET | `/api/servers/:serverId/ops/cron/jobs` | List cron entries from the managed target crontab |
+| POST | `/api/servers/:serverId/ops/cron/jobs` | Create one cron entry |
+| PUT | `/api/servers/:serverId/ops/cron/jobs/:entryId` | Update one cron entry |
+| POST | `/api/servers/:serverId/ops/cron/jobs/:entryId/enable` | Enable one cron entry |
+| POST | `/api/servers/:serverId/ops/cron/jobs/:entryId/disable` | Disable one cron entry |
+| DELETE | `/api/servers/:serverId/ops/cron/jobs/:entryId` | Delete one cron entry |
+
+**Cron MVP contract:**
+
+- target only one controlled Linux crontab per server in MVP
+- support only standard five-field cron expressions plus command text
+- support only list, create, edit, enable, disable, delete
+- do not introduce a generic scheduler, job template engine, or alerting layer
+- do not overlap with PocketBase native cron management from Epic 25
 
 **Connectivity response schema:**
 
@@ -455,6 +475,7 @@ Establish the `servers` collection and its full CRUD surface. This is a pure dat
 | 20.5 | Server Ops | connectivity check (with error category), power, ports, systemd backend route family |
 | 20.8 | Server Detail Systemd Tab | server-detail `Systemd` tab UX, paginated service inventory, search, featured services |
 | 20.11 | Server Detail Docker Tabs | server-detail `Docker` tab shell, inherited server context, inner tab IA, `/docker` transition direction |
+| 20.13 | Server Detail Cron Tab | server-detail `Cron` tab with minimal cron list, create, edit, enable/disable, delete |
 
 | Story | Status |
 |-------|--------|
@@ -465,6 +486,7 @@ Establish the `servers` collection and its full CRUD surface. This is a pure dat
 | 20.5 | 🟡 In Review |
 | 20.8 | Draft |
 | 20.11 | Draft |
+| 20.13 | Draft |
 
 ---
 

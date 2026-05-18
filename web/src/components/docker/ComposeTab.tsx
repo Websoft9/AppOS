@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { Fragment, useState, useEffect, useMemo, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { pb } from '@/lib/pb'
 import { dockerApiPath } from '@/lib/docker-api'
@@ -22,13 +22,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
   Play,
   Square,
   RotateCw,
@@ -39,16 +32,16 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
-  Copy,
-  Download,
   Loader2,
   Filter,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  Download,
 } from 'lucide-react'
 import { getApiErrorMessage } from '@/lib/api-error'
 import { cn } from '@/lib/utils'
+import { DockerTextDialog } from '@/components/docker/DockerTextDialog'
 
 const COMPOSE_SORT_KEY = 'docker.compose.sort'
 const DOCKER_PAGE_SIZE_KEY = 'docker.list.page_size'
@@ -96,8 +89,48 @@ interface ComposeMetadataResponse {
   items?: Record<string, { containers?: ComposeMetadataContainer[] }>
 }
 
+interface ComposePsPublisher {
+  URL?: string
+  TargetPort?: number
+  PublishedPort?: number
+  Protocol?: string
+}
+
+interface ComposePsRow {
+  ID?: string
+  Name?: string
+  Service?: string
+  State?: string
+  Health?: string
+  Publishers?: ComposePsPublisher[] | null
+}
+
 interface ContainerMetadataResponse {
   items?: Record<string, { compose_project?: string }>
+}
+
+type ComposeTextRequest = {
+  kind: 'logs' | 'config'
+  projectName: string
+  projectDir: string
+  configPath?: string
+}
+
+type ComposeOperationKey = 'pull' | 'up' | 'start' | 'stop' | 'restart' | 'down' | 'down-remove'
+
+type ComposeOperationRequest = {
+  key: ComposeOperationKey
+  label: string
+  projectName: string
+  projectDir: string
+  requestPath: string
+  body?: Record<string, unknown>
+}
+
+export interface ComposeTabSummary {
+  totalItems: number
+  totalPages: number
+  statusCounts: Array<{ status: string; count: number }>
 }
 
 function parseContainers(output: string): ContainerListRow[] {
@@ -169,6 +202,51 @@ function parseProjects(output: string): ComposeProject[] {
   }
 }
 
+function parseComposePs(output: string): ComposePsRow[] {
+  if (!output.trim()) return []
+  try {
+    const parsed = JSON.parse(output)
+    if (Array.isArray(parsed)) return parsed as ComposePsRow[]
+    if (parsed && typeof parsed === 'object') return [parsed as ComposePsRow]
+  } catch {
+    // fall through to line-based parsing
+  }
+  return output
+    .trim()
+    .split('\n')
+    .map(line => {
+      try {
+        return JSON.parse(line)
+      } catch {
+        return null
+      }
+    })
+    .filter(Boolean) as ComposePsRow[]
+}
+
+function formatComposePsPorts(publishers?: ComposePsPublisher[] | null): string {
+  if (!publishers || publishers.length === 0) return '-'
+  return publishers
+    .map(publisher => {
+      const host = publisher.URL || '0.0.0.0'
+      const published = publisher.PublishedPort ?? '?'
+      const target = publisher.TargetPort ?? '?'
+      const protocol = (publisher.Protocol || 'tcp').toLowerCase()
+      return `${host}:${published}->${target}/${protocol}`
+    })
+    .join(', ')
+}
+
+function composePsStateLabel(row: ComposePsRow): string {
+  const parts = [row.State, row.Health].filter(Boolean)
+  return parts.length > 0 ? parts.join(' / ') : 'unknown'
+}
+
+function lastPathSegment(path: string): string {
+  const parts = path.split('/').filter(Boolean)
+  return parts[parts.length - 1] || path
+}
+
 function statusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
   if (status?.toLowerCase().includes('running')) return 'default'
   if (status?.toLowerCase().includes('exited') || status?.toLowerCase().includes('dead')) {
@@ -182,10 +260,12 @@ export function ComposeTab({
   refreshSignal = 0,
   embeddedInWorkspace = false,
   externalFilter,
+  externalStatusFilter,
   page: externalPage,
   pageSize: externalPageSize,
   onPageChange,
   onSummaryChange,
+  onStatusFilterChange,
   onOpenContainerFilter,
   onOpenContainerNames,
 }: {
@@ -193,10 +273,12 @@ export function ComposeTab({
   refreshSignal?: number
   embeddedInWorkspace?: boolean
   externalFilter?: string
+  externalStatusFilter?: string
   page?: number
   pageSize?: 25 | 50 | 100
   onPageChange?: (page: number) => void
-  onSummaryChange?: (summary: { totalItems: number; totalPages: number }) => void
+  onSummaryChange?: (summary: ComposeTabSummary) => void
+  onStatusFilterChange?: (status: string) => void
   onOpenContainerFilter?: (containerName: string) => void
   onOpenContainerNames?: (containerNames: string[]) => void
 }) {
@@ -204,12 +286,12 @@ export function ComposeTab({
   const [filter, setFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [expandedProject, setExpandedProject] = useState<string | null>(null)
-  const [inlineConfig, setInlineConfig] = useState<Record<string, string>>({})
-  const [inlineConfigLoading, setInlineConfigLoading] = useState<Record<string, boolean>>({})
   const [projectContainers, setProjectContainers] = useState<Record<string, Container[]>>({})
   const [projectContainersLoading, setProjectContainersLoading] = useState<Record<string, boolean>>(
     {}
   )
+  const [projectPs, setProjectPs] = useState<Record<string, ComposePsRow[]>>({})
+  const [projectPsLoading, setProjectPsLoading] = useState<Record<string, boolean>>({})
   const [projectContainersHydrated, setProjectContainersHydrated] = useState(false)
   const [sortKey, setSortKey] = useState<'project'>(() => {
     try {
@@ -258,18 +340,19 @@ export function ComposeTab({
     if (externalFilter !== undefined) setFilter(externalFilter)
   }, [externalFilter])
 
-  const [logsOpen, setLogsOpen] = useState(false)
-  const [logsProject, setLogsProject] = useState('')
-  const [logsContent, setLogsContent] = useState('')
-  const [logsLoading, setLogsLoading] = useState(false)
-  const [logsActionTip, setLogsActionTip] = useState('')
-  const logsEndRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (externalStatusFilter !== undefined) setStatusFilter(externalStatusFilter)
+  }, [externalStatusFilter])
 
-  const [configOpen, setConfigOpen] = useState(false)
-  const [configProject, setConfigProject] = useState('')
-  const [configContent, setConfigContent] = useState('')
-  const [configLoading, setConfigLoading] = useState(false)
-  const [configSaving, setConfigSaving] = useState(false)
+  const [textDialogOpen, setTextDialogOpen] = useState(false)
+  const [textDialogRequest, setTextDialogRequest] = useState<ComposeTextRequest | null>(null)
+  const [textDialogContent, setTextDialogContent] = useState('')
+  const [textDialogLoading, setTextDialogLoading] = useState(false)
+  const [operationDialogOpen, setOperationDialogOpen] = useState(false)
+  const [operationRequest, setOperationRequest] = useState<ComposeOperationRequest | null>(null)
+  const [operationOutput, setOperationOutput] = useState('')
+  const [operationLoading, setOperationLoading] = useState(false)
+  const [operationFailed, setOperationFailed] = useState(false)
 
   const {
     data: projects = [],
@@ -292,6 +375,8 @@ export function ComposeTab({
   useEffect(() => {
     setProjectContainers({})
     setProjectContainersLoading({})
+    setProjectPs({})
+    setProjectPsLoading({})
     setProjectContainersHydrated(false)
   }, [serverId])
 
@@ -362,6 +447,30 @@ export function ComposeTab({
     [projectContainersHydrated, projectContainersLoading, projects, serverId]
   )
 
+  const loadProjectPs = useCallback(
+    async (projectName: string, projectDir: string, options?: { force?: boolean }) => {
+      if (!options?.force && projectPs[projectName]) return
+      if (projectPsLoading[projectName]) return
+
+      setProjectPsLoading(state => ({ ...state, [projectName]: true }))
+      try {
+        const res = await pb.send(dockerApiPath(serverId, '/compose/ps'), {
+          method: 'GET',
+          query: { projectDir, projectName },
+        })
+        setProjectPs(state => ({
+          ...state,
+          [projectName]: parseComposePs(String(res.output || '')),
+        }))
+      } catch (err) {
+        setActionError(getApiErrorMessage(err, 'Failed to load compose project details'))
+      } finally {
+        setProjectPsLoading(state => ({ ...state, [projectName]: false }))
+      }
+    },
+    [projectPs, projectPsLoading, serverId]
+  )
+
   useEffect(() => {
     if (projects.length === 0) return
     const hasMissingProject = projects.some(project => !(project.Name in projectContainers))
@@ -385,124 +494,87 @@ export function ComposeTab({
     })
   }, [projectContainersHydrated, projects])
 
-  const composeAction = async (action: string, projectDir: string, method: string = 'POST') => {
+  const composeAction = async (request: ComposeOperationRequest) => {
     try {
       setActionError(null)
-      await pb.send(dockerApiPath(serverId, `/compose/${action}`), {
-        method,
-        body: { projectDir },
+      setOperationRequest(request)
+      setOperationDialogOpen(true)
+      setOperationLoading(true)
+      setOperationFailed(false)
+      setOperationOutput('')
+      const res = await pb.send(dockerApiPath(serverId, request.requestPath), {
+        method: 'POST',
+        body: request.body || { projectDir: request.projectDir },
       })
+      setOperationOutput(String(res.output || 'Operation completed with no output.'))
       setProjectContainers({})
       setProjectContainersLoading({})
+      setProjectPs({})
+      setProjectPsLoading({})
       setProjectContainersHydrated(false)
       await queryClient.invalidateQueries({ queryKey: ['docker', 'compose', serverId] })
     } catch (err) {
-      setActionError(getApiErrorMessage(err, `Compose ${action} failed`))
+      setOperationFailed(true)
+      setOperationOutput(
+        getApiErrorMessage(err, `${request.label} failed`)
+      )
+    }
+    finally {
+      setOperationLoading(false)
     }
   }
 
-  const openLogs = async (projectDir: string) => {
-    setLogsProject(projectDir)
-    setLogsContent('')
-    setLogsOpen(true)
-    setLogsLoading(true)
-    try {
-      const res = await pb.send(dockerApiPath(serverId, '/compose/logs'), {
-        method: 'GET',
-        query: { projectDir, tail: '200' },
-      })
-      setLogsContent(res.output || 'No logs available')
-    } catch (err) {
-      setLogsContent(getApiErrorMessage(err, 'Failed to load logs'))
-    } finally {
-      setLogsLoading(false)
-    }
-  }
+  const loadTextDialog = useCallback(
+		async (request: ComposeTextRequest) => {
+			setTextDialogLoading(true)
+			setTextDialogContent('')
+			try {
+				if (request.kind === 'logs') {
+					const res = await pb.send(dockerApiPath(serverId, '/compose/logs'), {
+						method: 'GET',
+						query: { projectDir: request.projectDir, tail: '200' },
+					})
+					setTextDialogContent(String(res.output || ''))
+					return
+				}
 
-  const copyLogs = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(logsContent || '')
-      setLogsActionTip('Logs copied')
-      window.setTimeout(() => setLogsActionTip(''), 1200)
-    } catch {
-      setLogsActionTip('Failed to copy logs')
-      window.setTimeout(() => setLogsActionTip(''), 1200)
-    }
-  }, [logsContent])
+				const res = await pb.send(dockerApiPath(serverId, '/compose/config'), {
+					method: 'GET',
+					query: { projectDir: request.projectDir },
+				})
+				setTextDialogContent(String(res.content || ''))
+			} catch (err) {
+				setTextDialogContent(
+					getApiErrorMessage(
+						err,
+						request.kind === 'logs' ? 'Failed to load logs' : 'Failed to load config'
+					)
+				)
+			} finally {
+				setTextDialogLoading(false)
+			}
+		},
+		[serverId]
+	)
 
-  const downloadLogs = useCallback(() => {
-    try {
-      const safeName = (logsProject || 'compose').replace(/[^a-zA-Z0-9._-]/g, '_')
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-      const blob = new Blob([logsContent || ''], { type: 'text/plain;charset=utf-8' })
-      const url = URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = url
-      anchor.download = `${safeName}-logs-${timestamp}.log`
-      document.body.appendChild(anchor)
-      anchor.click()
-      anchor.remove()
-      URL.revokeObjectURL(url)
-    } catch {
-      setLogsActionTip('Failed to download logs')
-      window.setTimeout(() => setLogsActionTip(''), 1200)
-    }
-  }, [logsContent, logsProject])
+  const openLogs = (projectName: string, projectDir: string) => {
+		const request: ComposeTextRequest = { kind: 'logs', projectName, projectDir }
+		setTextDialogRequest(request)
+		setTextDialogOpen(true)
+		void loadTextDialog(request)
+	}
 
-  useEffect(() => {
-    if (logsEndRef.current) logsEndRef.current.scrollIntoView({ behavior: 'smooth' })
-  }, [logsContent])
+  const openConfig = (projectName: string, projectDir: string, configPath?: string) => {
+		const request: ComposeTextRequest = { kind: 'config', projectName, projectDir, configPath }
+		setTextDialogRequest(request)
+		setTextDialogOpen(true)
+		void loadTextDialog(request)
+	}
 
-  const openConfig = async (projectDir: string) => {
-    setConfigProject(projectDir)
-    setConfigContent('')
-    setConfigOpen(true)
-    setConfigLoading(true)
-    try {
-      const res = await pb.send(dockerApiPath(serverId, '/compose/config'), {
-        method: 'GET',
-        query: { projectDir },
-      })
-      setConfigContent(res.content || '')
-    } catch (err) {
-      setConfigContent(getApiErrorMessage(err, 'Failed to load config'))
-    } finally {
-      setConfigLoading(false)
-    }
-  }
+  const pendingProjectName = operationLoading ? operationRequest?.projectName || null : null
 
-  const openInlineConfig = async (projectName: string, projectDir: string) => {
-    setInlineConfigLoading(state => ({ ...state, [projectName]: true }))
-    try {
-      const res = await pb.send(dockerApiPath(serverId, '/compose/config'), {
-        method: 'GET',
-        query: { projectDir },
-      })
-      setInlineConfig(state => ({ ...state, [projectName]: res.content || '' }))
-    } catch (err) {
-      setInlineConfig(state => ({
-        ...state,
-        [projectName]: getApiErrorMessage(err, 'Failed to load config'),
-      }))
-    } finally {
-      setInlineConfigLoading(state => ({ ...state, [projectName]: false }))
-    }
-  }
-
-  const saveConfig = async () => {
-    setConfigSaving(true)
-    try {
-      setActionError(null)
-      await pb.send(dockerApiPath(serverId, '/compose/config'), {
-        method: 'PUT',
-        body: { projectDir: configProject, content: configContent },
-      })
-      setConfigOpen(false)
-    } catch (err) {
-      setActionError(getApiErrorMessage(err, 'Failed to save config'))
-    } finally {
-      setConfigSaving(false)
-    }
+  const runComposeAction = (request: ComposeOperationRequest) => {
+    void composeAction(request)
   }
 
   const filtered = useMemo(() => {
@@ -520,7 +592,9 @@ export function ComposeTab({
       const key = (project.Status || 'unknown').trim() || 'unknown'
       counts.set(key, (counts.get(key) || 0) + 1)
     }
-    return Array.from(counts.entries()).sort((left, right) => left[0].localeCompare(right[0]))
+    return Array.from(counts.entries())
+      .sort((left, right) => left[0].localeCompare(right[0]))
+      .map(([status, count]) => ({ status, count }))
   }, [projects])
 
   const sorted = useMemo(() => {
@@ -552,8 +626,8 @@ export function ComposeTab({
   }, [effectivePage, totalPages])
 
   useEffect(() => {
-    onSummaryChange?.({ totalItems: sorted.length, totalPages })
-  }, [onSummaryChange, sorted.length, totalPages])
+    onSummaryChange?.({ totalItems: sorted.length, totalPages, statusCounts })
+  }, [onSummaryChange, sorted.length, statusCounts, totalPages])
 
   const toggleSort = (key: 'project') => {
     if (sortKey === key) {
@@ -588,9 +662,7 @@ export function ComposeTab({
       const next = current === projectName ? null : projectName
       if (next === projectName) {
         void loadProjectContainers(projectName)
-        if (!inlineConfig[projectName] && !inlineConfigLoading[projectName]) {
-          void openInlineConfig(projectName, projectDir)
-        }
+        void loadProjectPs(projectName, projectDir)
       }
       return next
     })
@@ -662,9 +734,15 @@ export function ComposeTab({
         </div>
       )}
 
-      {hasProjectContainerLoading && !embeddedInWorkspace && (
+      {(hasProjectContainerLoading || operationLoading) && !embeddedInWorkspace && (
         <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-lg border border-dashed bg-muted/10 px-3 py-2">
-          <Badge variant="outline">Loading project containers...</Badge>
+          {hasProjectContainerLoading ? <Badge variant="outline">Loading project containers...</Badge> : null}
+          {operationLoading && operationRequest ? (
+            <Badge variant="outline" className="inline-flex items-center gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              {operationRequest.label} {operationRequest.projectName}
+            </Badge>
+          ) : null}
         </div>
       )}
 
@@ -681,32 +759,44 @@ export function ComposeTab({
                 <TableHead className="min-w-[140px]">
                   <div className="flex items-center gap-1">
                     <span className="text-xs font-medium text-foreground">Status</span>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          aria-label="Filter compose status"
-                          title={statusFilter === 'all' ? 'Filter compose status' : `Compose status: ${statusFilter}`}
-                        >
-                          <Filter className={cn('h-3.5 w-3.5', statusFilter !== 'all' && 'text-foreground')} />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start">
-                        <DropdownMenuRadioGroup value={statusFilter} onValueChange={setStatusFilter}>
-                          <DropdownMenuRadioItem value="all">All statuses ({projects.length})</DropdownMenuRadioItem>
-                          {statusCounts.map(([status, count]) => (
-                            <DropdownMenuRadioItem key={status} value={status}>
-                              {status} ({count})
-                            </DropdownMenuRadioItem>
-                          ))}
-                        </DropdownMenuRadioGroup>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    {!embeddedInWorkspace ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            aria-label="Filter compose status"
+                            title={statusFilter === 'all' ? 'Filter compose status' : `Compose status: ${statusFilter}`}
+                          >
+                            <Filter className={cn('h-3.5 w-3.5', statusFilter !== 'all' && 'text-foreground')} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          <DropdownMenuRadioGroup
+                            value={statusFilter}
+                            onValueChange={value => {
+                              setStatusFilter(value)
+                              onStatusFilterChange?.(value)
+                            }}
+                          >
+                            <DropdownMenuRadioItem value="all">All status</DropdownMenuRadioItem>
+                            {statusCounts.map(({ status, count }) => (
+                              <DropdownMenuRadioItem key={status} value={status}>
+                                {status} ({count})
+                              </DropdownMenuRadioItem>
+                            ))}
+                          </DropdownMenuRadioGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : statusFilter !== 'all' ? (
+                      <Badge variant="outline" className="text-[11px] font-normal">
+                        {statusFilter}
+                      </Badge>
+                    ) : null}
                   </div>
                 </TableHead>
-                <TableHead className="min-w-[120px] text-left text-xs font-medium text-foreground">Containers</TableHead>
+                <TableHead className="w-[160px] min-w-[160px] text-left text-xs font-medium text-foreground">Containers</TableHead>
                 <TableHead className="min-w-[240px] text-xs font-medium text-foreground">Config</TableHead>
                 <TableHead className="w-[52px] text-center text-xs font-medium text-foreground">Actions</TableHead>
               </TableRow>
@@ -726,11 +816,14 @@ export function ComposeTab({
                 const dir = project.ConfigFiles
                   ? project.ConfigFiles.split(',')[0].replace(/\/[^/]+$/, '')
                   : project.Name
+                const primaryConfigPath = project.ConfigFiles?.split(',')[0] || ''
                 const containers = projectContainers[project.Name] || []
+                const psRows = projectPs[project.Name] || []
                 const isExpanded = expandedProject === project.Name
+                const rowBusy = pendingProjectName === project.Name
                 return (
                   <Fragment key={project.Name}>
-                    <TableRow className={cn('border-b border-border/60 align-top transition-colors hover:bg-muted/30', isExpanded && 'bg-muted/20')}>
+                    <TableRow className={cn('border-b border-border/60 align-middle transition-colors hover:bg-muted/30', isExpanded && 'bg-muted/20')}>
                       <TableCell
                         className="cursor-pointer pl-4 pr-3 py-3 text-xs"
                         onClick={event => {
@@ -741,40 +834,53 @@ export function ComposeTab({
                       >
                         <button
                           type="button"
-                          className="min-w-0 truncate text-left font-mono text-xs font-medium leading-tight text-foreground hover:underline"
+                          className="group inline-flex min-h-8 w-full items-center text-left"
                           onClick={() => toggleProjectExpansion(project.Name, dir)}
                           title={project.Name}
                         >
-                          {project.Name}
+                          <span className="truncate text-xs font-semibold leading-tight text-foreground group-hover:underline">
+                            {project.Name}
+                          </span>
                         </button>
                       </TableCell>
                       <TableCell className="py-3 text-xs">
-                        <Badge variant={statusVariant(project.Status)} className="text-xs">
-                          {project.Status || 'unknown'}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={statusVariant(project.Status)} className="text-xs">
+                            {project.Status || 'unknown'}
+                          </Badge>
+                          {rowBusy && operationRequest ? (
+                            <Badge variant="outline" className="inline-flex items-center gap-1 text-[11px] font-normal">
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              {operationRequest.label}
+                            </Badge>
+                          ) : null}
+                        </div>
                       </TableCell>
-                      <TableCell className="py-3 text-left text-xs">
-                        {containers.length > 0 ? (
-                          <Button
-                            variant="link"
-                            className="h-auto justify-start p-0 text-left text-xs"
-                            title={containers.map(container => container.Names).join(', ')}
-                            onClick={() => onOpenContainerNames?.(containers.map(container => container.Names).filter(Boolean))}
-                          >
-                            <span className="truncate">{containers.length} container{containers.length > 1 ? 's' : ''}</span>
-                            <ExternalLink className="ml-1 h-3 w-3" />
-                          </Button>
-                        ) : projectContainersHydrated ? (
-                          <span className="text-muted-foreground">-</span>
-                        ) : (
-                          <span className="text-muted-foreground">...</span>
-                        )}
+                      <TableCell className="w-[160px] min-w-[160px] py-3 text-left text-xs align-middle">
+                        <div className="flex h-8 items-center">
+                          {projectContainersLoading[project.Name] || (!projectContainersHydrated && !(project.Name in projectContainers)) ? (
+                            <span className="inline-flex h-8 items-center text-muted-foreground">...</span>
+                          ) : containers.length > 0 ? (
+                            <button
+                              type="button"
+                              className="inline-flex h-8 w-full items-center justify-start gap-1 text-left text-xs text-primary hover:underline"
+                              title={containers.map(container => container.Names).join(', ')}
+                              onClick={() => onOpenContainerNames?.(containers.map(container => container.Names).filter(Boolean))}
+                            >
+                              <span className="truncate">{containers.length} container{containers.length > 1 ? 's' : ''}</span>
+                              <ExternalLink className="ml-1 h-3 w-3" />
+                            </button>
+                          ) : projectContainersHydrated ? (
+                            <span className="inline-flex h-8 items-center text-muted-foreground">-</span>
+                          ) : null}
+                        </div>
                       </TableCell>
                       <TableCell className="py-3 font-mono text-xs">
                         <Button
                           variant="link"
                           className="h-auto max-w-full justify-start truncate p-0 font-mono text-xs"
-                          onClick={() => toggleProjectExpansion(project.Name, dir)}
+                          onClick={() => openConfig(project.Name, dir, primaryConfigPath)}
+                          title={project.ConfigFiles}
                         >
                           {project.ConfigFiles}
                         </Button>
@@ -782,55 +888,140 @@ export function ComposeTab({
                       <TableCell className="py-3 text-center align-middle">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" disabled={operationLoading}>
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onSelect={() => setTimeout(() => composeAction('up', dir), 0)}>
-                              <ArrowUp className="mr-2 h-4 w-4" /> Up
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => setTimeout(() => composeAction('start', dir), 0)}>
-                              <Play className="mr-2 h-4 w-4" /> Start
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => setTimeout(() => composeAction('stop', dir), 0)}>
-                              <Square className="mr-2 h-4 w-4" /> Stop
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => setTimeout(() => composeAction('restart', dir), 0)}>
-                              <RotateCw className="mr-2 h-4 w-4" /> Restart
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => setTimeout(() => composeAction('down', dir), 0)}>
-                              <ArrowDown className="mr-2 h-4 w-4" /> Down
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => setTimeout(() => openLogs(dir), 0)}>
-                              <FileText className="mr-2 h-4 w-4" /> Logs
-                            </DropdownMenuItem>
                             <DropdownMenuItem
-                              onSelect={() => setTimeout(() => openConfig(dir), 0)}
-                              disabled={serverId !== 'local'}
-                              title={
-                                serverId !== 'local'
-                                  ? 'Config editing is only available for local server'
-                                  : undefined
+                              disabled={operationLoading}
+                              onSelect={() =>
+                                setTimeout(
+                                  () =>
+                                    runComposeAction({
+                                      key: 'pull',
+                                      label: 'Pulling',
+                                      projectName: project.Name,
+                                      projectDir: dir,
+                                      requestPath: '/compose/pull',
+                                    }),
+                                  0
+                                )
                               }
                             >
-                              <Settings2 className="mr-2 h-4 w-4" /> Config
+                              <Download className="mr-2 h-4 w-4" /> Pull
                             </DropdownMenuItem>
                             <DropdownMenuItem
+                              disabled={operationLoading}
                               onSelect={() =>
-                                setTimeout(() => {
-                                  setActionError(null)
-                                  pb.send(dockerApiPath(serverId, '/compose/down'), {
-                                    method: 'POST',
-                                    body: { projectDir: dir, removeVolumes: true },
-                                  })
-                                    .then(() =>
-                                      queryClient.invalidateQueries({ queryKey: ['docker', 'compose', serverId] })
-                                    )
-                                    .catch(err =>
-                                      setActionError(getApiErrorMessage(err, 'Compose down + remove failed'))
-                                    )
-                                }, 0)
+                                setTimeout(
+                                  () =>
+                                    runComposeAction({
+                                      key: 'up',
+                                      label: 'Starting',
+                                      projectName: project.Name,
+                                      projectDir: dir,
+                                      requestPath: '/compose/up',
+                                    }),
+                                  0
+                                )
+                              }
+                            >
+                              <ArrowUp className="mr-2 h-4 w-4" /> Up
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={operationLoading}
+                              onSelect={() =>
+                                setTimeout(
+                                  () =>
+                                    runComposeAction({
+                                      key: 'start',
+                                      label: 'Starting',
+                                      projectName: project.Name,
+                                      projectDir: dir,
+                                      requestPath: '/compose/start',
+                                    }),
+                                  0
+                                )
+                              }
+                            >
+                              <Play className="mr-2 h-4 w-4" /> Start
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={operationLoading}
+                              onSelect={() =>
+                                setTimeout(
+                                  () =>
+                                    runComposeAction({
+                                      key: 'stop',
+                                      label: 'Stopping',
+                                      projectName: project.Name,
+                                      projectDir: dir,
+                                      requestPath: '/compose/stop',
+                                    }),
+                                  0
+                                )
+                              }
+                            >
+                              <Square className="mr-2 h-4 w-4" /> Stop
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={operationLoading}
+                              onSelect={() =>
+                                setTimeout(
+                                  () =>
+                                    runComposeAction({
+                                      key: 'restart',
+                                      label: 'Restarting',
+                                      projectName: project.Name,
+                                      projectDir: dir,
+                                      requestPath: '/compose/restart',
+                                    }),
+                                  0
+                                )
+                              }
+                            >
+                              <RotateCw className="mr-2 h-4 w-4" /> Restart
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={operationLoading}
+                              onSelect={() =>
+                                setTimeout(
+                                  () =>
+                                    runComposeAction({
+                                      key: 'down',
+                                      label: 'Stopping',
+                                      projectName: project.Name,
+                                      projectDir: dir,
+                                      requestPath: '/compose/down',
+                                    }),
+                                  0
+                                )
+                              }
+                            >
+                              <ArrowDown className="mr-2 h-4 w-4" /> Down
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => setTimeout(() => openLogs(project.Name, dir), 0)}>
+                              <FileText className="mr-2 h-4 w-4" /> Logs
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => setTimeout(() => openConfig(project.Name, dir, primaryConfigPath), 0)}>
+                              <Settings2 className="mr-2 h-4 w-4" /> View Config
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={operationLoading}
+                              onSelect={() =>
+                                setTimeout(
+                                  () =>
+                                    runComposeAction({
+                                      key: 'down-remove',
+                                      label: 'Removing',
+                                      projectName: project.Name,
+                                      projectDir: dir,
+                                      requestPath: '/compose/down',
+                                      body: { projectDir: dir, removeVolumes: true },
+                                    }),
+                                  0
+                                )
                               }
                               className="text-destructive"
                             >
@@ -845,42 +1036,52 @@ export function ComposeTab({
                         <TableCell colSpan={5} className="bg-muted/20 px-4 py-3">
                           <div className="space-y-4 rounded-lg border bg-background p-4 shadow-sm">
                             <div>
-                              <div className="mb-2 text-xs font-medium text-muted-foreground">Containers</div>
-                              {projectContainersLoading[project.Name] || (!projectContainersHydrated && !(project.Name in projectContainers)) ? (
-                                <div className="text-xs text-muted-foreground">Loading containers...</div>
-                              ) : containers.length > 0 ? (
-                                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                                  {containers.map(container => (
-                                    <div key={container.ID} className="rounded-md border bg-muted/20 p-3 text-xs">
-                                      <Button
-                                        variant="link"
-                                        className="h-auto p-0 font-mono text-xs"
-                                        onClick={() => onOpenContainerFilter?.(container.Names)}
-                                      >
-                                        {container.Names}
-                                      </Button>
-                                      <div className="text-muted-foreground">{container.Image}</div>
-                                      <div className="text-muted-foreground">{container.Status}</div>
-                                    </div>
-                                  ))}
+                              <div className="mb-2 text-xs font-medium text-muted-foreground">Compose Services</div>
+                              {projectPsLoading[project.Name] ? (
+                                <div className="text-xs text-muted-foreground">Loading project status...</div>
+                              ) : psRows.length > 0 ? (
+                                <div className="overflow-x-auto rounded-md border">
+                                  <table className="min-w-full text-xs">
+                                    <thead className="bg-muted/30 text-muted-foreground">
+                                      <tr>
+                                        <th className="px-3 py-2 text-left font-medium">Service</th>
+                                        <th className="px-3 py-2 text-left font-medium">Container</th>
+                                        <th className="px-3 py-2 text-left font-medium">State</th>
+                                        <th className="px-3 py-2 text-left font-medium">Ports</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {psRows.map((row, index) => (
+                                        <tr key={`${row.Name || row.Service || 'service'}-${index}`} className="border-t align-middle">
+                                          <td className="px-3 py-2 font-medium text-foreground">{row.Service || '-'}</td>
+                                          <td className="px-3 py-2 font-mono text-muted-foreground">
+                                            {row.Name && onOpenContainerFilter ? (
+                                              <button
+                                                type="button"
+                                                className="inline-flex items-center gap-1 text-left text-xs text-primary hover:underline"
+                                                onClick={() => onOpenContainerFilter(row.Name || '')}
+                                                title={row.Name}
+                                              >
+                                                <span className="truncate">{row.Name}</span>
+                                                <ExternalLink className="h-3 w-3" />
+                                              </button>
+                                            ) : (
+                                              row.Name || '-'
+                                            )}
+                                          </td>
+                                          <td className="px-3 py-2">
+                                            <Badge variant={statusVariant(row.State || composePsStateLabel(row))} className="text-[11px]">
+                                              {composePsStateLabel(row)}
+                                            </Badge>
+                                          </td>
+                                          <td className="px-3 py-2 text-muted-foreground">{formatComposePsPorts(row.Publishers)}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
                                 </div>
                               ) : (
-                                <div className="text-xs text-muted-foreground">No containers found for this project.</div>
-                              )}
-                            </div>
-
-                            <div>
-                              <div className="mb-2 text-xs font-medium text-muted-foreground">Compose Config</div>
-                              {inlineConfigLoading[project.Name] ? (
-                                <div className="text-xs text-muted-foreground">Loading config...</div>
-                              ) : inlineConfig[project.Name] ? (
-                                <pre className="max-h-[280px] overflow-auto whitespace-pre-wrap rounded-md border bg-muted/40 p-3 font-mono text-xs">
-                                  {inlineConfig[project.Name]}
-                                </pre>
-                              ) : (
-                                <Button variant="outline" size="sm" onClick={() => openInlineConfig(project.Name, dir)}>
-                                  Load Config
-                                </Button>
+                                <div className="text-xs text-muted-foreground">No services found for this project.</div>
                               )}
                             </div>
                           </div>
@@ -902,53 +1103,74 @@ export function ComposeTab({
         </div>
       </div>
 
-      <Dialog open={logsOpen} onOpenChange={setLogsOpen}>
-        <DialogContent className="max-w-3xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle>Logs — {logsProject}</DialogTitle>
-          </DialogHeader>
-          <div className="flex items-center gap-2 pb-1">
-            <Button variant="outline" size="sm" onClick={copyLogs} disabled={logsLoading}>
-              <Copy className="h-4 w-4 mr-1" /> Copy
-            </Button>
-            <Button variant="outline" size="sm" onClick={downloadLogs} disabled={logsLoading}>
-              <Download className="h-4 w-4 mr-1" /> Download
-            </Button>
-            {logsActionTip && <span className="text-xs text-muted-foreground">{logsActionTip}</span>}
-          </div>
-          <div className="bg-muted rounded-md p-3 overflow-auto max-h-[55vh]">
-            <pre className="text-xs font-mono whitespace-pre-wrap">
-              {logsLoading ? 'Loading logs...' : logsContent}
-            </pre>
-            <div ref={logsEndRef} />
-          </div>
-        </DialogContent>
-      </Dialog>
+      <DockerTextDialog
+        open={textDialogOpen}
+        onOpenChange={open => {
+          setTextDialogOpen(open)
+          if (!open) setTextDialogRequest(null)
+        }}
+        title={
+          textDialogRequest?.kind === 'config'
+            ? `Compose Config: ${textDialogRequest.configPath || textDialogRequest.projectName || ''}`
+            : `Compose Logs: ${textDialogRequest?.projectName || ''}`
+        }
+        description={
+          textDialogRequest?.kind === 'config'
+            ? 'docker-compose.yml content for this compose project.'
+            : 'Recent docker compose logs for this project.'
+        }
+        content={textDialogContent}
+        loading={textDialogLoading}
+        loadingText={textDialogRequest?.kind === 'config' ? 'Loading config...' : 'Loading logs...'}
+        emptyText={textDialogRequest?.kind === 'config' ? '(empty file)' : '(no output)'}
+        onRefresh={textDialogRequest ? () => void loadTextDialog(textDialogRequest) : undefined}
+        refreshDisabled={!textDialogRequest}
+        downloadBaseName={
+          textDialogRequest?.kind === 'config'
+            ? lastPathSegment(textDialogRequest.configPath || 'docker-compose.yml')
+            : `${textDialogRequest?.projectName || 'compose'}-logs`
+        }
+        downloadExtension={textDialogRequest?.kind === 'config' ? 'yml' : 'log'}
+        copySuccessText={textDialogRequest?.kind === 'config' ? 'Config copied' : 'Logs copied'}
+        copyFailureText={
+          textDialogRequest?.kind === 'config' ? 'Failed to copy config' : 'Failed to copy logs'
+        }
+        downloadFailureText={
+          textDialogRequest?.kind === 'config'
+            ? 'Failed to download config'
+            : 'Failed to download logs'
+        }
+      />
 
-      <Dialog open={configOpen} onOpenChange={setConfigOpen}>
-        <DialogContent className="max-w-3xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle>Config — {configProject}</DialogTitle>
-          </DialogHeader>
-          {configLoading ? (
-            <p className="text-sm text-muted-foreground">Loading...</p>
-          ) : (
-            <textarea
-              className="w-full h-[45vh] font-mono text-xs border rounded-md p-3 bg-background resize-none"
-              value={configContent}
-              onChange={e => setConfigContent(e.target.value)}
-            />
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfigOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={saveConfig} disabled={configSaving}>
-              {configSaving ? 'Saving...' : 'Save'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DockerTextDialog
+        open={operationDialogOpen}
+        onOpenChange={setOperationDialogOpen}
+        title={
+          operationRequest ? `Compose ${operationRequest.label}: ${operationRequest.projectName}` : 'Compose Operation'
+        }
+        description={
+          operationRequest
+            ? operationLoading
+              ? 'This compose operation may take a while. The row status and this dialog will update when it finishes.'
+              : operationFailed
+                ? 'The operation failed. Review the output below.'
+                : 'The operation finished. Review the output below.'
+            : undefined
+        }
+        content={operationOutput}
+        loading={operationLoading}
+        loadingText={operationRequest ? `${operationRequest.label} ${operationRequest.projectName}...` : 'Running compose operation...'}
+        emptyText={operationFailed ? '(operation failed without output)' : '(operation completed with no output)'}
+        downloadBaseName={
+          operationRequest
+            ? `${operationRequest.projectName}-${operationRequest.key}`
+            : 'compose-operation'
+        }
+        downloadExtension="log"
+        copySuccessText="Operation output copied"
+        copyFailureText="Failed to copy operation output"
+        downloadFailureText="Failed to download operation output"
+      />
     </div>
   )
 }

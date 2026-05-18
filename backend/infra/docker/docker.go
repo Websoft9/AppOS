@@ -6,10 +6,12 @@ package docker
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Client wraps Docker CLI operations using an Executor.
@@ -18,6 +20,7 @@ type Client struct {
 }
 
 const registryStatusProbeImage = "hello-world:latest"
+const composeConfigHelperFallbackImage = "busybox:1.36.1"
 
 // New creates a new Docker client with the given Executor.
 func New(exec Executor) *Client {
@@ -87,9 +90,24 @@ func (c *Client) ComposeRestart(ctx context.Context, projectDir string) (string,
 	return c.exec.Run(ctx, "docker", "compose", "-f", c.composeFile(projectDir), "restart")
 }
 
+// ComposePull runs docker compose pull.
+func (c *Client) ComposePull(ctx context.Context, projectDir string) (string, error) {
+	return c.exec.Run(ctx, "docker", "compose", "-f", c.composeFile(projectDir), "pull")
+}
+
 // ComposeLogs returns logs for the given compose project.
 func (c *Client) ComposeLogs(ctx context.Context, projectDir string, tail int) (string, error) {
 	return c.exec.Run(ctx, "docker", "compose", "-f", c.composeFile(projectDir), "logs", "--tail", fmt.Sprintf("%d", tail))
+}
+
+// ComposePs returns compose service status in JSON format for the given project.
+func (c *Client) ComposePs(ctx context.Context, projectName string, projectDir string) (string, error) {
+	args := []string{"compose"}
+	if projectName != "" {
+		args = append(args, "-p", projectName)
+	}
+	args = append(args, "-f", c.composeFile(projectDir), "ps", "--format", "json")
+	return c.exec.Run(ctx, "docker", args...)
 }
 
 // ComposeLogsStream returns a streaming reader for compose logs.
@@ -99,9 +117,17 @@ func (c *Client) ComposeLogsStream(ctx context.Context, projectDir string, tail 
 
 // ComposeConfigRead reads the docker-compose.yml file content.
 func (c *Client) ComposeConfigRead(projectDir string) (string, error) {
-	data, err := os.ReadFile(filepath.Join(projectDir, "docker-compose.yml"))
+	path := filepath.Join(projectDir, "docker-compose.yml")
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return "", fmt.Errorf("read compose config: %w", err)
+		if !os.IsNotExist(err) {
+			return "", fmt.Errorf("read compose config: %w", err)
+		}
+		content, fallbackErr := c.readComposeConfigFromHost(context.Background(), path)
+		if fallbackErr != nil {
+			return "", fmt.Errorf("read compose config: %w", err)
+		}
+		return content, nil
 	}
 	return string(data), nil
 }
@@ -110,9 +136,77 @@ func (c *Client) ComposeConfigRead(projectDir string) (string, error) {
 func (c *Client) ComposeConfigWrite(projectDir string, content string) error {
 	path := filepath.Join(projectDir, "docker-compose.yml")
 	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
-		return fmt.Errorf("write compose config: %w", err)
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("write compose config: %w", err)
+		}
+		if fallbackErr := c.writeComposeConfigToHost(context.Background(), path, content); fallbackErr != nil {
+			return fmt.Errorf("write compose config: %w", err)
+		}
+		return nil
 	}
 	return nil
+}
+
+func (c *Client) readComposeConfigFromHost(ctx context.Context, composePath string) (string, error) {
+	image, err := c.composeConfigHelperImage(ctx)
+	if err != nil {
+		return "", err
+	}
+	output, err := c.exec.Run(
+		ctx,
+		"docker",
+		"run",
+		"--rm",
+		"-v",
+		fmt.Sprintf("%s:/appos-compose/docker-compose.yml:ro", composePath),
+		image,
+		"cat",
+		"/appos-compose/docker-compose.yml",
+	)
+	if err != nil {
+		return "", err
+	}
+	return output, nil
+}
+
+func (c *Client) writeComposeConfigToHost(ctx context.Context, composePath string, content string) error {
+	image, err := c.composeConfigHelperImage(ctx)
+	if err != nil {
+		return err
+	}
+	encoded := base64.StdEncoding.EncodeToString([]byte(content))
+	_, err = c.exec.Run(
+		ctx,
+		"docker",
+		"run",
+		"--rm",
+		"-v",
+		fmt.Sprintf("%s:/appos-compose/docker-compose.yml", composePath),
+		image,
+		"sh",
+		"-lc",
+		fmt.Sprintf("printf %%s %s | base64 -d > /appos-compose/docker-compose.yml", shellQuote(encoded)),
+	)
+	return err
+}
+
+func (c *Client) composeConfigHelperImage(ctx context.Context) (string, error) {
+	output, err := c.exec.Run(
+		ctx,
+		"docker",
+		"ps",
+		"--filter",
+		"label=com.docker.compose.service=appos",
+		"--format",
+		"{{.Image}}",
+	)
+	if err == nil {
+		image := strings.TrimSpace(strings.Split(output, "\n")[0])
+		if image != "" {
+			return image, nil
+		}
+	}
+	return composeConfigHelperFallbackImage, nil
 }
 
 // ComposeLs lists compose projects in JSON format.

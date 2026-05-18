@@ -1,10 +1,12 @@
 package routes
 
 import (
+	"bytes"
 	"database/sql"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -73,7 +75,22 @@ func handleMonitorWrite(e *core.RequestEvent) error {
 	}
 	limitedBody := &monitorWriteLimitReadCloser{body: e.Request.Body, remaining: maxMonitorWriteBodyBytes}
 	defer limitedBody.Close()
-	req, err := http.NewRequestWithContext(e.Request.Context(), http.MethodPost, target, limitedBody)
+	payload, err := io.ReadAll(limitedBody)
+	if err != nil {
+		if errors.Is(err, errMonitorWritePayloadTooLarge) {
+			return monitorWritePayloadTooLarge(e)
+		}
+		return e.JSON(http.StatusBadGateway, map[string]any{"error": "tsdb_read_failed", "message": err.Error()})
+	}
+	points, projectionErr := projectRemoteWriteMetricPoints(payload, e.Request.Header.Get("Content-Encoding"), serverID)
+	if projectionErr != nil {
+		slog.Warn(describeRemoteWriteProjectionError(projectionErr), "server_id", serverID)
+	} else if len(points) > 0 {
+		if err := monitormetrics.WriteMetricPoints(e.Request.Context(), points); err != nil {
+			slog.Warn("remote write canonical metric write failed", "server_id", serverID, "error", err)
+		}
+	}
+	req, err := http.NewRequestWithContext(e.Request.Context(), http.MethodPost, target, bytes.NewReader(payload))
 	if err != nil {
 		return e.JSON(http.StatusBadGateway, map[string]any{"error": "tsdb_request_failed", "message": err.Error()})
 	}
@@ -81,9 +98,7 @@ func handleMonitorWrite(e *core.RequestEvent) error {
 	copyMonitorWriteHeader(req.Header, e.Request.Header, "Content-Encoding")
 	copyMonitorWriteHeader(req.Header, e.Request.Header, "X-Prometheus-Remote-Write-Version")
 	copyMonitorWriteHeader(req.Header, e.Request.Header, "User-Agent")
-	if e.Request.ContentLength >= 0 {
-		req.ContentLength = e.Request.ContentLength
-	}
+	req.ContentLength = int64(len(payload))
 
 	resp, err := monitorWriteHTTPClient.Do(req)
 	if err != nil {
@@ -256,10 +271,13 @@ type MonitorContainerTelemetryItem struct {
 }
 
 type MonitorContainerTelemetryLatest struct {
-	CPUPercent              *float64 `json:"cpuPercent,omitempty"`
-	MemoryBytes             *float64 `json:"memoryBytes,omitempty"`
-	NetworkRxBytesPerSecond *float64 `json:"networkRxBytesPerSecond,omitempty"`
-	NetworkTxBytesPerSecond *float64 `json:"networkTxBytesPerSecond,omitempty"`
+	CPUPercent               *float64 `json:"cpuPercent,omitempty"`
+	MemoryUsageBytes         *float64 `json:"memoryUsageBytes,omitempty"`
+	MemoryLimitBytes         *float64 `json:"memoryLimitBytes,omitempty"`
+	NetworkRxBytesPerSecond  *float64 `json:"networkRxBytesPerSecond,omitempty"`
+	NetworkTxBytesPerSecond  *float64 `json:"networkTxBytesPerSecond,omitempty"`
+	BlockReadBytesPerSecond  *float64 `json:"blockReadBytesPerSecond,omitempty"`
+	BlockWriteBytesPerSecond *float64 `json:"blockWriteBytesPerSecond,omitempty"`
 }
 
 type MonitorContainerTelemetryFreshness struct {

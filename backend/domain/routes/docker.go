@@ -2,8 +2,9 @@ package routes
 
 import (
 	"encoding/json"
-	"net/url"
+	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -16,12 +17,18 @@ import (
 	"github.com/websoft9/appos/backend/domain/audit"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
 	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
+	"github.com/websoft9/appos/backend/domain/dockerops"
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
+	"github.com/websoft9/appos/backend/domain/software"
+	"github.com/websoft9/appos/backend/domain/worker"
+	"github.com/websoft9/appos/backend/infra/collections"
 	"github.com/websoft9/appos/backend/infra/docker"
 )
 
 // localDockerClient is the Docker client for the local host, shared across all local requests.
 var localDockerClient *docker.Client
+
+var enqueueDockerImagePullTask = worker.EnqueueDockerImagePull
 
 const dockerImageListCacheTTL = 15 * time.Second
 
@@ -50,38 +57,25 @@ func init() {
 
 func dockerImageListCacheKey(e *core.RequestEvent, client *docker.Client) string {
 	if serverID := strings.TrimSpace(e.Request.PathValue("serverId")); serverID != "" {
-		return "server:" + serverID
+		return dockerops.ImageListCacheKey(serverID, client.Host())
 	}
-	return "host:" + client.Host()
+	return dockerops.ImageListCacheKey("", client.Host())
 }
 
 func getCachedDockerImageList(key string) (dockerImageListCacheEntry, bool) {
-	dockerImageListCache.mu.RLock()
-	entry, ok := dockerImageListCache.entries[key]
-	dockerImageListCache.mu.RUnlock()
-	if !ok || time.Since(entry.fetchedAt) > dockerImageListCacheTTL {
-		if ok {
-			invalidateDockerImageListCache(key)
-		}
+	entry, ok := dockerops.GetCachedImageList(key)
+	if !ok {
 		return dockerImageListCacheEntry{}, false
 	}
-	return entry, true
+	return dockerImageListCacheEntry{output: entry.Output, host: entry.Host, fetchedAt: entry.FetchedAt}, true
 }
 
 func setCachedDockerImageList(key, output, host string) {
-	dockerImageListCache.mu.Lock()
-	dockerImageListCache.entries[key] = dockerImageListCacheEntry{
-		output:    output,
-		host:      host,
-		fetchedAt: time.Now(),
-	}
-	dockerImageListCache.mu.Unlock()
+	dockerops.SetCachedImageList(key, output, host)
 }
 
 func invalidateDockerImageListCache(key string) {
-	dockerImageListCache.mu.Lock()
-	delete(dockerImageListCache.entries, key)
-	dockerImageListCache.mu.Unlock()
+	dockerops.InvalidateImageListCache(key)
 }
 
 // registerDockerRoutes registers all Docker operation routes under /api/servers.
@@ -93,6 +87,8 @@ func registerDockerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	d.GET("/docker-targets", handleDockerServers)
 
 	serverDocker := d.Group("/{serverId}/docker")
+	serverDocker.GET("/image-pull-operations", handleImagePullOperations)
+	serverDocker.GET("/image-pull-operations/{operationId}", handleImagePullOperation)
 
 	// ─── Compose ─────────────────────────────────────────
 	compose := serverDocker.Group("/compose")
@@ -103,6 +99,8 @@ func registerDockerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	compose.POST("/start", handleComposeStart)
 	compose.POST("/stop", handleComposeStop)
 	compose.POST("/restart", handleComposeRestart)
+	compose.POST("/pull", handleComposePull)
+	compose.GET("/ps", handleComposePs)
 	compose.GET("/logs", handleComposeLogs)
 	compose.GET("/config", handleComposeConfigGet)
 	compose.PUT("/config", handleComposeConfigWrite)
@@ -788,6 +786,55 @@ func handleComposeRestart(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
+// handleComposePull pulls images for a Docker Compose project.
+//
+// @Summary Pull Compose images
+// @Description Runs `docker compose pull` in the given project directory. Writes audit entry. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param serverId path string true "server ID"
+// @Param body body object true "projectDir"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/servers/{serverId}/docker/compose/pull [post]
+func handleComposePull(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
+	body, err := readBody(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "invalid request body", err)
+	}
+	projectDir := bodyString(body, "projectDir")
+	if projectDir == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "projectDir is required"})
+	}
+	userID, userEmail, ip, ua := clientInfo(e)
+	output, err := client.ComposePull(e.Request.Context(), projectDir)
+	if err != nil {
+		audit.Write(e.App, audit.Entry{
+			UserID: userID, UserEmail: userEmail,
+			Action: "app.pull", ResourceType: "app",
+			ResourceID: projectDir, ResourceName: projectDir,
+			IP: ip, UserAgent: ua,
+			Status: audit.StatusFailed,
+			Detail: map[string]any{"errorMessage": err.Error()},
+		})
+		return dockerError(e, http.StatusInternalServerError, "compose pull failed", err)
+	}
+	audit.Write(e.App, audit.Entry{
+		UserID: userID, UserEmail: userEmail,
+		Action: "app.pull", ResourceType: "app",
+		ResourceID: projectDir, ResourceName: projectDir,
+		IP: ip, UserAgent: ua,
+		Status: audit.StatusSuccess,
+	})
+	return e.JSON(http.StatusOK, map[string]any{"output": output})
+}
+
 // handleComposeLogs returns recent log output for a Docker Compose project.
 //
 // @Summary Get Compose logs
@@ -824,6 +871,37 @@ func handleComposeLogs(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output})
 }
 
+// handleComposePs returns compose service status output for a Docker Compose project.
+//
+// @Summary Get Compose ps
+// @Description Returns docker compose ps output in JSON format for the specified project. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param serverId path string true "server ID"
+// @Param projectDir query string true "absolute path to the compose project"
+// @Param projectName query string false "compose project name"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/servers/{serverId}/docker/compose/ps [get]
+func handleComposePs(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
+	}
+	projectDir := e.Request.URL.Query().Get("projectDir")
+	if projectDir == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "projectDir is required"})
+	}
+	projectName := e.Request.URL.Query().Get("projectName")
+	output, err := client.ComposePs(e.Request.Context(), projectName, projectDir)
+	if err != nil {
+		return dockerError(e, http.StatusInternalServerError, "compose ps failed", err)
+	}
+	return e.JSON(http.StatusOK, map[string]any{"output": output})
+}
+
 // handleComposeConfigGet reads the docker-compose.yml content for a project (local only).
 //
 // @Summary Get Compose config
@@ -838,11 +916,12 @@ func handleComposeLogs(e *core.RequestEvent) error {
 // @Failure 500 {object} map[string]any
 // @Router /api/servers/{serverId}/docker/compose/config [get]
 func handleComposeConfigGet(e *core.RequestEvent) error {
+	serverID := e.Request.PathValue("serverId")
 	projectDir := e.Request.URL.Query().Get("projectDir")
 	if projectDir == "" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "projectDir is required"})
 	}
-	content, err := localDockerClient.ComposeConfigRead(projectDir)
+	content, err := readAppComposeConfig(e, serverID, projectDir)
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "read config failed", err)
 	}
@@ -863,6 +942,7 @@ func handleComposeConfigGet(e *core.RequestEvent) error {
 // @Failure 500 {object} map[string]any
 // @Router /api/servers/{serverId}/docker/compose/config [put]
 func handleComposeConfigWrite(e *core.RequestEvent) error {
+	serverID := e.Request.PathValue("serverId")
 	body, err := readBody(e)
 	if err != nil {
 		return dockerError(e, http.StatusBadRequest, "invalid request body", err)
@@ -873,7 +953,7 @@ func handleComposeConfigWrite(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "projectDir and content are required"})
 	}
 	userID, userEmail, ip, ua := clientInfo(e)
-	if err := localDockerClient.ComposeConfigWrite(projectDir, content); err != nil {
+	if err := writeAppComposeConfig(e, serverID, projectDir, content); err != nil {
 		audit.Write(e.App, audit.Entry{
 			UserID: userID, UserEmail: userEmail,
 			Action: "app.env_update", ResourceType: "app",
@@ -1026,18 +1106,20 @@ func handleImageInspect(e *core.RequestEvent) error {
 // handleImagePull pulls a Docker image from the registry.
 //
 // @Summary Pull Docker image
-// @Description Pulls the specified image from the registry. Superuser only.
+// @Description Accepts a background image pull operation for the specified image and returns an operation ID for polling. Superuser only.
 // @Tags Resource
 // @Security BearerAuth
 // @Param serverId path string true "server ID"
 // @Param body body object true "name: image name/tag"
-// @Success 200 {object} map[string]any
+// @Success 202 {object} software.AsyncCommandResponse
 // @Failure 400 {object} map[string]any
 // @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
 // @Failure 500 {object} map[string]any
+// @Failure 503 {object} map[string]any
 // @Router /api/servers/{serverId}/docker/images/pull [post]
 func handleImagePull(e *core.RequestEvent) error {
-	client, err := getDockerClient(e)
+	_, err := getDockerClient(e)
 	if err != nil {
 		return dockerError(e, http.StatusBadRequest, "server not found", err)
 	}
@@ -1049,12 +1131,182 @@ func handleImagePull(e *core.RequestEvent) error {
 	if name == "" {
 		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "name is required"})
 	}
-	output, err := client.ImagePull(e.Request.Context(), name)
-	if err != nil {
-		return dockerError(e, http.StatusInternalServerError, "pull image failed", err)
+	serverID := strings.TrimSpace(e.Request.PathValue("serverId"))
+	if serverID == "" {
+		serverID = "local"
 	}
-	invalidateDockerImageListCache(dockerImageListCacheKey(e, client))
-	return e.JSON(http.StatusOK, map[string]any{"output": output})
+	normalizedName := worker.NormalizeDockerImageReference(name)
+	inFlight, err := worker.FindInFlightDockerImagePullOperation(e.App, serverID, normalizedName)
+	if err != nil {
+		return dockerError(e, http.StatusInternalServerError, "check pull operation failed", err)
+	}
+	if inFlight != nil {
+		return e.JSON(http.StatusAccepted, map[string]any{
+			"accepted":     true,
+			"operation_id": inFlight.Id,
+			"phase":        inFlight.GetString("phase"),
+			"message":      "pull already in progress",
+			"deduplicated": true,
+		})
+	}
+	if asynqClient == nil {
+		return e.JSON(http.StatusServiceUnavailable, map[string]any{
+			"error":   "queue_not_configured",
+			"message": "background task queue is not configured",
+		})
+	}
+	record, err := worker.PrepareDockerImagePullOperation(e.App, serverID, name)
+	if err != nil {
+		return dockerError(e, http.StatusInternalServerError, "prepare pull operation failed", err)
+	}
+	userID, userEmail, _, _ := clientInfo(e)
+	if err := enqueueDockerImagePullTask(asynqClient, record.Id, serverID, name, userID, userEmail); err != nil {
+		markDockerImagePullEnqueueFailed(e, record, err)
+		return e.JSON(http.StatusInternalServerError, map[string]any{
+			"error":   "enqueue_failed",
+			"message": err.Error(),
+		})
+	}
+	return e.JSON(http.StatusAccepted, software.AsyncCommandResponse{
+		Accepted:    true,
+		OperationID: record.Id,
+		Phase:       software.OperationPhaseAccepted,
+		Message:     "pull accepted",
+	})
+}
+
+// handleImagePullOperation returns the current state of an async image pull operation.
+//
+// @Summary Get Docker image pull operation
+// @Description Returns the current status, logs, and terminal state for a previously accepted image pull operation. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param serverId path string true "server ID"
+// @Param operationId path string true "pull operation ID"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Router /api/servers/{serverId}/docker/image-pull-operations/{operationId} [get]
+func handleImagePullOperation(e *core.RequestEvent) error {
+	operationID := strings.TrimSpace(e.Request.PathValue("operationId"))
+	if operationID == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "operationId is required"})
+	}
+	record, err := e.App.FindRecordById(collections.DockerImagePullOperations, operationID)
+	if err != nil {
+		return e.JSON(http.StatusNotFound, map[string]any{"code": 404, "message": "pull operation not found"})
+	}
+	serverID := strings.TrimSpace(e.Request.PathValue("serverId"))
+	if serverID == "" {
+		serverID = "local"
+	}
+	if record.GetString("server_id") != serverID {
+		return e.JSON(http.StatusNotFound, map[string]any{"code": 404, "message": "pull operation not found"})
+	}
+	return e.JSON(http.StatusOK, dockerImagePullOperationResponse(record))
+}
+
+// handleImagePullOperations returns recent image pull operations for one server.
+//
+// @Summary List Docker image pull operations
+// @Description Returns recent image pull operations for the specified server, with optional status filtering. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param serverId path string true "server ID"
+// @Param status query string false "in_progress|completed|failed|all (default in_progress)"
+// @Param limit query integer false "max items (default 20, max 50)"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/servers/{serverId}/docker/image-pull-operations [get]
+func handleImagePullOperations(e *core.RequestEvent) error {
+	serverID := strings.TrimSpace(e.Request.PathValue("serverId"))
+	if serverID == "" {
+		serverID = "local"
+	}
+
+	status := strings.TrimSpace(e.Request.URL.Query().Get("status"))
+	if status == "" {
+		status = "in_progress"
+	}
+
+	limit := 20
+	if raw := strings.TrimSpace(e.Request.URL.Query().Get("limit")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed <= 0 {
+			return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "limit must be a positive integer"})
+		}
+		limit = parsed
+	}
+	if limit > 50 {
+		limit = 50
+	}
+
+	terminalFilter := ""
+	switch status {
+	case "in_progress":
+		terminalFilter = string(software.TerminalStatusNone)
+	case "completed":
+		terminalFilter = string(software.TerminalStatusSuccess)
+	case "failed":
+		terminalFilter = string(software.TerminalStatusFailed)
+	case "all":
+		terminalFilter = ""
+	default:
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "status must be one of in_progress, completed, failed, all"})
+	}
+
+	filter := fmt.Sprintf("server_id = '%s'", escapePBFilterValue(serverID))
+	if terminalFilter != "" {
+		filter += fmt.Sprintf(" && terminal_status = '%s'", escapePBFilterValue(terminalFilter))
+	}
+
+	records, err := e.App.FindRecordsByFilter(
+		collections.DockerImagePullOperations,
+		filter,
+		"-updated",
+		limit,
+		0,
+	)
+	if err != nil {
+		return dockerError(e, http.StatusInternalServerError, "list pull operations failed", err)
+	}
+
+	items := make([]map[string]any, 0, len(records))
+	for _, record := range records {
+		items = append(items, dockerImagePullOperationResponse(record))
+	}
+
+	return e.JSON(http.StatusOK, map[string]any{"items": items})
+}
+
+func dockerImagePullOperationResponse(record *core.Record) map[string]any {
+	return map[string]any{
+		"id":              record.Id,
+		"server_id":       record.GetString("server_id"),
+		"image_name":      record.GetString("image_name"),
+		"normalized_name": record.GetString("normalized_name"),
+		"phase":           record.GetString("phase"),
+		"terminal_status": record.GetString("terminal_status"),
+		"failure_phase":   record.GetString("failure_phase"),
+		"failure_reason":  record.GetString("failure_reason"),
+		"output":          record.GetString("output"),
+		"created":         record.GetDateTime("created").String(),
+		"updated":         record.GetDateTime("updated").String(),
+	}
+}
+
+func markDockerImagePullEnqueueFailed(e *core.RequestEvent, record *core.Record, enqueueErr error) {
+	record.Set("phase", string(software.OperationPhaseFailed))
+	record.Set("terminal_status", string(software.TerminalStatusFailed))
+	record.Set("failure_phase", string(software.OperationPhaseAccepted))
+	record.Set("failure_reason", fmt.Sprintf("enqueue failed: %v", enqueueErr))
+	record.Set("output", strings.TrimSpace(record.GetString("output"))+"\nEnqueue failed.")
+	if err := e.App.Save(record); err != nil {
+		e.App.Logger().Error("save failed docker image pull operation after enqueue error", "operation_id", record.Id, "err", err)
+	}
 }
 
 // handleImageRemove removes a Docker image by ID or name.
@@ -1469,34 +1721,34 @@ func handleNetworkList(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": client.Host()})
 }
 
-	// handleNetworkInspect returns detailed metadata for a Docker network.
-	//
-	// @Summary Inspect network
-	// @Description Returns docker network inspect output for the given network ID or name. Superuser only.
-	// @Tags Resource
-	// @Security BearerAuth
-	// @Param serverId path string true "server ID"
-	// @Param id path string true "network ID or name"
-	// @Success 200 {object} map[string]any
-	// @Failure 400 {object} map[string]any
-	// @Failure 401 {object} map[string]any
-	// @Failure 500 {object} map[string]any
-	// @Router /api/servers/{serverId}/docker/networks/{id}/inspect [get]
-	func handleNetworkInspect(e *core.RequestEvent) error {
-		client, err := getDockerClient(e)
-		if err != nil {
-			return dockerError(e, http.StatusBadRequest, "server not found", err)
-		}
-		id := e.Request.PathValue("id")
-		if id == "" {
-			return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "id is required"})
-		}
-		output, err := client.NetworkInspect(e.Request.Context(), id)
-		if err != nil {
-			return dockerError(e, http.StatusInternalServerError, "inspect network failed", err)
-		}
-		return e.JSON(http.StatusOK, map[string]any{"output": output})
+// handleNetworkInspect returns detailed metadata for a Docker network.
+//
+// @Summary Inspect network
+// @Description Returns docker network inspect output for the given network ID or name. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param serverId path string true "server ID"
+// @Param id path string true "network ID or name"
+// @Success 200 {object} map[string]any
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/servers/{serverId}/docker/networks/{id}/inspect [get]
+func handleNetworkInspect(e *core.RequestEvent) error {
+	client, err := getDockerClient(e)
+	if err != nil {
+		return dockerError(e, http.StatusBadRequest, "server not found", err)
 	}
+	id := e.Request.PathValue("id")
+	if id == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "id is required"})
+	}
+	output, err := client.NetworkInspect(e.Request.Context(), id)
+	if err != nil {
+		return dockerError(e, http.StatusInternalServerError, "inspect network failed", err)
+	}
+	return e.JSON(http.StatusOK, map[string]any{"output": output})
+}
 
 // handleNetworkCreate creates a new Docker network.
 //

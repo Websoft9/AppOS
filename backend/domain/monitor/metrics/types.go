@@ -46,10 +46,13 @@ type MetricSeriesResponse struct {
 }
 
 type ContainerTelemetryLatest struct {
-	CPUPercent              *float64 `json:"cpuPercent,omitempty"`
-	MemoryBytes             *float64 `json:"memoryBytes,omitempty"`
-	NetworkRxBytesPerSecond *float64 `json:"networkRxBytesPerSecond,omitempty"`
-	NetworkTxBytesPerSecond *float64 `json:"networkTxBytesPerSecond,omitempty"`
+	CPUPercent               *float64 `json:"cpuPercent,omitempty"`
+	MemoryUsageBytes         *float64 `json:"memoryUsageBytes,omitempty"`
+	MemoryLimitBytes         *float64 `json:"memoryLimitBytes,omitempty"`
+	NetworkRxBytesPerSecond  *float64 `json:"networkRxBytesPerSecond,omitempty"`
+	NetworkTxBytesPerSecond  *float64 `json:"networkTxBytesPerSecond,omitempty"`
+	BlockReadBytesPerSecond  *float64 `json:"blockReadBytesPerSecond,omitempty"`
+	BlockWriteBytesPerSecond *float64 `json:"blockWriteBytesPerSecond,omitempty"`
 }
 
 type ContainerTelemetryFreshness struct {

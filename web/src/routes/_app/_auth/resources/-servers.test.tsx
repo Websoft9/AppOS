@@ -872,6 +872,22 @@ describe('ServersPage layout', () => {
     expect(screen.getByText('Monitor panel for server-1')).toBeInTheDocument()
   })
 
+  it('places the components tab between connection and monitor', async () => {
+    searchState = { server: 'server-1', tab: 'overview' }
+
+    render(<ServersPage />)
+
+    const tabs = await screen.findAllByRole('tab')
+    const labels = tabs.map(tab => tab.textContent?.trim() ?? '')
+    const connectionIndex = labels.indexOf('Connection')
+    const componentsIndex = labels.indexOf('Components')
+    const monitorIndex = labels.indexOf('Monitor')
+
+    expect(connectionIndex).toBeGreaterThanOrEqual(0)
+    expect(componentsIndex).toBe(connectionIndex + 1)
+    expect(monitorIndex).toBe(componentsIndex + 1)
+  })
+
   it('opens the components tab and renders components-specific content', async () => {
     searchState = { server: 'server-1', tab: 'components' }
 

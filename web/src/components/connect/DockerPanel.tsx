@@ -14,6 +14,7 @@ import {
   Eraser,
   HardDrive,
   LayoutDashboard,
+  Loader2,
   Network,
   Plus,
   RefreshCw,
@@ -44,7 +45,7 @@ import { ContainersTab } from '@/components/docker/ContainersTab'
 import { ImagesTab, type ImagesTabRef } from '@/components/docker/ImagesTab'
 import { NetworksTab, type NetworksTabRef } from '@/components/docker/NetworksTab'
 import { VolumesTab, type VolumesTabRef } from '@/components/docker/VolumesTab'
-import { ComposeTab } from '@/components/docker/ComposeTab'
+import { ComposeTab, type ComposeTabSummary } from '@/components/docker/ComposeTab'
 import { TerminalPanel } from '@/components/connect/TerminalPanel'
 import { dockerApiPath, dockerTargetsPath } from '@/lib/docker-api'
 import { cn } from '@/lib/utils'
@@ -69,6 +70,7 @@ type ContainerVisibleColumns = {
   ports: boolean
   volumes: boolean
   status: boolean
+  created: boolean
   cpu: boolean
   mem: boolean
   network: boolean
@@ -95,10 +97,11 @@ const DEFAULT_CONTAINER_VISIBLE_COLUMNS: ContainerVisibleColumns = {
   ports: true,
   volumes: true,
   status: true,
+  created: false,
   cpu: false,
   mem: false,
   network: false,
-  compose: false,
+  compose: true,
 }
 
 interface OverviewContainer {
@@ -167,24 +170,20 @@ function OverviewTab({
   serverId,
   disabled,
   embeddedInWorkspace = false,
-  refreshing = false,
   onSelectTab,
   onFilterContainersByNames,
   onOpenPullImage,
   onOpenPruneImages,
   onOpenPruneVolumes,
-  onRefresh,
 }: {
   serverId: string
   disabled: boolean
   embeddedInWorkspace?: boolean
-  refreshing?: boolean
   onSelectTab: (tabId: DockerTabId) => void
   onFilterContainersByNames: (names: string[]) => void
   onOpenPullImage: () => void
   onOpenPruneImages: () => void
   onOpenPruneVolumes: () => void
-  onRefresh: () => void
 }) {
   const containersQuery = useQuery<OverviewContainer[]>({
     queryKey: ['docker', 'containers', serverId],
@@ -392,9 +391,7 @@ function OverviewTab({
             >
               <Card
                 className={cn(
-                  'h-full gap-3 py-4 transition-colors hover:bg-muted/30',
-                  card.warning &&
-                    'border-amber-300/70 bg-amber-50/40 dark:border-amber-500/40 dark:bg-amber-500/5'
+                  'h-full gap-3 py-4 transition-colors hover:bg-muted/30'
                 )}
               >
                 <CardHeader className="px-4 pb-0">
@@ -559,9 +556,6 @@ function OverviewTab({
               <DropdownMenuItem onSelect={onOpenPruneVolumes}>Prune volumes</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="outline" size="sm" onClick={onRefresh} disabled={disabled || refreshing}>
-            <RefreshCw className={cn('mr-1.5 h-4 w-4', refreshing && 'animate-spin')} /> Refresh
-          </Button>
         </CardContent>
       </Card>
     </div>
@@ -597,6 +591,15 @@ export function DockerPanel({
     usedItems: number
     unusedItems: number
   } | null>(null)
+  const [imagesPullActivity, setImagesPullActivity] = useState<{
+    activeCount: number
+    recentFailedCount: number
+    hasRecentHistory: boolean
+  }>({
+    activeCount: 0,
+    recentFailedCount: 0,
+    hasRecentHistory: false,
+  })
   const [volumesFilter, setVolumesFilter] = useState('')
   const [volumesPage, setVolumesPage] = useState(1)
   const [volumesPageSize, setVolumesPageSize] = useState<25 | 50 | 100>(loadGlobalPageSize)
@@ -613,10 +616,8 @@ export function DockerPanel({
   } | null>(null)
   const [composePage, setComposePage] = useState(1)
   const [composePageSize, setComposePageSize] = useState<25 | 50 | 100>(loadGlobalPageSize)
-  const [composeSummary, setComposeSummary] = useState<{
-    totalItems: number
-    totalPages: number
-  } | null>(null)
+  const [composeStatusFilter, setComposeStatusFilter] = useState('all')
+  const [composeSummary, setComposeSummary] = useState<ComposeTabSummary | null>(null)
   const [containerPage, setContainerPage] = useState(1)
   const [containerPageSize, setContainerPageSize] = useState<ContainerPageSize>(loadGlobalPageSize)
   const [containerStateFilter, setContainerStateFilter] =
@@ -772,6 +773,10 @@ export function DockerPanel({
 
   useEffect(() => {
     setContainerPage(1)
+  }, [serverId])
+
+  useEffect(() => {
+    setComposeStatusFilter('all')
   }, [serverId])
 
   useEffect(() => {
@@ -1028,6 +1033,17 @@ export function DockerPanel({
                           Lifecycle
                         </DropdownMenuCheckboxItem>
                         <DropdownMenuCheckboxItem
+                          checked={containerVisibleColumns.created}
+                          onCheckedChange={checked =>
+                            setContainerVisibleColumns({
+                              ...containerVisibleColumns,
+                              created: checked === true,
+                            })
+                          }
+                        >
+                          Created
+                        </DropdownMenuCheckboxItem>
+                        <DropdownMenuCheckboxItem
                           checked={containerVisibleColumns.cpu}
                           onCheckedChange={checked =>
                             setContainerVisibleColumns({
@@ -1126,8 +1142,39 @@ export function DockerPanel({
                       onClick={() => imagesTabRef.current?.openPullDialog()}
                       title="Pull image"
                     >
-                      <Download className="h-4 w-4 mr-1" /> Pull
+                      {imagesPullActivity.activeCount > 0 ? (
+                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      ) : (
+                        <Download className="h-4 w-4 mr-1" />
+                      )}
+                      {imagesPullActivity.activeCount > 0
+                        ? `Pulling (${imagesPullActivity.activeCount})`
+                        : 'Pull'}
                     </Button>
+                    {imagesPullActivity.recentFailedCount > 0 ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 shrink-0 gap-1.5 px-2 text-xs"
+                        onClick={() => imagesTabRef.current?.openPullHistory('failed')}
+                        title="View failed image pulls"
+                      >
+                        <Badge variant="outline" className="h-5 rounded-sm border-destructive/30 px-1.5 text-[10px] text-destructive">
+                          {imagesPullActivity.recentFailedCount}
+                        </Badge>
+                        Failed
+                      </Button>
+                    ) : imagesPullActivity.hasRecentHistory ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 shrink-0 px-2 text-xs"
+                        onClick={() => imagesTabRef.current?.openPullHistory('all')}
+                        title="View recent image pulls"
+                      >
+                        History
+                      </Button>
+                    ) : null}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -1326,6 +1373,19 @@ export function DockerPanel({
                       placeholder="Search projects"
                       className="h-8 w-full min-w-0 rounded-md border bg-background px-3 text-sm sm:mr-[5ch] sm:w-[20ch]"
                     />
+                    <select
+                      value={composeStatusFilter}
+                      onChange={e => setComposeStatusFilter(e.target.value)}
+                      className="h-8 shrink-0 rounded-md border bg-background px-2 text-sm"
+                      aria-label="Filter compose status"
+                    >
+                      <option value="all">All status</option>
+                      {(composeSummary?.statusCounts ?? []).map(({ status, count }) => (
+                        <option key={status} value={status}>
+                          {status} ({count})
+                        </option>
+                      ))}
+                    </select>
                     <div className="ml-4 flex items-center gap-2 text-xs text-muted-foreground">
                       {composeSummary && <span>{composeSummary.totalItems} total</span>}
                       <div className="flex items-center gap-0 text-xs text-foreground">
@@ -1425,7 +1485,6 @@ export function DockerPanel({
                   serverId={serverId}
                   disabled={dockerDisabled}
                   embeddedInWorkspace
-                  refreshing={refreshFeedbackActive}
                   onSelectTab={setActiveTab}
                   onFilterContainersByNames={names => {
                     setContainerFilter('')
@@ -1445,7 +1504,6 @@ export function DockerPanel({
                     setActiveTab('volumes')
                     window.setTimeout(() => volumesTabRef.current?.openPruneDialog(), 0)
                   }}
-                  onRefresh={refreshDockerData}
                 />
               </TabsContent>
               <TabsContent
@@ -1474,16 +1532,22 @@ export function DockerPanel({
                   onVisibleColumnsChange={() => {}}
                   onSummaryChange={setContainerSummary}
                   onRefresh={refreshDockerData}
-                  onOpenComposeFilter={name => {
-                    if (!name || name === '-') return
-                    setComposeFilter(name)
-                    setActiveTab('compose')
-                  }}
                   onOpenVolumeFilter={volumeNames => {
                     if (!volumeNames || volumeNames.length === 0) return
                     setVolumesFilter('')
                     setVolumeFilterNames(volumeNames)
                     setActiveTab('volumes')
+                  }}
+                  onOpenImageFilter={imageName => {
+                    if (!imageName) return
+                    setImagesFilter(imageName)
+                    setImagesUsageFilter('all')
+                    setActiveTab('images')
+                  }}
+                  onOpenNetworkFilter={networkName => {
+                    if (!networkName) return
+                    setNetworksFilter(networkName)
+                    setActiveTab('networks')
                   }}
                   onOpenTerminal={id => setTerminalContainerId(id)}
                   showPanelChrome={false}
@@ -1509,6 +1573,7 @@ export function DockerPanel({
                     setContainerFilterNames(containerNames)
                     setActiveTab('containers')
                   }}
+                  onPullActivityChange={setImagesPullActivity}
                   onSummaryChange={setImagesSummary}
                 />
               </TabsContent>
@@ -1566,10 +1631,12 @@ export function DockerPanel({
                   refreshSignal={refreshSignal}
                   embeddedInWorkspace
                   externalFilter={composeFilter}
+                  externalStatusFilter={composeStatusFilter}
                   page={composePage}
                   pageSize={composePageSize}
                   onPageChange={setComposePage}
                   onSummaryChange={setComposeSummary}
+                  onStatusFilterChange={setComposeStatusFilter}
                   onOpenContainerFilter={containerName => {
                     if (!containerName) return
                     setContainerFilter(containerName)

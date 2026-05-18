@@ -7,7 +7,7 @@
 
 ## Objective
 
-Expose monitor-backed container usage evidence inside Server Detail so operators can see current container CPU, memory, and network usage without depending on request-time `docker stats` reads.
+Expose monitor-backed container usage evidence inside Server Detail so operators can see Docker-stats-like current container CPU, memory, network, and block I/O usage without depending on request-time `docker stats` reads.
 
 ## Scope
 
@@ -73,9 +73,10 @@ Presentation rules:
 For each container row, support these monitor-backed fields when available:
 
 - current CPU usage
-- current memory usage
+- current memory usage and memory limit
 - optional memory percent when the collector can provide a trustworthy denominator
-- current network throughput or recent in/out summary
+- current network in/out summary
+- current block read/write summary
 - telemetry freshness badge when data is stale or unavailable
 
 Optional expansion behavior:
@@ -138,7 +139,7 @@ This story should replace only the stats evidence path. It should not reopen the
 	- [ ] 1.3 define telemetry freshness and empty-state handling
 - [ ] Task 2: Replace request-time stats usage in the Containers tab
 	- [ ] 2.1 remove direct dependency on `docker stats` for normal container usage rendering
-	- [ ] 2.2 render CPU, memory, and network telemetry from monitor-backed data
+	- [ ] 2.2 render CPU, memory, network, and block I/O telemetry from monitor-backed data
 	- [ ] 2.3 preserve all existing inventory-driven actions and inspect flows
 - [ ] Task 3: Keep non-container tabs unchanged
 	- [ ] 3.1 do not migrate Images to monitor-backed collection in this story
@@ -151,12 +152,12 @@ This story should replace only the stats evidence path. It should not reopen the
 
 ## Acceptance Criteria
 
-- [ ] AC1: The Server Detail Docker containers view can render current CPU and memory usage from monitor-backed container telemetry.
+- [ ] AC1: The Server Detail Docker containers view can render Docker-stats-like CPU, memory, network, and block I/O usage from monitor-backed container telemetry.
 - [ ] AC2: Container telemetry joins to Docker inventory through a stable container identity without persisting full container inventory in monitoring storage.
 - [ ] AC3: The UI can show a short-window usage trend for supported container telemetry series using only allowlisted monitor queries.
 - [ ] AC4: Container actions, inspect, and logs continue to work through Docker ext APIs and are not blocked by telemetry availability.
 - [ ] AC5: Images, Networks, and Volumes tabs remain inventory-driven and unchanged in this story.
-- [ ] AC6: Missing or stale telemetry degrades explicitly in the UI without showing misleading zero values.
+- [ ] AC6: Missing or stale telemetry degrades explicitly in the UI without showing misleading zero values, including for memory limit or block I/O fields that may be absent for some collectors.
 - [ ] AC7: The browser does not gain arbitrary TSDB query capability to render container telemetry.
 
 ## Implementation Notes

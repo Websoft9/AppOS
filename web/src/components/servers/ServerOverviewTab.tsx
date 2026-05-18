@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 
 import type { ServerFactsView, ServerReadModelItem } from './server-detail-shared'
-import { accessLabel, tunnelStateLabel } from './server-detail-shared'
+import { accessLabel, formatTimestamp, tunnelStateLabel } from './server-detail-shared'
 
 type ServerOverviewTabProps = {
   item: ServerReadModelItem
@@ -32,6 +32,15 @@ function firstStringValue(
   return fallback
 }
 
+function formatCloudSourceLabel(value: string): string {
+  const normalized = value.trim().toLowerCase()
+  if (normalized === 'unavailable') return value
+  if (normalized === 'cloud-init') return 'Cloud-init'
+  if (normalized === 'metadata') return 'Metadata service'
+  if (normalized === 'manual') return 'Manual override'
+  return value
+}
+
 export function ServerOverviewTab({
   item,
   serverId,
@@ -47,7 +56,12 @@ export function ServerOverviewTab({
   const cloudProviderName = firstStringValue(item, 'cloud_provider_name')
   const cloudProviderRegion = firstStringValue(item, 'cloud_region')
   const cloudProviderZone = firstStringValue(item, 'cloud_zone')
-  const cloudProviderSource = firstStringValue(item, 'cloud_provider_source')
+  const cloudProviderSource = formatCloudSourceLabel(
+    firstStringValue(item, 'cloud_provider_source')
+  )
+  const createdAt = formatTimestamp(item.created)
+  const updatedAt = formatTimestamp(item.updated)
+  const createdByLabel = createdBy.trim() || '—'
 
   return (
     <div className="space-y-8">
@@ -142,15 +156,15 @@ export function ServerOverviewTab({
           </div>
           <div>
             <dt className="text-xs uppercase tracking-wide text-muted-foreground">Created by</dt>
-            <dd className="mt-1">{createdBy}</dd>
+            <dd className="mt-1">{createdByLabel}</dd>
           </div>
           <div>
             <dt className="text-xs uppercase tracking-wide text-muted-foreground">Created</dt>
-            <dd className="mt-1">{String(item.created || '—')}</dd>
+            <dd className="mt-1">{createdAt}</dd>
           </div>
           <div>
             <dt className="text-xs uppercase tracking-wide text-muted-foreground">Updated</dt>
-            <dd className="mt-1">{String(item.updated || '—')}</dd>
+            <dd className="mt-1">{updatedAt}</dd>
           </div>
           {item.description ? (
             <div className="sm:col-span-2 xl:col-span-3">

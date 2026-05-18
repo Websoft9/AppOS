@@ -253,10 +253,10 @@ func buildNetdataExportingConfig(serverID string, remoteWriteURL string, agentTo
 		"    prefix = netdata",
 		fmt.Sprintf("    hostname = %s", strings.TrimSpace(serverID)),
 		"    update every = 10",
-		"    send charts matching = system.cpu system.ram system.io system.net net.net disk_space.*",
+		"    send charts matching = system.cpu system.ram system.io system.net net.net disk_space.* cgroup.cpu_limit cgroup.mem_usage cgroup.mem_usage_limit cgroup.io cgroup.net_net",
 		"    send names instead of ids = yes",
 		"    send configured labels = no",
-		"    send automatic labels = no",
+		"    send automatic labels = yes",
 		"",
 	}, "\n")
 	return config, nil

@@ -39,8 +39,8 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { TimeSeriesChart } from '@/components/monitor/TimeSeriesChart'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { getApiErrorMessage } from '@/lib/api-error'
+import { DockerTextDialog } from '@/components/docker/DockerTextDialog'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -68,8 +68,6 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  Copy,
-  Download,
   ExternalLink,
   Filter,
   Loader2,
@@ -84,6 +82,7 @@ type ContainerVisibleColumns = {
   ports: boolean
   volumes: boolean
   status: boolean
+  created: boolean
   cpu: boolean
   mem: boolean
   network: boolean
@@ -104,6 +103,33 @@ interface ContainerMetadataItem {
   created?: string
   compose_project?: string
   volume_names?: string[]
+}
+
+interface InspectPortRow {
+  hostIP: string
+  hostPort: string
+  containerPort: string
+  protocol: string
+}
+
+interface InspectMountRow {
+  type: string
+  source: string
+  destination: string
+  rw: string
+  name: string
+}
+
+interface InspectNetworkRow {
+  name: string
+  ip: string
+  gateway: string
+  aliases: string[]
+}
+
+interface InspectEnvRow {
+  key: string
+  value: string
 }
 
 function parseContainers(output: string): Container[] {
@@ -143,17 +169,46 @@ function formatPercent(value?: number): string {
   return `${value.toFixed(value >= 10 ? 0 : 1)}%`
 }
 
-function formatRateBytes(value?: number): string {
-  if (value == null || !Number.isFinite(value) || value <= 0) return '-'
-  return `${formatBytesCompact(value)}/s`
+function formatMemorySummary(item?: MonitorContainerTelemetryItem): string {
+  if (!item || item.freshness.state === 'missing') return '-'
+  const usage = item.latest.memoryUsageBytes
+  const limit = item.latest.memoryLimitBytes
+  if (usage == null && limit == null) return '-'
+  if (limit == null) return formatBytesCompact(usage)
+  return `${formatBytesCompact(usage)} / ${formatBytesCompact(limit)}`
+}
+
+function formatByteIoSummary(
+  received?: number,
+  sent?: number,
+  receivedLabel = 'in',
+  sentLabel = 'out',
+  suffix = ''
+): string {
+  if (received == null && sent == null) return '-'
+  return `${received == null ? '—' : `${formatBytesCompact(received)}${suffix}`} ${receivedLabel} / ${sent == null ? '—' : `${formatBytesCompact(sent)}${suffix}`} ${sentLabel}`
 }
 
 function formatNetworkSummary(item?: MonitorContainerTelemetryItem): string {
-  if (!item || item.freshness.state === 'missing') return 'No telemetry'
-  const inbound = item.latest.networkRxBytesPerSecond
-  const outbound = item.latest.networkTxBytesPerSecond
-  if (inbound == null && outbound == null) return 'No telemetry'
-  return `${inbound == null ? '—' : formatRateBytes(inbound)} in / ${outbound == null ? '—' : formatRateBytes(outbound)} out`
+  if (!item || item.freshness.state === 'missing') return '-'
+  return formatByteIoSummary(
+    item.latest.networkRxBytesPerSecond,
+    item.latest.networkTxBytesPerSecond,
+    'in',
+    'out',
+    '/s'
+  )
+}
+
+function formatBlockSummary(item?: MonitorContainerTelemetryItem): string {
+  if (!item || item.freshness.state === 'missing') return '-'
+  return formatByteIoSummary(
+    item.latest.blockReadBytesPerSecond,
+    item.latest.blockWriteBytesPerSecond,
+    'read',
+    'write',
+    '/s'
+  )
 }
 
 function telemetrySeries(
@@ -164,16 +219,7 @@ function telemetrySeries(
 }
 
 function telemetryBadge(item?: MonitorContainerTelemetryItem) {
-  if (!item || item.freshness.state === 'missing') {
-    return (
-      <Badge
-        variant="outline"
-        className="border-dashed border-border/60 bg-transparent text-[11px] font-normal text-muted-foreground"
-      >
-        No telemetry
-      </Badge>
-    )
-  }
+  if (!item || item.freshness.state === 'missing') return null
   if (item.freshness.state === 'stale') {
     return (
       <Badge
@@ -271,38 +317,77 @@ function metadataComposeName(metadata?: ContainerMetadataItem): string {
   return metadata?.compose_project || '-'
 }
 
-function inspectPorts(inspect?: Record<string, any> | null): string[] {
+function inspectPorts(inspect?: Record<string, any> | null): InspectPortRow[] {
   const ports = inspect?.NetworkSettings?.Ports as
     | Record<string, Array<{ HostIp?: string; HostPort?: string }> | null>
     | undefined
   if (!ports) return []
-  const result: string[] = []
+  const result: InspectPortRow[] = []
   for (const [containerPort, bindings] of Object.entries(ports)) {
+    const [containerPortValue, protocol = 'tcp'] = containerPort.split('/')
     if (!bindings || bindings.length === 0) {
-      result.push(containerPort)
+      result.push({
+        hostIP: '-',
+        hostPort: '-',
+        containerPort: containerPortValue || containerPort,
+        protocol,
+      })
       continue
     }
     for (const binding of bindings) {
-      result.push(`${binding.HostIp || '0.0.0.0'}:${binding.HostPort || '?'} -> ${containerPort}`)
+      result.push({
+        hostIP: binding.HostIp || '0.0.0.0',
+        hostPort: binding.HostPort || '?',
+        containerPort: containerPortValue || containerPort,
+        protocol,
+      })
     }
   }
   return result
 }
 
-function inspectVolumes(inspect?: Record<string, any> | null): string[] {
+function inspectVolumes(inspect?: Record<string, any> | null): InspectMountRow[] {
   const mounts = inspect?.Mounts as
-    | Array<{ Source?: string; Destination?: string; Type?: string }>
+    | Array<{ Source?: string; Destination?: string; Type?: string; RW?: boolean; Name?: string }>
     | undefined
   if (!Array.isArray(mounts)) return []
-  return mounts.map(
-    mount => `${mount.Source || '-'}:${mount.Destination || '-'} (${mount.Type || 'bind'})`
-  )
+  return mounts.map(mount => ({
+    type: mount.Type || 'bind',
+    source: mount.Source || '-',
+    destination: mount.Destination || '-',
+    rw: mount.RW === false ? 'ro' : 'rw',
+    name: mount.Name || '',
+  }))
 }
 
-function inspectNetworks(inspect?: Record<string, any> | null): string[] {
+function inspectNetworks(inspect?: Record<string, any> | null): InspectNetworkRow[] {
   const networks = inspect?.NetworkSettings?.Networks as Record<string, any> | undefined
   if (!networks) return []
-  return Object.keys(networks)
+  return Object.entries(networks).map(([name, network]) => ({
+    name,
+    ip: network?.IPAddress || '-',
+    gateway: network?.Gateway || '-',
+    aliases: Array.isArray(network?.Aliases)
+      ? network.Aliases.filter((value: unknown): value is string => typeof value === 'string')
+      : [],
+  }))
+}
+
+function inspectEnvRows(inspect?: Record<string, any> | null): InspectEnvRow[] {
+  const envs = inspect?.Config?.Env
+  if (!Array.isArray(envs)) return []
+  return envs
+    .filter((value: unknown): value is string => typeof value === 'string')
+    .map(entry => {
+      const separatorIndex = entry.indexOf('=')
+      if (separatorIndex === -1) {
+        return { key: entry, value: '' }
+      }
+      return {
+        key: entry.slice(0, separatorIndex),
+        value: entry.slice(separatorIndex + 1),
+      }
+    })
 }
 
 function shortImageLabel(image: string): string {
@@ -332,7 +417,8 @@ function statusBadge(state: string) {
   )
 }
 
-type SortKey = 'name' | 'created' | 'cpu' | 'mem' | 'compose'
+type SortKey = 'name' | 'created' | 'cpu' | 'mem'
+type OutputViewMode = 'logs' | 'inspect'
 
 export function ContainersTab({
   serverId,
@@ -356,8 +442,9 @@ export function ContainersTab({
   onSummaryChange,
   onVisibleColumnsChange,
   onRefresh,
-  onOpenComposeFilter,
   onOpenVolumeFilter,
+  onOpenImageFilter,
+  onOpenNetworkFilter,
   showPanelChrome = true,
 }: {
   serverId: string
@@ -385,8 +472,9 @@ export function ContainersTab({
   }) => void
   onVisibleColumnsChange?: (columns: ContainerVisibleColumns) => void
   onRefresh?: () => void
-  onOpenComposeFilter?: (composeName: string) => void
   onOpenVolumeFilter?: (volumeNames: string[]) => void
+  onOpenImageFilter?: (imageName: string) => void
+  onOpenNetworkFilter?: (networkName: string) => void
   showPanelChrome?: boolean
 }) {
   type PendingAction = {
@@ -397,17 +485,17 @@ export function ContainersTab({
 
   const queryClient = useQueryClient()
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [logsContainer, setLogsContainer] = useState<Container | null>(null)
+  const [outputContainer, setOutputContainer] = useState<Container | null>(null)
+  const [outputMode, setOutputMode] = useState<OutputViewMode>('logs')
   const [statsContainer, setStatsContainer] = useState<Container | null>(null)
-  const [logsContent, setLogsContent] = useState('')
-  const [logsLoading, setLogsLoading] = useState(false)
-  const [logsActionTip, setLogsActionTip] = useState('')
+  const [outputContent, setOutputContent] = useState('')
+  const [outputLoading, setOutputLoading] = useState(false)
   const [sortKey, setSortKey] = useState<SortKey>(() => {
     try {
       const raw = localStorage.getItem(CONTAINERS_SORT_KEY)
       if (!raw) return 'name'
       const parsed = JSON.parse(raw) as { key?: SortKey }
-      return parsed.key && ['name', 'created', 'cpu', 'mem', 'compose'].includes(parsed.key)
+      return parsed.key && ['name', 'created', 'cpu', 'mem'].includes(parsed.key)
         ? parsed.key
         : 'name'
     } catch {
@@ -433,6 +521,7 @@ export function ContainersTab({
   const [allDetailsCached, setAllDetailsCached] = useState(false)
   const [detailsErrorMessage, setDetailsErrorMessage] = useState<string | null>(null)
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
+  const [composeFilter, setComposeFilter] = useState('all')
 
   useEffect(() => {
     localStorage.setItem(CONTAINERS_SORT_KEY, JSON.stringify({ key: sortKey, dir: sortDir }))
@@ -505,6 +594,10 @@ export function ContainersTab({
     setDetailsErrorMessage(null)
   }, [refreshSignal])
 
+  useEffect(() => {
+    setComposeFilter('all')
+  }, [serverId])
+
   const telemetryMap = useMemo(() => {
     const next: Record<string, MonitorContainerTelemetryItem> = {}
     for (const item of telemetry?.items || []) {
@@ -568,23 +661,33 @@ export function ContainersTab({
 
   useEffect(() => {
     if (
+      !visibleColumns.created &&
       !visibleColumns.cpu &&
       !visibleColumns.mem &&
       !visibleColumns.compose &&
+      composeFilter === 'all' &&
       !visibleColumns.volumes
     ) {
       return
     }
     void loadAllDetails()
-  }, [loadAllDetails, visibleColumns.compose, visibleColumns.cpu, visibleColumns.mem, visibleColumns.volumes])
+  }, [
+    loadAllDetails,
+    visibleColumns.compose,
+    visibleColumns.cpu,
+    visibleColumns.created,
+    visibleColumns.mem,
+    visibleColumns.volumes,
+    composeFilter,
+  ])
 
   useEffect(() => {
-    if (visibleColumns.cpu || visibleColumns.mem || visibleColumns.compose) return
-    if (sortKey === 'created' || sortKey === 'cpu' || sortKey === 'mem' || sortKey === 'compose') {
+    if (visibleColumns.created || visibleColumns.cpu || visibleColumns.mem) return
+    if (sortKey === 'created' || sortKey === 'cpu' || sortKey === 'mem') {
       setSortKey('name')
       setSortDir('asc')
     }
-  }, [sortKey, visibleColumns.compose, visibleColumns.cpu, visibleColumns.mem])
+  }, [sortKey, visibleColumns.cpu, visibleColumns.created, visibleColumns.mem])
 
   const action = async (id: string, act: string, options?: { force?: boolean }) => {
     try {
@@ -609,53 +712,41 @@ export function ContainersTab({
     }
   }
 
-  const fetchLogs = useCallback(
-    async (container: Container) => {
+  const fetchOutput = useCallback(
+    async (container: Container, mode: OutputViewMode) => {
       try {
-        setLogsLoading(true)
-        setLogsContainer(container)
-        const res = await pb.send(dockerApiUrl(serverId, `/containers/${container.ID}/logs`, { tail: 300 }), {
-          method: 'GET',
-        })
-        setLogsContent(typeof res.output === 'string' ? res.output : '')
+        setOutputLoading(true)
+        setOutputContainer(container)
+        setOutputMode(mode)
+        if (mode === 'logs') {
+          const res = await pb.send(
+            dockerApiUrl(serverId, `/containers/${container.ID}/logs`, { tail: 300 }),
+            {
+              method: 'GET',
+            }
+          )
+          setOutputContent(typeof res.output === 'string' ? res.output : '')
+        } else {
+          const res = await pb.send(dockerApiPath(serverId, `/containers/${container.ID}`), {
+            method: 'GET',
+          })
+          const inspect = parseInspect(typeof res.output === 'string' ? res.output : '')
+          setOutputContent(
+            inspect
+              ? JSON.stringify(inspect, null, 2)
+              : typeof res.output === 'string'
+                ? res.output
+                : JSON.stringify(res.output, null, 2)
+          )
+        }
       } catch (err) {
-        setLogsContent(String(err))
+        setOutputContent(String(err))
       } finally {
-        setLogsLoading(false)
+        setOutputLoading(false)
       }
     },
     [serverId]
   )
-
-  const copyLogs = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(logsContent || '')
-      setLogsActionTip('Logs copied')
-      window.setTimeout(() => setLogsActionTip(''), 1200)
-    } catch {
-      setLogsActionTip('Failed to copy logs')
-      window.setTimeout(() => setLogsActionTip(''), 1200)
-    }
-  }, [logsContent])
-
-  const downloadLogs = useCallback(() => {
-    try {
-      const safeName = (logsContainer?.Names || 'container').replace(/[^a-zA-Z0-9._-]/g, '_')
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-      const blob = new Blob([logsContent || ''], { type: 'text/plain;charset=utf-8' })
-      const url = URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = url
-      anchor.download = `${safeName}-logs-${timestamp}.log`
-      document.body.appendChild(anchor)
-      anchor.click()
-      anchor.remove()
-      URL.revokeObjectURL(url)
-    } catch {
-      setLogsActionTip('Failed to download logs')
-      window.setTimeout(() => setLogsActionTip(''), 1200)
-    }
-  }, [logsContainer?.Names, logsContent])
 
   const activeSearchQuery = String(searchQuery ?? filterPreset ?? '')
     .trim()
@@ -712,8 +803,26 @@ export function ContainersTab({
     [stateFiltered, includeNames]
   )
 
+  const composeOptions = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const container of nameFiltered) {
+      const composeName = metadataComposeName(metadataMap[container.ID])
+      if (!composeName || composeName === '-') continue
+      counts.set(composeName, (counts.get(composeName) || 0) + 1)
+    }
+    return Array.from(counts.entries())
+      .sort((left, right) => left[0].localeCompare(right[0]))
+      .map(([name, count]) => ({ name, count }))
+  }, [metadataMap, nameFiltered])
+
+  const composeFiltered = useMemo(() => {
+    if (composeFilter === 'all') return nameFiltered
+    if (!allDetailsCached && allDetailsLoading) return nameFiltered
+    return nameFiltered.filter(container => metadataComposeName(metadataMap[container.ID]) === composeFilter)
+  }, [allDetailsCached, allDetailsLoading, composeFilter, metadataMap, nameFiltered])
+
   const sorted = useMemo(() => {
-    const items = [...nameFiltered]
+    const items = [...composeFiltered]
     items.sort((left, right) => {
       const leftMetadata = metadataMap[left.ID]
       const rightMetadata = metadataMap[right.ID]
@@ -721,8 +830,8 @@ export function ContainersTab({
       const rightTelemetry = telemetryMap[right.ID]
 
       if (sortKey === 'mem') {
-        const leftMem = leftTelemetry?.latest.memoryBytes || 0
-        const rightMem = rightTelemetry?.latest.memoryBytes || 0
+        const leftMem = leftTelemetry?.latest.memoryUsageBytes || 0
+        const rightMem = rightTelemetry?.latest.memoryUsageBytes || 0
         if (leftMem < rightMem) return sortDir === 'asc' ? -1 : 1
         if (leftMem > rightMem) return sortDir === 'asc' ? 1 : -1
         return 0
@@ -740,8 +849,6 @@ export function ContainersTab({
         switch (sortKey) {
           case 'created':
             return String(leftMetadata?.created || '')
-          case 'compose':
-            return metadataComposeName(leftMetadata)
           default:
             return left.Names
         }
@@ -751,8 +858,6 @@ export function ContainersTab({
         switch (sortKey) {
           case 'created':
             return String(rightMetadata?.created || '')
-          case 'compose':
-            return metadataComposeName(rightMetadata)
           default:
             return right.Names
         }
@@ -763,7 +868,7 @@ export function ContainersTab({
       return 0
     })
     return items
-  }, [metadataMap, nameFiltered, sortDir, sortKey, telemetryMap])
+  }, [composeFiltered, metadataMap, sortDir, sortKey, telemetryMap])
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
   const paged = useMemo(() => {
@@ -780,6 +885,7 @@ export function ContainersTab({
     page,
     pageSize,
     serverId,
+    composeFilter,
     sortDir,
     sortKey,
     stateFilter,
@@ -847,19 +953,19 @@ export function ContainersTab({
       ? getApiErrorMessage(telemetryError, 'Failed to load container telemetry')
       : detailsErrorMessage
 
-  const detailsColumnsVisible = visibleColumns.cpu || visibleColumns.mem || visibleColumns.compose
   const tableColSpan =
     4 +
-    (visibleColumns.status ? 1 : 0) +
     (visibleColumns.ports ? 1 : 0) +
     (visibleColumns.volumes ? 1 : 0) +
-    (detailsColumnsVisible ? 1 : 0) +
+    (visibleColumns.created ? 1 : 0) +
+    (visibleColumns.compose ? 1 : 0) +
     (visibleColumns.cpu ? 1 : 0) +
     (visibleColumns.mem ? 1 : 0) +
     (visibleColumns.network ? 1 : 0) +
-    (visibleColumns.compose ? 1 : 0)
+    (visibleColumns.status ? 1 : 0)
   const totalItems = sorted.length
   const hasLinkedFilter = (filterPreset && onClearFilterPreset) || (includeNames && includeNames.length > 0)
+  const hasComposeFilter = composeFilter !== 'all'
   const hasStatusBadges =
     (includeNames && includeNames.length > 0) || telemetryLoading || copiedTip
 
@@ -978,6 +1084,14 @@ export function ContainersTab({
                     Lifecycle
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
+                    checked={visibleColumns.created}
+                    onCheckedChange={checked =>
+                      onVisibleColumnsChange?.({ ...visibleColumns, created: checked === true })
+                    }
+                  >
+                    Created
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
                     checked={visibleColumns.cpu}
                     onCheckedChange={checked =>
                       onVisibleColumnsChange?.({ ...visibleColumns, cpu: checked === true })
@@ -1014,25 +1128,29 @@ export function ContainersTab({
             </div>
             </div>
           ) : null}
-          {hasLinkedFilter && (
-            <div className="flex items-center justify-end gap-2 shrink-0">
+          {(hasLinkedFilter || hasComposeFilter) && (
+            <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+              {includeNames && includeNames.length > 0 && (
+                <Badge variant="outline">Linked containers: {includeNames.length}</Badge>
+              )}
+              {hasComposeFilter && (
+                <Badge variant="outline">Compose: {composeFilter}</Badge>
+              )}
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => {
                   onClearFilterPreset?.()
                   onClearIncludeNames?.()
+                  setComposeFilter('all')
                 }}
               >
-                Clear linked filter
+                Clear filters
               </Button>
             </div>
           )}
           {hasStatusBadges && (
             <div className="flex items-center gap-2 flex-wrap shrink-0">
-              {includeNames && includeNames.length > 0 && (
-                <Badge variant="outline">Linked containers: {includeNames.length}</Badge>
-              )}
               {telemetryLoading && <Badge variant="outline">Loading telemetry...</Badge>}
               {copiedTip && <div className="text-xs text-muted-foreground shrink-0">{copiedTip}</div>}
             </div>
@@ -1106,11 +1224,6 @@ export function ContainersTab({
                   <TableHead className="w-[150px] min-w-[150px] text-xs font-medium text-foreground">
                     Quick
                   </TableHead>
-                  {visibleColumns.status && (
-                    <TableHead className="min-w-[150px] text-xs font-medium text-foreground">
-                      Lifecycle
-                    </TableHead>
-                  )}
                   {visibleColumns.ports && (
                     <TableHead className="min-w-[140px] text-xs font-medium text-foreground">
                       Ports
@@ -1121,9 +1234,47 @@ export function ContainersTab({
                       Volumes
                     </TableHead>
                   )}
-                  {detailsColumnsVisible && (
+                  {visibleColumns.created && (
                     <TableHead className="min-w-[160px]">
                       <SortHead label="Created" keyName="created" />
+                    </TableHead>
+                  )}
+                  {visibleColumns.compose && (
+                    <TableHead className="min-w-[140px]">
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs font-medium text-foreground">Compose</span>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              aria-label="Filter compose project"
+                              title={composeFilter === 'all' ? 'Filter compose project' : `Compose: ${composeFilter}`}
+                            >
+                              <Filter
+                                className={cn(
+                                  'h-3.5 w-3.5',
+                                  composeFilter !== 'all' && 'text-foreground'
+                                )}
+                              />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
+                            <DropdownMenuRadioGroup
+                              value={composeFilter}
+                              onValueChange={value => setComposeFilter(value)}
+                            >
+                              <DropdownMenuRadioItem value="all">All compose</DropdownMenuRadioItem>
+                              {composeOptions.map(option => (
+                                <DropdownMenuRadioItem key={option.name} value={option.name}>
+                                  {option.name} ({option.count})
+                                </DropdownMenuRadioItem>
+                              ))}
+                            </DropdownMenuRadioGroup>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableHead>
                   )}
                   {visibleColumns.cpu && (
@@ -1141,9 +1292,9 @@ export function ContainersTab({
                       Net
                     </TableHead>
                   )}
-                  {visibleColumns.compose && (
-                    <TableHead className="min-w-[140px]">
-                      <SortHead label="Compose" keyName="compose" />
+                  {visibleColumns.status && (
+                    <TableHead className="min-w-[150px] text-xs font-medium text-foreground">
+                      Lifecycle
                     </TableHead>
                   )}
                   <TableHead className="w-[52px] text-xs font-medium text-foreground">
@@ -1179,7 +1330,7 @@ export function ContainersTab({
                     <TableCell className="pl-4 pr-3 py-3 text-xs">
                       <Button
                         variant="link"
-                        className="h-auto w-full justify-start p-0 text-left no-underline hover:no-underline"
+                        className="group min-h-8 w-full justify-start p-0 text-left no-underline hover:no-underline"
                         onClick={() => {
                           setExpandedId(id => {
                             const nextId = id === c.ID ? null : c.ID
@@ -1192,13 +1343,13 @@ export function ContainersTab({
                       >
                         <div className="min-w-0 space-y-1 text-left">
                           <div
-                            className="truncate text-xs font-medium leading-tight text-foreground"
+                            className="truncate text-xs font-semibold leading-tight text-foreground group-hover:underline"
                             title={c.Names}
                           >
                             {shortName(c.Names)}
                           </div>
                           <div
-                            className="truncate font-mono text-[11px] leading-tight text-muted-foreground"
+                            className="truncate font-mono text-[11px] font-semibold leading-tight text-muted-foreground"
                             title={c.Image}
                           >
                             {shortImageLabel(c.Image)}
@@ -1221,7 +1372,7 @@ export function ContainersTab({
                           onClick={event => {
                             event.preventDefault()
                             event.stopPropagation()
-                            void fetchLogs(c)
+                            void fetchOutput(c, 'logs')
                           }}
                           aria-label={`Open logs for ${c.Names}`}
                           title="Logs"
@@ -1259,11 +1410,6 @@ export function ContainersTab({
                         </Button>
                       </div>
                     </TableCell>
-                    {visibleColumns.status && (
-                      <TableCell className="py-3 text-xs text-muted-foreground">
-                        {c.Status || '-'}
-                      </TableCell>
-                    )}
                     {visibleColumns.ports && (
                       <TableCell className="py-3 text-xs text-foreground/90">
                         {hostPublishedPorts(c.Ports)}
@@ -1288,13 +1434,28 @@ export function ContainersTab({
                         )}
                       </TableCell>
                     )}
-                    {detailsColumnsVisible && (
+                    {visibleColumns.created && (
                       <TableCell className="py-3 text-xs text-muted-foreground">
                         {allDetailsLoading
                           ? '...'
                           : metadata?.created
                             ? new Date(metadata.created).toLocaleString()
                             : '-'}
+                      </TableCell>
+                    )}
+                    {visibleColumns.compose && (
+                      <TableCell className="py-3 text-xs">
+                        {metadataComposeName(metadata) !== '-' ? (
+                          <Button
+                            variant="link"
+                            className="h-auto p-0 text-xs"
+                            onClick={() => setComposeFilter(metadataComposeName(metadata))}
+                          >
+                            {metadataComposeName(metadata)}
+                          </Button>
+                        ) : (
+                          '-'
+                        )}
                       </TableCell>
                     )}
                     {visibleColumns.cpu && (
@@ -1312,7 +1473,7 @@ export function ContainersTab({
                           ? '...'
                           : telemetryItem?.freshness.state === 'missing'
                             ? <span className="text-muted-foreground">-</span>
-                            : <span className="font-medium text-foreground">{formatBytesCompact(telemetryItem?.latest.memoryBytes)}</span>}
+                            : <span className="font-medium text-foreground">{formatMemorySummary(telemetryItem)}</span>}
                       </TableCell>
                     )}
                     {visibleColumns.network && (
@@ -1320,19 +1481,9 @@ export function ContainersTab({
                         {telemetryLoading ? '...' : formatNetworkSummary(telemetryItem)}
                       </TableCell>
                     )}
-                    {visibleColumns.compose && (
-                      <TableCell className="py-3 text-xs">
-                        {metadataComposeName(metadata) !== '-' ? (
-                          <Button
-                            variant="link"
-                            className="h-auto p-0 text-xs"
-                            onClick={() => onOpenComposeFilter?.(metadataComposeName(metadata))}
-                          >
-                            {metadataComposeName(metadata)}
-                          </Button>
-                        ) : (
-                          '-'
-                        )}
+                    {visibleColumns.status && (
+                      <TableCell className="py-3 text-xs text-muted-foreground">
+                        {c.Status || '-'}
                       </TableCell>
                     )}
                     <TableCell className="py-3">
@@ -1342,38 +1493,49 @@ export function ContainersTab({
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7"
+                            aria-label={`More actions for ${c.Names}`}
+                            title={`More actions for ${c.Names}`}
                             onClick={event => event.stopPropagation()}
                           >
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          {c.State === 'running' && onOpenTerminal && (
+                            {c.State === 'running' && onOpenTerminal && (
+                              <DropdownMenuItem
+                                onSelect={event => {
+                                  event.stopPropagation()
+                                  window.setTimeout(() => onOpenTerminal(c.ID), 0)
+                                }}
+                              >
+                                <TerminalSquare className="h-4 w-4 mr-2" /> Terminal
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem
                               onSelect={event => {
                                 event.stopPropagation()
-                                window.setTimeout(() => onOpenTerminal(c.ID), 0)
+                                window.setTimeout(() => setStatsContainer(c), 0)
                               }}
                             >
-                              <TerminalSquare className="h-4 w-4 mr-2" /> Terminal
+                              <Activity className="h-4 w-4 mr-2" /> Stats
                             </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem
-                            onSelect={event => {
-                              event.stopPropagation()
-                              window.setTimeout(() => setStatsContainer(c), 0)
-                            }}
-                          >
-                            <Activity className="h-4 w-4 mr-2" /> Stats
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onSelect={event => {
-                              event.stopPropagation()
-                              window.setTimeout(() => void fetchLogs(c), 0)
-                            }}
-                          >
-                            <FileText className="h-4 w-4 mr-2" /> Logs
-                          </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={event => {
+                                event.stopPropagation()
+                                window.setTimeout(() => void fetchOutput(c, 'logs'), 0)
+                              }}
+                            >
+                              <FileText className="h-4 w-4 mr-2" /> Logs
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={event => {
+                                event.stopPropagation()
+                                window.setTimeout(() => void fetchOutput(c, 'inspect'), 0)
+                              }}
+                            >
+                              <FileText className="h-4 w-4 mr-2" /> Inspect
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
                           <DropdownMenuItem
                             onSelect={event => {
                               event.stopPropagation()
@@ -1405,6 +1567,7 @@ export function ContainersTab({
                           >
                             <RotateCw className="h-4 w-4 mr-2" /> Restart
                           </DropdownMenuItem>
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem
                             onSelect={event => {
                               event.stopPropagation()
@@ -1427,90 +1590,231 @@ export function ContainersTab({
                       <TableCell colSpan={tableColSpan} className="bg-muted/20 px-3 py-3">
                         <div className="space-y-3 rounded-lg bg-background/80 p-3">
                           <div className="text-sm font-medium">Container Details</div>
-                          <div className="grid gap-3 text-xs md:grid-cols-2 xl:grid-cols-3">
-                            <div className="min-w-0 space-y-2 overflow-x-auto">
-                              <div className="mb-2 font-semibold text-foreground">Basics</div>
-                              <div className="min-w-max whitespace-nowrap font-mono">
-                                Image: {c.Image || '-'}
-                              </div>
-                              <div
-                                className="min-w-max cursor-copy whitespace-nowrap font-mono"
-                                onDoubleClick={() => copyText(c.ID || '-', 'ID')}
-                                title="Double click to copy ID"
-                              >
-                                ID: {c.ID || '-'}
-                              </div>
-                              <div
-                                className="min-w-max cursor-copy whitespace-nowrap font-mono"
-                                onDoubleClick={() => copyText(containerIP(inspect), 'IP')}
-                                title="Double click to copy IP"
-                              >
-                                IP: {containerIP(inspect)}
-                              </div>
+                          {detailsLoadingMap[c.ID] ? (
+                            <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                              <Loader2 className="h-4 w-4 animate-spin" /> Loading inspect details...
                             </div>
-                            <div className="min-w-0 space-y-2 overflow-x-auto">
-                              <div className="mb-2 font-semibold text-foreground">Ports</div>
-                              {inspectPorts(inspect).length > 0 ? (
-                                inspectPorts(inspect).map(port => (
-                                  <div key={port} className="min-w-max whitespace-nowrap font-mono">
-                                    {port}
+                          ) : (
+                            <div className="space-y-4 text-xs">
+                              <div className="overflow-hidden rounded-md border">
+                                <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">Metadata</div>
+                                <div className="grid gap-x-6 gap-y-3 p-3 md:grid-cols-2 xl:grid-cols-3">
+                                  <div className="space-y-1">
+                                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Name</div>
+                                    <div className="font-mono text-foreground">{c.Names || '-'}</div>
                                   </div>
-                                ))
-                              ) : (
-                                <div className="text-muted-foreground">-</div>
-                              )}
-                            </div>
-                            <div className="min-w-0 space-y-2 overflow-x-auto">
-                              <div className="mb-2 font-semibold text-foreground">Network</div>
-                              {inspectNetworks(inspect).length > 0 ? (
-                                inspectNetworks(inspect).map(network => (
-                                  <div
-                                    key={network}
-                                    className="min-w-max whitespace-nowrap font-mono"
-                                  >
-                                    {network}
-                                  </div>
-                                ))
-                              ) : (
-                                <div className="text-muted-foreground">-</div>
-                              )}
-                            </div>
-                            <div className="min-w-0 space-y-2 overflow-x-auto">
-                              <div className="mb-2 font-semibold text-foreground">Volumes</div>
-                              {inspectVolumes(inspect).length > 0 ? (
-                                <div className="overflow-x-auto">
-                                  {inspectVolumes(inspect).map(volume => (
-                                    <div
-                                      key={volume}
-                                      className="min-w-max whitespace-nowrap font-mono"
+                                  <div className="space-y-1">
+                                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">ID</div>
+                                    <button
+                                      type="button"
+                                      className="font-mono text-left text-foreground hover:underline"
+                                      onClick={() => void copyText(c.ID || '-', 'ID')}
+                                      title="Click to copy ID"
                                     >
-                                      {volume}
+                                      {c.ID || '-'}
+                                    </button>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Image</div>
+                                    {onOpenImageFilter ? (
+                                      <Button
+                                        variant="link"
+                                        className="h-auto p-0 font-mono text-xs"
+                                        onClick={() => onOpenImageFilter(c.Image)}
+                                      >
+                                        {c.Image || '-'}
+                                      </Button>
+                                    ) : (
+                                      <div className="font-mono text-foreground">{c.Image || '-'}</div>
+                                    )}
+                                  </div>
+                                  <div className="space-y-1">
+                                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Compose</div>
+                                    {metadataComposeName(metadata) !== '-' ? (
+                                      <Button
+                                        variant="link"
+                                        className="h-auto p-0 text-xs"
+                                        onClick={() => setComposeFilter(metadataComposeName(metadata))}
+                                      >
+                                        {metadataComposeName(metadata)}
+                                      </Button>
+                                    ) : (
+                                      <div className="text-muted-foreground">-</div>
+                                    )}
+                                  </div>
+                                  <div className="space-y-1">
+                                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Runtime</div>
+                                    <div className="text-foreground">{c.Status || '-'}</div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Lifecycle</div>
+                                    <div>{statusBadge(c.State)}</div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Created</div>
+                                    <div className="text-foreground">
+                                      {metadata?.created ? new Date(metadata.created).toLocaleString() : '-'}
                                     </div>
-                                  ))}
+                                  </div>
+                                  <div className="space-y-1">
+                                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Running For</div>
+                                    <div className="text-foreground">{c.RunningFor || '-'}</div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">IP</div>
+                                    <button
+                                      type="button"
+                                      className="font-mono text-left text-foreground hover:underline"
+                                      onClick={() => void copyText(containerIP(inspect), 'IP')}
+                                      title="Click to copy IP"
+                                    >
+                                      {containerIP(inspect)}
+                                    </button>
+                                  </div>
                                 </div>
-                              ) : (
-                                <div className="text-muted-foreground">-</div>
-                              )}
-                            </div>
-                            <div className="min-w-0 space-y-2 overflow-x-auto">
-                              <div className="mb-2 font-semibold text-foreground">Env</div>
-                              <div className="max-h-32 overflow-auto">
-                                {Array.isArray(inspect?.Config?.Env) &&
-                                inspect.Config.Env.length > 0 ? (
-                                  inspect.Config.Env.map((env: string) => (
-                                    <div
-                                      key={env}
-                                      className="min-w-max whitespace-nowrap font-mono"
-                                    >
-                                      {env}
-                                    </div>
-                                  ))
+                              </div>
+
+                              <div className="overflow-hidden rounded-md border">
+                                <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">Ports</div>
+                                {inspectPorts(inspect).length > 0 ? (
+                                  <div className="overflow-x-auto">
+                                    <table className="min-w-full">
+                                      <thead className="bg-muted/10 text-muted-foreground">
+                                        <tr>
+                                          <th className="px-3 py-2 text-left font-medium">Host IP</th>
+                                          <th className="px-3 py-2 text-left font-medium">Host Port</th>
+                                          <th className="px-3 py-2 text-left font-medium">Container Port</th>
+                                          <th className="px-3 py-2 text-left font-medium">Protocol</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {inspectPorts(inspect).map(port => (
+                                          <tr key={`${port.hostIP}-${port.hostPort}-${port.containerPort}-${port.protocol}`} className="border-t">
+                                            <td className="px-3 py-2 font-mono">{port.hostIP}</td>
+                                            <td className="px-3 py-2 font-mono">{port.hostPort}</td>
+                                            <td className="px-3 py-2 font-mono">{port.containerPort}</td>
+                                            <td className="px-3 py-2 font-mono">{port.protocol}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
                                 ) : (
-                                  <div className="text-muted-foreground">-</div>
+                                  <div className="px-3 py-3 text-muted-foreground">No exposed ports</div>
+                                )}
+                              </div>
+
+                              <div className="overflow-hidden rounded-md border">
+                                <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">Networks</div>
+                                {inspectNetworks(inspect).length > 0 ? (
+                                  <div className="overflow-x-auto">
+                                    <table className="min-w-full">
+                                      <thead className="bg-muted/10 text-muted-foreground">
+                                        <tr>
+                                          <th className="px-3 py-2 text-left font-medium">Network</th>
+                                          <th className="px-3 py-2 text-left font-medium">IP</th>
+                                          <th className="px-3 py-2 text-left font-medium">Gateway</th>
+                                          <th className="px-3 py-2 text-left font-medium">Aliases</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {inspectNetworks(inspect).map(network => (
+                                          <tr key={network.name} className="border-t">
+                                            <td className="px-3 py-2">
+                                              {onOpenNetworkFilter ? (
+                                                <Button
+                                                  variant="link"
+                                                  className="h-auto p-0 text-xs"
+                                                  onClick={() => onOpenNetworkFilter(network.name)}
+                                                >
+                                                  {network.name}
+                                                </Button>
+                                              ) : (
+                                                <span className="font-mono">{network.name}</span>
+                                              )}
+                                            </td>
+                                            <td className="px-3 py-2 font-mono">{network.ip}</td>
+                                            <td className="px-3 py-2 font-mono">{network.gateway}</td>
+                                            <td className="px-3 py-2 font-mono">{network.aliases.join(', ') || '-'}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                ) : (
+                                  <div className="px-3 py-3 text-muted-foreground">No attached networks</div>
+                                )}
+                              </div>
+
+                              <div className="overflow-hidden rounded-md border">
+                                <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">Volumes</div>
+                                {inspectVolumes(inspect).length > 0 ? (
+                                  <div className="overflow-x-auto">
+                                    <table className="min-w-full">
+                                      <thead className="bg-muted/10 text-muted-foreground">
+                                        <tr>
+                                          <th className="px-3 py-2 text-left font-medium">Type</th>
+                                          <th className="px-3 py-2 text-left font-medium">Source / Name</th>
+                                          <th className="px-3 py-2 text-left font-medium">Destination</th>
+                                          <th className="px-3 py-2 text-left font-medium">Mode</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {inspectVolumes(inspect).map(volume => (
+                                          <tr key={`${volume.source}-${volume.destination}`} className="border-t">
+                                            <td className="px-3 py-2 font-mono">{volume.type}</td>
+                                            <td className="px-3 py-2">
+                                              {volume.name && onOpenVolumeFilter ? (
+                                                <Button
+                                                  variant="link"
+                                                  className="h-auto p-0 text-xs"
+                                                  onClick={() => onOpenVolumeFilter([volume.name])}
+                                                >
+                                                  {volume.name}
+                                                </Button>
+                                              ) : (
+                                                <span className="font-mono">{volume.name || volume.source}</span>
+                                              )}
+                                            </td>
+                                            <td className="px-3 py-2 font-mono">{volume.destination}</td>
+                                            <td className="px-3 py-2 font-mono">{volume.rw}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                ) : (
+                                  <div className="px-3 py-3 text-muted-foreground">No mounted volumes</div>
+                                )}
+                              </div>
+
+                              <div className="overflow-hidden rounded-md border">
+                                <div className="border-b bg-muted/30 px-3 py-2 text-sm font-medium">Environment</div>
+                                {inspectEnvRows(inspect).length > 0 ? (
+                                  <div className="max-h-72 overflow-auto">
+                                    <table className="min-w-full">
+                                      <thead className="bg-muted/10 text-muted-foreground">
+                                        <tr>
+                                          <th className="px-3 py-2 text-left font-medium">Key</th>
+                                          <th className="px-3 py-2 text-left font-medium">Value</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {inspectEnvRows(inspect).map(env => (
+                                          <tr key={`${env.key}-${env.value}`} className="border-t align-top">
+                                            <td className="px-3 py-2 font-mono">{env.key}</td>
+                                            <td className="px-3 py-2 font-mono break-all">{env.value || '-'}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                ) : (
+                                  <div className="px-3 py-3 text-muted-foreground">No environment variables</div>
                                 )}
                               </div>
                             </div>
-                          </div>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -1605,6 +1909,7 @@ export function ContainersTab({
             const cpuSeries = telemetrySeries(item, 'cpu')
             const memorySeries = telemetrySeries(item, 'memory')
             const networkSeries = telemetrySeries(item, 'network')
+            const blockSeries = telemetrySeries(item, 'block')
             if (!item || item.freshness.state === 'missing') {
               return (
                 <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-10 text-center text-sm text-muted-foreground">
@@ -1615,7 +1920,7 @@ export function ContainersTab({
             }
             return (
               <div className="space-y-4">
-                <div className="grid gap-3 md:grid-cols-3">
+                <div className="grid gap-3 md:grid-cols-4">
                   <div className="rounded-lg border bg-muted/20 p-3 text-sm">
                     <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       CPU
@@ -1626,9 +1931,7 @@ export function ContainersTab({
                     <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       Memory
                     </div>
-                    <div className="mt-2 font-medium">
-                      {formatBytesCompact(item.latest.memoryBytes)}
-                    </div>
+                    <div className="mt-2 font-medium">{formatMemorySummary(item)}</div>
                   </div>
                   <div className="rounded-lg border bg-muted/20 p-3 text-sm">
                     <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -1636,12 +1939,18 @@ export function ContainersTab({
                     </div>
                     <div className="mt-2 font-medium">{formatNetworkSummary(item)}</div>
                   </div>
+                  <div className="rounded-lg border bg-muted/20 p-3 text-sm">
+                    <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Block I/O
+                    </div>
+                    <div className="mt-2 font-medium">{formatBlockSummary(item)}</div>
+                  </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                   <Badge variant="outline">Telemetry {item.freshness.state}</Badge>
                   <span>Observed {telemetryObservedAt(item)}</span>
                 </div>
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <div className="space-y-2">
                     <div className="text-sm font-medium">CPU Trend</div>
                     <TimeSeriesChart
@@ -1665,6 +1974,7 @@ export function ContainersTab({
                       rangeEndAt={telemetry?.rangeEndAt}
                       stepSeconds={telemetry?.stepSeconds}
                       points={memorySeries?.points}
+                      segments={memorySeries?.segments}
                       formatValue={formatTrendValue}
                     />
                   </div>
@@ -1682,6 +1992,20 @@ export function ContainersTab({
                       formatValue={formatTrendValue}
                     />
                   </div>
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Block I/O Trend</div>
+                    <TimeSeriesChart
+                      name="block"
+                      unit={blockSeries?.unit || 'bytes/s'}
+                      window={telemetry?.window || '15m'}
+                      rangeStartAt={telemetry?.rangeStartAt}
+                      rangeEndAt={telemetry?.rangeEndAt}
+                      stepSeconds={telemetry?.stepSeconds}
+                      points={blockSeries?.points}
+                      segments={blockSeries?.segments}
+                      formatValue={formatTrendValue}
+                    />
+                  </div>
                 </div>
               </div>
             )
@@ -1689,37 +2013,31 @@ export function ContainersTab({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!logsContainer} onOpenChange={open => !open && setLogsContainer(null)}>
-        <DialogContent className="sm:max-w-4xl h-[70vh] flex flex-col gap-0 p-0">
-          <DialogHeader className="px-5 pt-4 pb-2">
-            <DialogTitle>Container Logs: {logsContainer?.Names}</DialogTitle>
-          </DialogHeader>
-          <div className="px-5 pb-2 flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => logsContainer && fetchLogs(logsContainer)}
-              disabled={logsLoading || !logsContainer}
-            >
-              Refresh
-            </Button>
-            <Button variant="outline" size="sm" onClick={copyLogs} disabled={logsLoading}>
-              <Copy className="h-4 w-4 mr-1" /> Copy
-            </Button>
-            <Button variant="outline" size="sm" onClick={downloadLogs} disabled={logsLoading}>
-              <Download className="h-4 w-4 mr-1" /> Download
-            </Button>
-            {logsActionTip && (
-              <span className="text-xs text-muted-foreground">{logsActionTip}</span>
-            )}
-          </div>
-          <ScrollArea className="h-[calc(70vh-8rem)] border-t px-5 py-3">
-            <pre className="text-xs font-mono whitespace-pre-wrap break-all">
-              {logsLoading ? 'Loading logs...' : logsContent || '(no logs)'}
-            </pre>
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
+      <DockerTextDialog
+        open={!!outputContainer}
+        onOpenChange={open => !open && setOutputContainer(null)}
+        title={`${outputMode === 'inspect' ? 'Container Inspect' : 'Container Logs'}: ${outputContainer?.Names || ''}`}
+        description={
+          outputMode === 'inspect'
+            ? 'Structured docker inspect output for this container.'
+            : 'Recent docker logs for this container.'
+        }
+        content={outputContent}
+        loading={outputLoading}
+        loadingText={outputMode === 'inspect' ? 'Loading inspect...' : 'Loading logs...'}
+        emptyText="(no output)"
+        onRefresh={
+          outputContainer ? () => void fetchOutput(outputContainer, outputMode) : undefined
+        }
+        refreshDisabled={!outputContainer}
+        downloadBaseName={`${outputContainer?.Names || 'container'}-${outputMode}`}
+        downloadExtension={outputMode === 'inspect' ? 'json' : 'log'}
+        copySuccessText={outputMode === 'inspect' ? 'Inspect copied' : 'Logs copied'}
+        copyFailureText={outputMode === 'inspect' ? 'Failed to copy inspect' : 'Failed to copy logs'}
+        downloadFailureText={
+          outputMode === 'inspect' ? 'Failed to download inspect' : 'Failed to download logs'
+        }
+      />
     </div>
   )
 }

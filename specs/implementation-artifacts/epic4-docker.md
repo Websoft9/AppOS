@@ -18,7 +18,7 @@ It answers:
 
 It does not own runtime telemetry trends or health judgment. Those belong to Epic 28 Monitoring.
 
-**Status**: Stories 4.1-4.3 Complete, 4.4 Ready for Dev, 4.5 Deferred | **Priority**: P0 | **Depends on**: Epic 1, Epic 3
+**Status**: Stories 4.1-4.3 Complete, 4.4 Ready for Dev, 4.5 Deferred, 4.6 Proposed | **Priority**: P0 | **Depends on**: Epic 1, Epic 3
 
 ## API Direction
 
@@ -153,7 +153,7 @@ List responses may still include `host` or `server_id` fields for operator clari
 |--------|------|-------------|
 | POST | `/api/servers/{serverId}/docker/exec` | Execute arbitrary docker command (body: `{command}`) |
 
-## Stories (4)
+## Stories (5)
 
 ### 4.1: Executor Interface ✅
 - Define `Executor` interface (`Run`, `RunStream`, `Ping`, `Host`) — wraps any shell command
@@ -200,10 +200,17 @@ Historical delivery note: the originally implemented standalone `/docker` dashbo
 - retire legacy `/api/ext/docker/...` routing after migration consumers are updated
 - Deferred until local implementation is validated
 
+### 4.6: Docker Image Pull Activity
+- add a minimal list contract for image pull operations under `/api/servers/{serverId}/docker/image-pull-operations`
+- use one `status` filter to cover both `Currently pulling` and `Recent pulls`
+- keep existing submit (`POST /images/pull`) and single-operation detail (`GET /image-pull-operations/{operationId}`) contracts unchanged
+- explicitly defer cancel, retry, and richer progress semantics
+
 ## Implementation Order
 
 ```
 4.1 (Executor + Compose) → 4.2 (Resources) → 4.3 (Frontend workspace) → 4.4 (Overview simplification) → 4.5 (Remote, future)
+                                                                                                    └→ 4.6 (Pull activity)
 ```
 
 ## Definition of Done
@@ -253,6 +260,12 @@ Target follow-up still pending for Story 4.3 scope:
 - [ ] `servers` collection auto-created on migration
 - [ ] All Story 4.1/4.2 tests pass with RemoteExecutor
 - [ ] legacy `/api/ext/docker/...` compatibility routes can be removed after migration
+
+### Story 4.6
+- [ ] `GET /api/servers/{serverId}/docker/image-pull-operations` returns newest-first pull activity for one server
+- [ ] `status` query supports `in_progress`, `completed`, `failed`, `all`
+- [ ] Images tab shows both current pulls and recent pulls from the shared list contract
+- [ ] existing submit/detail contracts remain unchanged
 
 ## Technical Notes
 

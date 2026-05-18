@@ -175,7 +175,7 @@ This story should also own the first monitoring-side contract for Docker contain
 
 Scope of this extension:
 
-- define allowlisted container telemetry families for CPU, memory, and network usage
+- define allowlisted container telemetry families for Docker-stats-like CPU, memory, network, and block I/O usage
 - keep container telemetry in the metrics pipeline rather than PocketBase collections
 - define stable label requirements so UI consumers can join telemetry to Docker inventory safely
 - keep telemetry ingestion separate from Docker inventory, inspect, logs, and control actions
@@ -200,6 +200,76 @@ MVP usage target:
 - this telemetry is intended for server detail and app detail runtime evidence
 - first UI consumers may replace request-time `docker stats` reads with monitor-backed current usage and short-window trends
 - Docker list, inspect, logs, and lifecycle actions continue to use Docker ext APIs outside this story
+
+Canonical MVP metric groups for container telemetry:
+
+- `CPU %`
+- `MEM USAGE / LIMIT`
+- `NET I/O`
+- `BLOCK I/O`
+
+Recommended normalized field direction behind those four groups:
+
+- `appos_container_cpu_usage_percent`
+- `appos_container_memory_usage_bytes`
+- `appos_container_memory_limit_bytes`
+- `appos_container_network_receive_bytes_per_second`
+- `appos_container_network_transmit_bytes_per_second`
+- `appos_container_block_read_bytes_per_second`
+- `appos_container_block_write_bytes_per_second`
+
+Canonical TSDB contract for Story 28.2:
+
+| Docker-stats group | Canonical series | Unit | TSDB semantic | Required for MVP | Notes |
+|---|---|---|---|---|---|
+| `CPU %` | `appos_container_cpu_usage_percent` | `percent` | gauge | yes | current CPU usage at sample time |
+| `MEM USAGE / LIMIT` | `appos_container_memory_usage_bytes` | `bytes` | gauge | yes | current memory usage |
+| `MEM USAGE / LIMIT` | `appos_container_memory_limit_bytes` | `bytes` | gauge | yes when collector can provide a trustworthy limit | omit when unknown instead of fabricating host memory total |
+| `NET I/O` | `appos_container_network_receive_bytes_per_second` | `bytes/s` | gauge | yes | derived directly from current Netdata cgroup export shape |
+| `NET I/O` | `appos_container_network_transmit_bytes_per_second` | `bytes/s` | gauge | yes | derived directly from current Netdata cgroup export shape |
+| `BLOCK I/O` | `appos_container_block_read_bytes_per_second` | `bytes/s` | gauge | yes | derived directly from current Netdata cgroup export shape |
+| `BLOCK I/O` | `appos_container_block_write_bytes_per_second` | `bytes/s` | gauge | yes | derived directly from current Netdata cgroup export shape |
+
+Canonical required labels for every container telemetry point:
+
+| Label | Required | Rule |
+|---|---|---|
+| `target_type` | yes | must equal `container` |
+| `target_id` | yes | must equal `container_id` |
+| `server_id` | yes | owning managed server id |
+| `container_id` | yes | canonical join key used by Docker inventory |
+
+Canonical optional labels:
+
+| Label | Allowed use |
+|---|---|
+| `container_name` | operator-facing hint only |
+| `compose_project` | operator-facing grouping hint only |
+| `compose_service` | operator-facing grouping hint only |
+| `app_id` | optional future app-level join hint |
+
+Read-model contract derived from those TSDB series:
+
+| Docker-stats-like field | Read-model source |
+|---|---|
+| `cpuPercent` | latest `appos_container_cpu_usage_percent` |
+| `memoryUsageBytes` | latest `appos_container_memory_usage_bytes` |
+| `memoryLimitBytes` | latest `appos_container_memory_limit_bytes` when present |
+| `networkRxBytesPerSecond` | latest `appos_container_network_receive_bytes_per_second` |
+| `networkTxBytesPerSecond` | latest `appos_container_network_transmit_bytes_per_second` |
+| `blockReadBytesPerSecond` | latest `appos_container_block_read_bytes_per_second` |
+| `blockWriteBytesPerSecond` | latest `appos_container_block_write_bytes_per_second` |
+
+Migration note for current prototype code:
+
+- existing provisional names such as `appos_container_cpu_usage` and `appos_container_memory_bytes` should be treated as interim implementation names, not the Story 28.2 final contract
+- Story 28.2 should close only after write allowlists, query mappings, and read APIs converge on the canonical series listed above
+
+Storage semantics guidance:
+
+- CPU percent, memory usage, and memory limit should be stored as gauge-like current values
+- network and block I/O should use explicit per-second gauges in the current Netdata-backed MVP, because the available cgroup exports are rate-shaped rather than trustworthy monotonic byte counters
+- the browser contract should remain Docker-stats-like even if underlying TSDB semantics differ
 
 Suggested `items` payload shape:
 
@@ -226,6 +296,8 @@ MVP rules:
 - write metrics to `VictoriaMetrics`
 - do not mirror raw metric points into PocketBase collections
 - container telemetry must stay bounded to a small allowlist and must not open arbitrary per-label TSDB querying from the browser
+- if collector coverage cannot provide one of the four metric groups reliably, omit that field explicitly rather than fabricating zero values
+- label validation must reject any point that lacks `server_id`, `container_id`, `target_type=container`, or a `target_id` equal to `container_id`
 
 ### Facts collection
 

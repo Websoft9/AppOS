@@ -191,7 +191,7 @@ describe('ServerComponentsPanel', () => {
     expect(
       within(prerequisitesSection).getByRole('button', { name: 'Recheck' })
     ).toBeInTheDocument()
-    expect(within(prerequisitesSection).getByRole('button', { name: 'Upgrade/Fix' })).toBeEnabled()
+    expect(within(prerequisitesSection).getByRole('button', { name: 'Upgrade' })).toBeEnabled()
     expect(within(prerequisitesSection).queryByRole('button', { name: 'Install' })).toBeNull()
     expect(within(prerequisitesSection).queryByText('No corrective action available')).toBeNull()
 
@@ -215,8 +215,20 @@ describe('ServerComponentsPanel', () => {
     expect(
       within(selectedAddon).getByText('dependency_not_ready: docker is not ready')
     ).toBeInTheDocument()
-    expect(within(selectedAddon).getByRole('button', { name: 'Repair' })).toBeInTheDocument()
-    expect(within(selectedAddon).getByRole('button', { name: 'More actions' })).toBeInTheDocument()
+    expect(within(inventory).getByRole('button', { name: 'Repair' })).toBeInTheDocument()
+    expect(
+      within(inventory).getByRole('button', { name: 'More actions for Reverse Proxy' })
+    ).toBeInTheDocument()
+  })
+
+  it('keeps addon inventory version text aligned with the row font size', async () => {
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    expect(await screen.findByRole('heading', { name: 'Addons' })).toBeInTheDocument()
+
+    const inventory = screen.getByRole('region', { name: 'Addon inventory' })
+    expect(within(inventory).getByText('Installed: 1.27.0')).not.toHaveClass('text-xs')
+    expect(within(inventory).getByText('Latest: 1.27.1')).not.toHaveClass('text-xs')
   })
 
   it('selects the addon details when an inventory action is clicked', async () => {
@@ -302,6 +314,84 @@ describe('ServerComponentsPanel', () => {
     ).toBeInTheDocument()
   })
 
+  it('surfaces in-flight addon operations in the inventory and selected addon panel', async () => {
+    listSoftwareOperationsMock.mockResolvedValue([
+      {
+        id: 'op-monitor-1',
+        server_id: 'server-1',
+        component_key: 'appos-monitor-collector',
+        action: 'restart',
+        phase: 'accepted',
+        terminal_status: 'none',
+        failure_reason: '',
+        event_log: '2026-05-15T13:20:41Z · Accepted restart request for appos-monitor-collector.',
+        created: '2026-05-15T13:20:41Z',
+        updated: '2026-05-15T13:20:41Z',
+      },
+    ])
+
+    listSoftwareComponentsMock.mockResolvedValue([
+      {
+        component_key: 'docker',
+        label: 'Docker Engine',
+        target_type: 'server',
+        template_kind: 'package',
+        installed_state: 'installed',
+        detected_version: '27.0.1',
+        verification_state: 'healthy',
+        preflight: {
+          ok: true,
+          os_supported: true,
+          privilege_ok: true,
+          network_ok: true,
+          dependency_ready: true,
+        },
+        available_actions: ['verify'],
+      },
+      {
+        component_key: 'appos-monitor-collector',
+        label: 'Netdata Agent',
+        target_type: 'server',
+        template_kind: 'package',
+        installed_state: 'installed',
+        detected_version: '2.10.3',
+        packaged_version: '2.10.3',
+        verification_state: 'healthy',
+        service_status: 'running',
+        appos_connection: 'connected',
+        last_operation: {
+          action: 'restart',
+          phase: 'accepted',
+          terminal_status: 'none',
+          updated_at: '2026-05-15T13:20:41Z',
+        },
+        preflight: {
+          ok: true,
+          os_supported: true,
+          privilege_ok: true,
+          network_ok: true,
+          dependency_ready: true,
+        },
+        available_actions: ['verify', 'restart'],
+      },
+    ])
+
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    expect(await screen.findByRole('heading', { name: 'Addons' })).toBeInTheDocument()
+    const inventory = screen.getByRole('region', { name: 'Addon inventory' })
+    expect(within(inventory).getByText('In progress')).toBeInTheDocument()
+    expect(within(inventory).getByText('Operation: Accepted')).toBeInTheDocument()
+
+    fireEvent.click(within(inventory).getByRole('button', { name: 'Netdata Agent' }))
+
+    const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
+    expect(within(selectedAddon).getByText('Operation in progress')).toBeInTheDocument()
+    expect(within(selectedAddon).getByText('Restart is still Accepted for Netdata Agent.')).toBeInTheDocument()
+    expect(within(selectedAddon).getByText('Operation History')).toBeInTheDocument()
+    expect(await within(selectedAddon).findByText('Current')).toBeInTheDocument()
+  })
+
   it('selects the addon details when Check is clicked from the inventory action menu', async () => {
     const user = userEvent.setup()
     render(<ServerComponentsPanel serverId="server-1" />)
@@ -349,7 +439,7 @@ describe('ServerComponentsPanel', () => {
     expect(screen.getByRole('menuitem', { name: 'Remove' })).toBeInTheDocument()
   })
 
-  it('prefers start or restart over stop as the primary addon action', async () => {
+  it('prefers check for healthy addons and start for stopped addons', async () => {
     listSoftwareComponentsMock.mockResolvedValue([
       {
         component_key: 'caddy',
@@ -392,7 +482,7 @@ describe('ServerComponentsPanel', () => {
     expect(await screen.findByRole('heading', { name: 'Addons' })).toBeInTheDocument()
 
     const inventory = screen.getByRole('region', { name: 'Addon inventory' })
-    expect(within(inventory).getByRole('button', { name: 'Restart' })).toBeInTheDocument()
+    expect(within(inventory).getByRole('button', { name: 'Check' })).toBeInTheDocument()
     expect(within(inventory).getByRole('button', { name: 'Start' })).toBeInTheDocument()
     expect(within(inventory).queryByRole('button', { name: 'Stop' })).toBeNull()
   })
@@ -474,9 +564,9 @@ describe('ServerComponentsPanel', () => {
     const inventory = screen.getByRole('region', { name: 'Addon inventory' })
     fireEvent.click(within(inventory).getByRole('button', { name: 'Reverse Proxy' }))
 
-    const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
-    await user.click(within(selectedAddon).getByRole('button', { name: 'Repair' }))
+    await user.click(within(inventory).getByRole('button', { name: 'Repair' }))
 
+    const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
     expect(within(selectedAddon).getByRole('button', { name: 'Live Log' })).toBeInTheDocument()
     expect(within(selectedAddon).getByText('Repair requested...')).toBeInTheDocument()
     expect(within(selectedAddon).getByText('Repair accepted (op-123)')).toBeInTheDocument()
@@ -520,9 +610,9 @@ describe('ServerComponentsPanel', () => {
     const inventory = screen.getByRole('region', { name: 'Addon inventory' })
     fireEvent.click(within(inventory).getByRole('button', { name: 'Reverse Proxy' }))
 
-    const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
-    await user.click(within(selectedAddon).getByRole('button', { name: 'Repair' }))
+    await user.click(within(inventory).getByRole('button', { name: 'Repair' }))
 
+    const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
     await within(selectedAddon).findByText('No operation history yet.')
   })
 
@@ -534,9 +624,7 @@ describe('ServerComponentsPanel', () => {
 
     const inventory = screen.getByRole('region', { name: 'Addon inventory' })
     fireEvent.click(within(inventory).getByRole('button', { name: 'Reverse Proxy' }))
-
-    const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
-    await user.click(within(selectedAddon).getByRole('button', { name: 'More actions' }))
+  await user.click(within(inventory).getByRole('button', { name: 'More actions for Reverse Proxy' }))
     await user.click(screen.getByRole('menuitem', { name: 'Check' }))
 
     await waitFor(() => {
@@ -803,9 +891,9 @@ describe('ServerComponentsPanel', () => {
       within(prerequisitesSection).getByRole('button', { name: 'Docker Engine details' })
     )
 
-    fireEvent.click(within(prerequisitesSection).getByRole('button', { name: 'Upgrade/Fix' }))
+    fireEvent.click(within(prerequisitesSection).getByRole('button', { name: 'Upgrade' }))
 
-    expect(await screen.findByText('Confirm Upgrade/Fix')).toBeInTheDocument()
+    expect(await screen.findByText('Confirm Upgrade')).toBeInTheDocument()
     expect(invokeSoftwareActionMock).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
@@ -817,7 +905,7 @@ describe('ServerComponentsPanel', () => {
     })
   })
 
-  it('does not replace the current live log when a prerequisite action is rejected', async () => {
+  it('surfaces prerequisite rejection errors without replacing the accepted operation request', async () => {
     invokeSoftwareActionMock
       .mockResolvedValueOnce({ accepted: true, operation_id: 'op-123' })
       .mockRejectedValueOnce(new Error('software operation already in flight'))
@@ -838,8 +926,8 @@ describe('ServerComponentsPanel', () => {
 
     fireEvent.click(within(prerequisitesSection).getByRole('button', { name: 'Recheck' }))
     expect(await screen.findByText('software operation already in flight')).toBeInTheDocument()
-    expect(within(prerequisitesSection).getByText('Recheck accepted (op-123)')).toBeInTheDocument()
-    expect(within(prerequisitesSection).queryByText('Recheck requested...')).toBeInTheDocument()
+    expect(getSoftwareOperationMock).toHaveBeenCalledTimes(1)
+    expect(invokeSoftwareActionMock).toHaveBeenCalledTimes(2)
   })
 
   it('keeps action buttons disabled while the live log operation is still running', async () => {
@@ -872,7 +960,7 @@ describe('ServerComponentsPanel', () => {
     ).toBeInTheDocument()
 
     expect(within(prerequisitesSection).getByRole('button', { name: 'Recheck' })).toBeDisabled()
-    expect(within(prerequisitesSection).getByRole('button', { name: 'Upgrade/Fix' })).toBeDisabled()
+    expect(within(prerequisitesSection).getByRole('button', { name: 'Upgrade' })).toBeDisabled()
 
     pendingOperation.resolve({
       id: 'op-123',
@@ -975,7 +1063,7 @@ describe('ServerComponentsPanel', () => {
 
     expect(within(prerequisitesSection).queryByText('Something went wrong.')).toBeNull()
     expect(within(prerequisitesSection).getByRole('button', { name: 'Recheck' })).toBeDisabled()
-    expect(within(prerequisitesSection).getByRole('button', { name: 'Upgrade/Fix' })).toBeDisabled()
+    expect(within(prerequisitesSection).getByRole('button', { name: 'Upgrade' })).toBeDisabled()
   })
 
   it('deletes a prerequisite operation history record without confirmation', async () => {
@@ -1108,13 +1196,13 @@ describe('ServerComponentsPanel', () => {
     ).toBeInTheDocument()
 
     const recheckButton = within(prerequisitesSection).getByRole('button', { name: 'Recheck' })
-    expect(recheckButton).toBeDisabled()
+    expect(recheckButton).toBeEnabled()
 
-    const upgradeButton = within(prerequisitesSection).getByRole('button', { name: 'Upgrade/Fix' })
-    expect(upgradeButton).toBeDisabled()
+    const upgradeButton = within(prerequisitesSection).getByRole('button', { name: 'Upgrade' })
+    expect(upgradeButton).toBeEnabled()
   })
 
-  it('locks addon action buttons while a prerequisite operation is still in progress', async () => {
+  it('does not stale-lock addon action buttons from a prior prerequisite operation', async () => {
     getSoftwareComponentMock.mockReset()
     getSoftwareComponentMock.mockImplementation(async (_serverId: string, componentKey: string) => {
       if (componentKey === 'docker') {
@@ -1179,9 +1267,10 @@ describe('ServerComponentsPanel', () => {
     const inventory = screen.getByRole('region', { name: 'Addon inventory' })
     fireEvent.click(within(inventory).getByRole('button', { name: 'Reverse Proxy' }))
 
-    const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
-    expect(within(selectedAddon).getByRole('button', { name: 'Repair' })).toBeDisabled()
-    expect(within(selectedAddon).getByRole('button', { name: 'More actions' })).toBeDisabled()
+    expect(within(inventory).getByRole('button', { name: 'Repair' })).toBeEnabled()
+    expect(
+      within(inventory).getByRole('button', { name: 'More actions for Reverse Proxy' })
+    ).toBeEnabled()
   })
 
   it('does not surface a network probe issue as a blocking issue', async () => {

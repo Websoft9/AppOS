@@ -39,6 +39,9 @@ const facts: ServerFactsView = {
   hasFacts: true,
 }
 
+const createdAtLabel = new Date(baseItem.created).toLocaleString()
+const updatedAtLabel = new Date(baseItem.updated).toLocaleString()
+
 describe('ServerOverviewTab', () => {
   it('renders server metadata and collected system facts', () => {
     const onEditServer = vi.fn()
@@ -71,6 +74,8 @@ describe('ServerOverviewTab', () => {
     expect(screen.getByText('4')).toBeInTheDocument()
     expect(screen.getByText('8.0 GiB')).toBeInTheDocument()
     expect(screen.getByText(facts.observedAt)).toBeInTheDocument()
+    expect(screen.getByText(createdAtLabel)).toBeInTheDocument()
+    expect(screen.getByText(updatedAtLabel)).toBeInTheDocument()
     expect(screen.getAllByText('Unavailable')).toHaveLength(4)
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
@@ -124,6 +129,6 @@ describe('ServerOverviewTab', () => {
     expect(screen.getByText('AWS')).toBeInTheDocument()
     expect(screen.getByText('ap-southeast-1')).toBeInTheDocument()
     expect(screen.getByText('ap-southeast-1a')).toBeInTheDocument()
-    expect(screen.getByText('cloud-init')).toBeInTheDocument()
+    expect(screen.getByText('Cloud-init')).toBeInTheDocument()
   })
 })

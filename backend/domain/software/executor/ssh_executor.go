@@ -362,7 +362,7 @@ func (e *SSHExecutor) Restart(ctx context.Context, _ string, tpl software.Resolv
 	if tpl.Verify.Strategy != "systemd" || strings.TrimSpace(tpl.Verify.ServiceName) == "" {
 		return software.SoftwareComponentDetail{}, fmt.Errorf("component %s does not support restart", tpl.ComponentKey)
 	}
-	cmd := fmt.Sprintf("systemctl restart %s", terminal.ShellQuote(tpl.Verify.ServiceName))
+	cmd := fmt.Sprintf("systemctl restart --no-block %s", terminal.ShellQuote(tpl.Verify.ServiceName))
 	if _, err := e.runCommand(ctx, withSudo(cmd), verifyTimeout); err != nil {
 		return software.SoftwareComponentDetail{}, fmt.Errorf("restart %s via systemd: %w", tpl.ComponentKey, err)
 	}

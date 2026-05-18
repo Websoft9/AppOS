@@ -271,6 +271,7 @@ Recommended tabs:
 3. `Monitor`
 4. `Runtime`
 5. `Components`
+6. `Cron`
 
 ### Tab responsibilities
 
@@ -301,119 +302,35 @@ It must not be renamed to `Setup`.
 
 Tunnel-specific runtime details, including mapped services, stay inside `Connection` rather than a separate tab.
 
-#### `Monitor`, `Runtime`, `Components`
+#### `Monitor`, `Runtime`, `Components`, `Cron`
 
 These remain domain tabs. They must not duplicate the core `Connection` diagnosis or next-step guidance.
 
 `Components` naming and information architecture are further refined in Story 20.7. This story only defines its position in the stable tab model.
 
+`Cron` naming and information architecture are refined in Story 20.13. This story only defines `Cron` as a first-class server detail tab when the backend exposes managed Linux cron capability for the selected server.
+
 ## Connection Tab Information Architecture
 
-The `Connection` tab should answer, in order:
+Detailed ownership for the Connection tab now lives in Story 20.12.
 
-1. what mode this server uses
-2. whether it is usable now
-3. why it is or is not usable
-4. what the operator should do next
-5. what evidence supports that recommendation
+This story keeps only the outer-shell rule:
 
-Recommended structure:
+- `Connection` remains a first-class server detail tab
+- it is the authoritative place for connection judgment and next action
+- other tabs must not duplicate its primary connection recovery guidance
 
-1. `Connection Summary`
-2. `Primary Next Step`
-3. `Mode-Specific Setup or Recovery`
-4. `Diagnostics`
-5. `Activity Timeline`
+See:
 
-### `Connection Summary`
+- `specs/implementation-artifacts/story20.12-detail-connection.md`
 
-Persistent top card. It should always show:
+In summary, the default `Connection` experience should now be reduced to:
 
-- `Mode`
-- `Connection Status`
-- `Reason`
-- `Last Check or Last Seen`
-- `Current Endpoint`
-- `Primary Action`
+1. `Status`
+2. `Primary Action`
+3. `Recent Activity`
 
-Rules:
-
-1. status and reason must always appear together
-2. `Open Terminal` is available only when the effective state is usable
-3. if the server is blocked, the primary action must be lifecycle-forwarding, not workspace-entry
-
-### `Primary Next Step`
-
-Explains the recommendation in plain language. It contains:
-
-- action title
-- one-sentence explanation
-- one primary button
-- optional one or two secondary links
-
-This block should mirror the list-row primary action.
-
-### `Mode-Specific Setup or Recovery`
-
-For Direct SSH:
-
-- `Configuration`
-- `Verification`
-- `Recovery`
-
-For Tunnel:
-
-- `Setup`
-- `Runtime Session`
-- `Recovery`
-
-### `Diagnostics`
-
-Evidence-oriented support section.
-
-It should include:
-
-- latest connectivity check result
-- latest tunnel callback or heartbeat
-- latest failure reason
-- relevant system hint
-- timestamped evidence
-
-### `Activity Timeline`
-
-Compact lifecycle timeline rather than raw logs.
-
-Recommended events:
-
-- server created
-- credential attached or changed
-- setup started
-- verification passed
-- tunnel paused or resumed
-- last failure observed
-- last healthy seen
-
-## State-Based Rendering Rules
-
-### `Not Configured`
-
-Emphasize missing prerequisites and setup CTA. De-emphasize diagnostics history.
-
-### `Awaiting Connection`
-
-Emphasize what is already prepared, what external step is pending, and how success is confirmed.
-
-### `Online`
-
-Emphasize healthy summary, recent evidence, and `Open Terminal`.
-
-### `Paused`
-
-Emphasize intentional pause state and resume action.
-
-### `Needs Attention`
-
-Emphasize latest failure reason, reinstall action, and evidence. The error reason must be visible above the fold.
+The heavier diagnostics-first structure previously described here is superseded.
 
 ## Server Ops Placement in This UI Model
 
@@ -422,6 +339,8 @@ Story 20.5 still owns the backend and terminal workspace operations. Within the 
 - `Restart` and `Shutdown` are secondary actions on the server list/detail surface
 - they belong in the overflow menu, not as competing inline primary buttons
 - connectivity check entry for the list/detail surface must follow the same primary-action rules defined here
+- `Cron` is a detail-tab surface, not a top-level resource page or terminal modal shortcut
+- detailed `Cron` tab UX, reduced field set, and CRUD interaction contract live in Story 20.13
 
 ## Acceptance Criteria
 

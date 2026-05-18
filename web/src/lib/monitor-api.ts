@@ -19,9 +19,12 @@ export type MonitorContainerTelemetryItem = {
   composeService?: string
   latest: {
     cpuPercent?: number
-    memoryBytes?: number
+    memoryUsageBytes?: number
+    memoryLimitBytes?: number
     networkRxBytesPerSecond?: number
     networkTxBytesPerSecond?: number
+    blockReadBytesPerSecond?: number
+    blockWriteBytesPerSecond?: number
   }
   freshness: {
     state: 'fresh' | 'stale' | 'missing'

@@ -598,11 +598,13 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                       >
                         <button
                           type="button"
-                          className="min-w-0 truncate text-left text-xs font-medium leading-tight text-foreground hover:underline"
+                          className="group inline-flex min-h-8 w-full items-center text-left"
                           title={network.Name}
                           onClick={() => toggleNetworkExpansion(network.ID)}
                         >
-                          {network.Name}
+                          <span className="truncate text-xs font-semibold leading-tight text-foreground group-hover:underline">
+                            {network.Name}
+                          </span>
                         </button>
                       </TableCell>
                       <TableCell className="py-3 font-mono text-xs" title={network.ID}>

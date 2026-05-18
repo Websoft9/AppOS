@@ -39,7 +39,32 @@ vi.mock('@/components/docker/NetworksTab', () => ({
 }))
 
 vi.mock('@/components/docker/ComposeTab', () => ({
-  ComposeTab: () => <div data-testid="compose-tab">Compose tab</div>,
+  ComposeTab: ({
+    externalStatusFilter,
+    onSummaryChange,
+  }: {
+    externalStatusFilter?: string
+    onSummaryChange?: (summary: {
+      totalItems: number
+      totalPages: number
+      statusCounts: Array<{ status: string; count: number }>
+    }) => void
+  }) => {
+    const React = require('react') as typeof import('react')
+
+    React.useEffect(() => {
+      onSummaryChange?.({
+        totalItems: 2,
+        totalPages: 1,
+        statusCounts: [
+          { status: 'running(1)', count: 1 },
+          { status: 'exited(1)', count: 1 },
+        ],
+      })
+    }, [onSummaryChange])
+
+    return <div data-testid="compose-tab">Compose tab {externalStatusFilter ?? 'all'}</div>
+  },
 }))
 
 vi.mock('@/components/connect/TerminalPanel', () => ({
@@ -203,12 +228,16 @@ describe('DockerPanel overview', () => {
     expect(screen.getByText('stack-b')).toBeInTheDocument()
     expect(screen.getByText('Compose project needs attention')).toBeInTheDocument()
 
+    const containersOverviewCard = screen.getByRole('button', { name: /containers 3 2 stopped/i })
+      .firstElementChild as HTMLElement
+    expect(containersOverviewCard).not.toHaveClass('border-amber-300/70', 'bg-amber-50/40')
+
     const quickActions = screen.getByText('Quick Actions').closest('div')?.parentElement?.parentElement
     expect(quickActions).toBeTruthy()
     expect(within(quickActions as HTMLElement).getByText('Create Compose')).toBeInTheDocument()
     expect(within(quickActions as HTMLElement).getByText('Pull Image')).toBeInTheDocument()
     expect(within(quickActions as HTMLElement).getByText('Prune Resources')).toBeInTheDocument()
-    expect(within(quickActions as HTMLElement).getByText('Refresh')).toBeInTheDocument()
+    expect(within(quickActions as HTMLElement).queryByText('Refresh')).toBeNull()
 
     expect(screen.queryByText('Container Health')).not.toBeInTheDocument()
     expect(screen.queryByText('Compose Stacks')).not.toBeInTheDocument()
@@ -255,6 +284,25 @@ describe('DockerPanel overview', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('compose-tab')).toBeInTheDocument()
+    })
+  })
+
+  it('surfaces compose status filtering in the workspace toolbar', async () => {
+    renderPanel()
+
+    const composeTab = await screen.findByRole('tab', { name: 'Compose' })
+    fireEvent.mouseDown(composeTab)
+    fireEvent.click(composeTab)
+
+    const statusFilter = await screen.findByRole('combobox', { name: 'Filter compose status' })
+    expect(statusFilter).toHaveValue('all')
+    expect(screen.getByRole('option', { name: 'running(1) (1)' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'exited(1) (1)' })).toBeInTheDocument()
+
+    fireEvent.change(statusFilter, { target: { value: 'exited(1)' } })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('compose-tab')).toHaveTextContent('Compose tab exited(1)')
     })
   })
 })

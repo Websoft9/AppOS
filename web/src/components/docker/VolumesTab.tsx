@@ -11,6 +11,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,6 +50,7 @@ import { cn } from '@/lib/utils'
 
 const VOLUMES_SORT_KEY = 'docker.volumes.sort'
 const DOCKER_PAGE_SIZE_KEY = 'docker.list.page_size'
+const PRUNE_CONFIRMATION_PHRASE = 'prune unused volumes'
 
 function loadGlobalPageSize(): 25 | 50 | 100 {
   try {
@@ -201,6 +203,7 @@ export const VolumesTab = forwardRef<
   const [inspectLoadingMap, setInspectLoadingMap] = useState<Record<string, boolean>>({})
   const [pendingRemoveVolume, setPendingRemoveVolume] = useState<string | null>(null)
   const [pruneConfirmOpen, setPruneConfirmOpen] = useState(false)
+  const [pruneConfirmationText, setPruneConfirmationText] = useState('')
 
   const effectivePage = externalPage ?? internalPage
   const effectivePageSize = externalPageSize ?? internalPageSize
@@ -249,7 +252,7 @@ export const VolumesTab = forwardRef<
     [volumes]
   )
 
-  const { data: volumeContainers = {} } = useQuery<Record<string, string[]>>({
+  const { data: volumeContainers = {}, isLoading: volumeContainersLoading } = useQuery<Record<string, string[]>>({
     queryKey: ['docker', 'volumes', 'containers', serverId, refreshSignal, volumeNamesKey],
     queryFn: async () => {
       const containersRes = await pb.send(dockerApiPath(serverId, '/containers'), {
@@ -345,6 +348,16 @@ export const VolumesTab = forwardRef<
     }
     return Array.from(counts.entries()).sort((left, right) => left[0].localeCompare(right[0]))
   }, [volumes])
+
+  const unusedVolumes = useMemo(
+    () => volumes.filter(volume => (volumeContainers[volume.Name]?.length ?? 0) === 0),
+    [volumeContainers, volumes]
+  )
+
+  const pruneActionEnabled =
+    !volumeContainersLoading &&
+    unusedVolumes.length > 0 &&
+    pruneConfirmationText.trim() === PRUNE_CONFIRMATION_PHRASE
 
   const filtered = volumes.filter(v => {
     const nameMatched = v.Name?.toLowerCase().includes(filter.toLowerCase())
@@ -442,6 +455,11 @@ export const VolumesTab = forwardRef<
     })
   }
 
+  const handlePruneDialogOpenChange = (open: boolean) => {
+    setPruneConfirmOpen(open)
+    if (!open) setPruneConfirmationText('')
+  }
+
   return (
     <div
       className={cn(
@@ -464,7 +482,12 @@ export const VolumesTab = forwardRef<
             onChange={e => setFilter(e.target.value)}
           />
           <div className="flex-1" />
-          <Button variant="outline" size="sm" onClick={() => setPruneConfirmOpen(true)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPruneConfirmOpen(true)}
+            disabled={loading || volumeContainersLoading}
+          >
             <Eraser className="h-4 w-4 mr-1" /> Prune unused
           </Button>
         </div>
@@ -560,10 +583,15 @@ export const VolumesTab = forwardRef<
                     >
                       <Button
                         variant="link"
-                        className="h-auto p-0 text-left font-mono text-xs"
+                        className="group min-h-8 w-full justify-start p-0 text-left no-underline hover:no-underline"
                         onClick={() => toggleVolumeExpansion(v.Name)}
                       >
-                        <span title={v.Name}>{shortVolumeName(v.Name)}</span>
+                        <span
+                          className="truncate text-xs font-semibold leading-tight text-foreground group-hover:underline"
+                          title={v.Name}
+                        >
+                          {shortVolumeName(v.Name)}
+                        </span>
                       </Button>
                     </TableCell>
                     <TableCell className="py-3 text-xs">{v.Driver}</TableCell>
@@ -716,21 +744,77 @@ export const VolumesTab = forwardRef<
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={pruneConfirmOpen} onOpenChange={setPruneConfirmOpen}>
+      <AlertDialog open={pruneConfirmOpen} onOpenChange={handlePruneDialogOpenChange}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Prune unused volumes?</AlertDialogTitle>
+            <AlertDialogTitle>Review unused volumes</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove all local volumes not used by at least one container. This action
-              cannot be undone.
+              Review the local volumes that are not used by any container before running prune.
+              This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-md border bg-muted/20 px-3 py-3 text-sm">
+              {volumeContainersLoading ? (
+                <div className="inline-flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Checking linked containers...
+                </div>
+              ) : unusedVolumes.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="text-foreground">
+                    {unusedVolumes.length} unused volume{unusedVolumes.length > 1 ? 's' : ''} will
+                    be removed.
+                  </div>
+                  <div className="max-h-56 overflow-auto rounded-md bg-background/90 ring-1 ring-border/60">
+                    <div className="divide-y divide-border/60">
+                      {unusedVolumes.map(volume => (
+                        <div
+                          key={volume.Name}
+                          className="flex items-start justify-between gap-3 px-3 py-2.5"
+                        >
+                          <div className="min-w-0">
+                            <div className="truncate font-mono text-xs text-foreground" title={volume.Name}>
+                              {volume.Name}
+                            </div>
+                            <div className="truncate text-xs text-muted-foreground" title={volume.Mountpoint}>
+                              {volume.Driver || '-'} · {shortMountpoint(volume.Mountpoint)}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-muted-foreground">No unused volumes are available to prune.</div>
+              )}
+            </div>
+
+            {unusedVolumes.length > 0 && !volumeContainersLoading ? (
+              <div className="space-y-2">
+                <label htmlFor="prune-volumes-confirmation" className="text-sm font-medium text-foreground">
+                  Type <span className="font-mono">{PRUNE_CONFIRMATION_PHRASE}</span> to enable prune.
+                </label>
+                <Input
+                  id="prune-volumes-confirmation"
+                  value={pruneConfirmationText}
+                  onChange={event => setPruneConfirmationText(event.target.value)}
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  placeholder={PRUNE_CONFIRMATION_PHRASE}
+                />
+              </div>
+            ) : null}
+          </div>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Close</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={!pruneActionEnabled}
               onClick={() => {
-                setPruneConfirmOpen(false)
+                handlePruneDialogOpenChange(false)
                 void pruneVolumes()
               }}
             >

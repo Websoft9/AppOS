@@ -1,8 +1,8 @@
 package routes
 
 import (
-	"encoding/base64"
 	"context"
+	"encoding/base64"
 	"errors"
 	"io"
 	"net/http"
@@ -10,21 +10,25 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	"github.com/websoft9/appos/backend/domain/secrets"
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
+	"github.com/websoft9/appos/backend/domain/secrets"
+	"github.com/websoft9/appos/backend/domain/software"
+	"github.com/websoft9/appos/backend/domain/worker"
+	"github.com/websoft9/appos/backend/infra/collections"
 	"github.com/websoft9/appos/backend/infra/docker"
 )
 
 type stubDockerExecutor struct {
-	host      string
-	output    string
-	outputs   map[string]string
-	errors    map[string]error
-	lastCmd   []string
-	allCmds   [][]string
+	host    string
+	output  string
+	outputs map[string]string
+	errors  map[string]error
+	lastCmd []string
+	allCmds [][]string
 }
 
 func (s *stubDockerExecutor) Run(_ context.Context, command string, args ...string) (string, error) {
@@ -238,6 +242,123 @@ func TestDockerRoutesRequireSuperuser(t *testing.T) {
 	rec = doDocker(t, te, http.MethodGet, "/api/servers/docker-targets", "", te.token)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 for superuser, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func createDockerImagePullOperationRecord(
+	t *testing.T,
+	te *testEnv,
+	serverID string,
+	imageName string,
+	phase software.OperationPhase,
+	terminalStatus software.TerminalStatus,
+	failureReason string,
+) *core.Record {
+	t.Helper()
+	col, err := te.app.FindCollectionByNameOrId(collections.DockerImagePullOperations)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := core.NewRecord(col)
+	record.Set("server_id", serverID)
+	record.Set("image_name", imageName)
+	record.Set("normalized_name", worker.NormalizeDockerImageReference(imageName))
+	record.Set("phase", string(phase))
+	record.Set("terminal_status", string(terminalStatus))
+	record.Set("failure_reason", failureReason)
+	record.Set("output", "")
+	if err := te.app.Save(record); err != nil {
+		t.Fatal(err)
+	}
+	return record
+}
+
+func TestDockerImagePullOperationsListFiltersByStatusAndServer(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	inProgress := createDockerImagePullOperationRecord(
+		t,
+		te,
+		"srv-1",
+		"nginx:latest",
+		software.OperationPhaseExecuting,
+		software.TerminalStatusNone,
+		"",
+	)
+	completed := createDockerImagePullOperationRecord(
+		t,
+		te,
+		"srv-1",
+		"redis:7",
+		software.OperationPhaseSucceeded,
+		software.TerminalStatusSuccess,
+		"",
+	)
+	failed := createDockerImagePullOperationRecord(
+		t,
+		te,
+		"srv-1",
+		"busybox:latest",
+		software.OperationPhaseFailed,
+		software.TerminalStatusFailed,
+		"registry timeout",
+	)
+	_ = createDockerImagePullOperationRecord(
+		t,
+		te,
+		"srv-2",
+		"postgres:16",
+		software.OperationPhaseExecuting,
+		software.TerminalStatusNone,
+		"",
+	)
+
+	rec := doDocker(t, te, http.MethodGet, "/api/servers/srv-1/docker/image-pull-operations", "", te.token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, inProgress.Id) {
+		t.Fatalf("expected in-progress operation in response: %s", body)
+	}
+	if strings.Contains(body, completed.Id) || strings.Contains(body, failed.Id) {
+		t.Fatalf("expected default in_progress filter to exclude terminal operations: %s", body)
+	}
+
+	rec = doDocker(t, te, http.MethodGet, "/api/servers/srv-1/docker/image-pull-operations?status=all", "", te.token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for status=all, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body = rec.Body.String()
+	for _, id := range []string{inProgress.Id, completed.Id, failed.Id} {
+		if !strings.Contains(body, id) {
+			t.Fatalf("expected %s in status=all response: %s", id, body)
+		}
+	}
+
+	rec = doDocker(t, te, http.MethodGet, "/api/servers/srv-1/docker/image-pull-operations?status=failed", "", te.token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for status=failed, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body = rec.Body.String()
+	if !strings.Contains(body, failed.Id) || strings.Contains(body, inProgress.Id) || strings.Contains(body, completed.Id) {
+		t.Fatalf("expected failed-only response, got: %s", body)
+	}
+}
+
+func TestDockerImagePullOperationsListValidation(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	rec := doDocker(t, te, http.MethodGet, "/api/servers/local/docker/image-pull-operations?limit=0", "", te.token)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid limit, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doDocker(t, te, http.MethodGet, "/api/servers/local/docker/image-pull-operations?status=unknown", "", te.token)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid status, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -1062,6 +1183,83 @@ func TestDockerComposeRestartRemoteDirectBrokenCredentialReturnsBadRequest(t *te
 	}
 }
 
+func TestDockerComposePullLocalUsesLocalClientAndWritesAudit(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	stub := &stubDockerExecutor{
+		host:   "stub-local",
+		output: "compose pull ok",
+	}
+	originalLocalClient := localDockerClient
+	localDockerClient = docker.New(stub)
+	t.Cleanup(func() {
+		localDockerClient = originalLocalClient
+	})
+
+	rec := doDocker(t, te, http.MethodPost, "/api/servers/local/docker/compose/pull", `{"projectDir":"/srv/apps/demo"}`, te.token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for local compose pull, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	body := parseJSON(t, rec)
+	if body["output"] != "compose pull ok" {
+		t.Fatalf("expected compose pull output from local stub, got %v", body["output"])
+	}
+	gotCmd := strings.Join(stub.lastCmd, " ")
+	if gotCmd != "docker compose -f /srv/apps/demo/docker-compose.yml pull" {
+		t.Fatalf("expected compose pull command, got %q", gotCmd)
+	}
+
+	entries := dockerAuditEntriesByAction(t, te, "app.pull")
+	if len(entries) != 1 {
+		t.Fatalf("expected one app.pull audit entry, got %d", len(entries))
+	}
+	if entries[0].GetString("resource_id") != "/srv/apps/demo" {
+		t.Fatalf("expected audit resource_id /srv/apps/demo, got %q", entries[0].GetString("resource_id"))
+	}
+	if entries[0].GetString("status") != "success" {
+		t.Fatalf("expected successful compose pull audit entry, got %q", entries[0].GetString("status"))
+	}
+}
+
+func TestDockerComposePullRemoteDirectBrokenCredentialReturnsBadRequest(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	secret := createDockerBrokenSecret(t, te)
+	server := createServerRecord(t, te, "direct-compose-pull-broken-credential", "127.0.0.1", 22, "root", "password")
+	server.Set("credential", secret.Id)
+	if err := te.app.Save(server); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := doDocker(t, te, http.MethodPost, "/api/servers/"+server.Id+"/docker/compose/pull", `{"projectDir":"/srv/apps/demo"}`, te.token)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for direct remote compose pull with broken credential, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	body := parseJSON(t, rec)
+	if body["message"] != "server not found" {
+		t.Fatalf("expected server resolution message, got %v", body["message"])
+	}
+	data, ok := body["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected error data object, got %#v", body["data"])
+	}
+	errorText, _ := data["error"].(string)
+	if !strings.Contains(errorText, "credential resolve failed") {
+		t.Fatalf("expected credential resolution error, got %q", errorText)
+	}
+	if !strings.Contains(errorText, "secret has no payload") {
+		t.Fatalf("expected broken credential detail, got %q", errorText)
+	}
+	entries := dockerAuditEntriesByAction(t, te, "app.pull")
+	if len(entries) != 0 {
+		t.Fatalf("expected no app.pull audit entries when server resolution fails, got %d", len(entries))
+	}
+}
+
 func TestDockerComposeLogsLocalUsesLocalClient(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
@@ -1121,6 +1319,35 @@ func TestDockerComposeLogsRemoteDirectBrokenCredentialReturnsBadRequest(t *testi
 	}
 	if !strings.Contains(errorText, "secret has no payload") {
 		t.Fatalf("expected broken credential detail, got %q", errorText)
+	}
+}
+
+func TestDockerComposePsLocalUsesLocalClient(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	stub := &stubDockerExecutor{
+		host:   "stub-local",
+		output: `[{"Name":"demo-web-1","Service":"web","State":"running"}]`,
+	}
+	originalLocalClient := localDockerClient
+	localDockerClient = docker.New(stub)
+	t.Cleanup(func() {
+		localDockerClient = originalLocalClient
+	})
+
+	rec := doDocker(t, te, http.MethodGet, "/api/servers/local/docker/compose/ps?projectDir=/srv/apps/demo&projectName=demo", "", te.token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for local compose ps, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	body := parseJSON(t, rec)
+	if body["output"] != `[{"Name":"demo-web-1","Service":"web","State":"running"}]` {
+		t.Fatalf("expected compose ps output from local stub, got %v", body["output"])
+	}
+	gotCmd := strings.Join(stub.lastCmd, " ")
+	if gotCmd != "docker compose -p demo -f /srv/apps/demo/docker-compose.yml ps --format json" {
+		t.Fatalf("expected compose ps command, got %q", gotCmd)
 	}
 }
 
@@ -1809,7 +2036,7 @@ func TestDockerImageRemoveRemoteDirectBrokenCredentialReturnsBadRequest(t *testi
 	}
 }
 
-func TestDockerImagePullLocalUsesLocalClient(t *testing.T) {
+func XTestDockerImagePullLocalUsesLocalClient(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
 
@@ -1868,6 +2095,92 @@ func TestDockerImagePullRemoteDirectBrokenCredentialReturnsBadRequest(t *testing
 	}
 	if !strings.Contains(errorText, "secret has no payload") {
 		t.Fatalf("expected broken credential detail, got %q", errorText)
+	}
+}
+
+func TestDockerImagePullLocalEnqueuesAsyncOperation(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	oldClient := asynqClient
+	asynqClient = &asynq.Client{}
+	defer func() { asynqClient = oldClient }()
+
+	oldEnqueue := enqueueDockerImagePullTask
+	called := false
+	enqueueDockerImagePullTask = func(client *asynq.Client, operationID, serverID, imageName, userID, userEmail string) error {
+		called = true
+		if operationID == "" {
+			return errors.New("missing operation id")
+		}
+		if serverID != "local" {
+			return errors.New("unexpected server id")
+		}
+		if imageName != "nginx:latest" {
+			return errors.New("unexpected image name")
+		}
+		return nil
+	}
+	defer func() { enqueueDockerImagePullTask = oldEnqueue }()
+
+	rec := doDocker(t, te, http.MethodPost, "/api/servers/local/docker/images/pull", `{"name":"nginx:latest"}`, te.token)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("expected 202 for async image pull, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	body := parseJSON(t, rec)
+	if body["accepted"] != true {
+		t.Fatalf("expected accepted=true, got %v", body["accepted"])
+	}
+	operationID, _ := body["operation_id"].(string)
+	if operationID == "" {
+		t.Fatal("expected operation_id to be populated")
+	}
+	if !called {
+		t.Fatal("expected image pull task to be enqueued")
+	}
+	record, err := te.app.FindRecordById(collections.DockerImagePullOperations, operationID)
+	if err != nil {
+		t.Fatalf("load operation record: %v", err)
+	}
+	if record.GetString("phase") != string(software.OperationPhaseAccepted) {
+		t.Fatalf("expected accepted phase, got %q", record.GetString("phase"))
+	}
+	if record.GetString("terminal_status") != string(software.TerminalStatusNone) {
+		t.Fatalf("expected non-terminal accepted record, got %q", record.GetString("terminal_status"))
+	}
+}
+
+func TestDockerImagePullDeduplicatesInFlightOperation(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	col, err := te.app.FindCollectionByNameOrId(collections.DockerImagePullOperations)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := core.NewRecord(col)
+	record.Set("server_id", "local")
+	record.Set("image_name", "nginx:latest")
+	record.Set("normalized_name", worker.NormalizeDockerImageReference("nginx:latest"))
+	record.Set("phase", string(software.OperationPhaseExecuting))
+	record.Set("terminal_status", string(software.TerminalStatusNone))
+	record.Set("output", "Starting docker pull nginx:latest...")
+	if err := te.app.Save(record); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := doDocker(t, te, http.MethodPost, "/api/servers/local/docker/images/pull", `{"name":"nginx:latest"}`, te.token)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("expected 202 when deduplicating image pull, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	body := parseJSON(t, rec)
+	if body["operation_id"] != record.Id {
+		t.Fatalf("expected existing operation id %q, got %v", record.Id, body["operation_id"])
+	}
+	if body["deduplicated"] != true {
+		t.Fatalf("expected deduplicated=true, got %v", body["deduplicated"])
 	}
 }
 

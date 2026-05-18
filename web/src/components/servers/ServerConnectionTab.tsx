@@ -1,13 +1,14 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { AlertTriangle, CheckCircle2, Clock3, Dot, Radio } from 'lucide-react'
 
 import type {
   ServerConnectionActionId,
   ServerConnectionPresentationSpec,
   ServerDetailTab,
 } from './server-connection-presentation'
-import type { TunnelService } from './server-detail-shared'
-import { formatTimestamp, tunnelStateLabel } from './server-detail-shared'
+import { formatTimestamp, type TunnelService } from './server-detail-shared'
 
 type ServerConnectionTabProps = {
   item: Record<string, unknown>
@@ -23,268 +24,206 @@ type ServerConnectionTabProps = {
   onOpenTab: (item: Record<string, unknown>, tab?: ServerDetailTab) => void
 }
 
-const detailSectionTitleClassName = 'text-sm font-semibold text-foreground'
+function compactStateLabel(state: ServerConnectionPresentationSpec['state']): string {
+  if (state === 'online') return 'Connected'
+  if (state === 'awaiting_connection' || state === 'not_configured') return 'Connecting'
+  return 'Needs Attention'
+}
+
+function compactReason(
+  presentation: ServerConnectionPresentationSpec,
+  isTunnel: boolean,
+  tunnel: Record<string, unknown> | null
+): string {
+  const reason = presentation.reason.trim()
+
+  if (presentation.state === 'online' && isTunnel) {
+    const lastSeen = formatTimestamp(tunnel?.last_seen)
+    return lastSeen === '—' ? 'Tunnel active' : `Last heartbeat ${lastSeen}`
+  }
+
+  if (reason === 'Tunnel session is active.') return 'Tunnel active'
+  if (reason === 'SSH access is reachable.') return 'SSH verified'
+  if (reason === 'Waiting for the first tunnel callback.') return 'Waiting for first connection'
+  if (reason === 'Configuration is ready for verification.') return 'Ready to test connection'
+  if (reason === 'Tunnel setup has not started.') return 'Tunnel setup required'
+  if (reason === 'Complete SSH details before verification.') return 'Complete connection setup'
+  if (reason === 'Reconnect is intentionally paused.') return 'Connection paused'
+  if (reason === 'AppOS cannot reach this server.') return 'Connection lost'
+  if (reason === 'Tunnel session is offline.') return 'Connection lost'
+  if (reason === 'Tunnel session is unavailable.') return 'Connection unavailable'
+
+  return reason
+}
+
+function compactActivityLabel(label: string, isTunnel: boolean): string {
+  const normalized = label.trim().toLowerCase()
+
+  if (normalized === 'server created') return 'Server registered'
+  if (normalized === 'credential attached') return 'Connection updated'
+  if (normalized === 'setup started') return 'Tunnel setup started'
+  if (normalized === 'verification or callback observed') {
+    return isTunnel ? 'Connected' : 'SSH verified'
+  }
+  if (normalized === 'last healthy seen') {
+    return isTunnel ? 'Heartbeat received' : 'Last healthy check'
+  }
+  if (normalized === 'pause window updated') return 'Pause updated'
+  if (normalized === 'last failure observed') return 'Connection failed'
+  if (normalized === 'record updated') return 'Settings updated'
+
+  return label
+}
+
+function statusIcon(state: ServerConnectionPresentationSpec['state']) {
+  if (state === 'online') return <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+  if (state === 'awaiting_connection' || state === 'not_configured') {
+    return <Clock3 className="h-4 w-4 text-amber-600" />
+  }
+  return <AlertTriangle className="h-4 w-4 text-amber-700" />
+}
+
+function heroTone(state: ServerConnectionPresentationSpec['state']): string {
+  if (state === 'online') {
+    return 'border-emerald-200/70 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.16),_transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.96))]'
+  }
+  if (state === 'awaiting_connection' || state === 'not_configured') {
+    return 'border-amber-200/70 bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.14),_transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(250,250,249,0.96))]'
+  }
+  return 'border-amber-300/70 bg-[radial-gradient(circle_at_top_left,_rgba(217,119,6,0.14),_transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(250,250,249,0.96))]'
+}
+
+function badgeTone(state: ServerConnectionPresentationSpec['state']): 'default' | 'secondary' | 'outline' {
+  if (state === 'online') return 'default'
+  if (state === 'awaiting_connection' || state === 'not_configured') return 'outline'
+  return 'secondary'
+}
+
+function heroTitle(
+  presentation: ServerConnectionPresentationSpec,
+  isTunnel: boolean
+): string {
+  if (presentation.state === 'online') {
+    return isTunnel ? 'Tunnel connection is live' : 'Direct SSH is ready'
+  }
+  if (presentation.state === 'awaiting_connection' || presentation.state === 'not_configured') {
+    return isTunnel ? 'Waiting for the first tunnel callback' : 'Connection setup is in progress'
+  }
+  return isTunnel ? 'Tunnel connection needs attention' : 'Connection needs attention'
+}
+
+function subline(
+  presentation: ServerConnectionPresentationSpec,
+  isTunnel: boolean,
+  summary: string
+): string {
+  if (presentation.state === 'online') {
+    return isTunnel ? 'Remote access is available now.' : 'The server is reachable now.'
+  }
+  if (presentation.state === 'awaiting_connection' || presentation.state === 'not_configured') {
+    return summary
+  }
+  return 'Take the next action to restore access.'
+}
 
 export function ServerConnectionTab({
   item,
   presentation,
   isTunnel,
-  tunnelState,
   tunnel,
-  services,
   onExecutePrimaryAction,
-  onOpenTab,
 }: ServerConnectionTabProps) {
+  const statusLabel = compactStateLabel(presentation.state)
+  const summary = compactReason(presentation, isTunnel, tunnel)
+  const recentActivity = [...presentation.timeline].reverse().slice(0, 4)
+  const title = heroTitle(presentation, isTunnel)
+  const helper = subline(presentation, isTunnel, summary)
+
   return (
     <div className="space-y-4">
-      <section className="space-y-4">
-        <div>
-          <h3 className={detailSectionTitleClassName}>Connection Summary</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Current connection state, reason, endpoint, and next action.
-          </p>
-        </div>
-        <div className="grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
-          <div>
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">Mode</div>
-            <div className="mt-1">{presentation.modeLabel}</div>
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              Connection Status
+      <Card className={`overflow-hidden py-0 shadow-none ${heroTone(presentation.state)}`}>
+        <CardContent className="px-0">
+          <section className="space-y-6 p-5 sm:p-7">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={badgeTone(presentation.state)}>
+                    {statusLabel}
+                  </Badge>
+                  <span className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-white/75 px-2.5 py-1 text-xs text-muted-foreground backdrop-blur-sm">
+                    <Radio className="h-3 w-3" />
+                    {presentation.modeLabel}
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-lg font-semibold tracking-tight text-foreground sm:text-xl">
+                    {statusIcon(presentation.state)}
+                    <span>{title}</span>
+                  </div>
+                  <p className="max-w-2xl text-sm text-foreground/80">{summary}</p>
+                  <p className="max-w-2xl text-sm text-muted-foreground">{helper}</p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
+                <div className="font-medium uppercase tracking-wide text-foreground/80">
+                  Last activity
+                </div>
+                <div className="mt-1 text-sm font-medium text-foreground">
+                  {presentation.lastActivityLabel}
+                </div>
+              </div>
             </div>
-            <div className="mt-1">
-              <Badge
-                variant={
-                  presentation.state === 'online'
-                    ? 'default'
-                    : presentation.state === 'paused' || presentation.state === 'needs_attention'
-                      ? 'secondary'
-                      : 'outline'
-                }
-              >
-                {presentation.stateLabel}
-              </Badge>
-            </div>
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">Reason</div>
-            <div className="mt-1">{presentation.reason}</div>
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              Last Check or Last Seen
-            </div>
-            <div className="mt-1">{presentation.lastActivityLabel}</div>
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              Primary Action
-            </div>
-            <div className="mt-1">
+
+            <div>
               <Button
-                size="sm"
+                className="rounded-full px-5"
                 onClick={() => onExecutePrimaryAction(item, presentation.primaryAction.id)}
               >
                 {presentation.primaryAction.label}
               </Button>
             </div>
-          </div>
-          <div className="sm:col-span-2 xl:col-span-3">
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              Current Endpoint
-            </div>
-            <div className="mt-1">{presentation.endpointSummary}</div>
-          </div>
-        </div>
-      </section>
+          </section>
+        </CardContent>
+      </Card>
 
       <section className="space-y-4">
         <div>
-          <h3 className={detailSectionTitleClassName}>Primary Next Step</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {presentation.primaryActionDescription}
-          </p>
-        </div>
-        <div className="space-y-3">
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={() => onExecutePrimaryAction(item, presentation.primaryAction.id)}>
-              {presentation.primaryAction.label}
-            </Button>
-            {presentation.secondaryActions.map(action => (
-              <Button
-                key={action.label}
-                variant="outline"
-                onClick={() => onOpenTab(item, action.tab)}
-              >
-                {action.label}
-              </Button>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div>
-          <h3 className={detailSectionTitleClassName}>Mode-Specific Setup or Recovery</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {isTunnel
-              ? 'Tunnel lifecycle guidance covers setup, runtime session, and recovery.'
-              : 'Direct SSH lifecycle guidance covers configuration, verification, and recovery.'}
-          </p>
-        </div>
-        <div className="grid gap-4 lg:grid-cols-3">
-          {isTunnel ? (
-            <>
-              <div className="text-sm">
-                <div className="font-medium">Setup</div>
-                <div className="mt-2 text-muted-foreground">
-                  {presentation.state === 'not_configured'
-                    ? 'Tunnel setup has not started yet.'
-                    : 'Tunnel setup is already prepared in AppOS.'}
-                </div>
-              </div>
-              <div className="text-sm">
-                <div className="font-medium">Runtime Session</div>
-                <div className="mt-2 text-muted-foreground">
-                  State: {tunnelStateLabel(tunnelState)} · Last seen:{' '}
-                  {formatTimestamp(tunnel?.last_seen)}
-                </div>
-              </div>
-              <div className="text-sm">
-                <div className="font-medium">Recovery</div>
-                <div className="mt-2 text-muted-foreground">
-                  {String(tunnel?.reason ?? '').trim() ||
-                    'No tunnel-specific recovery issue is currently reported.'}
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="text-sm">
-                <div className="font-medium">Configuration</div>
-                <div className="mt-2 text-muted-foreground">
-                  Host {String(item.host || '—')} · Port {String(item.port || '22')} · User{' '}
-                  {String(item.user || '—')}
-                </div>
-              </div>
-              <div className="text-sm">
-                <div className="font-medium">Verification</div>
-                <div className="mt-2 text-muted-foreground">
-                  Latest check: {presentation.lastActivityLabel} · Source:{' '}
-                  {presentation.diagnostics.evidenceSource}
-                </div>
-              </div>
-              <div className="text-sm">
-                <div className="font-medium">Recovery</div>
-                <div className="mt-2 text-muted-foreground">
-                  {presentation.state === 'needs_attention'
-                    ? presentation.reason
-                    : 'No SSH recovery action is currently required.'}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </section>
-
-      {isTunnel ? (
-        <section className="space-y-4">
-          <div>
-            <h3 className={detailSectionTitleClassName}>Tunnel Services</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Service mappings exposed through this tunnel connection.
-            </p>
-          </div>
-          <div>
-            {services.length === 0 ? (
-              <div className="text-sm text-muted-foreground">
-                No tunnel service mapping exposed for this server.
-              </div>
-            ) : (
-              <div className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
-                {services.map(service => (
-                  <div key={`${service.service_name}:${service.tunnel_port}`}>
-                    <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                      {service.service_name}
-                    </div>
-                    <div className="mt-1 font-medium">Port {service.tunnel_port}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
-      ) : null}
-
-      <section className="space-y-4">
-        <div>
-          <h3 className={detailSectionTitleClassName}>Diagnostics</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Evidence that supports the current recommendation.
-          </p>
-        </div>
-        <div className="grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
-          <div>
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              Latest Check Result
-            </div>
-            <div className="mt-1">{presentation.diagnostics.latestCheckResult}</div>
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              Evidence Source
-            </div>
-            <div className="mt-1">{presentation.diagnostics.evidenceSource}</div>
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              Latest Failure Reason
-            </div>
-            <div className="mt-1">{presentation.diagnostics.latestFailureReason}</div>
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              Latest Tunnel Callback or Heartbeat
-            </div>
-            <div className="mt-1">{presentation.diagnostics.latestTunnelCallbackOrHeartbeat}</div>
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">Pause Until</div>
-            <div className="mt-1">{presentation.diagnostics.pauseUntil}</div>
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              Current Reason
-            </div>
-            <div className="mt-1">{presentation.diagnostics.currentReason}</div>
-          </div>
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div>
-          <h3 className={detailSectionTitleClassName}>Activity Timeline</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Compact lifecycle milestones for this server.
-          </p>
+          <h3 className="text-sm font-semibold text-foreground">Recent Activity</h3>
         </div>
         <div>
-          {presentation.timeline.length === 0 ? (
-            <div className="text-sm text-muted-foreground">
-              No lifecycle events are available yet.
+          {recentActivity.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border/60 bg-muted/10 px-4 py-6 text-sm text-muted-foreground">
+              No recent activity is available yet.
             </div>
           ) : (
-            <div className="space-y-3">
-              {presentation.timeline.map(event => (
+            <div className="rounded-2xl border border-border/60 bg-white/70 p-4 shadow-sm">
+              <div className="space-y-0">
+                {recentActivity.map((event, index) => (
                 <div
                   key={`${event.label}:${event.at}`}
-                  className="flex items-start justify-between gap-4 text-sm"
+                  className="grid grid-cols-[auto_1fr_auto] items-start gap-3 py-3 text-sm first:pt-0 last:pb-0"
                 >
-                  <div className="font-medium">{event.label}</div>
-                  <div className="text-muted-foreground">{event.at}</div>
+                  <div className="flex h-5 items-start justify-center pt-0.5 text-muted-foreground">
+                    {index === 0 ? (
+                      <span className="flex h-2.5 w-2.5 rounded-full bg-foreground/80 ring-4 ring-muted/40" />
+                    ) : (
+                      <Dot className="h-5 w-5" />
+                    )}
+                  </div>
+                  <div className="space-y-0.5">
+                    <div className="font-medium text-foreground">
+                      {compactActivityLabel(event.label, isTunnel)}
+                    </div>
+                    {index === 0 ? (
+                      <div className="text-xs text-muted-foreground">Most recent event</div>
+                    ) : null}
+                  </div>
+                  <div className="text-xs text-muted-foreground sm:text-sm">{event.at}</div>
                 </div>
               ))}
+              </div>
             </div>
           )}
         </div>

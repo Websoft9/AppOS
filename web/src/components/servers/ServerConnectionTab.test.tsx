@@ -47,7 +47,7 @@ const basePresentation: ServerConnectionPresentationSpec = {
 }
 
 describe('ServerConnectionTab', () => {
-  it('renders tunnel-specific sections and triggers callback actions', () => {
+  it('renders the minimal tunnel connection layout and triggers the primary action', () => {
     const executePrimaryAction =
       vi.fn<(item: Record<string, unknown>, actionId: ServerConnectionActionId) => void>()
     const openTab = vi.fn<(item: Record<string, unknown>, tab?: ServerDetailTab) => void>()
@@ -65,22 +65,22 @@ describe('ServerConnectionTab', () => {
       />
     )
 
-    expect(screen.getByText('Connection Summary')).toBeInTheDocument()
-    expect(screen.getByText('Primary Next Step')).toBeInTheDocument()
-    expect(screen.getByText('Mode-Specific Setup or Recovery')).toBeInTheDocument()
-    expect(screen.getByText('Tunnel Services')).toBeInTheDocument()
-    expect(screen.getByText('Port 2201')).toBeInTheDocument()
-    expect(screen.getByText('Diagnostics')).toBeInTheDocument()
-    expect(screen.getByText('Activity Timeline')).toBeInTheDocument()
+    const heartbeatLabel = new Date('2026-04-16T01:01:00Z').toLocaleString()
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Open Terminal' })[0])
+    expect(screen.getByText('Connected')).toBeInTheDocument()
+    expect(screen.getByText(`Last heartbeat ${heartbeatLabel}`)).toBeInTheDocument()
+    expect(screen.getByText('Recent Activity')).toBeInTheDocument()
+    expect(screen.getByText('Heartbeat received')).toBeInTheDocument()
+    expect(screen.queryByText('Connection Summary')).toBeNull()
+    expect(screen.queryByText('Diagnostics')).toBeNull()
+    expect(screen.queryByText('Tunnel Services')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Terminal' }))
     expect(executePrimaryAction).toHaveBeenCalledWith(baseItem, 'open_terminal')
-
-    fireEvent.click(screen.getByRole('button', { name: 'View Details' }))
-    expect(openTab).toHaveBeenCalledWith(baseItem, 'overview')
+    expect(openTab).not.toHaveBeenCalled()
   })
 
-  it('renders direct-ssh recovery details without tunnel services', () => {
+  it('renders direct-ssh recovery in the same minimal layout', () => {
     render(
       <ServerConnectionTab
         item={baseItem}
@@ -108,11 +108,10 @@ describe('ServerConnectionTab', () => {
       />
     )
 
-    expect(screen.getByText('Configuration')).toBeInTheDocument()
-    expect(screen.getByText('Direct SSH')).toBeInTheDocument()
-    expect(screen.getByText(/Host 10.0.0.1/)).toBeInTheDocument()
-    expect(screen.getByText(/Source: ssh_probe/)).toBeInTheDocument()
-    expect(screen.getAllByText('SSH access is failing.').length).toBeGreaterThan(0)
+    expect(screen.getByText('Needs Attention')).toBeInTheDocument()
+    expect(screen.getByText('SSH access is failing.')).toBeInTheDocument()
+    expect(screen.getByText('Recent Activity')).toBeInTheDocument()
+    expect(screen.queryByText('Configuration')).toBeNull()
     expect(screen.queryByText('Tunnel Services')).toBeNull()
   })
 })

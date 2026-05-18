@@ -467,6 +467,37 @@ func TestUninstall_ScriptWithEmptyURL_ReturnsError(t *testing.T) {
 	}
 }
 
+func TestRestart_SystemdUsesNoBlock(t *testing.T) {
+	orig := executeSSHCommand
+	defer func() { executeSSHCommand = orig }()
+
+	commands := []string{}
+	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
+		commands = append(commands, cmd)
+		if containsSubstring(cmd, "systemctl restart --no-block") && containsSubstring(cmd, "netdata.service") {
+			return "", nil
+		}
+		return "", nil
+	}
+
+	ex := &SSHExecutor{}
+	tpl := packageTemplate("netdata", "netdata.service")
+	tpl.ComponentKey = software.ComponentKeyMonitorAgent
+	_, err := ex.Restart(context.Background(), "srv-1", tpl)
+	if err != nil {
+		t.Fatalf("Restart error: %v", err)
+	}
+	if len(commands) == 0 {
+		t.Fatal("expected restart command to run")
+	}
+	if !containsSubstring(commands[0], "systemctl restart --no-block") {
+		t.Fatalf("expected --no-block restart command, got %q", commands[0])
+	}
+	if !containsSubstring(commands[0], "netdata.service") {
+		t.Fatalf("expected netdata service in restart command, got %q", commands[0])
+	}
+}
+
 func TestUninstall_StopsServiceBeforePackageRemoval(t *testing.T) {
 	orig := executeSSHCommand
 	defer func() { executeSSHCommand = orig }()

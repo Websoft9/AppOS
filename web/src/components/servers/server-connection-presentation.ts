@@ -345,7 +345,7 @@ function getPrimaryAction(
 
   if (state === 'paused') {
     return {
-      primaryAction: { id: 'tunnel_setup', label: 'Resume Access' },
+      primaryAction: { id: 'tunnel_setup', label: 'Reconnect' },
       primaryActionDescription: 'Reconnect is paused. Review the tunnel setup and resume access.',
       secondaryActions: [viewConnection, viewChecklist],
       stateActions: [viewConnection, viewChecklist],
@@ -380,7 +380,7 @@ function getPrimaryAction(
 
   return {
     primaryAction: isTunnel
-      ? { id: 'view_connection', label: 'View Issue', tab: 'connection' }
+      ? { id: 'tunnel_setup', label: 'Reconnect' }
       : { id: 'edit_server', label: 'Fix Configuration' },
     primaryActionDescription: isTunnel
       ? 'Inspect the latest tunnel failure evidence before taking recovery steps.'

@@ -5469,6 +5469,113 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
+  /api/servers/{serverId}/docker/compose/ps:
+    get:
+      tags: [Docker]
+      summary: Get Compose ps
+      description: "Returns docker compose ps output in JSON format for the specified project. Superuser only."
+      operationId: get_api_servers_serverid_docker_compose_ps
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+        - name: projectDir
+          in: query
+          description: "absolute path to the compose project"
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: query
+          description: "compose project name"
+          required: false
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/compose/pull:
+    post:
+      tags: [Docker]
+      summary: Pull Compose images
+      description: "Runs `docker compose pull` in the given project directory. Writes audit entry. Superuser only."
+      operationId: post_api_servers_serverid_docker_compose_pull
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: "projectDir"
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
   /api/servers/{serverId}/docker/compose/restart:
     post:
       tags: [Docker]
@@ -6185,6 +6292,112 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
+  /api/servers/{serverId}/docker/image-pull-operations:
+    get:
+      tags: [Docker]
+      summary: List Docker image pull operations
+      description: "Returns recent image pull operations for the specified server, with optional status filtering. Superuser only."
+      operationId: get_api_servers_serverid_docker_image-pull-operations
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: "max items (default 20, max 50)"
+          required: false
+          schema:
+            type: integer
+        - name: status
+          in: query
+          description: "in_progress|completed|failed|all (default in_progress)"
+          required: false
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/image-pull-operations/{operationId}:
+    get:
+      tags: [Docker]
+      summary: Get Docker image pull operation
+      description: "Returns the current status, logs, and terminal state for a previously accepted image pull operation. Superuser only."
+      operationId: get_api_servers_serverid_docker_image-pull-operations_operationid
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+        - name: operationId
+          in: path
+          description: "pull operation ID"
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
   /api/servers/{serverId}/docker/images:
     get:
       tags: [Docker]
@@ -6283,7 +6496,7 @@ paths:
     post:
       tags: [Docker]
       summary: Pull Docker image
-      description: "Pulls the specified image from the registry. Superuser only."
+      description: "Accepts a background image pull operation for the specified image and returns an operation ID for polling. Superuser only."
       operationId: post_api_servers_serverid_docker_images_pull
       parameters:
         - name: serverId
@@ -6302,13 +6515,12 @@ paths:
       security:
         - bearerAuth: []  # superuser required
       responses:
-        "200":
-          description: OK
+        "202":
+          description: Accepted
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
+                $ref: '#/components/schemas/SuccessEnvelope'
         "401":
           description: Unauthorized
           content:
@@ -6323,8 +6535,22 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
         "500":
           description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "503":
+          description: Service Unavailable
           content:
             application/json:
               schema:

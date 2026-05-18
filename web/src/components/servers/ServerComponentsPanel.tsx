@@ -13,6 +13,11 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@/components/ui/alert'
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -49,7 +54,7 @@ import {
 } from '@/lib/software-api'
 
 const PREREQUISITE_COMPONENT_KEYS = new Set(['docker'])
-const MONITOR_AGENT_COMPONENT_KEY = 'monitor-agent'
+const MONITOR_AGENT_COMPONENT_KEY = 'appos-monitor-collector'
 const MONITOR_AGENT_ADDRESS_ACTIONS = new Set<SoftwareActionType>([
   'install',
   'upgrade',
@@ -106,6 +111,14 @@ function isStoppedAddon(component: SoftwareComponentSummary): boolean {
 }
 
 function addonActionLabel(action: SoftwareActionType): string {
+  if (action === 'verify') return 'Check'
+  if (action === 'reinstall') return 'Repair'
+  if (action === 'uninstall') return 'Remove'
+  return action.charAt(0).toUpperCase() + action.slice(1)
+}
+
+function softwareActionLabel(action: SoftwareActionType | string | undefined): string {
+  if (!action) return 'Action'
   if (action === 'verify') return 'Check'
   if (action === 'reinstall') return 'Repair'
   if (action === 'uninstall') return 'Remove'
@@ -388,6 +401,15 @@ function latestOperationEventLine(op: SoftwareOperation): string {
   return lines.length > 0 ? lines[lines.length - 1] : ''
 }
 
+function isOperationInFlightError(message: string): boolean {
+  return /operation already in flight|software operation already in flight/i.test(message)
+}
+
+function extractInFlightComponentKey(message: string): string | null {
+  const match = message.match(/component\s+"([^"]+)"/i)
+  return match?.[1]?.trim() || null
+}
+
 function statusTone(
   component: SoftwareComponentSummary
 ): 'default' | 'secondary' | 'outline' | 'destructive' {
@@ -619,7 +641,11 @@ function OperationHistory({
           {operations.map(operation => (
             <div
               key={operation.id}
-              className="grid min-w-0 max-w-full gap-2 py-2 text-sm sm:grid-cols-[minmax(0,8rem)_minmax(0,6rem)_minmax(0,1fr)_1.75rem] sm:items-start"
+              className={`grid min-w-0 max-w-full gap-2 py-2 text-sm sm:grid-cols-[minmax(0,8rem)_minmax(0,6rem)_minmax(0,1fr)_1.75rem] sm:items-start ${
+                isInProgress(operation)
+                  ? 'rounded-md border border-amber-300/70 bg-amber-50/40 px-2 dark:border-amber-500/40 dark:bg-amber-500/5'
+                  : ''
+              }`}
             >
               <div className="min-w-0 truncate text-xs text-muted-foreground">
                 {formatTimestamp(operation.updated || operation.created) || '—'}
@@ -633,12 +659,19 @@ function OperationHistory({
                 </span>
               </div>
               <div className="min-w-0 max-w-full space-y-1">
-                <Badge
-                  variant={operationTone(operation)}
-                  className="max-w-full truncate text-[11px]"
-                >
-                  {operationStatusBadgeLabel(operation)}
-                </Badge>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Badge
+                    variant={operationTone(operation)}
+                    className="max-w-full truncate text-[11px]"
+                  >
+                    {operationStatusBadgeLabel(operation)}
+                  </Badge>
+                  {isInProgress(operation) ? (
+                    <Badge variant="outline" className="text-[11px] font-normal">
+                      Current
+                    </Badge>
+                  ) : null}
+                </div>
                 {operation.failure_reason ? (
                   <div className="max-w-full break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">
                     {operation.failure_reason}
@@ -814,6 +847,7 @@ function AddonInventoryRow({
   const packaged = component.packaged_version?.trim() || null
   const hasUpgrade = Boolean(detected && packaged && packaged !== detected)
   const apposConnection = appOSConnectionLabel(component)
+  const inProgress = isInProgress(component.last_operation)
 
   const handleSelect = () => onSelect(component.component_key)
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -841,7 +875,14 @@ function AddonInventoryRow({
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="truncate font-medium text-foreground">{component.label}</div>
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 truncate font-medium text-foreground">{component.label}</div>
+                {inProgress ? (
+                  <Badge variant="outline" className="shrink-0 text-[11px] font-normal">
+                    In progress
+                  </Badge>
+                ) : null}
+              </div>
             </TooltipTrigger>
             {component.description ? (
               <TooltipContent side="right" className="max-w-xs">
@@ -855,21 +896,26 @@ function AddonInventoryRow({
         </div>
       </div>
       <div className="min-w-0 space-y-0.5">
-        <div className="truncate text-xs text-muted-foreground/70">
+        <div className="truncate text-muted-foreground/70">
           Installed: {detected || '—'}
         </div>
         <div
-          className={`truncate text-xs ${hasUpgrade ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground/70'}`}
+          className={`truncate ${hasUpgrade ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground/70'}`}
         >
           Latest: {packaged || detected || '—'}
         </div>
       </div>
-      <div className="truncate text-xs text-muted-foreground">
+      <div className="truncate text-muted-foreground/80">
         {addonFormatLabel(component.template_kind) || '—'}
       </div>
-      <div className="min-w-0 space-y-0.5 text-xs text-muted-foreground">
+      <div className="min-w-0 space-y-0.5 text-muted-foreground/80">
         <div className="truncate">Service: {statusLabel(component)}</div>
         {apposConnection ? <div className="truncate">AppOS: {apposConnection}</div> : null}
+        {inProgress ? (
+          <div className="truncate text-foreground/80">
+            Operation: {phaseLabel(component.last_operation)}
+          </div>
+        ) : null}
       </div>
       <div
         className="flex items-center justify-end gap-1"
@@ -1237,6 +1283,7 @@ export function ServerComponentsPanel({
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [actionError, setActionError] = useState('')
   const [actionMessage, setActionMessage] = useState('')
+  const [actionConflictComponentKey, setActionConflictComponentKey] = useState<string | null>(null)
   const [confirmDangerAction, setConfirmDangerAction] = useState<{
     componentKey: string
     action: SoftwareActionType
@@ -1253,10 +1300,29 @@ export function ServerComponentsPanel({
     () => addonComponents.find(component => component.component_key === selectedAddonKey) ?? null,
     [addonComponents, selectedAddonKey]
   )
+  const allComponents = useMemo(
+    () => [...prerequisiteComponents, ...addonComponents],
+    [addonComponents, prerequisiteComponents]
+  )
+  const actionConflictComponent = useMemo(
+    () =>
+      actionConflictComponentKey
+        ? allComponents.find(component => component.component_key === actionConflictComponentKey) ?? null
+        : null,
+    [actionConflictComponentKey, allComponents]
+  )
 
   const actionsLocked =
     actionLoading !== null ||
     Object.values(activeOperationKeys).some(Boolean)
+
+  useEffect(() => {
+    if (!selectedAddon) return
+    const currentMode = addonPanelMode[selectedAddon.component_key] ?? 'details'
+    if (isInProgress(selectedAddon.last_operation) && currentMode === 'details') {
+      setAddonPanelMode(current => ({ ...current, [selectedAddon.component_key]: 'history' }))
+    }
+  }, [addonPanelMode, selectedAddon])
 
   useEffect(() => {
     setPrerequisiteOpen(current => {
@@ -1493,6 +1559,7 @@ export function ServerComponentsPanel({
     async (componentKey: string, action: SoftwareActionType, apposBaseUrl?: string) => {
       setActionLoading(`${componentKey}:${action}`)
       setActionError('')
+      setActionConflictComponentKey(null)
       setActionMessage('')
       const isPrerequisite = PREREQUISITE_COMPONENT_KEYS.has(componentKey)
       const actionLabel = isPrerequisite ? prerequisiteActionLabel(action) : addonActionLabel(action)
@@ -1578,7 +1645,21 @@ export function ServerComponentsPanel({
           if (!current[componentKey]) return current
           return { ...current, [componentKey]: false }
         })
-        setActionError(err instanceof Error ? err.message : `${action} failed`)
+        const message = err instanceof Error ? err.message : `${action} failed`
+        const conflictComponentKey = isOperationInFlightError(message)
+          ? componentKey
+          : extractInFlightComponentKey(message)
+        setActionError(message)
+        setActionConflictComponentKey(conflictComponentKey)
+        if (conflictComponentKey) {
+          if (PREREQUISITE_COMPONENT_KEYS.has(conflictComponentKey)) {
+            setPrerequisiteOpen(current => ({ ...current, [conflictComponentKey]: true }))
+            setPrerequisitePanelMode(current => ({ ...current, [conflictComponentKey]: 'history' }))
+          } else {
+            setSelectedAddonKey(conflictComponentKey)
+            setAddonPanelMode(current => ({ ...current, [conflictComponentKey]: 'history' }))
+          }
+        }
       } finally {
         setActionLoading(null)
       }
@@ -1769,7 +1850,42 @@ export function ServerComponentsPanel({
       </AlertDialog>
 
       {actionMessage && <p className="text-sm text-muted-foreground">{actionMessage}</p>}
-      {actionError && <p className="text-sm text-destructive">{actionError}</p>}
+      {actionError && actionConflictComponent && isInProgress(actionConflictComponent.last_operation) ? (
+        <Alert variant="destructive">
+          <AlertTitle>Operation already in progress</AlertTitle>
+          <AlertDescription className="space-y-2">
+            <div>
+              {actionConflictComponent.label} already has an active{' '}
+              {softwareActionLabel(actionConflictComponent.last_operation?.action).toLowerCase()} request.
+            </div>
+            <div>
+              Current phase: {phaseLabel(actionConflictComponent.last_operation)}. Last updated:{' '}
+              {formatTimestamp(actionConflictComponent.last_operation?.updated_at) || '—'}.
+            </div>
+            <div className="flex items-center gap-2">
+              {!PREREQUISITE_COMPONENT_KEYS.has(actionConflictComponent.component_key) ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedAddonKey(actionConflictComponent.component_key)
+                    setAddonPanelMode(current => ({
+                      ...current,
+                      [actionConflictComponent.component_key]: 'history',
+                    }))
+                  }}
+                >
+                  Open operation history
+                </Button>
+              ) : null}
+              <span className="text-xs text-destructive/80">{actionError}</span>
+            </div>
+          </AlertDescription>
+        </Alert>
+      ) : actionError ? (
+        <p className="text-sm text-destructive">{actionError}</p>
+      ) : null}
 
       <section className="space-y-3" aria-label="Prerequisites section">
         <div className="flex items-start justify-between gap-3">
@@ -1903,6 +2019,21 @@ export function ServerComponentsPanel({
               </div>
             ) : (
               <div className="space-y-4 text-sm">
+                {isInProgress(selectedAddon.last_operation) ? (
+                  <Alert>
+                    <AlertTitle>Operation in progress</AlertTitle>
+                    <AlertDescription className="space-y-2">
+                      <div>
+                        {softwareActionLabel(selectedAddon.last_operation?.action)} is still{' '}
+                        {phaseLabel(selectedAddon.last_operation)} for {selectedAddon.label}.
+                      </div>
+                      <div>
+                        Last updated:{' '}
+                        {formatTimestamp(selectedAddon.last_operation?.updated_at) || '—'}.
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
                 <div className="space-y-2">
                   <div className="flex min-w-0 items-center justify-between gap-3">
                     <div className="inline-flex shrink-0 items-center gap-1 rounded-md bg-muted/35 p-1">

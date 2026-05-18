@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ContainersTab } from './ContainersTab'
 
@@ -16,10 +17,14 @@ vi.mock('@/components/monitor/TimeSeriesChart', () => ({
 }))
 
 function renderTab(overrides?: {
+  includeNames?: string[]
+  onClearIncludeNames?: () => void
+  onClearFilterPreset?: () => void
   visibleColumns?: {
     ports: boolean
     volumes: boolean
     status: boolean
+    created: boolean
     cpu: boolean
     mem: boolean
     network: boolean
@@ -45,12 +50,16 @@ function renderTab(overrides?: {
             ports: true,
             volumes: true,
             status: true,
+            created: false,
             cpu: true,
             mem: true,
             network: true,
-            compose: false,
+            compose: true,
           }
         }
+          includeNames={overrides?.includeNames}
+          onClearIncludeNames={overrides?.onClearIncludeNames}
+          onClearFilterPreset={overrides?.onClearFilterPreset}
       />
     </QueryClientProvider>
   )
@@ -97,9 +106,12 @@ describe('ContainersTab', () => {
               containerId: 'ctr-1',
               latest: {
                 cpuPercent: 17.2,
-                memoryBytes: 134217728,
+                memoryUsageBytes: 134217728,
+                memoryLimitBytes: 268435456,
                 networkRxBytesPerSecond: 2048,
                 networkTxBytesPerSecond: 1024,
+                blockReadBytesPerSecond: 4096,
+                blockWriteBytesPerSecond: 2048,
               },
               freshness: {
                 state: 'fresh',
@@ -117,9 +129,41 @@ describe('ContainersTab', () => {
                 {
                   name: 'memory',
                   unit: 'bytes',
-                  points: [
-                    [1, 104857600],
-                    [2, 134217728],
+                  segments: [
+                    {
+                      name: 'usage',
+                      points: [
+                        [1, 104857600],
+                        [2, 134217728],
+                      ],
+                    },
+                    {
+                      name: 'limit',
+                      points: [
+                        [1, 268435456],
+                        [2, 268435456],
+                      ],
+                    },
+                  ],
+                },
+                {
+                  name: 'block',
+                  unit: 'bytes/s',
+                  segments: [
+                    {
+                      name: 'read',
+                      points: [
+                        [1, 2048],
+                        [2, 4096],
+                      ],
+                    },
+                    {
+                      name: 'write',
+                      points: [
+                        [1, 1024],
+                        [2, 2048],
+                      ],
+                    },
                   ],
                 },
                 {
@@ -148,7 +192,7 @@ describe('ContainersTab', () => {
               containerId: 'ctr-2',
               latest: {
                 cpuPercent: 4.4,
-                memoryBytes: 33554432,
+                memoryUsageBytes: 33554432,
               },
               freshness: {
                 state: 'stale',
@@ -183,6 +227,22 @@ describe('ContainersTab', () => {
           },
         })
       }
+      if (path === '/api/servers/srv-1/docker/containers/ctr-1') {
+        return Promise.resolve({
+          output: JSON.stringify([
+            {
+              Id: 'ctr-1',
+              Name: '/demo-web',
+              Config: {
+                Image: 'nginx:alpine',
+              },
+              State: {
+                Status: 'running',
+              },
+            },
+          ]),
+        })
+      }
       return Promise.reject(new Error(`Unexpected request: ${path}`))
     })
   })
@@ -196,10 +256,11 @@ describe('ContainersTab', () => {
 
     expect(await screen.findByText('demo-web')).toBeInTheDocument()
     expect(await screen.findByText('17%')).toBeInTheDocument()
-    expect(screen.getByText('128 MiB')).toBeInTheDocument()
+    expect(screen.getByText('128 MiB / 256 MiB')).toBeInTheDocument()
     expect(screen.getByText('2.0 KiB/s in / 1.0 KiB/s out')).toBeInTheDocument()
     expect(screen.getByText('Stale telemetry')).toBeInTheDocument()
     expect(screen.getByText('1 volume')).toBeInTheDocument()
+    expect(screen.queryByText('No telemetry')).not.toBeInTheDocument()
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/servers/srv-1/docker/containers/metadata', {
@@ -291,6 +352,7 @@ describe('ContainersTab', () => {
         ports: false,
         volumes: false,
         status: true,
+        created: true,
         cpu: false,
         mem: false,
         network: false,
@@ -316,5 +378,52 @@ describe('ContainersTab', () => {
     })
 
     dateSpy.mockRestore()
+  })
+
+  it('keeps the linked container badge and clear action in the same toolbar group', async () => {
+    const clearIncludeNames = vi.fn()
+    const clearFilterPreset = vi.fn()
+
+    renderTab({
+      includeNames: ['demo-web', 'demo-worker', 'demo-api'],
+      onClearIncludeNames: clearIncludeNames,
+      onClearFilterPreset: clearFilterPreset,
+    })
+
+    const badge = await screen.findByText('Linked containers: 3')
+    const clearButton = screen.getByRole('button', { name: 'Clear linked filter' })
+    const toolbarGroup = badge.parentElement
+
+    expect(toolbarGroup).toBe(clearButton.parentElement)
+    expect(toolbarGroup).toHaveClass('ml-auto', 'justify-end')
+    expect(toolbarGroup?.textContent?.indexOf('Linked containers: 3')).toBeLessThan(
+      toolbarGroup?.textContent?.indexOf('Clear linked filter') ?? -1
+    )
+
+    fireEvent.click(clearButton)
+
+    expect(clearFilterPreset).toHaveBeenCalledTimes(1)
+    expect(clearIncludeNames).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens inspect output from the actions menu in the shared viewer dialog', async () => {
+    const user = userEvent.setup()
+    renderTab()
+
+    await screen.findByText('demo-web')
+    const actionButton = screen.getByRole('button', { name: 'More actions for demo-web' })
+
+    await user.click(actionButton)
+
+    await user.click(await screen.findByRole('menuitem', { name: 'Inspect' }))
+
+    expect(await screen.findByText('Container Inspect: demo-web')).toBeInTheDocument()
+    expect(await screen.findByText(/"Image":\s*"nginx:alpine"/)).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/servers/srv-1/docker/containers/ctr-1', {
+        method: 'GET',
+      })
+    })
   })
 })

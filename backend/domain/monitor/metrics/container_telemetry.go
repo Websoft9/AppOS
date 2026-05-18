@@ -84,10 +84,13 @@ func queryContainerTelemetryVM(ctx context.Context, serverID string, containerID
 		series  string
 		segment string
 	}{
-		{name: "cpu", unit: "percent", series: "appos_container_cpu_usage"},
-		{name: "memory", unit: "bytes", series: "appos_container_memory_bytes"},
+		{name: "cpu", unit: "percent", series: "appos_container_cpu_usage_percent"},
+		{name: "memory", unit: "bytes", series: "appos_container_memory_usage_bytes", segment: "usage"},
+		{name: "memory", unit: "bytes", series: "appos_container_memory_limit_bytes", segment: "limit"},
 		{name: "network", unit: "bytes/s", series: "appos_container_network_receive_bytes_per_second", segment: "in"},
 		{name: "network", unit: "bytes/s", series: "appos_container_network_transmit_bytes_per_second", segment: "out"},
+		{name: "block", unit: "bytes/s", series: "appos_container_block_read_bytes_per_second", segment: "read"},
+		{name: "block", unit: "bytes/s", series: "appos_container_block_write_bytes_per_second", segment: "write"},
 	}
 	for _, query := range queries {
 		matrix, err := service.ExecuteQueryRangeMatrix(
@@ -126,14 +129,20 @@ func queryContainerTelemetryVM(ctx context.Context, serverID string, containerID
 			latestValue, observedAt, hasLatest := latestMetricPoint(seriesPoints)
 			if hasLatest {
 				switch query.series {
-				case "appos_container_cpu_usage":
+				case "appos_container_cpu_usage_percent":
 					item.Latest.CPUPercent = &latestValue
-				case "appos_container_memory_bytes":
-					item.Latest.MemoryBytes = &latestValue
+				case "appos_container_memory_usage_bytes":
+					item.Latest.MemoryUsageBytes = &latestValue
+				case "appos_container_memory_limit_bytes":
+					item.Latest.MemoryLimitBytes = &latestValue
 				case "appos_container_network_receive_bytes_per_second":
 					item.Latest.NetworkRxBytesPerSecond = &latestValue
 				case "appos_container_network_transmit_bytes_per_second":
 					item.Latest.NetworkTxBytesPerSecond = &latestValue
+				case "appos_container_block_read_bytes_per_second":
+					item.Latest.BlockReadBytesPerSecond = &latestValue
+				case "appos_container_block_write_bytes_per_second":
+					item.Latest.BlockWriteBytesPerSecond = &latestValue
 				}
 				mergeTelemetryFreshness(item, observedAt, windowSpec.End, windowSpec.Step)
 			}

@@ -232,7 +232,7 @@ const cases: DecisionCase[] = [
     expected: {
       state: 'paused',
       reason: 'Reconnect is intentionally paused.',
-      primaryAction: 'Resume Access',
+      primaryAction: 'Reconnect',
       stateActions: ['View Connection', 'View Checklist'],
       toolActions: ['Restart', 'Shutdown'],
     },
@@ -290,7 +290,7 @@ const cases: DecisionCase[] = [
     expected: {
       state: 'needs_attention',
       reason: 'Tunnel session is offline.',
-      primaryAction: 'View Issue',
+      primaryAction: 'Reconnect',
       stateActions: ['View Connection', 'View Checklist'],
       toolActions: ['Restart', 'Shutdown'],
     },

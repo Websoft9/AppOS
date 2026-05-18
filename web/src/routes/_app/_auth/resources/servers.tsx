@@ -1251,6 +1251,9 @@ export function ServersPage() {
                 <TabsTrigger value="connection" className={detailTabTriggerClassName}>
                   Connection
                 </TabsTrigger>
+                <TabsTrigger value="components" className={detailTabTriggerClassName}>
+                  Components
+                </TabsTrigger>
                 <TabsTrigger value="monitor" className={detailTabTriggerClassName}>
                   Monitor
                 </TabsTrigger>
@@ -1265,9 +1268,6 @@ export function ServersPage() {
                 </TabsTrigger>
                 <TabsTrigger value="systemd" className={detailTabTriggerClassName}>
                   Systemd
-                </TabsTrigger>
-                <TabsTrigger value="components" className={detailTabTriggerClassName}>
-                  Components
                 </TabsTrigger>
               </TabsList>
               <DropdownMenu>

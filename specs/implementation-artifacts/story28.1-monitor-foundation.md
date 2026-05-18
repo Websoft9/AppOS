@@ -338,8 +338,8 @@ Suggested metric series families:
 - `appos_host_cpu_usage`
 - `appos_host_memory_usage_bytes`
 - `appos_host_disk_usage_bytes`
-- `appos_host_network_rx_bytes_total`
-- `appos_host_network_tx_bytes_total`
+- `appos_host_network_rx_bytes_per_second`
+- `appos_host_network_tx_bytes_per_second`
 - `appos_container_cpu_usage`
 - `appos_container_memory_usage_bytes`
 - `appos_platform_process_cpu_usage`

@@ -299,7 +299,7 @@ func (w *Worker) recoverOrphanedSoftwareOperations() error {
 
 	for _, record := range records {
 		orphanedPhase := record.GetString("phase")
-		if orphanedPhase != string(software.OperationPhaseExecuting) && orphanedPhase != string(software.OperationPhaseVerifying) {
+		if !isRecoverableSoftwareOrphanPhase(software.OperationPhase(orphanedPhase)) {
 			continue
 		}
 		updatedAt := record.GetDateTime("updated").Time()
@@ -322,8 +322,22 @@ func (w *Worker) recoverOrphanedSoftwareOperations() error {
 	return nil
 }
 
+func isRecoverableSoftwareOrphanPhase(phase software.OperationPhase) bool {
+	switch phase {
+	case software.OperationPhaseAccepted,
+		software.OperationPhasePreflight,
+		software.OperationPhaseExecuting,
+		software.OperationPhaseVerifying:
+		return true
+	default:
+		return false
+	}
+}
+
 func orphanedPhaseToFailureCode(phase software.OperationPhase) software.FailureCode {
 	switch phase {
+	case software.OperationPhaseAccepted:
+		return software.FailureCodeEnqueueError
 	case software.OperationPhasePreflight:
 		return software.FailureCodePreflightError
 	case software.OperationPhaseExecuting:
@@ -560,10 +574,10 @@ func buildSoftwareNetdataExportingConfig(serverID string, remoteWriteURL string,
 		"    prefix = netdata",
 		fmt.Sprintf("    hostname = %s", strings.TrimSpace(serverID)),
 		"    update every = 10",
-		"    send charts matching = system.cpu system.ram system.io system.net net.net disk_space.*",
+		"    send charts matching = system.cpu system.ram system.io system.net net.net disk_space.* cgroup.cpu_limit cgroup.mem_usage cgroup.mem_usage_limit cgroup.io cgroup.net_net",
 		"    send names instead of ids = yes",
 		"    send configured labels = no",
-		"    send automatic labels = no",
+		"    send automatic labels = yes",
 		"",
 	}, "\n"), nil
 }

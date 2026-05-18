@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
 	"github.com/websoft9/appos/backend/domain/software"
@@ -662,7 +664,7 @@ func TestRunSoftwarePhaseLoopMarksVerificationErrorCodeForVerifyErrors(t *testin
 	}
 }
 
-func TestRecoverOrphanedSoftwareOperationsSkipsAcceptedRecords(t *testing.T) {
+func TestRecoverOrphanedSoftwareOperationsKeepsFreshAcceptedRecords(t *testing.T) {
 	app := newWorkerTestApp(t)
 	w := &Worker{app: app}
 	record, err := createSoftwareOperationRecord(app, SoftwareActionPayload{ServerID: "srv-orphan", ComponentKey: software.ComponentKeyDocker, Action: software.ActionInstall})
@@ -683,6 +685,78 @@ func TestRecoverOrphanedSoftwareOperationsSkipsAcceptedRecords(t *testing.T) {
 	}
 	if updated.GetString("failure_reason") != "" {
 		t.Fatalf("expected no orphan failure reason, got %q", updated.GetString("failure_reason"))
+	}
+}
+
+func TestRecoverOrphanedSoftwareOperationsFailsStaleAcceptedRecords(t *testing.T) {
+	app := newWorkerTestApp(t)
+	w := &Worker{app: app}
+	record, err := createSoftwareOperationRecord(app, SoftwareActionPayload{ServerID: "srv-orphan-stale", ComponentKey: software.ComponentKeyDocker, Action: software.ActionInstall})
+	if err != nil {
+		t.Fatal(err)
+	}
+	staleUpdated := types.NowDateTime().Add(-softwareOperationOrphanThreshold - time.Minute)
+	if _, err := app.DB().NewQuery("UPDATE software_operations SET updated = {:updated} WHERE id = {:id}").Bind(dbx.Params{
+		"updated": staleUpdated.String(),
+		"id":      record.Id,
+	}).Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := w.recoverOrphanedSoftwareOperations(); err != nil {
+		t.Fatal(err)
+	}
+
+	updated, err := app.FindRecordById("software_operations", record.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.GetString("terminal_status") != string(software.TerminalStatusFailed) {
+		t.Fatalf("expected stale accepted operation to fail, got %q", updated.GetString("terminal_status"))
+	}
+	if updated.GetString("failure_phase") != string(software.OperationPhaseAccepted) {
+		t.Fatalf("expected accepted failure_phase, got %q", updated.GetString("failure_phase"))
+	}
+	if updated.GetString("failure_code") != string(software.FailureCodeEnqueueError) {
+		t.Fatalf("expected enqueue_error failure_code, got %q", updated.GetString("failure_code"))
+	}
+	if !strings.Contains(updated.GetString("failure_reason"), "orphaned after worker restart") {
+		t.Fatalf("expected orphan failure reason, got %q", updated.GetString("failure_reason"))
+	}
+}
+
+func TestRecoverOrphanedSoftwareOperationsFailsStalePreflightRecords(t *testing.T) {
+	app := newWorkerTestApp(t)
+	w := &Worker{app: app}
+	record, err := createSoftwareOperationRecord(app, SoftwareActionPayload{ServerID: "srv-orphan-preflight", ComponentKey: software.ComponentKeyDocker, Action: software.ActionInstall})
+	if err != nil {
+		t.Fatal(err)
+	}
+	staleUpdated := types.NowDateTime().Add(-softwareOperationOrphanThreshold - time.Minute)
+	if _, err := app.DB().NewQuery("UPDATE software_operations SET phase = {:phase}, updated = {:updated} WHERE id = {:id}").Bind(dbx.Params{
+		"phase":   string(software.OperationPhasePreflight),
+		"updated": staleUpdated.String(),
+		"id":      record.Id,
+	}).Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := w.recoverOrphanedSoftwareOperations(); err != nil {
+		t.Fatal(err)
+	}
+
+	updated, err := app.FindRecordById("software_operations", record.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.GetString("terminal_status") != string(software.TerminalStatusFailed) {
+		t.Fatalf("expected stale preflight operation to fail, got %q", updated.GetString("terminal_status"))
+	}
+	if updated.GetString("failure_phase") != string(software.OperationPhasePreflight) {
+		t.Fatalf("expected preflight failure_phase, got %q", updated.GetString("failure_phase"))
+	}
+	if updated.GetString("failure_code") != string(software.FailureCodePreflightError) {
+		t.Fatalf("expected preflight_error failure_code, got %q", updated.GetString("failure_code"))
 	}
 }
 
