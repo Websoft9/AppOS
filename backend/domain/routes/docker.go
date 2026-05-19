@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -88,7 +89,10 @@ func registerDockerRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 
 	serverDocker := d.Group("/{serverId}/docker")
 	serverDocker.GET("/image-pull-operations", handleImagePullOperations)
+	serverDocker.DELETE("/image-pull-operations", handleImagePullOperationsClear)
 	serverDocker.GET("/image-pull-operations/{operationId}", handleImagePullOperation)
+	serverDocker.DELETE("/image-pull-operations/{operationId}", handleImagePullOperationDelete)
+	serverDocker.POST("/image-pull-operations/{operationId}/cancel", handleImagePullOperationCancel)
 
 	// ─── Compose ─────────────────────────────────────────
 	compose := serverDocker.Group("/compose")
@@ -1189,22 +1193,35 @@ func handleImagePull(e *core.RequestEvent) error {
 // @Failure 404 {object} map[string]any
 // @Router /api/servers/{serverId}/docker/image-pull-operations/{operationId} [get]
 func handleImagePullOperation(e *core.RequestEvent) error {
+	record, status, message, err := findDockerImagePullOperationForServer(e)
+	if err != nil {
+		return e.JSON(status, map[string]any{"code": status, "message": message})
+	}
+	return e.JSON(http.StatusOK, dockerImagePullOperationResponse(record))
+}
+
+func dockerImagePullServerIDFromRequest(e *core.RequestEvent) string {
+	serverID := strings.TrimSpace(e.Request.PathValue("serverId"))
+	if serverID == "" {
+		return "local"
+	}
+	return serverID
+}
+
+func findDockerImagePullOperationForServer(e *core.RequestEvent) (*core.Record, int, string, error) {
 	operationID := strings.TrimSpace(e.Request.PathValue("operationId"))
 	if operationID == "" {
-		return e.JSON(http.StatusBadRequest, map[string]any{"code": 400, "message": "operationId is required"})
+		return nil, http.StatusBadRequest, "operationId is required", fmt.Errorf("operationId is required")
 	}
 	record, err := e.App.FindRecordById(collections.DockerImagePullOperations, operationID)
 	if err != nil {
-		return e.JSON(http.StatusNotFound, map[string]any{"code": 404, "message": "pull operation not found"})
+		return nil, http.StatusNotFound, "pull operation not found", err
 	}
-	serverID := strings.TrimSpace(e.Request.PathValue("serverId"))
-	if serverID == "" {
-		serverID = "local"
-	}
+	serverID := dockerImagePullServerIDFromRequest(e)
 	if record.GetString("server_id") != serverID {
-		return e.JSON(http.StatusNotFound, map[string]any{"code": 404, "message": "pull operation not found"})
+		return nil, http.StatusNotFound, "pull operation not found", fmt.Errorf("pull operation not found")
 	}
-	return e.JSON(http.StatusOK, dockerImagePullOperationResponse(record))
+	return record, 0, "", nil
 }
 
 // handleImagePullOperations returns recent image pull operations for one server.
@@ -1222,10 +1239,7 @@ func handleImagePullOperation(e *core.RequestEvent) error {
 // @Failure 500 {object} map[string]any
 // @Router /api/servers/{serverId}/docker/image-pull-operations [get]
 func handleImagePullOperations(e *core.RequestEvent) error {
-	serverID := strings.TrimSpace(e.Request.PathValue("serverId"))
-	if serverID == "" {
-		serverID = "local"
-	}
+	serverID := dockerImagePullServerIDFromRequest(e)
 
 	status := strings.TrimSpace(e.Request.URL.Query().Get("status"))
 	if status == "" {
@@ -1280,6 +1294,110 @@ func handleImagePullOperations(e *core.RequestEvent) error {
 	}
 
 	return e.JSON(http.StatusOK, map[string]any{"items": items})
+}
+
+// handleImagePullOperationDelete removes one terminal image pull record.
+//
+// @Summary Delete Docker image pull record
+// @Description Deletes one completed, failed, or cancelled image pull record for the specified server. Active pull operations cannot be deleted. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param serverId path string true "server ID"
+// @Param operationId path string true "pull operation ID"
+// @Success 200 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 409 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/servers/{serverId}/docker/image-pull-operations/{operationId} [delete]
+func handleImagePullOperationDelete(e *core.RequestEvent) error {
+	record, status, message, err := findDockerImagePullOperationForServer(e)
+	if err != nil {
+		return e.JSON(status, map[string]any{"code": status, "message": message})
+	}
+	if record.GetString("terminal_status") == string(software.TerminalStatusNone) {
+		return e.JSON(http.StatusConflict, map[string]any{"code": 409, "message": "active pull operations cannot be deleted"})
+	}
+	if err := e.App.Delete(record); err != nil {
+		return dockerError(e, http.StatusInternalServerError, "delete pull operation failed", err)
+	}
+	return e.JSON(http.StatusOK, map[string]any{"id": record.Id, "deleted": true})
+}
+
+// handleImagePullOperationsClear removes all terminal pull records for one server.
+//
+// @Summary Clear Docker image pull history
+// @Description Deletes all completed, failed, and cancelled image pull records for the specified server. Active pull operations are preserved. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param serverId path string true "server ID"
+// @Success 200 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/servers/{serverId}/docker/image-pull-operations [delete]
+func handleImagePullOperationsClear(e *core.RequestEvent) error {
+	serverID := dockerImagePullServerIDFromRequest(e)
+	records, err := e.App.FindRecordsByFilter(
+		collections.DockerImagePullOperations,
+		fmt.Sprintf("server_id = '%s' && terminal_status != '%s'",
+			escapePBFilterValue(serverID),
+			escapePBFilterValue(string(software.TerminalStatusNone))),
+		"-updated",
+		200,
+		0,
+	)
+	if err != nil {
+		return dockerError(e, http.StatusInternalServerError, "list pull operations failed", err)
+	}
+	deleted := 0
+	for _, record := range records {
+		if err := e.App.Delete(record); err != nil {
+			return dockerError(e, http.StatusInternalServerError, "clear pull operations failed", err)
+		}
+		deleted++
+	}
+	return e.JSON(http.StatusOK, map[string]any{"deleted": deleted})
+}
+
+// handleImagePullOperationCancel cancels a queued image pull before execution begins.
+//
+// @Summary Cancel queued Docker image pull
+// @Description Cancels one queued image pull operation before execution starts. Running pull operations cannot be cancelled yet. Superuser only.
+// @Tags Resource
+// @Security BearerAuth
+// @Param serverId path string true "server ID"
+// @Param operationId path string true "pull operation ID"
+// @Success 202 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 409 {object} map[string]any
+// @Failure 500 {object} map[string]any
+// @Router /api/servers/{serverId}/docker/image-pull-operations/{operationId}/cancel [post]
+func handleImagePullOperationCancel(e *core.RequestEvent) error {
+	record, status, message, err := findDockerImagePullOperationForServer(e)
+	if err != nil {
+		return e.JSON(status, map[string]any{"code": status, "message": message})
+	}
+	if record.GetString("terminal_status") != string(software.TerminalStatusNone) {
+		return e.JSON(http.StatusConflict, map[string]any{"code": 409, "message": "terminal pull operations cannot be cancelled"})
+	}
+	if record.GetString("phase") != string(software.OperationPhaseAccepted) {
+		return e.JSON(http.StatusConflict, map[string]any{"code": 409, "message": "running pull operations cannot be cancelled yet"})
+	}
+	record.Set("phase", string(software.OperationPhaseFailed))
+	record.Set("terminal_status", string(software.TerminalStatusCancelled))
+	record.Set("failure_phase", string(software.OperationPhaseAccepted))
+	record.Set("failure_reason", "cancelled before execution")
+	output := strings.TrimSpace(record.GetString("output"))
+	if output == "" {
+		record.Set("output", "Pull cancelled before execution.")
+	} else {
+		record.Set("output", output+"\nPull cancelled before execution.")
+	}
+	if err := e.App.Save(record); err != nil {
+		return dockerError(e, http.StatusInternalServerError, "cancel pull operation failed", err)
+	}
+	return e.JSON(http.StatusAccepted, dockerImagePullOperationResponse(record))
 }
 
 func dockerImagePullOperationResponse(record *core.Record) map[string]any {
@@ -1542,11 +1660,82 @@ func handleContainerStats(e *core.RequestEvent) error {
 	if err != nil {
 		return dockerError(e, http.StatusBadRequest, "server not found", err)
 	}
+	if dockerStatsStreamRequested(e) {
+		return handleContainerStatsStream(e, client)
+	}
 	output, err := client.ContainerStats(e.Request.Context())
 	if err != nil {
 		return dockerError(e, http.StatusInternalServerError, "container stats failed", err)
 	}
 	return e.JSON(http.StatusOK, map[string]any{"output": output, "host": client.Host()})
+}
+
+func dockerStatsStreamRequested(e *core.RequestEvent) bool {
+	value := strings.ToLower(strings.TrimSpace(e.Request.URL.Query().Get("stream")))
+	switch value {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+func handleContainerStatsStream(e *core.RequestEvent, client *docker.Client) error {
+	flusher, ok := e.Response.(http.Flusher)
+	if !ok {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": "streaming unsupported"})
+	}
+
+	stream, err := client.ContainerStatsStream(e.Request.Context())
+	if err != nil {
+		return dockerError(e, http.StatusInternalServerError, "container stats failed", err)
+	}
+	defer stream.Close()
+
+	e.Response.Header().Set("Content-Type", "text/event-stream")
+	e.Response.Header().Set("Cache-Control", "no-cache")
+	e.Response.Header().Set("Connection", "keep-alive")
+
+	push := func(event string, payload map[string]any) {
+		data, _ := json.Marshal(payload)
+		_, _ = fmt.Fprintf(e.Response, "event: %s\n", event)
+		_, _ = fmt.Fprintf(e.Response, "data: %s\n\n", string(data))
+		flusher.Flush()
+	}
+
+	push("ready", map[string]any{"host": client.Host(), "intervalMs": 2000})
+
+	scanner := bufio.NewScanner(stream)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	lines := make([]string, 0, 32)
+	flushSnapshot := func() {
+		if len(lines) == 0 {
+			return
+		}
+		push("stats", map[string]any{
+			"output": strings.Join(lines, "\n"),
+			"host":   client.Host(),
+		})
+		lines = lines[:0]
+	}
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == docker.ContainerStatsStreamBoundary {
+			flushSnapshot()
+			continue
+		}
+		if line == "" {
+			continue
+		}
+		lines = append(lines, line)
+	}
+	flushSnapshot()
+
+	if err := scanner.Err(); err != nil && e.Request.Context().Err() == nil {
+		push("error", map[string]any{"message": err.Error()})
+	}
+	return nil
 }
 
 // handleContainerLogs returns recent log output for a container.

@@ -42,17 +42,23 @@ export type MonitorContainerTelemetryResponse = {
   items: MonitorContainerTelemetryItem[]
 }
 
+export type MonitorContainerTelemetryTarget = {
+  id: string
+  name?: string
+}
+
 export async function getServerContainerTelemetry(
   serverId: string,
-  containerIds: string[],
+  containers: MonitorContainerTelemetryTarget[],
   window = '15m'
 ): Promise<MonitorContainerTelemetryResponse> {
   const params = new URLSearchParams()
   params.set('window', window)
-  for (const containerId of containerIds) {
-    const value = String(containerId || '').trim()
+  for (const container of containers) {
+    const value = String(container.id || '').trim()
     if (!value) continue
     params.append('containerId', value)
+    params.append('containerName', String(container.name || '').trim())
   }
   return pb.send(
     `/api/monitor/servers/${encodeURIComponent(serverId)}/container-telemetry?${params.toString()}`,

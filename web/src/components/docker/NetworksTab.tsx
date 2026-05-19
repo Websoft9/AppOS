@@ -378,6 +378,12 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
     })
   }
 
+  const hasActiveFilters =
+    filter.trim().length > 0 ||
+    driverFilter !== 'all' ||
+    scopeFilter !== 'all' ||
+    typeFilter !== 'all'
+
   return (
     <div
       className={cn(
@@ -458,6 +464,27 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
         </div>
       )}
 
+      {hasActiveFilters && (
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 rounded-lg border border-dashed bg-muted/10 px-3 py-2">
+          {filter.trim() ? <Badge variant="outline">Search: {filter.trim()}</Badge> : null}
+          {driverFilter !== 'all' ? <Badge variant="outline">Driver: {driverFilter}</Badge> : null}
+          {typeFilter !== 'all' ? <Badge variant="outline">Type: {typeFilter}</Badge> : null}
+          {scopeFilter !== 'all' ? <Badge variant="outline">Scope: {scopeFilter}</Badge> : null}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setFilter('')
+              setDriverFilter('all')
+              setTypeFilter('all')
+              setScopeFilter('all')
+            }}
+          >
+            Clear filters
+          </Button>
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-lg bg-background">
         <div className="overflow-x-auto">
           <Table>
@@ -477,16 +504,15 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7"
+                          className={cn(
+                            'h-7 w-7',
+                            driverFilter !== 'all' &&
+                              'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+                          )}
                           aria-label="Filter network driver"
                           title={driverFilter === 'all' ? 'Filter network driver' : `Network driver: ${driverFilter}`}
                         >
-                          <Filter
-                            className={cn(
-                              'h-3.5 w-3.5',
-                              driverFilter !== 'all' && 'text-foreground'
-                            )}
-                          />
+                          <Filter className="h-3.5 w-3.5" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start">
@@ -512,11 +538,15 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7"
+                          className={cn(
+                            'h-7 w-7',
+                            typeFilter !== 'all' &&
+                              'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+                          )}
                           aria-label="Filter network type"
                           title={typeFilter === 'all' ? 'Filter network type' : `Network type: ${typeFilter}`}
                         >
-                          <Filter className={cn('h-3.5 w-3.5', typeFilter !== 'all' && 'text-foreground')} />
+                          <Filter className="h-3.5 w-3.5" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start">
@@ -540,16 +570,15 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7"
+                          className={cn(
+                            'h-7 w-7',
+                            scopeFilter !== 'all' &&
+                              'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+                          )}
                           aria-label="Filter network scope"
                           title={scopeFilter === 'all' ? 'Filter network scope' : `Network scope: ${scopeFilter}`}
                         >
-                          <Filter
-                            className={cn(
-                              'h-3.5 w-3.5',
-                              scopeFilter !== 'all' && 'text-foreground'
-                            )}
-                          />
+                          <Filter className="h-3.5 w-3.5" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start">

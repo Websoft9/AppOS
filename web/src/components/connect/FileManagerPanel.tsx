@@ -165,6 +165,14 @@ function clampPathToRoot(path: string, rootPath?: string): string {
   return isPathWithinRoot(normalizedPath, normalizedRoot) ? normalizedPath : normalizedRoot
 }
 
+function ensurePathWithinRoot(path: string, rootPath?: string, label = 'Path'): string {
+  const normalizedPath = normalizePath(path)
+  if (!rootPath) return normalizedPath
+  const normalizedRoot = normalizePath(rootPath)
+  if (isPathWithinRoot(normalizedPath, normalizedRoot)) return normalizedPath
+  throw new Error(`${label} must stay within ${normalizedRoot}`)
+}
+
 function breadcrumbSegments(path: string): { label: string; path: string }[] {
   const parts = path.split('/').filter(Boolean)
   const segments: { label: string; path: string }[] = [{ label: '/', path: '/' }]
@@ -337,6 +345,18 @@ export function FileManagerPanel({
     [fetchEntries]
   )
 
+  const openFileAtPath = useCallback(
+    (path: string, name: string, isNew = false) => {
+      try {
+        const safePath = ensurePathWithinRoot(path, lockedRootPath, 'File path')
+        setEditFile({ path: safePath, name, isNew })
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Invalid file path')
+      }
+    },
+    [lockedRootPath]
+  )
+
   const refresh = useCallback(() => {
     fetchEntries(currentPath)
   }, [fetchEntries, currentPath])
@@ -404,7 +424,7 @@ export function FileManagerPanel({
     if (!name) return
     setCreateFileMode(false)
     setCreateFileName('')
-    setEditFile({ path: joinPath(currentPath, name), name, isNew: true })
+    openFileAtPath(joinPath(currentPath, name), name, true)
   }
 
   const handleDoubleClick = (entry: DirEntry) => {
@@ -412,7 +432,7 @@ export function FileManagerPanel({
       navigateTo(joinPath(currentPath, entry.name))
     } else {
       // Open file in editor
-      setEditFile({ path: joinPath(currentPath, entry.name), name: entry.name })
+      openFileAtPath(joinPath(currentPath, entry.name), entry.name)
     }
   }
 
@@ -490,14 +510,15 @@ export function FileManagerPanel({
     if (!propertiesTarget || !propertiesPath) return
     setPropertiesSaving(true)
     try {
+      const safePath = ensurePathWithinRoot(propertiesPath, lockedRootPath, 'Properties path')
       const mode = propertiesMode.trim()
       if (/^[0-7]{3,4}$/.test(mode)) {
-        await sftpChmod(serverId, propertiesPath, mode, propertiesRecursive)
+        await sftpChmod(serverId, safePath, mode, propertiesRecursive)
       }
       const owner = propertiesOwner.trim()
       const group = propertiesGroup.trim()
       if (owner && group) {
-        await sftpChown(serverId, propertiesPath, owner, group)
+        await sftpChown(serverId, safePath, owner, group)
       }
       setPropertiesTarget(null)
       refresh()
@@ -535,14 +556,19 @@ export function FileManagerPanel({
 
   const executeCopyOrMove = async () => {
     if (!copyMoveEntry) return
-    const from = joinPath(currentPath, copyMoveEntry.name)
-    const to = copyMoveTo.trim()
-    if (!to) return
-
-    setCopyMoveSaving(true)
-    setBusy(true)
-    setBusyMessage(copyMoveMode === 'move' ? 'Moving...' : 'Copying...')
     try {
+      const from = ensurePathWithinRoot(
+        joinPath(currentPath, copyMoveEntry.name),
+        lockedRootPath,
+        'Source path'
+      )
+      const to = ensurePathWithinRoot(copyMoveTo.trim(), lockedRootPath, 'Destination path')
+      if (!to) return
+
+      setCopyMoveSaving(true)
+      setBusy(true)
+      setBusyMessage(copyMoveMode === 'move' ? 'Moving...' : 'Copying...')
+
       if (copyMoveMode === 'move') {
         await sftpMove(serverId, from, to)
       } else {
@@ -609,14 +635,15 @@ export function FileManagerPanel({
 
   const handleConfirmSymlink = async () => {
     if (!symlinkTargetEntry) return
-    const target = symlinkTargetPath.trim()
-    const linkPath = symlinkLinkPath.trim()
-    if (!target || !linkPath) return
-
-    setSymlinkSaving(true)
-    setBusy(true)
-    setBusyMessage('Creating symlink...')
     try {
+      const target = ensurePathWithinRoot(symlinkTargetPath.trim(), lockedRootPath, 'Target path')
+      const linkPath = ensurePathWithinRoot(symlinkLinkPath.trim(), lockedRootPath, 'Link path')
+      if (!target || !linkPath) return
+
+      setSymlinkSaving(true)
+      setBusy(true)
+      setBusyMessage('Creating symlink...')
+
       await sftpSymlink(serverId, target, linkPath)
       setSymlinkTargetEntry(null)
       refresh()
@@ -1106,7 +1133,7 @@ export function FileManagerPanel({
                           navigateTo(result.path)
                           handleToggleSearch()
                         } else {
-                          setEditFile({ path: result.path, name: result.name })
+                          openFileAtPath(result.path, result.name)
                         }
                       }}
                     >
@@ -1175,12 +1202,7 @@ export function FileManagerPanel({
                       <DropdownMenuContent align="end">
                         {entry.type !== 'dir' && (
                           <DropdownMenuItem
-                            onClick={() =>
-                              setEditFile({
-                                path: joinPath(currentPath, entry.name),
-                                name: entry.name,
-                              })
-                            }
+                            onClick={() => openFileAtPath(joinPath(currentPath, entry.name), entry.name)}
                           >
                             <Pencil className="h-4 w-4 mr-2" />
                             Edit
@@ -1199,7 +1221,7 @@ export function FileManagerPanel({
                           <Eye className="h-4 w-4 mr-2" />
                           Properties
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleCreateSymlink(entry)}>
+                        <DropdownMenuItem data-testid={`symlink-${entry.name}`} onClick={() => handleCreateSymlink(entry)}>
                           <Link2 className="h-4 w-4 mr-2" />
                           Create Symbolic Link
                         </DropdownMenuItem>
@@ -1207,7 +1229,7 @@ export function FileManagerPanel({
                           <FilePlus className="h-4 w-4 mr-2" />
                           Copy
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => runCopyOrMove(entry, true)}>
+                        <DropdownMenuItem data-testid={`move-${entry.name}`} onClick={() => runCopyOrMove(entry, true)}>
                           <FolderPlus className="h-4 w-4 mr-2" />
                           Move
                         </DropdownMenuItem>
@@ -1292,12 +1314,7 @@ export function FileManagerPanel({
                         <DropdownMenuContent align="end">
                           {entry.type !== 'dir' && (
                             <DropdownMenuItem
-                              onClick={() =>
-                                setEditFile({
-                                  path: joinPath(currentPath, entry.name),
-                                  name: entry.name,
-                                })
-                              }
+                              onClick={() => openFileAtPath(joinPath(currentPath, entry.name), entry.name)}
                             >
                               <Pencil className="h-4 w-4 mr-2" />
                               Edit
@@ -1316,7 +1333,7 @@ export function FileManagerPanel({
                             <Eye className="h-4 w-4 mr-2" />
                             Properties
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleCreateSymlink(entry)}>
+                          <DropdownMenuItem data-testid={`symlink-${entry.name}`} onClick={() => handleCreateSymlink(entry)}>
                             <Link2 className="h-4 w-4 mr-2" />
                             Create Symbolic Link
                           </DropdownMenuItem>
@@ -1324,7 +1341,7 @@ export function FileManagerPanel({
                             <FilePlus className="h-4 w-4 mr-2" />
                             Copy
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => runCopyOrMove(entry, true)}>
+                          <DropdownMenuItem data-testid={`move-${entry.name}`} onClick={() => runCopyOrMove(entry, true)}>
                             <FolderPlus className="h-4 w-4 mr-2" />
                             Move
                           </DropdownMenuItem>
@@ -1586,8 +1603,9 @@ export function FileManagerPanel({
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Target path (existing)</Label>
+              <Label htmlFor="symlink-target-path">Target path (existing)</Label>
               <Input
+                id="symlink-target-path"
                 value={symlinkTargetPath}
                 onChange={e => setSymlinkTargetPath(e.target.value)}
                 className="mt-1"
@@ -1595,8 +1613,9 @@ export function FileManagerPanel({
               />
             </div>
             <div>
-              <Label>Link path (new symbolic link)</Label>
+              <Label htmlFor="symlink-link-path">Link path (new symbolic link)</Label>
               <Input
+                id="symlink-link-path"
                 value={symlinkLinkPath}
                 onChange={e => setSymlinkLinkPath(e.target.value)}
                 className="mt-1"
@@ -1632,8 +1651,9 @@ export function FileManagerPanel({
             </DialogDescription>
           </DialogHeader>
           <div>
-            <Label>Destination path</Label>
+            <Label htmlFor="copy-move-destination-path">Destination path</Label>
             <Input
+              id="copy-move-destination-path"
               value={copyMoveTo}
               onChange={e => setCopyMoveTo(e.target.value)}
               className="mt-1"

@@ -4,11 +4,47 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { VolumesTab } from './VolumesTab'
 
 const sendMock = vi.fn()
+const fileManagerPropsSpy = vi.fn()
 
 vi.mock('@/lib/pb', () => ({
   pb: {
     send: (...args: unknown[]) => sendMock(...args),
   },
+}))
+
+vi.mock('@/components/connect/FileManagerPanel', () => ({
+  FileManagerPanel: (props: unknown) => {
+    fileManagerPropsSpy(props)
+    return <div data-testid="file-manager-panel" />
+  },
+}))
+
+vi.mock('@/components/ui/dropdown-menu', () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuItem: ({
+    children,
+    onClick,
+    onSelect,
+    ...rest
+  }: React.ComponentProps<'button'> & { onSelect?: () => void }) => (
+    <button
+      onClick={event => {
+        onClick?.(event)
+        onSelect?.()
+      }}
+      {...rest}
+    >
+      {children}
+    </button>
+  ),
+  DropdownMenuRadioGroup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuRadioItem: ({ children, onClick, ...rest }: React.ComponentProps<'button'>) => (
+    <button onClick={onClick} {...rest}>
+      {children}
+    </button>
+  ),
 }))
 
 function renderTab() {
@@ -30,6 +66,7 @@ function renderTab() {
 describe('VolumesTab', () => {
   beforeEach(() => {
     sendMock.mockReset()
+    fileManagerPropsSpy.mockReset()
     sendMock.mockImplementation((path: string, options?: { method?: string }) => {
       if (path === '/api/servers/srv-1/docker/volumes' && options?.method === 'GET') {
         return Promise.resolve({
@@ -63,6 +100,7 @@ describe('VolumesTab', () => {
         return Promise.resolve({
           output: JSON.stringify([
             {
+              State: { Running: true },
               Mounts: [
                 {
                   Name: 'used-data',
@@ -122,5 +160,35 @@ describe('VolumesTab', () => {
         method: 'POST',
       })
     })
+  })
+
+  it('opens a local volume files dialog with a locked root and live-volume warning', async () => {
+    renderTab()
+
+    const usedVolumeCell = await screen.findByText('used-data')
+    const usedVolumeRow = usedVolumeCell.closest('tr') as HTMLElement
+    fireEvent.click(within(usedVolumeRow).getByRole('button', { name: /open in files/i }))
+
+    expect(await screen.findByText('Volume files')).toBeInTheDocument()
+    expect(await screen.findByTestId('file-manager-panel')).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith('/api/servers/srv-1/docker/containers/ctr-1', {
+        method: 'GET',
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText(/Editing live application data may affect running workloads\./i)).toBeInTheDocument()
+    })
+    expect(screen.getByText(/demo-app/i)).toBeInTheDocument()
+
+    expect(fileManagerPropsSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        serverId: 'srv-1',
+        initialPath: '/var/lib/docker/volumes/used-data/_data',
+        lockedRootPath: '/var/lib/docker/volumes/used-data/_data',
+      })
+    )
   })
 })

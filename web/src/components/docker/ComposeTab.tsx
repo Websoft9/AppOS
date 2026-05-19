@@ -668,6 +668,8 @@ export function ComposeTab({
     })
   }
 
+  const hasActiveFilters = filter.trim().length > 0 || statusFilter !== 'all'
+
   return (
     <div className={cn('h-full min-h-0 flex flex-col gap-4', embeddedInWorkspace ? 'pt-0' : 'pt-4')}>
       {(loadError || actionError) && (
@@ -734,6 +736,24 @@ export function ComposeTab({
         </div>
       )}
 
+      {hasActiveFilters && (
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 rounded-lg border border-dashed bg-muted/10 px-3 py-2">
+          {filter.trim() ? <Badge variant="outline">Search: {filter.trim()}</Badge> : null}
+          {statusFilter !== 'all' ? <Badge variant="outline">Status: {statusFilter}</Badge> : null}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setFilter('')
+              setStatusFilter('all')
+              onStatusFilterChange?.('all')
+            }}
+          >
+            Clear filters
+          </Button>
+        </div>
+      )}
+
       {(hasProjectContainerLoading || operationLoading) && !embeddedInWorkspace && (
         <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-lg border border-dashed bg-muted/10 px-3 py-2">
           {hasProjectContainerLoading ? <Badge variant="outline">Loading project containers...</Badge> : null}
@@ -765,11 +785,15 @@ export function ComposeTab({
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7"
+                            className={cn(
+                              'h-7 w-7',
+                              statusFilter !== 'all' &&
+                                'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+                            )}
                             aria-label="Filter compose status"
                             title={statusFilter === 'all' ? 'Filter compose status' : `Compose status: ${statusFilter}`}
                           >
-                            <Filter className={cn('h-3.5 w-3.5', statusFilter !== 'all' && 'text-foreground')} />
+                            <Filter className="h-3.5 w-3.5" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start">

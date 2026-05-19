@@ -68,7 +68,7 @@ groups:
         - https://pocketbase.io/docs/api-backups/
 
   - group: Docker
-    description: Docker operations including compose, image, container, network and volume management.
+    description: Docker operations including compose, image, container, network, volume, and image-pull activity management.
     apiType: Ext
     extSurface:
       - /api/servers/{serverId}/docker/*
@@ -361,7 +361,7 @@ groups:
       nativeRefs: []
 
   - group: Servers
-    description: Server registry CRUD and remote operations APIs for connectivity, power, ports, monitor-agent deployment, and systemd management.
+    description: Server registry CRUD and remote operations APIs for connectivity, power, cron, ports, monitor-agent deployment, and systemd management.
     apiType: Mixed
     extSurface:
       - GET /api/servers/docker-targets
@@ -371,6 +371,13 @@ groups:
       - POST /api/servers/{serverId}/ops/power
       - GET /api/servers/{serverId}/ops/ports
       - GET /api/servers/{serverId}/ops/ports/{port}
+      - GET /api/servers/{serverId}/ops/cron/jobs
+      - POST /api/servers/{serverId}/ops/cron/jobs
+      - PUT /api/servers/{serverId}/ops/cron/jobs/{entryId}
+      - POST /api/servers/{serverId}/ops/cron/jobs/{entryId}/enable
+      - POST /api/servers/{serverId}/ops/cron/jobs/{entryId}/disable
+      - POST /api/servers/{serverId}/ops/cron/jobs/{entryId}/test
+      - DELETE /api/servers/{serverId}/ops/cron/jobs/{entryId}
       - POST /api/servers/{serverId}/ops/ports/{port}/release
       - POST /api/servers/{serverId}/ops/monitor-agent/install
       - POST /api/servers/{serverId}/ops/monitor-agent/update

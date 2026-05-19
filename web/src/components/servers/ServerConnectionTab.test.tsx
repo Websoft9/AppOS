@@ -10,6 +10,7 @@ import { ServerConnectionTab } from './ServerConnectionTab'
 
 afterEach(() => {
   cleanup()
+  window.localStorage.clear()
 })
 
 const baseItem = {
@@ -68,8 +69,11 @@ describe('ServerConnectionTab', () => {
     const heartbeatLabel = new Date('2026-04-16T01:01:00Z').toLocaleString()
 
     expect(screen.getByText('Connected')).toBeInTheDocument()
+    expect(screen.getByText('Connection Status')).toBeInTheDocument()
+    expect(screen.getByText('Interactive Session')).toBeInTheDocument()
+    expect(screen.getByText('None')).toBeInTheDocument()
     expect(screen.getByText(`Last heartbeat ${heartbeatLabel}`)).toBeInTheDocument()
-    expect(screen.getByText('Recent Activity')).toBeInTheDocument()
+    expect(screen.getByText('Activity Log')).toBeInTheDocument()
     expect(screen.getByText('Heartbeat received')).toBeInTheDocument()
     expect(screen.queryByText('Connection Summary')).toBeNull()
     expect(screen.queryByText('Diagnostics')).toBeNull()
@@ -110,8 +114,36 @@ describe('ServerConnectionTab', () => {
 
     expect(screen.getByText('Needs Attention')).toBeInTheDocument()
     expect(screen.getByText('SSH access is failing.')).toBeInTheDocument()
-    expect(screen.getByText('Recent Activity')).toBeInTheDocument()
+    expect(screen.getByText('Activity Log')).toBeInTheDocument()
     expect(screen.queryByText('Configuration')).toBeNull()
     expect(screen.queryByText('Tunnel Services')).toBeNull()
+  })
+
+  it('shows active interactive sessions from saved terminal state', () => {
+    window.localStorage.setItem(
+      'connect.session.v1',
+      JSON.stringify({
+        tabs: [
+          { id: 'tab-1', serverId: 'server-1', title: 'root@server', reconnectNonce: 1 },
+        ],
+        activeTabId: 'tab-1',
+        updatedAt: Date.now(),
+      })
+    )
+
+    render(
+      <ServerConnectionTab
+        item={baseItem}
+        presentation={basePresentation}
+        isTunnel={true}
+        tunnelState="ready"
+        tunnel={{ last_seen: '2026-04-16T01:01:00Z', reason: '' }}
+        services={[]}
+        onExecutePrimaryAction={vi.fn()}
+        onOpenTab={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('1 active session')).toBeInTheDocument()
   })
 })

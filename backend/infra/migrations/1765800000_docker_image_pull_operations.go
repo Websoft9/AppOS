@@ -43,6 +43,7 @@ func ensureDockerImagePullOperationsCollection(app core.App) error {
 		string(software.TerminalStatusNone),
 		string(software.TerminalStatusSuccess),
 		string(software.TerminalStatusFailed),
+		string(software.TerminalStatusCancelled),
 	}
 	failurePhases := []string{
 		string(software.OperationPhaseAccepted),

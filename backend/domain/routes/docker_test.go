@@ -362,6 +362,159 @@ func TestDockerImagePullOperationsListValidation(t *testing.T) {
 	}
 }
 
+func TestDockerImagePullOperationDeleteRemovesTerminalRecord(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	record := createDockerImagePullOperationRecord(
+		t,
+		te,
+		"srv-1",
+		"redis:7",
+		software.OperationPhaseSucceeded,
+		software.TerminalStatusSuccess,
+		"",
+	)
+
+	rec := doDocker(t, te, http.MethodDelete, "/api/servers/srv-1/docker/image-pull-operations/"+record.Id, "", te.token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if _, err := te.app.FindRecordById(collections.DockerImagePullOperations, record.Id); err == nil {
+		t.Fatalf("expected deleted record %s to be gone", record.Id)
+	}
+}
+
+func TestDockerImagePullOperationDeleteRejectsActiveRecord(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	record := createDockerImagePullOperationRecord(
+		t,
+		te,
+		"srv-1",
+		"nginx:latest",
+		software.OperationPhaseExecuting,
+		software.TerminalStatusNone,
+		"",
+	)
+
+	rec := doDocker(t, te, http.MethodDelete, "/api/servers/srv-1/docker/image-pull-operations/"+record.Id, "", te.token)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestDockerImagePullOperationsClearDeletesOnlyTerminalRecords(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	active := createDockerImagePullOperationRecord(
+		t,
+		te,
+		"srv-1",
+		"nginx:latest",
+		software.OperationPhaseExecuting,
+		software.TerminalStatusNone,
+		"",
+	)
+	completed := createDockerImagePullOperationRecord(
+		t,
+		te,
+		"srv-1",
+		"redis:7",
+		software.OperationPhaseSucceeded,
+		software.TerminalStatusSuccess,
+		"",
+	)
+	failed := createDockerImagePullOperationRecord(
+		t,
+		te,
+		"srv-1",
+		"busybox:latest",
+		software.OperationPhaseFailed,
+		software.TerminalStatusFailed,
+		"timeout",
+	)
+	_ = createDockerImagePullOperationRecord(
+		t,
+		te,
+		"srv-2",
+		"postgres:16",
+		software.OperationPhaseSucceeded,
+		software.TerminalStatusSuccess,
+		"",
+	)
+
+	rec := doDocker(t, te, http.MethodDelete, "/api/servers/srv-1/docker/image-pull-operations", "", te.token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := parseJSON(t, rec)
+	if body["deleted"] != float64(2) {
+		t.Fatalf("expected 2 deleted records, got %v", body["deleted"])
+	}
+	if _, err := te.app.FindRecordById(collections.DockerImagePullOperations, active.Id); err != nil {
+		t.Fatalf("expected active record to remain, got %v", err)
+	}
+	if _, err := te.app.FindRecordById(collections.DockerImagePullOperations, completed.Id); err == nil {
+		t.Fatalf("expected completed record to be deleted")
+	}
+	if _, err := te.app.FindRecordById(collections.DockerImagePullOperations, failed.Id); err == nil {
+		t.Fatalf("expected failed record to be deleted")
+	}
+}
+
+func TestDockerImagePullOperationCancelMarksAcceptedRecordCancelled(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	record := createDockerImagePullOperationRecord(
+		t,
+		te,
+		"srv-1",
+		"redis:7",
+		software.OperationPhaseAccepted,
+		software.TerminalStatusNone,
+		"",
+	)
+
+	rec := doDocker(t, te, http.MethodPost, "/api/servers/srv-1/docker/image-pull-operations/"+record.Id+"/cancel", "", te.token)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d: %s", rec.Code, rec.Body.String())
+	}
+	updated, err := te.app.FindRecordById(collections.DockerImagePullOperations, record.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.GetString("terminal_status") != string(software.TerminalStatusCancelled) {
+		t.Fatalf("expected cancelled terminal status, got %q", updated.GetString("terminal_status"))
+	}
+	if updated.GetString("phase") != string(software.OperationPhaseFailed) {
+		t.Fatalf("expected failed phase after cancellation, got %q", updated.GetString("phase"))
+	}
+}
+
+func TestDockerImagePullOperationCancelRejectsExecutingRecord(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	record := createDockerImagePullOperationRecord(
+		t,
+		te,
+		"srv-1",
+		"redis:7",
+		software.OperationPhaseExecuting,
+		software.TerminalStatusNone,
+		"",
+	)
+
+	rec := doDocker(t, te, http.MethodPost, "/api/servers/srv-1/docker/image-pull-operations/"+record.Id+"/cancel", "", te.token)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestDockerLocalContainerListUsesLocalClient(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
@@ -1442,6 +1595,50 @@ func TestDockerContainerStatsLocalUsesLocalClient(t *testing.T) {
 	gotCmd := strings.Join(stub.lastCmd, " ")
 	if gotCmd != "docker stats --no-stream --format json" {
 		t.Fatalf("expected container stats command, got %q", gotCmd)
+	}
+}
+
+func TestDockerContainerStatsStreamLocalUsesLocalClient(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	stub := &stubDockerExecutor{
+		host: "stub-local",
+		output: strings.Join([]string{
+			`{"Container":"ctr-1","Name":"demo-web","CPUPerc":"17.2%","MemUsage":"128MiB / 256MiB"}`,
+			docker.ContainerStatsStreamBoundary,
+		}, "\n"),
+	}
+	originalLocalClient := localDockerClient
+	localDockerClient = docker.New(stub)
+	t.Cleanup(func() {
+		localDockerClient = originalLocalClient
+	})
+
+	rec := doDocker(t, te, http.MethodGet, "/api/servers/local/docker/containers/stats?stream=1", "", te.token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for local container stats stream, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if contentType := rec.Header().Get("Content-Type"); !strings.Contains(contentType, "text/event-stream") {
+		t.Fatalf("expected event stream content type, got %q", contentType)
+	}
+	if !strings.Contains(rec.Body.String(), "event: ready") {
+		t.Fatalf("expected ready event in stream body, got %q", rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "event: stats") {
+		t.Fatalf("expected stats event in stream body, got %q", rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"host":"stub-local"`) {
+		t.Fatalf("expected host in stream body, got %q", rec.Body.String())
+	}
+	if len(stub.lastCmd) != 3 || stub.lastCmd[0] != "sh" || stub.lastCmd[1] != "-lc" {
+		t.Fatalf("expected sh -lc stream command, got %#v", stub.lastCmd)
+	}
+	if !strings.Contains(stub.lastCmd[2], "docker stats --no-stream --format json") {
+		t.Fatalf("expected docker stats loop in stream command, got %q", stub.lastCmd[2])
+	}
+	if !strings.Contains(stub.lastCmd[2], "sleep 2") {
+		t.Fatalf("expected 2s cadence in stream command, got %q", stub.lastCmd[2])
 	}
 }
 

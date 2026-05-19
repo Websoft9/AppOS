@@ -40,11 +40,10 @@ As a superuser, I can open the Connection tab and understand whether this server
 
 ## Product Direction
 
-The Connection tab should default to an extreme-simple decision surface:
+The Connection tab should default to an extreme-simple two-column decision surface:
 
-1. current state
-2. one primary action
-3. recent activity
+1. current connection judgment and next action
+2. recent connection activity
 
 The tab should not ask the operator to interpret a matrix of mode, endpoint, evidence source, failure fields, and recovery categories before acting.
 
@@ -54,30 +53,40 @@ The core product principle is:
 
 ## Core Questions
 
-The tab should answer only these three questions:
+The tab should answer only these four questions:
 
 1. can AppOS use this server now
-2. what is the next action
-3. what happened recently
+2. how does AppOS connect to this server
+3. is there an active interactive session now
+4. what happened recently
 
 If a piece of information does not help answer one of those questions, it should not appear in the default view.
 
 ## Information Architecture
 
-The default Connection tab contains exactly three visible regions:
+The default Connection tab contains exactly two columns:
 
-1. `Status`
-2. `Primary Action`
-3. `Recent Activity`
+1. `Current State`
+2. `Activity Log`
 
 Do not lead with diagnostic grids, mode-specific sections, or multiple action clusters.
 
-### 1. Status
+### 1. Current State
 
-The status region contains:
+The left column contains:
 
-- one status badge or strong status line
-- one short explanation line
+- one product-facing state badge
+- one strong status title
+- one compact summary board
+- one primary action
+
+The summary board should answer:
+
+- `Connection Status`
+- `Mode`
+- `Interactive Session`
+- `Last Activity`
+- `Recommended Action`
 
 This explanation should be human-readable, not internal-domain wording.
 
@@ -95,38 +104,25 @@ Avoid exposing raw system language such as:
 - transport-specific state codes
 - endpoint details unless immediately needed for action
 
-### 2. Primary Action
+### 2. Activity Log
 
-Render one primary action only.
+The right column is a compact event log.
+
+It should contain only recent operator-readable connection events.
+This panel should feel denser and more like a console event stream than a marketing card.
 
 Allowed examples:
 
-- `Open Terminal`
-- `Reconnect`
-- `Continue Setup`
-- `Test Connection`
-- `Edit Connection`
+- `SSH verified`
+- `Authentication failed`
+- `Heartbeat received`
+- `Tunnel connected`
+- `Session opened`
+- `Session closed`
+- `Connection lost`
 
 The Connection tab is not a control center with many parallel buttons.
 If secondary actions are needed, keep them out of the default visual emphasis.
-
-### 3. Recent Activity
-
-Show a short event-oriented record that helps the operator understand recency and sequence.
-
-This section replaces the need for a large diagnostics surface in the default experience.
-
-The record should show operator-readable events, for example:
-
-- `15:32 Connected`
-- `15:31 Heartbeat received`
-- `15:08 Tunnel session started`
-- `15:24 Connection lost`
-- `15:24 Keepalive timeout`
-- `15:20 Tunnel setup completed`
-- `15:18 Server registered`
-
-This is a compact activity record, not raw logs.
 
 ## State Model
 
@@ -219,80 +215,78 @@ That information may exist behind secondary affordances in the future, but it sh
 
 ## ASCII Draft
 
-### Healthy
+### Final Recommended Layout
 
 ```text
-+--------------------------------------------------------------+
-| Connection                                                   |
-+--------------------------------------------------------------+
++----------------------------------------------------------------------------------+
+| Connection                                                                       |
++----------------------------------------------------------------------------------+
 
-  [ Connected ]
-  Tunnel active
-
-  [ Open Terminal ]
-
-
-  Recent Activity
-  ------------------------------------------------------------
-  15:32  Connected
-  15:31  Heartbeat received
-  15:08  Tunnel session started
++-------------------------------------------+--------------------------------------+
+| CURRENT STATE                             | ACTIVITY LOG                         |
+|-------------------------------------------|--------------------------------------|
+| [Connected]   [Direct SSH]                | 13:39:17  SSH verified              |
+|                                           | 13:12:40  Session closed            |
+| Connection Status                         | 12:58:03  Session opened            |
+| SSH verified                              |                                      |
+|                                           |                                      |
+| Mode                                      |                                      |
+| Direct SSH                                |                                      |
+|                                           |                                      |
+| Interactive Session                       |                                      |
+| None                                      |                                      |
+|                                           |                                      |
+| Last Activity                             |                                      |
+| 2026/05/19 13:39:17                       |                                      |
+|                                           |                                      |
+| Recommended Action                        |                                      |
+| [ Open Terminal ]                         |                                      |
++-------------------------------------------+--------------------------------------+
 ```
 
-### Needs Attention
+### Failure Example
 
 ```text
-+--------------------------------------------------------------+
-| Connection                                                   |
-+--------------------------------------------------------------+
++----------------------------------------------------------------------------------+
+| Connection                                                                       |
++----------------------------------------------------------------------------------+
 
-  [ Needs Attention ]
-  Last heartbeat 8 min ago
-
-  [ Reconnect ]
-
-
-  Recent Activity
-  ------------------------------------------------------------
-  15:24  Connection lost
-  15:24  Keepalive timeout
-  15:16  Heartbeat received
-  14:52  Tunnel session started
-```
-
-### Connecting
-
-```text
-+--------------------------------------------------------------+
-| Connection                                                   |
-+--------------------------------------------------------------+
-
-  [ Connecting ]
-  Waiting for first connection
-
-  [ Continue Setup ]
-
-
-  Recent Activity
-  ------------------------------------------------------------
-  15:20  Tunnel setup completed
-  15:18  Server registered
++-------------------------------------------+--------------------------------------+
+| CURRENT STATE                             | ACTIVITY LOG                         |
+|-------------------------------------------|--------------------------------------|
+| [Needs Attention]   [Tunnel]              | 13:39:17  Connection failed         |
+|                                           | 13:38:44  Heartbeat received        |
+| Connection Status                         | 13:31:02  Tunnel connected          |
+| Connection lost                           |                                      |
+|                                           |                                      |
+| Mode                                      |                                      |
+| Tunnel via AppOS relay                    |                                      |
+|                                           |                                      |
+| Interactive Session                       |                                      |
+| None                                      |                                      |
+|                                           |                                      |
+| Last Activity                             |                                      |
+| 2026/05/19 13:39:17                       |                                      |
+|                                           |                                      |
+| Recommended Action                        |                                      |
+| [ Reconnect ]                             |                                      |
++-------------------------------------------+--------------------------------------+
 ```
 
 ## Interaction Rules
 
-1. The state line must be readable in under three seconds.
-2. The explanation line must be one short sentence or phrase.
-3. The page must present one primary action only.
-4. `Recent Activity` should be compact and time-ordered.
-5. Events should use user language, not internal transport vocabulary.
-6. The default view should not require the user to infer status from multiple fields.
+1. The left column must answer `can connect / mode / interactive session / next action` in under three seconds.
+2. The page must present one primary action only.
+3. The right column must read like a compact event log, not a general-purpose timeline.
+4. Events should use user language, not internal transport vocabulary.
+5. The default view should not require the user to infer status from multiple fields.
+6. The page should feel denser and more like a control surface than a marketing-style card.
 
 ## Acceptance Criteria
 
-- [ ] AC1: `Connection` defaults to a three-part layout: `Status`, `Primary Action`, and `Recent Activity`.
+- [ ] AC1: `Connection` defaults to a two-column layout: `Current State` and `Activity Log`.
 - [ ] AC2: The default view does not show diagnostics-heavy sections such as evidence grids or mode-specific recovery columns.
 - [ ] AC3: Product-facing top-level states are reduced to `Connected`, `Connecting`, and `Needs Attention`.
 - [ ] AC4: Each visible state maps to one clear primary action.
-- [ ] AC5: Direct SSH and Tunnel share the same visual structure; differences appear through copy and activity events.
-- [ ] AC6: Recent Activity uses operator-readable lifecycle events instead of raw logs or internal reason codes.
+- [ ] AC5: The `Current State` column shows `Connection Status`, `Mode`, `Interactive Session`, `Last Activity`, and one `Recommended Action`.
+- [ ] AC6: `Activity Log` uses operator-readable connection events instead of raw logs or internal reason codes.

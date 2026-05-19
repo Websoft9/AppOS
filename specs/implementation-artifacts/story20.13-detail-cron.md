@@ -1,7 +1,7 @@
 # Story 20.13: Server Detail Cron Tab
 
 **Epic**: Epic 20 - Servers
-**Status**: Draft | **Priority**: P1 | **Depends on**: Story 20.5, Story 20.6
+**Status**: Review | **Priority**: P1 | **Depends on**: Story 20.5, Story 20.6
 
 ## Scope Positioning
 
@@ -83,7 +83,11 @@ MVP should not add:
 - per-entry environment variable editor
 - run history
 - next-run simulation engine
-- advanced expression builder
+- advanced visual scheduler or natural-language scheduling
+
+MVP may add:
+
+- one lightweight cron expression generator that still outputs a raw five-field cron string
 
 ## Information Architecture
 
@@ -134,6 +138,49 @@ It contains only:
 - `Schedule`
 - `Command`
 - `Enabled`
+
+### Schedule Input Rule
+
+`Schedule` should remain the stored raw five-field cron expression.
+
+For usability, MVP may render that field through a minimal builder with two modes:
+
+1. `Preset cadence`
+2. `Custom`
+
+Preset cadence should stay intentionally small:
+
+- `Every minute`
+- `Every hour`
+- `Every day`
+- `Every week`
+- `Every month`
+
+Preset mode should let the operator choose a simple rhythm and the minimum extra values needed to produce a valid cron string.
+Examples:
+
+- every `N` minutes
+- every `N` hours at minute `M`
+- every `N` days at `HH:MM`
+- every week on one weekday at `HH:MM`
+- every `N` months on day `D` at `HH:MM`
+
+`Custom` mode should expose the five cron fields directly:
+
+- `Minute`
+- `Hour`
+- `Day (M)`
+- `Month`
+- `Day (W)`
+
+The editor should always show the final generated cron expression as plain text so the operator can still see exactly what will be saved.
+
+MVP does not need:
+
+- natural-language parsing
+- next-run preview
+- validation beyond the existing five-field rule
+- support for semantic schedules that standard five-field cron cannot express cleanly, such as true biweekly rules
 
 Validation should stay basic:
 
@@ -438,27 +485,27 @@ Build in this order:
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Add backend cron route subset under existing Server Ops ownership
-    - [ ] 1.1 Add list endpoint for managed cron entries
-    - [ ] 1.2 Add create endpoint with basic cron validation
-    - [ ] 1.3 Add update endpoint by `entryId`
-    - [ ] 1.4 Add enable and disable endpoints by `entryId`
-    - [ ] 1.5 Add delete endpoint by `entryId`
-- [ ] Task 2: Add backend managed-entry persistence rules
-    - [ ] 2.1 Define AppOS cron line marker format
-    - [ ] 2.2 Preserve unrelated crontab lines during write operations
-    - [ ] 2.3 Return stable `entryId` for managed entries
-    - [ ] 2.4 Add route tests for auth, validation, and update safety
-- [ ] Task 3: Add frontend `Cron` tab surface
-    - [ ] 3.1 Mount the tab in the server detail tab rail
-    - [ ] 3.2 Render the minimal cron table
-    - [ ] 3.3 Add create and edit drawer flow
-    - [ ] 3.4 Add enable, disable, and delete actions
-    - [ ] 3.5 Add empty state and request-error handling
-- [ ] Task 4: Validation
-    - [ ] 4.1 Backend tests cover list, create, update, enable or disable, and delete
-    - [ ] 4.2 Frontend typecheck passes
-    - [ ] 4.3 Focused UI tests cover empty state, edit flow, and delete confirmation
+- [x] Task 1: Add backend cron route subset under existing Server Ops ownership
+    - [x] 1.1 Add list endpoint for managed cron entries
+    - [x] 1.2 Add create endpoint with basic cron validation
+    - [x] 1.3 Add update endpoint by `entryId`
+    - [x] 1.4 Add enable and disable endpoints by `entryId`
+    - [x] 1.5 Add delete endpoint by `entryId`
+- [x] Task 2: Add backend managed-entry persistence rules
+    - [x] 2.1 Define AppOS cron line marker format
+    - [x] 2.2 Preserve unrelated crontab lines during write operations
+    - [x] 2.3 Return stable `entryId` for managed entries
+    - [x] 2.4 Add route tests for auth, validation, and update safety
+- [x] Task 3: Add frontend `Cron` tab surface
+    - [x] 3.1 Mount the tab in the server detail tab rail
+    - [x] 3.2 Render the minimal cron table
+    - [x] 3.3 Add create and edit drawer flow
+    - [x] 3.4 Add enable, disable, and delete actions
+    - [x] 3.5 Add empty state and request-error handling
+- [x] Task 4: Validation
+    - [x] 4.1 Backend tests cover list, create, update, enable or disable, and delete
+    - [x] 4.2 Frontend typecheck passes
+    - [x] 4.3 Focused UI tests cover empty state, edit flow, and delete confirmation
 
 ## Out of Scope
 
@@ -500,3 +547,44 @@ Enabled   [ x ]
 
                     [ Cancel ] [ Save ]
 ```
+
+## Dev Agent Record
+
+### Implementation Plan
+
+- Extend the existing Server Ops route family with a managed cron subset under `/api/servers/{serverId}/ops/cron/jobs`.
+- Represent AppOS-managed cron rows as a two-line block: one metadata marker line plus one active or commented cron spec line.
+- Keep unrelated crontab lines untouched while create, update, enable, disable, and delete mutate only managed blocks.
+- Mount a dedicated `Cron` tab in Server Detail with a compact table, editor sheet, and destructive confirmation flow.
+
+### Debug Log
+
+- 2026-05-18: Added backend cron handlers and parser/renderer support in `backend/domain/routes/server_cron.go`.
+- 2026-05-18: Added focused backend validation in `backend/domain/routes/server_cron_test.go` and re-ran `go test ./domain/routes -run 'TestServerCron|TestManagedCrontabUpdatePreservesUnmanagedLines'`.
+- 2026-05-18: Added frontend cron API helpers, `ServerCronPanel`, route integration, and focused Vitest coverage.
+- 2026-05-18: Re-ran `npx vitest run src/lib/connect-api.test.ts src/components/servers/ServerCronPanel.test.tsx src/routes/_app/_auth/resources/-servers.test.tsx` and `npm run typecheck` in `web/`.
+
+### Completion Notes
+
+- Added a server-scoped cron CRUD API under the existing Server Ops route family and kept the payload aligned to the reduced four-field contract.
+- Managed cron rows now use an AppOS metadata marker with stable `entryId` values, while unrelated third-party crontab lines are preserved during writes.
+- Added frontend `Cron` tab UI with refresh, empty state, create/edit sheet, enable or disable action, and delete confirmation.
+- Added focused backend and frontend tests plus frontend typecheck coverage for the new cron surface.
+
+### File List
+
+- backend/domain/routes/server_cron.go
+- backend/domain/routes/server_cron_test.go
+- backend/domain/routes/server_ops.go
+- web/src/lib/connect-api.ts
+- web/src/lib/connect-api.test.ts
+- web/src/components/servers/ServerCronPanel.tsx
+- web/src/components/servers/ServerCronPanel.test.tsx
+- web/src/components/servers/server-connection-presentation.ts
+- web/src/routes/_app/_auth/resources/servers.tsx
+- web/src/routes/_app/_auth/resources/-servers.test.tsx
+- specs/implementation-artifacts/story20.13-detail-cron.md
+
+### Change Log
+
+- 2026-05-18: Implemented Story 20.13 server-detail managed cron CRUD API, UI tab, focused tests, and frontend typecheck validation.

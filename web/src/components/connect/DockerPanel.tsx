@@ -60,7 +60,6 @@ interface HostEntry {
 interface DockerPanelProps {
   serverId: string
   className?: string
-  onOpenFilesAtPath?: (targetPath: string, lockedRootPath: string) => void
   showWorkspaceHeader?: boolean
 }
 
@@ -565,7 +564,6 @@ function OverviewTab({
 export function DockerPanel({
   serverId,
   className,
-  onOpenFilesAtPath,
   showWorkspaceHeader = true,
 }: DockerPanelProps) {
   const queryClient = useQueryClient()
@@ -1063,7 +1061,7 @@ export function DockerPanel({
                             })
                           }
                         >
-                          Mem
+                          Memory
                         </DropdownMenuCheckboxItem>
                         <DropdownMenuCheckboxItem
                           checked={containerVisibleColumns.network}
@@ -1139,7 +1137,11 @@ export function DockerPanel({
                       variant="ghost"
                       size="sm"
                       className="h-8 shrink-0 px-2 text-xs"
-                      onClick={() => imagesTabRef.current?.openPullDialog()}
+                      onClick={() =>
+                        imagesPullActivity.activeCount > 0
+                          ? imagesTabRef.current?.openPullHistory('pulling')
+                          : imagesTabRef.current?.openPullDialog()
+                      }
                       title="Pull image"
                     >
                       {imagesPullActivity.activeCount > 0 ? (
@@ -1156,7 +1158,7 @@ export function DockerPanel({
                         variant="ghost"
                         size="sm"
                         className="h-8 shrink-0 gap-1.5 px-2 text-xs"
-                        onClick={() => imagesTabRef.current?.openPullHistory('failed')}
+                        onClick={() => imagesTabRef.current?.openPullHistory('recents')}
                         title="View failed image pulls"
                       >
                         <Badge variant="outline" className="h-5 rounded-sm border-destructive/30 px-1.5 text-[10px] text-destructive">
@@ -1169,7 +1171,7 @@ export function DockerPanel({
                         variant="ghost"
                         size="sm"
                         className="h-8 shrink-0 px-2 text-xs"
-                        onClick={() => imagesTabRef.current?.openPullHistory('all')}
+                        onClick={() => imagesTabRef.current?.openPullHistory('recents')}
                         title="View recent image pulls"
                       >
                         History
@@ -1598,9 +1600,6 @@ export function DockerPanel({
                     setContainerFilter('')
                     setContainerFilterNames(containerNames)
                     setActiveTab('containers')
-                  }}
-                  onOpenVolumePath={(targetPath, lockedRootPath) => {
-                    onOpenFilesAtPath?.(targetPath, lockedRootPath)
                   }}
                 />
               </TabsContent>

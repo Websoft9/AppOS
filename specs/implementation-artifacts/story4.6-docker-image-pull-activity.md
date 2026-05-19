@@ -1,6 +1,6 @@
 # Story 4.6: Docker Image Pull Activity
 
-Status: proposed
+Status: complete
 
 ## Story
 
@@ -15,8 +15,10 @@ so that image pulls are observable after submit instead of only through a single
 3. Add one list contract: `GET /api/servers/{serverId}/docker/image-pull-operations`.
 4. The list contract supports one minimal query: `status=in_progress|completed|failed|all`, default `in_progress`.
 5. The list response reuses the same summary fields already exposed by the detail contract: `id`, `image_name`, `phase`, `terminal_status`, `failure_reason`, `created`, `updated`.
-6. The Images tab can use the list contract for both `Currently pulling` and `Recent pulls` without rebuilding history state in the client.
-7. Cancel, retry, stream multiplexing, and percent progress are explicitly out of scope for this MVP.
+6. Add one single-record cleanup contract: `DELETE /api/servers/{serverId}/docker/image-pull-operations/{operationId}`.
+7. Add one server-scoped history cleanup contract: `DELETE /api/servers/{serverId}/docker/image-pull-operations`.
+8. Add one queued-cancel contract: `POST /api/servers/{serverId}/docker/image-pull-operations/{operationId}/cancel`.
+9. The Images tab can use the list contract for both current pulls and recent pull history without rebuilding history state in the client.
 
 ## Current Baseline
 
@@ -25,9 +27,12 @@ so that image pulls are observable after submit instead of only through a single
   - `GET /api/servers/{serverId}/docker/image-pull-operations/{operationId}`
   - persistent `docker_image_pull_operations` records
   - in-flight deduplication for the same normalized image reference on the same server
-- Missing:
-  - one server-scoped list API for pull activity
-  - one lightweight UI surface for current and recent pull operations
+- Added in this story:
+  - `GET /api/servers/{serverId}/docker/image-pull-operations`
+  - `DELETE /api/servers/{serverId}/docker/image-pull-operations/{operationId}`
+  - `DELETE /api/servers/{serverId}/docker/image-pull-operations`
+  - `POST /api/servers/{serverId}/docker/image-pull-operations/{operationId}/cancel`
+  - one lightweight Images-tab activity surface for current and recent pull operations
 
 ## Minimal Contract
 
@@ -37,6 +42,12 @@ Add:
 
 `GET /api/servers/{serverId}/docker/image-pull-operations?status=in_progress|completed|failed|all&limit=20`
 
+`DELETE /api/servers/{serverId}/docker/image-pull-operations/{operationId}`
+
+`DELETE /api/servers/{serverId}/docker/image-pull-operations`
+
+`POST /api/servers/{serverId}/docker/image-pull-operations/{operationId}/cancel`
+
 Behavior:
 
 - `in_progress`: `terminal_status = none`
@@ -45,6 +56,9 @@ Behavior:
 - `all`: no terminal filter
 - newest first by `updated`
 - default `limit = 20`, cap at `50`
+- single-record delete applies only to terminal records
+- clear-history deletes only terminal records for the target server
+- cancel applies only to queued (`phase=accepted`) pull operations
 
 Minimal response:
 
@@ -69,14 +83,14 @@ Minimal response:
 In `Server Detail > Docker > Images`:
 
 - keep the existing pull dialog behavior for submit + single-operation polling
-- add a small activity area under the pull entry surface
-- show `Currently pulling` from `status=in_progress`
-- show `Recent pulls` from `status=all&limit=10`
-- clicking one item opens the existing operation detail/log view by `operation_id`
+- show current pull activity and recent pull history from the shared activity surface
+- show `Pulling` from `status=in_progress`
+- show `Recents` from `status=all&limit=10`
+- allow delete-one, clear-history, and queued-cancel actions from the activity surface
+- clicking one item opens its detail view inside the same activity dialog
 
 ## Non-Goals
 
-- no cancel endpoint in this story
 - no resumable pull orchestration
 - no fleet-wide pull history
 - no separate activity center outside the Images tab
@@ -87,3 +101,4 @@ In `Server Detail > Docker > Images`:
 - This story is intentionally a query-surface follow-up, not a rework of the current async pull execution model.
 - Prefer one list endpoint over separate `history` and `running` endpoints.
 - Reuse `dockerImagePullOperationResponse(...)` field names where possible to keep frontend adaptation small.
+- Queued cancel is intentionally narrow: executing pulls are still not interruptible.

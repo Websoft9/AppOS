@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FileManagerPanel } from './FileManagerPanel'
 
 const mockSftpList = vi.fn()
@@ -8,6 +8,8 @@ const mockSftpConstraints = vi.fn()
 const mockSftpStat = vi.fn()
 const mockSftpChmod = vi.fn()
 const mockSftpChown = vi.fn()
+const mockSftpSymlink = vi.fn()
+const mockSftpMove = vi.fn()
 
 vi.mock('@/lib/connect-api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/connect-api')>('@/lib/connect-api')
@@ -18,15 +20,15 @@ vi.mock('@/lib/connect-api', async () => {
     sftpStat: (...args: unknown[]) => mockSftpStat(...args),
     sftpChmod: (...args: unknown[]) => mockSftpChmod(...args),
     sftpChown: (...args: unknown[]) => mockSftpChown(...args),
+    sftpSymlink: (...args: unknown[]) => mockSftpSymlink(...args),
+    sftpMove: (...args: unknown[]) => mockSftpMove(...args),
     sftpUpload: vi.fn(async () => {}),
     sftpSearch: vi.fn(async () => ({ path: '/', query: '', results: [] })),
     sftpDownloadUrl: vi.fn(() => '/download'),
     sftpMkdir: vi.fn(async () => {}),
     sftpRename: vi.fn(async () => {}),
     sftpDelete: vi.fn(async () => {}),
-    sftpSymlink: vi.fn(async () => {}),
     sftpCopy: vi.fn(async () => {}),
-    sftpMove: vi.fn(async () => {}),
     loadPreferences: vi.fn(() => ({
       terminal_font_size: 14,
       terminal_scrollback: 1000,
@@ -52,14 +54,24 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
   DropdownMenu: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DropdownMenuTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
   DropdownMenuContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DropdownMenuItem: ({ children, onClick, ...rest }: ComponentProps<'button'>) => (
-    <button onClick={onClick} {...rest}>
+  DropdownMenuItem: ({ children, onClick, onSelect, ...rest }: ComponentProps<'button'> & { onSelect?: () => void }) => (
+    <button
+      onClick={event => {
+        onClick?.(event)
+        onSelect?.()
+      }}
+      {...rest}
+    >
       {children}
     </button>
   ),
 }))
 
 describe('FileManagerPanel', () => {
+  afterEach(() => {
+    cleanup()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mockSftpConstraints.mockResolvedValue({ max_upload_files: 1 })
@@ -88,6 +100,8 @@ describe('FileManagerPanel', () => {
         created_at: new Date().toISOString(),
       },
     })
+    mockSftpSymlink.mockResolvedValue(undefined)
+    mockSftpMove.mockResolvedValue(undefined)
   })
 
   it('enforces max upload files from settings (AC4)', async () => {
@@ -204,5 +218,73 @@ describe('FileManagerPanel', () => {
       expect(screen.getByTestId('perm-others-write')).toHaveAttribute('data-state', 'unchecked')
       expect(screen.getByTestId('perm-others-execute')).toHaveAttribute('data-state', 'unchecked')
     })
+  })
+
+  it('blocks move destinations outside the locked root', async () => {
+    mockSftpList.mockResolvedValueOnce({
+      path: '/volroot',
+      entries: [
+        {
+          name: 'a.txt',
+          type: 'file',
+          size: 12,
+          mode: '-rw-r--r--',
+          modified_at: new Date().toISOString(),
+        },
+      ],
+    })
+
+    render(<FileManagerPanel serverId="s1" initialPath="/volroot" lockedRootPath="/volroot" />)
+
+    fireEvent.click((await screen.findAllByTestId('move-a.txt'))[0])
+    const moveTitle = await screen.findByText('Move: a.txt')
+    const moveDialog = moveTitle.closest('[role="dialog"]') as HTMLElement
+    const moveDestinationInput = within(moveDialog).getByLabelText('Destination path')
+
+    await waitFor(() => {
+      expect(moveDestinationInput).toHaveValue('/volroot/a.txt')
+    })
+
+    fireEvent.change(moveDestinationInput, {
+      target: { value: '/outside/a.txt' },
+    })
+    fireEvent.click(moveDialog.querySelector('button:last-of-type') as HTMLButtonElement)
+
+    expect(moveTitle).toBeInTheDocument()
+    expect(mockSftpMove).not.toHaveBeenCalled()
+  })
+
+  it('blocks symlink creation outside the locked root', async () => {
+    mockSftpList.mockResolvedValueOnce({
+      path: '/volroot',
+      entries: [
+        {
+          name: 'a.txt',
+          type: 'file',
+          size: 12,
+          mode: '-rw-r--r--',
+          modified_at: new Date().toISOString(),
+        },
+      ],
+    })
+
+    render(<FileManagerPanel serverId="s1" initialPath="/volroot" lockedRootPath="/volroot" />)
+
+    fireEvent.click((await screen.findAllByTestId('symlink-a.txt'))[0])
+    const symlinkTitle = await screen.findByRole('heading', { name: 'Create Symbolic Link' })
+    const symlinkDialog = symlinkTitle.closest('[role="dialog"]') as HTMLElement
+    const symlinkLinkInput = within(symlinkDialog).getByLabelText('Link path (new symbolic link)')
+
+    await waitFor(() => {
+      expect(symlinkLinkInput).toHaveValue('/volroot/a.txt.lnk')
+    })
+
+    fireEvent.change(symlinkLinkInput, {
+      target: { value: '/outside/a.txt.lnk' },
+    })
+    fireEvent.click(symlinkDialog.querySelector('button:last-of-type') as HTMLButtonElement)
+
+    expect(symlinkTitle).toBeInTheDocument()
+    expect(mockSftpSymlink).not.toHaveBeenCalled()
   })
 })

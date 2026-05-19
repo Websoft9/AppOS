@@ -162,7 +162,7 @@ func TestMonitorWriteAlsoProjectsCanonicalServerMetrics(t *testing.T) {
 	}
 
 	payload, err := proto.Marshal(&prompb.WriteRequest{Timeseries: []prompb.TimeSeries{{
-		Labels: []prompb.Label{{Name: "__name__", Value: "netdata_system_cpu_percentage_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "idle"}},
+		Labels:  []prompb.Label{{Name: "__name__", Value: "netdata_system_cpu_percentage_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "idle"}},
 		Samples: []prompb.Sample{{Value: 78.5, Timestamp: 1776168000000}},
 	}}})
 	if err != nil {
@@ -234,7 +234,7 @@ func TestMonitorWriteAlsoProjectsCanonicalServerMemoryMetric(t *testing.T) {
 	}
 
 	payload, err := proto.Marshal(&prompb.WriteRequest{Timeseries: []prompb.TimeSeries{{
-		Labels: []prompb.Label{{Name: "__name__", Value: "netdata_system_ram_MiB_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "used"}},
+		Labels:  []prompb.Label{{Name: "__name__", Value: "netdata_system_ram_MiB_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "used"}},
 		Samples: []prompb.Sample{{Value: 512, Timestamp: 1776168000000}},
 	}}})
 	if err != nil {
@@ -295,7 +295,7 @@ func TestMonitorWriteAlsoProjectsCanonicalServerDiskMetric(t *testing.T) {
 	}
 
 	payload, err := proto.Marshal(&prompb.WriteRequest{Timeseries: []prompb.TimeSeries{{
-		Labels: []prompb.Label{{Name: "__name__", Value: "netdata_disk_space_GiB_average"}, {Name: "instance", Value: server.Id}, {Name: "family", Value: "/"}, {Name: "dimension", Value: "used"}},
+		Labels:  []prompb.Label{{Name: "__name__", Value: "netdata_disk_space_GiB_average"}, {Name: "instance", Value: server.Id}, {Name: "family", Value: "/"}, {Name: "dimension", Value: "used"}},
 		Samples: []prompb.Sample{{Value: 10.5, Timestamp: 1776168000000}},
 	}}})
 	if err != nil {
@@ -357,11 +357,11 @@ func TestMonitorWriteAlsoProjectsCanonicalServerNetworkMetrics(t *testing.T) {
 
 	payload, err := proto.Marshal(&prompb.WriteRequest{Timeseries: []prompb.TimeSeries{
 		{
-			Labels: []prompb.Label{{Name: "__name__", Value: "netdata_system_net_kilobits_persec_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "received"}},
+			Labels:  []prompb.Label{{Name: "__name__", Value: "netdata_system_net_kilobits_persec_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "received"}},
 			Samples: []prompb.Sample{{Value: 8, Timestamp: 1776168000000}},
 		},
 		{
-			Labels: []prompb.Label{{Name: "__name__", Value: "netdata_system_net_kilobits_persec_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "sent"}},
+			Labels:  []prompb.Label{{Name: "__name__", Value: "netdata_system_net_kilobits_persec_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "sent"}},
 			Samples: []prompb.Sample{{Value: 4, Timestamp: 1776168000000}},
 		},
 	}})
@@ -423,7 +423,7 @@ func TestMonitorWriteAlsoProjectsCanonicalContainerCPUMetricWhenContainerIDExist
 	}
 
 	payload, err := proto.Marshal(&prompb.WriteRequest{Timeseries: []prompb.TimeSeries{{
-		Labels: []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_cpu_limit_percentage_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "used"}, {Name: "container_id", Value: "ctr-1"}, {Name: "container_name", Value: "demo-web"}, {Name: "compose_project", Value: "demo"}, {Name: "compose_service", Value: "web"}},
+		Labels:  []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_cpu_limit_percentage_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "used"}, {Name: "container_id", Value: "ctr-1"}, {Name: "container_name", Value: "demo-web"}, {Name: "compose_project", Value: "demo"}, {Name: "compose_service", Value: "web"}},
 		Samples: []prompb.Sample{{Value: 17.2, Timestamp: 1776168000000}},
 	}}})
 	if err != nil {
@@ -490,7 +490,7 @@ func TestMonitorWriteSkipsCanonicalContainerMetricWithoutContainerID(t *testing.
 	}
 
 	payload, err := proto.Marshal(&prompb.WriteRequest{Timeseries: []prompb.TimeSeries{{
-		Labels: []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_mem_usage_MiB_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "ram"}, {Name: "container_name", Value: "demo-web"}},
+		Labels:  []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_mem_usage_MiB_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "ram"}, {Name: "container_name", Value: "demo-web"}},
 		Samples: []prompb.Sample{{Value: 128, Timestamp: 1776168000000}},
 	}}})
 	if err != nil {
@@ -546,11 +546,11 @@ func TestMonitorWriteAlsoProjectsCanonicalContainerMemoryLimitMetricWhenUsedAndA
 
 	payload, err := proto.Marshal(&prompb.WriteRequest{Timeseries: []prompb.TimeSeries{
 		{
-			Labels: []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_mem_usage_limit_MiB_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "used"}, {Name: "container_id", Value: "ctr-1"}, {Name: "container_name", Value: "demo-web"}},
+			Labels:  []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_mem_usage_limit_MiB_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "used"}, {Name: "container_id", Value: "ctr-1"}, {Name: "container_name", Value: "demo-web"}},
 			Samples: []prompb.Sample{{Value: 128, Timestamp: 1776168000000}},
 		},
 		{
-			Labels: []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_mem_usage_limit_MiB_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "available"}, {Name: "container_id", Value: "ctr-1"}, {Name: "container_name", Value: "demo-web"}},
+			Labels:  []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_mem_usage_limit_MiB_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "available"}, {Name: "container_id", Value: "ctr-1"}, {Name: "container_name", Value: "demo-web"}},
 			Samples: []prompb.Sample{{Value: 384, Timestamp: 1776168000000}},
 		},
 	}})
@@ -615,7 +615,7 @@ func TestMonitorWriteSkipsCanonicalContainerMemoryLimitMetricWhenOnlyOneDimensio
 	}
 
 	payload, err := proto.Marshal(&prompb.WriteRequest{Timeseries: []prompb.TimeSeries{{
-		Labels: []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_mem_usage_limit_MiB_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "used"}, {Name: "container_id", Value: "ctr-1"}, {Name: "container_name", Value: "demo-web"}},
+		Labels:  []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_mem_usage_limit_MiB_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "used"}, {Name: "container_id", Value: "ctr-1"}, {Name: "container_name", Value: "demo-web"}},
 		Samples: []prompb.Sample{{Value: 128, Timestamp: 1776168000000}},
 	}}})
 	if err != nil {
@@ -671,15 +671,15 @@ func TestMonitorWriteAlsoProjectsCanonicalContainerNetworkMetricsWhenContainerID
 
 	payload, err := proto.Marshal(&prompb.WriteRequest{Timeseries: []prompb.TimeSeries{
 		{
-			Labels: []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_net_net_kilobits_persec_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "received"}, {Name: "container_id", Value: "ctr-1"}, {Name: "container_name", Value: "demo-web"}, {Name: "device", Value: "veth0"}},
+			Labels:  []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_net_net_kilobits_persec_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "received"}, {Name: "container_id", Value: "ctr-1"}, {Name: "container_name", Value: "demo-web"}, {Name: "device", Value: "veth0"}},
 			Samples: []prompb.Sample{{Value: 8, Timestamp: 1776168000000}},
 		},
 		{
-			Labels: []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_net_net_kilobits_persec_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "received"}, {Name: "container_id", Value: "ctr-1"}, {Name: "container_name", Value: "demo-web"}, {Name: "device", Value: "veth1"}},
+			Labels:  []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_net_net_kilobits_persec_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "received"}, {Name: "container_id", Value: "ctr-1"}, {Name: "container_name", Value: "demo-web"}, {Name: "device", Value: "veth1"}},
 			Samples: []prompb.Sample{{Value: 4, Timestamp: 1776168000000}},
 		},
 		{
-			Labels: []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_net_net_kilobits_persec_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "sent"}, {Name: "container_id", Value: "ctr-1"}, {Name: "container_name", Value: "demo-web"}, {Name: "device", Value: "veth0"}},
+			Labels:  []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_net_net_kilobits_persec_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "sent"}, {Name: "container_id", Value: "ctr-1"}, {Name: "container_name", Value: "demo-web"}, {Name: "device", Value: "veth0"}},
 			Samples: []prompb.Sample{{Value: 2, Timestamp: 1776168000000}},
 		},
 	}})
@@ -745,11 +745,11 @@ func TestMonitorWriteAlsoProjectsCanonicalContainerBlockRateMetricsWhenContainer
 
 	payload, err := proto.Marshal(&prompb.WriteRequest{Timeseries: []prompb.TimeSeries{
 		{
-			Labels: []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_io_KiB_persec_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "read"}, {Name: "container_id", Value: "ctr-1"}, {Name: "container_name", Value: "demo-web"}},
+			Labels:  []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_io_KiB_persec_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "read"}, {Name: "container_id", Value: "ctr-1"}, {Name: "container_name", Value: "demo-web"}},
 			Samples: []prompb.Sample{{Value: 4, Timestamp: 1776168000000}},
 		},
 		{
-			Labels: []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_io_KiB_persec_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "write"}, {Name: "container_id", Value: "ctr-1"}, {Name: "container_name", Value: "demo-web"}},
+			Labels:  []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_io_KiB_persec_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "write"}, {Name: "container_id", Value: "ctr-1"}, {Name: "container_name", Value: "demo-web"}},
 			Samples: []prompb.Sample{{Value: -2, Timestamp: 1776168000000}},
 		},
 	}})
@@ -1149,15 +1149,15 @@ func TestMonitorServerContainerTelemetryReturnsServerScopedItems(t *testing.T) {
 	defer te.cleanup()
 
 	server := createMonitorServer(t, te, "prod-01")
-	restore := monitormetrics.SetContainerTelemetryQueryFuncForTest(func(_ context.Context, serverID string, containerIDs []string, window string) (*monitormetrics.ContainerTelemetryResponse, error) {
+	restore := monitormetrics.SetContainerTelemetryQueryFuncForTest(func(_ context.Context, serverID string, targets []monitormetrics.ContainerTelemetryTarget, window string) (*monitormetrics.ContainerTelemetryResponse, error) {
 		if serverID != server.Id {
 			t.Fatalf("unexpected server id: %s", serverID)
 		}
 		if window != "15m" {
 			t.Fatalf("unexpected window: %s", window)
 		}
-		if len(containerIDs) != 2 || containerIDs[0] != "ctr-1" || containerIDs[1] != "ctr-2" {
-			t.Fatalf("unexpected container ids: %+v", containerIDs)
+		if len(targets) != 2 || targets[0].ID != "ctr-1" || targets[0].Name != "demo-web" || targets[1].ID != "ctr-2" || targets[1].Name != "demo-worker" {
+			t.Fatalf("unexpected container telemetry targets: %+v", targets)
 		}
 		cpu := 22.5
 		memoryUsage := 134217728.0
@@ -1189,7 +1189,7 @@ func TestMonitorServerContainerTelemetryReturnsServerScopedItems(t *testing.T) {
 	})
 	defer restore()
 
-	rec := te.doMonitor(t, http.MethodGet, "/api/monitor/servers/"+server.Id+"/container-telemetry?window=15m&containerId=ctr-1&containerId=ctr-2", "", te.token)
+	rec := te.doMonitor(t, http.MethodGet, "/api/monitor/servers/"+server.Id+"/container-telemetry?window=15m&containerId=ctr-1&containerName=demo-web&containerId=ctr-2&containerName=demo-worker", "", te.token)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}

@@ -36,6 +36,17 @@ fi
 # do not keep exporting with missing hostname or chart filters.
 cp /usr/local/share/appos/netdata-defaults/exporting.conf /appos/data/netdata/etc/exporting.conf
 
+APPOS_NETDATA_JOIN_HOST_NETNS=${APPOS_NETDATA_JOIN_HOST_NETNS:-false}
+if [ "$APPOS_NETDATA_JOIN_HOST_NETNS" = "true" ]; then
+  APPOS_CONTAINER_IP=$(hostname -i 2>/dev/null | awk '{print $1}')
+  if [ -n "$APPOS_CONTAINER_IP" ]; then
+    sed -i "s/^    destination = .*/    destination = ${APPOS_CONTAINER_IP}:8428/" /appos/data/netdata/etc/exporting.conf
+    echo "==> Netdata host-netns mode enabled: remote write destination set to ${APPOS_CONTAINER_IP}:8428"
+  else
+    echo "==> [WARN] Netdata host-netns mode requested but container bridge IP could not be determined"
+  fi
+fi
+
 rm -rf /etc/netdata /var/lib/netdata /var/cache/netdata
 ln -s /appos/data/netdata/etc /etc/netdata
 ln -s /appos/data/netdata/lib /var/lib/netdata

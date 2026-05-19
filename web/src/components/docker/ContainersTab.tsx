@@ -75,6 +75,22 @@ import {
 } from 'lucide-react'
 
 const CONTAINERS_SORT_KEY = 'docker.containers.sort'
+const CONTAINER_STATS_LIVE_INTERVAL_MS = 2000
+const CONTAINER_SNAPSHOT_WINDOW = '5m'
+
+const CONTAINER_TELEMETRY_WINDOWS = [
+  { value: '1m', label: '1m', description: 'Last minute.' },
+  { value: '5m', label: '5m', description: 'Last five minutes.' },
+  { value: '15m', label: '15m', description: 'Last fifteen minutes.' },
+  { value: '0.5h', label: '0.5h', description: 'Last thirty minutes.' },
+  { value: '1h', label: '1h', description: 'Last hour.' },
+  { value: '5h', label: '5h', description: 'Last five hours.' },
+  { value: '12h', label: '12h', description: 'Last twelve hours.' },
+  { value: '24h', label: '24h', description: 'Last 24 hours.' },
+  { value: '7d', label: '7d', description: 'Last seven days.' },
+] as const
+
+type ContainerTelemetryWindow = (typeof CONTAINER_TELEMETRY_WINDOWS)[number]['value']
 
 type ContainerPageSize = 25 | 50 | 100
 
@@ -103,6 +119,16 @@ interface ContainerMetadataItem {
   created?: string
   compose_project?: string
   volume_names?: string[]
+}
+
+interface DockerContainerStats {
+  ID?: string
+  Container?: string
+  Name?: string
+  CPUPerc?: string
+  MemUsage?: string
+  NetIO?: string
+  BlockIO?: string
 }
 
 interface InspectPortRow {
@@ -169,46 +195,39 @@ function formatPercent(value?: number): string {
   return `${value.toFixed(value >= 10 ? 0 : 1)}%`
 }
 
-function formatMemorySummary(item?: MonitorContainerTelemetryItem): string {
-  if (!item || item.freshness.state === 'missing') return '-'
-  const usage = item.latest.memoryUsageBytes
-  const limit = item.latest.memoryLimitBytes
-  if (usage == null && limit == null) return '-'
-  if (limit == null) return formatBytesCompact(usage)
-  return `${formatBytesCompact(usage)} / ${formatBytesCompact(limit)}`
+function memoryUsagePercent(usage?: number, limit?: number): number | undefined {
+  if (usage == null || limit == null || !Number.isFinite(usage) || !Number.isFinite(limit) || limit <= 0) {
+    return undefined
+  }
+  return (usage / limit) * 100
 }
 
-function formatByteIoSummary(
-  received?: number,
-  sent?: number,
-  receivedLabel = 'in',
-  sentLabel = 'out',
-  suffix = ''
-): string {
-  if (received == null && sent == null) return '-'
-  return `${received == null ? '—' : `${formatBytesCompact(received)}${suffix}`} ${receivedLabel} / ${sent == null ? '—' : `${formatBytesCompact(sent)}${suffix}`} ${sentLabel}`
+function formatRuntimeMemoryUsage(value: string | undefined): string {
+  const memory = parseDockerMemoryPair(value)
+  if (memory.usage == null) return '-'
+  return formatBytesCompact(memory.usage)
 }
 
-function formatNetworkSummary(item?: MonitorContainerTelemetryItem): string {
-  if (!item || item.freshness.state === 'missing') return '-'
-  return formatByteIoSummary(
-    item.latest.networkRxBytesPerSecond,
-    item.latest.networkTxBytesPerSecond,
-    'in',
-    'out',
-    '/s'
-  )
-}
+function parseDockerStatsStreamEvent(block: string): { event: string; data: string } | null {
+  const lines = block
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean)
+  if (lines.length === 0) return null
 
-function formatBlockSummary(item?: MonitorContainerTelemetryItem): string {
-  if (!item || item.freshness.state === 'missing') return '-'
-  return formatByteIoSummary(
-    item.latest.blockReadBytesPerSecond,
-    item.latest.blockWriteBytesPerSecond,
-    'read',
-    'write',
-    '/s'
-  )
+  let event = 'message'
+  const dataLines: string[] = []
+  for (const line of lines) {
+    if (line.startsWith('event:')) {
+      event = line.slice('event:'.length).trim()
+      continue
+    }
+    if (line.startsWith('data:')) {
+      dataLines.push(line.slice('data:'.length).trim())
+    }
+  }
+
+  return { event, data: dataLines.join('\n') }
 }
 
 function telemetrySeries(
@@ -233,16 +252,16 @@ function telemetryBadge(item?: MonitorContainerTelemetryItem) {
   return null
 }
 
-function telemetryObservedAt(item?: MonitorContainerTelemetryItem): string {
-  if (!item?.freshness.observedAt) return '—'
-  return new Date(item.freshness.observedAt).toLocaleString()
-}
-
 function formatTrendValue(unit: string, _name: string, value: number): string {
   if (unit === 'bytes') return formatBytesCompact(value)
   if (unit === 'bytes/s') return `${formatBytesCompact(value)}/s`
+  if (unit === 'percent' && value > 0 && value < 0.1) return '<0.1%'
   if (unit === 'percent') return formatPercent(value)
   return `${value}`
+}
+
+function formatMetricLine(value: number | undefined, label: string, suffix = ''): string {
+  return `${value == null ? '—' : `${formatBytesCompact(value)}${suffix}`} ${label}`
 }
 
 function hostPublishedPorts(rawPorts?: string): string {
@@ -292,6 +311,97 @@ function parseContainerMetadataItems(payload: unknown): Record<string, Container
   }
 
   return next
+}
+
+function parseDockerContainerStats(output: string): DockerContainerStats[] {
+  if (!output.trim()) return []
+  return output
+    .trim()
+    .split('\n')
+    .map(line => {
+      try {
+        return JSON.parse(line) as DockerContainerStats
+      } catch {
+        return null
+      }
+    })
+    .filter(Boolean) as DockerContainerStats[]
+}
+
+function parseDockerByteValue(value: string): number | undefined {
+  const normalized = String(value || '').trim()
+  if (!normalized) return undefined
+  const match = normalized.match(/^([0-9]+(?:\.[0-9]+)?)\s*([kmgtp]?i?b)$/i)
+  if (!match) return undefined
+  const amount = Number(match[1])
+  if (!Number.isFinite(amount)) return undefined
+  const unit = match[2].toUpperCase()
+  const multipliers: Record<string, number> = {
+    B: 1,
+    KB: 1000,
+    MB: 1000 ** 2,
+    GB: 1000 ** 3,
+    TB: 1000 ** 4,
+    PB: 1000 ** 5,
+    KIB: 1024,
+    MIB: 1024 ** 2,
+    GIB: 1024 ** 3,
+    TIB: 1024 ** 4,
+    PIB: 1024 ** 5,
+  }
+  return amount * (multipliers[unit] ?? 1)
+}
+
+function parseDockerIoPair(value: string | undefined): { input?: number; output?: number } {
+  const parts = String(value || '')
+    .split('/')
+    .map(part => parseDockerByteValue(part))
+  return { input: parts[0], output: parts[1] }
+}
+
+function parseDockerPercent(value: string | undefined): number | undefined {
+  const parsed = Number.parseFloat(String(value || '').replace('%', '').trim())
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+function parseDockerMemoryPair(value: string | undefined): { usage?: number; limit?: number } {
+  const parts = String(value || '')
+    .split('/')
+    .map(part => parseDockerByteValue(part))
+  return { usage: parts[0], limit: parts[1] }
+}
+
+function buildDockerStatsMap(items: DockerContainerStats[]): Record<string, DockerContainerStats> {
+  const next: Record<string, DockerContainerStats> = {}
+  for (const item of items) {
+    for (const key of [item.Container, item.ID, item.Name]) {
+      const normalized = String(key || '').trim()
+      if (normalized) next[normalized] = item
+    }
+  }
+  return next
+}
+
+function resolveDockerStatsItem(
+  statsMap: Record<string, DockerContainerStats>,
+  container?: Container | null
+): DockerContainerStats | undefined {
+  if (!container) return undefined
+  const byId = statsMap[container.ID]
+  if (byId) return byId
+  const byName = statsMap[container.Names]
+  if (byName) return byName
+  const trimmedName = container.Names.replace(/^\//, '')
+  if (trimmedName && statsMap[trimmedName]) return statsMap[trimmedName]
+  return Object.values(statsMap).find(item => {
+    const shortId = String(item.ID || '').trim()
+    const fullId = String(item.Container || '').trim()
+    return (
+      (shortId && container.ID.startsWith(shortId)) ||
+      (fullId && container.ID === fullId) ||
+      String(item.Name || '').trim() === trimmedName
+    )
+  })
 }
 
 function chunkContainerIds(ids: string[], chunkSize: number): string[][] {
@@ -488,6 +598,8 @@ export function ContainersTab({
   const [outputContainer, setOutputContainer] = useState<Container | null>(null)
   const [outputMode, setOutputMode] = useState<OutputViewMode>('logs')
   const [statsContainer, setStatsContainer] = useState<Container | null>(null)
+  const [statsLive, setStatsLive] = useState(false)
+  const [telemetryWindow, setTelemetryWindow] = useState<ContainerTelemetryWindow>('15m')
   const [outputContent, setOutputContent] = useState('')
   const [outputLoading, setOutputLoading] = useState(false)
   const [sortKey, setSortKey] = useState<SortKey>(() => {
@@ -566,28 +678,191 @@ export function ContainersTab({
     setDetailsErrorMessage(null)
   }, [containerIdsKey])
 
-  const telemetryIds = useMemo(
+  const telemetryTargets = useMemo(
     () =>
       containers
-        .map(container => container.ID)
-        .filter(Boolean)
-        .sort(),
+		.map(container => ({ id: container.ID, name: container.Names }))
+		.filter(container => Boolean(container.id))
+		.sort((left, right) => left.id.localeCompare(right.id)),
     [containers]
   )
 
+  const telemetryIdsKey = useMemo(
+    () => telemetryTargets.map(container => `${container.id}:${container.name || ''}`).join(','),
+    [telemetryTargets]
+  )
+
   const {
-    data: telemetry,
-    isLoading: telemetryLoading,
-    error: telemetryError,
+    data: snapshotTelemetry,
+    isLoading: snapshotTelemetryLoading,
+    error: snapshotTelemetryError,
   } = useQuery<MonitorContainerTelemetryResponse>({
-    queryKey: ['monitor', 'container-telemetry', serverId, telemetryIds.join(','), '15m', refreshSignal],
-    queryFn: () => getServerContainerTelemetry(serverId, telemetryIds, '15m'),
-    enabled: telemetryIds.length > 0,
+    queryKey: [
+      'monitor',
+      'container-telemetry',
+      'snapshot',
+      serverId,
+      telemetryIdsKey,
+      CONTAINER_SNAPSHOT_WINDOW,
+      refreshSignal,
+    ],
+    queryFn: () => getServerContainerTelemetry(serverId, telemetryTargets, CONTAINER_SNAPSHOT_WINDOW),
+    enabled: telemetryTargets.length > 0,
+    placeholderData: previousData => previousData,
+    staleTime: statsLive ? 0 : 60_000,
+    gcTime: 5 * 60_000,
+    refetchOnMount: false,
+    refetchInterval: statsLive && statsContainer ? CONTAINER_STATS_LIVE_INTERVAL_MS : false,
+  })
+
+  const {
+    data: trendTelemetry,
+    isLoading: trendTelemetryLoading,
+    error: trendTelemetryError,
+  } = useQuery<MonitorContainerTelemetryResponse>({
+    queryKey: [
+      'monitor',
+      'container-telemetry',
+      'trend',
+      serverId,
+      telemetryIdsKey,
+      telemetryWindow,
+      refreshSignal,
+    ],
+    queryFn: () => getServerContainerTelemetry(serverId, telemetryTargets, telemetryWindow),
+    enabled: telemetryTargets.length > 0,
     placeholderData: previousData => previousData,
     staleTime: 60_000,
     gcTime: 5 * 60_000,
     refetchOnMount: false,
   })
+
+  const {
+    data: runtimeStatsSnapshotMap = {},
+    isLoading: runtimeStatsSnapshotLoading,
+    error: runtimeStatsSnapshotError,
+    refetch: refetchRuntimeStats,
+  } = useQuery<Record<string, DockerContainerStats>>({
+    queryKey: ['docker', 'container-stats', serverId, refreshSignal],
+    queryFn: async () => {
+      const response = await pb.send<{ output?: string }>(dockerApiPath(serverId, '/containers/stats'), {
+        method: 'GET',
+      })
+      return buildDockerStatsMap(parseDockerContainerStats(response.output || ''))
+    },
+    enabled: Boolean(statsContainer),
+    placeholderData: previousData => previousData,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+    refetchOnMount: false,
+    refetchInterval: false,
+  })
+
+  const [runtimeStatsStreamMap, setRuntimeStatsStreamMap] = useState<Record<string, DockerContainerStats>>({})
+  const [runtimeStatsStreamLoading, setRuntimeStatsStreamLoading] = useState(false)
+  const [runtimeStatsStreamError, setRuntimeStatsStreamError] = useState<unknown>(null)
+  const shouldStreamRuntimeStats = visibleColumns.cpu || visibleColumns.mem || (Boolean(statsContainer) && statsLive)
+
+  useEffect(() => {
+    if (!shouldStreamRuntimeStats) {
+      setRuntimeStatsStreamLoading(false)
+      setRuntimeStatsStreamError(null)
+      setRuntimeStatsStreamMap({})
+      return
+    }
+
+    const controller = new AbortController()
+    const headers: Record<string, string> = {
+      Accept: 'text/event-stream',
+    }
+    const authToken = typeof pb.authStore?.token === 'string' ? pb.authStore.token : ''
+    if (authToken) {
+      headers.Authorization = `Bearer ${authToken}`
+    }
+
+    setRuntimeStatsStreamLoading(true)
+    setRuntimeStatsStreamError(null)
+
+    void (async () => {
+      try {
+        const response = await fetch(dockerApiUrl(serverId, '/containers/stats', { stream: true }), {
+          method: 'GET',
+          headers,
+          credentials: 'same-origin',
+          signal: controller.signal,
+        })
+
+        if (!response.ok || !response.body) {
+          throw new Error(`Container stats stream failed (${response.status})`)
+        }
+
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+
+        const applyEvent = (block: string) => {
+          const parsed = parseDockerStatsStreamEvent(block)
+          if (!parsed?.data) return
+          let payload: { output?: string; message?: string }
+          try {
+            payload = JSON.parse(parsed.data) as { output?: string; message?: string }
+          } catch {
+            return
+          }
+
+          if (parsed.event === 'stats') {
+            setRuntimeStatsStreamMap(buildDockerStatsMap(parseDockerContainerStats(payload.output || '')))
+            setRuntimeStatsStreamLoading(false)
+            return
+          }
+
+          if (parsed.event === 'error') {
+            setRuntimeStatsStreamError(new Error(payload.message || 'Failed to stream container stats'))
+            setRuntimeStatsStreamLoading(false)
+          }
+        }
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          const blocks = buffer.split('\n\n')
+          buffer = blocks.pop() || ''
+          for (const block of blocks) {
+            applyEvent(block)
+          }
+        }
+
+        buffer += decoder.decode()
+        if (buffer.trim()) {
+          applyEvent(buffer)
+        }
+      } catch (error) {
+        if (controller.signal.aborted) return
+        setRuntimeStatsStreamError(error)
+      } finally {
+        if (!controller.signal.aborted) {
+          setRuntimeStatsStreamLoading(false)
+        }
+      }
+    })()
+
+    return () => {
+      controller.abort()
+    }
+  }, [refreshSignal, serverId, shouldStreamRuntimeStats, statsLive, visibleColumns.cpu, visibleColumns.mem])
+
+  const runtimeStatsError = runtimeStatsStreamError || runtimeStatsSnapshotError
+  const telemetryError = snapshotTelemetryError || trendTelemetryError || runtimeStatsError
+  const currentTelemetryLoading = snapshotTelemetryLoading
+  const currentRuntimeStatsLoading = runtimeStatsStreamLoading
+
+  const telemetryWindowMeta = useMemo(
+    () =>
+      CONTAINER_TELEMETRY_WINDOWS.find(window => window.value === telemetryWindow) ??
+      CONTAINER_TELEMETRY_WINDOWS[2],
+    [telemetryWindow]
+  )
 
   useEffect(() => {
     setAllDetailsCached(false)
@@ -600,12 +875,26 @@ export function ContainersTab({
 
   const telemetryMap = useMemo(() => {
     const next: Record<string, MonitorContainerTelemetryItem> = {}
-    for (const item of telemetry?.items || []) {
+    for (const item of snapshotTelemetry?.items || []) {
       if (!item.containerId) continue
       next[item.containerId] = item
     }
     return next
-  }, [telemetry?.items])
+  }, [snapshotTelemetry?.items])
+
+  const trendTelemetryMap = useMemo(() => {
+	const next: Record<string, MonitorContainerTelemetryItem> = {}
+	for (const item of trendTelemetry?.items || []) {
+		if (!item.containerId) continue
+		next[item.containerId] = item
+	}
+	return next
+  }, [trendTelemetry?.items])
+
+  const dialogRuntimeStatsMap = useMemo(
+    () => (Object.keys(runtimeStatsStreamMap).length > 0 ? runtimeStatsStreamMap : runtimeStatsSnapshotMap),
+    [runtimeStatsSnapshotMap, runtimeStatsStreamMap]
+  )
 
   const loadInspectForContainer = useCallback(
     async (containerId: string) => {
@@ -826,20 +1115,20 @@ export function ContainersTab({
     items.sort((left, right) => {
       const leftMetadata = metadataMap[left.ID]
       const rightMetadata = metadataMap[right.ID]
-      const leftTelemetry = telemetryMap[left.ID]
-      const rightTelemetry = telemetryMap[right.ID]
+      const leftRuntimeStats = resolveDockerStatsItem(runtimeStatsStreamMap, left)
+      const rightRuntimeStats = resolveDockerStatsItem(runtimeStatsStreamMap, right)
 
       if (sortKey === 'mem') {
-        const leftMem = leftTelemetry?.latest.memoryUsageBytes || 0
-        const rightMem = rightTelemetry?.latest.memoryUsageBytes || 0
+        const leftMem = parseDockerMemoryPair(leftRuntimeStats?.MemUsage).usage || 0
+        const rightMem = parseDockerMemoryPair(rightRuntimeStats?.MemUsage).usage || 0
         if (leftMem < rightMem) return sortDir === 'asc' ? -1 : 1
         if (leftMem > rightMem) return sortDir === 'asc' ? 1 : -1
         return 0
       }
 
       if (sortKey === 'cpu') {
-        const leftCpu = leftTelemetry?.latest.cpuPercent || 0
-        const rightCpu = rightTelemetry?.latest.cpuPercent || 0
+        const leftCpu = parseDockerPercent(leftRuntimeStats?.CPUPerc) || 0
+        const rightCpu = parseDockerPercent(rightRuntimeStats?.CPUPerc) || 0
         if (leftCpu < rightCpu) return sortDir === 'asc' ? -1 : 1
         if (leftCpu > rightCpu) return sortDir === 'asc' ? 1 : -1
         return 0
@@ -868,13 +1157,22 @@ export function ContainersTab({
       return 0
     })
     return items
-  }, [composeFiltered, metadataMap, sortDir, sortKey, telemetryMap])
+  }, [composeFiltered, metadataMap, runtimeStatsStreamMap, sortDir, sortKey])
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
   const paged = useMemo(() => {
     const start = (page - 1) * pageSize
     return sorted.slice(start, start + pageSize)
   }, [page, pageSize, sorted])
+
+  useEffect(() => {
+    if (!visibleColumns.network) return
+    for (const container of paged) {
+      if (!inspectMap[container.ID]) {
+        void loadInspectForContainer(container.ID)
+      }
+    }
+  }, [inspectMap, loadInspectForContainer, paged, visibleColumns.network])
 
   useEffect(() => {
     if (page !== 1) onPageChange?.(1)
@@ -964,10 +1262,13 @@ export function ContainersTab({
     (visibleColumns.network ? 1 : 0) +
     (visibleColumns.status ? 1 : 0)
   const totalItems = sorted.length
-  const hasLinkedFilter = (filterPreset && onClearFilterPreset) || (includeNames && includeNames.length > 0)
   const hasComposeFilter = composeFilter !== 'all'
+  const hasSearchFilter = activeSearchQuery.length > 0
+  const hasStateFilter = stateFilter !== 'all'
+  const hasAnyFilter =
+    hasSearchFilter || hasStateFilter || hasComposeFilter || !!(includeNames && includeNames.length > 0)
   const hasStatusBadges =
-    (includeNames && includeNames.length > 0) || telemetryLoading || copiedTip
+    (includeNames && includeNames.length > 0) || currentTelemetryLoading || currentRuntimeStatsLoading || copiedTip
 
   return (
     <div className="min-h-0 flex flex-col gap-3">
@@ -1105,7 +1406,7 @@ export function ContainersTab({
                       onVisibleColumnsChange?.({ ...visibleColumns, mem: checked === true })
                     }
                   >
-                    Mem
+                    Memory
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
                     checked={visibleColumns.network}
@@ -1128,8 +1429,10 @@ export function ContainersTab({
             </div>
             </div>
           ) : null}
-          {(hasLinkedFilter || hasComposeFilter) && (
+          {hasAnyFilter && (
             <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+              {hasSearchFilter && <Badge variant="outline">Search: {activeSearchQuery}</Badge>}
+              {hasStateFilter && <Badge variant="outline">Runtime: {stateFilter}</Badge>}
               {includeNames && includeNames.length > 0 && (
                 <Badge variant="outline">Linked containers: {includeNames.length}</Badge>
               )}
@@ -1142,6 +1445,7 @@ export function ContainersTab({
                 onClick={() => {
                   onClearFilterPreset?.()
                   onClearIncludeNames?.()
+                  onStateFilterChange?.('all')
                   setComposeFilter('all')
                 }}
               >
@@ -1151,7 +1455,8 @@ export function ContainersTab({
           )}
           {hasStatusBadges && (
             <div className="flex items-center gap-2 flex-wrap shrink-0">
-              {telemetryLoading && <Badge variant="outline">Loading telemetry...</Badge>}
+              {currentTelemetryLoading && <Badge variant="outline">Loading telemetry...</Badge>}
+              {currentRuntimeStatsLoading && <Badge variant="outline">Loading stats...</Badge>}
               {copiedTip && <div className="text-xs text-muted-foreground shrink-0">{copiedTip}</div>}
             </div>
           )}
@@ -1175,7 +1480,11 @@ export function ContainersTab({
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7"
+                            className={cn(
+                              'h-7 w-7',
+                              stateFilter !== 'all' &&
+                                'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+                            )}
                             aria-label="Filter container state"
                             title={
                               stateFilter === 'all'
@@ -1183,13 +1492,7 @@ export function ContainersTab({
                                 : `Container state: ${stateFilter}`
                             }
                           >
-                            <Filter
-                              className={
-                                stateFilter === 'all'
-                                  ? 'h-3.5 w-3.5'
-                                  : 'h-3.5 w-3.5 text-foreground'
-                              }
-                            />
+                            <Filter className="h-3.5 w-3.5" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start">
@@ -1230,7 +1533,7 @@ export function ContainersTab({
                     </TableHead>
                   )}
                   {visibleColumns.volumes && (
-                    <TableHead className="min-w-[150px] text-xs font-medium text-foreground">
+                    <TableHead className="w-[160px] min-w-[160px] text-left text-xs font-medium text-foreground">
                       Volumes
                     </TableHead>
                   )}
@@ -1248,16 +1551,15 @@ export function ContainersTab({
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7"
+                              className={cn(
+                                'h-7 w-7',
+                                composeFilter !== 'all' &&
+                                  'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+                              )}
                               aria-label="Filter compose project"
                               title={composeFilter === 'all' ? 'Filter compose project' : `Compose: ${composeFilter}`}
                             >
-                              <Filter
-                                className={cn(
-                                  'h-3.5 w-3.5',
-                                  composeFilter !== 'all' && 'text-foreground'
-                                )}
-                              />
+                              <Filter className="h-3.5 w-3.5" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="start">
@@ -1284,12 +1586,12 @@ export function ContainersTab({
                   )}
                   {visibleColumns.mem && (
                     <TableHead className="w-[110px] min-w-[110px]">
-                      <SortHead label="Mem" keyName="mem" />
+                      <SortHead label="Memory" keyName="mem" />
                     </TableHead>
                   )}
                   {visibleColumns.network && (
                     <TableHead className="min-w-[170px] text-xs font-medium text-foreground">
-                      Net
+                      Network
                     </TableHead>
                   )}
                   {visibleColumns.status && (
@@ -1317,7 +1619,12 @@ export function ContainersTab({
               const inspect = inspectMap[c.ID]
               const metadata = metadataMap[c.ID]
               const linkedVolumes = metadata?.volume_names || []
+              const linkedNetworks = inspectNetworks(inspect)
+                .map(network => network.name)
+                .filter(Boolean)
+              const uniqueLinkedNetworks = Array.from(new Set(linkedNetworks))
               const telemetryItem = telemetryMap[c.ID]
+              const runtimeStatsItem = resolveDockerStatsItem(runtimeStatsStreamMap, c)
               return (
                 <Fragment key={c.ID}>
                   <TableRow
@@ -1416,22 +1723,24 @@ export function ContainersTab({
                       </TableCell>
                     )}
                     {visibleColumns.volumes && (
-                      <TableCell className="py-3 text-xs">
-                        {linkedVolumes.length > 0 ? (
-                          <Button
-                            variant="link"
-                            className="h-auto p-0 text-left text-xs"
-                            title={linkedVolumes.join(', ')}
-                            onClick={() => onOpenVolumeFilter?.(linkedVolumes)}
-                          >
-                            <span className="truncate">
-                              {linkedVolumes.length} volume{linkedVolumes.length > 1 ? 's' : ''}
-                            </span>
-                            <ExternalLink className="ml-1 h-3 w-3" />
-                          </Button>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
+                      <TableCell className="w-[160px] min-w-[160px] py-3 text-left text-xs align-middle">
+                        <div className="flex h-8 items-center">
+                          {linkedVolumes.length > 0 ? (
+                            <button
+                              type="button"
+                              className="inline-flex h-8 w-full items-center justify-start gap-1 text-left text-xs text-primary hover:underline"
+                              title={linkedVolumes.join(', ')}
+                              onClick={() => onOpenVolumeFilter?.(linkedVolumes)}
+                            >
+                              <span className="truncate">
+                                {linkedVolumes.length} volume{linkedVolumes.length > 1 ? 's' : ''}
+                              </span>
+                              <ExternalLink className="ml-1 h-3 w-3" />
+                            </button>
+                          ) : (
+                            <span className="inline-flex h-8 items-center text-muted-foreground">-</span>
+                          )}
+                        </div>
                       </TableCell>
                     )}
                     {visibleColumns.created && (
@@ -1448,7 +1757,7 @@ export function ContainersTab({
                         {metadataComposeName(metadata) !== '-' ? (
                           <Button
                             variant="link"
-                            className="h-auto p-0 text-xs"
+                            className="h-auto w-full justify-start p-0 text-left text-xs"
                             onClick={() => setComposeFilter(metadataComposeName(metadata))}
                           >
                             {metadataComposeName(metadata)}
@@ -1460,25 +1769,41 @@ export function ContainersTab({
                     )}
                     {visibleColumns.cpu && (
                       <TableCell className="py-3 text-xs tabular-nums text-foreground/90">
-                        {telemetryLoading
+                        {currentRuntimeStatsLoading
                           ? '...'
-                          : telemetryItem?.freshness.state === 'missing'
+                          : !runtimeStatsItem
                             ? <span className="text-muted-foreground">-</span>
-                            : <span className="font-medium text-foreground">{formatPercent(telemetryItem?.latest.cpuPercent)}</span>}
+                            : <span className="font-medium text-foreground">{formatPercent(parseDockerPercent(runtimeStatsItem.CPUPerc))}</span>}
                       </TableCell>
                     )}
                     {visibleColumns.mem && (
                       <TableCell className="py-3 text-xs tabular-nums text-foreground/90">
-                        {telemetryLoading
+                        {currentRuntimeStatsLoading
                           ? '...'
-                          : telemetryItem?.freshness.state === 'missing'
+                          : !runtimeStatsItem
                             ? <span className="text-muted-foreground">-</span>
-                            : <span className="font-medium text-foreground">{formatMemorySummary(telemetryItem)}</span>}
+                            : <span className="font-medium text-foreground">{formatRuntimeMemoryUsage(runtimeStatsItem.MemUsage)}</span>}
                       </TableCell>
                     )}
                     {visibleColumns.network && (
-                      <TableCell className="py-3 text-[11px] text-muted-foreground">
-                        {telemetryLoading ? '...' : formatNetworkSummary(telemetryItem)}
+                      <TableCell className="min-w-[170px] py-3 text-left text-xs align-middle">
+                        <div className="flex h-8 items-center">
+                          {!inspect && detailsLoadingMap[c.ID] ? (
+                            <span className="inline-flex h-8 items-center text-muted-foreground">Loading...</span>
+                          ) : uniqueLinkedNetworks.length > 0 ? (
+                            <button
+                              type="button"
+                              className="inline-flex h-8 w-full items-center justify-start gap-1 text-left text-xs text-primary hover:underline"
+                              title={uniqueLinkedNetworks.join(', ')}
+                              onClick={() => onOpenNetworkFilter?.(uniqueLinkedNetworks[0])}
+                            >
+                              <span className="truncate">{uniqueLinkedNetworks.join(', ')}</span>
+                              <ExternalLink className="ml-1 h-3 w-3" />
+                            </button>
+                          ) : (
+                            <span className="inline-flex h-8 items-center text-muted-foreground">-</span>
+                          )}
+                        </div>
                       </TableCell>
                     )}
                     {visibleColumns.status && (
@@ -1901,16 +2226,23 @@ export function ContainersTab({
           <DialogHeader>
             <DialogTitle>Container Stats: {statsContainer?.Names}</DialogTitle>
             <DialogDescription>
-              Monitor-backed container telemetry for the last 15 minutes.
+              Docker stats snapshot with monitor-backed trends for {telemetryWindowMeta.description.toLowerCase()}
             </DialogDescription>
           </DialogHeader>
           {(() => {
-            const item = statsContainer ? telemetryMap[statsContainer.ID] : undefined
-            const cpuSeries = telemetrySeries(item, 'cpu')
-            const memorySeries = telemetrySeries(item, 'memory')
-            const networkSeries = telemetrySeries(item, 'network')
-            const blockSeries = telemetrySeries(item, 'block')
-            if (!item || item.freshness.state === 'missing') {
+            const snapshotItem = statsContainer ? telemetryMap[statsContainer.ID] : undefined
+            const trendItem = statsContainer ? trendTelemetryMap[statsContainer.ID] : undefined
+            const runtimeStats = resolveDockerStatsItem(dialogRuntimeStatsMap, statsContainer)
+            const runtimeNetwork = parseDockerIoPair(runtimeStats?.NetIO)
+            const runtimeBlock = parseDockerIoPair(runtimeStats?.BlockIO)
+            const runtimeMemory = parseDockerMemoryPair(runtimeStats?.MemUsage)
+            const runtimeMemoryPercent = memoryUsagePercent(runtimeMemory.usage, runtimeMemory.limit)
+            const runtimeCPU = parseDockerPercent(runtimeStats?.CPUPerc)
+            const cpuSeries = telemetrySeries(trendItem, 'cpu')
+            const memorySeries = telemetrySeries(trendItem, 'memory')
+            const networkSeries = telemetrySeries(trendItem, 'network')
+            const blockSeries = telemetrySeries(trendItem, 'block')
+            if (!runtimeStats && (!snapshotItem || snapshotItem.freshness.state === 'missing')) {
               return (
                 <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-10 text-center text-sm text-muted-foreground">
                   No telemetry for this container yet. Inventory, inspect, logs, and actions remain
@@ -1920,91 +2252,165 @@ export function ContainersTab({
             }
             return (
               <div className="space-y-4">
-                <div className="grid gap-3 md:grid-cols-4">
-                  <div className="rounded-lg border bg-muted/20 p-3 text-sm">
-                    <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      CPU
+                <div className="rounded-lg border bg-muted/10 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="space-y-1">
+                      <div className="text-sm font-semibold">Realtime Snapshot</div>
+                      <div className="text-xs text-muted-foreground">
+                        Current runtime values from docker stats.
+                      </div>
                     </div>
-                    <div className="mt-2 font-medium">{formatPercent(item.latest.cpuPercent)}</div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={statsLive ? 'secondary' : 'outline'}
+                      aria-pressed={statsLive}
+                      className="h-8 gap-2 self-start"
+                      onClick={() => {
+                        setStatsLive(enabled => {
+                          const next = !enabled
+                          if (next) {
+                            void refetchRuntimeStats()
+                          }
+                          return next
+                        })
+                      }}
+                      disabled={runtimeStatsSnapshotLoading || runtimeStatsStreamLoading}
+                    >
+                      <Activity className={cn('h-4 w-4', statsLive && 'text-emerald-600')} />
+                      Live
+                    </Button>
                   </div>
-                  <div className="rounded-lg border bg-muted/20 p-3 text-sm">
-                    <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Memory
+                  <div className="mt-4 grid gap-3 md:grid-cols-4">
+                    <div className="rounded-md border bg-background p-3 text-sm">
+                      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        CPU
+                      </div>
+                      <div className="mt-2 font-medium">{formatPercent(runtimeCPU)}</div>
                     </div>
-                    <div className="mt-2 font-medium">{formatMemorySummary(item)}</div>
+                    <div className="rounded-md border bg-background p-3 text-sm">
+                      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Memory
+                      </div>
+                      <div className="mt-2 font-medium">{formatPercent(runtimeMemoryPercent)}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {runtimeMemory.limit == null
+                          ? formatBytesCompact(runtimeMemory.usage)
+                          : `${formatBytesCompact(runtimeMemory.usage)} / ${formatBytesCompact(runtimeMemory.limit)}`}
+                      </div>
+                    </div>
+                    <div className="rounded-md border bg-background p-3 text-sm">
+                      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Network
+                      </div>
+                      <div className="mt-2 space-y-1 font-medium leading-tight">
+                        <div>{formatMetricLine(runtimeNetwork.input, 'in total')}</div>
+                        <div>{formatMetricLine(runtimeNetwork.output, 'out total')}</div>
+                      </div>
+                    </div>
+                    <div className="rounded-md border bg-background p-3 text-sm">
+                      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Block I/O
+                      </div>
+                      <div className="mt-2 space-y-1 font-medium leading-tight">
+                        <div>{formatMetricLine(runtimeBlock.input, 'read total')}</div>
+                        <div>{formatMetricLine(runtimeBlock.output, 'write total')}</div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="rounded-lg border bg-muted/20 p-3 text-sm">
-                    <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Network
-                    </div>
-                    <div className="mt-2 font-medium">{formatNetworkSummary(item)}</div>
-                  </div>
-                  <div className="rounded-lg border bg-muted/20 p-3 text-sm">
-                    <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Block I/O
-                    </div>
-                    <div className="mt-2 font-medium">{formatBlockSummary(item)}</div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <Badge variant="outline">Docker stats snapshot</Badge>
+                    <span>Observed now</span>
+                    {statsLive ? <span>Refreshing every 2s</span> : null}
                   </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <Badge variant="outline">Telemetry {item.freshness.state}</Badge>
-                  <span>Observed {telemetryObservedAt(item)}</span>
-                </div>
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">CPU Trend</div>
-                    <TimeSeriesChart
-                      name="cpu"
-                      unit={cpuSeries?.unit || 'percent'}
-                      window={telemetry?.window || '15m'}
-                      rangeStartAt={telemetry?.rangeStartAt}
-                      rangeEndAt={telemetry?.rangeEndAt}
-                      stepSeconds={telemetry?.stepSeconds}
-                      points={cpuSeries?.points}
-                      formatValue={formatTrendValue}
-                    />
+                <div className="rounded-lg border bg-background p-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="space-y-1">
+                      <div className="text-sm font-semibold">Trend History</div>
+                      <div className="text-xs text-muted-foreground">
+                        {telemetryWindowMeta.description} Select a range to redraw all trend charts.
+                      </div>
+                    </div>
+                    <div
+                      className="inline-flex flex-wrap items-center rounded-lg border bg-muted/20 p-1"
+                      role="tablist"
+                      aria-label="container trend window selector"
+                    >
+                      {CONTAINER_TELEMETRY_WINDOWS.map(window => {
+                        const active = window.value === telemetryWindow
+                        return (
+                          <Button
+                            key={window.value}
+                            type="button"
+                            size="xs"
+                            variant={active ? 'secondary' : 'ghost'}
+                            aria-pressed={active}
+                            onClick={() => setTelemetryWindow(window.value)}
+                            disabled={trendTelemetryLoading}
+                          >
+                            {window.label}
+                          </Button>
+                        )
+                      })}
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">Memory Trend</div>
-                    <TimeSeriesChart
-                      name="memory"
-                      unit={memorySeries?.unit || 'bytes'}
-                      window={telemetry?.window || '15m'}
-                      rangeStartAt={telemetry?.rangeStartAt}
-                      rangeEndAt={telemetry?.rangeEndAt}
-                      stepSeconds={telemetry?.stepSeconds}
-                      points={memorySeries?.points}
-                      segments={memorySeries?.segments}
-                      formatValue={formatTrendValue}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">Network Trend</div>
-                    <TimeSeriesChart
-                      name="network"
-                      unit={networkSeries?.unit || 'bytes/s'}
-                      window={telemetry?.window || '15m'}
-                      rangeStartAt={telemetry?.rangeStartAt}
-                      rangeEndAt={telemetry?.rangeEndAt}
-                      stepSeconds={telemetry?.stepSeconds}
-                      points={networkSeries?.points}
-                      segments={networkSeries?.segments}
-                      formatValue={formatTrendValue}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">Block I/O Trend</div>
-                    <TimeSeriesChart
-                      name="block"
-                      unit={blockSeries?.unit || 'bytes/s'}
-                      window={telemetry?.window || '15m'}
-                      rangeStartAt={telemetry?.rangeStartAt}
-                      rangeEndAt={telemetry?.rangeEndAt}
-                      stepSeconds={telemetry?.stepSeconds}
-                      points={blockSeries?.points}
-                      segments={blockSeries?.segments}
-                      formatValue={formatTrendValue}
-                    />
+                  <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                    <div className="space-y-2 rounded-md border bg-muted/10 p-3">
+                      <div className="text-sm font-medium">CPU Trend</div>
+                      <TimeSeriesChart
+                        name="cpu"
+                        unit={cpuSeries?.unit || 'percent'}
+                        window={trendTelemetry?.window || telemetryWindow}
+                        rangeStartAt={trendTelemetry?.rangeStartAt}
+                        rangeEndAt={trendTelemetry?.rangeEndAt}
+                        stepSeconds={trendTelemetry?.stepSeconds}
+                        points={cpuSeries?.points}
+                        formatValue={formatTrendValue}
+                      />
+                    </div>
+                    <div className="space-y-2 rounded-md border bg-muted/10 p-3">
+                      <div className="text-sm font-medium">Memory Trend</div>
+                      <TimeSeriesChart
+                        name="memory"
+                        unit={memorySeries?.unit || 'bytes'}
+                        window={trendTelemetry?.window || telemetryWindow}
+                        rangeStartAt={trendTelemetry?.rangeStartAt}
+                        rangeEndAt={trendTelemetry?.rangeEndAt}
+                        stepSeconds={trendTelemetry?.stepSeconds}
+                        points={memorySeries?.points}
+                        segments={memorySeries?.segments}
+                        formatValue={formatTrendValue}
+                      />
+                    </div>
+                    <div className="space-y-2 rounded-md border bg-muted/10 p-3">
+                      <div className="text-sm font-medium">Network Trend</div>
+                      <TimeSeriesChart
+                        name="network"
+                        unit={networkSeries?.unit || 'bytes/s'}
+                        window={trendTelemetry?.window || telemetryWindow}
+                        rangeStartAt={trendTelemetry?.rangeStartAt}
+                        rangeEndAt={trendTelemetry?.rangeEndAt}
+                        stepSeconds={trendTelemetry?.stepSeconds}
+                        points={networkSeries?.points}
+                        segments={networkSeries?.segments}
+                        formatValue={formatTrendValue}
+                      />
+                    </div>
+                    <div className="space-y-2 rounded-md border bg-muted/10 p-3">
+                      <div className="text-sm font-medium">Block I/O Trend</div>
+                      <TimeSeriesChart
+                        name="block"
+                        unit={blockSeries?.unit || 'bytes/s'}
+                        window={trendTelemetry?.window || telemetryWindow}
+                        rangeStartAt={trendTelemetry?.rangeStartAt}
+                        rangeEndAt={trendTelemetry?.rangeEndAt}
+                        stepSeconds={trendTelemetry?.stepSeconds}
+                        points={blockSeries?.points}
+                        segments={blockSeries?.segments}
+                        formatValue={formatTrendValue}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

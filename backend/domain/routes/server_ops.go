@@ -2,8 +2,8 @@ package routes
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -14,6 +14,7 @@ import (
 
 	"github.com/websoft9/appos/backend/domain/audit"
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
+	serversvc "github.com/websoft9/appos/backend/domain/resource/servers/service"
 	"github.com/websoft9/appos/backend/domain/software"
 	"github.com/websoft9/appos/backend/domain/terminal"
 	"github.com/websoft9/appos/backend/domain/worker"
@@ -31,6 +32,13 @@ func registerServerOpsRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	serverOps := g.Group("/{serverId}/ops")
 	serverOps.GET("/connectivity", handleServerConnectivity)
 	serverOps.POST("/power", handleServerPower)
+	serverOps.GET("/cron/jobs", handleServerCronJobsList)
+	serverOps.POST("/cron/jobs", handleServerCronJobCreate)
+	serverOps.PUT("/cron/jobs/{entryId}", handleServerCronJobUpdate)
+	serverOps.POST("/cron/jobs/{entryId}/test", handleServerCronJobTest)
+	serverOps.POST("/cron/jobs/{entryId}/enable", handleServerCronJobEnable)
+	serverOps.POST("/cron/jobs/{entryId}/disable", handleServerCronJobDisable)
+	serverOps.DELETE("/cron/jobs/{entryId}", handleServerCronJobDelete)
 	serverOps.GET("/ports", handleServerPortsList)
 	serverOps.GET("/ports/{port}", handleServerPortInspect)
 	serverOps.POST("/ports/{port}/release", handleServerPortRelease)
@@ -161,58 +169,69 @@ func handleServerConnectivity(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	response := map[string]any{"status": "offline", "mode": mode}
 	userID, _, _, _ := clientInfo(e)
-
-	switch mode {
-	case "tunnel":
-		if tunnelSessions != nil {
-			if _, ok := tunnelSessions.Get(serverID); ok {
-				response["status"] = "online"
-				warmServerSoftwareSnapshots(serverID, userID)
-			}
-		}
-		return e.JSON(http.StatusOK, response)
-	case "ssh":
+	input := serversvc.ConnectivityCheckInput{
+		ServerID: serverID,
+		Mode:     mode,
+		Host:     ms.Host,
+		Port:     ms.Port,
+	}
+	if mode == "ssh" {
 		cfg, cfgErr := resolveTerminalConfig(e.App, e.Auth, serverID)
 		if cfgErr != nil {
-			response["reason"] = cfgErr.Error()
-			return e.JSON(http.StatusOK, response)
+			input.ConfigError = cfgErr
+		} else {
+			input.Config = &cfg
 		}
-		ctx, cancel := context.WithTimeout(e.Request.Context(), 8*time.Second)
-		defer cancel()
+	}
 
-		start := time.Now()
-		sess, connErr := (&terminal.SSHConnector{}).Connect(ctx, cfg)
-		if connErr != nil {
-			reason := connErr.Error()
-			var ce *terminal.ConnectError
-			if errors.As(connErr, &ce) {
-				response["category"] = string(ce.Category)
-				reason = ce.Message
+	result, probeErr := newConnectivityRuntimeService().Check(e.Request.Context(), input)
+	if probeErr != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": probeErr.Error()})
+	}
+
+	if result.ShouldCache {
+		writeServerAccessCache(e.App, server, result.CacheStatus, result.CacheReason)
+	}
+	if result.ShouldWarm {
+		warmServerSoftwareSnapshots(serverID, userID)
+	}
+
+	response := map[string]any{"status": result.Status, "mode": result.Mode}
+	if result.Reason != "" {
+		response["reason"] = result.Reason
+	}
+	if result.Category != "" {
+		response["category"] = result.Category
+	}
+	if result.LatencyMS > 0 {
+		response["latency_ms"] = result.LatencyMS
+	}
+
+	return e.JSON(http.StatusOK, response)
+}
+
+func newConnectivityRuntimeService() serversvc.ConnectivityRuntimeService {
+	return serversvc.ConnectivityRuntimeService{
+		TunnelConnected: func(serverID string) bool {
+			if tunnelSessions == nil {
+				return false
 			}
-			response["reason"] = reason
-			writeServerAccessCache(e.App, server, "unavailable", reason)
-			return e.JSON(http.StatusOK, response)
-		}
-		_ = sess.Close()
-		response["status"] = "online"
-		response["latency_ms"] = time.Since(start).Milliseconds()
-		writeServerAccessCache(e.App, server, "available", "")
-		warmServerSoftwareSnapshots(serverID, userID)
-		return e.JSON(http.StatusOK, response)
-	default:
-		probe := directServerAccessProbe(ms.Host, ms.Port)
-		if probe.Access.Status != "available" {
-			response["reason"] = probe.Detail
-			writeServerAccessCache(e.App, server, "unavailable", probe.Access.Reason)
-			return e.JSON(http.StatusOK, response)
-		}
-		response["status"] = "online"
-		response["latency_ms"] = probe.LatencyMS
-		writeServerAccessCache(e.App, server, "available", "")
-		warmServerSoftwareSnapshots(serverID, userID)
-		return e.JSON(http.StatusOK, response)
+			_, ok := tunnelSessions.Get(serverID)
+			return ok
+		},
+		ConnectSSH: func(ctx context.Context, cfg terminal.ConnectorConfig) (io.Closer, error) {
+			return (&terminal.SSHConnector{}).Connect(ctx, cfg)
+		},
+		ProbeTCP: func(host string, port int) serversvc.ConnectivityTCPProbeResult {
+			probe := directServerAccessProbe(host, port)
+			return serversvc.ConnectivityTCPProbeResult{
+				AccessStatus: probe.Access.Status,
+				AccessReason: probe.Access.Reason,
+				Detail:       probe.Detail,
+				LatencyMS:    probe.LatencyMS,
+			}
+		},
 	}
 }
 
@@ -249,15 +268,9 @@ func handleServerPower(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": "invalid request body"})
 	}
 
-	action := strings.ToLower(strings.TrimSpace(body.Action))
-	var command string
-	switch action {
-	case "restart":
-		command = "(sudo -n systemctl reboot || sudo -n reboot || systemctl reboot || reboot)"
-	case "shutdown":
-		command = "(sudo -n systemctl poweroff || sudo -n shutdown -h now || systemctl poweroff || shutdown -h now)"
-	default:
-		return e.JSON(http.StatusBadRequest, map[string]any{"message": "action must be restart or shutdown"})
+	action, actionErr := serversvc.NormalizePowerAction(body.Action)
+	if actionErr != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": actionErr.Error()})
 	}
 
 	cfg, err := resolveTerminalConfig(e.App, e.Auth, serverID)
@@ -265,11 +278,10 @@ func handleServerPower(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
-	output, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, command, 20*time.Second)
-	expectedDisconnect := runErr != nil && isExpectedPowerDisconnect(runErr)
+	result, runErr := serversvc.PowerRuntimeService{Run: directSSHCommandAdapter(cfg)}.Execute(e.Request.Context(), action)
 	userID, _, ip, _ := clientInfo(e)
 	status := audit.StatusSuccess
-	if runErr != nil && !expectedDisconnect {
+	if runErr != nil {
 		status = audit.StatusFailed
 	}
 	audit.Write(e.App, audit.Entry{
@@ -279,26 +291,15 @@ func handleServerPower(e *core.RequestEvent) error {
 		ResourceID:   serverID,
 		Status:       status,
 		IP:           ip,
-		Detail:       map[string]any{"action": action, "output": output},
+		Detail:       map[string]any{"action": action, "output": result.Output},
 	})
 
-	if runErr != nil && !expectedDisconnect {
-		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error(), "output": output})
+	if runErr != nil {
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error(), "output": result.Output})
 	}
-	if expectedDisconnect {
-		return e.JSON(http.StatusAccepted, map[string]any{"server_id": serverID, "action": action, "status": "accepted", "output": output})
+	if result.ExpectedDisconnect {
+		return e.JSON(http.StatusAccepted, map[string]any{"server_id": serverID, "action": action, "status": result.Status, "output": result.Output})
 	}
 
-	return e.JSON(http.StatusOK, map[string]any{"server_id": serverID, "action": action, "status": "accepted", "output": output})
-}
-
-func isExpectedPowerDisconnect(err error) bool {
-	if err == nil {
-		return false
-	}
-	message := strings.ToLower(err.Error())
-	return strings.Contains(message, "connection reset") ||
-		strings.Contains(message, "broken pipe") ||
-		strings.Contains(message, "use of closed network connection") ||
-		strings.Contains(message, "unexpected eof")
+	return e.JSON(http.StatusOK, map[string]any{"server_id": serverID, "action": action, "status": result.Status, "output": result.Output})
 }

@@ -1,9 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  deleteServerCronJob,
+  disableServerCronJob,
+  enableServerCronJob,
   getConnectTerminalSettings,
   installMonitorAgent,
+  listServerCronJobs,
   listServerPorts,
   listSystemdServices,
+  testServerCronJob,
+  updateServerCronJob,
 } from './connect-api'
 import { settingsEntryPath } from './settings-api'
 
@@ -61,16 +67,60 @@ describe('getConnectTerminalSettings', () => {
   })
 
   it('disables PocketBase auto-cancellation for realtime SSH list requests', async () => {
-    sendMock.mockResolvedValue({ services: [], ports: [] })
+    sendMock.mockResolvedValue({ services: [], ports: [], items: [] })
 
     await listSystemdServices('srv-1')
     await listServerPorts('srv-1', 'all', 'tcp')
+  await listServerCronJobs('srv-1')
 
     expect(sendMock).toHaveBeenCalledWith('/api/servers/srv-1/ops/systemd/services', {
       requestKey: null,
     })
     expect(sendMock).toHaveBeenCalledWith('/api/servers/srv-1/ops/ports?view=all&protocol=tcp', {
       requestKey: null,
+    })
+  expect(sendMock).toHaveBeenCalledWith('/api/servers/srv-1/ops/cron/jobs', {
+    requestKey: null,
+  })
+  })
+
+  it('uses the expected cron mutation endpoints', async () => {
+    sendMock.mockResolvedValue({ entryId: 'cron-1', deleted: true })
+
+    await updateServerCronJob('srv-1', 'cron 1', {
+      name: 'backup',
+      schedule: '0 2 * * *',
+      command: '/opt/bin/backup.sh',
+      enabled: true,
+      singleRunOnly: false,
+    })
+    await enableServerCronJob('srv-1', 'cron 1')
+    await disableServerCronJob('srv-1', 'cron 1')
+    await testServerCronJob('srv-1', 'cron 1')
+    await deleteServerCronJob('srv-1', 'cron 1')
+
+    expect(sendMock).toHaveBeenCalledWith('/api/servers/srv-1/ops/cron/jobs/cron%201', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'backup',
+        schedule: '0 2 * * *',
+        command: '/opt/bin/backup.sh',
+        enabled: true,
+        singleRunOnly: false,
+      }),
+    })
+    expect(sendMock).toHaveBeenCalledWith('/api/servers/srv-1/ops/cron/jobs/cron%201/enable', {
+      method: 'POST',
+    })
+    expect(sendMock).toHaveBeenCalledWith('/api/servers/srv-1/ops/cron/jobs/cron%201/disable', {
+      method: 'POST',
+    })
+    expect(sendMock).toHaveBeenCalledWith('/api/servers/srv-1/ops/cron/jobs/cron%201/test', {
+      method: 'POST',
+    })
+    expect(sendMock).toHaveBeenCalledWith('/api/servers/srv-1/ops/cron/jobs/cron%201', {
+      method: 'DELETE',
     })
   })
 })

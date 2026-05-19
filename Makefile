@@ -240,8 +240,10 @@ run:
 	@docker cp backend/appos $(CONTAINER):/usr/local/bin/appos
 	@docker cp web/dist/. $(CONTAINER):/usr/share/nginx/html/web/
 	@docker cp build/nginx.conf $(CONTAINER):/etc/nginx/nginx.conf
+	@docker cp build/netdata/exporting.conf $(CONTAINER):/usr/local/share/appos/netdata-defaults/exporting.conf
+	@docker cp build/netdata/exporting.conf $(CONTAINER):/appos/data/netdata/etc/exporting.conf
 	@docker exec $(CONTAINER) nginx -t
-	@docker exec $(CONTAINER) supervisorctl -c /etc/supervisor/supervisord.conf restart appos nginx
+	@docker exec $(CONTAINER) supervisorctl -c /etc/supervisor/supervisord.conf restart appos nginx netdata
 	@echo "✓ Hot reload complete"
 	@echo "  → http://127.0.0.1:$(PORT_EFFECTIVE)/"
 

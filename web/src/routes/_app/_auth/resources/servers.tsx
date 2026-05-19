@@ -6,6 +6,7 @@ import {
   Loader2,
   Cable,
   Link as LinkIcon,
+  ArrowLeft,
   RotateCcw,
   Power,
   CircleHelp,
@@ -49,6 +50,7 @@ import {
   ServerComponentsPanel,
   type ServerComponentActionIntent,
 } from '@/components/servers/ServerComponentsPanel'
+import { ServerCronPanel } from '@/components/servers/ServerCronPanel'
 import { ServerPortsPanel } from '@/components/servers/ServerPortsPanel'
 import { ServerServicesPanel } from '@/components/servers/ServerServicesPanel'
 import { DockerPanel } from '@/components/connect/DockerPanel'
@@ -793,7 +795,10 @@ export function ServersPage() {
         return
       }
       if (kind === 'tunnel_setup') {
-        setWizardServerId(String(item.id ?? ''))
+        const id = String(item.id ?? '')
+        if (!id) return
+        setWizardServerId(id)
+        handleOpenServer(item, 'connection')
         return
       }
       if (kind === 'edit_server') {
@@ -807,6 +812,7 @@ export function ServersPage() {
 
   const handleSelectServer = useCallback(
     (item: Record<string, unknown> | null) => {
+      setWizardServerId(null)
       const currentServerId = selectedServerId ?? server
       if (item === null || String(item.id ?? '') === currentServerId) {
         handleOpenServer(null)
@@ -1209,6 +1215,7 @@ export function ServersPage() {
       const id = String(item.id || '')
       const isTunnelAction = item.connect_type === 'tunnel'
       const detailExpanded = serverDetailDrawerTier === 'full'
+      const showingSetup = wizardServerId === id
       return (
         <div className="relative space-y-4">
           <button
@@ -1230,6 +1237,30 @@ export function ServersPage() {
             </div>
           </div>
 
+          {showingSetup ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3 border-b border-border/40 pb-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 text-muted-foreground"
+                  onClick={() => setWizardServerId(null)}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to Connection
+                </Button>
+              </div>
+              <TunnelSetupWizard
+                serverId={id}
+                embedded={true}
+                onConnected={() => {
+                  setListRefreshKey(current => current + 1)
+                  setWizardServerId(null)
+                }}
+                onClose={() => setWizardServerId(null)}
+              />
+            </div>
+          ) : (
           <Tabs
             value={detailTab}
             onValueChange={value => {
@@ -1265,6 +1296,9 @@ export function ServersPage() {
                 </TabsTrigger>
                 <TabsTrigger value="ports" className={detailTabTriggerClassName}>
                   Ports
+                </TabsTrigger>
+                <TabsTrigger value="cron" className={detailTabTriggerClassName}>
+                  Crontab
                 </TabsTrigger>
                 <TabsTrigger value="systemd" className={detailTabTriggerClassName}>
                   Systemd
@@ -1305,7 +1339,7 @@ export function ServersPage() {
                     Test Connection
                   </DropdownMenuItem>
                   {isTunnelAction && (
-                    <DropdownMenuItem onClick={() => setWizardServerId(id)}>
+                    <DropdownMenuItem onClick={() => executePrimaryAction(item, 'tunnel_setup')}>
                       <Cable className="h-4 w-4" />
                       Tunnel Setup
                     </DropdownMenuItem>
@@ -1385,6 +1419,10 @@ export function ServersPage() {
               <ServerPortsPanel serverId={String(item.id || '')} />
             </TabsContent>
 
+			<TabsContent value="cron" className="pt-4">
+				<ServerCronPanel serverId={String(item.id || '')} />
+			</TabsContent>
+
             <TabsContent value="systemd" className="pt-4">
               <ServerServicesPanel serverId={String(item.id || '')} />
             </TabsContent>
@@ -1399,6 +1437,7 @@ export function ServersPage() {
               />
             </TabsContent>
           </Tabs>
+          )}
         </div>
       )
     },
@@ -1415,6 +1454,7 @@ export function ServersPage() {
       navigate,
       serverDetailDrawerTier,
       tab,
+      wizardServerId,
     ]
   )
 
@@ -1678,18 +1718,12 @@ export function ServersPage() {
                 search: { addOpen: returnType ?? 'server', newItem: String(record.id) },
               })
             } else if (record.connect_type === 'tunnel') {
+              handleOpenServer(record as Record<string, unknown>, 'connection')
               setWizardServerId(String(record.id))
             }
           },
         }}
       />
-      {wizardServerId && (
-        <TunnelSetupWizard
-          serverId={wizardServerId}
-          onConnected={() => setListRefreshKey(current => current + 1)}
-          onClose={() => setWizardServerId(null)}
-        />
-      )}
 
       <Dialog open={connectingOpen} onOpenChange={setConnectingOpen}>
         <DialogContent className="sm:max-w-md">
@@ -1869,6 +1903,7 @@ export const Route = createFileRoute('/_app/_auth/resources/servers')({
       search.tab === 'docker' ||
       search.tab === 'runtime' ||
       search.tab === 'ports' ||
+  		search.tab === 'cron' ||
       search.tab === 'systemd' ||
       search.tab === 'tunnel' ||
       search.tab === 'components' ||

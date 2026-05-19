@@ -26,7 +26,7 @@ tags:
   - name: Connectors
     description: "Connector catalog, template, and native record CRUD APIs."
   - name: Docker
-    description: "Docker operations including compose, image, container, network and volume management."
+    description: "Docker operations including compose, image, container, network, volume, and image-pull activity management."
   - name: Exposures
     description: "Exposure inventory and app-scoped publication inspection APIs."
   - name: IaC
@@ -48,7 +48,7 @@ tags:
   - name: Secrets
     description: "Secret storage, rotation, resolve, and reveal APIs."
   - name: Servers
-    description: "Server registry CRUD and remote operations APIs for connectivity, power, ports, monitor-agent deployment, and systemd management."
+    description: "Server registry CRUD and remote operations APIs for connectivity, power, cron, ports, monitor-agent deployment, and systemd management."
   - name: Service Instances
     description: "Service instance catalog and template APIs for managed external services."
   - name: Services
@@ -4351,7 +4351,7 @@ paths:
     get:
       tags: [Monitoring]
       summary: Get server container telemetry
-      description: "Returns latest and time-series telemetry for containers on one managed server. The optional containerId query parameter may be repeated."
+      description: "Returns latest and time-series telemetry for containers on one managed server. The optional containerId query parameter may be repeated; containerName may be repeated in the same order to enable raw cgroup fallback."
       operationId: get_api_monitor_servers_id_container-telemetry
       parameters:
         - name: id
@@ -4366,6 +4366,12 @@ paths:
           required: false
           schema:
             type: string
+        - name: containerName
+          in: query
+          description: "container name fallback hint; repeat in the same order as containerId"
+          required: false
+          schema:
+            type: string
         - name: window
           in: query
           description: "fixed time window"
@@ -4373,7 +4379,11 @@ paths:
           schema:
             type: string
             enum:
+              - "1m"
+              - "5m"
               - "15m"
+              - "0.1h"
+              - "0.5h"
               - "1h"
               - "5h"
               - "6h"
@@ -6293,6 +6303,42 @@ paths:
                 type: object
                 additionalProperties: true
   /api/servers/{serverId}/docker/image-pull-operations:
+    delete:
+      tags: [Docker]
+      summary: Clear Docker image pull history
+      description: "Deletes all completed, failed, and cancelled image pull records for the specified server. Active pull operations are preserved. Superuser only."
+      operationId: delete_api_servers_serverid_docker_image-pull-operations
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
     get:
       tags: [Docker]
       summary: List Docker image pull operations
@@ -6349,6 +6395,62 @@ paths:
                 type: object
                 additionalProperties: true
   /api/servers/{serverId}/docker/image-pull-operations/{operationId}:
+    delete:
+      tags: [Docker]
+      summary: Delete Docker image pull record
+      description: "Deletes one completed, failed, or cancelled image pull record for the specified server. Active pull operations cannot be deleted. Superuser only."
+      operationId: delete_api_servers_serverid_docker_image-pull-operations_operationid
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+        - name: operationId
+          in: path
+          description: "pull operation ID"
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
     get:
       tags: [Docker]
       summary: Get Docker image pull operation
@@ -6393,6 +6495,69 @@ paths:
                 additionalProperties: true
         "404":
           description: Not Found
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/servers/{serverId}/docker/image-pull-operations/{operationId}/cancel:
+    post:
+      tags: [Docker]
+      summary: Cancel queued Docker image pull
+      description: "Cancels one queued image pull operation before execution starts. Running pull operations cannot be cancelled yet. Superuser only."
+      operationId: post_api_servers_serverid_docker_image-pull-operations_operationid_cancel
+      parameters:
+        - name: serverId
+          in: path
+          description: "server ID"
+          required: true
+          schema:
+            type: string
+        - name: operationId
+          in: path
+          description: "pull operation ID"
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "202":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
           content:
             application/json:
               schema:
@@ -7153,6 +7318,241 @@ paths:
           required: false
           schema:
             type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/servers/{serverId}/ops/cron/jobs:
+    get:
+      tags: [Servers]
+      summary: Get servers by serverId ops cron jobs
+      operationId: get_api_servers_serverid_ops_cron_jobs
+      parameters:
+        - name: serverId
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    post:
+      tags: [Servers]
+      summary: Create or execute servers by serverId ops cron jobs
+      operationId: post_api_servers_serverid_ops_cron_jobs
+      parameters:
+        - name: serverId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/servers/{serverId}/ops/cron/jobs/{entryId}:
+    delete:
+      tags: [Servers]
+      summary: Delete servers by serverId ops cron jobs by entryId
+      operationId: delete_api_servers_serverid_ops_cron_jobs_entryid
+      parameters:
+        - name: serverId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: entryId
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    put:
+      tags: [Servers]
+      summary: Update servers by serverId ops cron jobs by entryId
+      operationId: put_api_servers_serverid_ops_cron_jobs_entryid
+      parameters:
+        - name: serverId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: entryId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/servers/{serverId}/ops/cron/jobs/{entryId}/disable:
+    post:
+      tags: [Servers]
+      summary: Create or execute servers by serverId ops cron jobs by entryId disable
+      operationId: post_api_servers_serverid_ops_cron_jobs_entryid_disable
+      parameters:
+        - name: serverId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: entryId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/servers/{serverId}/ops/cron/jobs/{entryId}/enable:
+    post:
+      tags: [Servers]
+      summary: Create or execute servers by serverId ops cron jobs by entryId enable
+      operationId: post_api_servers_serverid_ops_cron_jobs_entryid_enable
+      parameters:
+        - name: serverId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: entryId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/servers/{serverId}/ops/cron/jobs/{entryId}/test:
+    post:
+      tags: [Servers]
+      summary: Create or execute servers by serverId ops cron jobs by entryId test
+      operationId: post_api_servers_serverid_ops_cron_jobs_entryid_test
+      parameters:
+        - name: serverId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: entryId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
       security:
         - bearerAuth: []  # superuser required
       responses:

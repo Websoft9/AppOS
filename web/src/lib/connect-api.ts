@@ -121,6 +121,39 @@ export interface MonitorAgentDeployOptions {
   apposBaseUrl?: string
 }
 
+export interface ServerCronJob {
+  entryId: string
+  name: string
+  schedule: string
+  command: string
+  path: string
+  enabled: boolean
+  singleRunOnly: boolean
+  source: 'managed' | string
+}
+
+export interface ServerCronJobsResponse {
+  items: ServerCronJob[]
+}
+
+export interface ServerCronJobWritePayload {
+  name: string
+  schedule: string
+  command: string
+  enabled: boolean
+  singleRunOnly: boolean
+}
+
+export interface DeleteServerCronJobResponse {
+  entryId: string
+  deleted: boolean
+}
+
+export interface TestServerCronJobResponse {
+  entryId: string
+  output: string
+}
+
 export type SystemdControlAction = 'start' | 'stop' | 'restart' | 'enable' | 'disable'
 
 export type ServerPortProtocol = 'tcp' | 'udp'
@@ -423,6 +456,78 @@ export async function listSystemdServices(
     { requestKey: null }
   )
   return Array.isArray(response?.services) ? response.services : []
+}
+
+export async function listServerCronJobs(serverId: string): Promise<ServerCronJobsResponse> {
+  return pb.send<ServerCronJobsResponse>(`/api/servers/${serverId}/ops/cron/jobs`, {
+    requestKey: null,
+  })
+}
+
+export async function createServerCronJob(
+  serverId: string,
+  payload: ServerCronJobWritePayload
+): Promise<ServerCronJob> {
+  return pb.send<ServerCronJob>(`/api/servers/${serverId}/ops/cron/jobs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateServerCronJob(
+  serverId: string,
+  entryId: string,
+  payload: ServerCronJobWritePayload
+): Promise<ServerCronJob> {
+  return pb.send<ServerCronJob>(
+    `/api/servers/${serverId}/ops/cron/jobs/${encodeURIComponent(entryId)}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }
+  )
+}
+
+export async function enableServerCronJob(
+  serverId: string,
+  entryId: string
+): Promise<ServerCronJob> {
+  return pb.send<ServerCronJob>(
+    `/api/servers/${serverId}/ops/cron/jobs/${encodeURIComponent(entryId)}/enable`,
+    { method: 'POST' }
+  )
+}
+
+export async function disableServerCronJob(
+  serverId: string,
+  entryId: string
+): Promise<ServerCronJob> {
+  return pb.send<ServerCronJob>(
+    `/api/servers/${serverId}/ops/cron/jobs/${encodeURIComponent(entryId)}/disable`,
+    { method: 'POST' }
+  )
+}
+
+export async function deleteServerCronJob(
+  serverId: string,
+  entryId: string
+): Promise<DeleteServerCronJobResponse> {
+  return pb.send<DeleteServerCronJobResponse>(
+    `/api/servers/${serverId}/ops/cron/jobs/${encodeURIComponent(entryId)}`,
+    { method: 'DELETE' }
+  )
+}
+
+export async function testServerCronJob(
+  serverId: string,
+  entryId: string
+): Promise<TestServerCronJobResponse> {
+  return pb.send<TestServerCronJobResponse>(
+    `/api/servers/${serverId}/ops/cron/jobs/${encodeURIComponent(entryId)}/test`,
+    { method: 'POST' }
+  )
 }
 
 export async function getSystemdStatus(

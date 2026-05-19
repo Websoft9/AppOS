@@ -55,6 +55,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { DockerTextDialog } from '@/components/docker/DockerTextDialog'
 import { getApiErrorMessage } from '@/lib/api-error'
@@ -94,7 +95,7 @@ interface DockerImagePullOperation {
   image_name: string
   normalized_name: string
   phase: 'accepted' | 'executing' | 'succeeded' | 'failed'
-  terminal_status: 'none' | 'success' | 'failed'
+  terminal_status: 'none' | 'success' | 'failed' | 'cancelled'
   failure_phase?: string
   failure_reason?: string
   output?: string
@@ -334,15 +335,31 @@ function formatPullOperationTimestamp(value?: string): string {
 
 function pullOperationTone(operation: DockerImagePullOperation): 'default' | 'secondary' | 'destructive' {
   if (operation.terminal_status === 'failed') return 'destructive'
+  if (operation.terminal_status === 'cancelled') return 'secondary'
   if (operation.terminal_status === 'success') return 'secondary'
   return 'default'
 }
 
 function pullOperationLabel(operation: DockerImagePullOperation): string {
+  if (operation.terminal_status === 'cancelled') return 'Cancelled'
   if (operation.terminal_status === 'failed') return 'Failed'
   if (operation.terminal_status === 'success') return 'Completed'
   if (operation.phase === 'accepted') return 'Queued'
   return 'Pulling'
+}
+
+function canCancelPullOperation(operation: DockerImagePullOperation): boolean {
+  return operation.phase === 'accepted' && operation.terminal_status === 'none'
+}
+
+function pullOperationStatusHint(operation: DockerImagePullOperation): string {
+  if (operation.terminal_status === 'cancelled') return 'Cancelled before execution started.'
+  if (operation.terminal_status === 'failed') {
+    return operation.failure_reason || 'Pull failed.'
+  }
+  if (operation.terminal_status === 'success') return 'Pull completed successfully.'
+  if (operation.phase === 'accepted') return 'Queued and waiting for an available pull slot on this server.'
+  return 'Actively pulling on the target server.'
 }
 
 function scoreReferenceMatch(reference: string, input: string): number {
@@ -392,7 +409,7 @@ function scoreReferenceMatch(reference: string, input: string): number {
 
 export type ImagesTabRef = {
   openPullDialog: (defaultImage?: string) => void
-  openPullHistory: (filter?: 'all' | 'failed') => void
+  openPullHistory: (tab?: 'pulling' | 'recents') => void
   openPruneDialog: () => void
 }
 
@@ -494,10 +511,12 @@ export const ImagesTab = forwardRef<
   const [pullLog, setPullLog] = useState('')
   const [pullOperationId, setPullOperationId] = useState<string | null>(null)
   const [pullHistoryOpen, setPullHistoryOpen] = useState(false)
-  const [pullHistoryFilter, setPullHistoryFilter] = useState<'all' | 'failed'>('all')
-  const [pullViewerOpen, setPullViewerOpen] = useState(false)
+  const [pullHistoryTab, setPullHistoryTab] = useState<'pulling' | 'recents'>('recents')
   const [selectedPullOperation, setSelectedPullOperation] =
     useState<DockerImagePullOperation | null>(null)
+  const [pullOperationActionId, setPullOperationActionId] = useState<string | null>(null)
+  const [clearPullHistoryOpen, setClearPullHistoryOpen] = useState(false)
+  const [clearingPullHistory, setClearingPullHistory] = useState(false)
   const [pullSuggestionsDismissed, setPullSuggestionsDismissed] = useState(false)
   const [registryStatus, setRegistryStatus] = useState<RegistryStatusResult | null>(null)
   const [checkingRegistry, setCheckingRegistry] = useState(false)
@@ -633,7 +652,7 @@ export const ImagesTab = forwardRef<
 
   const openPullOperationViewer = async (operation: DockerImagePullOperation) => {
     setSelectedPullOperation(operation)
-    setPullViewerOpen(true)
+    setPullHistoryOpen(true)
     try {
       const response = (await pb.send(
         dockerApiPath(serverId, `/image-pull-operations/${operation.id}`),
@@ -645,6 +664,60 @@ export const ImagesTab = forwardRef<
         ...operation,
         output: getApiErrorMessage(err, 'Failed to load pull operation'),
       })
+    }
+  }
+
+  const refreshPullOperations = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['docker', 'image-pull-operations', serverId] })
+  }
+
+  const deletePullOperationRecord = async (operation: DockerImagePullOperation) => {
+    try {
+      setActionError(null)
+      setPullOperationActionId(operation.id)
+      await pb.send(dockerApiPath(serverId, `/image-pull-operations/${operation.id}`), { method: 'DELETE' })
+      if (selectedPullOperation?.id === operation.id) {
+        setSelectedPullOperation(null)
+      }
+      await refreshPullOperations()
+    } catch (err) {
+      setActionError(getApiErrorMessage(err, 'Failed to delete pull record'))
+    } finally {
+      setPullOperationActionId(current => (current === operation.id ? null : current))
+    }
+  }
+
+  const clearPullOperationHistory = async () => {
+    try {
+      setActionError(null)
+      setClearingPullHistory(true)
+      await pb.send(dockerApiPath(serverId, '/image-pull-operations'), { method: 'DELETE' })
+      setSelectedPullOperation(null)
+      setClearPullHistoryOpen(false)
+      await refreshPullOperations()
+    } catch (err) {
+      setActionError(getApiErrorMessage(err, 'Failed to clear pull history'))
+    } finally {
+      setClearingPullHistory(false)
+    }
+  }
+
+  const cancelQueuedPullOperation = async (operation: DockerImagePullOperation) => {
+    try {
+      setActionError(null)
+      setPullOperationActionId(operation.id)
+      const response = (await pb.send(
+        dockerApiPath(serverId, `/image-pull-operations/${operation.id}/cancel`),
+        { method: 'POST' }
+      )) as DockerImagePullOperation
+      if (selectedPullOperation?.id === operation.id) {
+        setSelectedPullOperation(response)
+      }
+      await refreshPullOperations()
+    } catch (err) {
+      setActionError(getApiErrorMessage(err, 'Failed to cancel queued pull'))
+    } finally {
+      setPullOperationActionId(current => (current === operation.id ? null : current))
     }
   }
 
@@ -724,8 +797,9 @@ export const ImagesTab = forwardRef<
 
   useImperativeHandle(ref, () => ({
     openPullDialog: (defaultImage?: string) => openPullDialog(defaultImage),
-    openPullHistory: (filter = 'all') => {
-      setPullHistoryFilter(filter)
+    openPullHistory: (tab = 'recents') => {
+      setSelectedPullOperation(null)
+      setPullHistoryTab(tab)
       setPullHistoryOpen(true)
     },
     openPruneDialog: () => setPruneConfirmOpen(true),
@@ -868,12 +942,13 @@ export const ImagesTab = forwardRef<
     () => recentPullOperations.filter(operation => operation.terminal_status !== 'none').slice(0, 6),
     [recentPullOperations]
   )
-  const filteredPullHistory = useMemo(
-    () =>
-      pullHistoryFilter === 'failed'
-        ? recentCompletedPulls.filter(operation => operation.terminal_status === 'failed')
-        : recentCompletedPulls,
-    [pullHistoryFilter, recentCompletedPulls]
+  const executingPullOperations = useMemo(
+    () => activePullOperations.filter(operation => operation.phase !== 'accepted'),
+    [activePullOperations]
+  )
+  const queuedPullOperations = useMemo(
+    () => activePullOperations.filter(operation => operation.phase === 'accepted'),
+    [activePullOperations]
   )
   const recentFailedPullCount = useMemo(
     () => recentCompletedPulls.filter(operation => operation.terminal_status === 'failed').length,
@@ -1025,6 +1100,7 @@ export const ImagesTab = forwardRef<
   const allSelectableChecked =
     selectableIds.length > 0 && selectableIds.every(id => selectedIds.includes(id))
   const someSelectableChecked = selectableIds.some(id => selectedIds.includes(id))
+  const hasActiveFilters = filter.trim().length > 0 || usageFilter !== 'all'
 
   const toggleSelectAll = () => {
     if (selectableIds.length === 0) return
@@ -1084,7 +1160,10 @@ export const ImagesTab = forwardRef<
               onChange={e => setFilter(e.target.value)}
             />
             <select
-              className="h-9 rounded-md border bg-background px-3 text-sm"
+              className={cn(
+                'h-9 rounded-md border bg-background px-3 text-sm',
+                usageFilter !== 'all' && 'border-primary/40 bg-primary/5 text-primary'
+              )}
               value={usageFilter}
               onChange={e => setUsageFilter(e.target.value as 'all' | 'used' | 'unused')}
             >
@@ -1120,6 +1199,23 @@ export const ImagesTab = forwardRef<
           </div>
         </>
       )}
+      {hasActiveFilters && (
+        <div className="flex flex-wrap items-center justify-end gap-2 rounded-lg border border-dashed bg-muted/10 px-3 py-2 shrink-0">
+          {filter.trim() ? <Badge variant="outline">Search: {filter.trim()}</Badge> : null}
+          {usageFilter === 'used' ? <Badge variant="outline">Only used images</Badge> : null}
+          {usageFilter === 'unused' ? <Badge variant="outline">Only unused images</Badge> : null}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setFilter('')
+              setUsageFilter('all')
+            }}
+          >
+            Clear filters
+          </Button>
+        </div>
+      )}
       {embeddedInWorkspace && selectedIds.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 shrink-0 pb-1">
           <Button
@@ -1154,7 +1250,7 @@ export const ImagesTab = forwardRef<
                 <TableHead className="min-w-[100px] text-xs font-medium text-foreground">
                   Tag
                 </TableHead>
-                <TableHead className="min-w-[150px] text-xs font-medium text-foreground">
+                <TableHead className="w-[160px] min-w-[160px] text-left text-xs font-medium text-foreground">
                   Containers
                 </TableHead>
                 <TableHead className="min-w-[80px]">
@@ -1226,20 +1322,22 @@ export const ImagesTab = forwardRef<
                         {img.ID?.substring(0, 12)}
                       </TableCell>
                       <TableCell className="py-3 text-xs">{img.Tag}</TableCell>
-                      <TableCell className="py-3 text-xs">
-                        {linkedContainers.length > 0 ? (
-                          <Button
-                            variant="link"
-                            className="h-auto p-0 text-left text-xs"
-                            title={linkedContainers.join(', ')}
-                            onClick={() => onOpenContainerFilter?.(imageRef(img) || img.Repository, linkedContainers)}
-                          >
-                            <span className="truncate">{linkedContainers.length} container{linkedContainers.length > 1 ? 's' : ''}</span>
-                            <ExternalLink className="ml-1 h-3 w-3" />
-                          </Button>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
+                      <TableCell className="w-[160px] min-w-[160px] py-3 text-left text-xs align-middle">
+                        <div className="flex h-8 items-center">
+                          {linkedContainers.length > 0 ? (
+                            <button
+                              type="button"
+                              className="inline-flex h-8 w-full items-center justify-start gap-1 text-left text-xs text-primary hover:underline"
+                              title={linkedContainers.join(', ')}
+                              onClick={() => onOpenContainerFilter?.(imageRef(img) || img.Repository, linkedContainers)}
+                            >
+                              <span className="truncate">{linkedContainers.length} container{linkedContainers.length > 1 ? 's' : ''}</span>
+                              <ExternalLink className="ml-1 h-3 w-3" />
+                            </button>
+                          ) : (
+                            <span className="inline-flex h-8 items-center text-muted-foreground">-</span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="py-3 text-xs">{img.Size}</TableCell>
                       <TableCell className="py-3 text-xs text-muted-foreground">{img.CreatedSince}</TableCell>
@@ -1459,7 +1557,7 @@ export const ImagesTab = forwardRef<
           }
         }}
       >
-        <DialogContent className="w-[min(92vw,48rem)] max-w-3xl overflow-hidden">
+        <DialogContent className="max-w-2xl overflow-hidden">
           <DialogHeader>
             <DialogTitle>Pull image</DialogTitle>
             <DialogDescription>
@@ -1603,16 +1701,46 @@ export const ImagesTab = forwardRef<
         </DialogContent>
       </Dialog>
 
-      <Dialog open={pullViewerOpen} onOpenChange={setPullViewerOpen}>
-        <DialogContent className="max-w-3xl overflow-hidden">
+      <Dialog
+        open={pullHistoryOpen}
+        onOpenChange={open => {
+          setPullHistoryOpen(open)
+          if (!open) {
+            setSelectedPullOperation(null)
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl overflow-hidden">
           <DialogHeader>
-            <DialogTitle>Image pull details</DialogTitle>
+            <DialogTitle>{selectedPullOperation ? 'Image pull details' : 'Image pull activity'}</DialogTitle>
             <DialogDescription>
-              {selectedPullOperation?.image_name || 'Selected image pull operation'}
+              {selectedPullOperation
+                ? selectedPullOperation.image_name || 'Selected image pull operation'
+                : 'Review currently running pulls and recent completed history.'}
             </DialogDescription>
           </DialogHeader>
-          {selectedPullOperation && (
+          {selectedPullOperation ? (
             <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => setSelectedPullOperation(null)}>
+                  <ChevronLeft className="mr-1 h-4 w-4" /> Back to list
+                </Button>
+                {canCancelPullOperation(selectedPullOperation) ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2 text-xs"
+                    disabled={pullOperationActionId === selectedPullOperation.id}
+                    onClick={() => void cancelQueuedPullOperation(selectedPullOperation)}
+                  >
+                    {pullOperationActionId === selectedPullOperation.id ? (
+                      <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                    ) : null}
+                    Cancel queued pull
+                  </Button>
+                ) : null}
+              </div>
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <Badge variant={pullOperationTone(selectedPullOperation)}>
                   {pullOperationLabel(selectedPullOperation)}
@@ -1620,8 +1748,11 @@ export const ImagesTab = forwardRef<
                 <span>Started {formatPullOperationTimestamp(selectedPullOperation.created)}</span>
                 <span>Updated {formatPullOperationTimestamp(selectedPullOperation.updated)}</span>
               </div>
+              <p className="text-sm text-muted-foreground">
+                {pullOperationStatusHint(selectedPullOperation)}
+              </p>
               {selectedPullOperation.failure_reason && (
-                <Alert variant="destructive">
+                <Alert variant={selectedPullOperation.terminal_status === 'failed' ? 'destructive' : 'default'}>
                   <AlertDescription>{selectedPullOperation.failure_reason}</AlertDescription>
                 </Alert>
               )}
@@ -1631,84 +1762,200 @@ export const ImagesTab = forwardRef<
                 </pre>
               </ScrollArea>
             </div>
+          ) : (
+            <Tabs
+              value={pullHistoryTab}
+              onValueChange={value => setPullHistoryTab(value as 'pulling' | 'recents')}
+              className="min-h-0 flex flex-1 flex-col"
+            >
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="pulling">Pulling</TabsTrigger>
+                <TabsTrigger value="recents">Recents</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="pulling" className="mt-4 min-h-0 flex-1">
+                <ScrollArea className="h-[360px] pr-3">
+                  <div className="space-y-4 pr-2">
+                    {activePullOperations.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No active pull operations.</p>
+                    ) : (
+                      <>
+                        {executingPullOperations.length > 0 ? (
+                          <div className="space-y-2">
+                            <div>
+                              <p className="text-sm font-medium">Running now</p>
+                              <p className="text-xs text-muted-foreground">These pulls are actively downloading on the target server.</p>
+                            </div>
+                            {executingPullOperations.map(operation => (
+                              <div
+                                key={operation.id}
+                                className="flex items-start justify-between gap-3 rounded-md border bg-background px-3 py-2"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => void openPullOperationViewer(operation)}
+                                  className="min-w-0 flex-1 text-left hover:text-primary"
+                                >
+                                  <div className="truncate text-sm font-medium">{operation.image_name}</div>
+                                  <div className="mt-1 text-xs text-muted-foreground">
+                                    {pullOperationStatusHint(operation)} Updated {formatPullOperationTimestamp(operation.updated)}
+                                  </div>
+                                </button>
+                                <div className="flex shrink-0 items-center gap-2 self-center">
+                                  <Badge variant={pullOperationTone(operation)}>{pullOperationLabel(operation)}</Badge>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        {queuedPullOperations.length > 0 ? (
+                          <div className="space-y-2">
+                            <div>
+                              <p className="text-sm font-medium">Queued</p>
+                              <p className="text-xs text-muted-foreground">These pulls are waiting for an available pull slot on this server.</p>
+                            </div>
+                            {queuedPullOperations.map(operation => (
+                              <div
+                                key={operation.id}
+                                className="flex items-start justify-between gap-3 rounded-md border bg-background px-3 py-2"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => void openPullOperationViewer(operation)}
+                                  className="min-w-0 flex-1 text-left hover:text-primary"
+                                >
+                                  <div className="truncate text-sm font-medium">{operation.image_name}</div>
+                                  <div className="mt-1 text-xs text-muted-foreground">
+                                    {pullOperationStatusHint(operation)} Updated {formatPullOperationTimestamp(operation.updated)}
+                                  </div>
+                                </button>
+                                <div className="flex shrink-0 items-center gap-2 self-center">
+                                  <Badge variant={pullOperationTone(operation)}>{pullOperationLabel(operation)}</Badge>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 px-2 text-xs"
+                                    disabled={pullOperationActionId === operation.id}
+                                    onClick={() => void cancelQueuedPullOperation(operation)}
+                                  >
+                                    {pullOperationActionId === operation.id ? (
+                                      <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                                    ) : null}
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                      </>
+                    )}
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+
+              <TabsContent value="recents" className="mt-4 min-h-0 flex-1">
+                <div className="mb-3 flex items-center justify-end">
+                  {recentCompletedPulls.length > 0 ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2 text-xs"
+                      onClick={() => setClearPullHistoryOpen(true)}
+                    >
+                      Clear all
+                    </Button>
+                  ) : null}
+                </div>
+                <ScrollArea className="h-[320px] pr-3">
+                  <div className="space-y-2 pr-2">
+                    {recentCompletedPulls.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No recent pull history.</p>
+                    ) : (
+                      recentCompletedPulls.map(operation => (
+                        <div
+                          key={operation.id}
+                          className="flex items-start justify-between gap-3 rounded-md border bg-background px-3 py-2"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => void openPullOperationViewer(operation)}
+                            className="min-w-0 flex-1 text-left hover:text-primary"
+                          >
+                            <div className="truncate text-sm font-medium">{operation.image_name}</div>
+                            <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                              {operation.failure_reason || `Updated ${formatPullOperationTimestamp(operation.updated)}`}
+                            </div>
+                          </button>
+                          <div className="flex shrink-0 items-center gap-2 self-center">
+                            <Badge variant={pullOperationTone(operation)}>{pullOperationLabel(operation)}</Badge>
+                            {operation.terminal_status === 'failed' ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-2 text-xs"
+                                onClick={() => {
+                                  setPullHistoryOpen(false)
+                                  openPullDialog(operation.image_name)
+                                }}
+                              >
+                                Retry pull
+                              </Button>
+                            ) : null}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 px-0 text-muted-foreground"
+                              disabled={pullOperationActionId === operation.id}
+                              onClick={() => void deletePullOperationRecord(operation)}
+                              aria-label={`Delete pull record for ${operation.image_name}`}
+                              title="Delete pull record"
+                            >
+                              {pullOperationActionId === operation.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+            </Tabs>
           )}
         </DialogContent>
       </Dialog>
 
-      <Dialog open={pullHistoryOpen} onOpenChange={setPullHistoryOpen}>
-        <DialogContent className="max-w-3xl overflow-hidden">
-          <DialogHeader>
-            <DialogTitle>Recent image pulls</DialogTitle>
-            <DialogDescription>
-              Completed and failed pull operations for this server.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span>{recentCompletedPulls.length} recent item{recentCompletedPulls.length === 1 ? '' : 's'}</span>
-              {recentFailedPullCount > 0 && <Badge variant="destructive">{recentFailedPullCount} failed</Badge>}
-            </div>
-            <select
-              value={pullHistoryFilter}
-              onChange={event => setPullHistoryFilter(event.target.value as 'all' | 'failed')}
-              className="h-8 rounded-md border bg-background px-2 text-xs"
-              aria-label="Filter recent pull history"
+      <AlertDialog open={clearPullHistoryOpen} onOpenChange={setClearPullHistoryOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear recent pull history?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This deletes pull records for this server only. It does not remove any images.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={clearingPullHistory}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={event => {
+                event.preventDefault()
+                void clearPullOperationHistory()
+              }}
             >
-              <option value="all">All recent</option>
-              <option value="failed">Failed only</option>
-            </select>
-          </div>
-          <ScrollArea className="h-[360px] pr-1">
-            <div className="space-y-2">
-              {filteredPullHistory.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  {pullHistoryFilter === 'failed'
-                    ? 'No failed pull operations in recent history.'
-                    : 'No recent pull history.'}
-                </p>
-              ) : (
-                filteredPullHistory.map(operation => (
-                  <div
-                    key={operation.id}
-                    className="flex items-start gap-3 rounded-md border bg-background px-3 py-2"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPullHistoryOpen(false)
-                        void openPullOperationViewer(operation)
-                      }}
-                      className="flex min-w-0 flex-1 items-start justify-between gap-3 text-left hover:text-primary"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">{operation.image_name}</div>
-                        <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                          {operation.failure_reason || `Updated ${formatPullOperationTimestamp(operation.updated)}`}
-                        </div>
-                      </div>
-                      <Badge variant={pullOperationTone(operation)}>{pullOperationLabel(operation)}</Badge>
-                    </button>
-                    {operation.terminal_status === 'failed' && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-8 shrink-0 px-2 text-xs"
-                        onClick={() => {
-                          setPullHistoryOpen(false)
-                          openPullDialog(operation.image_name)
-                        }}
-                      >
-                        Retry pull
-                      </Button>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
+              {clearingPullHistory ? 'Clearing...' : 'Clear all'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <DockerTextDialog
         open={!!inspectDialogImage}

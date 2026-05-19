@@ -6,6 +6,7 @@ export type ServerDetailTab =
   | 'runtime'
   | 'tunnel'
   | 'ports'
+  | 'cron'
   | 'systemd'
   | 'components'
 

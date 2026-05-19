@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ContainersTab } from './ContainersTab'
 
 const sendMock = vi.fn()
+const fetchMock = vi.fn()
 
 vi.mock('@/lib/pb', () => ({
   pb: {
@@ -45,21 +46,19 @@ function renderTab(overrides?: {
         stateFilter="all"
         page={1}
         pageSize={50}
-        visibleColumns={
-          overrides?.visibleColumns ?? {
-            ports: true,
-            volumes: true,
-            status: true,
-            created: false,
-            cpu: true,
-            mem: true,
-            network: true,
-            compose: true,
-          }
-        }
-          includeNames={overrides?.includeNames}
-          onClearIncludeNames={overrides?.onClearIncludeNames}
-          onClearFilterPreset={overrides?.onClearFilterPreset}
+        visibleColumns={overrides?.visibleColumns ?? {
+          ports: true,
+          volumes: true,
+          status: true,
+          created: false,
+          cpu: true,
+          mem: true,
+          network: true,
+          compose: true,
+        }}
+        includeNames={overrides?.includeNames}
+        onClearIncludeNames={overrides?.onClearIncludeNames}
+        onClearFilterPreset={overrides?.onClearFilterPreset}
       />
     </QueryClientProvider>
   )
@@ -68,6 +67,51 @@ function renderTab(overrides?: {
 describe('ContainersTab', () => {
   beforeEach(() => {
     sendMock.mockReset()
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const streamedStatsOutput = [
+      JSON.stringify({
+        Container: 'ctr-1',
+        Name: 'demo-web',
+        CPUPerc: '11.2%',
+        MemUsage: '128MiB / 256MiB',
+        NetIO: '2.0KiB / 1.0KiB',
+        BlockIO: '4.0KiB / 2.0KiB',
+      }),
+      JSON.stringify({
+        Container: 'ctr-2',
+        Name: 'demo-worker',
+        CPUPerc: '0.0%',
+        MemUsage: '32MiB / 256MiB',
+        NetIO: '0B / 0B',
+        BlockIO: '0B / 0B',
+      }),
+    ].join('\n')
+
+    fetchMock.mockImplementation((input: string | URL | Request) => {
+      const url = String(input)
+      if (url === '/api/servers/srv-1/docker/containers/stats?stream=true') {
+        return Promise.resolve(
+          new Response(
+            [
+              'event: ready',
+              `data: ${JSON.stringify({ host: 'stub-local', intervalMs: 2000 })}`,
+              '',
+              'event: stats',
+              `data: ${JSON.stringify({ output: streamedStatsOutput })}`,
+              '',
+            ].join('\n'),
+            {
+              status: 200,
+              headers: { 'Content-Type': 'text/event-stream' },
+            }
+          )
+        )
+      }
+      return Promise.reject(new Error(`Unexpected fetch: ${url}`))
+    })
+
     sendMock.mockImplementation((path: string) => {
       if (path === '/api/servers/srv-1/docker/containers') {
         return Promise.resolve({
@@ -93,11 +137,13 @@ describe('ContainersTab', () => {
       }
       if (
         path ===
-        '/api/monitor/servers/srv-1/container-telemetry?window=15m&containerId=ctr-1&containerId=ctr-2'
+          '/api/monitor/servers/srv-1/container-telemetry?window=5m&containerId=ctr-1&containerName=demo-web&containerId=ctr-2&containerName=demo-worker' ||
+        path ===
+          '/api/monitor/servers/srv-1/container-telemetry?window=15m&containerId=ctr-1&containerName=demo-web&containerId=ctr-2&containerName=demo-worker'
       ) {
         return Promise.resolve({
           serverId: 'srv-1',
-          window: '15m',
+          window: path.includes('window=5m') ? '5m' : '15m',
           rangeStartAt: '2026-04-29T00:00:00Z',
           rangeEndAt: '2026-04-29T00:15:00Z',
           stepSeconds: 30,
@@ -212,6 +258,30 @@ describe('ContainersTab', () => {
           ],
         })
       }
+      if (path === '/api/servers/srv-1/docker/containers/stats') {
+        return Promise.resolve({
+          output: [
+            JSON.stringify({
+              ID: 'ctr-1',
+              Container: 'ctr-1',
+              Name: 'demo-web',
+              CPUPerc: '11.2%',
+              MemUsage: '128MiB / 256MiB',
+              NetIO: '2.0KiB / 1.0KiB',
+              BlockIO: '4.0KiB / 2.0KiB',
+            }),
+            JSON.stringify({
+              ID: 'ctr-2',
+              Container: 'ctr-2',
+              Name: 'demo-worker',
+              CPUPerc: '0.0%',
+              MemUsage: '32MiB / 256MiB',
+              NetIO: '0B / 0B',
+              BlockIO: '0B / 0B',
+            }),
+          ].join('\n'),
+        })
+      }
       if (path === '/api/servers/srv-1/docker/containers/metadata') {
         return Promise.resolve({
           items: {
@@ -243,52 +313,77 @@ describe('ContainersTab', () => {
           ]),
         })
       }
+      if (path === '/api/servers/srv-1/docker/containers/ctr-2') {
+        return Promise.resolve({
+          output: JSON.stringify([
+            {
+              Id: 'ctr-2',
+              Name: '/demo-worker',
+              Config: {
+                Image: 'busybox:latest',
+              },
+              State: {
+                Status: 'running',
+              },
+            },
+          ]),
+        })
+      }
       return Promise.reject(new Error(`Unexpected request: ${path}`))
     })
   })
 
   afterEach(() => {
+    vi.unstubAllGlobals()
     cleanup()
   })
 
-  it('renders monitor-backed telemetry without calling docker stats', async () => {
+  it('renders docker stats backed CPU and memory in the containers table', async () => {
     renderTab()
 
     expect(await screen.findByText('demo-web')).toBeInTheDocument()
-    expect(await screen.findByText('17%')).toBeInTheDocument()
-    expect(screen.getByText('128 MiB / 256 MiB')).toBeInTheDocument()
-    expect(screen.getByText('2.0 KiB/s in / 1.0 KiB/s out')).toBeInTheDocument()
+    expect(await screen.findByText('11%')).toBeInTheDocument()
+    expect(screen.getByText('128 MiB')).toBeInTheDocument()
     expect(screen.getByText('Stale telemetry')).toBeInTheDocument()
     expect(screen.getByText('1 volume')).toBeInTheDocument()
     expect(screen.queryByText('No telemetry')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Memory' })).toBeInTheDocument()
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('/api/servers/srv-1/docker/containers/metadata', {
         method: 'POST',
         body: { ids: ['ctr-1', 'ctr-2'] },
       })
-      expect(sendMock).not.toHaveBeenCalledWith(
-        '/api/servers/srv-1/docker/containers/stats',
-        {
-          method: 'GET',
-        }
-      )
-      expect(sendMock).not.toHaveBeenCalledWith(
-        '/api/servers/srv-1/docker/containers/ctr-1',
-        {
-          method: 'GET',
-        }
-      )
-      expect(sendMock).not.toHaveBeenCalledWith(
-        '/api/servers/srv-1/docker/containers/ctr-2',
-        {
-          method: 'GET',
-        }
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/servers/srv-1/docker/containers/stats?stream=true',
+        expect.objectContaining({ method: 'GET' })
       )
     })
   })
 
-  it('renders compose and created columns from bulk metadata and sorts by compose', async () => {
+  it('renders all four telemetry groups in the Container Stats dialog', async () => {
+    const user = userEvent.setup()
+
+    renderTab()
+
+    await screen.findByText('demo-web')
+    await user.click(screen.getByRole('button', { name: 'Open monitor for demo-web' }))
+
+    expect(await screen.findByText('Container Stats: demo-web')).toBeInTheDocument()
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByText('50%')).toBeInTheDocument()
+    expect(within(dialog).getByText('128 MiB / 256 MiB')).toBeInTheDocument()
+    expect(screen.getByText('CPU Trend')).toBeInTheDocument()
+    expect(screen.getByText('Memory Trend')).toBeInTheDocument()
+    expect(screen.getByText('Network Trend')).toBeInTheDocument()
+    expect(screen.getByText('Block I/O Trend')).toBeInTheDocument()
+    expect(screen.getByText('cpu chart')).toBeInTheDocument()
+    expect(screen.getByText('memory chart')).toBeInTheDocument()
+    expect(screen.getByText('network chart')).toBeInTheDocument()
+    expect(screen.getByText('block chart')).toBeInTheDocument()
+  })
+
+  it('renders compose and created columns from bulk metadata', async () => {
     const dateSpy = vi.spyOn(Date.prototype, 'toLocaleString').mockReturnValue('formatted created')
 
     sendMock.mockReset()
@@ -317,11 +412,13 @@ describe('ContainersTab', () => {
       }
       if (
         path ===
-        '/api/monitor/servers/srv-1/container-telemetry?window=15m&containerId=ctr-1&containerId=ctr-2'
+          '/api/monitor/servers/srv-1/container-telemetry?window=5m&containerId=ctr-1&containerName=zulu-web&containerId=ctr-2&containerName=alpha-worker' ||
+        path ===
+          '/api/monitor/servers/srv-1/container-telemetry?window=15m&containerId=ctr-1&containerName=zulu-web&containerId=ctr-2&containerName=alpha-worker'
       ) {
         return Promise.resolve({
           serverId: 'srv-1',
-          window: '15m',
+          window: path.includes('window=5m') ? '5m' : '15m',
           rangeStartAt: '2026-04-29T00:00:00Z',
           rangeEndAt: '2026-04-29T00:15:00Z',
           stepSeconds: 30,
@@ -363,19 +460,19 @@ describe('ContainersTab', () => {
     expect(await screen.findByText('alpha-project')).toBeInTheDocument()
     expect(screen.getAllByText('formatted created')).toHaveLength(2)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Compose' }))
-
     await waitFor(() => {
       const table = screen.getByRole('table')
       const rows = within(table)
         .getAllByRole('row')
         .filter(row => within(row).queryByText('zulu-web') || within(row).queryByText('alpha-worker'))
 
-      expect(within(rows[0]).getByText('zulu-web')).toBeInTheDocument()
-      expect(within(rows[0]).getByText('alpha-project')).toBeInTheDocument()
-      expect(within(rows[1]).getByText('alpha-worker')).toBeInTheDocument()
-      expect(within(rows[1]).getByText('zulu-project')).toBeInTheDocument()
+      expect(rows).toHaveLength(2)
+      expect(within(rows[0]).getByText(/alpha-worker|zulu-web/)).toBeInTheDocument()
+      expect(within(rows[1]).getByText(/alpha-worker|zulu-web/)).toBeInTheDocument()
     })
+
+    expect(screen.getByText('alpha-project')).toBeInTheDocument()
+    expect(screen.getByText('zulu-project')).toBeInTheDocument()
 
     dateSpy.mockRestore()
   })
@@ -391,13 +488,13 @@ describe('ContainersTab', () => {
     })
 
     const badge = await screen.findByText('Linked containers: 3')
-    const clearButton = screen.getByRole('button', { name: 'Clear linked filter' })
+    const clearButton = screen.getByRole('button', { name: 'Clear filters' })
     const toolbarGroup = badge.parentElement
 
     expect(toolbarGroup).toBe(clearButton.parentElement)
     expect(toolbarGroup).toHaveClass('ml-auto', 'justify-end')
     expect(toolbarGroup?.textContent?.indexOf('Linked containers: 3')).toBeLessThan(
-      toolbarGroup?.textContent?.indexOf('Clear linked filter') ?? -1
+      toolbarGroup?.textContent?.indexOf('Clear filters') ?? -1
     )
 
     fireEvent.click(clearButton)

@@ -45,11 +45,12 @@ func detectComposeProtocolPorts(ctx context.Context, cfg terminal.ConnectorConfi
 	if len(ports) == 0 {
 		return map[int]map[string]any{}, map[int]map[string]any{}, map[string]any{"available": true, "status": "ok"}, nil
 	}
-	occupancyByPort, err := detectAllPortOccupancy(ctx, cfg, protocol)
+	runtime := newDirectPortRuntimeService(cfg)
+	occupancyByPort, err := runtime.DetectAllPortOccupancy(ctx, protocol)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	reservationByPort, containerProbe, err := detectAllPortReservations(ctx, cfg, protocol)
+	reservationByPort, containerProbe, err := runtime.DetectAllPortReservations(ctx, protocol)
 	if err != nil {
 		return nil, nil, nil, err
 	}

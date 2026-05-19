@@ -2,10 +2,8 @@ package routes
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"net/http"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -13,10 +11,9 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/websoft9/appos/backend/domain/audit"
+	serversvc "github.com/websoft9/appos/backend/domain/resource/servers/service"
 	"github.com/websoft9/appos/backend/domain/terminal"
 )
-
-var systemdAnsiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 // ════════════════════════════════════════════════════════════
 // Systemd service management handlers (Story 20.4)
@@ -42,14 +39,24 @@ func handleSystemdServices(e *core.RequestEvent) error {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runnerErr.Error()})
 	}
 	defer cleanup()
+	runtime := newSystemdRuntimeService(run)
 
-	raw, runErr := run(e.Request.Context(), "systemctl list-units --type=service --all --plain --no-legend --no-pager", 20*time.Second)
+	keyword := strings.ToLower(strings.TrimSpace(e.Request.URL.Query().Get("keyword")))
+	serviceItems, runErr := runtime.ListServices(e.Request.Context(), keyword)
 	if runErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error()})
 	}
 
-	keyword := strings.ToLower(strings.TrimSpace(e.Request.URL.Query().Get("keyword")))
-	services := parseSystemdServicesOutput(raw, keyword)
+	services := make([]map[string]string, 0, len(serviceItems))
+	for _, item := range serviceItems {
+		services = append(services, map[string]string{
+			"name":         item.Name,
+			"load_state":   item.LoadState,
+			"active_state": item.ActiveState,
+			"sub_state":    item.SubState,
+			"description":  item.Description,
+		})
+	}
 
 	userID, _, ip, _ := clientInfo(e)
 	audit.Write(e.App, audit.Entry{
@@ -65,103 +72,9 @@ func handleSystemdServices(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{"server_id": serverID, "services": services})
 }
 
-func parseSystemdServicesOutput(raw, keyword string) []map[string]string {
-	services := make([]map[string]string, 0)
-	for _, line := range strings.Split(raw, "\n") {
-		line = strings.TrimSpace(systemdAnsiPattern.ReplaceAllString(line, ""))
-		if line == "" {
-			continue
-		}
-		parts := normalizeSystemdListFields(strings.Fields(line))
-		if len(parts) < 4 {
-			continue
-		}
-
-		name := ""
-		loadState := ""
-		activeState := ""
-		subState := ""
-		desc := ""
-
-		if isSystemdServiceUnit(parts[0]) && isSystemdLoadState(parts[1]) && isSystemdActiveState(parts[2]) && isSystemdSubState(parts[3]) {
-			name = parts[0]
-			loadState = parts[1]
-			activeState = parts[2]
-			subState = parts[3]
-			if len(parts) > 4 {
-				desc = strings.Join(parts[4:], " ")
-			}
-		} else if len(parts) == 4 && isSystemdLoadState(parts[0]) && isSystemdActiveState(parts[1]) && isSystemdSubState(parts[2]) && isSystemdServiceUnit(parts[3]) {
-			loadState = parts[0]
-			activeState = parts[1]
-			subState = parts[2]
-			name = parts[3]
-		} else {
-			continue
-		}
-
-		if keyword != "" && !strings.Contains(strings.ToLower(name), keyword) && !strings.Contains(strings.ToLower(desc), keyword) {
-			continue
-		}
-		services = append(services, map[string]string{
-			"name":         name,
-			"load_state":   loadState,
-			"active_state": activeState,
-			"sub_state":    subState,
-			"description":  desc,
-		})
-	}
-	return services
-}
-
-func normalizeSystemdListFields(fields []string) []string {
-	normalized := make([]string, 0, len(fields))
-	for _, field := range fields {
-		field = strings.TrimSpace(field)
-		field = strings.TrimLeft(field, "●○*•")
-		field = strings.TrimSpace(field)
-		if field == "" {
-			continue
-		}
-		normalized = append(normalized, field)
-	}
-	return normalized
-}
-
-func isSystemdLoadState(value string) bool {
-	switch strings.ToLower(value) {
-	case "loaded", "not-found", "bad-setting", "error", "masked", "merged", "stub":
-		return true
-	default:
-		return false
-	}
-}
-
-func isSystemdServiceUnit(value string) bool {
-	return strings.HasSuffix(strings.ToLower(strings.TrimSpace(value)), ".service")
-}
-
-func isSystemdActiveState(value string) bool {
-	switch strings.ToLower(value) {
-	case "active", "reloading", "inactive", "failed", "activating", "deactivating", "maintenance":
-		return true
-	default:
-		return false
-	}
-}
-
-func isSystemdSubState(value string) bool {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "running", "dead", "exited", "failed", "start", "start-pre", "start-post", "stop", "stop-sigterm", "stop-sigkill", "stop-post", "auto-restart", "listening", "waiting", "elapsed", "plugged", "mounted", "remounting", "unmounting", "condition", "reload", "reload-signal", "reload-notify", "final-sigterm", "final-sigkill":
-		return true
-	default:
-		return false
-	}
-}
-
 func handleSystemdServiceStatus(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
-	service, err := normalizeServiceName(e.Request.PathValue("service"))
+	service, err := serversvc.NormalizeServiceName(e.Request.PathValue("service"))
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
@@ -180,27 +93,11 @@ func handleSystemdServiceStatus(e *core.RequestEvent) error {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runnerErr.Error()})
 	}
 	defer cleanup()
+	runtime := newSystemdRuntimeService(run)
 
-	showCmd := fmt.Sprintf("systemctl show %s --no-pager --property=Id,Description,LoadState,ActiveState,SubState,UnitFileState,MainPID,ExecMainStatus,ExecMainCode,StateChangeTimestamp,FragmentPath", service)
-	showRaw, runErr := run(e.Request.Context(), showCmd, 20*time.Second)
+	statusResult, runErr := runtime.Status(e.Request.Context(), service)
 	if runErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error()})
-	}
-
-	statusCmd := fmt.Sprintf("systemctl status %s --no-pager --full --lines=40", service)
-	statusRaw, _ := run(e.Request.Context(), statusCmd, 20*time.Second)
-
-	details := make(map[string]string)
-	for _, line := range strings.Split(showRaw, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-		details[parts[0]] = parts[1]
 	}
 
 	userID, _, ip, _ := clientInfo(e)
@@ -217,14 +114,14 @@ func handleSystemdServiceStatus(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{
 		"server_id":   serverID,
 		"service":     service,
-		"status":      details,
-		"status_text": statusRaw,
+		"status":      statusResult.Properties,
+		"status_text": statusResult.StatusText,
 	})
 }
 
 func handleSystemdServiceLogs(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
-	service, err := normalizeServiceName(e.Request.PathValue("service"))
+	service, err := serversvc.NormalizeServiceName(e.Request.PathValue("service"))
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
@@ -256,20 +153,11 @@ func handleSystemdServiceLogs(e *core.RequestEvent) error {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runnerErr.Error()})
 	}
 	defer cleanup()
+	runtime := newSystemdRuntimeService(run)
 
-	cmd := fmt.Sprintf("journalctl -u %s -n %d --no-pager --output=short-iso", service, lines)
-	raw, runErr := run(e.Request.Context(), cmd, 25*time.Second)
+	logsResult, runErr := runtime.Logs(e.Request.Context(), service, lines)
 	if runErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error()})
-	}
-
-	entries := make([]string, 0)
-	for _, line := range strings.Split(raw, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
-		}
-		entries = append(entries, line)
 	}
 
 	userID, _, ip, _ := clientInfo(e)
@@ -286,15 +174,15 @@ func handleSystemdServiceLogs(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, map[string]any{
 		"server_id": serverID,
 		"service":   service,
-		"lines":     lines,
-		"entries":   entries,
-		"raw":       raw,
+		"lines":     logsResult.Lines,
+		"entries":   logsResult.Entries,
+		"raw":       logsResult.Raw,
 	})
 }
 
 func handleSystemdServiceContent(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
-	service, err := normalizeServiceName(e.Request.PathValue("service"))
+	service, err := serversvc.NormalizeServiceName(e.Request.PathValue("service"))
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
@@ -313,9 +201,9 @@ func handleSystemdServiceContent(e *core.RequestEvent) error {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runnerErr.Error()})
 	}
 	defer cleanup()
+	runtime := newSystemdRuntimeService(run)
 
-	cmd := fmt.Sprintf("systemctl cat %s --no-pager", service)
-	raw, runErr := run(e.Request.Context(), cmd, 20*time.Second)
+	raw, runErr := runtime.Content(e.Request.Context(), service)
 	if runErr != nil {
 		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error()})
 	}
@@ -340,7 +228,7 @@ func handleSystemdServiceContent(e *core.RequestEvent) error {
 
 func handleSystemdServiceAction(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
-	service, err := normalizeServiceName(e.Request.PathValue("service"))
+	service, err := serversvc.NormalizeServiceName(e.Request.PathValue("service"))
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
@@ -352,16 +240,9 @@ func handleSystemdServiceAction(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": "invalid request body"})
 	}
 
-	action := strings.ToLower(strings.TrimSpace(body.Action))
-	allowed := map[string]bool{
-		"start":   true,
-		"stop":    true,
-		"restart": true,
-		"enable":  true,
-		"disable": true,
-	}
-	if !allowed[action] {
-		return e.JSON(http.StatusBadRequest, map[string]any{"message": "action must be start, stop, restart, enable, or disable"})
+	action, err := serversvc.ValidateSystemdAction(body.Action)
+	if err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
 	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
@@ -369,8 +250,7 @@ func handleSystemdServiceAction(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
 
-	cmd := fmt.Sprintf("(sudo -n systemctl %s %s || systemctl %s %s)", action, service, action, service)
-	output, runErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, cmd, 25*time.Second)
+	result, runErr := newDirectSystemdRuntimeService(cfg).Action(e.Request.Context(), service, action)
 
 	userID, _, ip, _ := clientInfo(e)
 	status := audit.StatusSuccess
@@ -384,25 +264,25 @@ func handleSystemdServiceAction(e *core.RequestEvent) error {
 		ResourceID:   serverID,
 		Status:       status,
 		IP:           ip,
-		Detail:       map[string]any{"service": service, "action": action, "output": output},
+		Detail:       map[string]any{"service": service, "action": action, "output": result.Output},
 	})
 
 	if runErr != nil {
-		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error(), "output": output})
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": runErr.Error(), "output": result.Output})
 	}
 
 	return e.JSON(http.StatusOK, map[string]any{
 		"server_id": serverID,
 		"service":   service,
-		"action":    action,
-		"status":    "accepted",
-		"output":    output,
+		"action":    result.Action,
+		"status":    result.Status,
+		"output":    result.Output,
 	})
 }
 
 func handleSystemdServiceUnitRead(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
-	service, err := normalizeServiceName(e.Request.PathValue("service"))
+	service, err := serversvc.NormalizeServiceName(e.Request.PathValue("service"))
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
@@ -442,7 +322,7 @@ func handleSystemdServiceUnitRead(e *core.RequestEvent) error {
 
 func handleSystemdServiceUnitWrite(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
-	service, err := normalizeServiceName(e.Request.PathValue("service"))
+	service, err := serversvc.NormalizeServiceName(e.Request.PathValue("service"))
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
@@ -453,12 +333,8 @@ func handleSystemdServiceUnitWrite(e *core.RequestEvent) error {
 	if err := e.BindBody(&body); err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": "invalid request body"})
 	}
-	if strings.TrimSpace(body.Content) == "" {
-		return e.JSON(http.StatusBadRequest, map[string]any{"message": "content required"})
-	}
-	const maxUnitContentBytes = 64 * 1024
-	if len(body.Content) > maxUnitContentBytes {
-		return e.JSON(http.StatusBadRequest, map[string]any{"message": "content too large (max 64KB)"})
+	if err := serversvc.ValidateSystemdUnitContent(body.Content); err != nil {
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
 
 	cfg, resolveErr := resolveTerminalConfig(e.App, e.Auth, serverID)
@@ -466,16 +342,9 @@ func handleSystemdServiceUnitWrite(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
 
-	unitPath, pathErr := resolveSystemdUnitPath(e.Request.Context(), cfg, service)
-	if pathErr != nil {
-		return e.JSON(http.StatusBadRequest, map[string]any{"message": pathErr.Error()})
-	}
-
-	encoded := base64.StdEncoding.EncodeToString([]byte(body.Content))
-	writeCmd := fmt.Sprintf("printf '%%s' '%s' | base64 -d | (sudo -n tee %s >/dev/null || tee %s >/dev/null)", encoded, terminal.ShellQuote(unitPath), terminal.ShellQuote(unitPath))
-	writeOutput, writeErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, writeCmd, 25*time.Second)
+	result, writeErr := newDirectSystemdRuntimeService(cfg).WriteUnit(e.Request.Context(), service, body.Content)
 	if writeErr != nil {
-		return e.JSON(http.StatusInternalServerError, map[string]any{"message": writeErr.Error(), "output": writeOutput})
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": writeErr.Error(), "output": result.Output})
 	}
 
 	userID, _, ip, _ := clientInfo(e)
@@ -488,23 +357,23 @@ func handleSystemdServiceUnitWrite(e *core.RequestEvent) error {
 		IP:           ip,
 		Detail: map[string]any{
 			"service": service,
-			"path":    unitPath,
-			"output":  writeOutput,
+			"path":    result.Path,
+			"output":  result.Output,
 		},
 	})
 
 	return e.JSON(http.StatusOK, map[string]any{
 		"server_id": serverID,
 		"service":   service,
-		"path":      unitPath,
-		"status":    "saved",
-		"output":    writeOutput,
+		"path":      result.Path,
+		"status":    result.Status,
+		"output":    result.Output,
 	})
 }
 
 func handleSystemdServiceUnitVerify(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
-	service, err := normalizeServiceName(e.Request.PathValue("service"))
+	service, err := serversvc.NormalizeServiceName(e.Request.PathValue("service"))
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
@@ -514,13 +383,7 @@ func handleSystemdServiceUnitVerify(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
 
-	unitPath, pathErr := resolveSystemdUnitPath(e.Request.Context(), cfg, service)
-	if pathErr != nil {
-		return e.JSON(http.StatusBadRequest, map[string]any{"message": pathErr.Error()})
-	}
-
-	verifyCmd := fmt.Sprintf("(sudo -n systemd-analyze verify %s || systemd-analyze verify %s)", terminal.ShellQuote(unitPath), terminal.ShellQuote(unitPath))
-	verifyOutput, verifyErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, verifyCmd, 25*time.Second)
+	result, verifyErr := newDirectSystemdRuntimeService(cfg).VerifyUnit(e.Request.Context(), service)
 
 	userID, _, ip, _ := clientInfo(e)
 	status := audit.StatusSuccess
@@ -536,27 +399,27 @@ func handleSystemdServiceUnitVerify(e *core.RequestEvent) error {
 		IP:           ip,
 		Detail: map[string]any{
 			"service":       service,
-			"path":          unitPath,
-			"verify_output": verifyOutput,
+			"path":          result.Path,
+			"verify_output": result.VerifyOutput,
 		},
 	})
 
 	if verifyErr != nil {
-		return e.JSON(http.StatusBadRequest, map[string]any{"message": verifyErr.Error(), "verify_output": verifyOutput})
+		return e.JSON(http.StatusBadRequest, map[string]any{"message": verifyErr.Error(), "verify_output": result.VerifyOutput})
 	}
 
 	return e.JSON(http.StatusOK, map[string]any{
 		"server_id":     serverID,
 		"service":       service,
-		"path":          unitPath,
-		"status":        "valid",
-		"verify_output": verifyOutput,
+		"path":          result.Path,
+		"status":        result.Status,
+		"verify_output": result.VerifyOutput,
 	})
 }
 
 func handleSystemdServiceUnitApply(e *core.RequestEvent) error {
 	serverID := e.Request.PathValue("serverId")
-	service, err := normalizeServiceName(e.Request.PathValue("service"))
+	service, err := serversvc.NormalizeServiceName(e.Request.PathValue("service"))
 	if err != nil {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": err.Error()})
 	}
@@ -566,14 +429,7 @@ func handleSystemdServiceUnitApply(e *core.RequestEvent) error {
 		return e.JSON(http.StatusBadRequest, map[string]any{"message": resolveErr.Error()})
 	}
 
-	reloadCmd := "(sudo -n systemctl daemon-reload || systemctl daemon-reload)"
-	reloadOutput, reloadErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, reloadCmd, 20*time.Second)
-	if reloadErr != nil {
-		return e.JSON(http.StatusInternalServerError, map[string]any{"message": reloadErr.Error(), "reload_output": reloadOutput})
-	}
-
-	applyCmd := fmt.Sprintf("(sudo -n systemctl try-restart %s || systemctl try-restart %s)", service, service)
-	applyOutput, applyErr := terminal.ExecuteSSHCommand(e.Request.Context(), cfg, applyCmd, 25*time.Second)
+	result, applyErr := newDirectSystemdRuntimeService(cfg).ApplyUnit(e.Request.Context(), service)
 
 	userID, _, ip, _ := clientInfo(e)
 	status := audit.StatusSuccess
@@ -589,21 +445,21 @@ func handleSystemdServiceUnitApply(e *core.RequestEvent) error {
 		IP:           ip,
 		Detail: map[string]any{
 			"service":       service,
-			"reload_output": reloadOutput,
-			"apply_output":  applyOutput,
+			"reload_output": result.ReloadOutput,
+			"apply_output":  result.ApplyOutput,
 		},
 	})
 
 	if applyErr != nil {
-		return e.JSON(http.StatusInternalServerError, map[string]any{"message": applyErr.Error(), "apply_output": applyOutput, "reload_output": reloadOutput})
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": applyErr.Error(), "apply_output": result.ApplyOutput, "reload_output": result.ReloadOutput})
 	}
 
 	return e.JSON(http.StatusOK, map[string]any{
 		"server_id":     serverID,
 		"service":       service,
-		"status":        "applied",
-		"reload_output": reloadOutput,
-		"apply_output":  applyOutput,
+		"status":        result.Status,
+		"reload_output": result.ReloadOutput,
+		"apply_output":  result.ApplyOutput,
 	})
 }
 
@@ -612,14 +468,17 @@ func resolveSystemdUnitPath(ctx context.Context, cfg terminal.ConnectorConfig, s
 }
 
 func resolveSystemdUnitPathWithRunner(ctx context.Context, run routeSSHCommandRunner, service string) (string, error) {
-	cmd := fmt.Sprintf("systemctl show %s --property=FragmentPath --value --no-pager", service)
-	raw, err := run(ctx, cmd, 20*time.Second)
-	if err != nil {
-		return "", err
+	return newSystemdRuntimeService(run).ResolveUnitPath(ctx, service)
+}
+
+func newSystemdRuntimeService(run routeSSHCommandRunner) serversvc.SystemdRuntimeService {
+	return serversvc.SystemdRuntimeService{
+		Run: routeSSHCommandAdapter(run),
 	}
-	unitPath := strings.TrimSpace(raw)
-	if unitPath == "" || unitPath == "/dev/null" {
-		return "", fmt.Errorf("systemd unit file not found")
+}
+
+func newDirectSystemdRuntimeService(cfg terminal.ConnectorConfig) serversvc.SystemdRuntimeService {
+	return serversvc.SystemdRuntimeService{
+		Run: directSSHCommandAdapter(cfg),
 	}
-	return unitPath, nil
 }

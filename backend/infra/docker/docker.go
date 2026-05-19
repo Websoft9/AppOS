@@ -21,6 +21,7 @@ type Client struct {
 
 const registryStatusProbeImage = "hello-world:latest"
 const composeConfigHelperFallbackImage = "busybox:1.36.1"
+const ContainerStatsStreamBoundary = "__APPOS_DOCKER_STATS_EOF__"
 
 // New creates a new Docker client with the given Executor.
 func New(exec Executor) *Client {
@@ -307,6 +308,15 @@ func (c *Client) ContainerInspectMany(ctx context.Context, ids []string) (string
 // ContainerStats returns one-shot stats for all containers in JSON format.
 func (c *Client) ContainerStats(ctx context.Context) (string, error) {
 	return c.exec.Run(ctx, "docker", "stats", "--no-stream", "--format", "json")
+}
+
+// ContainerStatsStream returns a continuous stats stream with a boundary marker after each snapshot.
+func (c *Client) ContainerStatsStream(ctx context.Context) (io.ReadCloser, error) {
+	script := fmt.Sprintf(
+		"while true; do docker stats --no-stream --format json; printf '%s\\n'; sleep 2; done",
+		ContainerStatsStreamBoundary,
+	)
+	return c.exec.RunStream(ctx, "sh", "-lc", script)
 }
 
 // ContainerLogs returns container logs with tail limit.

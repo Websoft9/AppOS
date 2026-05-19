@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 	"strings"
 	"time"
 
@@ -22,6 +23,13 @@ import (
 const TaskDockerImagePull = "docker:image-pull"
 
 const dockerImagePullOrphanThreshold = 10 * time.Minute
+
+var dockerImagePullServerLimiters = struct {
+	mu   sync.Mutex
+	sems map[string]chan struct{}
+}{
+	sems: map[string]chan struct{}{},
+}
 
 type DockerImagePullPayload struct {
 	OperationID string `json:"operation_id"`
@@ -78,6 +86,37 @@ func EnqueueDockerImagePull(client *asynq.Client, operationID, serverID, imageNa
 
 func NormalizeDockerImageReference(name string) string {
 	return strings.ToLower(strings.TrimSpace(name))
+}
+
+func dockerImagePullServerSemaphore(serverID string) chan struct{} {
+	normalizedServerID := strings.TrimSpace(serverID)
+	if normalizedServerID == "" {
+		normalizedServerID = "local"
+	}
+
+	dockerImagePullServerLimiters.mu.Lock()
+	defer dockerImagePullServerLimiters.mu.Unlock()
+
+	if sem, ok := dockerImagePullServerLimiters.sems[normalizedServerID]; ok {
+		return sem
+	}
+	limit := servers.MaxConcurrentDockerImagePullsPerServer()
+	if limit <= 0 {
+		limit = 1
+	}
+	sem := make(chan struct{}, limit)
+	dockerImagePullServerLimiters.sems[normalizedServerID] = sem
+	return sem
+}
+
+func acquireDockerImagePullServerSlot(ctx context.Context, serverID string) (func(), error) {
+	sem := dockerImagePullServerSemaphore(serverID)
+	select {
+	case sem <- struct{}{}:
+		return func() { <-sem }, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 func PrepareDockerImagePullOperation(app core.App, serverID, imageName string) (*core.Record, error) {
@@ -143,6 +182,14 @@ func (w *Worker) handleDockerImagePull(ctx context.Context, t *asynq.Task) error
 	if record.GetString("server_id") != payload.ServerID {
 		return fmt.Errorf("docker image pull operation %q does not match server", payload.OperationID)
 	}
+	if record.GetString("terminal_status") != string(software.TerminalStatusNone) {
+		return nil
+	}
+	releaseSlot, err := acquireDockerImagePullServerSlot(ctx, payload.ServerID)
+	if err != nil {
+		return err
+	}
+	defer releaseSlot()
 
 	appendDockerImagePullOutput(record, fmt.Sprintf("Starting docker pull %s...", payload.ImageName))
 	record.Set("phase", string(software.OperationPhaseExecuting))

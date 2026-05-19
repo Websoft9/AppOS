@@ -12,7 +12,7 @@ import (
 	monitortsdb "github.com/websoft9/appos/backend/domain/monitor/metrics/tsdb"
 )
 
-type containerTelemetryQueryOverrideFunc func(context.Context, string, []string, string) (*ContainerTelemetryResponse, error)
+type containerTelemetryQueryOverrideFunc func(context.Context, string, []ContainerTelemetryTarget, string) (*ContainerTelemetryResponse, error)
 
 var (
 	containerTelemetryQueryOverrideMu sync.RWMutex
@@ -31,7 +31,7 @@ func SetContainerTelemetryQueryFuncForTest(fn containerTelemetryQueryOverrideFun
 	}
 }
 
-func QueryContainerTelemetry(ctx context.Context, serverID string, containerIDs []string, window string) (*ContainerTelemetryResponse, error) {
+func QueryContainerTelemetry(ctx context.Context, serverID string, targets []ContainerTelemetryTarget, window string) (*ContainerTelemetryResponse, error) {
 	serverID = strings.TrimSpace(serverID)
 	window = strings.TrimSpace(window)
 	if serverID == "" {
@@ -44,32 +44,33 @@ func QueryContainerTelemetry(ctx context.Context, serverID string, containerIDs 
 	override := containerTelemetryQueryOverride
 	containerTelemetryQueryOverrideMu.RUnlock()
 	if override != nil {
-		return override(ctx, serverID, containerIDs, window)
+		return override(ctx, serverID, targets, window)
 	}
-	return queryContainerTelemetryVM(ctx, serverID, containerIDs, window)
+	return queryContainerTelemetryVM(ctx, serverID, targets, window)
 }
 
-func queryContainerTelemetryVM(ctx context.Context, serverID string, containerIDs []string, window string) (*ContainerTelemetryResponse, error) {
+func queryContainerTelemetryVM(ctx context.Context, serverID string, targets []ContainerTelemetryTarget, window string) (*ContainerTelemetryResponse, error) {
 	windowSpec, err := resolveMetricSeriesWindow(window, MetricSeriesQueryOptions{}, time.Now().UTC())
 	if err != nil {
 		return nil, err
 	}
-	requestedIDs := normalizeContainerIDs(containerIDs)
+	requestedTargets := normalizeContainerTelemetryTargets(targets)
 	response := &ContainerTelemetryResponse{
 		ServerID:     serverID,
 		Window:       windowSpec.Label,
 		RangeStartAt: windowSpec.Start.Format(time.RFC3339),
 		RangeEndAt:   windowSpec.End.Format(time.RFC3339),
 		StepSeconds:  int(windowSpec.Step.Seconds()),
-		Items:        make([]ContainerTelemetryItem, 0, max(1, len(requestedIDs))),
+		Items:        make([]ContainerTelemetryItem, 0, max(1, len(requestedTargets))),
 	}
-	itemsByID := make(map[string]*ContainerTelemetryItem, len(requestedIDs))
-	for _, containerID := range requestedIDs {
+	itemsByID := make(map[string]*ContainerTelemetryItem, len(requestedTargets))
+	for _, target := range requestedTargets {
 		item := &ContainerTelemetryItem{
-			ContainerID: containerID,
-			Freshness:   ContainerTelemetryFreshness{State: "missing"},
+			ContainerID:   target.ID,
+			ContainerName: target.Name,
+			Freshness:     ContainerTelemetryFreshness{State: "missing"},
 		}
-		itemsByID[containerID] = item
+		itemsByID[target.ID] = item
 	}
 	baseURL := strings.TrimSpace(os.Getenv(EnvVictoriaMetricsURL))
 	if baseURL == "" {
@@ -77,7 +78,7 @@ func queryContainerTelemetryVM(ctx context.Context, serverID string, containerID
 		return response, nil
 	}
 	service := monitortsdb.NewService(metricsHTTPClient, baseURL)
-	selector := buildContainerTelemetrySelector(serverID, requestedIDs)
+	selector := buildContainerTelemetrySelector(serverID, containerTelemetryTargetIDs(requestedTargets))
 	queries := []struct {
 		name    string
 		unit    string
@@ -154,28 +155,41 @@ func queryContainerTelemetryVM(ctx context.Context, serverID string, containerID
 			}, query.segment)
 		}
 	}
+	if err := queryRawNetdataContainerTelemetry(ctx, service, serverID, requestedTargets, itemsByID, windowSpec.Start, windowSpec.End, windowSpec.Step); err != nil {
+		return nil, err
+	}
 	response.Items = flattenContainerTelemetryItems(itemsByID)
 	return response, nil
 }
 
-func normalizeContainerIDs(values []string) []string {
+func normalizeContainerTelemetryTargets(values []ContainerTelemetryTarget) []ContainerTelemetryTarget {
 	seen := map[string]struct{}{}
-	normalized := make([]string, 0, len(values))
+	normalized := make([]ContainerTelemetryTarget, 0, len(values))
 	for _, value := range values {
-		for _, part := range strings.Split(value, ",") {
-			part = strings.TrimSpace(part)
-			if part == "" {
+		for _, idPart := range strings.Split(value.ID, ",") {
+			idPart = strings.TrimSpace(idPart)
+			if idPart == "" {
 				continue
 			}
-			if _, ok := seen[part]; ok {
+			if _, ok := seen[idPart]; ok {
 				continue
 			}
-			seen[part] = struct{}{}
-			normalized = append(normalized, part)
+			seen[idPart] = struct{}{}
+			normalized = append(normalized, ContainerTelemetryTarget{ID: idPart, Name: normalizeContainerTelemetryName(value.Name)})
 		}
 	}
-	sort.Strings(normalized)
+	sort.Slice(normalized, func(left, right int) bool {
+		return normalized[left].ID < normalized[right].ID
+	})
 	return normalized
+}
+
+func containerTelemetryTargetIDs(targets []ContainerTelemetryTarget) []string {
+	ids := make([]string, 0, len(targets))
+	for _, target := range targets {
+		ids = append(ids, target.ID)
+	}
+	return ids
 }
 
 func buildContainerTelemetrySelector(serverID string, containerIDs []string) string {
@@ -190,22 +204,155 @@ func buildContainerTelemetrySelector(serverID string, containerIDs []string) str
 	return fmt.Sprintf(`{server_id=%q,container_id=~"^(%s)$"}`, serverID, strings.Join(escaped, "|"))
 }
 
+func queryRawNetdataContainerTelemetry(ctx context.Context, service *monitortsdb.Service, serverID string, targets []ContainerTelemetryTarget, itemsByID map[string]*ContainerTelemetryItem, start, end time.Time, step time.Duration) error {
+	for _, target := range targets {
+		if target.ID == "" || target.Name == "" {
+			continue
+		}
+		item := itemsByID[target.ID]
+		if item == nil {
+			continue
+		}
+		chartMatcher := func(suffix string) string {
+			return rawNetdataCgroupChartMatcher(target.Name, suffix)
+		}
+		networkChartMatcher := rawNetdataCgroupNetworkChartMatcher(target.Name)
+		queries := []struct {
+			name        string
+			unit        string
+			query       string
+			segment     string
+			applyLatest func(float64)
+		}{
+			{name: "cpu", unit: "percent", query: fmt.Sprintf(`netdata_cgroup_cpu_limit_percentage_average{instance=%q,%s,dimension="used"}`, serverID, chartMatcher("cpu_limit")), applyLatest: func(value float64) { item.Latest.CPUPercent = &value }},
+			{name: "memory", unit: "bytes", segment: "usage", query: fmt.Sprintf(`netdata_cgroup_mem_usage_MiB_average{instance=%q,%s,dimension="ram"} * 1048576`, serverID, chartMatcher("mem_usage")), applyLatest: func(value float64) { item.Latest.MemoryUsageBytes = &value }},
+			{name: "memory", unit: "bytes", segment: "limit", query: fmt.Sprintf(`sum(netdata_cgroup_mem_usage_limit_MiB_average{instance=%q,%s,dimension=~"used|available"}) * 1048576`, serverID, chartMatcher("mem_usage_limit")), applyLatest: func(value float64) { item.Latest.MemoryLimitBytes = &value }},
+			{name: "network", unit: "bytes/s", segment: "in", query: fmt.Sprintf(`sum(netdata_cgroup_net_net_kilobits_persec_average{instance=%q,%s,dimension=~"^(received|receive|rx|in)$"}) * 125`, serverID, networkChartMatcher), applyLatest: func(value float64) { item.Latest.NetworkRxBytesPerSecond = &value }},
+			{name: "network", unit: "bytes/s", segment: "out", query: fmt.Sprintf(`sum(netdata_cgroup_net_net_kilobits_persec_average{instance=%q,%s,dimension=~"^(sent|transmit|tx|out)$"}) * 125`, serverID, networkChartMatcher), applyLatest: func(value float64) { item.Latest.NetworkTxBytesPerSecond = &value }},
+			{name: "block", unit: "bytes/s", segment: "read", query: fmt.Sprintf(`abs(netdata_cgroup_io_KiB_persec_average{instance=%q,%s,dimension="read"}) * 1024`, serverID, chartMatcher("io")), applyLatest: func(value float64) { item.Latest.BlockReadBytesPerSecond = &value }},
+			{name: "block", unit: "bytes/s", segment: "write", query: fmt.Sprintf(`abs(netdata_cgroup_io_KiB_persec_average{instance=%q,%s,dimension="write"}) * 1024`, serverID, chartMatcher("io")), applyLatest: func(value float64) { item.Latest.BlockWriteBytesPerSecond = &value }},
+		}
+		for _, query := range queries {
+			if containerTelemetrySeriesExists(item, query.name, query.segment) {
+				continue
+			}
+			points, err := service.ExecuteQueryRange(ctx, query.query, start, end, step)
+			if err != nil {
+				continue
+			}
+			latestValue, observedAt, hasLatest := latestMetricPoint(points)
+			if !hasLatest {
+				continue
+			}
+			query.applyLatest(latestValue)
+			mergeTelemetryFreshness(item, observedAt, end, step)
+			appendContainerTelemetrySeries(item, MetricSeries{Name: query.name, Unit: query.unit, Points: cloneMetricPoints(points)}, query.segment)
+		}
+	}
+	return nil
+}
+
+func rawNetdataCgroupNetworkChartMatcher(containerName string) string {
+	patterns := make([]string, 0, 2)
+	seen := map[string]struct{}{}
+	for _, candidate := range []string{containerName, sanitizeNetdataCgroupChartName(containerName)} {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "" {
+			continue
+		}
+		pattern := regexpEscape("cgroup_"+candidate+".net") + `(_.*)?`
+		if _, ok := seen[pattern]; ok {
+			continue
+		}
+		seen[pattern] = struct{}{}
+		patterns = append(patterns, pattern)
+	}
+	return fmt.Sprintf(`chart=~"^(%s)$"`, strings.Join(patterns, "|"))
+}
+
+func rawNetdataCgroupChartMatcher(containerName string, suffix string) string {
+	charts := make([]string, 0, 2)
+	seen := map[string]struct{}{}
+	for _, candidate := range []string{containerName, sanitizeNetdataCgroupChartName(containerName)} {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "" {
+			continue
+		}
+		chart := "cgroup_" + candidate + "." + suffix
+		if _, ok := seen[chart]; ok {
+			continue
+		}
+		seen[chart] = struct{}{}
+		charts = append(charts, chart)
+	}
+	if len(charts) == 1 {
+		return fmt.Sprintf(`chart=%q`, charts[0])
+	}
+	escaped := make([]string, 0, len(charts))
+	for _, chart := range charts {
+		escaped = append(escaped, regexpEscape(chart))
+	}
+	return fmt.Sprintf(`chart=~"^(%s)$"`, strings.Join(escaped, "|"))
+}
+
+func sanitizeNetdataCgroupChartName(value string) string {
+	var builder strings.Builder
+	for _, char := range value {
+		if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || char == '_' {
+			builder.WriteRune(char)
+			continue
+		}
+		builder.WriteByte('_')
+	}
+	return builder.String()
+}
+
+func containerTelemetrySeriesExists(item *ContainerTelemetryItem, name string, segment string) bool {
+	if item == nil {
+		return false
+	}
+	for _, series := range item.Series {
+		if series.Name != name {
+			continue
+		}
+		if segment == "" {
+			return len(series.Points) > 0
+		}
+		for _, existing := range series.Segments {
+			if existing.Name == segment && len(existing.Points) > 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func normalizeContainerTelemetryName(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	value = strings.Split(value, ",")[0]
+	value = strings.TrimSpace(strings.TrimPrefix(value, "/"))
+	return value
+}
+
 func regexpEscape(value string) string {
 	replacer := strings.NewReplacer(
 		`\`, `\\`,
-		`.`, `\.`,
-		`+`, `\+`,
-		`*`, `\*`,
-		`?`, `\?`,
-		`(`, `\(`,
-		`)`, `\)`,
-		`[`, `\[`,
-		`]`, `\]`,
-		`{`, `\{`,
-		`}`, `\}`,
-		`^`, `\^`,
-		`$`, `\$`,
-		`|`, `\|`,
+		`.`, `\\.`,
+		`+`, `\\+`,
+		`*`, `\\*`,
+		`?`, `\\?`,
+		`(`, `\\(`,
+		`)`, `\\)`,
+		`[`, `\\[`,
+		`]`, `\\]`,
+		`{`, `\\{`,
+		`}`, `\\}`,
+		`^`, `\\^`,
+		`$`, `\\$`,
+		`|`, `\\|`,
 	)
 	return replacer.Replace(value)
 }

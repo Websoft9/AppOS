@@ -153,6 +153,7 @@ development_status:
   20.2-docker-terminal: done
   20.3-sftp-enhancements: review
   20.4-server-ops: review
+  20.13-detail-cron: review
   epic20-retrospective: optional
 
   # Epic 16: SSH Tunnel – Local Server Management

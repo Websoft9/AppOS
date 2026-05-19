@@ -50,7 +50,7 @@ func TestPortReservationDetectionUsesProvidedRunnerForAllProbes(t *testing.T) {
 		}
 	}
 
-	reservations, probe, err := detectAllPortReservationsWithRunner(context.Background(), run, "tcp")
+	reservations, probe, err := newPortRuntimeService(run).DetectAllPortReservations(context.Background(), "tcp")
 	if err != nil {
 		t.Fatal(err)
 	}

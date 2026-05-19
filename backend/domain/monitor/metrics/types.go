@@ -45,6 +45,11 @@ type MetricSeriesResponse struct {
 	SelectedNetworkInterface   string         `json:"selectedNetworkInterface,omitempty"`
 }
 
+type ContainerTelemetryTarget struct {
+	ID   string
+	Name string
+}
+
 type ContainerTelemetryLatest struct {
 	CPUPercent               *float64 `json:"cpuPercent,omitempty"`
 	MemoryUsageBytes         *float64 `json:"memoryUsageBytes,omitempty"`

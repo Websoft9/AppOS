@@ -40,7 +40,7 @@ func TestBuildNetdataExportingConfigHTTP(t *testing.T) {
 	if !strings.Contains(config, "hostname = srv-1") {
 		t.Fatalf("expected hostname override, got %q", config)
 	}
-	if !strings.Contains(config, "send charts matching = system.cpu system.ram system.io system.net net.net disk_space.* cgroup.cpu_limit cgroup.mem_usage cgroup.mem_usage_limit cgroup.io cgroup.net_net") {
+	if !strings.Contains(config, "send charts matching = system.cpu system.ram system.io system.net net.net disk_space.* cgroup*.cpu_limit cgroup*.mem_usage cgroup*.mem_usage_limit cgroup*.io cgroup*.net*") {
 		t.Fatalf("expected server chart filter, got %q", config)
 	}
 	if !strings.Contains(config, "send automatic labels = yes") {

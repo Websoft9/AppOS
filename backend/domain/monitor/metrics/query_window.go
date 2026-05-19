@@ -10,14 +10,18 @@ var allowedSeriesWindows = map[string]struct {
 	Duration time.Duration
 	Step     time.Duration
 }{
-	"15m": {Duration: 15 * time.Minute, Step: 30 * time.Second},
-	"1h":  {Duration: time.Hour, Step: time.Minute},
-	"5h":  {Duration: 5 * time.Hour, Step: 5 * time.Minute},
-	"6h":  {Duration: 6 * time.Hour, Step: 5 * time.Minute},
-	"12h": {Duration: 12 * time.Hour, Step: 10 * time.Minute},
-	"1d":  {Duration: 24 * time.Hour, Step: 15 * time.Minute},
-	"24h": {Duration: 24 * time.Hour, Step: 15 * time.Minute},
-	"7d":  {Duration: 7 * 24 * time.Hour, Step: time.Hour},
+	"1m":   {Duration: time.Minute, Step: 5 * time.Second},
+	"5m":   {Duration: 5 * time.Minute, Step: 10 * time.Second},
+	"15m":  {Duration: 15 * time.Minute, Step: 30 * time.Second},
+	"0.1h": {Duration: 6 * time.Minute, Step: 10 * time.Second},
+	"0.5h": {Duration: 30 * time.Minute, Step: 30 * time.Second},
+	"1h":   {Duration: time.Hour, Step: time.Minute},
+	"5h":   {Duration: 5 * time.Hour, Step: 5 * time.Minute},
+	"6h":   {Duration: 6 * time.Hour, Step: 5 * time.Minute},
+	"12h":  {Duration: 12 * time.Hour, Step: 10 * time.Minute},
+	"1d":   {Duration: 24 * time.Hour, Step: 15 * time.Minute},
+	"24h":  {Duration: 24 * time.Hour, Step: 15 * time.Minute},
+	"7d":   {Duration: 7 * 24 * time.Hour, Step: time.Hour},
 }
 
 type metricSeriesWindowSpec struct {

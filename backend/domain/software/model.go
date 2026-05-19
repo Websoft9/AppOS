@@ -144,6 +144,7 @@ const (
 	TerminalStatusNone              TerminalStatus = "none"
 	TerminalStatusSuccess           TerminalStatus = "success"
 	TerminalStatusFailed            TerminalStatus = "failed"
+	TerminalStatusCancelled         TerminalStatus = "cancelled"
 	TerminalStatusAttentionRequired TerminalStatus = "attention_required"
 )
 

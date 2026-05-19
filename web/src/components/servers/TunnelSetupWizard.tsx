@@ -12,6 +12,7 @@ interface Props {
   serverId: string
   onClose: () => void
   onConnected?: (serverId: string) => void
+  embedded?: boolean
 }
 
 // Module-level constant — no reason to recreate on every render.
@@ -24,7 +25,7 @@ rm -f /etc/systemd/system/appos-tunnel.service
 systemctl daemon-reload
 echo "Done: appos-tunnel service removed."`
 
-export function TunnelSetupWizard({ serverId, onClose, onConnected }: Props) {
+export function TunnelSetupWizard({ serverId, onClose, onConnected, embedded = false }: Props) {
   const [setup, setSetup] = useState<SetupInfo | null>(null)
   const [status, setStatus] = useState<'waiting' | 'connected' | 'error'>('waiting')
   const statusRef = useRef<'waiting' | 'connected' | 'error'>('waiting')
@@ -135,10 +136,14 @@ export function TunnelSetupWizard({ serverId, onClose, onConnected }: Props) {
     }
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-background rounded-xl shadow-xl w-full max-w-2xl mx-4 p-6 space-y-5">
+  const content = (
+    <div
+      className={
+        embedded
+          ? 'w-full space-y-5 rounded-xl border border-border/60 bg-background p-6'
+          : 'bg-background mx-4 w-full max-w-2xl space-y-5 rounded-xl p-6 shadow-xl'
+      }
+    >
         {/* Header */}
         <div>
           <h2 className="text-lg font-semibold">Connect Tunnel Server</h2>
@@ -247,6 +252,12 @@ export function TunnelSetupWizard({ serverId, onClose, onConnected }: Props) {
           </button>
         </div>
       </div>
-    </div>
   )
+
+  if (embedded) {
+    return content
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">{content}</div>
 }

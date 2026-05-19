@@ -302,12 +302,13 @@ func handleMonitorOverview(e *core.RequestEvent) error {
 }
 
 // @Summary Get server container telemetry
-// @Description Returns latest and time-series telemetry for containers on one managed server. The optional containerId query parameter may be repeated.
+// @Description Returns latest and time-series telemetry for containers on one managed server. The optional containerId query parameter may be repeated; containerName may be repeated in the same order to enable raw cgroup fallback.
 // @Tags Monitoring
 // @Security BearerAuth
 // @Param id path string true "server record ID"
-// @Param window query string false "fixed time window" Enums(15m,1h,5h,6h,12h,1d,24h,7d)
+// @Param window query string false "fixed time window" Enums(1m,5m,15m,0.1h,0.5h,1h,5h,6h,12h,1d,24h,7d)
 // @Param containerId query string false "container ID filter; repeat to request multiple containers"
+// @Param containerName query string false "container name fallback hint; repeat in the same order as containerId"
 // @Success 200 {object} MonitorContainerTelemetryResponse
 // @Failure 400 {object} MonitorErrorResponse
 // @Failure 401 {object} MonitorErrorResponse
@@ -326,7 +327,16 @@ func handleMonitorServerContainerTelemetry(e *core.RequestEvent) error {
 		window = "15m"
 	}
 	containerIDs := e.Request.URL.Query()["containerId"]
-	response, err := monitormetrics.QueryContainerTelemetry(e.Request.Context(), serverID, containerIDs, window)
+	containerNames := e.Request.URL.Query()["containerName"]
+	targets := make([]monitormetrics.ContainerTelemetryTarget, 0, len(containerIDs))
+	for index, containerID := range containerIDs {
+		target := monitormetrics.ContainerTelemetryTarget{ID: containerID}
+		if index < len(containerNames) {
+			target.Name = containerNames[index]
+		}
+		targets = append(targets, target)
+	}
+	response, err := monitormetrics.QueryContainerTelemetry(e.Request.Context(), serverID, targets, window)
 	if err != nil {
 		return e.BadRequestError("failed to query container telemetry", err)
 	}

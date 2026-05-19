@@ -204,7 +204,7 @@ Historical delivery note: the originally implemented standalone `/docker` dashbo
 - add a minimal list contract for image pull operations under `/api/servers/{serverId}/docker/image-pull-operations`
 - use one `status` filter to cover both `Currently pulling` and `Recent pulls`
 - keep existing submit (`POST /images/pull`) and single-operation detail (`GET /image-pull-operations/{operationId}`) contracts unchanged
-- explicitly defer cancel, retry, and richer progress semantics
+- keep cancellation narrow to queued pull operations only
 
 ## Implementation Order
 
@@ -262,10 +262,13 @@ Target follow-up still pending for Story 4.3 scope:
 - [ ] legacy `/api/ext/docker/...` compatibility routes can be removed after migration
 
 ### Story 4.6
-- [ ] `GET /api/servers/{serverId}/docker/image-pull-operations` returns newest-first pull activity for one server
-- [ ] `status` query supports `in_progress`, `completed`, `failed`, `all`
-- [ ] Images tab shows both current pulls and recent pulls from the shared list contract
-- [ ] existing submit/detail contracts remain unchanged
+- [x] `GET /api/servers/{serverId}/docker/image-pull-operations` returns newest-first pull activity for one server
+- [x] `status` query supports `in_progress`, `completed`, `failed`, `all`
+- [x] `DELETE /api/servers/{serverId}/docker/image-pull-operations/{operationId}` deletes one terminal pull record
+- [x] `DELETE /api/servers/{serverId}/docker/image-pull-operations` clears terminal pull history for one server
+- [x] `POST /api/servers/{serverId}/docker/image-pull-operations/{operationId}/cancel` cancels one queued pull
+- [x] Images tab shows both current pulls and recent pulls from the shared list contract
+- [x] existing submit/detail contracts remain unchanged
 
 ## Technical Notes
 

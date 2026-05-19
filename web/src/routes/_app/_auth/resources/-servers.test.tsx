@@ -108,6 +108,10 @@ vi.mock('@/components/servers/ServerPortsPanel', () => ({
   ServerPortsPanel: ({ serverId }: { serverId: string }) => <div>Ports panel for {serverId}</div>,
 }))
 
+vi.mock('@/components/servers/ServerCronPanel', () => ({
+  ServerCronPanel: ({ serverId }: { serverId: string }) => <div>Crontab panel for {serverId}</div>,
+}))
+
 vi.mock('@/components/servers/ServerServicesPanel', () => ({
   ServerServicesPanel: ({ serverId }: { serverId: string }) => (
     <div>Services panel for {serverId}</div>
@@ -121,8 +125,9 @@ vi.mock('@/components/monitor/MonitorTargetPanel', () => ({
 }))
 
 vi.mock('@/components/servers/TunnelSetupWizard', () => ({
-  TunnelSetupWizard: ({ open }: { open: boolean }) =>
-    open ? <div>Tunnel setup wizard</div> : null,
+  TunnelSetupWizard: ({ serverId }: { serverId: string }) => (
+    <div>Tunnel setup wizard for {serverId}</div>
+  ),
 }))
 
 vi.mock('@/components/secrets/SecretForm', () => ({
@@ -789,6 +794,71 @@ describe('ServersPage layout', () => {
     expect(screen.getByRole('tab', { name: 'Connection', selected: true })).toBeInTheDocument()
   })
 
+  it('replaces the current detail drawer content with tunnel setup instead of opening a nested modal', async () => {
+    searchState = { server: 'server-1', tab: 'connection' }
+
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/servers/connection') {
+        return Promise.resolve({
+          items: [
+            {
+              id: 'server-1',
+              name: 'alpha',
+              connect_type: 'tunnel',
+              host: '10.0.0.1',
+              port: 22,
+              user: 'root',
+              created_by: 'user-1',
+              created_by_name: 'owner@example.com',
+              created: '2026-04-16T00:00:00Z',
+              updated: '2026-04-16T01:00:00Z',
+              credential_type: 'Password',
+              connection: {
+                state_code: 'not_configured',
+                reason_code: 'tunnel_setup_required',
+                config_ready: true,
+              },
+              access: {
+                status: 'unavailable',
+                reason: 'waiting_for_first_connect',
+                checked_at: '',
+                source: 'tunnel_runtime',
+              },
+              tunnel: {
+                state: 'setup_required',
+                status: 'offline',
+                waiting_for_first_connect: true,
+                services: [],
+              },
+            },
+          ],
+        })
+      }
+      if (isMonitorSummaryRequest(path)) {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === '/api/collections/groups/records?perPage=500&sort=name') {
+        return Promise.resolve({ items: [] })
+      }
+      if (path === '/api/servers/local/docker-bridge') {
+        return Promise.resolve({ interface: 'docker0', address: '172.17.0.1' })
+      }
+      if (path === '/api/secrets/templates') {
+        return Promise.resolve([])
+      }
+      return Promise.resolve([])
+    })
+
+    render(<ServersPage />)
+
+    expect(await screen.findByRole('tab', { name: 'Connection', selected: true })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Start Setup' }))
+
+    expect(await screen.findByText('Tunnel setup wizard for server-1')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Back to Connection' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Overview' })).toBeNull()
+  })
+
   it('hides the tunnel tab for direct servers', async () => {
     render(<ServersPage />)
 
@@ -859,6 +929,15 @@ describe('ServersPage layout', () => {
 
     expect(await screen.findByRole('tab', { name: 'Systemd', selected: true })).toBeInTheDocument()
     expect(screen.getByText('Services panel for server-1')).toBeInTheDocument()
+  })
+
+  it('opens the crontab tab in server detail', async () => {
+    searchState = { server: 'server-1', tab: 'cron' }
+
+    render(<ServersPage />)
+
+    expect(await screen.findByRole('tab', { name: 'Crontab', selected: true })).toBeInTheDocument()
+    expect(screen.getByText('Crontab panel for server-1')).toBeInTheDocument()
   })
 
   it('opens the monitor tab and renders monitor-specific content', async () => {
