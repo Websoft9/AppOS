@@ -1,18 +1,8 @@
-import type { AnchorHTMLAttributes, ReactNode } from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ServerOverviewTab } from './ServerOverviewTab'
 import { type ServerFactsView } from './server-detail-shared'
-
-vi.mock('@tanstack/react-router', () => ({
-  Link: ({
-    children,
-    ...props
-  }: AnchorHTMLAttributes<HTMLAnchorElement> & { children?: ReactNode }) => (
-    <a {...props}>{children}</a>
-  ),
-}))
 
 afterEach(() => {
   cleanup()
@@ -45,6 +35,7 @@ const updatedAtLabel = new Date(baseItem.updated).toLocaleString()
 describe('ServerOverviewTab', () => {
   it('renders server metadata and collected system facts', () => {
     const onEditServer = vi.fn()
+    const onRefresh = vi.fn()
     render(
       <ServerOverviewTab
         item={baseItem}
@@ -57,6 +48,7 @@ describe('ServerOverviewTab', () => {
         credentialId="secret-1"
         createdBy="owner@example.com"
         onEditServer={onEditServer}
+        onRefresh={onRefresh}
       />
     )
 
@@ -66,7 +58,9 @@ describe('ServerOverviewTab', () => {
     expect(screen.getByText('alpha')).toBeInTheDocument()
     expect(screen.getByText('Direct')).toBeInTheDocument()
     expect(screen.getByText('Available')).toBeInTheDocument()
-    expect(screen.getByText('secret-1')).toBeInTheDocument()
+    expect(screen.getByText('Credential type')).toBeInTheDocument()
+    expect(screen.getByText('Password')).toBeInTheDocument()
+    expect(screen.queryByText('secret-1')).not.toBeInTheDocument()
     expect(screen.getByText('Primary app host')).toBeInTheDocument()
     expect(screen.getByText('ubuntu 24.04')).toBeInTheDocument()
     expect(screen.getByText('6.8.0')).toBeInTheDocument()
@@ -78,8 +72,75 @@ describe('ServerOverviewTab', () => {
     expect(screen.getByText(updatedAtLabel)).toBeInTheDocument()
     expect(screen.getAllByText('Unavailable')).toHaveLength(4)
 
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh overview data' }))
+    expect(onRefresh).toHaveBeenCalledTimes(1)
+
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
     expect(onEditServer).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows a loading refresh button state when overview refresh is in progress', () => {
+    render(
+      <ServerOverviewTab
+        item={baseItem}
+        serverId="server-1"
+        facts={facts}
+        status="online"
+        tunnelState="ready"
+        isTunnel={false}
+        credentialType="Password"
+        credentialId="secret-1"
+        createdBy="owner@example.com"
+        onRefresh={() => {}}
+        refreshLoading={true}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Refresh overview data' })).toBeDisabled()
+  })
+
+  it('places ID, Name, and Connection Type first, and Created and Updated last in server metadata', () => {
+    const { container } = render(
+      <ServerOverviewTab
+        item={baseItem}
+        serverId="server-1"
+        facts={facts}
+        status="online"
+        tunnelState="ready"
+        isTunnel={false}
+        credentialType="Password"
+        credentialId="secret-1"
+        createdBy="owner@example.com"
+      />
+    )
+
+    const metadataSection = screen.getByText('Server Metadata').closest('section')
+    const labels = Array.from(metadataSection?.querySelectorAll('dt') ?? []).map(node =>
+      node.textContent?.trim()
+    )
+
+    expect(labels.slice(0, 3)).toEqual(['ID', 'Name', 'Connection Type'])
+    expect(labels.slice(-2)).toEqual(['Created', 'Updated'])
+    expect(container.querySelector('a[href*="secret-1"]')).toBeNull()
+  })
+
+  it('normalizes SSH credentials to the SSH key label', () => {
+    render(
+      <ServerOverviewTab
+        item={baseItem}
+        serverId="server-1"
+        facts={facts}
+        status="online"
+        tunnelState="ready"
+        isTunnel={false}
+        credentialType="Private Key"
+        credentialId="secret-2"
+        createdBy="owner@example.com"
+      />
+    )
+
+    expect(screen.getByText('SSH key')).toBeInTheDocument()
+    expect(screen.queryByText('secret-2')).not.toBeInTheDocument()
   })
 
   it('shows tunnel metadata and empty facts state when host facts are missing', () => {

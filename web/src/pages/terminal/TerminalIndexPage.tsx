@@ -15,6 +15,7 @@ import {
   Plus,
   PanelLeft,
   PanelLeftClose,
+  LogOut,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -22,12 +23,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils'
 import {
   listServers,
+  listTerminalSessions,
+  deleteTerminalSession,
   checkServerStatus,
   getConnectTerminalSettings,
   type ConnectTerminalSettings,
   type Server as ServerType,
+  type TerminalSessionSummary,
 } from '@/lib/connect-api'
-import { loadConnectSession, type PersistedTerminalTab } from '@/lib/connect-session'
 import {
   Dialog,
   DialogContent,
@@ -50,6 +53,11 @@ function isSessionIdle(updatedAt: number | null, idleTimeoutSeconds: number) {
   if (updatedAt == null) return false
   const timeoutMs = Math.max(60, idleTimeoutSeconds) * 1000
   return Date.now() - updatedAt >= timeoutMs
+}
+
+function getSessionUpdatedAt(session: TerminalSessionSummary): number | null {
+  const ts = Date.parse(session.last_active_at)
+  return Number.isFinite(ts) ? ts : null
 }
 
 // ─── Tab definitions ──────────────────────────────────────────────────────────
@@ -223,6 +231,90 @@ function ServerCard({
   )
 }
 
+interface ActiveSessionCardProps {
+  session: TerminalSessionSummary
+  server: ServerType
+  idleTimeoutSeconds: number
+  nowTs: number
+  isClosing: boolean
+  sessionCount: number
+  onResume: (session: TerminalSessionSummary, server: ServerType) => void
+  onExit: (session: TerminalSessionSummary) => void
+}
+
+function ActiveSessionCard({
+  session,
+  server,
+  idleTimeoutSeconds,
+  nowTs,
+  isClosing,
+  sessionCount,
+  onResume,
+  onExit,
+}: ActiveSessionCardProps) {
+  const updatedAt = getSessionUpdatedAt(session)
+  const idle = isSessionIdle(updatedAt, idleTimeoutSeconds)
+  const sessionMinAgo =
+    updatedAt != null ? Math.max(1, Math.floor((nowTs - updatedAt) / 60000)) : null
+
+  return (
+    <div className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/30 transition-colors group">
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+          <Server className="h-4 w-4 text-primary" />
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-medium truncate">{server.name || server.host}</span>
+            <Badge
+              variant={idle ? 'outline' : 'secondary'}
+              className={cn(
+                'text-xs h-4 px-1.5 shrink-0',
+                idle ? 'border-amber-200 text-amber-700 bg-amber-50' : undefined
+              )}
+            >
+              <CheckCircle2 className="h-2.5 w-2.5 mr-1 text-green-500" />
+              {idle ? 'Idle' : 'Connected'}
+            </Badge>
+            <Badge variant="outline" className="text-xs h-4 px-1.5 shrink-0">
+              {session.state === 'attached' ? 'Live' : 'Detached'}
+            </Badge>
+            {sessionCount > 1 && (
+              <Badge variant="outline" className="text-xs h-4 px-1.5 shrink-0">
+                {getSessionCountLabel(sessionCount)}
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            {server.name && <span className="text-xs text-muted-foreground truncate">{server.host}</span>}
+            <span className="text-xs font-mono text-muted-foreground">{session.id.slice(0, 8)}</span>
+            {sessionMinAgo != null && (
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <Clock className="h-2.5 w-2.5" />
+                Last active {sessionMinAgo} min ago
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Button size="sm" variant="outline" onClick={() => onExit(session)} disabled={isClosing}>
+          {isClosing ? (
+            <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+          ) : (
+            <LogOut className="h-3.5 w-3.5 mr-1" />
+          )}
+          Exit
+        </Button>
+        <Button size="sm" variant="default" onClick={() => onResume(session, server)}>
+          Resume
+          <ArrowRight className="h-3.5 w-3.5 ml-1" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Coming soon panel ────────────────────────────────────────────────────────
 
 function ComingSoonPanel({ label, icon }: { label: string; icon: React.ReactNode }) {
@@ -251,25 +343,38 @@ function ComingSoonPanel({ label, icon }: { label: string; icon: React.ReactNode
 interface OverviewPanelProps {
   servers: ServerType[]
   loading: boolean
+  sessionItems: TerminalSessionSummary[]
   sessionCounts: Map<string, number>
   sessionUpdatedAt: number | null
   idleTimeoutSeconds: number
   nowTs: number
-  onConnect: (server: ServerType) => void
+  onResumeSession: (session: TerminalSessionSummary, server: ServerType) => void
+  onExitSession: (session: TerminalSessionSummary) => void
+  closingSessionId: string | null
   onTabChange: (tab: TabId) => void
 }
 
 function OverviewPanel({
   servers,
   loading,
+  sessionItems,
   sessionCounts,
   sessionUpdatedAt,
   idleTimeoutSeconds,
   nowTs,
-  onConnect,
+  onResumeSession,
+  onExitSession,
+  closingSessionId,
   onTabChange,
 }: OverviewPanelProps) {
   const connectedServers = servers.filter(s => sessionCounts.has(s.id))
+  const serverById = new Map(servers.map(server => [server.id, server]))
+  const activeSessions = sessionItems
+    .map(session => ({ session, server: serverById.get(session.resource_id) }))
+    .filter(
+      (entry): entry is { session: TerminalSessionSummary; server: ServerType } =>
+        entry.server != null
+    )
   const idle = isSessionIdle(sessionUpdatedAt, idleTimeoutSeconds)
 
   const sessionMinAgo =
@@ -358,7 +463,7 @@ function OverviewPanel({
           <div className="flex justify-center py-6">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
-        ) : connectedServers.length === 0 ? (
+        ) : activeSessions.length === 0 ? (
           <div className="rounded-lg border border-dashed p-6 text-center space-y-2">
             <p className="text-sm text-muted-foreground">No active connections</p>
             <Button size="sm" variant="outline" onClick={() => onTabChange('servers')}>
@@ -368,15 +473,17 @@ function OverviewPanel({
           </div>
         ) : (
           <div className="space-y-2">
-            {connectedServers.map(server => (
-              <ServerCard
-                key={server.id}
+            {activeSessions.map(({ session, server }) => (
+              <ActiveSessionCard
+                key={session.id}
+                session={session}
                 server={server}
-                isConnected
-                isIdle={idle}
-                lastSessionMin={sessionMinAgo ?? undefined}
-                sessionCount={sessionCounts.get(server.id)}
-                onConnect={onConnect}
+                idleTimeoutSeconds={idleTimeoutSeconds}
+                nowTs={nowTs}
+                isClosing={closingSessionId === session.id}
+                sessionCount={sessionCounts.get(server.id) ?? 1}
+                onResume={onResumeSession}
+                onExit={onExitSession}
               />
             ))}
           </div>
@@ -393,11 +500,16 @@ interface ServersPanelProps {
   loading: boolean
   error: string | null
   onRetry: () => void
+  sessionItems: TerminalSessionSummary[]
   sessionCounts: Map<string, number>
   sessionUpdatedAt: number | null
   idleTimeoutSeconds: number
   nowTs: number
   onConnect: (server: ServerType) => void
+  onResumeSession: (session: TerminalSessionSummary, server: ServerType) => void
+  onExitSession: (session: TerminalSessionSummary) => void
+  closingSessionId: string | null
+  onAddServer: () => void
 }
 
 function ServersPanel({
@@ -405,14 +517,26 @@ function ServersPanel({
   loading,
   error,
   onRetry,
+  sessionItems,
   sessionCounts,
   sessionUpdatedAt,
   idleTimeoutSeconds,
   nowTs,
   onConnect,
+  onResumeSession,
+  onExitSession,
+  closingSessionId,
+  onAddServer,
 }: ServersPanelProps) {
   const connectedServers = servers.filter(s => sessionCounts.has(s.id))
   const availableServers = servers.filter(s => !sessionCounts.has(s.id))
+  const serverById = new Map(servers.map(server => [server.id, server]))
+  const activeSessions = sessionItems
+    .map(session => ({ session, server: serverById.get(session.resource_id) }))
+    .filter(
+      (entry): entry is { session: TerminalSessionSummary; server: ServerType } =>
+        entry.server != null
+    )
   const idle = isSessionIdle(sessionUpdatedAt, idleTimeoutSeconds)
 
   const sessionMinAgo =
@@ -444,7 +568,7 @@ function ServersPanel({
   return (
     <div className="h-full overflow-y-auto p-6 space-y-6">
       {/* Active sessions */}
-      {connectedServers.length > 0 && (
+      {activeSessions.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold">Active Sessions</h3>
@@ -463,15 +587,17 @@ function ServersPanel({
             </div>
           </div>
           <div className="space-y-2">
-            {connectedServers.map(s => (
-              <ServerCard
-                key={s.id}
-                server={s}
-                isConnected
-                isIdle={idle}
-                lastSessionMin={sessionMinAgo ?? undefined}
-                sessionCount={sessionCounts.get(s.id)}
-                onConnect={onConnect}
+            {activeSessions.map(({ session, server }) => (
+              <ActiveSessionCard
+                key={session.id}
+                session={session}
+                server={server}
+                idleTimeoutSeconds={idleTimeoutSeconds}
+                nowTs={nowTs}
+                isClosing={closingSessionId === session.id}
+                sessionCount={sessionCounts.get(server.id) ?? 1}
+                onResume={onResumeSession}
+                onExit={onExitSession}
               />
             ))}
           </div>
@@ -489,11 +615,9 @@ function ServersPanel({
               </span>
             )}
           </h3>
-          <Button size="sm" variant="outline" asChild>
-            <a href="/resources/servers?create=1">
-              <Plus className="h-3.5 w-3.5 mr-1" />
-              Add Server
-            </a>
+          <Button size="sm" variant="outline" onClick={onAddServer}>
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            Add Server
           </Button>
         </div>
 
@@ -504,11 +628,9 @@ function ServersPanel({
             <p className="text-xs text-muted-foreground">
               Add a server in Resources to get started
             </p>
-            <Button size="sm" variant="outline" asChild className="mt-2">
-              <a href="/resources/servers?create=1">
-                <Plus className="h-3.5 w-3.5 mr-1" />
-                Add Server
-              </a>
+            <Button size="sm" variant="outline" className="mt-2" onClick={onAddServer}>
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Add Server
             </Button>
           </div>
         ) : (
@@ -537,11 +659,12 @@ export function TerminalIndexPage() {
   const [servers, setServers] = useState<ServerType[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [sessionTabs, setSessionTabs] = useState<PersistedTerminalTab[]>([])
+  const [sessionItems, setSessionItems] = useState<TerminalSessionSummary[]>([])
   const [sessionUpdatedAt, setSessionUpdatedAt] = useState<number | null>(null)
   const [connectSettings, setConnectSettings] =
     useState<ConnectTerminalSettings>(DEFAULT_CONNECT_SETTINGS)
   const [nowTs, setNowTs] = useState(() => Date.now())
+  const [closingSessionId, setClosingSessionId] = useState<string | null>(null)
   const [navOpen, setNavOpen] = useState(false)
 
   // Auto-collapse nav when on overview
@@ -557,21 +680,36 @@ export function TerminalIndexPage() {
 
   const navigate = useNavigate()
 
-  const syncSessionSnapshot = useCallback(() => {
-    const session = loadConnectSession()
-    if (!session || session.tabs.length === 0) {
-      setSessionTabs([])
+  const syncSessionSnapshot = useCallback(async () => {
+    try {
+      const sessions = await listTerminalSessions()
+      const serverSessions = sessions.filter(
+        session => session.resource_type === 'server' && session.session_type === 'ssh'
+      )
+      setSessionItems(serverSessions)
+      const updatedAt = serverSessions.reduce<number | null>((latest, session) => {
+        const ts = Date.parse(session.last_active_at)
+        if (!Number.isFinite(ts)) return latest
+        return latest == null || ts > latest ? ts : latest
+      }, null)
+      setSessionUpdatedAt(updatedAt)
+    } catch {
+      setSessionItems([])
       setSessionUpdatedAt(null)
-      return
     }
-    setSessionTabs(session.tabs)
-    setSessionUpdatedAt(session.updatedAt)
   }, [])
 
-  const sessionCounts = sessionTabs.reduce((counts, tab) => {
-    counts.set(tab.serverId, (counts.get(tab.serverId) ?? 0) + 1)
+  const sessionCounts = sessionItems.reduce((counts, session) => {
+    counts.set(session.resource_id, (counts.get(session.resource_id) ?? 0) + 1)
     return counts
   }, new Map<string, number>())
+
+  const latestSessionByServer = sessionItems.reduce((sessions, session) => {
+    if (!sessions.has(session.resource_id)) {
+      sessions.set(session.resource_id, session)
+    }
+    return sessions
+  }, new Map<string, TerminalSessionSummary>())
 
   const fetchServers = useCallback(async () => {
     setLoading(true)
@@ -598,20 +736,20 @@ export function TerminalIndexPage() {
   }, [syncSessionSnapshot])
 
   useEffect(() => {
-    const syncFromWindow = () => syncSessionSnapshot()
+    const syncFromWindow = () => {
+      void syncSessionSnapshot()
+    }
     const syncFromVisibility = () => {
       if (document.visibilityState === 'visible') {
-        syncSessionSnapshot()
+        void syncSessionSnapshot()
       }
     }
 
     window.addEventListener('focus', syncFromWindow)
-    window.addEventListener('storage', syncFromWindow)
     document.addEventListener('visibilitychange', syncFromVisibility)
 
     return () => {
       window.removeEventListener('focus', syncFromWindow)
-      window.removeEventListener('storage', syncFromWindow)
       document.removeEventListener('visibilitychange', syncFromVisibility)
     }
   }, [syncSessionSnapshot])
@@ -623,8 +761,47 @@ export function TerminalIndexPage() {
     return () => window.clearInterval(timer)
   }, [])
 
+  const handleResumeSession = useCallback(
+    (session: TerminalSessionSummary, server: ServerType) => {
+      const workspace = session.workspace ?? {}
+      navigate({
+        to: '/terminal/server/$serverId',
+        params: { serverId: server.id },
+        search: {
+          sessionId: session.id,
+          panel: workspace.side_panel === 'files' ? 'files' : undefined,
+          path: workspace.file_path || undefined,
+          lockedRoot: workspace.locked_root || undefined,
+          split:
+            typeof workspace.split_ratio === 'number' && Number.isFinite(workspace.split_ratio)
+              ? workspace.split_ratio
+              : undefined,
+        },
+      })
+    },
+    [navigate]
+  )
+
+  const handleExitSession = useCallback(
+    async (session: TerminalSessionSummary) => {
+      setClosingSessionId(session.id)
+      try {
+        await deleteTerminalSession(session.id)
+        await syncSessionSnapshot()
+      } finally {
+        setClosingSessionId(current => (current === session.id ? null : current))
+      }
+    },
+    [syncSessionSnapshot]
+  )
+
   const handleConnect = useCallback(
     async (server: ServerType) => {
+      const existingSession = latestSessionByServer.get(server.id)
+      if (existingSession) {
+        handleResumeSession(existingSession, server)
+        return
+      }
       const label = server.name || server.host || server.id
       setConnectingTarget(label)
       setConnectingPhase('checking')
@@ -647,8 +824,12 @@ export function TerminalIndexPage() {
         setConnectingDetail(err instanceof Error ? err.message : 'Connection check failed.')
       }
     },
-    [navigate]
+    [handleResumeSession, latestSessionByServer, navigate]
   )
+
+  const handleAddServer = useCallback(() => {
+    void navigate({ to: '/resources/servers', search: { create: '1' } as never })
+  }, [navigate])
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -748,11 +929,14 @@ export function TerminalIndexPage() {
             <OverviewPanel
               servers={servers}
               loading={loading}
+              sessionItems={sessionItems}
               sessionCounts={sessionCounts}
               sessionUpdatedAt={sessionUpdatedAt}
               idleTimeoutSeconds={connectSettings.idleTimeoutSeconds}
               nowTs={nowTs}
-              onConnect={handleConnect}
+              onResumeSession={handleResumeSession}
+              onExitSession={handleExitSession}
+              closingSessionId={closingSessionId}
               onTabChange={setActiveTab}
             />
           )}
@@ -762,11 +946,16 @@ export function TerminalIndexPage() {
               loading={loading}
               error={error}
               onRetry={fetchServers}
+              sessionItems={sessionItems}
               sessionCounts={sessionCounts}
               sessionUpdatedAt={sessionUpdatedAt}
               idleTimeoutSeconds={connectSettings.idleTimeoutSeconds}
               nowTs={nowTs}
               onConnect={handleConnect}
+              onResumeSession={handleResumeSession}
+              onExitSession={handleExitSession}
+              closingSessionId={closingSessionId}
+              onAddServer={handleAddServer}
             />
           )}
           {activeTab === 'cloud' && (

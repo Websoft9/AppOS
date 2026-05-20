@@ -16,7 +16,6 @@ import {
 } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { buildActionListHref } from '@/pages/deploy/actions/action-utils'
 
 type StoreShortcut = {
   key: string
@@ -322,7 +321,9 @@ export function ActionHomeView<TOperation extends LatestOperationItem>({
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base">Latest Actions</CardTitle>
           <Button variant="outline" size="sm" asChild>
-            <a href={buildActionListHref()}>View action history</a>
+            <Link to="/actions" params={{} as never} search={{} as never}>
+              View action history
+            </Link>
           </Button>
         </CardHeader>
         <CardContent>

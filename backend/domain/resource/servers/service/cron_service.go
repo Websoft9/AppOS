@@ -128,6 +128,7 @@ func (s ManagedCronService) Create(ctx context.Context, job ManagedCronJob) (Man
 	if strings.TrimSpace(job.EntryID) == "" {
 		job.EntryID = NewManagedCronEntryID()
 	}
+	job = normalizeLoadedManagedCronJob(job)
 	doc.Append(job)
 	output, err := s.Repository.Write(ctx, doc)
 	if err != nil {
@@ -145,6 +146,7 @@ func (s ManagedCronService) Update(ctx context.Context, job ManagedCronJob) (Man
 	if index < 0 {
 		return ManagedCronJob{}, "", ErrManagedCronNotFound
 	}
+	job = normalizeLoadedManagedCronJob(job)
 	doc.Jobs[index] = cloneManagedCronJob(job)
 	output, err := s.Repository.Write(ctx, doc)
 	if err != nil {

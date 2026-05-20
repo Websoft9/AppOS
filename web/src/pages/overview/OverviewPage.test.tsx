@@ -27,15 +27,17 @@ vi.mock('@tanstack/react-router', () => ({
     to,
     params,
     className,
+    ...props
   }: {
     children: React.ReactNode
     to: string
     params?: Record<string, string>
     className?: string
+    [key: string]: unknown
   }) => {
     const resolvedTo = params?.appId ? to.replace('$appId', params.appId) : to
     return (
-      <a href={resolvedTo} className={className}>
+      <a href={resolvedTo} className={className} {...props}>
         {children}
       </a>
     )

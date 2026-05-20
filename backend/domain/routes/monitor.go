@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"bytes"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -69,8 +68,7 @@ func handleMonitorWrite(e *core.RequestEvent) error {
 		return monitorWritePayloadTooLarge(e)
 	}
 
-	target, err := monitorWriteEndpoint()
-	if err != nil {
+	if _, err := monitorWriteEndpoint(); err != nil {
 		return e.JSON(http.StatusBadGateway, map[string]any{"error": "tsdb_unavailable", "message": err.Error()})
 	}
 	limitedBody := &monitorWriteLimitReadCloser{body: e.Request.Body, remaining: maxMonitorWriteBodyBytes}
@@ -85,36 +83,11 @@ func handleMonitorWrite(e *core.RequestEvent) error {
 	points, projectionErr := projectRemoteWriteMetricPoints(payload, e.Request.Header.Get("Content-Encoding"), serverID)
 	if projectionErr != nil {
 		slog.Warn(describeRemoteWriteProjectionError(projectionErr), "server_id", serverID)
-	} else if len(points) > 0 {
+	}
+	if len(points) > 0 {
 		if err := monitormetrics.WriteMetricPoints(e.Request.Context(), points); err != nil {
 			slog.Warn("remote write canonical metric write failed", "server_id", serverID, "error", err)
 		}
-	}
-	req, err := http.NewRequestWithContext(e.Request.Context(), http.MethodPost, target, bytes.NewReader(payload))
-	if err != nil {
-		return e.JSON(http.StatusBadGateway, map[string]any{"error": "tsdb_request_failed", "message": err.Error()})
-	}
-	copyMonitorWriteHeader(req.Header, e.Request.Header, "Content-Type")
-	copyMonitorWriteHeader(req.Header, e.Request.Header, "Content-Encoding")
-	copyMonitorWriteHeader(req.Header, e.Request.Header, "X-Prometheus-Remote-Write-Version")
-	copyMonitorWriteHeader(req.Header, e.Request.Header, "User-Agent")
-	req.ContentLength = int64(len(payload))
-
-	resp, err := monitorWriteHTTPClient.Do(req)
-	if err != nil {
-		if errors.Is(err, errMonitorWritePayloadTooLarge) {
-			return monitorWritePayloadTooLarge(e)
-		}
-		return e.JSON(http.StatusBadGateway, map[string]any{"error": "tsdb_write_failed", "message": err.Error()})
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		message := strings.TrimSpace(string(body))
-		if message == "" {
-			message = fmt.Sprintf("time-series write failed with status %d", resp.StatusCode)
-		}
-		return e.JSON(http.StatusBadGateway, map[string]any{"error": "tsdb_write_rejected", "message": message})
 	}
 	return e.NoContent(http.StatusNoContent)
 }
@@ -172,16 +145,6 @@ func monitorWriteEndpoint() (string, error) {
 		return "", fmt.Errorf("%s must include scheme and host", monitormetrics.EnvVictoriaMetricsURL)
 	}
 	return baseURL + "/api/v1/write", nil
-}
-
-func copyMonitorWriteHeader(dst http.Header, src http.Header, key string) {
-	values := src.Values(key)
-	if len(values) == 0 {
-		return
-	}
-	for _, value := range values {
-		dst.Add(key, value)
-	}
 }
 
 type MonitorErrorResponse struct {
@@ -302,13 +265,13 @@ func handleMonitorOverview(e *core.RequestEvent) error {
 }
 
 // @Summary Get server container telemetry
-// @Description Returns latest and time-series telemetry for containers on one managed server. The optional containerId query parameter may be repeated; containerName may be repeated in the same order to enable raw cgroup fallback.
+// @Description Returns latest and time-series telemetry for containers on one managed server. For the current Netdata-backed MVP, AppOS matches telemetry primarily by normalized containerName; containerId remains a request correlation key and fallback when no name is provided.
 // @Tags Monitoring
 // @Security BearerAuth
 // @Param id path string true "server record ID"
 // @Param window query string false "fixed time window" Enums(1m,5m,15m,0.1h,0.5h,1h,5h,6h,12h,1d,24h,7d)
-// @Param containerId query string false "container ID filter; repeat to request multiple containers"
-// @Param containerName query string false "container name fallback hint; repeat in the same order as containerId"
+// @Param containerId query string false "request correlation key; repeat to request multiple containers"
+// @Param containerName query string false "container name used as the primary telemetry identity; repeat in the same order as containerId"
 // @Success 200 {object} MonitorContainerTelemetryResponse
 // @Failure 400 {object} MonitorErrorResponse
 // @Failure 401 {object} MonitorErrorResponse

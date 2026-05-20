@@ -77,8 +77,10 @@ development_status:
   5-7-search-autocomplete: done
   epic5-retrospective: optional
 
-  # Epic 6: Services Module
-  epic6: backlog
+  # Epic 6: Infra Modules
+  # Historical note: the older Epic 6 components scope was retired before this infra-module epic reused the number.
+  epic6: in-progress
+  6.1-files-service: in-progress
   epic6-retrospective: optional
 
   # Epic 7: Dashboard - Unified Frontend Framework

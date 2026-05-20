@@ -64,6 +64,7 @@ func queryContainerTelemetryVM(ctx context.Context, serverID string, targets []C
 		Items:        make([]ContainerTelemetryItem, 0, max(1, len(requestedTargets))),
 	}
 	itemsByID := make(map[string]*ContainerTelemetryItem, len(requestedTargets))
+	itemsByAlias := make(map[string]*ContainerTelemetryItem, max(1, len(requestedTargets)))
 	for _, target := range requestedTargets {
 		item := &ContainerTelemetryItem{
 			ContainerID:   target.ID,
@@ -71,6 +72,9 @@ func queryContainerTelemetryVM(ctx context.Context, serverID string, targets []C
 			Freshness:     ContainerTelemetryFreshness{State: "missing"},
 		}
 		itemsByID[target.ID] = item
+		for _, alias := range containerTelemetryTargetAliases(target) {
+			itemsByAlias[alias] = item
+		}
 	}
 	baseURL := strings.TrimSpace(os.Getenv(EnvVictoriaMetricsURL))
 	if baseURL == "" {
@@ -78,7 +82,7 @@ func queryContainerTelemetryVM(ctx context.Context, serverID string, targets []C
 		return response, nil
 	}
 	service := monitortsdb.NewService(metricsHTTPClient, baseURL)
-	selector := buildContainerTelemetrySelector(serverID, containerTelemetryTargetIDs(requestedTargets))
+	selector := buildContainerTelemetrySelector(serverID, containerTelemetryTargetNames(requestedTargets))
 	queries := []struct {
 		name    string
 		unit    string
@@ -105,20 +109,24 @@ func queryContainerTelemetryVM(ctx context.Context, serverID string, targets []C
 			return nil, err
 		}
 		for _, series := range matrix {
-			containerID := strings.TrimSpace(series.Metric["container_id"])
+			containerID := normalizeContainerTelemetryAlias(series.Metric["container_id"])
 			if containerID == "" {
 				continue
 			}
-			item := itemsByID[containerID]
+			item := itemsByAlias[containerID]
 			if item == nil {
 				item = &ContainerTelemetryItem{
 					ContainerID: containerID,
 					Freshness:   ContainerTelemetryFreshness{State: "missing"},
 				}
 				itemsByID[containerID] = item
+				itemsByAlias[containerID] = item
 			}
 			if item.ContainerName == "" {
-				item.ContainerName = strings.TrimSpace(series.Metric["container_name"])
+				item.ContainerName = normalizeContainerTelemetryName(series.Metric["container_name"])
+				if item.ContainerName != "" {
+					itemsByAlias[item.ContainerName] = item
+				}
 			}
 			if item.ComposeProject == "" {
 				item.ComposeProject = strings.TrimSpace(series.Metric["compose_project"])
@@ -155,9 +163,6 @@ func queryContainerTelemetryVM(ctx context.Context, serverID string, targets []C
 			}, query.segment)
 		}
 	}
-	if err := queryRawNetdataContainerTelemetry(ctx, service, serverID, requestedTargets, itemsByID, windowSpec.Start, windowSpec.End, windowSpec.Step); err != nil {
-		return nil, err
-	}
 	response.Items = flattenContainerTelemetryItems(itemsByID)
 	return response, nil
 }
@@ -184,12 +189,37 @@ func normalizeContainerTelemetryTargets(values []ContainerTelemetryTarget) []Con
 	return normalized
 }
 
-func containerTelemetryTargetIDs(targets []ContainerTelemetryTarget) []string {
-	ids := make([]string, 0, len(targets))
+func containerTelemetryTargetNames(targets []ContainerTelemetryTarget) []string {
+	seen := map[string]struct{}{}
+	values := make([]string, 0, len(targets))
 	for _, target := range targets {
-		ids = append(ids, target.ID)
+		name := normalizeContainerTelemetryName(target.Name)
+		if name == "" {
+			name = normalizeContainerTelemetryAlias(target.ID)
+		}
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		values = append(values, name)
 	}
-	return ids
+	sort.Strings(values)
+	return values
+}
+
+func containerTelemetryTargetAliases(target ContainerTelemetryTarget) []string {
+	aliases := make([]string, 0, 1)
+	if targetName := normalizeContainerTelemetryName(target.Name); targetName != "" {
+		aliases = append(aliases, targetName)
+		return aliases
+	}
+	if targetID := normalizeContainerTelemetryAlias(target.ID); targetID != "" {
+		aliases = append(aliases, targetID)
+	}
+	return aliases
 }
 
 func buildContainerTelemetrySelector(serverID string, containerIDs []string) string {
@@ -202,109 +232,6 @@ func buildContainerTelemetrySelector(serverID string, containerIDs []string) str
 		escaped = append(escaped, regexpEscape(containerID))
 	}
 	return fmt.Sprintf(`{server_id=%q,container_id=~"^(%s)$"}`, serverID, strings.Join(escaped, "|"))
-}
-
-func queryRawNetdataContainerTelemetry(ctx context.Context, service *monitortsdb.Service, serverID string, targets []ContainerTelemetryTarget, itemsByID map[string]*ContainerTelemetryItem, start, end time.Time, step time.Duration) error {
-	for _, target := range targets {
-		if target.ID == "" || target.Name == "" {
-			continue
-		}
-		item := itemsByID[target.ID]
-		if item == nil {
-			continue
-		}
-		chartMatcher := func(suffix string) string {
-			return rawNetdataCgroupChartMatcher(target.Name, suffix)
-		}
-		networkChartMatcher := rawNetdataCgroupNetworkChartMatcher(target.Name)
-		queries := []struct {
-			name        string
-			unit        string
-			query       string
-			segment     string
-			applyLatest func(float64)
-		}{
-			{name: "cpu", unit: "percent", query: fmt.Sprintf(`netdata_cgroup_cpu_limit_percentage_average{instance=%q,%s,dimension="used"}`, serverID, chartMatcher("cpu_limit")), applyLatest: func(value float64) { item.Latest.CPUPercent = &value }},
-			{name: "memory", unit: "bytes", segment: "usage", query: fmt.Sprintf(`netdata_cgroup_mem_usage_MiB_average{instance=%q,%s,dimension="ram"} * 1048576`, serverID, chartMatcher("mem_usage")), applyLatest: func(value float64) { item.Latest.MemoryUsageBytes = &value }},
-			{name: "memory", unit: "bytes", segment: "limit", query: fmt.Sprintf(`sum(netdata_cgroup_mem_usage_limit_MiB_average{instance=%q,%s,dimension=~"used|available"}) * 1048576`, serverID, chartMatcher("mem_usage_limit")), applyLatest: func(value float64) { item.Latest.MemoryLimitBytes = &value }},
-			{name: "network", unit: "bytes/s", segment: "in", query: fmt.Sprintf(`sum(netdata_cgroup_net_net_kilobits_persec_average{instance=%q,%s,dimension=~"^(received|receive|rx|in)$"}) * 125`, serverID, networkChartMatcher), applyLatest: func(value float64) { item.Latest.NetworkRxBytesPerSecond = &value }},
-			{name: "network", unit: "bytes/s", segment: "out", query: fmt.Sprintf(`sum(netdata_cgroup_net_net_kilobits_persec_average{instance=%q,%s,dimension=~"^(sent|transmit|tx|out)$"}) * 125`, serverID, networkChartMatcher), applyLatest: func(value float64) { item.Latest.NetworkTxBytesPerSecond = &value }},
-			{name: "block", unit: "bytes/s", segment: "read", query: fmt.Sprintf(`abs(netdata_cgroup_io_KiB_persec_average{instance=%q,%s,dimension="read"}) * 1024`, serverID, chartMatcher("io")), applyLatest: func(value float64) { item.Latest.BlockReadBytesPerSecond = &value }},
-			{name: "block", unit: "bytes/s", segment: "write", query: fmt.Sprintf(`abs(netdata_cgroup_io_KiB_persec_average{instance=%q,%s,dimension="write"}) * 1024`, serverID, chartMatcher("io")), applyLatest: func(value float64) { item.Latest.BlockWriteBytesPerSecond = &value }},
-		}
-		for _, query := range queries {
-			if containerTelemetrySeriesExists(item, query.name, query.segment) {
-				continue
-			}
-			points, err := service.ExecuteQueryRange(ctx, query.query, start, end, step)
-			if err != nil {
-				continue
-			}
-			latestValue, observedAt, hasLatest := latestMetricPoint(points)
-			if !hasLatest {
-				continue
-			}
-			query.applyLatest(latestValue)
-			mergeTelemetryFreshness(item, observedAt, end, step)
-			appendContainerTelemetrySeries(item, MetricSeries{Name: query.name, Unit: query.unit, Points: cloneMetricPoints(points)}, query.segment)
-		}
-	}
-	return nil
-}
-
-func rawNetdataCgroupNetworkChartMatcher(containerName string) string {
-	patterns := make([]string, 0, 2)
-	seen := map[string]struct{}{}
-	for _, candidate := range []string{containerName, sanitizeNetdataCgroupChartName(containerName)} {
-		candidate = strings.TrimSpace(candidate)
-		if candidate == "" {
-			continue
-		}
-		pattern := regexpEscape("cgroup_"+candidate+".net") + `(_.*)?`
-		if _, ok := seen[pattern]; ok {
-			continue
-		}
-		seen[pattern] = struct{}{}
-		patterns = append(patterns, pattern)
-	}
-	return fmt.Sprintf(`chart=~"^(%s)$"`, strings.Join(patterns, "|"))
-}
-
-func rawNetdataCgroupChartMatcher(containerName string, suffix string) string {
-	charts := make([]string, 0, 2)
-	seen := map[string]struct{}{}
-	for _, candidate := range []string{containerName, sanitizeNetdataCgroupChartName(containerName)} {
-		candidate = strings.TrimSpace(candidate)
-		if candidate == "" {
-			continue
-		}
-		chart := "cgroup_" + candidate + "." + suffix
-		if _, ok := seen[chart]; ok {
-			continue
-		}
-		seen[chart] = struct{}{}
-		charts = append(charts, chart)
-	}
-	if len(charts) == 1 {
-		return fmt.Sprintf(`chart=%q`, charts[0])
-	}
-	escaped := make([]string, 0, len(charts))
-	for _, chart := range charts {
-		escaped = append(escaped, regexpEscape(chart))
-	}
-	return fmt.Sprintf(`chart=~"^(%s)$"`, strings.Join(escaped, "|"))
-}
-
-func sanitizeNetdataCgroupChartName(value string) string {
-	var builder strings.Builder
-	for _, char := range value {
-		if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || char == '_' {
-			builder.WriteRune(char)
-			continue
-		}
-		builder.WriteByte('_')
-	}
-	return builder.String()
 }
 
 func containerTelemetrySeriesExists(item *ContainerTelemetryItem, name string, segment string) bool {
@@ -328,6 +255,10 @@ func containerTelemetrySeriesExists(item *ContainerTelemetryItem, name string, s
 }
 
 func normalizeContainerTelemetryName(value string) string {
+	return normalizeContainerTelemetryAlias(value)
+}
+
+func normalizeContainerTelemetryAlias(value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return ""

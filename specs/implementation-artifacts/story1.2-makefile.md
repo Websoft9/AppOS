@@ -1,6 +1,6 @@
 # Story 1.2: Makefile Development Workflow
 
-**Epic**: Epic 1 - Infrastructure & Build System  
+**Epic**: Epic 1 - DevOps  
 **Priority**: P2  
 **Status**: Ready for Dev
 

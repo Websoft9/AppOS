@@ -1,8 +1,13 @@
+import { Link } from '@tanstack/react-router'
 import { ArrowLeft, RefreshCw } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { ActionDetailContent } from '@/pages/deploy/actions/ActionDetailDialog'
-import { buildActionListHref, formatTime } from '@/pages/deploy/actions/action-utils'
+import {
+  buildActionListSearch,
+  formatTime,
+} from '@/pages/deploy/actions/action-utils'
+import type { ActionDetailSearch } from '@/pages/deploy/actions/action-types'
 import { useActionDetailController } from '@/pages/deploy/actions/useActionDetailController'
 
 function getUserLabel(item: { user_email?: string; user_id?: string }): string {
@@ -17,13 +22,14 @@ function getServerHost(item: { server_host?: string; server_id: string }): strin
   return item.server_host || (item.server_id === 'local' || !item.server_id ? 'local' : '-')
 }
 
-export function ActionDetailPage({ actionId }: { actionId: string }) {
-  const backHref =
-    typeof window === 'undefined'
-      ? '/actions'
-      : buildActionListHref(
-          Object.fromEntries(new URLSearchParams(window.location.search).entries())
-        )
+export function ActionDetailPage({
+  actionId,
+  search,
+}: {
+  actionId: string
+  search?: ActionDetailSearch
+}) {
+  const backSearch = buildActionListSearch(search)
   const {
     operation,
     loading,
@@ -44,10 +50,10 @@ export function ActionDetailPage({ actionId }: { actionId: string }) {
       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <div className="space-y-1">
           <Button variant="ghost" className="w-fit px-0 text-muted-foreground" asChild>
-            <a href={backHref}>
+            <Link to="/actions" params={{} as never} search={(backSearch ?? {}) as never}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Actions
-            </a>
+            </Link>
           </Button>
           <h1 className="text-2xl font-bold">
             Execution Detail: {operation?.compose_project_name || actionId}

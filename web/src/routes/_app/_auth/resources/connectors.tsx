@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
 import {
   ResourcePage,
@@ -278,6 +278,7 @@ const columns: Column[] = [
 ]
 
 export function ConnectorsPage() {
+  const navigate = useNavigate()
   const autoCreate = new URLSearchParams(window.location.search).get('create') === '1'
   const [secretDialogOpen, setSecretDialogOpen] = useState(false)
   const [connectorTemplates, setConnectorTemplates] = useState<ConnectorTemplate[]>([])
@@ -331,9 +332,12 @@ export function ConnectorsPage() {
     targetUrl.searchParams.set('edit', secretId)
     const opened = window.open(targetUrl.toString(), '_blank', 'noopener,noreferrer')
     if (!opened) {
-      window.location.assign(targetUrl.toString())
+      void navigate({
+        to: '/secrets' as never,
+        search: { id: secretId, edit: secretId } as never,
+      })
     }
-  }, [])
+  }, [navigate])
 
   const baseConnectorFields = useMemo<FieldDef[]>(
     () => [

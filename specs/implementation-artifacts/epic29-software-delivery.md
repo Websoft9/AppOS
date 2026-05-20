@@ -6,6 +6,8 @@
 
 Own the software supply path AppOS actually manages.
 
+Migration note: Epic 29 supersedes the installed-component and detection-pipeline portions of Epic 6. AppOS-local component inventory should now be expressed as Software Delivery local inventory rather than a separate `System / Components` domain.
+
 This epic covers:
 
 - what software components AppOS owns

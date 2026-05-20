@@ -9,24 +9,23 @@ const assignMock = vi.fn()
 const setSidebarOpenMock = vi.fn()
 const toggleSidebarMock = vi.fn()
 
-vi.mock('./sidebar-navigation', () => ({
-  navigateSidebarHref: (...args: unknown[]) => assignMock(...args),
-}))
-
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
     children,
     to,
     className,
+    onClick,
   }: {
     children: React.ReactNode
     to: string
     className?: string
+    onClick?: () => void
   }) => (
-    <a href={to} className={className}>
+    <a href={to} className={className} onClick={onClick}>
       {children}
     </a>
   ),
+  useNavigate: () => assignMock,
   useRouterState: () => ({
     location: { pathname },
   }),
@@ -122,7 +121,7 @@ describe('Sidebar', () => {
 
     fireEvent.click(applicationTrigger as HTMLButtonElement)
 
-    expect(assignMock).toHaveBeenCalledWith('/apps')
+    expect(assignMock).toHaveBeenCalledWith({ to: '/apps' })
   })
 
   it('opens Collaboration and navigates to Groups when clicked from a collapsed state', () => {
@@ -138,7 +137,7 @@ describe('Sidebar', () => {
 
     fireEvent.click(collaborationTrigger as HTMLButtonElement)
 
-    expect(assignMock).toHaveBeenCalledWith('/groups')
+    expect(assignMock).toHaveBeenCalledWith({ to: '/groups' })
   })
 
   it('does not show Scripts under Collaboration', () => {
@@ -167,7 +166,7 @@ describe('Sidebar', () => {
 
     fireEvent.click(credentialsTrigger as HTMLButtonElement)
 
-    expect(assignMock).toHaveBeenCalledWith('/secrets')
+    expect(assignMock).toHaveBeenCalledWith({ to: '/secrets' })
   })
 
   it('does not show Shared Envs under Credentials', () => {
@@ -193,7 +192,7 @@ describe('Sidebar', () => {
 
     fireEvent.click(systemTrigger as HTMLButtonElement)
 
-    expect(assignMock).toHaveBeenCalledWith('/status')
+    expect(assignMock).toHaveBeenCalledWith({ to: '/status' })
   })
 
   it('shows Audit before Logs and Orchestration Files after System Crons under the System section for superusers', () => {

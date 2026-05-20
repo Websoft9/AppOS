@@ -59,6 +59,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { DockerTextDialog } from '@/components/docker/DockerTextDialog'
 import { getApiErrorMessage } from '@/lib/api-error'
+import { DockerDependencyAlert, getDockerDependencyIssue } from '@/components/docker/DockerDependencyAlert'
 import { cn } from '@/lib/utils'
 
 const IMAGES_SORT_KEY = 'docker.images.sort'
@@ -937,6 +938,8 @@ export const ImagesTab = forwardRef<
   }
 
   const loadError = error ? getApiErrorMessage(error, 'Failed to load images') : null
+  const visibleError = loadError || actionError
+  const dependencyIssue = getDockerDependencyIssue(error ?? visibleError)
 
   const recentCompletedPulls = useMemo(
     () => recentPullOperations.filter(operation => operation.terminal_status !== 'none').slice(0, 6),
@@ -1144,11 +1147,13 @@ export const ImagesTab = forwardRef<
         embeddedInWorkspace ? 'pt-0' : 'pt-4'
       )}
     >
-      {(loadError || actionError) && (
+      {dependencyIssue && visibleError ? (
+        <DockerDependencyAlert serverId={serverId} message={visibleError} />
+      ) : visibleError ? (
         <Alert variant="destructive" className="shrink-0">
-          <AlertDescription>{loadError || actionError}</AlertDescription>
+          <AlertDescription>{visibleError}</AlertDescription>
         </Alert>
-      )}
+      ) : null}
       {!embeddedInWorkspace && (
         <>
           <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 px-3 py-3 shrink-0">
@@ -1769,8 +1774,8 @@ export const ImagesTab = forwardRef<
               className="min-h-0 flex flex-1 flex-col"
             >
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="pulling">Pulling</TabsTrigger>
-                <TabsTrigger value="recents">Recents</TabsTrigger>
+                <TabsTrigger value="pulling">Pending</TabsTrigger>
+                <TabsTrigger value="recents">History</TabsTrigger>
               </TabsList>
 
               <TabsContent value="pulling" className="mt-4 min-h-0 flex-1">
@@ -1782,10 +1787,6 @@ export const ImagesTab = forwardRef<
                       <>
                         {executingPullOperations.length > 0 ? (
                           <div className="space-y-2">
-                            <div>
-                              <p className="text-sm font-medium">Running now</p>
-                              <p className="text-xs text-muted-foreground">These pulls are actively downloading on the target server.</p>
-                            </div>
                             {executingPullOperations.map(operation => (
                               <div
                                 key={operation.id}
@@ -1811,10 +1812,6 @@ export const ImagesTab = forwardRef<
 
                         {queuedPullOperations.length > 0 ? (
                           <div className="space-y-2">
-                            <div>
-                              <p className="text-sm font-medium">Queued</p>
-                              <p className="text-xs text-muted-foreground">These pulls are waiting for an available pull slot on this server.</p>
-                            </div>
                             {queuedPullOperations.map(operation => (
                               <div
                                 key={operation.id}

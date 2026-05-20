@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import * as jsYaml from 'js-yaml'
 import {
   ArrowLeft,
@@ -17,7 +18,6 @@ import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { iacUploadFile, iacMkdir } from '@/lib/iac-api'
 import { pb } from '@/lib/pb'
-import { buildActionListHref } from '@/pages/deploy/actions/action-utils'
 import type { CreateDeploymentEntryMode } from '@/pages/deploy/actions/action-types'
 import { useActionsController } from '@/pages/deploy/actions/useActionsController'
 import type {
@@ -492,16 +492,16 @@ export function CreateDeploymentPage({
         </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" asChild>
-            <a href="/deploy">
+            <Link to="/deploy" search={{} as never}>
               <ArrowLeft className="mr-1 h-4 w-4" />
               Back
-            </a>
+            </Link>
           </Button>
           <Button variant="ghost" size="sm" asChild>
-            <a href={buildActionListHref()}>
+            <Link to="/actions" params={{} as never} search={{} as never}>
               <List className="mr-1 h-4 w-4" />
               History
-            </a>
+            </Link>
           </Button>
         </div>
       </div>

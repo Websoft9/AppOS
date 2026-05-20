@@ -1,4 +1,5 @@
 import { useMemo, type ReactNode } from 'react'
+import { Link } from '@tanstack/react-router'
 import {
   FileCode2,
   GitBranch,
@@ -24,7 +25,6 @@ import { AppDetailModal } from '@/components/store/AppDetailModal'
 import { ActionHomeView } from '@/pages/deploy/actions/ActionHomeView'
 import { ActionListView } from '@/pages/deploy/actions/ActionListView'
 import {
-  buildActionListHref,
   formatTime,
   isActiveStatus,
   statusVariant,
@@ -174,9 +174,6 @@ export function DeployPage({
     ],
     [openManualDialog]
   )
-
-  const operationListHref = buildActionListHref()
-
   function renderActionMenu(item: ActionRecord) {
     return (
       <DropdownMenu>
@@ -234,17 +231,17 @@ export function DeployPage({
                 aria-label="View actions"
                 asChild
               >
-                <a href={operationListHref}>
+                <Link to="/actions" params={{} as never} search={{} as never}>
                   <List className="h-4 w-4" />
-                </a>
+                </Link>
               </Button>
             </>
           ) : (
             <>
               <Button size="icon" title="Deploy" aria-label="Deploy" asChild>
-                <a href="/deploy">
+                <Link to="/deploy" search={{} as never}>
                   <Plus className="h-4 w-4" />
-                </a>
+                </Link>
               </Button>
               <Button
                 variant="outline"
@@ -283,7 +280,9 @@ export function DeployPage({
               within this app only.
             </span>
             <Button variant="outline" size="sm" asChild>
-              <a href="/actions">Clear App Scope</a>
+              <Link to="/actions" params={{} as never} search={{} as never}>
+                Clear App Scope
+              </Link>
             </Button>
           </AlertDescription>
         </Alert>

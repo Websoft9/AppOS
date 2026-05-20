@@ -9,14 +9,19 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	monitormetrics "github.com/websoft9/appos/backend/domain/monitor/metrics"
+	"github.com/websoft9/appos/backend/infra/docker"
 	"github.com/websoft9/appos/backend/infra/supervisor"
 )
 
 func NewPlatformObserver(app core.App, snapshotFn func() RuntimeSnapshot) *PlatformObserver {
+	localDockerClient := docker.New(docker.NewLocalExecutor(""))
 	return &PlatformObserver{
 		app:        app,
 		snapshotFn: snapshotFn,
 		resourceFn: supervisor.GetProcessResources,
+		hostTelemetryFn: collectLocalHostMetricPoints,
+		containerStatsFn: localDockerClient.ContainerStats,
+		containerSamples: map[string]localContainerCounters{},
 		nowFn: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -35,6 +40,20 @@ func (o *PlatformObserver) SetResourceFunc(resourceFn func([]int) map[int]superv
 		return
 	}
 	o.resourceFn = resourceFn
+}
+
+func (o *PlatformObserver) SetContainerStatsFunc(containerStatsFn func(context.Context) (string, error)) {
+	if containerStatsFn == nil {
+		return
+	}
+	o.containerStatsFn = containerStatsFn
+}
+
+func (o *PlatformObserver) SetHostTelemetryFunc(hostTelemetryFn func(time.Time, LocalHostTelemetryState) ([]monitormetrics.MetricPoint, LocalHostTelemetryState, error)) {
+	if hostTelemetryFn == nil {
+		return
+	}
+	o.hostTelemetryFn = hostTelemetryFn
 }
 
 func (o *PlatformObserver) Start() {
@@ -81,6 +100,21 @@ func (o *PlatformObserver) Collect() error {
 		return err
 	}
 	platformMetricPoints = append(platformMetricPoints, schedulerMetricPoints...)
+	if o.hostTelemetryFn != nil {
+		hostMetricPoints, nextHostState, err := o.hostTelemetryFn(now, o.hostState)
+		if err != nil {
+			slog.Warn("platform observer local host telemetry skipped", "error", err)
+		} else {
+			o.hostState = nextHostState
+			platformMetricPoints = append(platformMetricPoints, hostMetricPoints...)
+		}
+	}
+	containerMetricPoints, err := o.collectLocalContainerTelemetry(context.Background(), now)
+	if err != nil {
+		slog.Warn("platform observer local container telemetry skipped", "error", err)
+	} else {
+		platformMetricPoints = append(platformMetricPoints, containerMetricPoints...)
+	}
 
 	if err := monitormetrics.WriteMetricPoints(context.Background(), platformMetricPoints); err != nil {
 		return err

@@ -4351,7 +4351,7 @@ paths:
     get:
       tags: [Monitoring]
       summary: Get server container telemetry
-      description: "Returns latest and time-series telemetry for containers on one managed server. The optional containerId query parameter may be repeated; containerName may be repeated in the same order to enable raw cgroup fallback."
+      description: "Returns latest and time-series telemetry for containers on one managed server. For the current Netdata-backed MVP, AppOS matches telemetry primarily by normalized containerName; containerId remains a request correlation key and fallback when no name is provided."
       operationId: get_api_monitor_servers_id_container-telemetry
       parameters:
         - name: id
@@ -4362,13 +4362,13 @@ paths:
             type: string
         - name: containerId
           in: query
-          description: "container ID filter; repeat to request multiple containers"
+          description: "request correlation key; repeat to request multiple containers"
           required: false
           schema:
             type: string
         - name: containerName
           in: query
-          description: "container name fallback hint; repeat in the same order as containerId"
+          description: "container name used as the primary telemetry identity; repeat in the same order as containerId"
           required: false
           schema:
             type: string
@@ -8985,6 +8985,11 @@ paths:
           required: false
           schema:
             type: string
+        - name: session_id
+          in: query
+          required: false
+          schema:
+            type: string
         - name: shell
           in: query
           description: "shell binary"
@@ -9023,6 +9028,110 @@ paths:
       responses:
         "401":
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/terminal/sessions:
+    get:
+      tags: [Terminal]
+      summary: List terminal sessions
+      description: "Returns active in-memory terminal session summaries owned by the current authenticated user."
+      operationId: get_api_terminal_sessions
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/terminal/sessions/{sessionId}:
+    delete:
+      tags: [Terminal]
+      summary: Close terminal session
+      description: "Explicitly closes an active terminal session owned by the current authenticated user."
+      operationId: delete_api_terminal_sessions_sessionid
+      parameters:
+        - name: sessionId
+          in: path
+          description: "terminal session ID"
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/terminal/sessions/{sessionId}/workspace:
+    patch:
+      tags: [Terminal]
+      summary: Update terminal session workspace snapshot
+      description: "Stores the current file manager workspace snapshot for an active terminal session owned by the current authenticated user."
+      operationId: patch_api_terminal_sessions_sessionid_workspace
+      parameters:
+        - name: sessionId
+          in: path
+          description: "terminal session ID"
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: "workspace snapshot payload"
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []  # superuser required
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
           content:
             application/json:
               schema:
@@ -9901,6 +10010,11 @@ paths:
           in: path
           description: "server record ID"
           required: true
+          schema:
+            type: string
+        - name: session_id
+          in: query
+          required: false
           schema:
             type: string
         - name: token

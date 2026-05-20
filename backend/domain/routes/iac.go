@@ -6,38 +6,39 @@
 package routes
 
 import (
+	"errors"
 	"fmt"
-	"io"
 	"net/http"
-	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
-	"github.com/websoft9/appos/backend/domain/config/sysconfig"
-	settingscatalog "github.com/websoft9/appos/backend/domain/config/sysconfig/catalog"
-	"github.com/websoft9/appos/backend/infra/fileutil"
-)
-
-const (
-	libraryBasePath     = "/appos/library"
-	filesAllowedArchive = ".zip"
+	"github.com/websoft9/appos/backend/domain/iac"
+	"github.com/websoft9/appos/backend/infra/filesvc"
 )
 
 var (
-	filesBasePath       = "/appos/data"
-	filesAllowedRoots   = []string{"apps", "workflows", "templates"}
-	libraryAllowedRoots = []string{"apps"}
-	defaultFileSettings = settingscatalog.DefaultGroup("files", "limits")
+	// filesBasePath remains package-visible temporarily because other route helpers
+	// and tests still reference it during the first refactor phase.
+	filesBasePath    = iac.WorkspaceBasePath
+	iacLocalFiles     = mustNewLocalFilesService("iac", iac.WorkspaceBasePath, iac.WorkspaceRoots(), false)
+	libraryLocalFiles = mustNewLocalFilesService("iac-library", iac.LibraryBasePath, iac.LibraryRoots(), true)
 )
 
-func loadIacFileLimits(app core.App) map[string]any {
-	limits, _ := sysconfig.GetGroup(app, "files", "limits", defaultFileSettings)
-	return limits
+func mustNewLocalFilesService(name, basePath string, allowedRoots []string, readOnly bool) *filesvc.LocalService {
+	svc, err := filesvc.NewLocal(filesvc.Config{
+		Name:         name,
+		BasePath:     basePath,
+		AllowedRoots: allowedRoots,
+		ReadOnly:     readOnly,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return svc
 }
 
 // registerIaCRoutes mounts /api/ext/iac with superuser-only access.
@@ -92,55 +93,17 @@ type listResponse struct {
 func handleFileList(e *core.RequestEvent) error {
 	rel := e.Request.URL.Query().Get("path")
 
-	abs, err := fileutil.ResolveSafePath(filesBasePath, rel, filesAllowedRoots)
+	entries, err := iacLocalFiles.List(rel)
 	if err != nil {
-		return apis.NewBadRequestError("invalid path", err)
+		return iacPathError("invalid path", "path not found", "path is not a directory", err)
 	}
-
-	info, err := os.Stat(abs)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return apis.NewNotFoundError("path not found", nil)
-		}
-		return apis.NewBadRequestError("cannot stat path", err)
-	}
-	if !info.IsDir() {
-		return apis.NewBadRequestError("path is not a directory", nil)
-	}
-
-	entries, err := os.ReadDir(abs)
-	if err != nil {
-		return apis.NewBadRequestError("cannot read directory", err)
-	}
-
-	// Sort: directories first, then alphabetical within each group.
-	sort.Slice(entries, func(i, j int) bool {
-		di, dj := entries[i].IsDir(), entries[j].IsDir()
-		if di != dj {
-			return di
-		}
-		return entries[i].Name() < entries[j].Name()
-	})
 
 	result := listResponse{
 		Path:    rel,
 		Entries: make([]fileEntry, 0, len(entries)),
 	}
-	for _, de := range entries {
-		fi, err := de.Info()
-		if err != nil {
-			continue
-		}
-		typ := "file"
-		if de.IsDir() {
-			typ = "dir"
-		}
-		result.Entries = append(result.Entries, fileEntry{
-			Name:       de.Name(),
-			Type:       typ,
-			Size:       fi.Size(),
-			ModifiedAt: fi.ModTime().UTC(),
-		})
+	for _, entry := range entries {
+		result.Entries = append(result.Entries, toIACFileEntry(entry))
 	}
 
 	return e.JSON(http.StatusOK, result)
@@ -172,38 +135,22 @@ type contentResponse struct {
 func handleFileRead(e *core.RequestEvent) error {
 	rel := e.Request.URL.Query().Get("path")
 
-	abs, err := fileutil.ResolveSafePath(filesBasePath, rel, filesAllowedRoots)
+	data, entry, err := iacLocalFiles.ReadFile(rel)
 	if err != nil {
-		return apis.NewBadRequestError("invalid path", err)
+		return iacPathError("invalid path", "file not found", "path is a directory", err)
 	}
 
-	info, err := os.Stat(abs)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return apis.NewNotFoundError("file not found", nil)
-		}
-		return apis.NewBadRequestError("cannot stat file", err)
-	}
-	if info.IsDir() {
-		return apis.NewBadRequestError("path is a directory", nil)
-	}
-
-	cfg := loadIacFileLimits(e.App)
-	maxSizeMB := sysconfig.Int(cfg, "maxSizeMB", 10)
+	limits := iac.GetLimits(e.App)
+	maxSizeMB := limits.MaxSizeMB
 	maxRead := int64(maxSizeMB) * 1024 * 1024
 
-	if info.Size() > maxRead {
+	if entry.Size > maxRead {
 		return apis.NewApiError(http.StatusRequestEntityTooLarge,
 			fmt.Sprintf("file exceeds %d MB limit", maxSizeMB), nil)
 	}
 
-	data, err := os.ReadFile(abs)
-	if err != nil {
-		return apis.NewBadRequestError("cannot read file", err)
-	}
-
 	mimeType := http.DetectContentType(data)
-	if !isTextMIME(mimeType) {
+	if !iac.IsTextMIME(mimeType) {
 		return apis.NewApiError(http.StatusUnsupportedMediaType,
 			"binary files are not supported", nil)
 	}
@@ -211,8 +158,8 @@ func handleFileRead(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, contentResponse{
 		Path:       rel,
 		Content:    string(data),
-		Size:       info.Size(),
-		ModifiedAt: info.ModTime().UTC(),
+		Size:       entry.Size,
+		ModifiedAt: entry.ModifiedAt,
 	})
 }
 
@@ -244,18 +191,12 @@ func handleFileCreate(e *core.RequestEvent) error {
 		return apis.NewBadRequestError("invalid request body", err)
 	}
 
-	abs, err := fileutil.ResolveSafePath(filesBasePath, req.Path, filesAllowedRoots)
-	if err != nil {
-		return apis.NewBadRequestError("invalid path", err)
-	}
-
-	if _, err := os.Stat(abs); err == nil {
-		return apis.NewApiError(http.StatusConflict, "path already exists", nil)
-	}
-
 	if req.Type == "dir" {
-		if err := os.MkdirAll(abs, 0o755); err != nil {
-			return apis.NewBadRequestError("cannot create directory", err)
+		if _, err := iacLocalFiles.Mkdir(req.Path); err != nil {
+			if errors.Is(err, filesvc.ErrConflict) {
+				return apis.NewApiError(http.StatusConflict, "path already exists", nil)
+			}
+			return iacPathError("invalid path", "path not found", "path is not a directory", err)
 		}
 		return e.JSON(http.StatusCreated, map[string]string{
 			"path": req.Path,
@@ -264,11 +205,11 @@ func handleFileCreate(e *core.RequestEvent) error {
 	}
 
 	// Default: create a file.
-	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
-		return apis.NewBadRequestError("cannot create parent directories", err)
-	}
-	if err := os.WriteFile(abs, []byte(req.Content), 0o600); err != nil {
-		return apis.NewBadRequestError("cannot write file", err)
+	if _, err := iacLocalFiles.WriteFile(req.Path, []byte(req.Content), false); err != nil {
+		if errors.Is(err, filesvc.ErrConflict) {
+			return apis.NewApiError(http.StatusConflict, "path already exists", nil)
+		}
+		return iacPathError("invalid path", "path not found", "path is a directory", err)
 	}
 	return e.JSON(http.StatusCreated, map[string]string{
 		"path": req.Path,
@@ -302,24 +243,8 @@ func handleFileUpdate(e *core.RequestEvent) error {
 		return apis.NewBadRequestError("invalid request body", err)
 	}
 
-	abs, err := fileutil.ResolveSafePath(filesBasePath, req.Path, filesAllowedRoots)
-	if err != nil {
-		return apis.NewBadRequestError("invalid path", err)
-	}
-
-	info, err := os.Stat(abs)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return apis.NewNotFoundError("file not found", nil)
-		}
-		return apis.NewBadRequestError("cannot stat file", err)
-	}
-	if info.IsDir() {
-		return apis.NewBadRequestError("path is a directory", nil)
-	}
-
-	if err := os.WriteFile(abs, []byte(req.Content), 0o600); err != nil {
-		return apis.NewBadRequestError("cannot write file", err)
+	if _, err := iacLocalFiles.WriteFile(req.Path, []byte(req.Content), true); err != nil {
+		return iacPathError("invalid path", "file not found", "path is a directory", err)
 	}
 	return e.JSON(http.StatusOK, map[string]string{
 		"path": req.Path,
@@ -346,34 +271,15 @@ func handleFileDelete(e *core.RequestEvent) error {
 	recursive := e.Request.URL.Query().Get("recursive") == "true"
 
 	// Block deletion of top-level root directories (apps, workflows, templates).
-	if rootOf(rel) == rel {
+	if iac.RootOf(rel) == rel {
 		return apis.NewBadRequestError("cannot delete a root directory", nil)
 	}
 
-	abs, err := fileutil.ResolveSafePath(filesBasePath, rel, filesAllowedRoots)
-	if err != nil {
-		return apis.NewBadRequestError("invalid path", err)
-	}
-
-	info, err := os.Stat(abs)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return apis.NewNotFoundError("path not found", nil)
-		}
-		return apis.NewBadRequestError("cannot stat path", err)
-	}
-
-	if info.IsDir() {
-		if !recursive {
+	if err := iacLocalFiles.Delete(rel, recursive); err != nil {
+		if errors.Is(err, filesvc.ErrDirectoryRequired) {
 			return apis.NewBadRequestError("path is a directory; set recursive=true to delete", nil)
 		}
-		if err := os.RemoveAll(abs); err != nil {
-			return apis.NewBadRequestError("cannot delete directory", err)
-		}
-	} else {
-		if err := os.Remove(abs); err != nil {
-			return apis.NewBadRequestError("cannot delete file", err)
-		}
+		return iacPathError("invalid path", "path not found", "path is a directory; set recursive=true to delete", err)
 	}
 
 	return e.JSON(http.StatusOK, map[string]string{"path": rel})
@@ -405,34 +311,18 @@ func handleFileMove(e *core.RequestEvent) error {
 		return apis.NewBadRequestError("invalid request body", err)
 	}
 
-	fromAbs, err := fileutil.ResolveSafePath(filesBasePath, req.From, filesAllowedRoots)
-	if err != nil {
-		return apis.NewBadRequestError("invalid 'from' path", err)
-	}
-	toAbs, err := fileutil.ResolveSafePath(filesBasePath, req.To, filesAllowedRoots)
-	if err != nil {
-		return apis.NewBadRequestError("invalid 'to' path", err)
-	}
-
 	// Disallow cross-root moves (e.g. apps/ → workflows/).
-	if rootOf(req.From) != rootOf(req.To) {
+	if iac.RootOf(req.From) != iac.RootOf(req.To) {
 		return apis.NewBadRequestError("cross-root moves are not allowed", nil)
 	}
 
-	if _, err := os.Stat(fromAbs); err != nil {
-		if os.IsNotExist(err) {
+	if _, err := iacLocalFiles.Move(req.From, req.To, false); err != nil {
+		if errors.Is(err, filesvc.ErrConflict) {
+			return apis.NewApiError(http.StatusConflict, "destination already exists", nil)
+		}
+		if errors.Is(err, filesvc.ErrNotFound) {
 			return apis.NewNotFoundError("source path not found", nil)
 		}
-		return apis.NewBadRequestError("cannot stat source", err)
-	}
-	if _, err := os.Stat(toAbs); err == nil {
-		return apis.NewApiError(http.StatusConflict, "destination already exists", nil)
-	}
-
-	if err := os.MkdirAll(filepath.Dir(toAbs), 0o755); err != nil {
-		return apis.NewBadRequestError("cannot create destination parent directories", err)
-	}
-	if err := os.Rename(fromAbs, toAbs); err != nil {
 		return apis.NewBadRequestError("cannot move path", err)
 	}
 
@@ -440,6 +330,36 @@ func handleFileMove(e *core.RequestEvent) error {
 		"from": req.From,
 		"to":   req.To,
 	})
+}
+
+func toIACFileEntry(entry filesvc.Entry) fileEntry {
+	typ := "file"
+	if entry.Kind == "directory" {
+		typ = "dir"
+	}
+	return fileEntry{
+		Name:       entry.Name,
+		Type:       typ,
+		Size:       entry.Size,
+		ModifiedAt: entry.ModifiedAt,
+	}
+}
+
+func iacPathError(invalidMsg, notFoundMsg, directoryMsg string, err error) error {
+	switch {
+	case errors.Is(err, filesvc.ErrInvalidPath):
+		return apis.NewBadRequestError(invalidMsg, err)
+	case errors.Is(err, filesvc.ErrNotFound):
+		return apis.NewNotFoundError(notFoundMsg, nil)
+	case errors.Is(err, filesvc.ErrDirectoryRequired):
+		return apis.NewBadRequestError(directoryMsg, nil)
+	case errors.Is(err, filesvc.ErrFileRequired):
+		return apis.NewBadRequestError("path is a directory", nil)
+	case errors.Is(err, filesvc.ErrConflict):
+		return apis.NewApiError(http.StatusConflict, "path already exists", nil)
+	default:
+		return apis.NewBadRequestError("filesystem operation failed", err)
+	}
 }
 
 // ─── POST /api/ext/iac/upload ───────────────────────────────────────────────
@@ -460,10 +380,10 @@ func handleFileMove(e *core.RequestEvent) error {
 // @Failure 415 {object} map[string]any
 // @Router /api/ext/iac/upload [post]
 func handleFileUpload(e *core.RequestEvent) error {
-	cfg := loadIacFileLimits(e.App)
-	maxSizeMB := int64(sysconfig.Int(cfg, "maxSizeMB", 10))
-	maxZipSizeMB := int64(sysconfig.Int(cfg, "maxZipSizeMB", 50))
-	blacklist := sysconfig.String(cfg, "extensionBlacklist", ".exe,.dll,.so,.bin,.deb,.rpm,.apk,.msi,.dmg,.pkg")
+	limits := iac.GetLimits(e.App)
+	maxSizeMB := limits.MaxSizeMB
+	maxZipSizeMB := limits.MaxZipSizeMB
+	blacklist := limits.ExtensionBlacklist
 
 	// Parse multipart; cap memory at max zip size + 1 MB overhead.
 	const overhead = 1 << 20
@@ -472,7 +392,7 @@ func handleFileUpload(e *core.RequestEvent) error {
 	}
 
 	dirRel := e.Request.FormValue("path")
-	dirAbs, err := fileutil.ResolveSafePath(filesBasePath, dirRel, filesAllowedRoots)
+	_, err := iacLocalFiles.Resolve(dirRel)
 	if err != nil {
 		return apis.NewBadRequestError("invalid path", err)
 	}
@@ -484,7 +404,7 @@ func handleFileUpload(e *core.RequestEvent) error {
 	defer fh.Close()
 
 	ext := strings.ToLower(filepath.Ext(header.Filename))
-	isZip := ext == filesAllowedArchive
+	isZip := ext == iac.AllowedArchive
 
 	// Determine size limit for this file type.
 	limitBytes := maxSizeMB * 1024 * 1024
@@ -517,37 +437,20 @@ func handleFileUpload(e *core.RequestEvent) error {
 		return apis.NewBadRequestError("invalid upload filename", nil)
 	}
 
-	if err := os.MkdirAll(dirAbs, 0o755); err != nil {
+	if _, err := iacLocalFiles.Mkdir(dirRel); err != nil {
 		return apis.NewBadRequestError("cannot create target directory", err)
 	}
-	destAbs := filepath.Join(dirAbs, baseName)
 	destRel := filepath.ToSlash(filepath.Join(dirRel, baseName))
-
-	out, err := os.Create(destAbs)
-	if err != nil {
-		return apis.NewBadRequestError("cannot create destination file", err)
-	}
-	defer out.Close()
-
-	// Stream via LimitReader to enforce the byte limit regardless of what the
-	// client reports in Content-Length / header.Size.
-	written, copyErr := io.Copy(out, io.LimitReader(fh, limitBytes+1))
-	if copyErr != nil {
-		os.Remove(destAbs) //nolint:errcheck
-		return apis.NewBadRequestError("cannot write uploaded file", copyErr)
-	}
-	if written > limitBytes {
-		out.Close()
-		os.Remove(destAbs) //nolint:errcheck
-		limitMB := maxSizeMB
-		if isZip {
-			limitMB = maxZipSizeMB
+	if _, err := iacLocalFiles.WriteReader(destRel, fh, true, limitBytes); err != nil {
+			if errors.Is(err, filesvc.ErrLimitExceeded) {
+				limitMB := maxSizeMB
+				if isZip {
+					limitMB = maxZipSizeMB
+				}
+				return apis.NewApiError(http.StatusRequestEntityTooLarge,
+					fmt.Sprintf("file exceeds %d MB limit", limitMB), nil)
 		}
-		return apis.NewApiError(http.StatusRequestEntityTooLarge,
-			fmt.Sprintf("file exceeds %d MB limit", limitMB), nil)
-	}
-	if err := out.Sync(); err != nil {
-		return apis.NewBadRequestError("cannot sync uploaded file", err)
+		return apis.NewBadRequestError("cannot write uploaded file", err)
 	}
 
 	return e.JSON(http.StatusCreated, map[string]string{
@@ -572,20 +475,16 @@ func handleFileUpload(e *core.RequestEvent) error {
 func handleFileDownload(e *core.RequestEvent) error {
 	rel := e.Request.URL.Query().Get("path")
 
-	abs, err := fileutil.ResolveSafePath(filesBasePath, rel, filesAllowedRoots)
+	entry, err := iacLocalFiles.Stat(rel)
+	if err != nil {
+		return iacPathError("invalid path", "file not found", "path is a directory; download a specific file", err)
+	}
+	if entry.Kind == "directory" {
+		return apis.NewBadRequestError("path is a directory; download a specific file", nil)
+	}
+	abs, err := iacLocalFiles.Resolve(rel)
 	if err != nil {
 		return apis.NewBadRequestError("invalid path", err)
-	}
-
-	info, err := os.Stat(abs)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return apis.NewNotFoundError("file not found", nil)
-		}
-		return apis.NewBadRequestError("cannot stat file", err)
-	}
-	if info.IsDir() {
-		return apis.NewBadRequestError("path is a directory; download a specific file", nil)
 	}
 
 	filename := filepath.Base(abs)
@@ -596,31 +495,6 @@ func handleFileDownload(e *core.RequestEvent) error {
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
-
-// isTextMIME returns true for MIME types representing plain text or known
-// text-based formats detected by http.DetectContentType.
-func isTextMIME(mime string) bool {
-	textPrefixes := []string{
-		"text/",
-		"application/json",
-		"application/xml",
-		"application/javascript",
-	}
-	for _, p := range textPrefixes {
-		if strings.HasPrefix(mime, p) {
-			return true
-		}
-	}
-	return false
-}
-
-// rootOf returns the first path segment of a slash-separated relative path,
-// used to detect cross-root moves. e.g. "apps/myapp/file.yml" → "apps".
-func rootOf(rel string) string {
-	clean := filepath.ToSlash(filepath.Clean(rel))
-	parts := strings.SplitN(clean, "/", 2)
-	return parts[0]
-}
 
 // handleLibraryList lists directories and files under the read-only app library.
 //
@@ -637,54 +511,17 @@ func rootOf(rel string) string {
 func handleLibraryList(e *core.RequestEvent) error {
 	rel := e.Request.URL.Query().Get("path")
 
-	abs, err := fileutil.ResolveSafePath(libraryBasePath, rel, libraryAllowedRoots)
+	entries, err := libraryLocalFiles.List(rel)
 	if err != nil {
-		return apis.NewBadRequestError("invalid path", err)
+		return iacPathError("invalid path", "path not found", "path is not a directory", err)
 	}
-
-	info, err := os.Stat(abs)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return apis.NewNotFoundError("path not found", nil)
-		}
-		return apis.NewBadRequestError("cannot stat path", err)
-	}
-	if !info.IsDir() {
-		return apis.NewBadRequestError("path is not a directory", nil)
-	}
-
-	entries, err := os.ReadDir(abs)
-	if err != nil {
-		return apis.NewBadRequestError("cannot read directory", err)
-	}
-
-	sort.Slice(entries, func(i, j int) bool {
-		di, dj := entries[i].IsDir(), entries[j].IsDir()
-		if di != dj {
-			return di
-		}
-		return entries[i].Name() < entries[j].Name()
-	})
 
 	result := listResponse{
 		Path:    rel,
 		Entries: make([]fileEntry, 0, len(entries)),
 	}
-	for _, de := range entries {
-		fi, err := de.Info()
-		if err != nil {
-			continue
-		}
-		typ := "file"
-		if de.IsDir() {
-			typ = "dir"
-		}
-		result.Entries = append(result.Entries, fileEntry{
-			Name:       de.Name(),
-			Type:       typ,
-			Size:       fi.Size(),
-			ModifiedAt: fi.ModTime().UTC(),
-		})
+	for _, entry := range entries {
+		result.Entries = append(result.Entries, toIACFileEntry(entry))
 	}
 
 	return e.JSON(http.StatusOK, result)
@@ -707,38 +544,22 @@ func handleLibraryList(e *core.RequestEvent) error {
 func handleLibraryRead(e *core.RequestEvent) error {
 	rel := e.Request.URL.Query().Get("path")
 
-	abs, err := fileutil.ResolveSafePath(libraryBasePath, rel, libraryAllowedRoots)
+	data, entry, err := libraryLocalFiles.ReadFile(rel)
 	if err != nil {
-		return apis.NewBadRequestError("invalid path", err)
+		return iacPathError("invalid path", "file not found", "path is a directory", err)
 	}
 
-	info, err := os.Stat(abs)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return apis.NewNotFoundError("file not found", nil)
-		}
-		return apis.NewBadRequestError("cannot stat file", err)
-	}
-	if info.IsDir() {
-		return apis.NewBadRequestError("path is a directory", nil)
-	}
-
-	cfg := loadIacFileLimits(e.App)
-	maxSizeMB := sysconfig.Int(cfg, "maxSizeMB", 10)
+	limits := iac.GetLimits(e.App)
+	maxSizeMB := limits.MaxSizeMB
 	maxRead := int64(maxSizeMB) * 1024 * 1024
 
-	if info.Size() > maxRead {
+	if entry.Size > maxRead {
 		return apis.NewApiError(http.StatusRequestEntityTooLarge,
 			fmt.Sprintf("file exceeds %d MB limit", maxSizeMB), nil)
 	}
 
-	data, err := os.ReadFile(abs)
-	if err != nil {
-		return apis.NewBadRequestError("cannot read file", err)
-	}
-
 	mimeType := http.DetectContentType(data)
-	if !isTextMIME(mimeType) {
+	if !iac.IsTextMIME(mimeType) {
 		return apis.NewApiError(http.StatusUnsupportedMediaType,
 			"binary files are not supported", nil)
 	}
@@ -746,8 +567,8 @@ func handleLibraryRead(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, contentResponse{
 		Path:       rel,
 		Content:    string(data),
-		Size:       info.Size(),
-		ModifiedAt: info.ModTime().UTC(),
+		Size:       entry.Size,
+		ModifiedAt: entry.ModifiedAt,
 	})
 }
 
@@ -782,24 +603,20 @@ func handleLibraryCopy(e *core.RequestEvent) error {
 
 	// Validate source exists in library.
 	srcRel := "apps/" + req.SourceKey
-	srcAbs, err := fileutil.ResolveSafePath(libraryBasePath, srcRel, libraryAllowedRoots)
+	srcEntry, err := libraryLocalFiles.Stat(srcRel)
 	if err != nil {
-		return apis.NewBadRequestError("invalid sourceKey", err)
+		return apis.NewNotFoundError("library app not found", nil)
 	}
-	info, err := os.Stat(srcAbs)
-	if err != nil || !info.IsDir() {
+	if srcEntry.Kind != "directory" {
 		return apis.NewNotFoundError("library app not found", nil)
 	}
 
 	// Destination under data/templates/apps/{destKey}.
 	dstRel := "templates/apps/" + req.DestKey
-	dstAbs, err := fileutil.ResolveSafePath(filesBasePath, dstRel, filesAllowedRoots)
-	if err != nil {
-		return apis.NewBadRequestError("invalid destination", err)
-	}
-
-	// Copy directory tree.
-	if err := fileutil.CopyDir(srcAbs, dstAbs); err != nil {
+	if _, err := filesvc.CopyBetween(libraryLocalFiles, srcRel, iacLocalFiles, dstRel, false); err != nil {
+		if errors.Is(err, filesvc.ErrConflict) {
+			return apis.NewApiError(http.StatusConflict, "destination already exists", nil)
+		}
 		return apis.NewBadRequestError("failed to copy library app", err)
 	}
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Check, Pencil } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -384,6 +384,7 @@ const columns: Column[] = [
 ]
 
 export function AIProvidersPage() {
+  const navigate = useNavigate()
   const autoCreate = new URLSearchParams(window.location.search).get('create') === '1'
   const [secretDialogOpen, setSecretDialogOpen] = useState(false)
   const [providerTemplates, setProviderTemplates] = useState<AIProviderTemplate[]>([])
@@ -455,9 +456,12 @@ export function AIProvidersPage() {
     targetUrl.searchParams.set('edit', secretId)
     const opened = window.open(targetUrl.toString(), '_blank', 'noopener,noreferrer')
     if (!opened) {
-      window.location.assign(targetUrl.toString())
+      void navigate({
+        to: '/secrets' as never,
+        search: { id: secretId, edit: secretId } as never,
+      })
     }
-  }, [])
+  }, [navigate])
 
   const renderCredentialField = useCallback(
     ({

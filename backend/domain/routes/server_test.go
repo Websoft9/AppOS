@@ -11,9 +11,18 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase/apis"
+	"github.com/pocketbase/pocketbase/core"
+	"github.com/websoft9/appos/backend/domain/terminal"
 	"github.com/websoft9/appos/backend/domain/software"
 	tunnelcore "github.com/websoft9/appos/backend/infra/tunnelcore"
 )
+
+type terminalTestSession struct{}
+
+func (terminalTestSession) Write(p []byte) (int, error) { return len(p), nil }
+func (terminalTestSession) Read(_ []byte) (int, error)  { return 0, nil }
+func (terminalTestSession) Resize(_, _ uint16) error    { return nil }
+func (terminalTestSession) Close() error                { return nil }
 
 // doServer performs a server route request using the testEnv helper from resources_test.go.
 func (te *testEnv) doServer(t *testing.T, method, url, body string, authenticated bool) *httptest.ResponseRecorder {
@@ -674,6 +683,125 @@ func TestSFTPListRequiresAuth(t *testing.T) {
 	rec := te.doTerminal(t, http.MethodGet, "/api/terminal/sftp/nonexistent/list?path=/", "", false)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestTerminalSessionsReturnsCurrentUsersActiveSessions(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	registryReset := func() {
+		terminal.Unregister("session-user")
+		terminal.Unregister("session-other")
+	}
+	registryReset()
+	defer registryReset()
+
+	admin, err := te.app.FindFirstRecordByData(core.CollectionNameSuperusers, "email", routesTestAdminEmail)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	other := core.NewRecord(admin.Collection())
+	other.Set("email", "other-admin@test.com")
+	other.SetPassword("1234567890")
+	if err := te.app.Save(other); err != nil {
+		t.Fatal(err)
+	}
+
+	terminal.RegisterDetailed("session-user", terminalTestSession{}, admin.Id, "server", "srv-1", "ssh")
+	terminal.RegisterDetailed("session-other", terminalTestSession{}, other.Id, "server", "srv-2", "ssh")
+
+	rec := te.doTerminal(t, http.MethodGet, "/api/terminal/sessions", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []terminal.SessionSummary `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(payload.Items))
+	}
+	if payload.Items[0].ID != "session-user" {
+		t.Fatalf("expected current user's session, got %s", payload.Items[0].ID)
+	}
+	if payload.Items[0].ResourceID != "srv-1" || payload.Items[0].SessionType != "ssh" {
+		t.Fatalf("unexpected session payload: %+v", payload.Items[0])
+	}
+}
+
+func TestTerminalSessionWorkspaceUpdatesSnapshot(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	admin, err := te.app.FindFirstRecordByData(core.CollectionNameSuperusers, "email", routesTestAdminEmail)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	terminal.Unregister("session-workspace")
+	defer terminal.Unregister("session-workspace")
+	terminal.RegisterDetailed("session-workspace", terminalTestSession{}, admin.Id, "server", "srv-1", "ssh")
+
+	body := `{"active_server_id":"srv-1","side_panel":"files","file_path":"/var/log","locked_root":"/var","split_ratio":0.4}`
+	rec := te.doTerminal(t, http.MethodPatch, "/api/terminal/sessions/session-workspace/workspace", body, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	listRec := te.doTerminal(t, http.MethodGet, "/api/terminal/sessions", "", true)
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", listRec.Code, listRec.Body.String())
+	}
+
+	var payload struct {
+		Items []terminal.SessionSummary `json:"items"`
+	}
+	if err := json.Unmarshal(listRec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(payload.Items))
+	}
+	if payload.Items[0].Workspace.FilePath != "/var/log" || payload.Items[0].Workspace.LockedRoot != "/var" {
+		t.Fatalf("unexpected workspace payload: %+v", payload.Items[0].Workspace)
+	}
+}
+
+func TestTerminalSessionCloseRemovesOwnedSession(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	admin, err := te.app.FindFirstRecordByData(core.CollectionNameSuperusers, "email", routesTestAdminEmail)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	terminal.Unregister("session-close")
+	terminal.RegisterDetailed("session-close", terminalTestSession{}, admin.Id, "server", "srv-1", "ssh")
+
+	rec := te.doTerminal(t, http.MethodDelete, "/api/terminal/sessions/session-close", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	listRec := te.doTerminal(t, http.MethodGet, "/api/terminal/sessions", "", true)
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", listRec.Code, listRec.Body.String())
+	}
+
+	var payload struct {
+		Items []terminal.SessionSummary `json:"items"`
+	}
+	if err := json.Unmarshal(listRec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.Items) != 0 {
+		t.Fatalf("expected 0 items after close, got %d", len(payload.Items))
 	}
 }
 

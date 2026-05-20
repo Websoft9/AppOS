@@ -4,9 +4,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ServerMonitorTab } from './ServerMonitorTab'
 
 const getSystemdStatusMock = vi.fn()
+const sendMock = vi.fn()
 
 vi.mock('@/lib/connect-api', () => ({
   getSystemdStatus: (...args: unknown[]) => getSystemdStatusMock(...args),
+}))
+
+vi.mock('@/lib/pb', () => ({
+  pb: {
+    send: (...args: unknown[]) => sendMock(...args),
+  },
 }))
 
 vi.mock('@/components/monitor/MonitorTargetPanel', () => ({
@@ -41,6 +48,7 @@ afterEach(() => {
 describe('ServerMonitorTab', () => {
   beforeEach(() => {
     getSystemdStatusMock.mockReset()
+    sendMock.mockReset()
     getSystemdStatusMock.mockResolvedValue({
       server_id: 'server-1',
       service: 'netdata',
@@ -50,6 +58,17 @@ describe('ServerMonitorTab', () => {
         UnitFileState: 'enabled',
       },
       status_text: 'netdata.service - Netdata',
+    })
+    sendMock.mockResolvedValue({
+      hasData: true,
+      targetType: 'server',
+      targetId: 'server-1',
+      displayName: 'alpha',
+      status: 'healthy',
+      reason: null,
+      signalSource: 'netdata',
+      lastTransitionAt: '2026-05-20T06:00:00Z',
+      summary: {},
     })
   })
 
@@ -81,6 +100,26 @@ describe('ServerMonitorTab', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete conclusion Resource pressure' }))
     expect(screen.queryByText('Resource pressure')).toBeNull()
+  })
+
+  it('shows a waiting hint while the monitor agent is active but first metrics have not arrived yet', async () => {
+    sendMock.mockResolvedValueOnce({
+      hasData: false,
+      targetType: 'server',
+      targetId: 'server-1',
+      displayName: 'alpha',
+      status: 'unknown',
+      reason: 'server monitoring has not collected evidence yet',
+      signalSource: 'inventory',
+      lastTransitionAt: '2026-05-20T06:00:00Z',
+      summary: {
+        monitoring_state: 'awaiting_control_plane_pull',
+      },
+    })
+
+    render(<ServerMonitorTab serverId="server-1" serverName="alpha" connectionStatus="online" />)
+
+    expect(await screen.findByText('Monitoring active · waiting for first sample')).toBeInTheDocument()
   })
 
   it('routes metrics pipeline repair to monitor-agent reinstall', async () => {

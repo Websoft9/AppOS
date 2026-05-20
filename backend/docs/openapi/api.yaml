@@ -5865,7 +5865,7 @@ paths:
                 - Monitoring
     /api/monitor/servers/{id}/container-telemetry:
         get:
-            description: Returns latest and time-series telemetry for containers on one managed server. The optional containerId query parameter may be repeated; containerName may be repeated in the same order to enable raw cgroup fallback.
+            description: Returns latest and time-series telemetry for containers on one managed server. For the current Netdata-backed MVP, AppOS matches telemetry primarily by normalized containerName; containerId remains a request correlation key and fallback when no name is provided.
             operationId: get_api_monitor_servers_id_container-telemetry
             parameters:
                 - description: server record ID
@@ -5874,13 +5874,13 @@ paths:
                   required: true
                   schema:
                     type: string
-                - description: container ID filter; repeat to request multiple containers
+                - description: request correlation key; repeat to request multiple containers
                   in: query
                   name: containerId
                   required: false
                   schema:
                     type: string
-                - description: container name fallback hint; repeat in the same order as containerId
+                - description: container name used as the primary telemetry identity; repeat in the same order as containerId
                   in: query
                   name: containerName
                   required: false
@@ -10685,6 +10685,11 @@ paths:
                   required: false
                   schema:
                     type: string
+                - in: query
+                  name: session_id
+                  required: false
+                  schema:
+                    type: string
                 - description: shell binary
                   in: query
                   name: shell
@@ -10730,6 +10735,113 @@ paths:
             security:
                 - bearerAuth: []
             summary: Local WebSocket terminal
+            tags:
+                - Terminal
+    /api/terminal/sessions:
+        get:
+            description: Returns active in-memory terminal session summaries owned by the current authenticated user.
+            operationId: get_api_terminal_sessions
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: List terminal sessions
+            tags:
+                - Terminal
+    /api/terminal/sessions/{sessionId}:
+        delete:
+            description: Explicitly closes an active terminal session owned by the current authenticated user.
+            operationId: delete_api_terminal_sessions_sessionid
+            parameters:
+                - description: terminal session ID
+                  in: path
+                  name: sessionId
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Close terminal session
+            tags:
+                - Terminal
+    /api/terminal/sessions/{sessionId}/workspace:
+        patch:
+            description: Stores the current file manager workspace snapshot for an active terminal session owned by the current authenticated user.
+            operationId: patch_api_terminal_sessions_sessionid_workspace
+            parameters:
+                - description: terminal session ID
+                  in: path
+                  name: sessionId
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                description: workspace snapshot payload
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                additionalProperties: true
+                                type: object
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Update terminal session workspace snapshot
             tags:
                 - Terminal
     /api/terminal/sftp/{serverId}/chmod:
@@ -11620,6 +11732,11 @@ paths:
                   in: path
                   name: serverId
                   required: true
+                  schema:
+                    type: string
+                - in: query
+                  name: session_id
+                  required: false
                   schema:
                     type: string
                 - description: auth token (for WebSocket clients that cannot set headers)

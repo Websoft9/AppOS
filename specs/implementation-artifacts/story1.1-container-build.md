@@ -1,6 +1,6 @@
 # Story 1.1: Container Build & Deployment
 
-**Epic**: Epic 1 - Infrastructure & Build System  
+**Epic**: Epic 1 - DevOps  
 **Priority**: P0  
 **Status**: Done
 

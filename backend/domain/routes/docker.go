@@ -293,12 +293,57 @@ func handleDockerServers(e *core.RequestEvent) error {
 
 // ─── Helper ──────────────────────────────────────────────
 
+func dockerDependencyErrorCode(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	normalized := strings.ToLower(strings.TrimSpace(err.Error()))
+	if normalized == "" {
+		return ""
+	}
+
+	if strings.Contains(normalized, "docker: 'compose' is not a docker command") ||
+		strings.Contains(normalized, "docker compose: command not found") ||
+		strings.Contains(normalized, "docker compose: not found") ||
+		strings.Contains(normalized, "compose is not a docker command") ||
+		strings.Contains(normalized, "unknown command \"compose\"") ||
+		strings.Contains(normalized, "docker-compose: command not found") ||
+		strings.Contains(normalized, "docker-compose: not found") {
+		return "compose_missing"
+	}
+
+	if strings.Contains(normalized, "cannot connect to the docker daemon") ||
+		strings.Contains(normalized, "is the docker daemon running") ||
+		strings.Contains(normalized, "docker daemon is not running") {
+		return "docker_daemon_unavailable"
+	}
+
+	if strings.Contains(normalized, "permission denied") && strings.Contains(normalized, "docker.sock") {
+		return "docker_permission_denied"
+	}
+
+	if strings.Contains(normalized, "docker: command not found") ||
+		strings.Contains(normalized, "docker: not found") ||
+		strings.Contains(normalized, "exec: \"docker\": executable file not found in $path") ||
+		strings.Contains(normalized, "no such file or directory: docker") {
+		return "docker_missing"
+	}
+
+	return ""
+	}
+
 // dockerError returns a PocketBase-style error response.
 func dockerError(e *core.RequestEvent, status int, msg string, err error) error {
+	data := map[string]any{"error": err.Error()}
+	if errorCode := dockerDependencyErrorCode(err); errorCode != "" {
+		data["error_code"] = errorCode
+	}
+
 	return e.JSON(status, map[string]any{
 		"code":    status,
 		"message": msg,
-		"data":    map[string]any{"error": err.Error()},
+		"data":    data,
 	})
 }
 

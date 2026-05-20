@@ -22,6 +22,8 @@ import { cn } from '@/lib/utils'
 export interface TerminalPanelProps {
   /** Server ID for SSH connection */
   serverId?: string
+  /** Existing resumable SSH session ID */
+  sessionId?: string
   /** Container ID for Docker exec connection (Story 15.3) */
   containerId?: string
   /** Override shell for Docker exec (default: /bin/sh) */
@@ -32,6 +34,8 @@ export interface TerminalPanelProps {
   className?: string
   /** Whether this terminal tab is currently active in UI */
   isActive?: boolean
+  /** Called when the backend confirms the active session id */
+  onSessionEstablished?: (sessionId: string) => void
 }
 
 // ─── Control frame helpers ────────────────────────────────────────────────────
@@ -71,6 +75,8 @@ export interface TerminalPanelHandle {
   sendData: (data: string) => void
   /** Force terminal fit + resize sync (for parent layout transitions). */
   requestFit: () => void
+  /** Explicitly close the terminal session instead of detaching it. */
+  disconnect: () => void
 }
 
 const TERMINAL_FRAME_PADDING = {
@@ -86,7 +92,7 @@ const TERMINAL_SCREEN_PADDING = '1em 1ch 8px 10px'
 
 export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>(
   function TerminalPanel(
-    { serverId, containerId, shell, dockerServerId, className, isActive },
+    { serverId, sessionId, containerId, shell, dockerServerId, className, isActive, onSessionEstablished },
     ref
   ) {
     const frameRef = useRef<HTMLDivElement>(null)
@@ -101,10 +107,20 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     const isActiveRef = useRef(!!isActive)
     const structuredErrorRef = useRef(false)
     const connectionAttemptRef = useRef(0)
+    const latestSessionIdRef = useRef<string | undefined>(sessionId)
+    const onSessionEstablishedRef = useRef(onSessionEstablished)
 
     useEffect(() => {
       isActiveRef.current = !!isActive
     }, [isActive])
+
+    useEffect(() => {
+      latestSessionIdRef.current = sessionId
+    }, [sessionId])
+
+    useEffect(() => {
+      onSessionEstablishedRef.current = onSessionEstablished
+    }, [onSessionEstablished])
 
     const clearFitTimers = useCallback(() => {
       for (const timer of fitTimersRef.current) {
@@ -213,8 +229,11 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         requestFit: () => {
           scheduleFitAndSync()
         },
+        disconnect: () => {
+          disposeSocket(1000, 'disconnect')
+        },
       }),
-      [scheduleFitAndSync]
+      [disposeSocket, scheduleFitAndSync]
     )
 
     const connect = useCallback(() => {
@@ -241,6 +260,9 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       }
 
       const url = new URL(wsUrl)
+      if (latestSessionIdRef.current && (serverId || containerId)) {
+        url.searchParams.set('session_id', latestSessionIdRef.current)
+      }
       if (containerId) {
         url.searchParams.set('_', String(Date.now()))
         if (shell) {
@@ -313,8 +335,13 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
             try {
               const ctrl = JSON.parse(new TextDecoder().decode(bytes.slice(1))) as {
                 type: string
+                session_id?: string
                 category?: string
                 message?: string
+              }
+              if (ctrl.type === 'session' && typeof ctrl.session_id === 'string') {
+                onSessionEstablishedRef.current?.(ctrl.session_id)
+                return
               }
               if (ctrl.type === 'error' || ctrl.type === 'close') {
                 structuredErrorRef.current = true
@@ -401,7 +428,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       return () => {
         cancelAnimationFrame(frame)
         clearFitTimers()
-        disposeSocket(1000, 'unmount')
+	        disposeSocket(1000, 'detach')
         disposeTerminal()
       }
     }, [connect, clearFitTimers, disposeSocket, disposeTerminal])

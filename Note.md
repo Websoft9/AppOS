@@ -69,9 +69,6 @@ Settings（配置层）
 - 隧道连接
 - 网关转发...
 
-## UI 通用
-
-- 大文本光标问题
 
 ## 每日
 
@@ -146,14 +143,9 @@ Prerequisites
 
 除了 story29.xx 名称的前缀之外，文件名称最多不超过3个单词
 
-
-
-Docker tab 的 container
-
-1. 点击 container 详情后，state 列有点跳动，即详情会导致列表显示发生变化
-2. 分页 <> 中的页号与分页操作图标之间建议保持一个字符的距离即可
-
-
-
-
 ports tab 不稳定，经常打开显示  somethins wrong
+
+
+
+addons 的 netdata restart 报错
+addons 针对于没有安装的服务器，打开超过10s才显示数据

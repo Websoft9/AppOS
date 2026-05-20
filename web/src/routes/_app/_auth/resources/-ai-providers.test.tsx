@@ -5,12 +5,14 @@ import { AIProvidersPage, buildAIProviderPayload } from './ai-providers'
 const sendMock = vi.fn()
 const getOneMock = vi.fn()
 const createMock = vi.fn()
+const navigateMock = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute:
     () =>
     ({ component }: { component: unknown }) =>
       component,
+  useNavigate: () => navigateMock,
   Link: ({
     children,
     to,
@@ -41,6 +43,7 @@ describe('AIProvidersPage', () => {
     sendMock.mockReset()
     getOneMock.mockReset()
     createMock.mockReset()
+    navigateMock.mockReset()
 
     sendMock.mockImplementation(
       (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {

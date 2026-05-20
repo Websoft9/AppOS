@@ -1,5 +1,4 @@
-import { Link } from '@tanstack/react-router'
-import { Pencil } from 'lucide-react'
+import { Loader2, Pencil, RefreshCw } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -18,6 +17,8 @@ type ServerOverviewTabProps = {
   credentialId: string
   createdBy: string
   onEditServer?: () => void
+  onRefresh?: () => void | Promise<void>
+  refreshLoading?: boolean
 }
 
 const detailSectionTitleClassName = 'text-sm font-semibold text-foreground'
@@ -41,6 +42,14 @@ function formatCloudSourceLabel(value: string): string {
   return value
 }
 
+function formatCredentialTypeLabel(value: string): string {
+  const normalized = value.trim().toLowerCase()
+  if (!normalized || normalized === '—') return '—'
+  if (normalized.includes('password')) return 'Password'
+  if (normalized.includes('ssh') || normalized.includes('key')) return 'SSH key'
+  return value.trim()
+}
+
 export function ServerOverviewTab({
   item,
   serverId,
@@ -49,9 +58,10 @@ export function ServerOverviewTab({
   tunnelState,
   isTunnel,
   credentialType,
-  credentialId,
   createdBy,
   onEditServer,
+  onRefresh,
+  refreshLoading = false,
 }: ServerOverviewTabProps) {
   const cloudProviderName = firstStringValue(item, 'cloud_provider_name')
   const cloudProviderRegion = firstStringValue(item, 'cloud_region')
@@ -62,27 +72,48 @@ export function ServerOverviewTab({
   const createdAt = formatTimestamp(item.created)
   const updatedAt = formatTimestamp(item.updated)
   const createdByLabel = createdBy.trim() || '—'
+  const credentialTypeLabel = formatCredentialTypeLabel(credentialType)
 
   return (
     <div className="space-y-8">
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <h3 className={detailSectionTitleClassName}>Server Metadata</h3>
-          {onEditServer ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1.5 px-2.5 text-xs"
-              onClick={onEditServer}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              Edit
-            </Button>
-          ) : null}
+          <div className="flex items-center gap-2">
+            {onRefresh ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="shrink-0"
+                onClick={() => void onRefresh()}
+                disabled={refreshLoading}
+                aria-label="Refresh overview data"
+                title="Refresh overview data"
+              >
+                {refreshLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+              </Button>
+            ) : null}
+            {onEditServer ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 px-2.5 text-xs"
+                onClick={onEditServer}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit
+              </Button>
+            ) : null}
+          </div>
         </div>
         <dl className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2 xl:grid-cols-3">
-          <div className="sm:col-span-2 xl:col-span-3">
+          <div>
             <dt className="text-xs uppercase tracking-wide text-muted-foreground">ID</dt>
             <dd className="mt-1 break-all font-mono text-xs">{serverId || '—'}</dd>
           </div>
@@ -97,6 +128,18 @@ export function ServerOverviewTab({
             <dd className="mt-1">
               <Badge variant="outline">{isTunnel ? 'Tunnel' : 'Direct'}</Badge>
             </dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Host</dt>
+            <dd className="mt-1 break-all font-mono text-xs">{String(item.host || '—')}</dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Port</dt>
+            <dd className="mt-1">{String(item.port || '22')}</dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">User</dt>
+            <dd className="mt-1">{String(item.user || 'root')}</dd>
           </div>
           <div>
             <dt className="text-xs uppercase tracking-wide text-muted-foreground">Access</dt>
@@ -121,36 +164,12 @@ export function ServerOverviewTab({
             </div>
           ) : null}
           <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Host</dt>
-            <dd className="mt-1 break-all font-mono text-xs">{String(item.host || '—')}</dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Port</dt>
-            <dd className="mt-1">{String(item.port || '22')}</dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">User</dt>
-            <dd className="mt-1">{String(item.user || 'root')}</dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Credential</dt>
-            <dd className="mt-1 flex items-center gap-2">
-              {credentialType !== '—' && <Badge variant="secondary">{credentialType}</Badge>}
-              {credentialId ? (
-                <Link
-                  to="/secrets"
-                  search={{
-                    id: credentialId,
-                    edit: undefined,
-                    returnGroup: undefined,
-                    returnType: undefined,
-                  }}
-                  className="font-mono text-xs text-primary underline-offset-4 hover:underline"
-                >
-                  {credentialId}
-                </Link>
-              ) : (
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Credential type</dt>
+            <dd className="mt-1">
+              {credentialTypeLabel === '—' ? (
                 <span className="text-muted-foreground">—</span>
+              ) : (
+                <Badge variant="secondary">{credentialTypeLabel}</Badge>
               )}
             </dd>
           </div>
@@ -158,6 +177,12 @@ export function ServerOverviewTab({
             <dt className="text-xs uppercase tracking-wide text-muted-foreground">Created by</dt>
             <dd className="mt-1">{createdByLabel}</dd>
           </div>
+          {item.description ? (
+            <div className="sm:col-span-2 xl:col-span-3">
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Description</dt>
+              <dd className="mt-1 text-muted-foreground">{String(item.description)}</dd>
+            </div>
+          ) : null}
           <div>
             <dt className="text-xs uppercase tracking-wide text-muted-foreground">Created</dt>
             <dd className="mt-1">{createdAt}</dd>
@@ -166,12 +191,6 @@ export function ServerOverviewTab({
             <dt className="text-xs uppercase tracking-wide text-muted-foreground">Updated</dt>
             <dd className="mt-1">{updatedAt}</dd>
           </div>
-          {item.description ? (
-            <div className="sm:col-span-2 xl:col-span-3">
-              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Description</dt>
-              <dd className="mt-1 text-muted-foreground">{String(item.description)}</dd>
-            </div>
-          ) : null}
         </dl>
       </section>
 

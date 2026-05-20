@@ -23,7 +23,6 @@ services:
       - /etc/os-release:/host/etc/os-release:ro
       - appos_data:/appos/data
     environment:
-      - NETDATA_HOST_PREFIX=/host
       - TZ=UTC
       - APPOS_SECRET_KEY=${APPOS_SECRET_KEY}
       - SUPERVISOR_PASSWORD=${SUPERVISOR_PASSWORD:-changeme}
@@ -33,7 +32,6 @@ services:
       - TUNNEL_SSH_PORT=${TUNNEL_SSH_PORT:-9222}
       - PI_CODING_AGENT_DIR=${PI_CODING_AGENT_DIR:-/appos/data/pi}
       - TSDB_ADDR=${TSDB_ADDR:-http://127.0.0.1:8428}
-      - APPOS_NETDATA_JOIN_HOST_NETNS=${APPOS_NETDATA_JOIN_HOST_NETNS:-true}
 
   # Optional: External reverse proxy for SSL and domain routing
   # reverse-proxy:

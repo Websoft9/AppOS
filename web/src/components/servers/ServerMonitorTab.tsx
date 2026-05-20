@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { MonitorTargetPanel } from '@/components/monitor/MonitorTargetPanel'
 import { getSystemdStatus } from '@/lib/connect-api'
+import { pb } from '@/lib/pb'
 
 type MonitorChainState = 'ok' | 'attention' | 'info' | 'checking'
 
@@ -18,6 +19,12 @@ type MonitorConclusion = {
   detail: string
   nextStep: string
   observedAt: string
+}
+
+type MonitorTargetStatusSummary = {
+  monitoringState: string
+  hasData: boolean
+  reason: string
 }
 
 function stateBadgeVariant(
@@ -76,6 +83,49 @@ function inferMonitorAgentAction(
   return 'upgrade'
 }
 
+function monitorTargetSummaryFromResponse(response: unknown): MonitorTargetStatusSummary {
+  const payload = response && typeof response === 'object' ? (response as Record<string, unknown>) : {}
+  const summary =
+    payload.summary && typeof payload.summary === 'object' && !Array.isArray(payload.summary)
+      ? (payload.summary as Record<string, unknown>)
+      : {}
+  return {
+    monitoringState: String(summary.monitoring_state ?? '').trim().toLowerCase(),
+    hasData: Boolean(payload.hasData),
+    reason: String(payload.reason ?? '').trim().toLowerCase(),
+  }
+}
+
+function useMonitorTargetSummary(serverId: string, enabled: boolean) {
+  const [summary, setSummary] = useState<MonitorTargetStatusSummary | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  const refresh = useCallback(async () => {
+    if (!serverId || !enabled) {
+      setSummary(null)
+      return
+    }
+    setLoading(true)
+    try {
+      const response = await pb.send(
+        `/api/monitor/targets/server/${encodeURIComponent(serverId)}`,
+        { method: 'GET' }
+      )
+      setSummary(monitorTargetSummaryFromResponse(response))
+    } catch {
+      setSummary(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [enabled, serverId])
+
+  useEffect(() => {
+    void refresh()
+  }, [refresh])
+
+  return { summary, loading, refresh }
+}
+
 function useMonitorAgentStatus(serverId: string) {
   const [status, setStatus] = useState<Record<string, string> | null>(null)
   const [statusError, setStatusError] = useState('')
@@ -107,11 +157,6 @@ function useMonitorAgentStatus(serverId: string) {
   const connected = activeState === 'active' && !statusError
   const action = inferMonitorAgentAction(status, statusError)
   const actionLabel = action === 'install' ? 'Install monitor agent' : 'Fix monitor agent'
-  const hint = loadingStatus
-    ? 'Checking monitoring'
-    : connected
-      ? `Monitoring active${subState ? ` · ${subState}` : ''}`
-      : 'Monitoring not connected'
 
   return {
     statusError,
@@ -119,7 +164,7 @@ function useMonitorAgentStatus(serverId: string) {
     connected,
     action,
     actionLabel,
-    hint,
+    subState,
     refresh,
   }
 }
@@ -334,12 +379,28 @@ export function ServerMonitorTab({
   onMonitorAgentAction?: (action: 'install' | 'upgrade' | 'reinstall') => void
 }) {
   const monitorAgent = useMonitorAgentStatus(serverId)
+  const monitorTarget = useMonitorTargetSummary(serverId, monitorAgent.connected)
   const [refreshKey, setRefreshKey] = useState(0)
   const monitoringNeedsIntervention = !monitorAgent.loadingStatus && !monitorAgent.connected
+  const awaitingFirstSample =
+	monitorAgent.connected &&
+	(
+		monitorTarget.summary?.monitoringState === 'awaiting_control_plane_pull' ||
+		(!monitorTarget.summary?.hasData &&
+			monitorTarget.summary?.reason === 'server monitoring has not collected evidence yet')
+	)
+  const monitorHint = monitorAgent.loadingStatus
+	? 'Checking monitoring'
+	: awaitingFirstSample
+		? 'Monitoring active · waiting for first sample'
+		: monitorAgent.connected
+			? `Monitoring active${monitorAgent.subState ? ` · ${monitorAgent.subState}` : ''}`
+			: 'Monitoring not connected'
   const refreshAll = useCallback(() => {
     setRefreshKey(current => current + 1)
     void monitorAgent.refresh()
-  }, [monitorAgent])
+    void monitorTarget.refresh()
+  }, [monitorAgent, monitorTarget])
 
   return (
     <div className="space-y-4">
@@ -351,18 +412,20 @@ export function ServerMonitorTab({
           </p>
         </div>
         <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-          {monitorAgent.loadingStatus ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-          <span>{monitorAgent.hint}</span>
+          {monitorAgent.loadingStatus || monitorTarget.loading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : null}
+          <span>{monitorHint}</span>
           <Button
             variant="ghost"
             size="sm"
             className="shrink-0"
             onClick={refreshAll}
-            disabled={monitorAgent.loadingStatus}
+            disabled={monitorAgent.loadingStatus || monitorTarget.loading}
             aria-label="Refresh monitor data"
             title="Refresh monitor data"
           >
-            {monitorAgent.loadingStatus ? (
+            {monitorAgent.loadingStatus || monitorTarget.loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <RefreshCw className="h-4 w-4" />

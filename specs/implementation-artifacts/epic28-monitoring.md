@@ -6,6 +6,8 @@
 
 Establish a minimal monitoring domain for AppOS that gives operators one place to judge runtime health across servers, applications, resources, and AppOS itself.
 
+Migration note: Epic 28 supersedes the runtime-observation portion of Epic 6. Internal service state, freshness, and diagnostics should converge here rather than remain modeled as a standalone `Components` workspace concern.
+
 **Scope note**: Monitor observes the runtime state of running software (is it alive, is it healthy). Version detection, install, upgrade, and reinstall of those same software components are owned by Software Delivery (Epic 29), not Monitor.
 
 This epic adopts a Netdata-plus-control-plane-pull model:
@@ -38,7 +40,7 @@ Epic 28 should only add runtime evidence and status judgment on top of those obj
 
 Docker boundary for MVP:
 
-- in scope: container runtime telemetry, telemetry freshness, and monitor-backed status summaries
+- in scope: container runtime telemetry, telemetry freshness, and canonical monitor status summaries
 - out of scope: replacing Docker inventory APIs for containers, images, networks, volumes, or compose
 - out of scope: moving Docker actions such as start, stop, restart, remove, pull, prune, or compose up/down into monitor
 

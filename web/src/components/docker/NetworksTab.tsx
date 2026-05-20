@@ -51,6 +51,7 @@ import {
 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { getApiErrorMessage } from '@/lib/api-error'
+import { DockerDependencyAlert, getDockerDependencyIssue } from '@/components/docker/DockerDependencyAlert'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 
@@ -299,6 +300,8 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
   }
 
   const loadError = error ? getApiErrorMessage(error, 'Failed to load networks') : null
+  const visibleError = loadError || actionError
+  const dependencyIssue = getDockerDependencyIssue(error ?? visibleError)
 
   const filtered = useMemo(() => {
     return networks.filter(network => {
@@ -391,11 +394,13 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
         embeddedInWorkspace ? 'pt-0' : 'pt-4'
       )}
     >
-      {(loadError || actionError) && (
+      {dependencyIssue && visibleError ? (
+        <DockerDependencyAlert serverId={serverId} message={visibleError} />
+      ) : visibleError ? (
         <Alert variant="destructive" className="shrink-0">
-          <AlertDescription>{loadError || actionError}</AlertDescription>
+          <AlertDescription>{visibleError}</AlertDescription>
         </Alert>
-      )}
+      ) : null}
 
       {!embeddedInWorkspace && (
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 rounded-lg border bg-muted/20 px-3 py-3">

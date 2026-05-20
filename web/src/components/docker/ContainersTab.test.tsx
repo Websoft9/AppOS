@@ -14,7 +14,23 @@ vi.mock('@/lib/pb', () => ({
 }))
 
 vi.mock('@/components/monitor/TimeSeriesChart', () => ({
-  TimeSeriesChart: ({ name }: { name: string }) => <div>{name} chart</div>,
+  TimeSeriesChart: ({
+    name,
+    points,
+    segments,
+  }: {
+    name: string
+    points?: number[][]
+    segments?: Array<{ name: string; points: number[][] }>
+  }) => {
+    const hasData =
+      (points?.length || 0) > 0 || (segments || []).some(segment => segment.points.length > 0)
+    return (
+      <div data-testid={`chart-${name}`} data-has-data={hasData ? 'true' : 'false'}>
+        {name} chart
+      </div>
+    )
+  },
 }))
 
 function renderTab(overrides?: {
@@ -381,6 +397,120 @@ describe('ContainersTab', () => {
     expect(screen.getByText('memory chart')).toBeInTheDocument()
     expect(screen.getByText('network chart')).toBeInTheDocument()
     expect(screen.getByText('block chart')).toBeInTheDocument()
+    expect(screen.getByTestId('chart-cpu')).toHaveAttribute('data-has-data', 'true')
+    expect(screen.getByTestId('chart-memory')).toHaveAttribute('data-has-data', 'true')
+    expect(screen.getByTestId('chart-network')).toHaveAttribute('data-has-data', 'true')
+    expect(screen.getByTestId('chart-block')).toHaveAttribute('data-has-data', 'true')
+  })
+
+  it('resolves trend telemetry by container name when the response is name-keyed', async () => {
+    const user = userEvent.setup()
+
+    sendMock.mockReset()
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/servers/srv-1/docker/containers') {
+        return Promise.resolve({
+          output: [
+            JSON.stringify({
+              ID: 'ctr-1',
+              Names: 'demo-web',
+              Image: 'nginx:alpine',
+              State: 'running',
+              Status: 'Up 2 hours',
+              Ports: '0.0.0.0:8080->80/tcp',
+            }),
+          ].join('\n'),
+        })
+      }
+      if (
+        path ===
+          '/api/monitor/servers/srv-1/container-telemetry?window=5m&containerId=ctr-1&containerName=demo-web' ||
+        path ===
+          '/api/monitor/servers/srv-1/container-telemetry?window=15m&containerId=ctr-1&containerName=demo-web'
+      ) {
+        return Promise.resolve({
+          serverId: 'srv-1',
+          window: path.includes('window=5m') ? '5m' : '15m',
+          rangeStartAt: '2026-04-29T00:00:00Z',
+          rangeEndAt: '2026-04-29T00:15:00Z',
+          stepSeconds: 30,
+          items: [
+            {
+              containerId: 'demo-web',
+              containerName: 'demo-web',
+              latest: {
+                cpuPercent: 17.2,
+              },
+              freshness: {
+                state: 'fresh',
+                observedAt: '2026-04-29T00:15:00Z',
+              },
+              series: [
+                {
+                  name: 'cpu',
+                  unit: 'percent',
+                  points: [
+                    [1, 10],
+                    [2, 17.2],
+                  ],
+                },
+              ],
+            },
+          ],
+        })
+      }
+      if (path === '/api/servers/srv-1/docker/containers/stats') {
+        return Promise.resolve({
+          output: [
+            JSON.stringify({
+              ID: 'ctr-1',
+              Container: 'ctr-1',
+              Name: 'demo-web',
+              CPUPerc: '11.2%',
+              MemUsage: '128MiB / 256MiB',
+              NetIO: '2.0KiB / 1.0KiB',
+              BlockIO: '4.0KiB / 2.0KiB',
+            }),
+          ].join('\n'),
+        })
+      }
+      if (path === '/api/servers/srv-1/docker/containers/metadata') {
+        return Promise.resolve({
+          items: {
+            'ctr-1': {
+              created: '2026-04-29T00:00:00Z',
+              compose_project: 'demo',
+              volume_names: ['data'],
+            },
+          },
+        })
+      }
+      if (path === '/api/servers/srv-1/docker/containers/ctr-1') {
+        return Promise.resolve({
+          output: JSON.stringify([
+            {
+              Id: 'ctr-1',
+              Name: '/demo-web',
+              Config: {
+                Image: 'nginx:alpine',
+              },
+              State: {
+                Status: 'running',
+              },
+            },
+          ]),
+        })
+      }
+      return Promise.reject(new Error(`Unexpected request: ${path}`))
+    })
+
+    renderTab()
+
+    await screen.findByText('demo-web')
+    await user.click(screen.getByRole('button', { name: 'Open monitor for demo-web' }))
+
+    expect(await screen.findByText('Container Stats: demo-web')).toBeInTheDocument()
+    expect(screen.getByTestId('chart-cpu')).toHaveAttribute('data-has-data', 'true')
   })
 
   it('renders compose and created columns from bulk metadata', async () => {

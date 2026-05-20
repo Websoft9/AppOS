@@ -62,9 +62,9 @@
 - **Integration**: TanStack Query for catalog caching, react-i18next for translations
 
 ### Epic 6: Components
-- **Updated**: Technology stack references
-- **Location**: `dashboard/src/routes/_app/_auth/components/` (TanStack Router structure)
-- **Integration**: TanStack Query + BaaS subscriptions for real-time updates
+- **Updated at the time**: Technology stack references
+- **Original dashboard-era location**: `dashboard/src/routes/_app/_auth/components/` (TanStack Router structure)
+- **Later status**: superseded after scope split to Epic 28 `Monitoring` and Epic 29 `Software Delivery`
 
 ---
 
@@ -147,7 +147,7 @@ Even though we're not adapting the code, we learned valuable patterns:
 
 - ✅ `specs/implementation-artifacts/epic7-dashboard.md` (technology stack clarified)
 - ✅ `specs/implementation-artifacts/epic5-store.md` (tech stack references updated)
-- ✅ `specs/implementation-artifacts/epic6-components.md` (components scope and tech stack references updated)
+- ✅ Epic 6 dashboard-era component scope was documented and later superseded by Epic 28 and Epic 29
 - ✅ `specs/implementation-artifacts/sprint-status.yaml` (story keys renamed)
 - ✅ `specs/planning-artifacts/tech-stack-decisions.md` (created - ADR document)
 - ✅ `specs/planning-artifacts/dashboard-restart-summary.md` (this file)

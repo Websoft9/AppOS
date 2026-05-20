@@ -728,9 +728,9 @@ export function OverviewPage() {
               </div>
             ) : (
               issueItems.map(item => (
-                <a
+                <Link
                   key={item.id}
-                  href={item.href}
+                  to={item.href as never}
                   className="flex items-start justify-between gap-3 rounded-lg border bg-background px-4 py-3 transition-colors hover:bg-muted/20"
                 >
                   <div className="min-w-0 space-y-1">
@@ -743,7 +743,7 @@ export function OverviewPage() {
                     <div className="text-sm text-muted-foreground">{item.description}</div>
                   </div>
                   <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                </a>
+                </Link>
               ))
             )}
           </CardContent>
@@ -753,13 +753,13 @@ export function OverviewPage() {
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
               <CardTitle>Control Plane</CardTitle>
-              <a
-                href="/status"
+              <Link
+                to="/status"
                 aria-label="System Monitor"
                 className="inline-flex items-center text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
                 <ChevronRight className="h-4 w-4" />
-              </a>
+              </Link>
             </div>
             <CardDescription>
               AppOS self-observation summary plus one-hour resource trends for the core process.
@@ -815,7 +815,7 @@ export function OverviewPage() {
                   <div>
                     <div className="text-sm font-medium text-foreground">AppOS Core Trends</div>
                     <div className="text-xs text-muted-foreground">
-                      Netdata-backed one hour control-plane resource view.
+                      Canonical monitor metrics for the last hour.
                     </div>
                   </div>
                   <div className="text-xs text-muted-foreground">Window 1h</div>
@@ -914,9 +914,9 @@ export function OverviewPage() {
             {QUICK_LINKS.map(item => {
               const Icon = item.icon
               return (
-                <a
+                <Link
                   key={item.href}
-                  href={item.href}
+                  to={item.href as never}
                   className="rounded-lg border bg-background px-4 py-3 transition-colors hover:bg-muted/20"
                 >
                   <div className="flex items-center justify-between gap-3">
@@ -931,7 +931,7 @@ export function OverviewPage() {
                     </div>
                     <ArrowRight className="h-4 w-4 text-muted-foreground" />
                   </div>
-                </a>
+                </Link>
               )
             })}
           </CardContent>

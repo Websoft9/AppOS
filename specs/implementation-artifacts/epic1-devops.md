@@ -1,9 +1,9 @@
-# Epic 1: Infrastructure & Build System
+# Epic 1: DevOps
 
 ## Overview
-**Objective**: Standardize Docker build process, development environment, and CI/CD infrastructure
+**Objective**: Establish the DevOps foundation for AppOS build, delivery, local development, and release automation
 
-**Business Value**: Consistent build environment, automated releases, reduced environment issues
+**Business Value**: Consistent developer workflow, automated quality gates and releases, reduced environment drift
 
 **Priority**: P0
 
@@ -23,8 +23,12 @@
 - CI/CD end-to-end < 30 minutes
 - Zero critical vulnerabilities in releases
 
+## DevOps Scope
+- container build and runtime packaging
+- local developer workflow and command ergonomics
+- CI/CD automation and release flow
+- versioning, artifact quality, and security gates
+
 ## Dependencies
 - Prerequisites: None
 - Downstream: All other Epics
-
-

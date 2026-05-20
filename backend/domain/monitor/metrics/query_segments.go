@@ -10,7 +10,10 @@ import (
 
 type metricSeriesBuilder func(context.Context, *monitortsdb.Service, string, string, time.Time, time.Time, time.Duration) (MetricSeries, error)
 
-var netdataSeriesBuilders = map[string]metricSeriesBuilder{
+var specialSeriesBuilders = map[string]metricSeriesBuilder{
+	"cpu": func(ctx context.Context, service *monitortsdb.Service, targetID, _ string, start, end time.Time, step time.Duration) (MetricSeries, error) {
+		return buildCPUSeries(ctx, service, targetID, start, end, step)
+	},
 	"memory": func(ctx context.Context, service *monitortsdb.Service, targetID, _ string, start, end time.Time, step time.Duration) (MetricSeries, error) {
 		return buildMemorySeries(ctx, service, targetID, start, end, step)
 	},
@@ -28,8 +31,8 @@ var netdataSeriesBuilders = map[string]metricSeriesBuilder{
 	},
 }
 
-func buildNetdataMetricSeries(requested string, ctx context.Context, service *monitortsdb.Service, targetType, targetID, selectedInterface string, start, end time.Time, step time.Duration) (MetricSeries, bool, error) {
-	builder, ok := netdataSeriesBuilders[requested]
+func buildSpecialMetricSeries(requested string, ctx context.Context, service *monitortsdb.Service, targetType, targetID, selectedInterface string, start, end time.Time, step time.Duration) (MetricSeries, bool, error) {
+	builder, ok := specialSeriesBuilders[requested]
 	if !ok {
 		return MetricSeries{}, false, nil
 	}
@@ -43,11 +46,26 @@ func buildNetdataMetricSeries(requested string, ctx context.Context, service *mo
 	return series, true, nil
 }
 
+func buildCPUSeries(ctx context.Context, service *monitortsdb.Service, targetID string, start, end time.Time, step time.Duration) (MetricSeries, error) {
+	points, err := executeVMQueryRange(
+		ctx,
+		service,
+		fmt.Sprintf(`appos_host_cpu_usage{target_type="server",target_id=%q}`, targetID),
+		start,
+		end,
+		step,
+	)
+	if err != nil {
+		return MetricSeries{}, err
+	}
+	return MetricSeries{Name: "cpu", Unit: "percent", Points: points}, nil
+}
+
 func buildMemorySeries(ctx context.Context, service *monitortsdb.Service, targetID string, start, end time.Time, step time.Duration) (MetricSeries, error) {
 	usedPoints, err := executeVMQueryRange(
 		ctx,
 		service,
-		fmt.Sprintf(`sum(netdata_system_ram_MiB_average{instance=%q,dimension="used"}) * 1048576`, targetID),
+		fmt.Sprintf(`sum(appos_host_memory_bytes{target_type="server",target_id=%q})`, targetID),
 		start,
 		end,
 		step,
@@ -58,7 +76,7 @@ func buildMemorySeries(ctx context.Context, service *monitortsdb.Service, target
 	availablePoints, err := executeVMQueryRange(
 		ctx,
 		service,
-		fmt.Sprintf(`sum(netdata_system_ram_MiB_average{instance=%q,dimension=~"free|cached|buffers"}) * 1048576`, targetID),
+		fmt.Sprintf(`sum(appos_host_memory_available_bytes{target_type="server",target_id=%q})`, targetID),
 		start,
 		end,
 		step,
@@ -80,7 +98,7 @@ func buildDiskSeries(ctx context.Context, service *monitortsdb.Service, targetID
 	readPoints, err := executeVMQueryRange(
 		ctx,
 		service,
-		fmt.Sprintf(`sum(netdata_system_io_KiB_persec_average{instance=%q,dimension="reads"}) * 1024`, targetID),
+		fmt.Sprintf(`sum(appos_host_disk_read_bytes_per_second{target_type="server",target_id=%q})`, targetID),
 		start,
 		end,
 		step,
@@ -91,7 +109,7 @@ func buildDiskSeries(ctx context.Context, service *monitortsdb.Service, targetID
 	writePoints, err := executeVMQueryRange(
 		ctx,
 		service,
-		fmt.Sprintf(`sum(netdata_system_io_KiB_persec_average{instance=%q,dimension="writes"}) * 1024`, targetID),
+		fmt.Sprintf(`sum(appos_host_disk_write_bytes_per_second{target_type="server",target_id=%q})`, targetID),
 		start,
 		end,
 		step,
@@ -113,7 +131,7 @@ func buildDiskUsageSeries(ctx context.Context, service *monitortsdb.Service, tar
 	usedPoints, err := executeVMQueryRange(
 		ctx,
 		service,
-		fmt.Sprintf(`sum(netdata_disk_space_GiB_average{instance=%q,family="/",dimension="used"}) * 1073741824`, targetID),
+		fmt.Sprintf(`sum(appos_host_disk_usage_bytes{target_type="server",target_id=%q})`, targetID),
 		start,
 		end,
 		step,
@@ -124,7 +142,7 @@ func buildDiskUsageSeries(ctx context.Context, service *monitortsdb.Service, tar
 	freePoints, err := executeVMQueryRange(
 		ctx,
 		service,
-		fmt.Sprintf(`sum(netdata_disk_space_GiB_average{instance=%q,family="/",dimension=~"avail|reserved_for_root"}) * 1073741824`, targetID),
+		fmt.Sprintf(`sum(appos_host_disk_free_bytes{target_type="server",target_id=%q})`, targetID),
 		start,
 		end,
 		step,

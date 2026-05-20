@@ -103,7 +103,7 @@ func queryMetricSeriesVM(ctx context.Context, targetType, targetID, window strin
 		response.SelectedNetworkInterface = normalizeNetworkInterface(options.NetworkInterface, interfaces)
 	}
 	for _, requested := range requestedSeries {
-		series, handled, err := buildNetdataMetricSeries(requested, ctx, service, targetType, targetID, response.SelectedNetworkInterface, start, end, windowSpec.Step)
+		series, handled, err := buildSpecialMetricSeries(requested, ctx, service, targetType, targetID, response.SelectedNetworkInterface, start, end, windowSpec.Step)
 		if err != nil {
 			return nil, err
 		}

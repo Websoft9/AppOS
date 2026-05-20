@@ -42,6 +42,7 @@ import {
 import { getApiErrorMessage } from '@/lib/api-error'
 import { cn } from '@/lib/utils'
 import { DockerTextDialog } from '@/components/docker/DockerTextDialog'
+import { DockerDependencyAlert, getDockerDependencyIssue } from '@/components/docker/DockerDependencyAlert'
 
 const COMPOSE_SORT_KEY = 'docker.compose.sort'
 const DOCKER_PAGE_SIZE_KEY = 'docker.list.page_size'
@@ -656,6 +657,8 @@ export function ComposeTab({
   )
 
   const loadError = error ? getApiErrorMessage(error, 'Failed to load compose projects') : null
+  const visibleError = loadError || actionError
+  const dependencyIssue = getDockerDependencyIssue(error ?? visibleError)
 
   const toggleProjectExpansion = (projectName: string, projectDir: string) => {
     setExpandedProject(current => {
@@ -672,11 +675,13 @@ export function ComposeTab({
 
   return (
     <div className={cn('h-full min-h-0 flex flex-col gap-4', embeddedInWorkspace ? 'pt-0' : 'pt-4')}>
-      {(loadError || actionError) && (
+      {dependencyIssue && visibleError ? (
+        <DockerDependencyAlert serverId={serverId} message={visibleError} />
+      ) : visibleError ? (
         <Alert variant="destructive" className="shrink-0">
-          <AlertDescription>{loadError || actionError}</AlertDescription>
+          <AlertDescription>{visibleError}</AlertDescription>
         </Alert>
-      )}
+      ) : null}
 
       {!embeddedInWorkspace && (
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 rounded-lg border bg-muted/20 px-3 py-3">

@@ -242,7 +242,7 @@ describe('ServersPage layout', () => {
       }
       if (
         path ===
-        "/api/collections/secrets/records?filter=(status='active'%26%26(template_id='single_value'||template_id='ssh_key'))&sort=name"
+        "/api/collections/secrets/records?filter=((created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value'||template_id='ssh_key'))&sort=name"
       ) {
         return Promise.resolve({
           items: [
@@ -1202,6 +1202,20 @@ describe('ServersPage layout', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Credential (Secret)' }))
     expect(await screen.findByRole('button', { name: 'New credential' })).toBeInTheDocument()
   }, 20000)
+
+  it('requests only user-manageable secrets for server credentials', async () => {
+    render(<ServersPage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add Server' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Credential (Secret)' }))
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(
+        "/api/collections/secrets/records?filter=((created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value'||template_id='ssh_key'))&sort=name",
+        {}
+      )
+    })
+  })
 
   it('shows help text only after clicking the question buttons and toggles it closed on second click', async () => {
     render(<ServersPage />)

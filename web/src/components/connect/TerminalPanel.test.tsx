@@ -46,6 +46,7 @@ const mocks = vi.hoisted(() => {
 
   class MockWebSocket {
     static instances: MockWebSocket[] = []
+    static urls: string[] = []
     static OPEN = 1
 
     readyState = MockWebSocket.OPEN
@@ -58,7 +59,7 @@ const mocks = vi.hoisted(() => {
     close = vi.fn()
 
     constructor(url: string) {
-      void url
+      MockWebSocket.urls.push(url)
       MockWebSocket.instances.push(this)
       setTimeout(() => {
         this.onopen?.(new Event('open'))
@@ -102,6 +103,7 @@ describe('TerminalPanel regressions', () => {
     vi.clearAllMocks()
     mocks.MockTerminal.instances = []
     mocks.MockWebSocket.instances = []
+    mocks.MockWebSocket.urls = []
     vi.stubGlobal('WebSocket', mocks.MockWebSocket)
   })
 
@@ -189,6 +191,98 @@ describe('TerminalPanel regressions', () => {
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: /reconnect/i })).not.toBeInTheDocument()
     })
+  })
+
+  it('reports the established backend session id from a control frame', async () => {
+    const onSessionEstablished = vi.fn()
+
+    render(<TerminalPanel serverId="s1" isActive onSessionEstablished={onSessionEstablished} />)
+
+    await waitFor(() => {
+      expect(mocks.MockWebSocket.instances.length).toBeGreaterThan(0)
+    })
+
+    const socket = mocks.MockWebSocket.instances[0]
+    const payload = new TextEncoder().encode(
+      JSON.stringify({ type: 'session', session_id: 'sess-123' })
+    )
+    const frame = new Uint8Array(1 + payload.length)
+    frame[0] = 0x00
+    frame.set(payload, 1)
+
+    socket.onmessage?.(
+      new MessageEvent('message', {
+        data: frame.buffer,
+      })
+    )
+
+    expect(onSessionEstablished).toHaveBeenCalledWith('sess-123')
+  })
+
+  it('does not reconnect after receiving the backend session control frame', async () => {
+    const onSessionEstablished = vi.fn()
+
+    render(<TerminalPanel serverId="s1" isActive onSessionEstablished={onSessionEstablished} />)
+
+    await waitFor(() => {
+      expect(mocks.MockWebSocket.instances.length).toBe(1)
+    })
+
+    const socket = mocks.MockWebSocket.instances[0]
+    const payload = new TextEncoder().encode(
+      JSON.stringify({ type: 'session', session_id: 'sess-stable' })
+    )
+    const frame = new Uint8Array(1 + payload.length)
+    frame[0] = 0x00
+    frame.set(payload, 1)
+
+    socket.onmessage?.(
+      new MessageEvent('message', {
+        data: frame.buffer,
+      })
+    )
+
+    await waitFor(() => {
+      expect(onSessionEstablished).toHaveBeenCalledWith('sess-stable')
+      expect(mocks.MockWebSocket.instances.length).toBe(1)
+    })
+  })
+
+  it('passes session_id when reconnecting a container terminal', async () => {
+    render(<TerminalPanel containerId="c1" sessionId="dock-sess-1" dockerServerId="srv-1" isActive />)
+
+    await waitFor(() => {
+      expect(mocks.MockWebSocket.instances.length).toBeGreaterThan(0)
+    })
+
+    const url = new URL(mocks.MockWebSocket.urls[0])
+    expect(url.pathname).toBe('/api/terminal/docker/c1')
+    expect(url.searchParams.get('session_id')).toBe('dock-sess-1')
+    expect(url.searchParams.get('server_id')).toBe('srv-1')
+  })
+
+  it('uses detach on unmount and disconnect on explicit close', async () => {
+    const disconnectRef = createRef<TerminalPanelHandle>()
+    const disconnectView = render(<TerminalPanel ref={disconnectRef} serverId="s1" isActive />)
+
+    await waitFor(() => {
+      expect(mocks.MockWebSocket.instances.length).toBeGreaterThan(0)
+    })
+
+    const disconnectSocket = mocks.MockWebSocket.instances[0]
+    disconnectRef.current?.disconnect()
+    expect(disconnectSocket.close).toHaveBeenCalledWith(1000, 'disconnect')
+    disconnectView.unmount()
+
+    const detachView = render(<TerminalPanel serverId="s1" isActive />)
+
+    await waitFor(() => {
+      expect(mocks.MockWebSocket.instances.length).toBeGreaterThan(1)
+    })
+
+    const detachSocket = mocks.MockWebSocket.instances[1]
+    detachView.unmount()
+    expect(detachSocket.close).toHaveBeenCalledWith(1000, 'detach')
   })
 
   afterAll(() => {

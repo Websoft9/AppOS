@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useRouterState } from '@tanstack/react-router'
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import {
   LayoutDashboard,
   Layers,
@@ -184,11 +184,13 @@ function NavLink({
   collapsed,
   onNavigate,
   depth = 0,
+  navigate,
 }: {
   item: NavItem
   collapsed: boolean
   onNavigate?: () => void
   depth?: number
+  navigate: ReturnType<typeof useNavigate>
 }) {
   const router = useRouterState()
   const hasChildren = !!(item.children && item.children.length > 0)
@@ -213,7 +215,7 @@ function NavLink({
     }
     // A collapsed parent acts like a shortcut into its first child route.
     onNavigate?.()
-    navigateSidebarHref(firstChild.href)
+    navigateSidebarHref(navigate, firstChild.href)
   }
 
   if (hasChildren && !collapsed) {
@@ -242,6 +244,7 @@ function NavLink({
                 collapsed={false}
                 onNavigate={onNavigate}
                 depth={depth + 1}
+                navigate={navigate}
               />
             ))}
           </div>
@@ -251,8 +254,8 @@ function NavLink({
   }
 
   const link = (
-    <a
-      href={item.href}
+    <Link
+      to={item.href as never}
       onClick={onNavigate}
       className={cn(
         'flex items-center justify-start gap-3 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors',
@@ -270,7 +273,7 @@ function NavLink({
           {item.badge}
         </span>
       )}
-    </a>
+    </Link>
   )
 
   if (collapsed) {
@@ -298,12 +301,20 @@ function NavGroupSection({
   collapsed: boolean
   onNavigate?: () => void
 }) {
+  const navigate = useNavigate()
+
   // When sidebar is collapsed, show only icons (no group headers)
   if (sidebarCollapsed) {
     return (
       <div className="flex flex-col gap-1 px-2">
         {group.items.map(item => (
-          <NavLink key={item.id} item={item} collapsed onNavigate={onNavigate} />
+          <NavLink
+            key={item.id}
+            item={item}
+            collapsed
+            onNavigate={onNavigate}
+            navigate={navigate}
+          />
         ))}
       </div>
     )
@@ -314,7 +325,13 @@ function NavGroupSection({
       <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground">{group.label}</div>
       <nav className="flex flex-col gap-1 px-2 pb-1" aria-label={`${group.label} navigation`}>
         {group.items.map(item => (
-          <NavLink key={item.id} item={item} collapsed={false} onNavigate={onNavigate} />
+          <NavLink
+            key={item.id}
+            item={item}
+            collapsed={false}
+            onNavigate={onNavigate}
+            navigate={navigate}
+          />
         ))}
       </nav>
     </div>

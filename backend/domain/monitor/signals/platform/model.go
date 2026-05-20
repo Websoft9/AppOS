@@ -33,7 +33,11 @@ type PlatformObserver struct {
 	app        core.App
 	snapshotFn func() RuntimeSnapshot
 	resourceFn func([]int) map[int]supervisor.ResourceInfo
+	hostTelemetryFn func(time.Time, localHostTelemetryState) ([]MetricPoint, localHostTelemetryState, error)
+	containerStatsFn func(context.Context) (string, error)
 	nowFn      func() time.Time
+	hostState  localHostTelemetryState
+	containerSamples map[string]localContainerCounters
 	mu         sync.Mutex
 	cancel     context.CancelFunc
 }

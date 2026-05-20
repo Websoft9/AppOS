@@ -2,9 +2,11 @@ import { lazy, Suspense } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 
 type TerminalServerSearch = {
+  sessionId?: string
   panel?: 'files'
   path?: string
   lockedRoot?: string
+  split?: number
 }
 
 const LazyConnectServerPage = lazy(() =>
@@ -15,12 +17,20 @@ const LazyConnectServerPage = lazy(() =>
 
 export const Route = createFileRoute('/_app/_auth/_superuser/terminal/server/$serverId')({
   validateSearch: (search: Record<string, unknown>): TerminalServerSearch => ({
+    sessionId:
+      typeof search.sessionId === 'string' && search.sessionId.trim() ? search.sessionId : undefined,
     panel: search.panel === 'files' ? search.panel : undefined,
     path: typeof search.path === 'string' && search.path.trim() ? search.path : undefined,
     lockedRoot:
       typeof search.lockedRoot === 'string' && search.lockedRoot.trim()
         ? search.lockedRoot
         : undefined,
+    split:
+      typeof search.split === 'number' && Number.isFinite(search.split)
+        ? search.split
+        : typeof search.split === 'string' && Number.isFinite(Number(search.split))
+          ? Number(search.split)
+          : undefined,
   }),
   component: ConnectServerRoute,
 })
@@ -39,9 +49,11 @@ function ConnectServerRoute() {
     >
       <LazyConnectServerPage
         serverId={serverId}
+        initialSessionId={search.sessionId}
         initialSidePanel={search.panel}
         initialFilePath={search.path}
         initialLockedRootPath={search.lockedRoot}
+        initialSplitRatio={search.split}
       />
     </Suspense>
   )

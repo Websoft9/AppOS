@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DockerPanel } from './DockerPanel'
 
 const sendMock = vi.fn()
-let scenario: 'attention' | 'healthy' | 'many' = 'attention'
+let scenario: 'attention' | 'healthy' | 'many' | 'composeMissing' = 'attention'
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children, className }: { children: React.ReactNode; className?: string }) => (
@@ -135,6 +136,23 @@ function mockDockerEndpoints() {
             { Name: 'broken-stack', Status: 'exited(1)' },
           ]),
         })
+      }
+    } else if (scenario === 'composeMissing') {
+      if (path === '/api/servers/srv-1/docker/containers') {
+        return Promise.resolve({
+          output: dockerJsonLines([
+            {
+              ID: 'ctr-1',
+              Names: 'web',
+              Image: 'nginx:alpine',
+              State: 'running',
+              Status: 'Up 2 hours',
+            },
+          ]),
+        })
+      }
+      if (path === '/api/servers/srv-1/docker/compose/ls') {
+        return Promise.reject(new Error("docker: 'compose' is not a docker command"))
       }
     } else {
       if (path === '/api/servers/srv-1/docker/containers') {
@@ -304,5 +322,37 @@ describe('DockerPanel overview', () => {
     await waitFor(() => {
       expect(screen.getByTestId('compose-tab')).toHaveTextContent('Compose tab exited(1)')
     })
+  })
+
+  it('shows CPU and Memory once in the container visible columns menu', async () => {
+    const user = userEvent.setup()
+
+    renderPanel()
+
+    await screen.findByText('Needs Attention')
+    await user.click(screen.getByRole('tab', { name: 'Containers' }))
+    await user.click(screen.getByRole('button', { name: 'Container display settings' }))
+
+    expect(screen.getByRole('menuitemcheckbox', { name: 'CPU' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Memory' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitemcheckbox', { name: 'CPU%' })).not.toBeInTheDocument()
+  })
+
+  it('turns compose prerequisite failures into a guided alert', async () => {
+    scenario = 'composeMissing'
+    mockDockerEndpoints()
+
+    renderPanel()
+
+    expect(await screen.findByText('Docker Compose is not available on this server')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Compose commands cannot run until the Docker Compose plugin or compatible compose command is installed and working.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open Components > Prerequisites' })).toHaveAttribute(
+      'href',
+      '/resources/servers?server=srv-1&tab=components&focusComponent=docker'
+    )
   })
 })

@@ -52,23 +52,6 @@ components:
     supported_actions:
       - verify
 
-  # Netdata — monitoring agent that collects host metrics.
-  # Software Delivery tracks install state; Monitor domain owns runtime health observation.
-  - component_key: netdata
-    target_type: local
-    label: Netdata
-    template_ref: binary-supervisor
-    binary: netdata
-    service_name: netdata  # [program:netdata] in supervisord.conf
-    description: Bundled monitoring agent service inside the AppOS runtime.
-    readiness_requirements:
-      - bundled_with_appos
-      - supervisor_process
-    visibility:
-      - local_inventory
-    supported_actions:
-      - verify
-
   # AppOS backend — the PocketBase-based backend binary.
   - component_key: appos
     target_type: local

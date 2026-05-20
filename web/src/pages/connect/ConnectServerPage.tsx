@@ -69,6 +69,7 @@ import {
   applySystemdUnit,
   controlSystemdService,
   getConnectTerminalSettings,
+  updateTerminalSessionWorkspace,
   type SystemdControlAction,
   type ConnectTerminalSettings,
   type Server as ServerType,
@@ -151,31 +152,34 @@ interface TerminalConnectionTab {
   serverId: string
   title: string
   reconnectNonce: number
+  sessionId?: string
 }
 
-function buildDefaultTerminalTabs(serverId: string): TerminalConnectionTab[] {
+function buildDefaultTerminalTabs(serverId: string, sessionId?: string): TerminalConnectionTab[] {
   return [
     {
       id: `${serverId}-primary`,
       serverId,
       title: serverId,
       reconnectNonce: 0,
+      sessionId,
     },
   ]
 }
 
-function loadInitialTerminalSession(serverId: string): {
+function loadInitialTerminalSession(serverId: string, sessionId?: string): {
   tabs: TerminalConnectionTab[]
   activeTabId: string
 } {
   const saved = loadConnectSession()
   if (!saved || saved.tabs.length === 0) {
-    const defaults = buildDefaultTerminalTabs(serverId)
+    const defaults = buildDefaultTerminalTabs(serverId, sessionId)
     return { tabs: defaults, activeTabId: defaults[0].id }
   }
   // Ensure the URL serverId has a tab in the restored session
-  let tabs = saved.tabs
-  const hasUrlServer = tabs.some(tab => tab.serverId === serverId)
+  let tabs: TerminalConnectionTab[] = saved.tabs.map(tab => ({ ...tab }))
+  const existingUrlServerTabIndex = tabs.findIndex(tab => tab.serverId === serverId)
+  const hasUrlServer = existingUrlServerTabIndex >= 0
   if (!hasUrlServer) {
     tabs = [
       ...tabs,
@@ -184,16 +188,23 @@ function loadInitialTerminalSession(serverId: string): {
         serverId,
         title: serverId,
         reconnectNonce: 0,
+        sessionId,
       },
     ]
+  } else if (sessionId) {
+    tabs = tabs.map((tab, index) =>
+      index === existingUrlServerTabIndex ? { ...tab, sessionId } : tab
+    )
   }
   // Prefer active tab for the URL serverId when session didn't contain it
   // (tabs.find is safe: we just pushed serverId above when !hasUrlServer)
-  const activeTabId = hasUrlServer
-    ? tabs.some(tab => tab.id === saved.activeTabId)
-      ? saved.activeTabId
-      : tabs[0].id
-    : (tabs.find(tab => tab.serverId === serverId) ?? tabs[tabs.length - 1]).id
+  const activeTabId = sessionId
+    ? (tabs.find(tab => tab.serverId === serverId) ?? tabs[tabs.length - 1]).id
+    : hasUrlServer
+      ? tabs.some(tab => tab.id === saved.activeTabId)
+        ? saved.activeTabId
+        : tabs[0].id
+      : (tabs.find(tab => tab.serverId === serverId) ?? tabs[tabs.length - 1]).id
   return { tabs, activeTabId }
 }
 
@@ -204,18 +215,22 @@ const DEFAULT_CONNECT_SETTINGS: ConnectTerminalSettings = {
 
 type ConnectServerPageProps = {
   serverId: string
+  initialSessionId?: string
   initialSidePanel?: 'files'
   initialFilePath?: string
   initialLockedRootPath?: string
+  initialSplitRatio?: number
 }
 
 export function ConnectServerPage({
   serverId,
+  initialSessionId,
   initialSidePanel,
   initialFilePath,
   initialLockedRootPath,
+  initialSplitRatio,
 }: ConnectServerPageProps) {
-  const initialSessionRef = useRef(loadInitialTerminalSession(serverId))
+  const initialSessionRef = useRef(loadInitialTerminalSession(serverId, initialSessionId))
   const initialSession = initialSessionRef.current
   const opButtonClass = 'h-8 w-[116px] justify-start'
   const navigate = useNavigate()
@@ -243,7 +258,7 @@ export function ConnectServerPage({
   const [filePanelPresets, setFilePanelPresets] = useState<
     Record<string, { path: string; lockedRoot: string | null; nonce: number }>
   >({})
-  const [splitRatio, setSplitRatio] = useState(loadSplitRatio)
+  const [splitRatio, setSplitRatio] = useState(() => initialSplitRatio ?? loadSplitRatio())
   const [isResizing, setIsResizing] = useState(false)
   const [systemdOpen, setSystemdOpen] = useState(false)
   const [systemdQuery, setSystemdQuery] = useState('')
@@ -271,6 +286,15 @@ export function ConnectServerPage({
   const serverSearchRef = useRef<HTMLInputElement>(null)
   const systemdSelectRequestSeq = useRef(0)
   const saveSessionTimerRef = useRef<number | null>(null)
+  const saveWorkspaceTimerRef = useRef<number | null>(null)
+
+  const handleCreateScript = useCallback(() => {
+    void navigate({ to: '/resources/scripts' as never, search: { create: '1' } as never })
+  }, [navigate])
+
+  const handleCreateServer = useCallback(() => {
+    void navigate({ to: '/resources/servers', search: { create: '1' } as never })
+  }, [navigate])
 
   useEffect(() => {
     listServers()
@@ -285,21 +309,38 @@ export function ConnectServerPage({
   }, [])
 
   useEffect(() => {
+    let nextActiveTabId: string | null = null
     setTerminalTabs(prev => {
-      if (prev.some(tab => tab.serverId === serverId)) {
-        return prev
+      const existingIndex = prev.findIndex(tab => tab.serverId === serverId)
+      if (existingIndex >= 0) {
+        if (!initialSessionId || prev[existingIndex].sessionId === initialSessionId) {
+          if (initialSessionId) {
+            nextActiveTabId = prev[existingIndex].id
+          }
+          return prev
+        }
+        nextActiveTabId = prev[existingIndex].id
+        return prev.map((tab, index) =>
+          index === existingIndex ? { ...tab, sessionId: initialSessionId } : tab
+        )
       }
+      nextActiveTabId = `${serverId}-${Date.now()}`
       return [
         ...prev,
         {
-          id: `${serverId}-${Date.now()}`,
+          id: nextActiveTabId,
           serverId,
           title: serverId,
           reconnectNonce: 0,
+          sessionId: initialSessionId,
         },
       ]
     })
-  }, [serverId])
+
+    if (initialSessionId && nextActiveTabId) {
+      setActiveTabId(nextActiveTabId)
+    }
+  }, [initialSessionId, serverId])
 
   useEffect(() => {
     setLastActivityAt(Date.now())
@@ -317,7 +358,12 @@ export function ConnectServerPage({
         ? activeTabId
         : terminalTabs[0].id
       saveConnectSession({
-        tabs: terminalTabs,
+        tabs: terminalTabs.map(({ id, serverId, title, reconnectNonce }) => ({
+          id,
+          serverId,
+          title,
+          reconnectNonce,
+        })),
         activeTabId: normalizedActiveTabId,
         updatedAt: Date.now(),
       })
@@ -344,6 +390,10 @@ export function ConnectServerPage({
       if (safeExitTimerRef.current) {
         window.clearTimeout(safeExitTimerRef.current)
       }
+      if (saveWorkspaceTimerRef.current) {
+        window.clearTimeout(saveWorkspaceTimerRef.current)
+      }
+      clearConnectSession()
     }
   }, [])
 
@@ -514,6 +564,7 @@ export function ConnectServerPage({
         window.clearTimeout(safeExitTimerRef.current)
       }
       safeExitTimerRef.current = window.setTimeout(() => {
+        terminalRefs.current[tabId]?.disconnect()
         setTerminalTabs(prev => {
           const next = prev.filter(tab => tab.id !== tabId)
           const fallback = next[0]
@@ -532,6 +583,64 @@ export function ConnectServerPage({
     },
     [activeTabId, navigate, terminalTabs]
   )
+
+  const handleSessionEstablished = useCallback((tabId: string, sessionId: string) => {
+    setTerminalTabs(prev =>
+      prev.map(tab => (tab.id === tabId && tab.sessionId !== sessionId ? { ...tab, sessionId } : tab))
+    )
+  }, [])
+
+  const handleFileLocationChange = useCallback(
+    (targetServerId: string, location: { path: string; lockedRoot: string | null }) => {
+      setFilePanelPresets(state => {
+        const current = state[targetServerId]
+        if (current && current.path === location.path && current.lockedRoot === location.lockedRoot) {
+          return state
+        }
+        return {
+          ...state,
+          [targetServerId]: {
+            path: location.path,
+            lockedRoot: location.lockedRoot,
+            nonce: current?.nonce ?? 0,
+          },
+        }
+      })
+    },
+    []
+  )
+
+  useEffect(() => {
+    const activeSessionId = activeTab?.sessionId
+    if (!activeSessionId) {
+      if (saveWorkspaceTimerRef.current) {
+        window.clearTimeout(saveWorkspaceTimerRef.current)
+      }
+      return
+    }
+
+    const preset = filePanelPresets[activeServerId]
+    const workspace = {
+      active_server_id: activeServerId,
+      side_panel: sidePanel,
+      file_path: preset?.path,
+      locked_root: preset?.lockedRoot || undefined,
+      split_ratio: splitRatio,
+    }
+
+    if (saveWorkspaceTimerRef.current) {
+      window.clearTimeout(saveWorkspaceTimerRef.current)
+    }
+    saveWorkspaceTimerRef.current = window.setTimeout(() => {
+      void updateTerminalSessionWorkspace(activeSessionId, workspace)
+    }, CONNECT_SESSION_SAVE_DEBOUNCE_MS)
+
+    return () => {
+      if (saveWorkspaceTimerRef.current) {
+        window.clearTimeout(saveWorkspaceTimerRef.current)
+      }
+    }
+  }, [activeServerId, activeTab?.sessionId, filePanelPresets, sidePanel, splitRatio])
 
   useEffect(() => {
     if (!activeTabId || safeExitingTabId) return
@@ -920,11 +1029,9 @@ export function ConnectServerPage({
                 ))}
                 {scripts.length === 0 && <DropdownMenuItem disabled>No scripts</DropdownMenuItem>}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <a href="/resources/scripts?create=1">
-                    <Plus className="h-4 w-4 mr-2" />
-                    New Script
-                  </a>
+                <DropdownMenuItem onClick={handleCreateScript}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Script
                 </DropdownMenuItem>
               </DropdownMenuSubContent>
             </DropdownMenuSub>
@@ -1197,11 +1304,9 @@ export function ConnectServerPage({
                   <DropdownMenuItem disabled>No servers</DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <a href="/resources/servers?create=1">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Server
-                  </a>
+                <DropdownMenuItem onClick={handleCreateServer}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Server
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1309,6 +1414,8 @@ export function ConnectServerPage({
                     terminalRefs.current[tab.id] = instance
                   }}
                   serverId={tab.serverId}
+                  sessionId={tab.sessionId}
+                  onSessionEstablished={sessionId => handleSessionEstablished(tab.id, sessionId)}
                   className="h-full"
                   isActive={isActive}
                 />
@@ -1346,6 +1453,7 @@ export function ConnectServerPage({
                       serverId={tabServerId}
                       initialPath={preset?.path || '/'}
                       lockedRootPath={preset?.lockedRoot || undefined}
+                      onLocationChange={location => handleFileLocationChange(tabServerId, location)}
                       className="h-full"
                     />
                   </div>

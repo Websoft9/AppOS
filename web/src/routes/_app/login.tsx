@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
 import { pb } from '@/lib/pb'
 import { ModeToggle } from '@/components/mode-toggle'
+import { completeLoginRedirect } from './-login-redirect'
 
 function LoginPage() {
   const navigate = useNavigate()
@@ -18,11 +19,9 @@ function LoginPage() {
   // If already authenticated, redirect away
   useEffect(() => {
     if (isAuthenticated) {
-      if (redirect) {
-        window.location.assign(redirect)
-        return
-      }
-      void navigate({ to: '/overview' })
+      void completeLoginRedirect(navigate, redirect, window.location.origin, url =>
+        window.location.assign(url)
+      )
     }
   }, [isAuthenticated, navigate, redirect])
 
@@ -44,11 +43,9 @@ function LoginPage() {
 
     try {
       await login(email, password)
-      if (redirect) {
-        window.location.assign(redirect)
-        return
-      }
-      await navigate({ to: '/overview' })
+      await completeLoginRedirect(navigate, redirect, window.location.origin, url =>
+        window.location.assign(url)
+      )
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Login failed'
       setError(message)

@@ -41,6 +41,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { TimeSeriesChart } from '@/components/monitor/TimeSeriesChart'
 import { getApiErrorMessage } from '@/lib/api-error'
 import { DockerTextDialog } from '@/components/docker/DockerTextDialog'
+import { DockerDependencyAlert, getDockerDependencyIssue } from '@/components/docker/DockerDependencyAlert'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -237,6 +238,37 @@ function telemetrySeries(
   return item?.series?.find(series => series.name === name)
 }
 
+function normalizeTelemetryContainerKey(value: string | undefined): string {
+  const normalized = String(value || '').trim()
+  if (!normalized) return ''
+  return normalized.replace(/^\/+/, '')
+}
+
+function buildTelemetryItemMap(
+  items: MonitorContainerTelemetryItem[] | undefined
+): Record<string, MonitorContainerTelemetryItem> {
+  const next: Record<string, MonitorContainerTelemetryItem> = {}
+  for (const item of items || []) {
+    const keys = [normalizeTelemetryContainerKey(item.containerId), normalizeTelemetryContainerKey(item.containerName)]
+    for (const key of keys) {
+      if (!key) continue
+      next[key] = item
+    }
+  }
+  return next
+}
+
+function resolveTelemetryItem(
+  itemsByKey: Record<string, MonitorContainerTelemetryItem>,
+  container?: Container | null
+): MonitorContainerTelemetryItem | undefined {
+  if (!container) return undefined
+  return (
+    itemsByKey[normalizeTelemetryContainerKey(container.ID)] ||
+    itemsByKey[normalizeTelemetryContainerKey(container.Names)]
+  )
+}
+
 function telemetryBadge(item?: MonitorContainerTelemetryItem) {
   if (!item || item.freshness.state === 'missing') return null
   if (item.freshness.state === 'stale') {
@@ -253,8 +285,8 @@ function telemetryBadge(item?: MonitorContainerTelemetryItem) {
 }
 
 function formatTrendValue(unit: string, _name: string, value: number): string {
-  if (unit === 'bytes') return formatBytesCompact(value)
-  if (unit === 'bytes/s') return `${formatBytesCompact(value)}/s`
+  if (unit === 'bytes') return formatBytesCompact(Math.abs(value))
+  if (unit === 'bytes/s') return `${formatBytesCompact(Math.abs(value))}/s`
   if (unit === 'percent' && value > 0 && value < 0.1) return '<0.1%'
   if (unit === 'percent') return formatPercent(value)
   return `${value}`
@@ -873,23 +905,9 @@ export function ContainersTab({
     setComposeFilter('all')
   }, [serverId])
 
-  const telemetryMap = useMemo(() => {
-    const next: Record<string, MonitorContainerTelemetryItem> = {}
-    for (const item of snapshotTelemetry?.items || []) {
-      if (!item.containerId) continue
-      next[item.containerId] = item
-    }
-    return next
-  }, [snapshotTelemetry?.items])
+  const telemetryMap = useMemo(() => buildTelemetryItemMap(snapshotTelemetry?.items), [snapshotTelemetry?.items])
 
-  const trendTelemetryMap = useMemo(() => {
-	const next: Record<string, MonitorContainerTelemetryItem> = {}
-	for (const item of trendTelemetry?.items || []) {
-		if (!item.containerId) continue
-		next[item.containerId] = item
-	}
-	return next
-  }, [trendTelemetry?.items])
+  const trendTelemetryMap = useMemo(() => buildTelemetryItemMap(trendTelemetry?.items), [trendTelemetry?.items])
 
   const dialogRuntimeStatsMap = useMemo(
     () => (Object.keys(runtimeStatsStreamMap).length > 0 ? runtimeStatsStreamMap : runtimeStatsSnapshotMap),
@@ -1250,6 +1268,8 @@ export function ContainersTab({
     : telemetryError
       ? getApiErrorMessage(telemetryError, 'Failed to load container telemetry')
       : detailsErrorMessage
+  const visibleError = loadError || actionError
+  const dependencyIssue = getDockerDependencyIssue(containersError ?? telemetryError ?? visibleError)
 
   const tableColSpan =
     4 +
@@ -1272,11 +1292,13 @@ export function ContainersTab({
 
   return (
     <div className="min-h-0 flex flex-col gap-3">
-      {(loadError || actionError) && (
+      {dependencyIssue && visibleError ? (
+        <DockerDependencyAlert serverId={serverId} message={visibleError} />
+      ) : visibleError ? (
         <Alert variant="destructive" className="shrink-0">
-          <AlertDescription>{loadError || actionError}</AlertDescription>
+          <AlertDescription>{visibleError}</AlertDescription>
         </Alert>
-      )}
+      ) : null}
       <div className="overflow-hidden rounded-lg bg-background">
         <div
           className={cn(
@@ -1398,7 +1420,7 @@ export function ContainersTab({
                       onVisibleColumnsChange?.({ ...visibleColumns, cpu: checked === true })
                     }
                   >
-                    CPU%
+                    CPU
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
                     checked={visibleColumns.mem}
@@ -1581,7 +1603,7 @@ export function ContainersTab({
                   )}
                   {visibleColumns.cpu && (
                     <TableHead className="w-[88px] min-w-[88px]">
-                      <SortHead label="CPU%" keyName="cpu" />
+                      <SortHead label="CPU" keyName="cpu" />
                     </TableHead>
                   )}
                   {visibleColumns.mem && (
@@ -1623,7 +1645,7 @@ export function ContainersTab({
                 .map(network => network.name)
                 .filter(Boolean)
               const uniqueLinkedNetworks = Array.from(new Set(linkedNetworks))
-              const telemetryItem = telemetryMap[c.ID]
+              const telemetryItem = resolveTelemetryItem(telemetryMap, c)
               const runtimeStatsItem = resolveDockerStatsItem(runtimeStatsStreamMap, c)
               return (
                 <Fragment key={c.ID}>
@@ -1833,7 +1855,7 @@ export function ContainersTab({
                                   window.setTimeout(() => onOpenTerminal(c.ID), 0)
                                 }}
                               >
-                                <TerminalSquare className="h-4 w-4 mr-2" /> Terminal
+                                <TerminalSquare className="h-4 w-4 mr-2" /> Exec
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuItem
@@ -2226,12 +2248,12 @@ export function ContainersTab({
           <DialogHeader>
             <DialogTitle>Container Stats: {statsContainer?.Names}</DialogTitle>
             <DialogDescription>
-              Docker stats snapshot with monitor-backed trends for {telemetryWindowMeta.description.toLowerCase()}
+              Direct Docker snapshot with canonical monitor trends for {telemetryWindowMeta.description.toLowerCase()}
             </DialogDescription>
           </DialogHeader>
           {(() => {
-            const snapshotItem = statsContainer ? telemetryMap[statsContainer.ID] : undefined
-            const trendItem = statsContainer ? trendTelemetryMap[statsContainer.ID] : undefined
+            const snapshotItem = resolveTelemetryItem(telemetryMap, statsContainer)
+            const trendItem = resolveTelemetryItem(trendTelemetryMap, statsContainer)
             const runtimeStats = resolveDockerStatsItem(dialogRuntimeStatsMap, statsContainer)
             const runtimeNetwork = parseDockerIoPair(runtimeStats?.NetIO)
             const runtimeBlock = parseDockerIoPair(runtimeStats?.BlockIO)

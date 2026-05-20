@@ -221,6 +221,24 @@ describe('ServerComponentsPanel', () => {
     ).toBeInTheDocument()
   })
 
+  it('auto-opens a focused prerequisite component and consumes the focus request once', async () => {
+    const onFocusComponentConsumed = vi.fn()
+
+    render(
+      <ServerComponentsPanel
+        serverId="server-1"
+        focusComponentKey="docker"
+        onFocusComponentConsumed={onFocusComponentConsumed}
+      />
+    )
+
+    const prerequisitesSection = await screen.findByRole('region', { name: 'Prerequisites section' })
+    expect(within(prerequisitesSection).getByText('Docker Compose:')).toBeInTheDocument()
+    expect(within(prerequisitesSection).getByText('2.27.0')).toBeInTheDocument()
+    expect(onFocusComponentConsumed).toHaveBeenCalledWith('docker')
+    expect(onFocusComponentConsumed).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps addon inventory version text aligned with the row font size', async () => {
     render(<ServerComponentsPanel serverId="server-1" />)
 
@@ -312,6 +330,43 @@ describe('ServerComponentsPanel', () => {
     expect(
       within(selectedAddon).getByText('verification_state:healthy | metrics_freshness:fresh')
     ).toBeInTheDocument()
+  })
+
+  it('shows Connecting while the monitor addon is waiting for its first sample', async () => {
+    listSoftwareComponentsMock.mockResolvedValue([
+      {
+        component_key: 'appos-monitor-collector',
+        label: 'Netdata Agent',
+        target_type: 'server',
+        template_kind: 'script',
+        installed_state: 'installed',
+        detected_version: '2.10.3',
+        packaged_version: '2.10.3',
+        verification_state: 'healthy',
+        service_status: 'running',
+        appos_connection: 'not_connected',
+        health_reasons: ['verification_state:healthy', 'appos_connection:not_connected_no_sample'],
+        preflight: {
+          ok: true,
+          os_supported: true,
+          privilege_ok: true,
+          network_ok: true,
+          dependency_ready: true,
+        },
+        available_actions: ['verify', 'restart', 'stop'],
+      },
+    ])
+
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    const inventory = await screen.findByRole('region', { name: 'Addon inventory' })
+    expect(within(inventory).getByText('AppOS: Connecting')).toBeInTheDocument()
+
+    fireEvent.click(within(inventory).getByRole('button', { name: 'Netdata Agent' }))
+
+    const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
+    expect(within(selectedAddon).getByText('AppOS Connection:')).toBeInTheDocument()
+    expect(within(selectedAddon).getByText('Connecting')).toBeInTheDocument()
   })
 
   it('surfaces in-flight addon operations in the inventory and selected addon panel', async () => {
@@ -695,7 +750,9 @@ describe('ServerComponentsPanel', () => {
       )
     })
     expect(
-      await screen.findByText('install accepted for appos-monitor-collector (op-123)')
+      await screen.findByText(
+        'install accepted for appos-monitor-collector (op-123). Waiting for the first metrics sample; AppOS Connection will show Connecting until trend data arrives.'
+      )
     ).toBeInTheDocument()
   })
 

@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import type { ComponentProps, ReactNode } from 'react'
+import type { ComponentProps, FormEvent, ReactNode } from 'react'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FileManagerPanel } from './FileManagerPanel'
 
@@ -286,5 +287,87 @@ describe('FileManagerPanel', () => {
 
     expect(symlinkTitle).toBeInTheDocument()
     expect(mockSftpSymlink).not.toHaveBeenCalled()
+  })
+
+  it('reports resolved location changes to the parent', async () => {
+    const onLocationChange = vi.fn()
+    mockSftpList.mockResolvedValueOnce({
+      path: '/srv/work',
+      entries: [],
+    })
+
+    render(
+      <FileManagerPanel
+        serverId="s1"
+        initialPath="/srv/work"
+        lockedRootPath="/srv"
+        onLocationChange={onLocationChange}
+      />
+    )
+
+    await waitFor(() => {
+      expect(onLocationChange).toHaveBeenCalledWith({
+        path: '/srv/work',
+        lockedRoot: '/srv',
+      })
+    })
+  })
+
+  it('does not refetch the same directory after parent path sync on double click', async () => {
+    mockSftpList
+      .mockResolvedValueOnce({
+        path: '/',
+        entries: [
+          {
+            name: 'docs',
+            type: 'dir',
+            size: 0,
+            mode: 'drwxr-xr-x',
+            modified_at: new Date().toISOString(),
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        path: '/docs',
+        entries: [],
+      })
+
+    function SyncingParent() {
+      const [path, setPath] = useState('/')
+
+      return (
+        <FileManagerPanel
+          serverId="s1"
+          initialPath={path}
+          onLocationChange={location => setPath(location.path)}
+        />
+      )
+    }
+
+    render(<SyncingParent />)
+
+    const docsCell = await screen.findByText('docs')
+    fireEvent.doubleClick(docsCell)
+
+    await waitFor(() => {
+      expect(mockSftpList).toHaveBeenNthCalledWith(1, 's1', '/')
+      expect(mockSftpList).toHaveBeenNthCalledWith(2, 's1', '/docs')
+      expect(mockSftpList).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  it('does not submit an ancestor form on ordinary button clicks', async () => {
+    const submitSpy = vi.fn((event: FormEvent<HTMLFormElement>) => event.preventDefault())
+
+    render(
+      <form onSubmit={submitSpy}>
+        <FileManagerPanel serverId="s1" />
+      </form>
+    )
+
+    const searchButton = await screen.findByTitle('Search files')
+    fireEvent.click(searchButton)
+
+    expect(submitSpy).not.toHaveBeenCalled()
   })
 })

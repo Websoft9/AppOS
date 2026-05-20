@@ -167,7 +167,7 @@ Epic 1-4 (Infrastructure) → Epic 7 (Dashboard) → Epic 5 (Store) → Epic 6 (
 
 ### Change 3: Refactor Epic 6 Specification
 
-**File:** `specs/implementation-artifacts/epic6-components.md` (MODIFIED)
+**File at the time:** `specs/implementation-artifacts/epic6-components.md` (MODIFIED, later superseded)
 
 **Changes:**
 - Title: "Services Plugin - Container Process Management" → "Dashboard - Components"
@@ -181,6 +181,7 @@ Epic 1-4 (Infrastructure) → Epic 7 (Dashboard) → Epic 5 (Store) → Epic 6 (
 - No existing work - clean implementation in Dashboard context
 - Components routing becomes `/components` within Dashboard, with services embedded as a page tab
 - Leverages BaaS real-time subscriptions for status updates
+- This design was later retired after scope split to Epic 28 `Monitoring` and Epic 29 `Software Delivery`
 
 **Status:** ✅ Applied
 
@@ -270,7 +271,7 @@ epic10-retrospective: optional
 
 **Epic 5/6 Migration Criteria:**
 - [ ] Store module integrated into Dashboard routing
-- [ ] Components workspace integrated into Dashboard routing
+- [ ] Superseded Components workspace intent reconciled into Dashboard-era monitoring and software surfaces
 - [ ] UI components follow unified design system
 - [ ] BaaS API integration functional for both modules
 - [ ] No regression in functionality from original plugin designs

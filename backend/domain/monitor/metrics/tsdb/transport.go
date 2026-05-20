@@ -24,14 +24,14 @@ func (s *Service) WritePrometheusImport(ctx context.Context, lines []string) err
 }
 
 func (s *Service) ListNetworkInterfaces(ctx context.Context, targetID string, start, end time.Time) ([]string, error) {
-	series, err := s.client.ListSeries(ctx, []string{fmt.Sprintf(`netdata_net_net_kilobits_persec_average{instance=%q}`, targetID)}, start, end)
+	series, err := s.client.ListSeries(ctx, []string{fmt.Sprintf(`appos_host_network_rx_bytes_per_second{target_type="server",target_id=%q,network_interface!=""}`, targetID)}, start, end)
 	if err != nil {
 		return nil, err
 	}
 	seen := map[string]struct{}{}
 	interfaces := make([]string, 0, len(series))
 	for _, item := range series {
-		device := strings.TrimSpace(item["device"])
+		device := strings.TrimSpace(item["network_interface"])
 		if device == "" {
 			continue
 		}

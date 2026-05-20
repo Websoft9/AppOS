@@ -19,6 +19,8 @@ var (
 
 const managedCronMarkerPrefix = serversvc.ManagedCronMarkerPrefix
 
+const maxManagedCronTestOutputLen = 4096
+
 type managedCronWriteRequest struct {
 	Name          string `json:"name"`
 	Schedule      string `json:"schedule"`
@@ -216,13 +218,14 @@ func handleServerCronJobTest(e *core.RequestEvent) error {
 	}
 
 	output, err := executeServerCronCommand(e.Request.Context(), cfg, serversvc.RenderManagedCronTestCommand(job), 60*time.Second)
+	responseOutput := limitManagedCronTestOutput(output)
 	if err != nil {
-		auditServerCron(e, serverID, "server.ops.cron.test", audit.StatusFailed, map[string]any{"entry_id": entryID, "output": output})
-		return e.JSON(http.StatusInternalServerError, map[string]any{"message": err.Error(), "output": output})
+		auditServerCron(e, serverID, "server.ops.cron.test", audit.StatusFailed, map[string]any{"entry_id": entryID, "output_bytes": len(output)})
+		return e.JSON(http.StatusInternalServerError, map[string]any{"message": err.Error(), "output": responseOutput})
 	}
 
-	auditServerCron(e, serverID, "server.ops.cron.test", audit.StatusSuccess, map[string]any{"entry_id": entryID, "output": output})
-	return e.JSON(http.StatusOK, managedCronTestResponse{EntryID: entryID, Output: output})
+	auditServerCron(e, serverID, "server.ops.cron.test", audit.StatusSuccess, map[string]any{"entry_id": entryID, "output_bytes": len(output)})
+	return e.JSON(http.StatusOK, managedCronTestResponse{EntryID: entryID, Output: responseOutput})
 }
 
 func handleServerCronJobToggle(e *core.RequestEvent, enabled bool) error {
@@ -312,6 +315,13 @@ func serverCronService(cfg terminal.ConnectorConfig) serversvc.ManagedCronServic
 			ExecuteCommand: executeServerCronCommand,
 		},
 	}
+}
+
+func limitManagedCronTestOutput(output string) string {
+	if len(output) <= maxManagedCronTestOutputLen {
+		return output
+	}
+	return strings.TrimRight(output[:maxManagedCronTestOutputLen], "\n") + "\n... output truncated ..."
 }
 
 func auditServerCron(e *core.RequestEvent, serverID, action, status string, detail map[string]any) {

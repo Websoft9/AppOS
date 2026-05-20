@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -284,6 +285,50 @@ func TestServerCronJobCreateWritesManagedBlock(t *testing.T) {
 	if !strings.Contains(wrote, serversvc.ManagedCronRuntimeDir+"/appos-managed-cron-") {
 		t.Fatalf("expected runtime file install in write script, got %q", wrote)
 	}
+
+	var payload serversvc.ManagedCronJob
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal create response: %v", err)
+	}
+	if payload.Path == "" || !strings.HasPrefix(payload.Path, serversvc.ManagedCronRuntimeDir+"/") {
+		t.Fatalf("expected create response path, got %+v", payload)
+	}
+}
+
+func TestServerCronJobUpdateReturnsRuntimePath(t *testing.T) {
+	te := resolverTestEnv(t)
+	defer te.cleanup()
+
+	serverID := createCronCapableServer(t, te)
+	registry := serversvc.ManagedCronRegistryDocument{Jobs: []serversvc.ManagedCronJob{{
+		EntryID: "cron_alpha", Name: "backup", Schedule: "0 2 * * *", Command: "/opt/bin/backup.sh", Enabled: true, Source: "managed",
+	}}}
+	originalExec := executeServerCronCommand
+	callCount := 0
+	executeServerCronCommand = func(_ context.Context, _ terminal.ConnectorConfig, command string, _ time.Duration) (string, error) {
+		callCount++
+		if callCount == 1 {
+			return encodeManagedCronLoadOutput(t, registry.Render(), serversvc.ManagedCronFileName("cron_alpha")), nil
+		}
+		return "ok", nil
+	}
+	defer func() { executeServerCronCommand = originalExec }()
+
+	rec := te.doServer(t, "PUT", "/api/servers/"+serverID+"/ops/cron/jobs/cron_alpha", `{"name":"backup","schedule":"0 3 * * *","command":"/opt/bin/backup.sh --full","enabled":true,"singleRunOnly":true}`, true)
+	if rec.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var payload serversvc.ManagedCronJob
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal update response: %v", err)
+	}
+	if payload.Path != serversvc.ManagedCronFilePath("cron_alpha") {
+		t.Fatalf("expected update response path, got %+v", payload)
+	}
+	if !payload.SingleRunOnly {
+		t.Fatalf("expected update response to preserve singleRunOnly, got %+v", payload)
+	}
 }
 
 func TestServerCronJobDisableWritesCommentedSpec(t *testing.T) {
@@ -351,5 +396,47 @@ func TestServerCronJobDeleteRemovesManagedBlock(t *testing.T) {
 	}
 	if strings.Contains(wrote, serversvc.ManagedCronFilePath("cron_alpha")) {
 		t.Fatalf("expected deleted job runtime file removed, got %q", wrote)
+	}
+}
+
+func TestServerCronJobTestTruncatesOutput(t *testing.T) {
+	te := resolverTestEnv(t)
+	defer te.cleanup()
+
+	serverID := createCronCapableServer(t, te)
+	registry := serversvc.ManagedCronRegistryDocument{Jobs: []serversvc.ManagedCronJob{{
+		EntryID: "cron_alpha", Name: "backup", Schedule: "0 2 * * *", Command: "/opt/bin/backup.sh --full", Enabled: true, Source: "managed",
+	}}}
+	longOutput := strings.Repeat("x", maxManagedCronTestOutputLen+32)
+
+	originalExec := executeServerCronCommand
+	callCount := 0
+	executeServerCronCommand = func(_ context.Context, _ terminal.ConnectorConfig, command string, _ time.Duration) (string, error) {
+		callCount++
+		if callCount == 1 {
+			return encodeManagedCronLoadOutput(t, registry.Render(), serversvc.ManagedCronFileName("cron_alpha")), nil
+		}
+		if command != "/bin/sh -lc '/opt/bin/backup.sh --full'" {
+			t.Fatalf("expected one-shot cron test command, got %q", command)
+		}
+		return longOutput, fmt.Errorf("boom")
+	}
+	defer func() { executeServerCronCommand = originalExec }()
+
+	rec := te.doServer(t, "POST", "/api/servers/"+serverID+"/ops/cron/jobs/cron_alpha/test", "", true)
+	if rec.Code != 500 {
+		t.Fatalf("expected 500, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal error response: %v", err)
+	}
+	output, _ := payload["output"].(string)
+	if len(output) > maxManagedCronTestOutputLen+len("\n... output truncated ...") {
+		t.Fatalf("expected truncated output, got len=%d", len(output))
+	}
+	if !strings.Contains(output, "... output truncated ...") {
+		t.Fatalf("expected truncation marker, got %q", output)
 	}
 }

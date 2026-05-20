@@ -90,6 +90,7 @@ export interface FileManagerPanelProps {
   initialPath?: string
   lockedRootPath?: string
   className?: string
+  onLocationChange?: (location: { path: string; lockedRoot: string | null }) => void
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -226,6 +227,7 @@ export function FileManagerPanel({
   initialPath = '/',
   lockedRootPath,
   className,
+  onLocationChange,
 }: FileManagerPanelProps) {
   const scopedRootPath = normalizePath(lockedRootPath || '/')
   const scopedInitialPath = clampPathToRoot(initialPath, lockedRootPath)
@@ -294,6 +296,7 @@ export function FileManagerPanel({
   const [copied, setCopied] = useState(false)
 
   const uploadRef = useRef<HTMLInputElement>(null)
+  const lastLoadedPathRef = useRef<string | null>(null)
 
   // ─── Fetch directory listing ──────────────────────────────────────────────
 
@@ -310,18 +313,27 @@ export function FileManagerPanel({
           if (a.type !== 'dir' && b.type === 'dir') return 1
           return a.name.localeCompare(b.name)
         })
+        const finalPath = clampPathToRoot(res.path || nextPath, lockedRootPath)
+        lastLoadedPathRef.current = finalPath
         setEntries(sorted)
-        setCurrentPath(clampPathToRoot(res.path || nextPath, lockedRootPath))
+        setCurrentPath(finalPath)
+        onLocationChange?.({
+          path: finalPath,
+          lockedRoot: lockedRootPath ? scopedRootPath : null,
+        })
       } catch (err) {
         setError(getApiErrorMessage(err, 'Failed to list directory'))
       } finally {
         setLoading(false)
       }
     },
-    [lockedRootPath, serverId]
+    [lockedRootPath, onLocationChange, scopedRootPath, serverId]
   )
 
   useEffect(() => {
+    if (lastLoadedPathRef.current === scopedInitialPath) {
+      return
+    }
     fetchEntries(scopedInitialPath)
   }, [fetchEntries, scopedInitialPath])
 
@@ -830,6 +842,7 @@ export function FileManagerPanel({
       <div className="flex items-center gap-1 px-2 py-1.5 border-b bg-muted/30 shrink-0">
         {/* Breadcrumb */}
         <Button
+          type="button"
           variant="ghost"
           size="icon"
           className="h-7 w-7"
@@ -838,6 +851,7 @@ export function FileManagerPanel({
           <Home className="h-4 w-4" />
         </Button>
         <Button
+          type="button"
           variant="ghost"
           size="icon"
           className="h-7 w-7"
@@ -852,6 +866,7 @@ export function FileManagerPanel({
             <span key={seg.path} className="flex items-center shrink-0">
               {i > 0 && <ChevronRight className="h-3 w-3 mx-0.5 text-muted-foreground/50" />}
               <button
+                type="button"
                 className="hover:text-foreground hover:underline truncate max-w-[120px]"
                 onClick={() => navigateTo(seg.path)}
               >
@@ -863,6 +878,7 @@ export function FileManagerPanel({
 
         {/* Actions */}
         <Button
+          type="button"
           variant="ghost"
           size="icon"
           className="h-7 w-7"
@@ -872,6 +888,7 @@ export function FileManagerPanel({
           <Search className="h-4 w-4" />
         </Button>
         <Button
+          type="button"
           variant="ghost"
           size="icon"
           className="h-7 w-7"
@@ -885,6 +902,7 @@ export function FileManagerPanel({
           )}
         </Button>
         <Button
+          type="button"
           variant="ghost"
           size="icon"
           className="h-7 w-7"
@@ -894,6 +912,7 @@ export function FileManagerPanel({
           {showHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </Button>
         <Button
+          type="button"
           variant="ghost"
           size="icon"
           className="h-7 w-7"
@@ -906,6 +925,7 @@ export function FileManagerPanel({
           <FolderPlus className="h-4 w-4" />
         </Button>
         <Button
+          type="button"
           variant="ghost"
           size="icon"
           className="h-7 w-7"
@@ -918,6 +938,7 @@ export function FileManagerPanel({
           <FilePlus className="h-4 w-4" />
         </Button>
         <Button
+          type="button"
           variant="ghost"
           size="icon"
           className="h-7 w-7"
@@ -927,6 +948,7 @@ export function FileManagerPanel({
           <Upload className="h-4 w-4" />
         </Button>
         <Button
+          type="button"
           variant="ghost"
           size="icon"
           className="h-7 w-7"
@@ -962,6 +984,7 @@ export function FileManagerPanel({
               autoFocus
             />
             <Button
+              type="button"
               variant="ghost"
               size="icon"
               className="h-6 w-6 shrink-0"
@@ -999,7 +1022,7 @@ export function FileManagerPanel({
       {error && (
         <div className="px-3 py-1.5 text-xs text-destructive bg-destructive/10 border-b">
           {error}
-          <button className="ml-2 underline" onClick={() => setError(null)}>
+          <button type="button" className="ml-2 underline" onClick={() => setError(null)}>
             dismiss
           </button>
         </div>
@@ -1021,10 +1044,10 @@ export function FileManagerPanel({
             autoFocus
             disabled={busy}
           />
-          <Button size="sm" variant="outline" className="h-7" onClick={handleMkdir} disabled={busy}>
+          <Button type="button" size="sm" variant="outline" className="h-7" onClick={handleMkdir} disabled={busy}>
             Create
           </Button>
-          <Button size="sm" variant="ghost" className="h-7" onClick={() => setMkdirMode(false)}>
+          <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => setMkdirMode(false)}>
             Cancel
           </Button>
         </div>
@@ -1046,6 +1069,7 @@ export function FileManagerPanel({
             autoFocus
           />
           <Button
+            type="button"
             size="sm"
             variant="outline"
             className="h-7"
@@ -1055,6 +1079,7 @@ export function FileManagerPanel({
             Open Editor
           </Button>
           <Button
+            type="button"
             size="sm"
             variant="ghost"
             className="h-7"
@@ -1086,6 +1111,7 @@ export function FileManagerPanel({
             disabled={busy}
           />
           <Button
+            type="button"
             size="sm"
             variant="outline"
             className="h-7"
@@ -1094,7 +1120,7 @@ export function FileManagerPanel({
           >
             Rename
           </Button>
-          <Button size="sm" variant="ghost" className="h-7" onClick={() => setRenameTarget(null)}>
+          <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => setRenameTarget(null)}>
             Cancel
           </Button>
         </div>
@@ -1195,7 +1221,7 @@ export function FileManagerPanel({
                   <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-5 w-5">
+                        <Button type="button" variant="ghost" size="icon" className="h-5 w-5">
                           <MoreHorizontal className="h-3.5 w-3.5" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -1303,6 +1329,7 @@ export function FileManagerPanel({
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
+                            type="button"
                             data-testid={`actions-${entry.name}`}
                             variant="ghost"
                             size="icon"
@@ -1575,10 +1602,11 @@ export function FileManagerPanel({
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPropertiesTarget(null)}>
+            <Button type="button" variant="outline" onClick={() => setPropertiesTarget(null)}>
               Close
             </Button>
             <Button
+              type="button"
               data-testid="properties-save"
               onClick={handleSaveProperties}
               disabled={propertiesSaving || propertiesLoading}
@@ -1624,10 +1652,11 @@ export function FileManagerPanel({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSymlinkTargetEntry(null)}>
+            <Button type="button" variant="outline" onClick={() => setSymlinkTargetEntry(null)}>
               Cancel
             </Button>
             <Button
+              type="button"
               onClick={handleConfirmSymlink}
               disabled={symlinkSaving || !symlinkTargetPath.trim() || !symlinkLinkPath.trim()}
             >
@@ -1661,10 +1690,10 @@ export function FileManagerPanel({
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCopyMoveEntry(null)}>
+            <Button type="button" variant="outline" onClick={() => setCopyMoveEntry(null)}>
               Cancel
             </Button>
-            <Button onClick={executeCopyOrMove} disabled={copyMoveSaving || !copyMoveTo.trim()}>
+            <Button type="button" onClick={executeCopyOrMove} disabled={copyMoveSaving || !copyMoveTo.trim()}>
               {copyMoveSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               {copyMoveMode === 'move' ? 'Move' : 'Copy'}
             </Button>
@@ -1700,6 +1729,7 @@ export function FileManagerPanel({
                 <div className="flex gap-2 mt-1">
                   <Input readOnly value={shareUrl} className="text-xs font-mono" />
                   <Button
+                    type="button"
                     size="icon"
                     variant="outline"
                     onClick={handleCopyShareUrl}
@@ -1712,6 +1742,7 @@ export function FileManagerPanel({
                     )}
                   </Button>
                   <Button
+                    type="button"
                     size="icon"
                     variant="ghost"
                     className="text-destructive"
@@ -1726,10 +1757,11 @@ export function FileManagerPanel({
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShareEntry(null)}>
+            <Button type="button" variant="outline" onClick={() => setShareEntry(null)}>
               Close
             </Button>
             <Button
+              type="button"
               onClick={handleGenerateShare}
               disabled={sharing || shareMinutes < 1 || shareMinutes > shareMaxMinutes}
             >

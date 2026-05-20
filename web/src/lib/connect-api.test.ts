@@ -8,6 +8,10 @@ import {
   listServerCronJobs,
   listServerPorts,
   listSystemdServices,
+  sftpConstraints,
+  sftpList,
+  sftpSearch,
+  sftpStat,
   testServerCronJob,
   updateServerCronJob,
 } from './connect-api'
@@ -82,6 +86,29 @@ describe('getConnectTerminalSettings', () => {
   expect(sendMock).toHaveBeenCalledWith('/api/servers/srv-1/ops/cron/jobs', {
     requestKey: null,
   })
+  })
+
+  it('disables PocketBase auto-cancellation for SFTP reads used by the files panel', async () => {
+    sendMock.mockResolvedValue({ entries: [], results: [], attrs: {}, max_upload_files: 10 })
+
+    await sftpList('srv-1', '/var')
+    await sftpSearch('srv-1', '/var', 'log')
+    await sftpStat('srv-1', '/var/log')
+    await sftpConstraints('srv-1')
+
+    expect(sendMock).toHaveBeenCalledWith('/api/terminal/sftp/srv-1/list?path=%2Fvar', {
+      requestKey: null,
+    })
+    expect(sendMock).toHaveBeenCalledWith(
+      '/api/terminal/sftp/srv-1/search?path=%2Fvar&query=log',
+      { requestKey: null }
+    )
+    expect(sendMock).toHaveBeenCalledWith('/api/terminal/sftp/srv-1/stat?path=%2Fvar%2Flog', {
+      requestKey: null,
+    })
+    expect(sendMock).toHaveBeenCalledWith('/api/terminal/sftp/srv-1/constraints', {
+      requestKey: null,
+    })
   })
 
   it('uses the expected cron mutation endpoints', async () => {

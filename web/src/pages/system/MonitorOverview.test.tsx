@@ -10,6 +10,22 @@ vi.mock('@/lib/pb', () => ({
   },
 }))
 
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    children,
+    to,
+    className,
+  }: {
+    children: React.ReactNode
+    to: string
+    className?: string
+  }) => (
+    <a href={to} className={className}>
+      {children}
+    </a>
+  ),
+}))
+
 describe('MonitorOverviewContent', () => {
   beforeEach(() => {
     sendMock.mockReset()

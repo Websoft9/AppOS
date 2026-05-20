@@ -9,6 +9,8 @@
 
 Converge the current `System > Status` frontend into one simple platform-first page that answers one question first: can the platform be used right now?
 
+This story also absorbs the runtime-diagnostics value that previously lived in Epic 6 `Active Services`.
+
 ## Scope
 
 - Keep `System > Status` as the single operator entry for platform runtime status
@@ -17,6 +19,7 @@ Converge the current `System > Status` frontend into one simple platform-first p
 - Show active bundled services as the main diagnostic table
 - Keep platform targets as a compact control-plane summary, not the main surface
 - Keep available non-active components behind a secondary entry, not a primary section
+- Preserve diagnostics-first active-service behavior: summary counts, manual refresh, configurable auto-refresh, and log access without default process controls
 
 ## Principles
 
@@ -30,6 +33,16 @@ Converge the current `System > Status` frontend into one simple platform-first p
 - Current route: `web/src/routes/_app/_auth/_superuser/status.tsx`
 - Current monitor overview: `web/src/pages/system/MonitorOverview.tsx`
 - Current components and services surface: `web/src/pages/components/ComponentsPage.tsx`
+
+## Migration Note
+
+This story is the canonical replacement for the old Epic 6 `Active Services` tab.
+
+Migration rules:
+
+- active bundled-service runtime state now belongs to the unified `System > Status` experience rather than a standalone `Components` workspace
+- transitional reuse of `/api/components/services` and `/api/components/services/{name}/logs` is acceptable while the monitor-owned read model converges
+- default UX remains observe-first: logs and state are visible, but dangerous controls such as `start`, `stop`, and `restart` are not primary product behavior here
 
 ## Implementation Targets
 
@@ -47,6 +60,7 @@ Converge the current `System > Status` frontend into one simple platform-first p
 - [x] Keep `Active Services` as the main operator table on the page
 - [x] Reduce `Platform Targets` to a compact control-plane summary
 - [x] Move non-active component inventory behind a secondary `Components` entry from the services section
+- [x] Preserve the old active-services diagnostic value through summary counts, refresh behavior, and logs-first service inspection
 
 ## Source of Truth
 
@@ -169,6 +183,9 @@ Given the page is rendered
 When the operator scans the main evidence area
 Then active bundled services are directly visible as the main operational table
 And log access remains available from that table
+And service-state summary counts for total, running, stopped, and degraded/error services remain visible without leaving the page
+And the page supports manual refresh plus configurable auto-refresh for the active-services section
+And default behavior remains diagnostics-first, without surfacing dangerous service controls as primary actions
 
 ### AC5: Platform targets are secondary evidence
 
@@ -192,6 +209,7 @@ And non-active components are not rendered as a standalone primary section on th
 - `Platform Availability` is a product conclusion, not a raw monitor object
 - `Platform Targets` remain important, but only as control-plane evidence for the availability conclusion
 - The first implementation pass should reuse existing read models and frontend building blocks where possible
+- if compatibility requires continued use of the old service routes, treat them as transitional transport rather than as the long-term domain naming
 
 ## Dev Agent Record
 

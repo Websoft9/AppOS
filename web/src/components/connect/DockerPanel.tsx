@@ -46,6 +46,7 @@ import { ImagesTab, type ImagesTabRef } from '@/components/docker/ImagesTab'
 import { NetworksTab, type NetworksTabRef } from '@/components/docker/NetworksTab'
 import { VolumesTab, type VolumesTabRef } from '@/components/docker/VolumesTab'
 import { ComposeTab, type ComposeTabSummary } from '@/components/docker/ComposeTab'
+import { DockerDependencyAlert, getDockerDependencyIssue } from '@/components/docker/DockerDependencyAlert'
 import { TerminalPanel } from '@/components/connect/TerminalPanel'
 import { dockerApiPath, dockerTargetsPath } from '@/lib/docker-api'
 import { cn } from '@/lib/utils'
@@ -365,14 +366,20 @@ function OverviewTab({
   const hiddenAttentionCount = Math.max(0, attentionIssues.length - visibleAttentionIssues.length)
   const hasContainerIssues = attentionIssues.some(issue => issue.type === 'container')
   const hasComposeIssues = attentionIssues.some(issue => issue.type === 'compose')
+  const loadErrorMessage = loadError
+    ? getApiErrorMessage(loadError, 'Failed to load Docker overview')
+    : null
+  const dependencyIssue = getDockerDependencyIssue(loadError ?? loadErrorMessage)
 
   if (loadError) {
     return (
-      <Alert variant="destructive">
-        <AlertDescription>
-          {getApiErrorMessage(loadError, 'Failed to load Docker overview')}
-        </AlertDescription>
-      </Alert>
+      dependencyIssue && loadErrorMessage ? (
+        <DockerDependencyAlert serverId={serverId} message={loadErrorMessage} />
+      ) : (
+        <Alert variant="destructive">
+          <AlertDescription>{loadErrorMessage}</AlertDescription>
+        </Alert>
+      )
     )
   }
 
@@ -636,6 +643,10 @@ export function DockerPanel({
   const [terminalContainerId, setTerminalContainerId] = useState<string | null>(null)
   const [terminalShell, setTerminalShell] = useState<string>('/bin/sh')
   const [manualShell, setManualShell] = useState(false)
+  const [terminalResumeSession, setTerminalResumeSession] = useState<{
+    key: string
+    sessionId: string
+  } | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshError, setRefreshError] = useState<string | null>(null)
 
@@ -653,6 +664,11 @@ export function DockerPanel({
   const containerTelemetryFetching = useIsFetching({
     queryKey: ['monitor', 'container-telemetry', serverId],
   })
+
+  const activeTerminalSessionKey =
+    terminalContainerId == null
+      ? null
+      : `${serverId}:${terminalContainerId}:${manualShell ? terminalShell : 'auto'}`
 
   const activeTabFetching = useMemo(() => {
     switch (activeTab) {
@@ -1050,7 +1066,7 @@ export function DockerPanel({
                             })
                           }
                         >
-                          CPU%
+                          CPU
                         </DropdownMenuCheckboxItem>
                         <DropdownMenuCheckboxItem
                           checked={containerVisibleColumns.mem}
@@ -1172,7 +1188,7 @@ export function DockerPanel({
                         size="sm"
                         className="h-8 shrink-0 px-2 text-xs"
                         onClick={() => imagesTabRef.current?.openPullHistory('recents')}
-                        title="View recent image pulls"
+                        title="View pull history"
                       >
                         History
                       </Button>
@@ -1703,8 +1719,19 @@ export function DockerPanel({
               <TerminalPanel
                 key={`${terminalContainerId}-${manualShell ? terminalShell : 'auto'}`}
                 containerId={terminalContainerId}
+                sessionId={
+                  activeTerminalSessionKey != null &&
+                  terminalResumeSession?.key === activeTerminalSessionKey
+                    ? terminalResumeSession.sessionId
+                    : undefined
+                }
                 dockerServerId={serverId}
                 shell={manualShell ? terminalShell : undefined}
+                onSessionEstablished={sessionId => {
+                  if (activeTerminalSessionKey) {
+                    setTerminalResumeSession({ key: activeTerminalSessionKey, sessionId })
+                  }
+                }}
                 className="h-full"
               />
             )}

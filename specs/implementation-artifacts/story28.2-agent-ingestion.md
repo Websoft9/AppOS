@@ -191,9 +191,9 @@ Out of scope for this extension:
 Required label direction for container telemetry:
 
 - `server_id` remains required for server ownership
-- one stable container identity label must be present for joins, such as `container_id`
-- optional operator-friendly labels such as `container_name`, `compose_project`, and `compose_service` may be included when collector quality is acceptable
-- UI consumers must treat human-readable labels as best-effort hints; `container_id` remains the canonical join key
+- for the Netdata-backed MVP, one stable collector-visible container identity label must be present for joins; AppOS currently normalizes this to `container_name`
+- optional operator-facing labels such as `compose_project` and `compose_service` may be included when collector quality is acceptable
+- if a future collector can provide a durable instance identifier, AppOS may add a second identity field, but the current monitor contract should assume `container_name` is the primary key
 
 MVP usage target:
 
@@ -235,15 +235,15 @@ Canonical required labels for every container telemetry point:
 | Label | Required | Rule |
 |---|---|---|
 | `target_type` | yes | must equal `container` |
-| `target_id` | yes | must equal `container_id` |
+| `target_id` | yes | must equal the normalized `container_name` used by the current collector contract |
 | `server_id` | yes | owning managed server id |
-| `container_id` | yes | canonical join key used by Docker inventory |
+| `container_id` | yes | normalized `container_name` used as the current canonical telemetry identity |
 
 Canonical optional labels:
 
 | Label | Allowed use |
 |---|---|
-| `container_name` | operator-facing hint only |
+| `container_name` | primary collector-facing identity label and operator-facing display name |
 | `compose_project` | operator-facing grouping hint only |
 | `compose_service` | operator-facing grouping hint only |
 | `app_id` | optional future app-level join hint |
@@ -297,7 +297,7 @@ MVP rules:
 - do not mirror raw metric points into PocketBase collections
 - container telemetry must stay bounded to a small allowlist and must not open arbitrary per-label TSDB querying from the browser
 - if collector coverage cannot provide one of the four metric groups reliably, omit that field explicitly rather than fabricating zero values
-- label validation must reject any point that lacks `server_id`, `container_id`, `target_type=container`, or a `target_id` equal to `container_id`
+- label validation must reject any point that lacks `server_id`, `container_id` (currently normalized from `container_name`), `target_type=container`, or a `target_id` equal to `container_id`
 
 ### Facts collection
 
@@ -534,7 +534,7 @@ Do not persist:
 - [ ] AC11: Evidence records use a compact common shape with bounded summary semantics.
 - [ ] AC12: Unknown or disallowed metric families are rejected or ignored by an explicit allowlist policy.
 - [ ] AC13: The MVP setup flow no longer exposes AppOS-owned managed-server agent setup; Netdata remains the only continuous managed-side agent.
-- [ ] AC14: Container telemetry ingestion defines a stable container identity label contract that downstream UI can join against Docker inventory without persisting container inventories in PocketBase.
+- [ ] AC14: Container telemetry ingestion defines a stable container-name-based identity contract that downstream UI can join against Docker inventory without persisting container inventories in PocketBase.
 - [ ] AC15: The first container telemetry slice remains limited to runtime usage evidence and does not absorb Docker inventory, inspect, logs, or action control into the monitoring domain.
 
 ## Implementation Notes

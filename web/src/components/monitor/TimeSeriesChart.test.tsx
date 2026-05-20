@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { TimeSeriesChart } from './TimeSeriesChart'
@@ -54,7 +55,7 @@ describe('TimeSeriesChart', () => {
     expect(container.querySelectorAll('circle.recharts-dot').length).toBeGreaterThan(0)
   })
 
-  it('removes the fixed-capacity top stroke for memory and disk usage stacks', () => {
+  it('renders distinct usage and limit strokes for memory telemetry segments', () => {
     const { container } = render(
       <div>
         <TimeSeriesChart
@@ -64,39 +65,17 @@ describe('TimeSeriesChart', () => {
           formatValue={formatValue}
           segments={[
             {
-              name: 'used',
+              name: 'usage',
               points: [
                 [1713096000, 100],
                 [1713096060, 120],
               ],
             },
             {
-              name: 'available',
+              name: 'limit',
               points: [
                 [1713096000, 400],
                 [1713096060, 380],
-              ],
-            },
-          ]}
-        />
-        <TimeSeriesChart
-          name="disk_usage"
-          unit="bytes"
-          window="1h"
-          formatValue={formatValue}
-          segments={[
-            {
-              name: 'used',
-              points: [
-                [1713096000, 70],
-                [1713096060, 73],
-              ],
-            },
-            {
-              name: 'free',
-              points: [
-                [1713096000, 30],
-                [1713096060, 27],
               ],
             },
           ]}
@@ -105,7 +84,14 @@ describe('TimeSeriesChart', () => {
     )
 
     expect(container.querySelector('path[stroke="#2563eb"]')).toBeTruthy()
-    expect(container.querySelector('path[stroke="#c2410c"]')).toBeTruthy()
-    expect(container.querySelector('path[stroke="#0f766e"]')).toBeFalsy()
+    expect(container.querySelector('path[stroke="#d97706"]')).toBeTruthy()
+    expect(container.querySelector('path[stroke="#059669"]')).toBeFalsy()
+  })
+
+  it('keeps memory overlays unstacked so usage is not compressed by the limit series', () => {
+    const source = readFileSync('src/components/monitor/TimeSeriesChart.tsx', 'utf8')
+
+    expect(source).toContain("const shouldStackSegments = name === 'disk_usage'")
+    expect(source).not.toContain("const shouldStackSegments = name === 'memory' || name === 'disk_usage'")
   })
 })

@@ -88,6 +88,10 @@ export function ServerSelector({ className }: ServerSelectorProps) {
     return `Last session saved ${minutes} min ago`
   })()
 
+  const handleAddServer = useCallback(() => {
+    void navigate({ to: '/resources/servers', search: { create: '1' } as never })
+  }, [navigate])
+
   const handleConnect = async () => {
     if (!selected) return
     const targetLabel = selected.name || selected.host || selected.id
@@ -142,12 +146,13 @@ export function ServerSelector({ className }: ServerSelectorProps) {
         ) : servers.length === 0 ? (
           <div className="text-center py-8 text-sm text-muted-foreground">
             No servers configured.{' '}
-            <a
-              href="/resources/servers?create=1"
+            <button
+              type="button"
+              onClick={handleAddServer}
               className="text-primary underline underline-offset-4 hover:text-primary/80"
             >
               Add a server
-            </a>{' '}
+            </button>{' '}
             in Resources first.
           </div>
         ) : (

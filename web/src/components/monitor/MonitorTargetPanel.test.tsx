@@ -143,20 +143,20 @@ describe('MonitorTargetPanel', () => {
           },
           {
             name: 'network_traffic',
-            unit: 'GB',
+            unit: 'bytes',
             segments: [
               {
                 name: 'in',
                 points: [
-                  [1713096000, 0.06],
-                  [1713096060, 0.09],
+                  [1713096000, 64 * 1024 * 1024],
+                  [1713096060, 96 * 1024 * 1024],
                 ],
               },
               {
                 name: 'out',
                 points: [
-                  [1713096000, 0.06],
-                  [1713096060, 0.09],
+                  [1713096000, 64 * 1024 * 1024],
+                  [1713096060, 96 * 1024 * 1024],
                 ],
               },
             ],
@@ -170,6 +170,16 @@ describe('MonitorTargetPanel', () => {
     expect(screen.getByText('Healthy')).toBeInTheDocument()
     expect(screen.getByText('Heartbeat State')).toBeInTheDocument()
     expect(await screen.findByText('Trend History')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '1m' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '5m' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '15m' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '0.5h' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '1h' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '5h' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '12h' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '24h' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '7d' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'custom' })).toBeInTheDocument()
     expect(screen.getByText('CPU')).toBeInTheDocument()
     expect(screen.getByText('Memory')).toBeInTheDocument()
     expect(screen.getByText('Disk Usage')).toBeInTheDocument()
@@ -358,20 +368,20 @@ describe('MonitorTargetPanel', () => {
           },
           {
             name: 'network_traffic',
-            unit: 'GB',
+            unit: 'bytes',
             segments: [
               {
                 name: 'in',
                 points: [
-                  [1713096000, 0.06],
-                  [1713096060, 0.09],
+                  [1713096000, 64 * 1024 * 1024],
+                  [1713096060, 96 * 1024 * 1024],
                 ],
               },
               {
                 name: 'out',
                 points: [
-                  [1713096000, 0.06],
-                  [1713096060, 0.09],
+                  [1713096000, 64 * 1024 * 1024],
+                  [1713096060, 96 * 1024 * 1024],
                 ],
               },
             ],
@@ -638,7 +648,7 @@ describe('MonitorTargetPanel', () => {
       )
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Custom' }))
+    fireEvent.click(screen.getByRole('button', { name: 'custom' }))
 
     expect(screen.getByText('Custom time range')).toBeInTheDocument()
 
@@ -665,7 +675,7 @@ describe('MonitorTargetPanel', () => {
     expect(customSeriesRequest).toEqual(expect.stringContaining('startAt='))
     expect(customSeriesRequest).toEqual(expect.stringContaining('endAt='))
     expect(screen.queryByText('Custom time range')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Custom' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'custom' })).not.toBeInTheDocument()
   }, 15000)
 
   it('keeps current snapshot on a short window when trend window changes', async () => {
@@ -828,6 +838,70 @@ describe('MonitorTargetPanel', () => {
     expect(onRepair).toHaveBeenCalledTimes(1)
   })
 
+  it('suppresses the write-path warning when usable series data is already present', async () => {
+    sendMock
+      .mockResolvedValueOnce({
+        hasData: true,
+        targetType: 'server',
+        targetId: 'srv-warning-mismatch',
+        displayName: 'prod-server',
+        status: 'unknown',
+        reason: 'metrics missing',
+        signalSource: 'appos_active_check',
+        lastTransitionAt: '2026-04-14T12:03:00Z',
+        lastSuccessAt: '2026-04-14T12:03:00Z',
+        lastFailureAt: null,
+        lastCheckedAt: '2026-04-14T12:03:00Z',
+        lastReportedAt: '2026-04-14T12:03:00Z',
+        consecutiveFailures: 0,
+        summary: {
+          metrics_freshness_state: 'missing',
+          metrics_reason_code: 'metrics_missing',
+        },
+      })
+      .mockResolvedValueOnce({
+        targetType: 'server',
+        targetId: 'srv-warning-mismatch',
+        window: '1h',
+        selectedNetworkInterface: 'all',
+        series: [
+          {
+            name: 'cpu',
+            unit: 'percent',
+            points: [
+              [1713096000, 14],
+              [1713099600, 18],
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        targetType: 'server',
+        targetId: 'srv-warning-mismatch',
+        window: '15m',
+        selectedNetworkInterface: 'all',
+        series: [
+          {
+            name: 'cpu',
+            unit: 'percent',
+            points: [[1713099600, 18]],
+          },
+        ],
+      })
+
+    render(
+      <MonitorTargetPanel targetType="server" targetId="srv-warning-mismatch" layout="detail" />
+    )
+
+    await screen.findByText('Trend History')
+
+    expect(
+      screen.queryByText(
+        'AppOS is not receiving usable metrics from this target. This usually indicates a monitor write-path or credential problem, not a chart rendering issue.'
+      )
+    ).not.toBeInTheDocument()
+  })
+
   it('switches server network trends by interface', async () => {
     sendMock
       .mockResolvedValueOnce({
@@ -927,21 +1001,21 @@ describe('MonitorTargetPanel', () => {
           },
           {
             name: 'network_traffic',
-            unit: 'GB',
+            unit: 'bytes',
             metadata: { network_interface: 'eth0' },
             segments: [
               {
                 name: 'in',
                 points: [
-                  [1713096000, 0.03],
-                  [1713096060, 0.045],
+                  [1713096000, 32 * 1024 * 1024],
+                  [1713096060, 48 * 1024 * 1024],
                 ],
               },
               {
                 name: 'out',
                 points: [
-                  [1713096000, 0.03],
-                  [1713096060, 0.045],
+                  [1713096000, 32 * 1024 * 1024],
+                  [1713096060, 48 * 1024 * 1024],
                 ],
               },
             ],

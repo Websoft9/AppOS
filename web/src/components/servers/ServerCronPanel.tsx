@@ -27,6 +27,7 @@ import {
 	DialogTitle,
 } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
 	createServerCronJob,
 	deleteServerCronJob,
@@ -42,6 +43,7 @@ import { getApiErrorMessage, isRequestCancellation } from '@/lib/api-error'
 import { cn } from '@/lib/utils'
 
 type CronSortDirection = 'asc' | 'desc'
+type EntryDetailTab = 'live-log' | 'logs'
 
 const PAGE_SIZE = 12
 
@@ -245,6 +247,10 @@ function matchesQuery(job: ServerCronJob, query: string) {
 	return [job.name, job.schedule, job.command, job.path].some(value => value.toLowerCase().includes(query))
 }
 
+function formatOperationLog(message: string) {
+	return `[${new Date().toLocaleTimeString()}] ${message}`
+}
+
 export function ServerCronPanel({ serverId }: { serverId: string }) {
 	const requestSeqRef = useRef(0)
 	const [jobs, setJobs] = useState<ServerCronJob[]>([])
@@ -263,6 +269,16 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
 	const [query, setQuery] = useState('')
 	const [page, setPage] = useState(1)
 	const [selectedEntryId, setSelectedEntryId] = useState('')
+	const [entryDetailTab, setEntryDetailTab] = useState<EntryDetailTab>('live-log')
+	const [operationLogs, setOperationLogs] = useState<Record<string, string[]>>({})
+
+	const appendOperationLog = useCallback((entryId: string, message: string) => {
+		if (!entryId) return
+		setOperationLogs(current => ({
+			...current,
+			[entryId]: [...(current[entryId] ?? []), formatOperationLog(message)],
+		}))
+	}, [])
 
 	const loadJobs = useCallback(async () => {
 		if (!serverId) return
@@ -315,6 +331,11 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
 	const selectedJob = useMemo(
 		() => filteredJobs.find(job => job.entryId === selectedEntryId) ?? null,
 		[filteredJobs, selectedEntryId]
+	)
+
+	const selectedJobLogs = useMemo(
+		() => (selectedJob ? operationLogs[selectedJob.entryId] ?? [] : []),
+		[operationLogs, selectedJob]
 	)
 
 	const toggleNameSort = useCallback(() => {
@@ -386,15 +407,20 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
 		setSaving(true)
 		setEditorError('')
 		try {
+			if (editorState.mode === 'edit' && editorState.entryId) {
+				appendOperationLog(editorState.entryId, 'Saving entry changes...')
+			}
 			const saved =
 				editorState.mode === 'edit' && editorState.entryId
 					? await updateServerCronJob(serverId, editorState.entryId, payload)
 					: await createServerCronJob(serverId, payload)
+			setEntryDetailTab('live-log')
 			setJobs(current => {
 				const next = current.filter(item => item.entryId !== saved.entryId)
 				return [...next, saved]
 			})
 			setSelectedEntryId(saved.entryId)
+			appendOperationLog(saved.entryId, editorState.mode === 'edit' ? 'Entry updated successfully.' : 'Entry created successfully.')
 			setHint(editorState.mode === 'edit' ? 'Cron entry updated.' : 'Cron entry created.')
 			setEditorOpen(false)
 			setEditorState(emptyEditorState)
@@ -402,28 +428,35 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
 			setCopyState('idle')
 		} catch (saveError) {
 			if (isRequestCancellation(saveError)) return
+			if (editorState.mode === 'edit' && editorState.entryId) {
+				appendOperationLog(editorState.entryId, `Save failed: ${getApiErrorMessage(saveError, 'Failed to save cron entry')}`)
+			}
 			setEditorError(getApiErrorMessage(saveError, 'Failed to save cron entry'))
 		} finally {
 			setSaving(false)
 		}
-	}, [editorState, serverId])
+	}, [appendOperationLog, editorState, serverId])
 
 	const handleToggle = useCallback(async (job: ServerCronJob) => {
 		setHint('')
 		setError('')
 		try {
+			appendOperationLog(job.entryId, job.enabled ? 'Removing effect from entry...' : 'Applying entry to crontab...')
 			const nextJob = job.enabled
 				? await disableServerCronJob(serverId, job.entryId)
 				: await enableServerCronJob(serverId, job.entryId)
+			setEntryDetailTab('live-log')
 			setJobs(current =>
 				current.map(item => (item.entryId === nextJob.entryId ? nextJob : item))
 			)
+			appendOperationLog(nextJob.entryId, nextJob.enabled ? 'Entry is now effective.' : 'Entry removed from effect.')
 			setHint(job.enabled ? 'Crontab entry removed from effect.' : 'Crontab entry is now effective.')
 		} catch (toggleError) {
 			if (isRequestCancellation(toggleError)) return
+			appendOperationLog(job.entryId, `Toggle failed: ${getApiErrorMessage(toggleError, 'Failed to update cron entry')}`)
 			setError(getApiErrorMessage(toggleError, 'Failed to update cron entry'))
 		}
-	}, [serverId])
+	}, [appendOperationLog, serverId])
 
 	const handleDelete = useCallback(async () => {
 		if (!deleteTarget) return
@@ -431,30 +464,37 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
 		setError('')
 		setHint('')
 		try {
+			appendOperationLog(deleteTarget.entryId, 'Deleting entry...')
 			await deleteServerCronJob(serverId, deleteTarget.entryId)
 			setJobs(current => current.filter(item => item.entryId !== deleteTarget.entryId))
 			setSelectedEntryId(current => (current === deleteTarget.entryId ? '' : current))
+			appendOperationLog(deleteTarget.entryId, 'Entry deleted.')
 			setHint('Cron entry deleted.')
 			setDeleteTarget(null)
 		} catch (deleteError) {
 			if (isRequestCancellation(deleteError)) return
+			appendOperationLog(deleteTarget.entryId, `Delete failed: ${getApiErrorMessage(deleteError, 'Failed to delete cron entry')}`)
 			setError(getApiErrorMessage(deleteError, 'Failed to delete cron entry'))
 		} finally {
 			setDeleteSubmitting(false)
 		}
-	}, [deleteTarget, serverId])
+	}, [appendOperationLog, deleteTarget, serverId])
 
 	const handleTest = useCallback(async (job: ServerCronJob) => {
 		setHint('')
 		setError('')
 		try {
+			setEntryDetailTab('live-log')
+			appendOperationLog(job.entryId, 'Running test for entry...')
 			const result = await testServerCronJob(serverId, job.entryId)
+			appendOperationLog(job.entryId, result.output ? `Test output:\n${result.output}` : 'Crontab entry tested.')
 			setHint(result.output ? `Test output:\n${result.output}` : 'Crontab entry tested.')
 		} catch (testError) {
 			if (isRequestCancellation(testError)) return
+			appendOperationLog(job.entryId, `Test failed: ${getApiErrorMessage(testError, 'Failed to test crontab entry')}`)
 			setError(getApiErrorMessage(testError, 'Failed to test crontab entry'))
 		}
-	}, [serverId])
+	}, [appendOperationLog, serverId])
 
 	useEffect(() => {
 		if (page > totalPages) {
@@ -467,6 +507,10 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
 			setSelectedEntryId('')
 		}
 	}, [filteredJobs, selectedEntryId])
+
+	useEffect(() => {
+		setEntryDetailTab('live-log')
+	}, [selectedEntryId])
 
 	return (
 		<div className="space-y-4">
@@ -682,6 +726,32 @@ export function ServerCronPanel({ serverId }: { serverId: string }) {
 									<pre className="overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted/10 px-3 py-2 font-mono text-[11px] leading-5 text-muted-foreground">
 										{selectedJob.command}
 									</pre>
+								</div>
+								<div className="space-y-3 border-t pt-4">
+									<Tabs value={entryDetailTab} onValueChange={value => setEntryDetailTab(value as EntryDetailTab)} className="gap-3">
+										<TabsList variant="line" className="h-auto w-full justify-start rounded-none border-b p-0">
+											<TabsTrigger value="live-log" className="flex-none rounded-none px-3 py-2">Live log</TabsTrigger>
+											<TabsTrigger value="logs" className="flex-none rounded-none px-3 py-2">Logs</TabsTrigger>
+										</TabsList>
+										<TabsContent value="live-log" className="mt-0">
+											<div className="space-y-2">
+												{selectedJobLogs.length === 0 ? (
+													<div className="rounded-md border border-dashed bg-muted/10 px-3 py-4 text-sm text-muted-foreground">
+														No operation log yet. Trigger Test, Edit, enable/disable, or delete actions to see live updates here.
+													</div>
+												) : (
+													<pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted/10 px-3 py-2 font-mono text-[11px] leading-5 text-muted-foreground">
+														{selectedJobLogs.join('\n\n')}
+													</pre>
+												)}
+											</div>
+										</TabsContent>
+										<TabsContent value="logs" className="mt-0">
+											<div className="rounded-md border border-dashed bg-muted/10 px-3 py-4 text-sm text-muted-foreground">
+												Entry historical logs are reserved here. Backend log API is not available yet.
+											</div>
+										</TabsContent>
+									</Tabs>
 								</div>
 							</div>
 						)}

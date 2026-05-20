@@ -25,7 +25,7 @@ func TestQueryMetricSeriesQueriesVictoriaMetricsRangeAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if queryString != `100 - netdata_system_cpu_percentage_average{instance="srv_1",dimension="idle"}` {
+	if queryString != `appos_host_cpu_usage{target_type="server",target_id="srv_1"}` {
 		t.Fatalf("unexpected VM query: %s", queryString)
 	}
 	if len(resp.Series) != 1 || len(resp.Series[0].Points) != 2 {
@@ -49,7 +49,7 @@ func TestQueryMetricSeriesQueriesNetdataPlatformAppOSCoreCPUExpression(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if queryString != `100 - netdata_system_cpu_percentage_average{instance="appos-core",dimension="idle"}` {
+	if queryString != `appos_host_cpu_usage{target_type="server",target_id="appos-core"}` {
 		t.Fatalf("unexpected VM query: %s", queryString)
 	}
 	if len(resp.Series) != 1 || len(resp.Series[0].Points) != 1 {
@@ -73,10 +73,10 @@ func TestQueryMetricSeriesQueriesNetdataPlatformAppOSCoreMemoryExpression(t *tes
 	if len(queries) != 2 {
 		t.Fatalf("expected two memory queries, got %+v", queries)
 	}
-	if queries[0] != `sum(netdata_system_ram_MiB_average{instance="appos-core",dimension="used"}) * 1048576` {
+	if queries[0] != `sum(appos_host_memory_bytes{target_type="server",target_id="appos-core"})` {
 		t.Fatalf("unexpected used query: %s", queries[0])
 	}
-	if queries[1] != `sum(netdata_system_ram_MiB_average{instance="appos-core",dimension=~"free|cached|buffers"}) * 1048576` {
+	if queries[1] != `sum(appos_host_memory_available_bytes{target_type="server",target_id="appos-core"})` {
 		t.Fatalf("unexpected available query: %s", queries[1])
 	}
 	if len(resp.Series) != 1 || len(resp.Series[0].Segments) != 2 {
@@ -118,10 +118,10 @@ func TestQueryMetricSeriesQueriesNetdataPlatformAppOSCoreDiskExpression(t *testi
 	if len(queries) != 2 {
 		t.Fatalf("expected two disk queries, got %+v", queries)
 	}
-	if queries[0] != `sum(netdata_system_io_KiB_persec_average{instance="appos-core",dimension="reads"}) * 1024` {
+	if queries[0] != `sum(appos_host_disk_read_bytes_per_second{target_type="server",target_id="appos-core"})` {
 		t.Fatalf("unexpected read query: %s", queries[0])
 	}
-	if queries[1] != `sum(netdata_system_io_KiB_persec_average{instance="appos-core",dimension="writes"}) * 1024` {
+	if queries[1] != `sum(appos_host_disk_write_bytes_per_second{target_type="server",target_id="appos-core"})` {
 		t.Fatalf("unexpected write query: %s", queries[1])
 	}
 	if len(resp.Series) != 1 || len(resp.Series[0].Segments) != 2 {
@@ -136,7 +136,7 @@ func TestQueryMetricSeriesQueriesNetdataPlatformAppOSCoreNetworkExpression(t *te
 		switch r.URL.Path {
 		case "/api/v1/series":
 			hitSeriesLookup = true
-			_, _ = w.Write([]byte(`{"status":"success","data":[{"device":"eth0"},{"device":"ens3"}]}`))
+			_, _ = w.Write([]byte(`{"status":"success","data":[{"network_interface":"eth0"},{"network_interface":"ens3"}]}`))
 		default:
 			queries = append(queries, r.URL.Query().Get("query"))
 			_, _ = w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
@@ -155,10 +155,10 @@ func TestQueryMetricSeriesQueriesNetdataPlatformAppOSCoreNetworkExpression(t *te
 	if len(queries) != 2 {
 		t.Fatalf("expected two network queries, got %+v", queries)
 	}
-	if queries[0] != `sum(netdata_net_net_kilobits_persec_average{instance="appos-core",device="eth0",dimension="received"}) * 125` {
+	if queries[0] != `sum(appos_host_network_rx_bytes_per_second{target_type="server",target_id="appos-core",network_interface="eth0"})` {
 		t.Fatalf("unexpected received query: %s", queries[0])
 	}
-	if queries[1] != `sum(netdata_net_net_kilobits_persec_average{instance="appos-core",device="eth0",dimension="sent"}) * 125` {
+	if queries[1] != `sum(appos_host_network_tx_bytes_per_second{target_type="server",target_id="appos-core",network_interface="eth0"})` {
 		t.Fatalf("unexpected sent query: %s", queries[1])
 	}
 	if len(resp.Series) != 1 || len(resp.Series[0].Segments) != 2 {
@@ -192,10 +192,10 @@ func TestQueryMetricSeriesQueriesNetdataServerMemoryExpression(t *testing.T) {
 	if len(queries) != 2 {
 		t.Fatalf("expected two memory queries, got %+v", queries)
 	}
-	if queries[0] != `sum(netdata_system_ram_MiB_average{instance="srv_2",dimension="used"}) * 1048576` {
+	if queries[0] != `sum(appos_host_memory_bytes{target_type="server",target_id="srv_2"})` {
 		t.Fatalf("unexpected used query: %s", queries[0])
 	}
-	if queries[1] != `sum(netdata_system_ram_MiB_average{instance="srv_2",dimension=~"free|cached|buffers"}) * 1048576` {
+	if queries[1] != `sum(appos_host_memory_available_bytes{target_type="server",target_id="srv_2"})` {
 		t.Fatalf("unexpected available query: %s", queries[1])
 	}
 	if len(resp.Series) != 1 || len(resp.Series[0].Segments) != 2 {
@@ -219,10 +219,10 @@ func TestQueryMetricSeriesQueriesNetdataServerDiskExpression(t *testing.T) {
 	if len(queries) != 2 {
 		t.Fatalf("expected two disk queries, got %+v", queries)
 	}
-	if queries[0] != `sum(netdata_system_io_KiB_persec_average{instance="srv_3",dimension="reads"}) * 1024` {
+	if queries[0] != `sum(appos_host_disk_read_bytes_per_second{target_type="server",target_id="srv_3"})` {
 		t.Fatalf("unexpected read query: %s", queries[0])
 	}
-	if queries[1] != `sum(netdata_system_io_KiB_persec_average{instance="srv_3",dimension="writes"}) * 1024` {
+	if queries[1] != `sum(appos_host_disk_write_bytes_per_second{target_type="server",target_id="srv_3"})` {
 		t.Fatalf("unexpected write query: %s", queries[1])
 	}
 	if len(resp.Series) != 1 || len(resp.Series[0].Segments) != 2 {
@@ -237,7 +237,7 @@ func TestQueryMetricSeriesQueriesNetdataServerNetworkExpression(t *testing.T) {
 		switch r.URL.Path {
 		case "/api/v1/series":
 			hitSeriesLookup = true
-			_, _ = w.Write([]byte(`{"status":"success","data":[{"device":"eth0"},{"device":"ens3"}]}`))
+			_, _ = w.Write([]byte(`{"status":"success","data":[{"network_interface":"eth0"},{"network_interface":"ens3"}]}`))
 		default:
 			queries = append(queries, r.URL.Query().Get("query"))
 			_, _ = w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
@@ -256,16 +256,53 @@ func TestQueryMetricSeriesQueriesNetdataServerNetworkExpression(t *testing.T) {
 	if len(queries) != 2 {
 		t.Fatalf("expected two network speed queries, got %+v", queries)
 	}
-	if queries[0] != `sum(netdata_net_net_kilobits_persec_average{instance="srv_4",device="eth0",dimension="received"}) * 125` {
+	if queries[0] != `sum(appos_host_network_rx_bytes_per_second{target_type="server",target_id="srv_4",network_interface="eth0"})` {
 		t.Fatalf("unexpected received query: %s", queries[0])
 	}
-	if queries[1] != `sum(netdata_net_net_kilobits_persec_average{instance="srv_4",device="eth0",dimension="sent"}) * 125` {
+	if queries[1] != `sum(appos_host_network_tx_bytes_per_second{target_type="server",target_id="srv_4",network_interface="eth0"})` {
 		t.Fatalf("unexpected sent query: %s", queries[1])
 	}
 	if len(resp.Series) != 1 || len(resp.Series[0].Segments) != 2 {
 		t.Fatalf("unexpected series response: %+v", resp)
 	}
 	if resp.SelectedNetworkInterface != "eth0" || len(resp.AvailableNetworkInterfaces) != 2 {
+		t.Fatalf("unexpected network selector metadata: %+v", resp)
+	}
+}
+
+func TestQueryMetricSeriesQueriesCanonicalServerAggregateNetworkExpressionByDefault(t *testing.T) {
+	queries := make([]string, 0, 2)
+	var hitSeriesLookup bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/series":
+			hitSeriesLookup = true
+			_, _ = w.Write([]byte(`{"status":"success","data":[{"network_interface":"eth0"},{"network_interface":"ens3"}]}`))
+		default:
+			queries = append(queries, r.URL.Query().Get("query"))
+			_, _ = w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
+		}
+	}))
+	defer server.Close()
+	t.Setenv(metrics.EnvVictoriaMetricsURL, server.URL)
+
+	resp, err := metrics.QueryMetricSeries(context.Background(), "server", "srv-agg", "1h", []string{"network"}, metrics.MetricSeriesQueryOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hitSeriesLookup {
+		t.Fatal("expected network interface lookup")
+	}
+	if len(queries) != 2 {
+		t.Fatalf("expected two aggregate network queries, got %+v", queries)
+	}
+	if queries[0] != `sum(appos_host_network_rx_bytes_per_second{target_type="server",target_id="srv-agg",network_interface=""})` {
+		t.Fatalf("unexpected aggregate received query: %s", queries[0])
+	}
+	if queries[1] != `sum(appos_host_network_tx_bytes_per_second{target_type="server",target_id="srv-agg",network_interface=""})` {
+		t.Fatalf("unexpected aggregate sent query: %s", queries[1])
+	}
+	if resp.SelectedNetworkInterface != "all" || len(resp.AvailableNetworkInterfaces) != 2 {
 		t.Fatalf("unexpected network selector metadata: %+v", resp)
 	}
 }
@@ -277,7 +314,7 @@ func TestQueryMetricSeriesQueriesNetdataServerNetworkTrafficExpression(t *testin
 		switch r.URL.Path {
 		case "/api/v1/series":
 			hitSeriesLookup = true
-			_, _ = w.Write([]byte(`{"status":"success","data":[{"device":"eth0"}]}`))
+			_, _ = w.Write([]byte(`{"status":"success","data":[{"network_interface":"eth0"}]}`))
 		default:
 			queries = append(queries, r.URL.Query().Get("query"))
 			_, _ = w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
@@ -296,16 +333,16 @@ func TestQueryMetricSeriesQueriesNetdataServerNetworkTrafficExpression(t *testin
 	if len(queries) != 2 {
 		t.Fatalf("expected two network traffic queries, got %+v", queries)
 	}
-	if queries[0] != `sum(netdata_net_net_kilobits_persec_average{instance="srv_4",device="eth0",dimension="received"}) * 125` {
+	if queries[0] != `sum(appos_host_network_rx_bytes_per_second{target_type="server",target_id="srv_4",network_interface="eth0"})` {
 		t.Fatalf("unexpected received query: %s", queries[0])
 	}
-	if queries[1] != `sum(netdata_net_net_kilobits_persec_average{instance="srv_4",device="eth0",dimension="sent"}) * 125` {
+	if queries[1] != `sum(appos_host_network_tx_bytes_per_second{target_type="server",target_id="srv_4",network_interface="eth0"})` {
 		t.Fatalf("unexpected sent query: %s", queries[1])
 	}
 	if len(resp.Series) != 1 || len(resp.Series[0].Segments) != 2 {
 		t.Fatalf("unexpected network traffic response: %+v", resp)
 	}
-	if resp.Series[0].Unit != "GB" {
+	if resp.Series[0].Unit != "bytes" {
 		t.Fatalf("unexpected network traffic unit: %+v", resp.Series[0])
 	}
 }
@@ -326,10 +363,10 @@ func TestQueryMetricSeriesQueriesNetdataServerDiskUsageExpression(t *testing.T) 
 	if len(queries) != 2 {
 		t.Fatalf("expected two disk usage queries, got %+v", queries)
 	}
-	if queries[0] != `sum(netdata_disk_space_GiB_average{instance="srv_5",family="/",dimension="used"}) * 1073741824` {
+	if queries[0] != `sum(appos_host_disk_usage_bytes{target_type="server",target_id="srv_5"})` {
 		t.Fatalf("unexpected used query: %s", queries[0])
 	}
-	if queries[1] != `sum(netdata_disk_space_GiB_average{instance="srv_5",family="/",dimension=~"avail|reserved_for_root"}) * 1073741824` {
+	if queries[1] != `sum(appos_host_disk_free_bytes{target_type="server",target_id="srv_5"})` {
 		t.Fatalf("unexpected free query: %s", queries[1])
 	}
 	if len(resp.Series) != 1 {

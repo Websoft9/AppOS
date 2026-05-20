@@ -357,7 +357,7 @@ const fields: FieldDef[] = [
     label: 'Credential (Secret)',
     type: 'relation',
     relationApiPath:
-      "/api/collections/secrets/records?filter=(status='active'%26%26(template_id='single_value'||template_id='ssh_key'))&sort=name",
+      "/api/collections/secrets/records?filter=((created_source=''||created_source='user')%26%26type!='tunnel_token'%26%26status='active'%26%26(template_id='single_value'||template_id='ssh_key'))&sort=name",
     relationLabelKey: 'name',
     relationFormatLabel: formatSecretLabel,
   },
@@ -365,7 +365,7 @@ const fields: FieldDef[] = [
 ]
 
 export function ServersPage() {
-  const { create, returnGroup, returnType, edit, server, tab } = Route.useSearch()
+  const { create, returnGroup, returnType, edit, server, tab, focusComponent } = Route.useSearch()
   const { user } = useAuth()
   const autoCreate = create === '1' || !!returnGroup
   const navigate = Route.useNavigate()
@@ -1368,6 +1368,11 @@ export function ServersPage() {
                 credentialId={credentialId}
                 createdBy={createdBy}
                 onEditServer={() => handleEditServer(item)}
+                onRefresh={async () => {
+                  await checkServerStatus(item)
+                  setListRefreshKey(current => current + 1)
+                }}
+                refreshLoading={checkingIds.has(id)}
               />
             </TabsContent>
 
@@ -1433,6 +1438,14 @@ export function ServersPage() {
                 actionIntent={componentActionIntent}
                 onActionIntentConsumed={nonce => {
                   setComponentActionIntent(current => (current?.nonce === nonce ? null : current))
+                }}
+                focusComponentKey={focusComponent}
+                onFocusComponentConsumed={componentKey => {
+                  if (focusComponent !== componentKey) return
+                  void navigate({
+                    to: '/resources/servers',
+                    search: prev => ({ ...prev, focusComponent: undefined }),
+                  })
                 }}
               />
             </TabsContent>
@@ -1895,6 +1908,8 @@ export const Route = createFileRoute('/_app/_auth/resources/servers')({
     returnType: typeof search.returnType === 'string' ? search.returnType : undefined,
     edit: typeof search.edit === 'string' ? search.edit : undefined,
     server: typeof search.server === 'string' ? search.server : undefined,
+    focusComponent:
+      typeof search.focusComponent === 'string' ? search.focusComponent : undefined,
     tab:
       search.tab === 'overview' ||
       search.tab === 'connection' ||

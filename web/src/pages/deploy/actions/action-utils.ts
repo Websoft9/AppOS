@@ -118,3 +118,7 @@ export function buildActionListHref(search?: ActionDetailSearch): string {
   const query = params.toString()
   return query ? `/actions?${query}` : '/actions'
 }
+
+export function buildActionListSearch(search?: ActionDetailSearch): ActionListSearch | undefined {
+  return stripActionDetailReturnTo(search)
+}

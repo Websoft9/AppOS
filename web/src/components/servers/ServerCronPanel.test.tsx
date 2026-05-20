@@ -260,8 +260,10 @@ describe('ServerCronPanel', () => {
 		await waitFor(() => {
 			expect(testServerCronJobMock).toHaveBeenCalledWith('server-1', 'cron-a')
 		})
-		expect(await screen.findByText(/Test output:/)).toBeInTheDocument()
-		expect(screen.getByText('/etc/cron.d/appos-managed-cron-cron-a')).toBeInTheDocument()
+		fireEvent.click(screen.getByText('alpha-job'))
+		expect(await screen.findAllByText(/Test output:/)).toHaveLength(2)
+		expect(screen.getByText(/Running test for entry/)).toBeInTheDocument()
+		expect(screen.getAllByText('/etc/cron.d/appos-managed-cron-cron-a').length).toBeGreaterThan(0)
 		expect(screen.getAllByText('Yes').length).toBeGreaterThan(0)
 	})
 
@@ -297,5 +299,8 @@ describe('ServerCronPanel', () => {
 		expect(detailPanel).not.toBeNull()
 		expect(within(detailPanel as HTMLElement).getByText('/etc/cron.d/appos-managed-cron-cron-1')).toBeInTheDocument()
 		expect(within(detailPanel as HTMLElement).getByText('/opt/bin/job-1.sh')).toBeInTheDocument()
+		expect(within(detailPanel as HTMLElement).getByRole('tab', { name: 'Live log' })).toBeInTheDocument()
+		expect(within(detailPanel as HTMLElement).getByRole('tab', { name: 'Logs' })).toBeInTheDocument()
+		expect(within(detailPanel as HTMLElement).getByText(/No operation log yet/)).toBeInTheDocument()
 	})
 })

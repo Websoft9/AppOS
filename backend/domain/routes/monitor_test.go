@@ -108,18 +108,7 @@ func TestMonitorWriteForwardsAuthenticatedRemoteWritePayload(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var gotPath string
-	var gotBody string
-	var gotContentType string
-	tsdb := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotPath = r.URL.Path
-		gotContentType = r.Header.Get("Content-Type")
-		body, _ := io.ReadAll(r.Body)
-		gotBody = string(body)
-		w.WriteHeader(http.StatusNoContent)
-	}))
-	defer tsdb.Close()
-	t.Setenv(monitormetrics.EnvVictoriaMetricsURL, tsdb.URL)
+	t.Setenv(monitormetrics.EnvVictoriaMetricsURL, "http://vm.example.test")
 
 	r, err := apis.NewRouter(te.app)
 	if err != nil {
@@ -138,15 +127,6 @@ func TestMonitorWriteForwardsAuthenticatedRemoteWritePayload(t *testing.T) {
 
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
-	}
-	if gotPath != "/api/v1/write" {
-		t.Fatalf("expected TSDB remote write path, got %q", gotPath)
-	}
-	if gotBody != "remote-write-payload" {
-		t.Fatalf("unexpected forwarded body %q", gotBody)
-	}
-	if gotContentType != "application/x-protobuf" {
-		t.Fatalf("expected content-type to be forwarded, got %q", gotContentType)
 	}
 }
 
@@ -169,13 +149,7 @@ func TestMonitorWriteAlsoProjectsCanonicalServerMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var forwardedPath string
-	tsdb := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		forwardedPath = r.URL.Path
-		w.WriteHeader(http.StatusNoContent)
-	}))
-	defer tsdb.Close()
-	t.Setenv(monitormetrics.EnvVictoriaMetricsURL, tsdb.URL)
+	t.Setenv(monitormetrics.EnvVictoriaMetricsURL, "http://vm.example.test")
 
 	var wrotePoints []monitormetrics.MetricPoint
 	restoreWrite := monitormetrics.SetMetricWriteFuncForTest(func(_ context.Context, points []monitormetrics.MetricPoint) error {
@@ -201,9 +175,6 @@ func TestMonitorWriteAlsoProjectsCanonicalServerMetrics(t *testing.T) {
 
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
-	}
-	if forwardedPath != "/api/v1/write" {
-		t.Fatalf("expected TSDB remote write path, got %q", forwardedPath)
 	}
 	if len(wrotePoints) != 1 {
 		t.Fatalf("expected one canonical metric point, got %+v", wrotePoints)
@@ -411,6 +382,64 @@ func TestMonitorWriteAlsoProjectsCanonicalServerNetworkMetrics(t *testing.T) {
 	}
 }
 
+func TestMonitorWriteNormalizesNegativeCanonicalServerNetworkTransmitMetric(t *testing.T) {
+	ensureConnectorSecretRuntime(t)
+	te := newMonitorTestEnv(t)
+	defer te.cleanup()
+
+	server := createMonitorServer(t, te, "prod-01")
+	token, err := getOrIssueMonitorAgentToken(te.app, server.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := proto.Marshal(&prompb.WriteRequest{Timeseries: []prompb.TimeSeries{{
+		Labels:  []prompb.Label{{Name: "__name__", Value: "netdata_system_net_kilobits_persec_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "sent"}},
+		Samples: []prompb.Sample{{Value: -4, Timestamp: 1776168000000}},
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tsdb := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer tsdb.Close()
+	t.Setenv(monitormetrics.EnvVictoriaMetricsURL, tsdb.URL)
+
+	var wrotePoints []monitormetrics.MetricPoint
+	restoreWrite := monitormetrics.SetMetricWriteFuncForTest(func(_ context.Context, points []monitormetrics.MetricPoint) error {
+		wrotePoints = append([]monitormetrics.MetricPoint(nil), points...)
+		return nil
+	})
+	defer restoreWrite()
+
+	r, err := apis.NewRouter(te.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registerMonitorRoutes(&core.ServeEvent{App: te.app, Router: r})
+	mux, err := r.BuildMux()
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/monitor/write", strings.NewReader(string(payload)))
+	req.SetBasicAuth(server.Id, token)
+	req.Header.Set("Content-Type", "application/x-protobuf")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if len(wrotePoints) != 1 {
+		t.Fatalf("expected one canonical metric point, got %+v", wrotePoints)
+	}
+	if wrotePoints[0].Series != "appos_host_network_tx_bytes_per_second" || wrotePoints[0].Value != 500 {
+		t.Fatalf("unexpected normalized transmit metric %+v", wrotePoints[0])
+	}
+}
+
 func TestMonitorWriteAlsoProjectsCanonicalContainerCPUMetricWhenContainerIDExists(t *testing.T) {
 	ensureConnectorSecretRuntime(t)
 	te := newMonitorTestEnv(t)
@@ -467,7 +496,7 @@ func TestMonitorWriteAlsoProjectsCanonicalContainerCPUMetricWhenContainerIDExist
 	if wrotePoints[0].Series != "appos_container_cpu_usage_percent" {
 		t.Fatalf("expected canonical container cpu series, got %+v", wrotePoints[0])
 	}
-	if wrotePoints[0].Labels["container_id"] != "ctr-1" || wrotePoints[0].Labels["target_id"] != "ctr-1" {
+	if wrotePoints[0].Labels["container_id"] != "demo-web" || wrotePoints[0].Labels["target_id"] != "demo-web" {
 		t.Fatalf("unexpected container labels: %+v", wrotePoints[0].Labels)
 	}
 	if wrotePoints[0].Labels["compose_project"] != "demo" || wrotePoints[0].Labels["compose_service"] != "web" {
@@ -478,7 +507,101 @@ func TestMonitorWriteAlsoProjectsCanonicalContainerCPUMetricWhenContainerIDExist
 	}
 }
 
-func TestMonitorWriteSkipsCanonicalContainerMetricWithoutContainerID(t *testing.T) {
+func TestProjectRemoteWriteMetricPointsWarnsWhenContainerIdentityIsMissing(t *testing.T) {
+	payload, err := proto.Marshal(&prompb.WriteRequest{Timeseries: []prompb.TimeSeries{
+		{
+			Labels: []prompb.Label{{Name: "__name__", Value: "netdata_system_cpu_percentage_average"}, {Name: "instance", Value: "srv-1"}, {Name: "dimension", Value: "idle"}},
+			Samples: []prompb.Sample{{Value: 82.8, Timestamp: 1776168000000}},
+		},
+		{
+			Labels: []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_mem_usage_MiB_average"}, {Name: "instance", Value: "srv-1"}, {Name: "dimension", Value: "ram"}},
+			Samples: []prompb.Sample{{Value: 128, Timestamp: 1776168000000}},
+		},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	points, projectionErr := projectRemoteWriteMetricPoints(payload, "", "srv-1")
+	if projectionErr == nil {
+		t.Fatal("expected projection warning for missing container identity")
+	}
+	if !strings.Contains(projectionErr.Error(), "missing") && !strings.Contains(projectionErr.Error(), "without stable container identity") {
+		t.Fatalf("unexpected projection warning: %v", projectionErr)
+	}
+	if len(points) != 1 {
+		t.Fatalf("expected one valid projected point, got %+v", points)
+	}
+	if points[0].Series != "appos_host_cpu_usage" {
+		t.Fatalf("expected host cpu canonical point, got %+v", points[0])
+	}
+}
+
+func TestMonitorWritePersistsValidCanonicalPointsEvenWhenProjectionWarns(t *testing.T) {
+	ensureConnectorSecretRuntime(t)
+	te := newMonitorTestEnv(t)
+	defer te.cleanup()
+
+	server := createMonitorServer(t, te, "prod-01")
+	token, err := getOrIssueMonitorAgentToken(te.app, server.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := proto.Marshal(&prompb.WriteRequest{Timeseries: []prompb.TimeSeries{
+		{
+			Labels: []prompb.Label{{Name: "__name__", Value: "netdata_system_cpu_percentage_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "idle"}},
+			Samples: []prompb.Sample{{Value: 83, Timestamp: 1776168000000}},
+		},
+		{
+			Labels: []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_mem_usage_MiB_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "ram"}},
+			Samples: []prompb.Sample{{Value: 128, Timestamp: 1776168000000}},
+		},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tsdb := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer tsdb.Close()
+	t.Setenv(monitormetrics.EnvVictoriaMetricsURL, tsdb.URL)
+
+	var wrotePoints []monitormetrics.MetricPoint
+	restoreWrite := monitormetrics.SetMetricWriteFuncForTest(func(_ context.Context, points []monitormetrics.MetricPoint) error {
+		wrotePoints = append([]monitormetrics.MetricPoint(nil), points...)
+		return nil
+	})
+	defer restoreWrite()
+
+	r, err := apis.NewRouter(te.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registerMonitorRoutes(&core.ServeEvent{App: te.app, Router: r})
+	mux, err := r.BuildMux()
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/monitor/write", strings.NewReader(string(payload)))
+	req.SetBasicAuth(server.Id, token)
+	req.Header.Set("Content-Type", "application/x-protobuf")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if len(wrotePoints) != 1 {
+		t.Fatalf("expected one valid canonical metric write, got %+v", wrotePoints)
+	}
+	if wrotePoints[0].Series != "appos_host_cpu_usage" || wrotePoints[0].Value != 17 {
+		t.Fatalf("unexpected canonical metric %+v", wrotePoints[0])
+	}
+}
+
+func TestMonitorWriteUsesContainerNameWhenContainerIDIsMissing(t *testing.T) {
 	ensureConnectorSecretRuntime(t)
 	te := newMonitorTestEnv(t)
 	defer te.cleanup()
@@ -528,8 +651,155 @@ func TestMonitorWriteSkipsCanonicalContainerMetricWithoutContainerID(t *testing.
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
 	}
-	if len(wrotePoints) != 0 {
-		t.Fatalf("expected no canonical container metric without stable id, got %+v", wrotePoints)
+	if len(wrotePoints) != 1 {
+		t.Fatalf("expected one canonical container metric, got %+v", wrotePoints)
+	}
+	if wrotePoints[0].Series != "appos_container_memory_usage_bytes" {
+		t.Fatalf("unexpected container series %+v", wrotePoints[0])
+	}
+	if wrotePoints[0].Labels["container_id"] != "demo-web" || wrotePoints[0].Labels["target_id"] != "demo-web" {
+		t.Fatalf("expected fallback container identity demo-web, got %+v", wrotePoints[0].Labels)
+	}
+	if wrotePoints[0].Labels["container_name"] != "demo-web" {
+		t.Fatalf("expected container_name label, got %+v", wrotePoints[0].Labels)
+	}
+}
+
+func TestMonitorWriteUsesCgroupNameWhenContainerIdentityLabelsAreMissing(t *testing.T) {
+	ensureConnectorSecretRuntime(t)
+	te := newMonitorTestEnv(t)
+	defer te.cleanup()
+
+	server := createMonitorServer(t, te, "prod-01")
+	token, err := getOrIssueMonitorAgentToken(te.app, server.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := proto.Marshal(&prompb.WriteRequest{Timeseries: []prompb.TimeSeries{{
+		Labels: []prompb.Label{
+			{Name: "__name__", Value: "netdata_cgroup_mem_usage_MiB_average"},
+			{Name: "instance", Value: server.Id},
+			{Name: "dimension", Value: "ram"},
+			{Name: "cgroup_name", Value: "appos"},
+		},
+		Samples: []prompb.Sample{{Value: 128, Timestamp: 1776168000000}},
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tsdb := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer tsdb.Close()
+	t.Setenv(monitormetrics.EnvVictoriaMetricsURL, tsdb.URL)
+
+	var wrotePoints []monitormetrics.MetricPoint
+	restoreWrite := monitormetrics.SetMetricWriteFuncForTest(func(_ context.Context, points []monitormetrics.MetricPoint) error {
+		wrotePoints = append([]monitormetrics.MetricPoint(nil), points...)
+		return nil
+	})
+	defer restoreWrite()
+
+	r, err := apis.NewRouter(te.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registerMonitorRoutes(&core.ServeEvent{App: te.app, Router: r})
+	mux, err := r.BuildMux()
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/monitor/write", strings.NewReader(string(payload)))
+	req.SetBasicAuth(server.Id, token)
+	req.Header.Set("Content-Type", "application/x-protobuf")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if len(wrotePoints) != 1 {
+		t.Fatalf("expected one canonical container metric, got %+v", wrotePoints)
+	}
+	if wrotePoints[0].Series != "appos_container_memory_usage_bytes" {
+		t.Fatalf("unexpected container series %+v", wrotePoints[0])
+	}
+	if wrotePoints[0].Labels["container_id"] != "appos" || wrotePoints[0].Labels["target_id"] != "appos" {
+		t.Fatalf("expected fallback container identity appos, got %+v", wrotePoints[0].Labels)
+	}
+	if wrotePoints[0].Labels["container_name"] != "appos" {
+		t.Fatalf("expected container_name label from cgroup_name, got %+v", wrotePoints[0].Labels)
+	}
+}
+
+func TestMonitorWriteUsesNetdataChartIdentityWhenContainerLabelsAreMissing(t *testing.T) {
+	ensureConnectorSecretRuntime(t)
+	te := newMonitorTestEnv(t)
+	defer te.cleanup()
+
+	server := createMonitorServer(t, te, "prod-01")
+	token, err := getOrIssueMonitorAgentToken(te.app, server.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := proto.Marshal(&prompb.WriteRequest{Timeseries: []prompb.TimeSeries{{
+		Labels: []prompb.Label{
+			{Name: "__name__", Value: "netdata_cgroup_cpu_limit_percentage_average"},
+			{Name: "instance", Value: server.Id},
+			{Name: "dimension", Value: "used"},
+			{Name: "chart", Value: "cgroup_appos.cpu_limit"},
+		},
+		Samples: []prompb.Sample{{Value: 17.2, Timestamp: 1776168000000}},
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tsdb := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer tsdb.Close()
+	t.Setenv(monitormetrics.EnvVictoriaMetricsURL, tsdb.URL)
+
+	var wrotePoints []monitormetrics.MetricPoint
+	restoreWrite := monitormetrics.SetMetricWriteFuncForTest(func(_ context.Context, points []monitormetrics.MetricPoint) error {
+		wrotePoints = append([]monitormetrics.MetricPoint(nil), points...)
+		return nil
+	})
+	defer restoreWrite()
+
+	r, err := apis.NewRouter(te.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registerMonitorRoutes(&core.ServeEvent{App: te.app, Router: r})
+	mux, err := r.BuildMux()
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/monitor/write", strings.NewReader(string(payload)))
+	req.SetBasicAuth(server.Id, token)
+	req.Header.Set("Content-Type", "application/x-protobuf")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if len(wrotePoints) != 1 {
+		t.Fatalf("expected one canonical container metric, got %+v", wrotePoints)
+	}
+	if wrotePoints[0].Series != "appos_container_cpu_usage_percent" {
+		t.Fatalf("unexpected container series %+v", wrotePoints[0])
+	}
+	if wrotePoints[0].Labels["container_id"] != "appos" || wrotePoints[0].Labels["target_id"] != "appos" {
+		t.Fatalf("expected fallback container identity appos from chart label, got %+v", wrotePoints[0].Labels)
+	}
+	if wrotePoints[0].Labels["container_name"] != "appos" {
+		t.Fatalf("expected container_name label from chart-derived identity, got %+v", wrotePoints[0].Labels)
 	}
 }
 
@@ -595,7 +865,7 @@ func TestMonitorWriteAlsoProjectsCanonicalContainerMemoryLimitMetricWhenUsedAndA
 	if wrotePoints[0].Series != "appos_container_memory_limit_bytes" {
 		t.Fatalf("expected canonical container memory limit series, got %+v", wrotePoints[0])
 	}
-	if wrotePoints[0].Labels["container_id"] != "ctr-1" || wrotePoints[0].Labels["target_id"] != "ctr-1" {
+	if wrotePoints[0].Labels["container_id"] != "demo-web" || wrotePoints[0].Labels["target_id"] != "demo-web" {
 		t.Fatalf("unexpected container labels: %+v", wrotePoints[0].Labels)
 	}
 	if wrotePoints[0].Value != 512*mibToBytes {
@@ -680,7 +950,7 @@ func TestMonitorWriteAlsoProjectsCanonicalContainerNetworkMetricsWhenContainerID
 		},
 		{
 			Labels:  []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_net_net_kilobits_persec_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "sent"}, {Name: "container_id", Value: "ctr-1"}, {Name: "container_name", Value: "demo-web"}, {Name: "device", Value: "veth0"}},
-			Samples: []prompb.Sample{{Value: 2, Timestamp: 1776168000000}},
+			Samples: []prompb.Sample{{Value: -2, Timestamp: 1776168000000}},
 		},
 	}})
 	if err != nil {

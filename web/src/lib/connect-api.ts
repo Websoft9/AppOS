@@ -57,6 +57,26 @@ export interface Server {
   [key: string]: unknown
 }
 
+export interface TerminalSessionSummary {
+  id: string
+  user_id: string
+  resource_type: string
+  resource_id: string
+  session_type: string
+  state: string
+  started_at: string
+  last_active_at: string
+  workspace: TerminalWorkspaceSnapshot
+}
+
+export interface TerminalWorkspaceSnapshot {
+  active_server_id?: string
+  side_panel?: string
+  file_path?: string
+  locked_root?: string
+  split_ratio?: number
+}
+
 export interface SystemdService {
   name: string
   load_state: string
@@ -244,10 +264,12 @@ function terminalSftpBasePath(serverId: string): string {
   return `/api/terminal/sftp/${serverId}`
 }
 
+const noAutoCancel = { requestKey: null }
+
 export async function sftpList(serverId: string, path: string): Promise<SFTPListResponse> {
   return pb.send<SFTPListResponse>(
     `${terminalSftpBasePath(serverId)}/list?path=${encodeURIComponent(path)}`,
-    {}
+    noAutoCancel
   )
 }
 
@@ -270,6 +292,7 @@ export async function sftpUpload(serverId: string, remoteDir: string, file: File
   await pb.send(`${terminalSftpBasePath(serverId)}/upload?path=${encodeURIComponent(remoteDir)}`, {
     method: 'POST',
     body: formData,
+    requestKey: null,
   })
 }
 
@@ -278,6 +301,7 @@ export async function sftpMkdir(serverId: string, path: string): Promise<void> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path }),
+    requestKey: null,
   })
 }
 
@@ -291,12 +315,14 @@ export async function sftpRename(
     headers: { 'Content-Type': 'application/json' },
     // Backend expects { from, to } — matches routes/terminal.go handleSFTPRename
     body: JSON.stringify({ from: oldPath, to: newPath }),
+    requestKey: null,
   })
 }
 
 export async function sftpDelete(serverId: string, path: string): Promise<void> {
   await pb.send(`${terminalSftpBasePath(serverId)}/delete?path=${encodeURIComponent(path)}`, {
     method: 'DELETE',
+    requestKey: null,
   })
 }
 
@@ -306,7 +332,7 @@ export async function sftpReadFile(
 ): Promise<{ path: string; content: string }> {
   return pb.send<{ path: string; content: string }>(
     `${terminalSftpBasePath(serverId)}/read?path=${encodeURIComponent(path)}`,
-    {}
+    noAutoCancel
   )
 }
 
@@ -319,6 +345,7 @@ export async function sftpWriteFile(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path, content }),
+    requestKey: null,
   })
 }
 
@@ -329,18 +356,21 @@ export async function sftpSearch(
 ): Promise<SFTPSearchResponse> {
   return pb.send<SFTPSearchResponse>(
     `${terminalSftpBasePath(serverId)}/search?path=${encodeURIComponent(basePath)}&query=${encodeURIComponent(query)}`,
-    {}
+    noAutoCancel
   )
 }
 
 export async function sftpConstraints(serverId: string): Promise<{ max_upload_files: number }> {
-  return pb.send<{ max_upload_files: number }>(`${terminalSftpBasePath(serverId)}/constraints`, {})
+  return pb.send<{ max_upload_files: number }>(
+    `${terminalSftpBasePath(serverId)}/constraints`,
+    noAutoCancel
+  )
 }
 
 export async function sftpStat(serverId: string, path: string): Promise<{ attrs: FileAttrs }> {
   return pb.send<{ attrs: FileAttrs }>(
     `${terminalSftpBasePath(serverId)}/stat?path=${encodeURIComponent(path)}`,
-    {}
+    noAutoCancel
   )
 }
 
@@ -354,6 +384,7 @@ export async function sftpChmod(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path, mode, recursive }),
+    requestKey: null,
   })
 }
 
@@ -367,6 +398,7 @@ export async function sftpChown(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path, owner, group }),
+    requestKey: null,
   })
 }
 
@@ -379,6 +411,7 @@ export async function sftpSymlink(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ target, link_path: linkPath }),
+    requestKey: null,
   })
 }
 
@@ -387,6 +420,7 @@ export async function sftpCopy(serverId: string, from: string, to: string): Prom
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ from, to }),
+    requestKey: null,
   })
 }
 
@@ -395,6 +429,7 @@ export async function sftpMove(serverId: string, from: string, to: string): Prom
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ from, to }),
+    requestKey: null,
   })
 }
 
@@ -407,6 +442,31 @@ export function sftpCopyStreamUrl(serverId: string, from: string, to: string): s
 export async function listServers(): Promise<Server[]> {
   const result = await pb.collection('servers').getFullList<Server>({ sort: 'name' })
   return result
+}
+
+export async function listTerminalSessions(): Promise<TerminalSessionSummary[]> {
+  const response = await pb.send<{ items?: TerminalSessionSummary[] }>('/api/terminal/sessions', {
+    method: 'GET',
+    requestKey: null,
+  })
+  return Array.isArray(response?.items) ? response.items : []
+}
+
+export async function deleteTerminalSession(sessionId: string): Promise<void> {
+  await pb.send(`/api/terminal/sessions/${encodeURIComponent(sessionId)}`, {
+    method: 'DELETE',
+  })
+}
+
+export async function updateTerminalSessionWorkspace(
+  sessionId: string,
+  workspace: TerminalWorkspaceSnapshot
+): Promise<void> {
+  await pb.send(`/api/terminal/sessions/${encodeURIComponent(sessionId)}/workspace`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(workspace),
+  })
 }
 
 // ─── Server ops (Story 15.5) ─────────────────────────────────────────────────

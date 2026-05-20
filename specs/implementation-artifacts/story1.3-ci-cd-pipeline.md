@@ -1,6 +1,6 @@
 # Story 1.3: GitHub Actions CI/CD Pipeline
 
-**Epic**: Epic 1 - 基础架构与构建系统  
+**Epic**: Epic 1 - DevOps  
 **优先级**: P1  
 **状态**: Done
 

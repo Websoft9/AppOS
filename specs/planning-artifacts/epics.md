@@ -19,12 +19,12 @@ See `README.md` for spec maintenance conventions.
 
 ## Epic Documents
 
-- [Epic 1: Infrastructure & Build System](../implementation-artifacts/epic1-infrastructure.md)
+- [Epic 1: DevOps](../implementation-artifacts/epic1-devops.md)
 - [Epic 2: Configuration Management](../implementation-artifacts/epic2-config.md)
 - [Epic 3: Authentication (Frontend)](../implementation-artifacts/epic3-auth.md)
 - [Epic 4: Docker Operations Layer](../implementation-artifacts/epic4-docker.md)
 - [Epic 5: App Store Module](../implementation-artifacts/epic5-store.md)
-- [Epic 6: Components](../implementation-artifacts/epic6-components.md)
+- [Epic 6: Infra Modules](../implementation-artifacts/epic6-infra.md)
 - [Epic 7: Dashboard Foundation](../implementation-artifacts/epic7-dashboard.md)
 - [Epic 8: Resources](../implementation-artifacts/epic8-resources.md)
 - [Epic 9: User Space](../implementation-artifacts/epic9-space.md)

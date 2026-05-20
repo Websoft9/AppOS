@@ -5,8 +5,10 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 
 const navigateMock = vi.fn()
 const listServersMock = vi.fn()
+const listTerminalSessionsMock = vi.fn()
 const checkServerStatusMock = vi.fn()
 const getConnectTerminalSettingsMock = vi.fn()
+const deleteTerminalSessionMock = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
@@ -14,6 +16,8 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('@/lib/connect-api', () => ({
   listServers: (...args: unknown[]) => listServersMock(...args),
+  listTerminalSessions: (...args: unknown[]) => listTerminalSessionsMock(...args),
+  deleteTerminalSession: (...args: unknown[]) => deleteTerminalSessionMock(...args),
   checkServerStatus: (...args: unknown[]) => checkServerStatusMock(...args),
   getConnectTerminalSettings: (...args: unknown[]) => getConnectTerminalSettingsMock(...args),
 }))
@@ -30,15 +34,18 @@ describe('TerminalIndexPage', () => {
   beforeEach(() => {
     navigateMock.mockReset()
     listServersMock.mockReset()
+    listTerminalSessionsMock.mockReset()
+    deleteTerminalSessionMock.mockReset()
     checkServerStatusMock.mockReset()
     getConnectTerminalSettingsMock.mockReset()
-    localStorage.clear()
 
     listServersMock.mockResolvedValue([
       { id: 'srv-1', name: 'Alpha', host: '10.0.0.1' },
       { id: 'srv-2', name: 'Beta', host: '10.0.0.2' },
     ])
+    listTerminalSessionsMock.mockResolvedValue([])
     checkServerStatusMock.mockResolvedValue({ status: 'online' })
+    deleteTerminalSessionMock.mockResolvedValue(undefined)
     getConnectTerminalSettingsMock.mockResolvedValue({
       idleTimeoutSeconds: 60,
       maxConnections: 0,
@@ -47,21 +54,33 @@ describe('TerminalIndexPage', () => {
 
   afterEach(() => {
     cleanup()
-    localStorage.clear()
   })
 
-  it('shows idle and multi-session badges for saved terminal sessions', async () => {
-    localStorage.setItem(
-      'connect.session.v1',
-      JSON.stringify({
-        tabs: [
-          { id: 'tab-1', serverId: 'srv-1', title: 'Alpha', reconnectNonce: 0 },
-          { id: 'tab-2', serverId: 'srv-1', title: 'Alpha', reconnectNonce: 0 },
-        ],
-        activeTabId: 'tab-1',
-        updatedAt: Date.now() - 5 * 60 * 1000,
-      })
-    )
+  it('shows idle and multi-session badges for active backend terminal sessions', async () => {
+    listTerminalSessionsMock.mockResolvedValue([
+      {
+        id: 'tab-1',
+        user_id: 'user-1',
+        resource_type: 'server',
+        resource_id: 'srv-1',
+        session_type: 'ssh',
+        state: 'detached',
+        started_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+        last_active_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+        workspace: {},
+      },
+      {
+        id: 'tab-2',
+        user_id: 'user-1',
+        resource_type: 'server',
+        resource_id: 'srv-1',
+        session_type: 'ssh',
+        state: 'attached',
+        started_at: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
+        last_active_at: new Date(Date.now() - 4 * 60 * 1000).toISOString(),
+        workspace: {},
+      },
+    ])
 
     renderPage()
 
@@ -75,40 +94,74 @@ describe('TerminalIndexPage', () => {
     expect(screen.getAllByText(/Last active/i).length).toBeGreaterThan(0)
   })
 
-  it('refreshes the hub when a saved connect session appears after focus returns', async () => {
+  it('refreshes the hub when a backend terminal session appears after focus returns', async () => {
     renderPage()
 
     await waitFor(() => {
       expect(screen.getByText('No active connections')).toBeInTheDocument()
     })
 
-    localStorage.setItem(
-      'connect.session.v1',
-      JSON.stringify({
-        tabs: [{ id: 'tab-1', serverId: 'srv-2', title: 'Beta', reconnectNonce: 0 }],
-        activeTabId: 'tab-1',
-        updatedAt: Date.now(),
-      })
-    )
+    listTerminalSessionsMock.mockResolvedValue([
+      {
+        id: 'tab-1',
+        user_id: 'user-1',
+        resource_type: 'server',
+        resource_id: 'srv-2',
+        session_type: 'ssh',
+        state: 'attached',
+        started_at: new Date(Date.now() - 60 * 1000).toISOString(),
+        last_active_at: new Date().toISOString(),
+        workspace: {},
+      },
+    ])
 
     fireEvent(window, new Event('focus'))
 
     await waitFor(() => {
       expect(screen.getByText('Beta')).toBeInTheDocument()
       expect(screen.getByText('Connected')).toBeInTheDocument()
-      expect(screen.getByText('1 active session')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /resume/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /exit/i })).toBeInTheDocument()
+    })
+  })
+
+  it('routes add server actions through SPA navigation', async () => {
+    listServersMock.mockResolvedValue([])
+
+    renderPage()
+
+    const buttons = await screen.findAllByRole('button')
+    fireEvent.click(buttons[2])
+    fireEvent.click(await screen.findByRole('button', { name: 'Servers' }))
+
+    const addServerButtons = await screen.findAllByRole('button', { name: 'Add Server' })
+    fireEvent.click(addServerButtons[0])
+
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/resources/servers',
+      search: { create: '1' },
     })
   })
 
   it('keeps the resume action working for connected servers', async () => {
-    localStorage.setItem(
-      'connect.session.v1',
-      JSON.stringify({
-        tabs: [{ id: 'tab-1', serverId: 'srv-1', title: 'Alpha', reconnectNonce: 0 }],
-        activeTabId: 'tab-1',
-        updatedAt: Date.now(),
-      })
-    )
+    listTerminalSessionsMock.mockResolvedValue([
+      {
+        id: 'tab-1',
+        user_id: 'user-1',
+        resource_type: 'server',
+        resource_id: 'srv-1',
+        session_type: 'ssh',
+        state: 'detached',
+        started_at: new Date(Date.now() - 60 * 1000).toISOString(),
+        last_active_at: new Date().toISOString(),
+        workspace: {
+          side_panel: 'files',
+          file_path: '/var/log',
+          locked_root: '/var',
+          split_ratio: 0.4,
+        },
+      },
+    ])
 
     renderPage()
 
@@ -116,17 +169,47 @@ describe('TerminalIndexPage', () => {
     fireEvent.click(resumeButton)
 
     await waitFor(() => {
-      expect(checkServerStatusMock).toHaveBeenCalled()
-    })
-
-    await new Promise(resolve => setTimeout(resolve, 2100))
-
-    await waitFor(() => {
       expect(navigateMock).toHaveBeenCalledWith({
         to: '/terminal/server/$serverId',
         params: { serverId: 'srv-1' },
-        search: {},
+        search: {
+          sessionId: 'tab-1',
+          panel: 'files',
+          path: '/var/log',
+          lockedRoot: '/var',
+          split: 0.4,
+        },
       })
+    })
+
+    expect(checkServerStatusMock).not.toHaveBeenCalled()
+  })
+
+  it('allows explicitly exiting an active terminal session from the list', async () => {
+    listTerminalSessionsMock
+      .mockResolvedValueOnce([
+        {
+          id: 'tab-1',
+          user_id: 'user-1',
+          resource_type: 'server',
+          resource_id: 'srv-1',
+          session_type: 'ssh',
+          state: 'attached',
+          started_at: new Date(Date.now() - 60 * 1000).toISOString(),
+          last_active_at: new Date().toISOString(),
+          workspace: {},
+        },
+      ])
+      .mockResolvedValueOnce([])
+
+    renderPage()
+
+    const exitButtons = await screen.findAllByRole('button', { name: /exit/i })
+    fireEvent.click(exitButtons[0])
+
+    await waitFor(() => {
+      expect(deleteTerminalSessionMock).toHaveBeenCalledWith('tab-1')
+      expect(listTerminalSessionsMock).toHaveBeenCalledTimes(2)
     })
   })
 })

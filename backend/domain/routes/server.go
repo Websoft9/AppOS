@@ -182,6 +182,7 @@ func handleLocalDockerBridge(e *core.RequestEvent) error {
 // registerTerminalRoutes registers all interactive terminal session routes.
 // Mounted at /api/terminal; uses wsTokenAuth for WebSocket handshake support.
 func registerTerminalRoutes(g *router.RouterGroup[*core.RequestEvent]) {
+	registerTerminalSessionRoutes(g)
 	registerServerShellRoutes(g)
 	registerServerFileRoutes(g)
 	registerServerContainerRoutes(g)

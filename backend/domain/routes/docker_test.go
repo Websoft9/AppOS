@@ -548,6 +548,37 @@ func TestDockerLocalContainerListUsesLocalClient(t *testing.T) {
 	}
 }
 
+func TestDockerLocalContainerListReturnsStructuredDockerMissingCode(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	stub := &stubDockerExecutor{
+		host: "stub-local",
+		errors: map[string]error{
+			"docker ps -a --format json": errors.New("docker: command not found"),
+		},
+	}
+	originalLocalClient := localDockerClient
+	localDockerClient = docker.New(stub)
+	t.Cleanup(func() {
+		localDockerClient = originalLocalClient
+	})
+
+	rec := doDocker(t, te, http.MethodGet, "/api/servers/local/docker/containers", "", te.token)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 for missing docker binary, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	body := parseJSON(t, rec)
+	data, ok := body["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected error data object, got %#v", body["data"])
+	}
+	if data["error_code"] != "docker_missing" {
+		t.Fatalf("expected docker_missing code, got %#v", data["error_code"])
+	}
+}
+
 func TestDockerRemoteTunnelOfflineReturnsBadRequest(t *testing.T) {
 	te := newTestEnv(t)
 	defer te.cleanup()
@@ -923,6 +954,37 @@ func TestDockerComposeUpLocalUsesLocalClientAndWritesAudit(t *testing.T) {
 	}
 	if entries[0].GetString("status") != "success" {
 		t.Fatalf("expected successful compose up audit entry, got %q", entries[0].GetString("status"))
+	}
+}
+
+func TestDockerComposeLsReturnsStructuredComposeMissingCode(t *testing.T) {
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	stub := &stubDockerExecutor{
+		host: "stub-local",
+		errors: map[string]error{
+			"docker compose ls --format json": errors.New("docker: 'compose' is not a docker command"),
+		},
+	}
+	originalLocalClient := localDockerClient
+	localDockerClient = docker.New(stub)
+	t.Cleanup(func() {
+		localDockerClient = originalLocalClient
+	})
+
+	rec := doDocker(t, te, http.MethodGet, "/api/servers/local/docker/compose/ls", "", te.token)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 for missing compose plugin, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	body := parseJSON(t, rec)
+	data, ok := body["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected error data object, got %#v", body["data"])
+	}
+	if data["error_code"] != "compose_missing" {
+		t.Fatalf("expected compose_missing code, got %#v", data["error_code"])
 	}
 }
 

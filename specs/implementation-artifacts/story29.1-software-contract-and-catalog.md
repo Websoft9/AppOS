@@ -7,6 +7,8 @@
 
 Freeze one durable software-delivery contract that covers both `server` and `local` targets, and back that contract with one canonical AppOS-managed catalog.
 
+This story also absorbs the retired Epic 6 `Detection Pipeline` contract so installed-software identity, detection extensibility, provenance, and registry rules all live under one Software Delivery source of truth.
+
 ## Reorganization Note
 
 This story replaces the contract-setting portions of:
@@ -20,6 +22,8 @@ Implementation history from those superseded split stories is preserved in `spec
 
 Execution mechanics, operational UI, supported-software discovery, and local inventory are intentionally moved into later stories.
 
+Epic 6 `Components Inventory` and `Detection Pipeline` should now be interpreted through Story 29.5 and this story rather than treated as parallel component-domain specifications.
+
 ## Scope
 
 - define the canonical software vocabulary for `component`, `capability`, `target`, `template`, `snapshot`, and `operation`
@@ -29,6 +33,8 @@ Execution mechanics, operational UI, supported-software discovery, and local inv
 - define action policy so UI and API surfaces render from metadata rather than component-specific branching
 - define the boundary between Software Delivery and Monitor clearly enough that runtime health remains outside this domain
 - define the cross-domain status projection needed by control-plane-reporting components without making Software Delivery the owner of monitoring telemetry
+- define the canonical detection and aggregation rules for AppOS-managed software identity, including provenance and conflict handling
+- define backend-owned registry validation rules so catalog metadata remains the master source for supported managed software
 
 ## Domain Contract
 
@@ -264,6 +270,73 @@ Rules:
 - `install_source=unknown` is the fallback when detection cannot classify source truthfully
 - initial rollout only needs strong classification for Docker because that is the first component expected to branch between `reinstall` and a future replacement action
 
+### Aggregation and Provenance Contract
+
+Detection should be modeled as backend-owned aggregation, not as one-off route logic.
+
+Minimum first-pass detector classes:
+
+- build/runtime composition metadata
+- runtime command detection
+- service-linked discovery when it adds truthful installed-state evidence
+- application or packaged metadata already owned by AppOS
+
+Rules:
+
+- the model must be able to represent components that have no running service
+- runtime service evidence may inform software truth but does not turn every service into a first-class software component
+- aggregation should produce one canonical component identity even when multiple detector classes contribute evidence
+- future health, vulnerability, upgrade, or compliance fields must attach to the same `component_key`, not fork a new identity layer
+
+#### Provenance Fields
+
+The canonical inventory/projection model should preserve provenance internally even when list DTOs stay compact.
+
+Minimum provenance shape:
+
+| Field | Type | Purpose |
+|------|------|---------|
+| `source_kind` | string | detector family such as `build`, `runtime_command`, `service_discovery`, or `app_metadata` |
+| `source_ref` | string | short detector-specific identifier |
+| `detected_version` | string | version claimed by this source when any |
+| `observed_at` | datetime string | when the evidence was collected |
+| `confidence` | string | optional coarse signal such as `high`, `medium`, or `low` |
+
+Rules:
+
+- provenance is backend-owned diagnostic data, not mandatory primary-page UI copy
+- projection layers may collapse multiple provenance records into one summary row, but must not discard the ability to explain why a version or installed-state conclusion was chosen
+- raw command output, package-manager transcripts, and shell snippets should not leak into operator-facing DTOs
+
+#### Conflict Resolution Rules
+
+When multiple sources disagree, the contract must define deterministic precedence.
+
+First-pass precedence order:
+
+1. explicit AppOS-managed catalog or packaged metadata
+2. trusted runtime command detection scoped to the canonical binary or package
+3. service-linked discovery
+4. fallback app metadata or unknown-source hints
+
+Rules:
+
+- prefer truthfulness over false precision; when evidence conflicts without a safe winner, keep the component visible and degrade version certainty rather than inventing a value
+- `detected_version` may be `unknown` when sources conflict irreconcilably
+- installed-state and install-source conclusions must remain explainable from preserved provenance, not implicit route-handler behavior
+
+### Registry Validation Contract
+
+The software catalog/registry remains backend-owned master data for supported managed software.
+
+Rules:
+
+- invalid catalog or template entries should fail validation rather than silently degrade into partially managed behavior
+- registry metadata must remain human-maintained and reviewable
+- placeholders may resolve only from trusted settings or catalog metadata, never arbitrary user input
+- action eligibility, log-access intent, target scope, and visibility policy should be expressed through metadata rather than component-specific UI branching
+- adding future health or risk metadata must extend the existing catalog shape instead of introducing a second registry for the same component identity
+
 ## API and DTO Contract
 
 ### Shared DTO Fields to Preserve
@@ -380,11 +453,13 @@ This story should therefore consolidate and formalize the contract instead of re
 	- [x] 1.1 freeze canonical target scopes, component identity, capability mapping, and lifecycle action names
 	- [x] 1.2 define which fields are mandatory on every catalog entry
 	- [x] 1.3 define how supported actions, audit names, and DTO field names are represented and consumed
+- 	[x] 1.4 absorb retired Epic 6 detection-pipeline terminology into the canonical Software Delivery contract
 - [x] Task 2: Normalize the catalog contract
 	- [x] 2.1 align server and local catalog metadata under one schema
 	- [x] 2.2 encode discovery visibility and operational visibility explicitly
 	- [x] 2.3 preserve initial catalog coverage for Docker, reverse proxy, monitor agent, and control agent
 	- [x] 2.4 define uninstall support as metadata, not ad hoc UI branching
+	- [x] 2.5 define registry validation, provenance, and conflict-resolution rules as catalog-adjacent contract, not route-local behavior
 - [x] Task 3: Freeze cross-domain boundaries
 	- [x] 3.1 define the Software Delivery versus Monitor split in story language and API language
 	- [x] 3.2 define capability-facing contract for external consumers

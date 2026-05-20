@@ -11,7 +11,11 @@ import (
 var allowedMetricSeries = map[string]struct{}{
 	"appos_host_cpu_usage":                              {},
 	"appos_host_memory_bytes":                           {},
+	"appos_host_memory_available_bytes":                 {},
 	"appos_host_disk_usage_bytes":                       {},
+	"appos_host_disk_free_bytes":                        {},
+	"appos_host_disk_read_bytes_per_second":             {},
+	"appos_host_disk_write_bytes_per_second":            {},
 	"appos_host_network_rx_bytes_per_second":            {},
 	"appos_host_network_tx_bytes_per_second":            {},
 	"appos_container_cpu_usage_percent":                 {},

@@ -329,6 +329,37 @@ function needsMonitorAgentAddressChoice(componentKey: string, action: SoftwareAc
   return componentKey === MONITOR_AGENT_COMPONENT_KEY && MONITOR_AGENT_ADDRESS_ACTIONS.has(action)
 }
 
+function isMonitorAgentReportingAction(componentKey: string, action: SoftwareActionType): boolean {
+  return componentKey === MONITOR_AGENT_COMPONENT_KEY && MONITOR_AGENT_ADDRESS_ACTIONS.has(action)
+}
+
+function acceptedActionSummary(
+  componentKey: string,
+  action: SoftwareActionType,
+  actionLabel: string,
+  operationId?: string
+): string {
+  const base = operationId ? `${actionLabel} accepted (${operationId})` : `${actionLabel} accepted`
+  if (!isMonitorAgentReportingAction(componentKey, action)) {
+    return base
+  }
+  return `${base}. Waiting for the first metrics sample from this server.`
+}
+
+function acceptedActionMessage(
+  componentKey: string,
+  action: SoftwareActionType,
+  operationId?: string
+): string {
+  const base = operationId
+    ? `${action} accepted for ${componentKey} (${operationId})`
+    : `${action} accepted for ${componentKey}`
+  if (!isMonitorAgentReportingAction(componentKey, action)) {
+    return base
+  }
+  return `${base}. Waiting for the first metrics sample; AppOS Connection will show Connecting until trend data arrives.`
+}
+
 function phaseLabel(op: SoftwareLastOperation | undefined): string {
   if (!op) return ''
   if (op.terminal_status === 'success') return 'Succeeded'
@@ -452,18 +483,25 @@ function statusLabel(component: SoftwareComponentSummary): string {
 }
 
 function appOSConnectionLabel(component: SoftwareComponentSummary): string | null {
+  const reasons = (component.health_reasons ?? []).map(reason => String(reason).trim().toLowerCase())
+  const awaitingFirstSample =
+    reasons.includes('appos_connection:not_connected_no_sample') ||
+    reasons.includes('appos_connection:unknown_monitor_summary')
+
   switch (component.appos_connection) {
     case 'connected':
       return 'Connected'
     case 'stale':
       return 'Stale'
     case 'not_connected':
+      if (awaitingFirstSample) return 'Connecting'
       return 'Not Connected'
     case 'auth_failed':
       return 'Auth Failed'
     case 'misconfigured':
       return 'Misconfigured'
     case 'unknown':
+      if (awaitingFirstSample) return 'Connecting'
       return 'Unknown'
     case 'not_applicable':
     case undefined:
@@ -1250,10 +1288,14 @@ export function ServerComponentsPanel({
   serverId,
   actionIntent,
   onActionIntentConsumed,
+  focusComponentKey,
+  onFocusComponentConsumed,
 }: {
   serverId: string
   actionIntent?: ServerComponentActionIntent | null
   onActionIntentConsumed?: (nonce: number) => void
+  focusComponentKey?: string | null
+  onFocusComponentConsumed?: (componentKey: string) => void
 }) {
   const [prerequisiteOpen, setPrerequisiteOpen] = useState<Record<string, boolean>>({})
   const [prerequisitePanelMode, setPrerequisitePanelMode] = useState<
@@ -1295,6 +1337,8 @@ export function ServerComponentsPanel({
   const loading = prerequisitesLoading || addonsLoading
   const operationPollersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const handledActionIntentRef = useRef<number | null>(null)
+  const handledFocusComponentRef = useRef<string | null>(null)
+  const prerequisiteCardRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   const selectedAddon = useMemo(
     () => addonComponents.find(component => component.component_key === selectedAddonKey) ?? null,
@@ -1347,6 +1391,35 @@ export function ServerComponentsPanel({
       return next
     })
   }, [prerequisiteComponents])
+
+  useEffect(() => {
+    if (!focusComponentKey) {
+      handledFocusComponentRef.current = null
+      return
+    }
+    if (handledFocusComponentRef.current === focusComponentKey) return
+
+    const target = prerequisiteComponents.find(
+      component => component.component_key === focusComponentKey
+    )
+    if (!target) return
+
+    handledFocusComponentRef.current = focusComponentKey
+    setPrerequisiteOpen(current => ({ ...current, [focusComponentKey]: true }))
+    setPrerequisitePanelMode(current => ({
+      ...current,
+      [focusComponentKey]: current[focusComponentKey] ?? 'checklist',
+    }))
+
+    requestAnimationFrame(() => {
+      prerequisiteCardRefs.current[focusComponentKey]?.scrollIntoView?.({
+        block: 'start',
+        behavior: 'smooth',
+      })
+    })
+
+    onFocusComponentConsumed?.(focusComponentKey)
+  }, [focusComponentKey, onFocusComponentConsumed, prerequisiteComponents])
 
   useEffect(() => {
     return () => {
@@ -1588,9 +1661,12 @@ export function ServerComponentsPanel({
               {
                 id: `${componentKey}:${action}:accepted:${response.operation_id || 'local'}`,
                 tone: 'muted',
-                text: response.operation_id
-                  ? `${actionLabel} accepted (${response.operation_id})`
-                  : `${actionLabel} accepted`,
+                text: acceptedActionSummary(
+                  componentKey,
+                  action,
+                  actionLabel,
+                  response.operation_id || undefined
+                ),
               },
             ],
           }))
@@ -1609,20 +1685,19 @@ export function ServerComponentsPanel({
               {
                 id: `${componentKey}:${action}:accepted:${response.operation_id || 'local'}`,
                 tone: 'muted',
-                text: response.operation_id
-                  ? `${actionLabel} accepted (${response.operation_id})`
-                  : `${actionLabel} accepted`,
+                text: acceptedActionSummary(
+                  componentKey,
+                  action,
+                  actionLabel,
+                  response.operation_id || undefined
+                ),
               },
             ],
           }))
           stopOperationPolling(componentKey)
         }
 
-        setActionMessage(
-          response.operation_id
-            ? `${action} accepted for ${componentKey} (${response.operation_id})`
-            : `${action} accepted for ${componentKey}`
-        )
+        setActionMessage(acceptedActionMessage(componentKey, action, response.operation_id || undefined))
 
         if (isPrerequisite && response.operation_id) {
           setActiveOperationKeys(current => ({ ...current, [componentKey]: true }))
@@ -1925,30 +2000,37 @@ export function ServerComponentsPanel({
           <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
             <div aria-label="Prerequisite targets" className="space-y-3">
               {prerequisiteComponents.map(component => (
-                <PrerequisiteCard
+                <div
                   key={component.component_key}
-                  component={component}
-                  open={prerequisiteOpen[component.component_key] ?? false}
-                  onOpenChange={open =>
-                    setPrerequisiteOpen(current => ({
-                      ...current,
-                      [component.component_key]: open,
-                    }))
-                  }
-                  onAction={handleAction}
-                  actionLoading={actionLoading}
-                  panelMode={prerequisitePanelMode[component.component_key] ?? 'checklist'}
-                  onPanelModeChange={mode =>
-                    setPrerequisitePanelMode(current => ({
-                      ...current,
-                      [component.component_key]: mode,
-                    }))
-                  }
-                  activeActionLabel={prerequisiteActiveActionLabel[component.component_key] ?? null}
-                  actionLogs={prerequisiteActionLogs[component.component_key] ?? []}
-                  serverId={serverId}
-                  actionsLocked={actionsLocked}
-                />
+                  ref={node => {
+                    prerequisiteCardRefs.current[component.component_key] = node
+                  }}
+                  data-component-key={component.component_key}
+                >
+                  <PrerequisiteCard
+                    component={component}
+                    open={prerequisiteOpen[component.component_key] ?? false}
+                    onOpenChange={open =>
+                      setPrerequisiteOpen(current => ({
+                        ...current,
+                        [component.component_key]: open,
+                      }))
+                    }
+                    onAction={handleAction}
+                    actionLoading={actionLoading}
+                    panelMode={prerequisitePanelMode[component.component_key] ?? 'checklist'}
+                    onPanelModeChange={mode =>
+                      setPrerequisitePanelMode(current => ({
+                        ...current,
+                        [component.component_key]: mode,
+                      }))
+                    }
+                    activeActionLabel={prerequisiteActiveActionLabel[component.component_key] ?? null}
+                    actionLogs={prerequisiteActionLogs[component.component_key] ?? []}
+                    serverId={serverId}
+                    actionsLocked={actionsLocked}
+                  />
+                </div>
               ))}
             </div>
           </div>

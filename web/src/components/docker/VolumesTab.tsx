@@ -53,6 +53,7 @@ import {
 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { getApiErrorMessage } from '@/lib/api-error'
+import { DockerDependencyAlert, getDockerDependencyIssue } from '@/components/docker/DockerDependencyAlert'
 import { cn } from '@/lib/utils'
 import { FileManagerPanel } from '@/components/connect/FileManagerPanel'
 
@@ -355,6 +356,8 @@ export const VolumesTab = forwardRef<
   }
 
   const loadError = error ? getApiErrorMessage(error, 'Failed to load volumes') : null
+  const visibleError = loadError || actionError
+  const dependencyIssue = getDockerDependencyIssue(error ?? visibleError)
 
   const driverCounts = useMemo(() => {
     const counts = new Map<string, number>()
@@ -487,11 +490,13 @@ export const VolumesTab = forwardRef<
         embeddedInWorkspace ? 'pt-0' : 'pt-4'
       )}
     >
-      {(loadError || actionError) && (
+      {dependencyIssue && visibleError ? (
+        <DockerDependencyAlert serverId={serverId} message={visibleError} />
+      ) : visibleError ? (
         <Alert variant="destructive" className="shrink-0">
-          <AlertDescription>{loadError || actionError}</AlertDescription>
+          <AlertDescription>{visibleError}</AlertDescription>
         </Alert>
-      )}
+      ) : null}
       {!embeddedInWorkspace && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 px-3 py-3 shrink-0">
           <input

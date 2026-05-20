@@ -63,6 +63,8 @@ const SEGMENT_PALETTE: Record<string, Record<string, { stroke: string; fill: str
   memory: {
     used: { stroke: '#2563eb', fill: '#60a5fa' },
     available: { stroke: '#0f766e', fill: '#34d399' },
+    usage: { stroke: '#2563eb', fill: '#60a5fa' },
+    limit: { stroke: '#d97706', fill: '#fbbf24' },
   },
   disk_usage: {
     used: { stroke: '#c2410c', fill: '#fb923c' },
@@ -297,7 +299,7 @@ export function TimeSeriesChart({
   }, [])
 
   const data = mergeSeriesData(window, rangeStartAt, rangeEndAt, stepSeconds, points, segments)
-  const shouldStackSegments = name === 'memory' || name === 'disk_usage'
+  const shouldStackSegments = name === 'disk_usage'
 
   const tooltipFormatter = (
     value: unknown,

@@ -442,6 +442,7 @@ groups:
         - server.go
         - terminal_containers.go
         - terminal_files.go
+        - terminal_sessions.go
         - terminal_shell.go
       nativeRefs: []
 

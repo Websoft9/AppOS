@@ -10,7 +10,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Checkbox } from '@/components/ui/checkbox'
 import { TimeSeriesChart } from '@/components/monitor/TimeSeriesChart'
 
-type MonitorSeriesWindow = '1h' | '5h' | '12h' | '24h' | '7d' | 'custom'
+type MonitorSeriesWindow =
+  | '1m'
+  | '5m'
+  | '15m'
+  | '0.5h'
+  | '1h'
+  | '5h'
+  | '12h'
+  | '24h'
+  | '7d'
+  | 'custom'
 
 type CustomRangeState = {
   startLocal: string
@@ -57,6 +67,26 @@ type MonitorSeriesResponse = {
 
 const SERIES_WINDOWS = [
   {
+    value: '1m',
+    label: '1m',
+    description: 'Last minute trends from the monitoring time-series backend.',
+  },
+  {
+    value: '5m',
+    label: '5m',
+    description: 'Last five minutes trends from the monitoring time-series backend.',
+  },
+  {
+    value: '15m',
+    label: '15m',
+    description: 'Last fifteen minutes trends from the monitoring time-series backend.',
+  },
+  {
+    value: '0.5h',
+    label: '0.5h',
+    description: 'Last half hour trends from the monitoring time-series backend.',
+  },
+  {
     value: '1h',
     label: '1h',
     description: 'Last hour trends from the monitoring time-series backend.',
@@ -81,7 +111,7 @@ const SERIES_WINDOWS = [
     label: '7d',
     description: 'Last seven days trends from the monitoring time-series backend.',
   },
-  { value: 'custom', label: 'Custom', description: 'Custom trends for a chosen time range.' },
+  { value: 'custom', label: 'custom', description: 'Custom trends for a chosen time range.' },
 ] as const
 
 const SNAPSHOT_WINDOW = '15m'
@@ -134,7 +164,7 @@ function formatCustomRangeLabel(range: CustomRangeState): string {
   const start = parseLocalDateTime(range.startLocal)
   const end = parseLocalDateTime(range.endLocal)
   if (!start || !end || end.getTime() <= start.getTime()) {
-    return 'Custom'
+    return 'custom'
   }
   const sameDay = start.toDateString() === end.toDateString()
   const startText = start.toLocaleString(undefined, {
@@ -267,7 +297,24 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
   }
 }
 
-function monitorMetricsPipelineWarning(data: MonitorTargetResponse | null): string | null {
+function seriesHasUsableData(seriesResponse: MonitorSeriesResponse | null): boolean {
+  if (!seriesResponse?.series?.length) return false
+
+  return seriesResponse.series.some(item => {
+    if (Array.isArray(item.points) && item.points.length > 0) {
+      return true
+    }
+    if (Array.isArray(item.segments) && item.segments.some(segment => segment.points.length > 0)) {
+      return true
+    }
+    return false
+  })
+}
+
+function monitorMetricsPipelineWarning(
+  data: MonitorTargetResponse | null,
+  hasUsableSeriesData: boolean
+): string | null {
   if (!data) return null
   const status = String(data.status ?? '')
     .trim()
@@ -287,7 +334,7 @@ function monitorMetricsPipelineWarning(data: MonitorTargetResponse | null): stri
     metricsFreshnessState === 'missing' ||
     metricsReasonCode === 'metrics_missing'
 
-  if (!missingMetrics) return null
+  if (!missingMetrics || hasUsableSeriesData) return null
 
   if (status === 'unknown' || status === 'degraded' || status === 'healthy') {
     return 'AppOS is not receiving usable metrics from this target. This usually indicates a monitor write-path or credential problem, not a chart rendering issue.'
@@ -515,7 +562,10 @@ export function MonitorTargetPanel({
 
   const summaryEntries = Object.entries(data?.summary ?? {})
   const snapshotItems = buildSnapshotItems(snapshotSeries?.series ?? [])
-  const pipelineWarning = monitorMetricsPipelineWarning(data)
+  const pipelineWarning = monitorMetricsPipelineWarning(
+    data,
+    seriesHasUsableData(series) || seriesHasUsableData(snapshotSeries)
+  )
 
   if (detailLayout) {
     return (
@@ -655,7 +705,7 @@ export function MonitorTargetPanel({
                   >
                     {selectedWindow === 'custom'
                       ? formatCustomRangeLabel(appliedCustomRange)
-                      : 'Custom'}
+                      : 'custom'}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent align="end" className="w-[min(24rem,calc(100vw-2rem))] space-y-3">
@@ -920,7 +970,7 @@ export function MonitorTargetPanel({
                       >
                         {selectedWindow === 'custom'
                           ? formatCustomRangeLabel(appliedCustomRange)
-                          : 'Custom'}
+                          : 'custom'}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent
