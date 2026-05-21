@@ -62,6 +62,7 @@ It is useful for early feedback, but it is not a merge-governance layer and shou
 Recommended use:
 
 - run lightweight lint, backend/frontend tests, and fast security checks on `push -> non-main branches`
+- include narrow, high-signal regression suites when a subsystem is expensive or noisy in the full backend matrix; current examples are `make test backend-iac` for the IaC refactor surface and `make test backend-software` for software catalog/executor contracts
 - do not treat `Dev Fast CI` as a required check for `main`
 - do not use it as a substitute for PR review or branch protection
 

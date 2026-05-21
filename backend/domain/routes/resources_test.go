@@ -82,10 +82,10 @@ func routesTestBaselineDataDir() (string, error) {
 
 func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
-	oldFilesBasePath := filesBasePath
-	filesBasePath = t.TempDir()
+	oldAppConfigBasePath := appConfigBasePath
+	appConfigBasePath = t.TempDir()
 	t.Cleanup(func() {
-		filesBasePath = oldFilesBasePath
+		appConfigBasePath = oldAppConfigBasePath
 	})
 
 	baselineDir, err := routesTestBaselineDataDir()

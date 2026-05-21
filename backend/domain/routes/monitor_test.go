@@ -97,6 +97,70 @@ func TestMonitorWriteRequiresBasicAuth(t *testing.T) {
 	}
 }
 
+func TestMonitorTelegrafWriteRequiresBasicAuth(t *testing.T) {
+	te := newMonitorTestEnv(t)
+	defer te.cleanup()
+
+	rec := te.doMonitor(t, http.MethodPost, "/api/monitor/telegraf/write", "cpu,host=test usage_idle=91.5", "")
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestMonitorTelegrafWriteForwardsAuthenticatedInfluxPayload(t *testing.T) {
+	ensureConnectorSecretRuntime(t)
+	te := newMonitorTestEnv(t)
+	defer te.cleanup()
+
+	server := createMonitorServer(t, te, "prod-telegraf")
+	token, err := getOrIssueMonitorAgentToken(te.app, server.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var gotPath string
+	var gotBody string
+	var gotStreamMode string
+	tsdb := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotStreamMode = r.Header.Get("Stream-Mode")
+		body, _ := io.ReadAll(r.Body)
+		gotBody = string(body)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer tsdb.Close()
+	t.Setenv(monitormetrics.EnvVictoriaMetricsURL, tsdb.URL)
+
+	r, err := apis.NewRouter(te.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registerMonitorRoutes(&core.ServeEvent{App: te.app, Router: r})
+	mux, err := r.BuildMux()
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := "docker_container,appos_server_id=srv-1 container_cpu_usage=42.5"
+	req := httptest.NewRequest(http.MethodPost, "/api/monitor/telegraf/write", strings.NewReader(payload))
+	req.SetBasicAuth(server.Id, token)
+	req.Header.Set("Content-Type", "text/plain; charset=utf-8")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if gotPath != "/write" {
+		t.Fatalf("expected VictoriaMetrics influx write path /write, got %q", gotPath)
+	}
+	if gotBody != payload {
+		t.Fatalf("expected forwarded payload %q, got %q", payload, gotBody)
+	}
+	if gotStreamMode != "1" {
+		t.Fatalf("expected Stream-Mode=1, got %q", gotStreamMode)
+	}
+}
+
 func TestMonitorWriteForwardsAuthenticatedRemoteWritePayload(t *testing.T) {
 	ensureConnectorSecretRuntime(t)
 	te := newMonitorTestEnv(t)
@@ -510,11 +574,11 @@ func TestMonitorWriteAlsoProjectsCanonicalContainerCPUMetricWhenContainerIDExist
 func TestProjectRemoteWriteMetricPointsWarnsWhenContainerIdentityIsMissing(t *testing.T) {
 	payload, err := proto.Marshal(&prompb.WriteRequest{Timeseries: []prompb.TimeSeries{
 		{
-			Labels: []prompb.Label{{Name: "__name__", Value: "netdata_system_cpu_percentage_average"}, {Name: "instance", Value: "srv-1"}, {Name: "dimension", Value: "idle"}},
+			Labels:  []prompb.Label{{Name: "__name__", Value: "netdata_system_cpu_percentage_average"}, {Name: "instance", Value: "srv-1"}, {Name: "dimension", Value: "idle"}},
 			Samples: []prompb.Sample{{Value: 82.8, Timestamp: 1776168000000}},
 		},
 		{
-			Labels: []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_mem_usage_MiB_average"}, {Name: "instance", Value: "srv-1"}, {Name: "dimension", Value: "ram"}},
+			Labels:  []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_mem_usage_MiB_average"}, {Name: "instance", Value: "srv-1"}, {Name: "dimension", Value: "ram"}},
 			Samples: []prompb.Sample{{Value: 128, Timestamp: 1776168000000}},
 		},
 	}})
@@ -550,11 +614,11 @@ func TestMonitorWritePersistsValidCanonicalPointsEvenWhenProjectionWarns(t *test
 
 	payload, err := proto.Marshal(&prompb.WriteRequest{Timeseries: []prompb.TimeSeries{
 		{
-			Labels: []prompb.Label{{Name: "__name__", Value: "netdata_system_cpu_percentage_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "idle"}},
+			Labels:  []prompb.Label{{Name: "__name__", Value: "netdata_system_cpu_percentage_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "idle"}},
 			Samples: []prompb.Sample{{Value: 83, Timestamp: 1776168000000}},
 		},
 		{
-			Labels: []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_mem_usage_MiB_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "ram"}},
+			Labels:  []prompb.Label{{Name: "__name__", Value: "netdata_cgroup_mem_usage_MiB_average"}, {Name: "instance", Value: server.Id}, {Name: "dimension", Value: "ram"}},
 			Samples: []prompb.Sample{{Value: 128, Timestamp: 1776168000000}},
 		},
 	}})

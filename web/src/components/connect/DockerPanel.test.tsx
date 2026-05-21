@@ -352,7 +352,7 @@ describe('DockerPanel overview', () => {
     ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open Components > Prerequisites' })).toHaveAttribute(
       'href',
-      '/resources/servers?server=srv-1&tab=components&focusComponent=docker'
+      '/resources/servers?server=srv-1&tab=components&focusComponent=docker&focusPanel=checklist&focusSource=compose&focusIssue=compose_missing'
     )
   })
 })

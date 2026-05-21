@@ -54,6 +54,8 @@ export interface Server {
   name: string
   host: string
   connect_type?: 'direct' | 'tunnel' | string
+  access_status?: string
+  tunnel_status?: string
   [key: string]: unknown
 }
 

@@ -66,6 +66,12 @@ jobs:
       - name: Run fast backend tests
         run: make test backend fast
 
+      - name: Run focused IaC regression tests
+        run: make test backend-iac
+
+      - name: Run focused software regression tests
+        run: make test backend-software
+
       - name: Run frontend tests
         run: make test web
 

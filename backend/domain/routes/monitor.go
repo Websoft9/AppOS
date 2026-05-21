@@ -28,6 +28,7 @@ var monitorWriteHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 func registerMonitorRoutes(se *core.ServeEvent) {
 	se.Router.POST("/api/monitor/write", handleMonitorWrite)
+	se.Router.POST("/api/monitor/telegraf/write", handleMonitorTelegrafWrite)
 
 	monitorGroup := se.Router.Group("/api/monitor")
 	monitorGroup.Bind(apis.RequireAuth())
@@ -92,6 +93,63 @@ func handleMonitorWrite(e *core.RequestEvent) error {
 	return e.NoContent(http.StatusNoContent)
 }
 
+// @Summary Write Telegraf metrics
+// @Description Receives Influx line protocol payloads from managed-server Telegraf agents and forwards them to the embedded VictoriaMetrics Influx write endpoint. Authenticate with HTTP Basic Auth where username is the server record ID and password is the per-server monitor agent token issued during managed metrics collector setup.
+// @Tags Monitoring Ingest
+// @Param Authorization header string true "Basic base64(serverId:monitorAgentToken)"
+// @Accept text/plain
+// @Success 204 {object} nil
+// @Failure 401 {object} MonitorErrorResponse
+// @Failure 413 {object} MonitorErrorResponse
+// @Failure 502 {object} MonitorErrorResponse
+// @Router /api/monitor/telegraf/write [post]
+func handleMonitorTelegrafWrite(e *core.RequestEvent) error {
+	serverID, token, ok := e.Request.BasicAuth()
+	serverID = strings.TrimSpace(serverID)
+	if !ok || serverID == "" || strings.TrimSpace(token) == "" {
+		return monitorWriteUnauthorized(e)
+	}
+	if _, err := findMonitorServer(e.App, serverID); err != nil {
+		return monitorWriteUnauthorized(e)
+	}
+	expectedToken, err := readMonitorAgentToken(e.App, serverID)
+	if err != nil || !constantTimeTokenEqual(expectedToken, token) {
+		return monitorWriteUnauthorized(e)
+	}
+	if e.Request.ContentLength > maxMonitorWriteBodyBytes {
+		return monitorWritePayloadTooLarge(e)
+	}
+	endpoint, err := monitorInfluxWriteEndpoint()
+	if err != nil {
+		return e.JSON(http.StatusBadGateway, map[string]any{"error": "tsdb_unavailable", "message": err.Error()})
+	}
+	limitedBody := &monitorWriteLimitReadCloser{body: e.Request.Body, remaining: maxMonitorWriteBodyBytes}
+	defer limitedBody.Close()
+	payload, err := io.ReadAll(limitedBody)
+	if err != nil {
+		if errors.Is(err, errMonitorWritePayloadTooLarge) {
+			return monitorWritePayloadTooLarge(e)
+		}
+		return e.JSON(http.StatusBadGateway, map[string]any{"error": "tsdb_read_failed", "message": err.Error()})
+	}
+	req, err := http.NewRequestWithContext(e.Request.Context(), http.MethodPost, endpoint, strings.NewReader(string(payload)))
+	if err != nil {
+		return e.JSON(http.StatusBadGateway, map[string]any{"error": "tsdb_forward_failed", "message": err.Error()})
+	}
+	req.Header.Set("Content-Type", "text/plain; charset=utf-8")
+	req.Header.Set("Stream-Mode", "1")
+	resp, err := monitorWriteHTTPClient.Do(req)
+	if err != nil {
+		return e.JSON(http.StatusBadGateway, map[string]any{"error": "tsdb_forward_failed", "message": err.Error()})
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		message, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return e.JSON(http.StatusBadGateway, map[string]any{"error": "tsdb_forward_failed", "message": fmt.Sprintf("victoriametrics influx write failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(message)))})
+	}
+	return e.NoContent(http.StatusNoContent)
+}
+
 func monitorWriteUnauthorized(e *core.RequestEvent) error {
 	e.Response.Header().Set("WWW-Authenticate", `Basic realm="AppOS monitor write"`)
 	return e.JSON(http.StatusUnauthorized, map[string]any{"error": "invalid_monitor_agent_credentials"})
@@ -145,6 +203,21 @@ func monitorWriteEndpoint() (string, error) {
 		return "", fmt.Errorf("%s must include scheme and host", monitormetrics.EnvVictoriaMetricsURL)
 	}
 	return baseURL + "/api/v1/write", nil
+}
+
+func monitorInfluxWriteEndpoint() (string, error) {
+	baseURL := strings.TrimRight(strings.TrimSpace(os.Getenv(monitormetrics.EnvVictoriaMetricsURL)), "/")
+	if baseURL == "" {
+		return "", fmt.Errorf("%s is not configured", monitormetrics.EnvVictoriaMetricsURL)
+	}
+	parsed, err := url.Parse(baseURL)
+	if err != nil {
+		return "", err
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return "", fmt.Errorf("%s must include scheme and host", monitormetrics.EnvVictoriaMetricsURL)
+	}
+	return baseURL + "/write", nil
 }
 
 type MonitorErrorResponse struct {

@@ -32,6 +32,7 @@ func TestComponentKeyConstants(t *testing.T) {
 		{ComponentKeyDocker, "docker"},
 		{ComponentKeyMonitorAgent, "appos-monitor-collector"},
 		{ComponentKeyReverseProxy, "reverse-proxy"},
+		{ComponentKeyTelegraf, "telegraf"},
 	}
 	for _, c := range cases {
 		if string(c.got) != c.want {

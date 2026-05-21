@@ -107,3 +107,30 @@ components:
       - stop
       - reinstall
       - uninstall
+
+  - component_key: telegraf
+    target_type: server
+    label: Telegraf
+    template_ref: script-systemd
+    binary: telegraf
+    version_command: "telegraf version"
+    service_name: telegraf.service
+    script_path: telegraf-install.sh
+    description: Managed Telegraf collector installed as a standalone binary with a systemd service.
+    readiness_requirements:
+      - verified_os_baseline
+      - root_privilege
+      - network_access
+      - service_manager
+    visibility:
+      - server_operations
+      - supported_software_discovery
+    supported_actions:
+      - install
+      - upgrade
+      - verify
+      - start
+      - restart
+      - stop
+      - reinstall
+      - uninstall

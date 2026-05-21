@@ -42,8 +42,8 @@ func buildNetworkTrafficSeries(ctx context.Context, service *monitortsdb.Service
 	}
 	sentPoints = absolutePoints(sentPoints)
 	scale := float64(step) / float64(time.Second)
-	receivedPoints = monitortsdb.ScalePoints(receivedPoints, scale)
-	sentPoints = monitortsdb.ScalePoints(sentPoints, scale)
+	receivedPoints = cumulativePoints(monitortsdb.ScalePoints(receivedPoints, scale))
+	sentPoints = cumulativePoints(monitortsdb.ScalePoints(sentPoints, scale))
 	return MetricSeries{
 		Name: "network_traffic",
 		Unit: "bytes",
@@ -64,4 +64,17 @@ func absolutePoints(points [][]float64) [][]float64 {
 		normalized = append(normalized, []float64{point[0], math.Abs(point[1])})
 	}
 	return normalized
+}
+
+func cumulativePoints(points [][]float64) [][]float64 {
+	accumulated := make([][]float64, 0, len(points))
+	total := 0.0
+	for _, point := range points {
+		if len(point) < 2 {
+			continue
+		}
+		total += point[1]
+		accumulated = append(accumulated, []float64{point[0], total})
+	}
+	return accumulated
 }

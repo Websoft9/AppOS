@@ -7,6 +7,23 @@ export interface DockerDependencyIssue {
   description: string
 }
 
+export type DockerDependencyIssueCode = DockerDependencyIssue['code']
+
+export type DockerFocusSource =
+  | 'overview'
+  | 'containers'
+  | 'images'
+  | 'volumes'
+  | 'networks'
+  | 'compose'
+
+function issueFocusPanel(code: DockerDependencyIssue['code']): 'checklist' | 'history' {
+  if (code === 'docker_daemon_unavailable' || code === 'docker_permission_denied') {
+    return 'history'
+  }
+  return 'checklist'
+}
+
 function normalizeString(value: unknown): string {
   if (typeof value === 'string') return value.trim()
   return ''
@@ -129,10 +146,12 @@ export function getDockerDependencyIssue(source: unknown): DockerDependencyIssue
 export function DockerDependencyAlert({
   serverId,
   message,
+  focusSource = 'overview',
   className,
 }: {
   serverId: string
   message: string
+  focusSource?: DockerFocusSource
   className?: string
 }) {
   const issue = getDockerDependencyIssue(message)
@@ -146,7 +165,7 @@ export function DockerDependencyAlert({
           <p>{issue.description}</p>
           <p className="text-xs text-muted-foreground">{message}</p>
           <a
-            href={`/resources/servers?server=${encodeURIComponent(serverId)}&tab=components&focusComponent=docker`}
+            href={`/resources/servers?server=${encodeURIComponent(serverId)}&tab=components&focusComponent=docker&focusPanel=${issueFocusPanel(issue.code)}&focusSource=${focusSource}&focusIssue=${issue.code}`}
             className="inline-flex h-8 items-center rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
           >
             Open Components &gt; Prerequisites

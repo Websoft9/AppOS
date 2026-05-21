@@ -1148,7 +1148,7 @@ export const ImagesTab = forwardRef<
       )}
     >
       {dependencyIssue && visibleError ? (
-        <DockerDependencyAlert serverId={serverId} message={visibleError} />
+        <DockerDependencyAlert serverId={serverId} message={visibleError} focusSource="images" />
       ) : visibleError ? (
         <Alert variant="destructive" className="shrink-0">
           <AlertDescription>{visibleError}</AlertDescription>

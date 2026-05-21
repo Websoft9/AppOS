@@ -77,13 +77,14 @@ func TestLoadServerCatalogComponentKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadServerCatalog: %v", err)
 	}
-	if len(cat.Components) != 3 {
-		t.Errorf("expected 3 server components, got %d", len(cat.Components))
+	if len(cat.Components) != 4 {
+		t.Errorf("expected 4 server components, got %d", len(cat.Components))
 	}
 	required := []software.ComponentKey{
 		software.ComponentKeyDocker,
 		software.ComponentKeyReverseProxy,
 		software.ComponentKeyMonitorAgent,
+		software.ComponentKey("telegraf"),
 	}
 	found := make(map[software.ComponentKey]bool)
 	for _, e := range cat.Components {
@@ -474,5 +475,53 @@ func TestReinstallDefaultsToReinstall(t *testing.T) {
 	resolved := catalog.ResolveTemplate(entry, tpl)
 	if resolved.Reinstall.Strategy != "reinstall" {
 		t.Errorf("expected default reinstall strategy=reinstall, got %q", resolved.Reinstall.Strategy)
+	}
+}
+
+func TestResolveTemplateSubstitutesScriptEnv(t *testing.T) {
+	entry := software.CatalogEntry{
+		ComponentKey: software.ComponentKey("telegraf"),
+		Binary:       "telegraf",
+		ServiceName:  "telegraf.service",
+		ScriptPath:   "telegraf-install.sh",
+	}
+	tpl := software.ComponentTemplate{
+		TemplateKind: software.TemplateKindScript,
+		Install: software.InstallSpec{
+			Strategy:   "script",
+			ScriptPath: "{{script_path}}",
+			Env: map[string]string{
+				"APPOS_BINARY":  "{{binary}}",
+				"APPOS_SERVICE": "{{service_name}}",
+			},
+		},
+		Upgrade: software.UpgradeSpec{
+			Strategy:   "script",
+			ScriptPath: "{{script_path}}",
+			Env: map[string]string{
+				"APPOS_BINARY": "{{binary}}",
+			},
+		},
+		Uninstall: software.UninstallSpec{
+			Strategy:   "script",
+			ScriptPath: "{{script_path}}",
+			Env: map[string]string{
+				"APPOS_SERVICE": "{{service_name}}",
+			},
+		},
+	}
+
+	resolved := catalog.ResolveTemplate(entry, tpl)
+	if resolved.Install.Env["APPOS_BINARY"] != "telegraf" {
+		t.Fatalf("expected install env binary substitution, got %q", resolved.Install.Env["APPOS_BINARY"])
+	}
+	if resolved.Install.Env["APPOS_SERVICE"] != "telegraf.service" {
+		t.Fatalf("expected install env service substitution, got %q", resolved.Install.Env["APPOS_SERVICE"])
+	}
+	if resolved.Upgrade.Env["APPOS_BINARY"] != "telegraf" {
+		t.Fatalf("expected upgrade env binary substitution, got %q", resolved.Upgrade.Env["APPOS_BINARY"])
+	}
+	if resolved.Uninstall.Env["APPOS_SERVICE"] != "telegraf.service" {
+		t.Fatalf("expected uninstall env service substitution, got %q", resolved.Uninstall.Env["APPOS_SERVICE"])
 	}
 }

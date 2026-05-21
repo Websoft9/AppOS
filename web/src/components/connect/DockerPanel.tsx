@@ -370,11 +370,26 @@ function OverviewTab({
     ? getApiErrorMessage(loadError, 'Failed to load Docker overview')
     : null
   const dependencyIssue = getDockerDependencyIssue(loadError ?? loadErrorMessage)
+  const dependencyFocusSource = containersQuery.error
+    ? 'containers'
+    : composeQuery.error
+      ? 'compose'
+      : imagesQuery.error
+        ? 'images'
+        : volumesQuery.error
+          ? 'volumes'
+          : networksQuery.error
+            ? 'networks'
+            : 'overview'
 
   if (loadError) {
     return (
       dependencyIssue && loadErrorMessage ? (
-        <DockerDependencyAlert serverId={serverId} message={loadErrorMessage} />
+        <DockerDependencyAlert
+          serverId={serverId}
+          message={loadErrorMessage}
+          focusSource={dependencyFocusSource}
+        />
       ) : (
         <Alert variant="destructive">
           <AlertDescription>{loadErrorMessage}</AlertDescription>

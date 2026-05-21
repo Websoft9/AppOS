@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
+	"github.com/websoft9/appos/backend/domain/secrets"
 	"github.com/websoft9/appos/backend/domain/software"
 )
 
@@ -19,6 +21,8 @@ type fakeSoftwareExecutor struct {
 	preflight       software.TargetReadinessResult
 	preflightErr    error
 	verifyCalled    int
+	installTemplate software.ResolvedTemplate
+	upgradeTemplate software.ResolvedTemplate
 	installDetail   software.SoftwareComponentDetail
 	installErr      error
 	startErr        error
@@ -33,6 +37,15 @@ type fakeSoftwareExecutor struct {
 	detectSource    software.InstallSource
 	detectEvidence  string
 	detectErr       error
+}
+
+func ensureWorkerSecretRuntime(t *testing.T) {
+	t.Helper()
+	key := base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef"))
+	t.Setenv(secrets.EnvSecretKey, key)
+	if err := secrets.LoadKeyFromEnv(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func (f *fakeSoftwareExecutor) Detect(context.Context, string, software.ResolvedTemplate) (software.DetectionResult, error) {
@@ -55,11 +68,13 @@ func (f *fakeSoftwareExecutor) RunPreflight(context.Context, string, software.Re
 	return f.preflight, f.preflightErr
 }
 
-func (f *fakeSoftwareExecutor) Install(context.Context, string, software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+func (f *fakeSoftwareExecutor) Install(_ context.Context, _ string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+	f.installTemplate = tpl
 	return f.installDetail, f.installErr
 }
 
-func (f *fakeSoftwareExecutor) Upgrade(context.Context, string, software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+func (f *fakeSoftwareExecutor) Upgrade(_ context.Context, _ string, tpl software.ResolvedTemplate) (software.SoftwareComponentDetail, error) {
+	f.upgradeTemplate = tpl
 	return f.installDetail, f.installErr
 }
 
@@ -799,6 +814,108 @@ func TestRunSoftwarePhaseLoopSuccessClearsStaleFailureFields(t *testing.T) {
 	}
 	if updated.GetString("failure_phase") != "" || updated.GetString("failure_code") != "" || updated.GetString("failure_reason") != "" {
 		t.Fatalf("expected stale failure fields to be cleared, got phase=%q code=%q reason=%q", updated.GetString("failure_phase"), updated.GetString("failure_code"), updated.GetString("failure_reason"))
+	}
+}
+
+func TestBuildSoftwareTelegrafConfigIncludesManagedServerTag(t *testing.T) {
+	config, err := buildSoftwareTelegrafConfig("srv-telegraf", "https://console.example.com/api/monitor/telegraf/write", "srv-telegraf", "secret-token")
+	if err != nil {
+		t.Fatalf("buildSoftwareTelegrafConfig: %v", err)
+	}
+	if !strings.Contains(config, "Managed by AppOS") {
+		t.Fatalf("expected managed config marker, got %q", config)
+	}
+	if !strings.Contains(config, "appos_server_id = \"srv-telegraf\"") {
+		t.Fatalf("expected server tag in config, got %q", config)
+	}
+	if !strings.Contains(config, "[[inputs.docker]]") {
+		t.Fatalf("expected docker input in config, got %q", config)
+	}
+	if !strings.Contains(config, "[[outputs.http]]") {
+		t.Fatalf("expected http output plugin in config, got %q", config)
+	}
+	if !strings.Contains(config, "url = \"https://console.example.com/api/monitor/telegraf/write\"") {
+		t.Fatalf("expected telegraf output url in config, got %q", config)
+	}
+}
+
+func TestRunSoftwarePhaseLoopInjectsTelegrafRuntimeEnv(t *testing.T) {
+	ensureWorkerSecretRuntime(t)
+	app := newWorkerTestApp(t)
+
+	oldFactory := softwareExecutorFactory
+	defer func() { softwareExecutorFactory = oldFactory }()
+
+	fakeExecutor := &fakeSoftwareExecutor{
+		preflight: software.TargetReadinessResult{
+			OK:              true,
+			OSSupported:     true,
+			PrivilegeOK:     true,
+			NetworkOK:       true,
+			DependencyReady: true,
+			Issues:          []string{},
+		},
+		installDetail: software.SoftwareComponentDetail{
+			SoftwareComponentSummary: software.SoftwareComponentSummary{
+				InstalledState: software.InstalledStateInstalled,
+			},
+		},
+		verifyDetail: software.SoftwareComponentDetail{
+			SoftwareComponentSummary: software.SoftwareComponentSummary{
+				InstalledState:    software.InstalledStateInstalled,
+				VerificationState: software.VerificationStateHealthy,
+			},
+		},
+	}
+	softwareExecutorFactory = func(app core.App, serverID, userID string) (software.ComponentExecutor, error) {
+		return fakeExecutor, nil
+	}
+
+	w := &Worker{app: app}
+	record, err := createSoftwareOperationRecord(app, SoftwareActionPayload{
+		ServerID:     "srv-telegraf",
+		ComponentKey: software.ComponentKeyTelegraf,
+		Action:       software.ActionInstall,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := SoftwareActionPayload{
+		OperationID:  record.Id,
+		ServerID:     "srv-telegraf",
+		ComponentKey: software.ComponentKeyTelegraf,
+		Action:       software.ActionInstall,
+		AppOSBaseURL: "https://console.example.com",
+	}
+
+	w.runSoftwarePhaseLoop(context.Background(), record, payload)
+
+	if fakeExecutor.installTemplate.ComponentKey != software.ComponentKeyTelegraf {
+		t.Fatalf("expected telegraf install template, got %q", fakeExecutor.installTemplate.ComponentKey)
+	}
+	if fakeExecutor.installTemplate.Install.Env["APPOS_TELEGRAF_VERSION"] != telegrafManagedVersion {
+		t.Fatalf("expected telegraf version env %q, got %q", telegrafManagedVersion, fakeExecutor.installTemplate.Install.Env["APPOS_TELEGRAF_VERSION"])
+	}
+	encoded := fakeExecutor.installTemplate.Install.Env["APPOS_TELEGRAF_CONFIG_B64"]
+	if strings.TrimSpace(encoded) == "" {
+		t.Fatal("expected telegraf config env to be injected")
+	}
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		t.Fatalf("decode telegraf config: %v", err)
+	}
+	config := string(decoded)
+	if !strings.Contains(config, "appos_server_id = \"srv-telegraf\"") {
+		t.Fatalf("expected server tag in telegraf config, got %q", config)
+	}
+	if !strings.Contains(config, "[[inputs.cpu]]") {
+		t.Fatalf("expected cpu input in telegraf config, got %q", config)
+	}
+	if !strings.Contains(config, "[[inputs.docker]]") {
+		t.Fatalf("expected docker input in telegraf config, got %q", config)
+	}
+	if !strings.Contains(config, "url = \"https://console.example.com/api/monitor/telegraf/write\"") {
+		t.Fatalf("expected telegraf output url in config, got %q", config)
 	}
 }
 

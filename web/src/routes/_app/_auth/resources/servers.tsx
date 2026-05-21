@@ -54,6 +54,10 @@ import { ServerCronPanel } from '@/components/servers/ServerCronPanel'
 import { ServerPortsPanel } from '@/components/servers/ServerPortsPanel'
 import { ServerServicesPanel } from '@/components/servers/ServerServicesPanel'
 import { DockerPanel } from '@/components/connect/DockerPanel'
+import type {
+  DockerDependencyIssueCode,
+  DockerFocusSource,
+} from '@/components/docker/DockerDependencyAlert'
 import {
   getServerConnectionPresentation,
   type ServerConnectionActionId,
@@ -75,6 +79,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import {
   checkServerStatus as pingServerStatus,
   getLocalDockerBridgeAddress,
+  listTerminalSessions,
   serverPower,
 } from '@/lib/connect-api'
 import type { SoftwareActionType } from '@/lib/software-api'
@@ -365,10 +370,30 @@ const fields: FieldDef[] = [
 ]
 
 export function ServersPage() {
-  const { create, returnGroup, returnType, edit, server, tab, focusComponent } = Route.useSearch()
+  const { create, returnGroup, returnType, edit, server, tab, focusComponent, focusPanel, focusSource, focusIssue } = Route.useSearch()
   const { user } = useAuth()
   const autoCreate = create === '1' || !!returnGroup
   const navigate = Route.useNavigate()
+  const resolvedFocusPanel =
+    focusPanel === 'checklist' || focusPanel === 'operation' || focusPanel === 'history'
+      ? focusPanel
+      : undefined
+  const resolvedFocusSource: DockerFocusSource | undefined =
+    focusSource === 'overview' ||
+    focusSource === 'containers' ||
+    focusSource === 'images' ||
+    focusSource === 'volumes' ||
+    focusSource === 'networks' ||
+    focusSource === 'compose'
+      ? focusSource
+      : undefined
+  const resolvedFocusIssue: DockerDependencyIssueCode | undefined =
+    focusIssue === 'docker_missing' ||
+    focusIssue === 'compose_missing' ||
+    focusIssue === 'docker_daemon_unavailable' ||
+    focusIssue === 'docker_permission_denied'
+      ? focusIssue
+      : undefined
   const [listRefreshKey, setListRefreshKey] = useState(0)
   const bgChecksFiredRef = useRef(false)
   const [wizardServerId, setWizardServerId] = useState<string | null>(null)
@@ -392,6 +417,7 @@ export function ServersPage() {
   const [powerSubmitting, setPowerSubmitting] = useState(false)
   const [powerError, setPowerError] = useState('')
   const [pingResults, setPingResults] = useState<Record<string, 'online' | 'offline'>>({})
+  const [activeTerminalSessionCount, setActiveTerminalSessionCount] = useState(0)
 
   const [secretDialogOpen, setSecretDialogOpen] = useState(false)
   const [dockerBridgeHost, setDockerBridgeHost] = useState('')
@@ -883,6 +909,38 @@ export function ServersPage() {
     }
   }, [])
 
+  useEffect(() => {
+    const syncTerminalSessions = async () => {
+      try {
+        const sessions = await listTerminalSessions()
+        setActiveTerminalSessionCount(
+          sessions.filter(session => session.resource_type === 'server').length
+        )
+      } catch {
+        setActiveTerminalSessionCount(0)
+      }
+    }
+
+    void syncTerminalSessions()
+
+    const handleFocus = () => {
+      void syncTerminalSessions()
+    }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void syncTerminalSessions()
+      }
+    }
+
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [])
+
   const listItems = useCallback(async () => {
     const [serverResponse, monitorResponse] = await Promise.all([
       pb.send<{ items?: ServerReadModelItem[] }>('/api/servers/connection', {
@@ -1139,54 +1197,70 @@ export function ServersPage() {
 
   const renderListSettings = useCallback(
     ({ pageSize, setPageSize }: { pageSize: number; setPageSize: (pageSize: number) => void }) => (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" title="List settings" aria-label="List settings">
-            <SlidersHorizontal className="h-4 w-4" />
+      <div className="flex items-center gap-2">
+        {activeTerminalSessionCount > 0 ? (
+          <Button
+            variant="link"
+            size="sm"
+            className="h-8 px-0"
+            onClick={() => {
+              void navigate({ to: '/terminal' })
+            }}
+          >
+            {activeTerminalSessionCount === 1
+              ? '1 active terminal session'
+              : `${activeTerminalSessionCount} active terminal sessions`}
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel>Rows per page</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={String(pageSize)}
-            onValueChange={value => setPageSize(Number(value))}
-          >
-            {[10, 50, 100].map(option => (
-              <DropdownMenuRadioItem key={option} value={String(option)}>
-                {option} / page
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>Columns</DropdownMenuLabel>
-          <DropdownMenuCheckboxItem
-            checked={visibleOptionalColumns.has('host_summary')}
-            onCheckedChange={checked => toggleOptionalColumn('host_summary', checked === true)}
-          >
-            Host
-          </DropdownMenuCheckboxItem>
-          <DropdownMenuCheckboxItem
-            checked={visibleOptionalColumns.has('monitor_status')}
-            onCheckedChange={checked => toggleOptionalColumn('monitor_status', checked === true)}
-          >
-            Monitor
-          </DropdownMenuCheckboxItem>
-          <DropdownMenuCheckboxItem
-            checked={visibleOptionalColumns.has('user')}
-            onCheckedChange={checked => toggleOptionalColumn('user', checked === true)}
-          >
-            User
-          </DropdownMenuCheckboxItem>
-          <DropdownMenuCheckboxItem
-            checked={visibleOptionalColumns.has('secret_type_label')}
-            onCheckedChange={checked => toggleOptionalColumn('secret_type_label', checked === true)}
-          >
-            Secret Type
-          </DropdownMenuCheckboxItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+        ) : null}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" title="List settings" aria-label="List settings">
+              <SlidersHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>Rows per page</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={String(pageSize)}
+              onValueChange={value => setPageSize(Number(value))}
+            >
+              {[10, 50, 100].map(option => (
+                <DropdownMenuRadioItem key={option} value={String(option)}>
+                  {option} / page
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Columns</DropdownMenuLabel>
+            <DropdownMenuCheckboxItem
+              checked={visibleOptionalColumns.has('host_summary')}
+              onCheckedChange={checked => toggleOptionalColumn('host_summary', checked === true)}
+            >
+              Host
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={visibleOptionalColumns.has('monitor_status')}
+              onCheckedChange={checked => toggleOptionalColumn('monitor_status', checked === true)}
+            >
+              Monitor
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={visibleOptionalColumns.has('user')}
+              onCheckedChange={checked => toggleOptionalColumn('user', checked === true)}
+            >
+              User
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={visibleOptionalColumns.has('secret_type_label')}
+              onCheckedChange={checked => toggleOptionalColumn('secret_type_label', checked === true)}
+            >
+              Secret Type
+            </DropdownMenuCheckboxItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     ),
-    [toggleOptionalColumn, visibleOptionalColumns]
+    [activeTerminalSessionCount, navigate, toggleOptionalColumn, visibleOptionalColumns]
   )
 
   const renderDetailPanel = useCallback(
@@ -1440,11 +1514,27 @@ export function ServersPage() {
                   setComponentActionIntent(current => (current?.nonce === nonce ? null : current))
                 }}
                 focusComponentKey={focusComponent}
-                onFocusComponentConsumed={componentKey => {
-                  if (focusComponent !== componentKey) return
+                focusPanelMode={resolvedFocusPanel}
+                focusSource={resolvedFocusSource}
+                focusIssueCode={resolvedFocusIssue}
+                onFocusRequestConsumed={(componentKey, panelMode, source, issueCode) => {
+                  if (
+                    focusComponent !== componentKey ||
+                    (resolvedFocusPanel ?? 'checklist') !== panelMode ||
+                    (resolvedFocusSource ?? null) !== (source ?? null) ||
+                    (resolvedFocusIssue ?? null) !== (issueCode ?? null)
+                  ) {
+                    return
+                  }
                   void navigate({
                     to: '/resources/servers',
-                    search: prev => ({ ...prev, focusComponent: undefined }),
+                    search: prev => ({
+                      ...prev,
+                      focusComponent: undefined,
+                      focusPanel: undefined,
+                      focusSource: undefined,
+                      focusIssue: undefined,
+                    }),
                   })
                 }}
               />
@@ -1910,6 +2000,28 @@ export const Route = createFileRoute('/_app/_auth/resources/servers')({
     server: typeof search.server === 'string' ? search.server : undefined,
     focusComponent:
       typeof search.focusComponent === 'string' ? search.focusComponent : undefined,
+    focusPanel:
+      search.focusPanel === 'checklist' ||
+      search.focusPanel === 'operation' ||
+      search.focusPanel === 'history'
+        ? search.focusPanel
+        : undefined,
+    focusSource:
+      search.focusSource === 'overview' ||
+      search.focusSource === 'containers' ||
+      search.focusSource === 'images' ||
+      search.focusSource === 'volumes' ||
+      search.focusSource === 'networks' ||
+      search.focusSource === 'compose'
+        ? search.focusSource
+        : undefined,
+    focusIssue:
+      search.focusIssue === 'docker_missing' ||
+      search.focusIssue === 'compose_missing' ||
+      search.focusIssue === 'docker_daemon_unavailable' ||
+      search.focusIssue === 'docker_permission_denied'
+        ? search.focusIssue
+        : undefined,
     tab:
       search.tab === 'overview' ||
       search.tab === 'connection' ||

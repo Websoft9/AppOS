@@ -23,6 +23,18 @@ vi.mock('@/lib/connect-api', () => ({
 }))
 
 describe('TerminalIndexPage', () => {
+  function getButtonByText(label: string) {
+    const match = screen
+      .getAllByRole('button')
+      .find(button => button.textContent?.trim() === label)
+
+    if (!match) {
+      throw new Error(`Button not found: ${label}`)
+    }
+
+    return match
+  }
+
   function renderPage() {
     return render(
       <TooltipProvider>
@@ -40,8 +52,8 @@ describe('TerminalIndexPage', () => {
     getConnectTerminalSettingsMock.mockReset()
 
     listServersMock.mockResolvedValue([
-      { id: 'srv-1', name: 'Alpha', host: '10.0.0.1' },
-      { id: 'srv-2', name: 'Beta', host: '10.0.0.2' },
+      { id: 'srv-1', name: 'Alpha', host: '10.0.0.1', access_status: 'available' },
+      { id: 'srv-2', name: 'Beta', host: '10.0.0.2', access_status: 'available' },
     ])
     listTerminalSessionsMock.mockResolvedValue([])
     checkServerStatusMock.mockResolvedValue({ status: 'online' })
@@ -85,7 +97,7 @@ describe('TerminalIndexPage', () => {
     renderPage()
 
     await waitFor(() => {
-      expect(screen.getByText('Connected Resources')).toBeInTheDocument()
+      expect(screen.getByText('Active Sessions')).toBeInTheDocument()
       expect(screen.getAllByText('Idle').length).toBeGreaterThan(0)
     })
 
@@ -98,7 +110,7 @@ describe('TerminalIndexPage', () => {
     renderPage()
 
     await waitFor(() => {
-      expect(screen.getByText('No active connections')).toBeInTheDocument()
+      expect(screen.getByText('No active sessions')).toBeInTheDocument()
     })
 
     listTerminalSessionsMock.mockResolvedValue([
@@ -118,9 +130,9 @@ describe('TerminalIndexPage', () => {
     fireEvent(window, new Event('focus'))
 
     await waitFor(() => {
-      expect(screen.getByText('Beta')).toBeInTheDocument()
-      expect(screen.getByText('Connected')).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /resume/i })).toBeInTheDocument()
+      expect(screen.getAllByText('Beta').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('Connected').length).toBeGreaterThan(0)
+      expect(getButtonByText('Resume')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /exit/i })).toBeInTheDocument()
     })
   })
@@ -130,12 +142,7 @@ describe('TerminalIndexPage', () => {
 
     renderPage()
 
-    const buttons = await screen.findAllByRole('button')
-    fireEvent.click(buttons[2])
-    fireEvent.click(await screen.findByRole('button', { name: 'Servers' }))
-
-    const addServerButtons = await screen.findAllByRole('button', { name: 'Add Server' })
-    fireEvent.click(addServerButtons[0])
+    fireEvent.click(await screen.findByRole('button', { name: 'Add Server' }))
 
     expect(navigateMock).toHaveBeenCalledWith({
       to: '/resources/servers',
@@ -165,7 +172,8 @@ describe('TerminalIndexPage', () => {
 
     renderPage()
 
-    const resumeButton = await screen.findByRole('button', { name: /resume/i })
+    await screen.findByText('Active Sessions')
+    const resumeButton = getButtonByText('Resume')
     fireEvent.click(resumeButton)
 
     await waitFor(() => {
@@ -183,6 +191,66 @@ describe('TerminalIndexPage', () => {
     })
 
     expect(checkServerStatusMock).not.toHaveBeenCalled()
+  })
+
+  it('shows the Server Terminal header and no deprecated capability tabs', async () => {
+    renderPage()
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Server Terminal' })).toBeInTheDocument()
+    })
+
+    expect(
+      screen.getByText('Open, resume, and manage server terminals with shell and files.')
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Overview')).not.toBeInTheDocument()
+    expect(screen.queryByText('Servers')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cloud' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Databases' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'APIs' })).not.toBeInTheDocument()
+  })
+
+  it('shows connected servers in the left list and filters offline servers out', async () => {
+    listServersMock.mockResolvedValue([
+      { id: 'srv-1', name: 'Alpha', host: '10.0.0.1', access_status: 'available' },
+      { id: 'srv-2', name: 'Beta', host: '10.0.0.2', access_status: 'unavailable' },
+    ])
+    listTerminalSessionsMock.mockResolvedValue([
+      {
+        id: 'tab-1',
+        user_id: 'user-1',
+        resource_type: 'server',
+        resource_id: 'srv-1',
+        session_type: 'ssh',
+        state: 'attached',
+        started_at: new Date(Date.now() - 60 * 1000).toISOString(),
+        last_active_at: new Date().toISOString(),
+        workspace: {},
+      },
+    ])
+
+    renderPage()
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Alpha').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('Connected').length).toBeGreaterThan(0)
+      expect(getButtonByText('Resume')).toBeInTheDocument()
+    })
+
+    expect(screen.queryAllByText('Beta')).toHaveLength(0)
+  })
+
+  it('refreshes servers and sessions from the header refresh action', async () => {
+    renderPage()
+
+    await screen.findByRole('heading', { name: 'Server Terminal' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+
+    await waitFor(() => {
+      expect(listServersMock).toHaveBeenCalledTimes(2)
+      expect(listTerminalSessionsMock).toHaveBeenCalledTimes(2)
+    })
   })
 
   it('allows explicitly exiting an active terminal session from the list', async () => {

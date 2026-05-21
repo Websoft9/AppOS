@@ -1200,7 +1200,7 @@ function formatSeriesLatestLabel(item: MonitorSeriesResponse['series'][number]):
     return `${latestInbound === null ? '—' : `${formatRateBytes(latestInbound)}/s`} in${latestOutbound === null ? '' : ` / ${formatRateBytes(latestOutbound)}/s out`}`
   }
   if (item.name === 'network_traffic' && (latestInbound !== null || latestOutbound !== null)) {
-    return `${latestInbound === null ? '—' : formatTrendValue('GB', `${item.name}_in`, latestInbound)} in${latestOutbound === null ? '' : ` / ${formatTrendValue('GB', `${item.name}_out`, latestOutbound)} out`}`
+    return `${latestInbound === null ? '—' : formatTrendValue(item.unit, `${item.name}_in`, latestInbound)} in${latestOutbound === null ? '' : ` / ${formatTrendValue(item.unit, `${item.name}_out`, latestOutbound)} out`}`
   }
   return '—'
 }
@@ -1265,7 +1265,7 @@ function TrendCard({
       return `${latestInbound === null ? '—' : `${formatRateBytes(latestInbound)}/s`} in${latestOutbound === null ? '' : ` / ${formatRateBytes(latestOutbound)}/s out`}`
     }
     if (name === 'network_traffic' && (latestInbound !== null || latestOutbound !== null)) {
-      return `${latestInbound === null ? '—' : formatTrendValue('GB', `${name}_in`, latestInbound)} in${latestOutbound === null ? '' : ` / ${formatTrendValue('GB', `${name}_out`, latestOutbound)} out`}`
+      return `${latestInbound === null ? '—' : formatTrendValue(unit, `${name}_in`, latestInbound)} in${latestOutbound === null ? '' : ` / ${formatTrendValue(unit, `${name}_out`, latestOutbound)} out`}`
     }
     return '—'
   })()

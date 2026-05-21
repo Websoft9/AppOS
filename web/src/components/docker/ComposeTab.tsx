@@ -676,7 +676,7 @@ export function ComposeTab({
   return (
     <div className={cn('h-full min-h-0 flex flex-col gap-4', embeddedInWorkspace ? 'pt-0' : 'pt-4')}>
       {dependencyIssue && visibleError ? (
-        <DockerDependencyAlert serverId={serverId} message={visibleError} />
+        <DockerDependencyAlert serverId={serverId} message={visibleError} focusSource="compose" />
       ) : visibleError ? (
         <Alert variant="destructive" className="shrink-0">
           <AlertDescription>{visibleError}</AlertDescription>

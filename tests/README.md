@@ -7,12 +7,57 @@ This repository uses a mix of backend Go tests, frontend Vitest tests, and end-t
 Common entrypoints:
 
 - `make test backend`
+- `make test backend-targeted`
+- `make test backend-iac`
+- `make test backend-software`
 - `make test web`
 - `make test e2e fast`
 
 ## Backend Test Infrastructure
 
 The heaviest backend integration tests live in `backend/domain/routes`. Those tests depend on PocketBase test apps and route-level HTTP fixtures.
+
+### Legacy mixed backend-targeted entrypoint
+
+The older narrow backend bundle is still available as:
+
+- `make test backend-targeted`
+
+What it runs:
+
+- `backend/domain/routes`
+- `backend/domain/secrets`
+- `backend/infra/migrations`
+
+Use it when you specifically need the historical mixed integration slice around routes, secrets, and migrations.
+
+Do not treat it as the default home for every subsystem-specific regression need. New narrow suites should prefer explicit focused targets like `backend-iac` and `backend-software`.
+
+### Focused IaC regression entrypoint
+
+The IaC refactor now has a dedicated focused regression target:
+
+- `make test backend-iac`
+
+What it runs:
+
+- `backend/domain/iac` service-level tests
+- `backend/domain/routes` IaC-focused HTTP adapter tests (`TestIACRoutes*`)
+
+Use this target when working specifically on IaC/file-management behavior and you need a fast, high-signal backend check without paying for the entire backend test surface.
+
+### Focused software catalog/executor regression entrypoint
+
+The software contract/execution surface also has a dedicated focused regression target:
+
+- `make test backend-software`
+
+What it runs:
+
+- `backend/domain/software/catalog` contract and catalog-invariant tests
+- `backend/domain/software/executor` embedded-script command construction tests
+
+Use this target when changing software catalog metadata, template resolution, or managed-script command generation and you want a narrow backend validation slice.
 
 ### PocketBase baseline fixture for `backend/domain/routes`
 

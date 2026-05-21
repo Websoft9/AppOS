@@ -317,7 +317,11 @@ func TestQueryMetricSeriesQueriesNetdataServerNetworkTrafficExpression(t *testin
 			_, _ = w.Write([]byte(`{"status":"success","data":[{"network_interface":"eth0"}]}`))
 		default:
 			queries = append(queries, r.URL.Query().Get("query"))
-			_, _ = w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
+			if strings.Contains(r.URL.Query().Get("query"), "network_rx") {
+				_, _ = w.Write([]byte(`{"status":"success","data":{"result":[{"values":[[1713096000,"1024"],[1713096300,"2048"]]}]}}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"status":"success","data":{"result":[{"values":[[1713096000,"512"],[1713096300,"1024"]]}]}}`))
 		}
 	}))
 	defer server.Close()
@@ -344,6 +348,12 @@ func TestQueryMetricSeriesQueriesNetdataServerNetworkTrafficExpression(t *testin
 	}
 	if resp.Series[0].Unit != "bytes" {
 		t.Fatalf("unexpected network traffic unit: %+v", resp.Series[0])
+	}
+	if got := resp.Series[0].Segments[0].Points; len(got) != 2 || got[0][1] != 307200 || got[1][1] != 921600 {
+		t.Fatalf("unexpected cumulative inbound traffic points: %+v", got)
+	}
+	if got := resp.Series[0].Segments[1].Points; len(got) != 2 || got[0][1] != 153600 || got[1][1] != 460800 {
+		t.Fatalf("unexpected cumulative outbound traffic points: %+v", got)
 	}
 }
 

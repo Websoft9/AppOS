@@ -306,16 +306,8 @@ export function ServerMonitorConclusions({
                   >
                     <span className="mt-0.5 shrink-0">{conclusionIcon(item.state)}</span>
                     <span className="min-w-0 flex-1 space-y-0.5">
-                      <span className="flex items-center justify-between gap-2">
-                        <span className="truncate text-sm font-medium text-foreground">
-                          {item.label}
-                        </span>
-                        <Badge
-                          variant={stateBadgeVariant(item.state)}
-                          className="shrink-0 text-[11px]"
-                        >
-                          {stateLabel(item.state)}
-                        </Badge>
+                      <span className="block truncate text-sm font-medium text-foreground">
+                        {item.label}
                       </span>
                       <span className="block truncate text-xs text-muted-foreground">
                         {item.summary}
@@ -325,17 +317,25 @@ export function ServerMonitorConclusions({
                       </span>
                     </span>
                   </button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="mt-0.5 h-6 w-6 shrink-0 self-start"
-                    aria-label={`Delete conclusion ${item.label}`}
-                    title="Delete conclusion"
-                    onClick={() => dismissConclusion(item.id)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-2 self-start pt-0.5">
+                    <Badge
+                      variant={stateBadgeVariant(item.state)}
+                      className="shrink-0 text-[11px]"
+                    >
+                      {stateLabel(item.state)}
+                    </Badge>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 shrink-0"
+                      aria-label={`Delete conclusion ${item.label}`}
+                      title="Delete conclusion"
+                      onClick={() => dismissConclusion(item.id)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
                 </div>
               )
             })}

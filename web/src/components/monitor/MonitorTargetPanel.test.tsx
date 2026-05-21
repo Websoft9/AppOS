@@ -149,14 +149,14 @@ describe('MonitorTargetPanel', () => {
                 name: 'in',
                 points: [
                   [1713096000, 64 * 1024 * 1024],
-                  [1713096060, 96 * 1024 * 1024],
+                  [1713096060, 160 * 1024 * 1024],
                 ],
               },
               {
                 name: 'out',
                 points: [
                   [1713096000, 64 * 1024 * 1024],
-                  [1713096060, 96 * 1024 * 1024],
+                  [1713096060, 160 * 1024 * 1024],
                 ],
               },
             ],
@@ -186,6 +186,7 @@ describe('MonitorTargetPanel', () => {
     expect(screen.getByText('Disk IO')).toBeInTheDocument()
     expect(screen.getByText('Network Traffic')).toBeInTheDocument()
     expect(screen.getByText('Network Speed')).toBeInTheDocument()
+    expect(screen.getByText('160 MB in / 160 MB out')).toBeInTheDocument()
     expect(screen.getByLabelText('Network interface')).toBeInTheDocument()
     expect(screen.getByLabelText('cpu time series chart')).toBeInTheDocument()
     expect(screen.getByLabelText('disk_usage time series chart')).toBeInTheDocument()
@@ -374,14 +375,14 @@ describe('MonitorTargetPanel', () => {
                 name: 'in',
                 points: [
                   [1713096000, 64 * 1024 * 1024],
-                  [1713096060, 96 * 1024 * 1024],
+                  [1713096060, 160 * 1024 * 1024],
                 ],
               },
               {
                 name: 'out',
                 points: [
                   [1713096000, 64 * 1024 * 1024],
-                  [1713096060, 96 * 1024 * 1024],
+                  [1713096060, 160 * 1024 * 1024],
                 ],
               },
             ],
@@ -1008,14 +1009,14 @@ describe('MonitorTargetPanel', () => {
                 name: 'in',
                 points: [
                   [1713096000, 32 * 1024 * 1024],
-                  [1713096060, 48 * 1024 * 1024],
+                  [1713096060, 80 * 1024 * 1024],
                 ],
               },
               {
                 name: 'out',
                 points: [
                   [1713096000, 32 * 1024 * 1024],
-                  [1713096060, 48 * 1024 * 1024],
+                  [1713096060, 80 * 1024 * 1024],
                 ],
               },
             ],

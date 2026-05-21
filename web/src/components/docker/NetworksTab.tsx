@@ -395,7 +395,7 @@ export const NetworksTab = forwardRef<NetworksTabRef, NetworksTabProps>(function
       )}
     >
       {dependencyIssue && visibleError ? (
-        <DockerDependencyAlert serverId={serverId} message={visibleError} />
+        <DockerDependencyAlert serverId={serverId} message={visibleError} focusSource="networks" />
       ) : visibleError ? (
         <Alert variant="destructive" className="shrink-0">
           <AlertDescription>{visibleError}</AlertDescription>

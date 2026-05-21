@@ -17,12 +17,15 @@ import (
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/websoft9/appos/backend/domain/audit"
 	"github.com/websoft9/appos/backend/domain/deploy"
+	"github.com/websoft9/appos/backend/domain/iac"
 	"github.com/websoft9/appos/backend/domain/lifecycle/model"
 	servers "github.com/websoft9/appos/backend/domain/resource/servers"
 	"github.com/websoft9/appos/backend/domain/terminal"
 )
 
 const appComposeConfigMaxBytes int64 = 2 << 20
+
+var appConfigBasePath = iac.WorkspaceBasePath
 
 type composeProjectStatus struct {
 	Name        string `json:"Name"`
@@ -866,7 +869,7 @@ func saveAppComposeToIAC(id string, name string, content string) error {
 		return nil
 	}
 	rel := appInstanceIACPath(id, name)
-	abs := filepath.Join(filesBasePath, filepath.FromSlash(rel))
+	abs := filepath.Join(appConfigBasePath, filepath.FromSlash(rel))
 	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
 		return fmt.Errorf("prepare iac directory: %w", err)
 	}
@@ -916,7 +919,7 @@ type appConfigRollbackSnapshot struct {
 }
 
 func getAppConfigRollbackSnapshot(record *core.Record) (appConfigRollbackSnapshot, bool) {
-	abs := filepath.Join(filesBasePath, filepath.FromSlash(appConfigRollbackPath(record.Id, record.GetString("name"))))
+	abs := filepath.Join(appConfigBasePath, filepath.FromSlash(appConfigRollbackPath(record.Id, record.GetString("name"))))
 	raw, err := os.ReadFile(abs)
 	if err != nil {
 		return appConfigRollbackSnapshot{}, false
@@ -936,7 +939,7 @@ func getAppConfigRollbackSnapshot(record *core.Record) (appConfigRollbackSnapsho
 }
 
 func setAppConfigRollbackSnapshot(record *core.Record, content string, sourceAction string) error {
-	abs := filepath.Join(filesBasePath, filepath.FromSlash(appConfigRollbackPath(record.Id, record.GetString("name"))))
+	abs := filepath.Join(appConfigBasePath, filepath.FromSlash(appConfigRollbackPath(record.Id, record.GetString("name"))))
 	if strings.TrimSpace(content) == "" {
 		if err := os.Remove(abs); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("remove rollback snapshot: %w", err)

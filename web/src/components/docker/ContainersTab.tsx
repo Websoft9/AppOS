@@ -1293,7 +1293,7 @@ export function ContainersTab({
   return (
     <div className="min-h-0 flex flex-col gap-3">
       {dependencyIssue && visibleError ? (
-        <DockerDependencyAlert serverId={serverId} message={visibleError} />
+        <DockerDependencyAlert serverId={serverId} message={visibleError} focusSource="containers" />
       ) : visibleError ? (
         <Alert variant="destructive" className="shrink-0">
           <AlertDescription>{visibleError}</AlertDescription>

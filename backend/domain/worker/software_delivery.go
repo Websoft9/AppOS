@@ -78,6 +78,8 @@ var ErrSoftwareOperationInFlight = errors.New("software operation already in fli
 const softwareOperationOrphanThreshold = 10 * time.Minute
 const monitorAgentTokenPrefix = "monitor-agent-token-"
 const monitorAgentRemoteWritePath = "/api/monitor/write"
+const telegrafRemoteWritePath = "/api/monitor/telegraf/write"
+const telegrafManagedVersion = "1.38.4"
 
 type softwareOutputLogger interface {
 	SetOutputLogger(func(string))
@@ -533,6 +535,15 @@ func buildSoftwareMonitorRemoteWriteURL(app core.App, payload SoftwareActionPayl
 	return baseURL + monitorAgentRemoteWritePath, nil
 }
 
+func buildSoftwareTelegrafWriteURL(app core.App, payload SoftwareActionPayload) (string, error) {
+	_ = app
+	baseURL := software.NormalizeAppOSBaseURL(payload.AppOSBaseURL)
+	if baseURL == "" {
+		return "", fmt.Errorf("AppOS callback URL is required to configure telegraf output")
+	}
+	return baseURL + telegrafRemoteWritePath, nil
+}
+
 func buildSoftwareNetdataExportingConfig(serverID string, remoteWriteURL string, agentToken string) (string, error) {
 	parsed, err := url.Parse(strings.TrimSpace(remoteWriteURL))
 	if err != nil {
@@ -582,38 +593,127 @@ func buildSoftwareNetdataExportingConfig(serverID string, remoteWriteURL string,
 	}, "\n"), nil
 }
 
-func prepareMonitorAgentRuntimeTemplate(app core.App, payload SoftwareActionPayload, resolved software.ResolvedTemplate) (software.ResolvedTemplate, string, error) {
-	if payload.ComponentKey != software.ComponentKeyMonitorAgent {
-		return resolved, "", nil
+func buildSoftwareTelegrafConfig(serverID string, outputURL string, username string, password string) (string, error) {
+	serverID = strings.TrimSpace(serverID)
+	if serverID == "" {
+		return "", fmt.Errorf("server id is required")
 	}
-	remoteWriteURL, err := buildSoftwareMonitorRemoteWriteURL(app, payload)
-	if err != nil {
-		return resolved, "", err
+	outputURL = strings.TrimSpace(outputURL)
+	if outputURL == "" {
+		return "", fmt.Errorf("telegraf output url is required")
 	}
-	agentToken, err := getOrIssueSoftwareMonitorAgentToken(app, payload.ServerID)
-	if err != nil {
-		return resolved, "", err
+	username = strings.TrimSpace(username)
+	if username == "" {
+		return "", fmt.Errorf("telegraf output username is required")
 	}
-	exportingConfig, err := buildSoftwareNetdataExportingConfig(payload.ServerID, remoteWriteURL, agentToken)
-	if err != nil {
-		return resolved, "", err
+	password = strings.TrimSpace(password)
+	if password == "" {
+		return "", fmt.Errorf("telegraf output password is required")
 	}
-	env := map[string]string{
-		"APPOS_MONITOR_EXPORTING_CONFIG_B64": base64.StdEncoding.EncodeToString([]byte(exportingConfig)),
+	return strings.Join([]string{
+		"# Managed by AppOS. Changes may be overwritten by Components telegraf actions.",
+		"[global_tags]",
+		fmt.Sprintf("  appos_server_id = %q", serverID),
+		"",
+		"[agent]",
+		"  interval = \"10s\"",
+		"  round_interval = true",
+		"  metric_batch_size = 1000",
+		"  metric_buffer_limit = 5000",
+		"  collection_jitter = \"1s\"",
+		"  flush_interval = \"10s\"",
+		"  flush_jitter = \"1s\"",
+		"  precision = \"1s\"",
+		"  omit_hostname = false",
+		"",
+		"[[inputs.cpu]]",
+		"  percpu = false",
+		"  totalcpu = true",
+		"  collect_cpu_time = true",
+		"  report_active = true",
+		"",
+		"[[inputs.mem]]",
+		"",
+		"[[inputs.system]]",
+		"",
+		"[[inputs.disk]]",
+		"  ignore_fs = [\"tmpfs\", \"devtmpfs\", \"devfs\", \"iso9660\", \"overlay\", \"aufs\", \"squashfs\"]",
+		"",
+		"[[inputs.net]]",
+		"",
+		"[[inputs.docker]]",
+		"  endpoint = \"unix:///var/run/docker.sock\"",
+		"  gather_services = false",
+		"",
+		"[[outputs.http]]",
+		fmt.Sprintf("  url = %q", outputURL),
+		"  method = \"POST\"",
+		fmt.Sprintf("  username = %q", username),
+		fmt.Sprintf("  password = %q", password),
+		"  data_format = \"influx\"",
+		"  non_retryable_statuscodes = [400, 401, 403, 413]",
+		"",
+	}, "\n"), nil
+}
+
+func mergeSoftwareRuntimeEnv(current map[string]string, injected map[string]string) map[string]string {
+	if len(current) == 0 && len(injected) == 0 {
+		return nil
 	}
-	mergeEnv := func(current map[string]string) map[string]string {
-		next := make(map[string]string, len(current)+len(env))
-		for key, value := range current {
-			next[key] = value
+	next := make(map[string]string, len(current)+len(injected))
+	for key, value := range current {
+		next[key] = value
+	}
+	for key, value := range injected {
+		next[key] = value
+	}
+	return next
+}
+
+func prepareSoftwareRuntimeTemplate(app core.App, payload SoftwareActionPayload, resolved software.ResolvedTemplate) (software.ResolvedTemplate, []string, error) {
+	var notes []string
+	switch payload.ComponentKey {
+	case software.ComponentKeyMonitorAgent:
+		remoteWriteURL, err := buildSoftwareMonitorRemoteWriteURL(app, payload)
+		if err != nil {
+			return resolved, nil, err
 		}
-		for key, value := range env {
-			next[key] = value
+		agentToken, err := getOrIssueSoftwareMonitorAgentToken(app, payload.ServerID)
+		if err != nil {
+			return resolved, nil, err
 		}
-		return next
+		exportingConfig, err := buildSoftwareNetdataExportingConfig(payload.ServerID, remoteWriteURL, agentToken)
+		if err != nil {
+			return resolved, nil, err
+		}
+		env := map[string]string{
+			"APPOS_MONITOR_EXPORTING_CONFIG_B64": base64.StdEncoding.EncodeToString([]byte(exportingConfig)),
+		}
+		resolved.Install.Env = mergeSoftwareRuntimeEnv(resolved.Install.Env, env)
+		resolved.Upgrade.Env = mergeSoftwareRuntimeEnv(resolved.Upgrade.Env, env)
+		notes = append(notes, fmt.Sprintf("Configure Netdata remote write endpoint %s.", remoteWriteURL))
+	case software.ComponentKeyTelegraf:
+		outputURL, err := buildSoftwareTelegrafWriteURL(app, payload)
+		if err != nil {
+			return resolved, nil, err
+		}
+		agentToken, err := getOrIssueSoftwareMonitorAgentToken(app, payload.ServerID)
+		if err != nil {
+			return resolved, nil, err
+		}
+		config, err := buildSoftwareTelegrafConfig(payload.ServerID, outputURL, payload.ServerID, agentToken)
+		if err != nil {
+			return resolved, nil, err
+		}
+		env := map[string]string{
+			"APPOS_TELEGRAF_VERSION":    telegrafManagedVersion,
+			"APPOS_TELEGRAF_CONFIG_B64": base64.StdEncoding.EncodeToString([]byte(config)),
+		}
+		resolved.Install.Env = mergeSoftwareRuntimeEnv(resolved.Install.Env, env)
+		resolved.Upgrade.Env = mergeSoftwareRuntimeEnv(resolved.Upgrade.Env, env)
+		notes = append(notes, fmt.Sprintf("Configure Telegraf write endpoint %s.", outputURL))
 	}
-	resolved.Install.Env = mergeEnv(resolved.Install.Env)
-	resolved.Upgrade.Env = mergeEnv(resolved.Upgrade.Env)
-	return resolved, remoteWriteURL, nil
+	return resolved, notes, nil
 }
 
 // advanceSoftwarePhase updates the operation record to a new phase, if the transition is forward.
@@ -801,16 +901,16 @@ func (w *Worker) runSoftwarePhaseLoop(ctx context.Context, record *core.Record, 
 
 	entry = software.ApplyRuntimeBindings(w.app, entry)
 	resolved := swcatalog.ResolveTemplate(entry, tpl)
-	resolved, monitorRemoteWriteURL, monitorBindErr := prepareMonitorAgentRuntimeTemplate(w.app, payload, resolved)
-	if monitorBindErr != nil {
-		w.failSoftwareOperationWithAudit(record, payload, software.OperationPhasePreflight, software.FailureCodePreflightError, fmt.Sprintf("configure monitor agent runtime binding: %v", monitorBindErr))
+	resolved, runtimeNotes, runtimeBindErr := prepareSoftwareRuntimeTemplate(w.app, payload, resolved)
+	if runtimeBindErr != nil {
+		w.failSoftwareOperationWithAudit(record, payload, software.OperationPhasePreflight, software.FailureCodePreflightError, fmt.Sprintf("configure runtime binding: %v", runtimeBindErr))
 		return
 	}
 	for _, step := range describeSoftwareExecutionPlan(action, resolved) {
 		w.logSoftwareOperationEvent(record, step)
 	}
-	if monitorRemoteWriteURL != "" {
-		w.logSoftwareOperationEvent(record, fmt.Sprintf("Configure Netdata remote write endpoint %s.", monitorRemoteWriteURL))
+	for _, note := range runtimeNotes {
+		w.logSoftwareOperationEvent(record, note)
 	}
 
 	executor, exErr := softwareExecutorFactory(w.app, serverID, payload.UserID)

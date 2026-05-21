@@ -4561,6 +4561,48 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MonitorErrorResponse'
+  /api/monitor/telegraf/write:
+    post:
+      tags: [Monitoring Ingest]
+      summary: Write Telegraf metrics
+      description: "Receives Influx line protocol payloads from managed-server Telegraf agents and forwards them to the embedded VictoriaMetrics Influx write endpoint. Authenticate with HTTP Basic Auth where username is the server record ID and password is the per-server monitor agent token issued during managed metrics collector setup."
+      operationId: post_api_monitor_telegraf_write
+      parameters:
+        - name: Authorization
+          in: header
+          description: "Basic base64(serverId:monitorAgentToken)"
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitorErrorResponse'
+        "413":
+          description: Payload Too Large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitorErrorResponse'
+        "502":
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitorErrorResponse'
   /api/monitor/write:
     post:
       tags: [Monitoring Ingest]

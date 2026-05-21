@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/websoft9/appos/backend/infra/fileutil"
@@ -451,6 +452,9 @@ func normalizePathError(err error) error {
 	}
 	if os.IsNotExist(err) {
 		return ErrNotFound
+	}
+	if errors.Is(err, syscall.ENOTEMPTY) {
+		return ErrDirectoryRequired
 	}
 	return err
 }

@@ -126,6 +126,23 @@ Two-zone layout: top header + bottom split.
 └────────┴─────────────────────────────────────┘
 ```
 
+Minimal layout reference:
+
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│ Server Workbench                                                   │
+│ Open, resume, and manage server workspaces                         │
+├─────────────────────────────────────────────────────────────────────┤
+│ [ Open Workbench ] [ Resume Latest ] [ Browse Servers ] [ Add ]    │
+├───────────────────────┬─────────────────────────────────────────────┤
+│ Active Workspaces     │ Available Servers                           │
+│                       │                                             │
+│ srv-1                 │ srv-2                                       │
+│ Live / Detached       │ host: 10.0.0.2                              │
+│ Resume / Exit         │ Open Workbench                              │
+└───────────────────────┴─────────────────────────────────────────────┘
+```
+
 **Left nav** (collapsible vertical tab bar):
 - Default state: **collapsed** (icon-only, `w-12`); click anywhere to expand (`w-44`).
 - Toggle button: `PanelLeft` / `PanelLeftClose`.
@@ -144,6 +161,20 @@ Two-zone layout: top header + bottom split.
 **Servers panel**: Active Sessions section (from `loadConnectSession()`) + Available Servers section with Add Server shortcut. Connecting triggers a 2-second minimum feedback dialog.
 
 **Server workspace rule**: `Shell (SSH)` and `Files (SFTP)` belong inside the same server workspace. They are not separate top-level Terminal categories.
+
+Server workspace layout:
+
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│ Server Workspace: srv-1                                             │
+├─────────────────────────────────────────────────────────────────────┤
+│ [ Shell ] [ Files ] [ Split ] [ Reconnect ] [ Exit ]               │
+├───────────────────────────────┬─────────────────────────────────────┤
+│ Shell (SSH)                   │ Files (SFTP)                        │
+│                               │                                     │
+│ full-width or split layout    │ optional side panel                 │
+└───────────────────────────────┴─────────────────────────────────────┘
+```
 
 **Sandbox note**: a future sandbox shell may appear as a sibling Terminal workspace, not as another tab inside Server Workbench.
 

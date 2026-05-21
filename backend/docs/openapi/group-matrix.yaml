@@ -425,6 +425,7 @@ groups:
     apiType: Ext
     extSurface:
       - POST /api/monitor/write
+      - POST /api/monitor/telegraf/write
     nativeSurface: []
     sources:
       extRouteFiles:

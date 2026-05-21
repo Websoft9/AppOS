@@ -274,6 +274,20 @@ func TestLocalServiceWriteReaderDoesNotDeleteDirectoryTarget(t *testing.T) {
 	}
 }
 
+func TestLocalServiceDeleteNonEmptyDirectoryRequiresRecursive(t *testing.T) {
+	base := t.TempDir()
+	mustWriteFile(t, filepath.Join(base, "apps", "demo", "keep.txt"), []byte("keep"))
+	svc := newService(t, base, false)
+
+	err := svc.Delete("apps/demo", false)
+	if !errors.Is(err, filesvc.ErrDirectoryRequired) {
+		t.Fatalf("expected directory required, got %v", err)
+	}
+	if _, statErr := svc.Stat("apps/demo/keep.txt"); statErr != nil {
+		t.Fatalf("expected directory contents to remain after failed delete: %v", statErr)
+	}
+}
+
 func TestLocalServiceCopyDoesNotDeleteFileWhenDirectoryExpected(t *testing.T) {
 	base := t.TempDir()
 	mustWriteFile(t, filepath.Join(base, "apps", "srcdir", "nested.txt"), []byte("nested"))

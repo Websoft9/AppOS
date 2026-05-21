@@ -52,6 +52,10 @@ import {
   type SoftwareComponentSummary,
   type SoftwareLastOperation,
 } from '@/lib/software-api'
+import type {
+  DockerDependencyIssueCode,
+  DockerFocusSource,
+} from '@/components/docker/DockerDependencyAlert'
 
 const PREREQUISITE_COMPONENT_KEYS = new Set(['docker'])
 const MONITOR_AGENT_COMPONENT_KEY = 'appos-monitor-collector'
@@ -427,6 +431,25 @@ function operationEventLines(op: SoftwareOperation | undefined): string[] {
     .filter(Boolean)
 }
 
+function operationLogEntries(operation: SoftwareOperation, actionLabel: string): ActionLogEntry[] {
+  const eventLines = operationEventLines(operation)
+  if (eventLines.length > 0) {
+    return eventLines.map((line, index) => ({
+      id: `${operation.id}:event:${index}:${line}`,
+      tone: actionLogTone(operation),
+      text: line,
+    }))
+  }
+
+  return [
+    {
+      id: `${operation.id}:${operation.phase}:${operation.terminal_status}:${operation.updated}`,
+      tone: actionLogTone(operation),
+      text: `${formatTimestamp(operation.updated) || 'Now'} · ${actionLabel}: ${phaseLabelFromOperation(operation)}`,
+    },
+  ]
+}
+
 function latestOperationEventLine(op: SoftwareOperation): string {
   const lines = operationEventLines(op)
   return lines.length > 0 ? lines[lines.length - 1] : ''
@@ -559,6 +582,55 @@ function prerequisiteActionSlots(component: SoftwareComponentSummary): Array<{
 }
 
 type PrerequisitePanelMode = 'checklist' | 'operation' | 'history'
+
+function dockerFocusHintTitle(source: DockerFocusSource): string {
+  if (source === 'compose') return 'Opened from Docker > Compose'
+  if (source === 'containers') return 'Opened from Docker > Containers'
+  if (source === 'images') return 'Opened from Docker > Images'
+  if (source === 'volumes') return 'Opened from Docker > Volumes'
+  if (source === 'networks') return 'Opened from Docker > Networks'
+  return 'Opened from Docker > Overview'
+}
+
+function dockerFocusHintDescription({
+  source,
+  panelMode,
+  issueCode,
+}: {
+  source: DockerFocusSource
+  panelMode: PrerequisitePanelMode
+  issueCode?: DockerDependencyIssueCode | null
+}) {
+  const sourceLabel =
+    source === 'compose'
+      ? 'Compose'
+      : source === 'containers'
+        ? 'Containers'
+        : source === 'images'
+          ? 'Images'
+          : source === 'volumes'
+            ? 'Volumes'
+            : source === 'networks'
+              ? 'Networks'
+              : 'Overview'
+  if (panelMode === 'history') {
+    if (issueCode === 'docker_daemon_unavailable') {
+      return `Docker prerequisite recovery was opened from the Docker ${sourceLabel} view. Review recent checks and repair history first, then verify the Docker daemon is running before retrying there.`
+    }
+    if (issueCode === 'docker_permission_denied') {
+      return `Docker prerequisite recovery was opened from the Docker ${sourceLabel} view. Review recent checks and repair history first, then fix Docker socket access or privilege setup before retrying there.`
+    }
+    return `Docker prerequisite recovery was opened from the Docker ${sourceLabel} view. Review recent checks and repair history before retrying there.`
+  }
+
+  if (issueCode === 'compose_missing') {
+    return `Docker prerequisite checks were opened from the Docker ${sourceLabel} view. Start by checking Docker Compose availability here, then return to that Docker screen and retry.`
+  }
+  if (issueCode === 'docker_missing') {
+    return `Docker prerequisite checks were opened from the Docker ${sourceLabel} view. Start by checking Docker Engine installation here, then return to that Docker screen and retry.`
+  }
+  return `Docker prerequisite checks were opened from the Docker ${sourceLabel} view. Fix the baseline requirement here, then return to that Docker screen and retry.`
+}
 
 type ActionLogEntry = {
   id: string
@@ -1112,6 +1184,7 @@ function PrerequisiteCard({
   actionLogs,
   serverId,
   actionsLocked,
+  focusHint,
 }: {
   component: SoftwareComponentSummary
   open: boolean
@@ -1124,9 +1197,15 @@ function PrerequisiteCard({
   actionLogs: ActionLogEntry[]
   serverId: string
   actionsLocked: boolean
+  focusHint?: {
+    source: DockerFocusSource
+    panelMode: PrerequisitePanelMode
+    issueCode?: DockerDependencyIssueCode | null
+  } | null
 }) {
   const context = readPrerequisiteContext(component)
   const lastOp = component.last_operation
+  const liveLogStreaming = panelMode === 'operation' && isInProgress(lastOp)
   const lastActionAt = formatTimestamp(component.last_action?.at || lastOp?.updated_at)
   const headerSummary =
     component.verification_state === 'healthy'
@@ -1159,6 +1238,12 @@ function PrerequisiteCard({
 
         <CollapsibleContent>
           <div className="space-y-4 border-t border-border/60 px-4 py-4 text-sm">
+            {focusHint && component.component_key === 'docker' ? (
+              <Alert>
+                <AlertTitle>{dockerFocusHintTitle(focusHint.source)}</AlertTitle>
+                <AlertDescription>{dockerFocusHintDescription(focusHint)}</AlertDescription>
+              </Alert>
+            ) : null}
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
               <div className="space-y-2">
                 <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
@@ -1230,12 +1315,20 @@ function PrerequisiteCard({
                     History
                   </Button>
                 </div>
-                <div className="min-w-0 truncate text-sm font-medium text-foreground">
-                  {panelMode === 'operation'
-                    ? `${activeActionLabel || 'Action'} Log`
-                    : panelMode === 'history'
-                      ? 'Operation History'
-                      : 'Verification Checklist'}
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="min-w-0 truncate text-sm font-medium text-foreground">
+                    {panelMode === 'operation'
+                      ? `${activeActionLabel || 'Action'} Log`
+                      : panelMode === 'history'
+                        ? 'Operation History'
+                        : 'Verification Checklist'}
+                  </div>
+                  {liveLogStreaming ? (
+                    <Badge variant="secondary" className="inline-flex items-center gap-1 text-[11px]">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Streaming
+                    </Badge>
+                  ) : null}
                 </div>
               </div>
               <div className="rounded-md border px-3 py-3">
@@ -1289,13 +1382,24 @@ export function ServerComponentsPanel({
   actionIntent,
   onActionIntentConsumed,
   focusComponentKey,
-  onFocusComponentConsumed,
+  focusPanelMode,
+  focusSource,
+  focusIssueCode,
+  onFocusRequestConsumed,
 }: {
   serverId: string
   actionIntent?: ServerComponentActionIntent | null
   onActionIntentConsumed?: (nonce: number) => void
   focusComponentKey?: string | null
-  onFocusComponentConsumed?: (componentKey: string) => void
+  focusPanelMode?: PrerequisitePanelMode | null
+  focusSource?: DockerFocusSource | null
+  focusIssueCode?: DockerDependencyIssueCode | null
+  onFocusRequestConsumed?: (
+    componentKey: string,
+    panelMode: PrerequisitePanelMode,
+    source?: DockerFocusSource | null,
+    issueCode?: DockerDependencyIssueCode | null
+  ) => void
 }) {
   const [prerequisiteOpen, setPrerequisiteOpen] = useState<Record<string, boolean>>({})
   const [prerequisitePanelMode, setPrerequisitePanelMode] = useState<
@@ -1334,10 +1438,17 @@ export function ServerComponentsPanel({
   const [monitorAddressChoice, setMonitorAddressChoice] =
     useState<MonitorAgentAddressChoice | null>(null)
   const [activeOperationKeys, setActiveOperationKeys] = useState<Record<string, boolean>>({})
+  const [focusHint, setFocusHint] = useState<{
+    componentKey: string
+    panelMode: PrerequisitePanelMode
+    source: DockerFocusSource
+    issueCode?: DockerDependencyIssueCode | null
+  } | null>(null)
   const loading = prerequisitesLoading || addonsLoading
   const operationPollersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const restoredOperationIdsRef = useRef<Record<string, string>>({})
   const handledActionIntentRef = useRef<number | null>(null)
-  const handledFocusComponentRef = useRef<string | null>(null)
+  const handledFocusRequestRef = useRef<string | null>(null)
   const prerequisiteCardRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   const selectedAddon = useMemo(
@@ -1364,7 +1475,7 @@ export function ServerComponentsPanel({
     if (!selectedAddon) return
     const currentMode = addonPanelMode[selectedAddon.component_key] ?? 'details'
     if (isInProgress(selectedAddon.last_operation) && currentMode === 'details') {
-      setAddonPanelMode(current => ({ ...current, [selectedAddon.component_key]: 'history' }))
+      setAddonPanelMode(current => ({ ...current, [selectedAddon.component_key]: 'operation' }))
     }
   }, [addonPanelMode, selectedAddon])
 
@@ -1394,22 +1505,32 @@ export function ServerComponentsPanel({
 
   useEffect(() => {
     if (!focusComponentKey) {
-      handledFocusComponentRef.current = null
+      handledFocusRequestRef.current = null
       return
     }
-    if (handledFocusComponentRef.current === focusComponentKey) return
+    const nextPanelMode = focusPanelMode ?? 'checklist'
+    const focusRequestKey = `${focusComponentKey}:${nextPanelMode}`
+    if (handledFocusRequestRef.current === focusRequestKey) return
 
     const target = prerequisiteComponents.find(
       component => component.component_key === focusComponentKey
     )
     if (!target) return
 
-    handledFocusComponentRef.current = focusComponentKey
+    handledFocusRequestRef.current = focusRequestKey
     setPrerequisiteOpen(current => ({ ...current, [focusComponentKey]: true }))
     setPrerequisitePanelMode(current => ({
       ...current,
-      [focusComponentKey]: current[focusComponentKey] ?? 'checklist',
+      [focusComponentKey]: nextPanelMode,
     }))
+    if (focusSource) {
+      setFocusHint({
+        componentKey: focusComponentKey,
+        panelMode: nextPanelMode,
+        source: focusSource,
+        issueCode: focusIssueCode,
+      })
+    }
 
     requestAnimationFrame(() => {
       prerequisiteCardRefs.current[focusComponentKey]?.scrollIntoView?.({
@@ -1418,8 +1539,8 @@ export function ServerComponentsPanel({
       })
     })
 
-    onFocusComponentConsumed?.(focusComponentKey)
-  }, [focusComponentKey, onFocusComponentConsumed, prerequisiteComponents])
+    onFocusRequestConsumed?.(focusComponentKey, nextPanelMode, focusSource, focusIssueCode)
+  }, [focusComponentKey, focusIssueCode, focusPanelMode, focusSource, onFocusRequestConsumed, prerequisiteComponents])
 
   useEffect(() => {
     return () => {
@@ -1559,40 +1680,22 @@ export function ServerComponentsPanel({
       const poll = async () => {
         try {
           const operation = await getSoftwareOperation(serverId, operationId)
-          const eventLines = operationEventLines(operation)
           const terminal =
             operation.terminal_status !== 'none' ||
             operation.phase === 'succeeded' ||
             operation.phase === 'failed' ||
             operation.phase === 'attention_required'
 
-          if (eventLines.length > 0) {
-            eventLines.forEach((line, index) => {
-              const entry = {
-                id: `${operation.id}:event:${index}:${line}`,
-                tone: actionLogTone(operation),
-                text: line,
-              }
-              if (kind === 'prerequisite') {
-                appendPrerequisiteLog(componentKey, entry)
-              } else {
-                appendAddonLog(componentKey, entry)
-              }
-            })
-          } else {
-            const entry = {
-              id: `${operation.id}:${operation.phase}:${operation.terminal_status}:${operation.updated}`,
-              tone: actionLogTone(operation),
-              text: `${formatTimestamp(operation.updated) || 'Now'} · ${actionLabel}: ${phaseLabelFromOperation(operation)}`,
-            }
+          operationLogEntries(operation, actionLabel).forEach(entry => {
             if (kind === 'prerequisite') {
               appendPrerequisiteLog(componentKey, entry)
             } else {
               appendAddonLog(componentKey, entry)
             }
-          }
+          })
 
           if (terminal) {
+            delete restoredOperationIdsRef.current[componentKey]
             if (kind === 'addon') {
               setAddonPanelMode(current => ({ ...current, [componentKey]: 'history' }))
             }
@@ -1606,6 +1709,7 @@ export function ServerComponentsPanel({
           try {
             const latestComponent = await getSoftwareComponent(serverId, componentKey)
             if (!isInProgress(latestComponent.last_operation)) {
+              delete restoredOperationIdsRef.current[componentKey]
               stopOperationPolling(componentKey)
               await loadComponents()
               return
@@ -1623,6 +1727,76 @@ export function ServerComponentsPanel({
     },
     [appendAddonLog, appendPrerequisiteLog, loadComponents, serverId, stopOperationPolling]
   )
+
+  useEffect(() => {
+    const inFlightPrerequisites = prerequisiteComponents.filter(component =>
+      isInProgress(component.last_operation)
+    )
+    const inFlightAddons = addonComponents.filter(component => isInProgress(component.last_operation))
+
+    for (const component of [...prerequisiteComponents, ...addonComponents]) {
+      if (!isInProgress(component.last_operation)) {
+        delete restoredOperationIdsRef.current[component.component_key]
+      }
+    }
+
+    const restoreOperation = async (
+      component: SoftwareComponentSummary,
+      kind: 'prerequisite' | 'addon'
+    ) => {
+      const componentKey = component.component_key
+      if (operationPollersRef.current[componentKey] || activeOperationKeys[componentKey]) {
+        return
+      }
+
+      try {
+        const operations = await listSoftwareOperations(serverId, componentKey)
+        const currentOperation = operations.find(operation => isInProgress(operation))
+        if (!currentOperation) {
+          return
+        }
+        if (restoredOperationIdsRef.current[componentKey] === currentOperation.id) {
+          return
+        }
+
+        restoredOperationIdsRef.current[componentKey] = currentOperation.id
+        const actionLabel =
+          kind === 'prerequisite'
+            ? prerequisiteActionLabel(currentOperation.action)
+            : addonActionLabel(currentOperation.action)
+
+        if (kind === 'prerequisite') {
+          setPrerequisiteOpen(current => ({ ...current, [componentKey]: true }))
+          setPrerequisitePanelMode(current => ({ ...current, [componentKey]: 'operation' }))
+          setPrerequisiteActiveActionLabel(current => ({ ...current, [componentKey]: actionLabel }))
+          setPrerequisiteActionLogs(current => ({
+            ...current,
+            [componentKey]: operationLogEntries(currentOperation, actionLabel),
+          }))
+        } else {
+          setSelectedAddonKey(current => current ?? componentKey)
+          setAddonPanelMode(current => ({ ...current, [componentKey]: 'operation' }))
+          setAddonActiveActionLabel(current => ({ ...current, [componentKey]: actionLabel }))
+          setAddonActionLogs(current => ({
+            ...current,
+            [componentKey]: operationLogEntries(currentOperation, actionLabel),
+          }))
+        }
+
+        setActiveOperationKeys(current => ({ ...current, [componentKey]: true }))
+        startOperationPolling(componentKey, currentOperation.id, actionLabel, kind)
+      } catch {
+        // Fall back to the in-progress status badge/history view if history restoration fails.
+      }
+    }
+
+    inFlightPrerequisites.forEach(component => {
+      void restoreOperation(component, 'prerequisite')
+    })
+    inFlightAddons.forEach(component => {
+      void restoreOperation(component, 'addon')
+    })
+  }, [activeOperationKeys, addonComponents, prerequisiteComponents, serverId, startOperationPolling])
 
   useEffect(() => {
     void loadComponents()
@@ -2029,6 +2203,7 @@ export function ServerComponentsPanel({
                     actionLogs={prerequisiteActionLogs[component.component_key] ?? []}
                     serverId={serverId}
                     actionsLocked={actionsLocked}
+                    focusHint={focusHint?.componentKey === component.component_key ? focusHint : null}
                   />
                 </div>
               ))}
@@ -2117,6 +2292,12 @@ export function ServerComponentsPanel({
                   </Alert>
                 ) : null}
                 <div className="space-y-2">
+                  {(() => {
+                    const selectedAddonMode = addonPanelMode[selectedAddon.component_key] ?? 'details'
+                    const liveLogStreaming =
+                      selectedAddonMode === 'operation' && isInProgress(selectedAddon.last_operation)
+
+                    return (
                   <div className="flex min-w-0 items-center justify-between gap-3">
                     <div className="inline-flex shrink-0 items-center gap-1 rounded-md bg-muted/35 p-1">
                       <Button
@@ -2175,14 +2356,24 @@ export function ServerComponentsPanel({
                         History
                       </Button>
                     </div>
-                    <div className="min-w-0 truncate text-sm font-medium text-foreground">
-                      {(addonPanelMode[selectedAddon.component_key] ?? 'details') === 'operation'
-                        ? `${addonActiveActionLabel[selectedAddon.component_key] || 'Action'} Log`
-                        : (addonPanelMode[selectedAddon.component_key] ?? 'details') === 'history'
-                          ? 'Operation History'
-                          : 'Addon Details'}
+                    <div className="flex min-w-0 items-center gap-2">
+                      <div className="min-w-0 truncate text-sm font-medium text-foreground">
+                        {selectedAddonMode === 'operation'
+                          ? `${addonActiveActionLabel[selectedAddon.component_key] || 'Action'} Log`
+                          : selectedAddonMode === 'history'
+                            ? 'Operation History'
+                            : 'Addon Details'}
+                      </div>
+                      {liveLogStreaming ? (
+                        <Badge variant="secondary" className="inline-flex items-center gap-1 text-[11px]">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Streaming
+                        </Badge>
+                      ) : null}
                     </div>
                   </div>
+                    )
+                  })()}
 
                   <div className="rounded-md border px-3 py-3">
                     {(addonPanelMode[selectedAddon.component_key] ?? 'details') === 'operation' ? (

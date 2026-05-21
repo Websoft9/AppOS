@@ -145,6 +145,16 @@ func ResolveTemplate(entry software.CatalogEntry, tpl software.ComponentTemplate
 		}
 		return out
 	}
+	subMap := func(values map[string]string) map[string]string {
+		if len(values) == 0 {
+			return nil
+		}
+		out := make(map[string]string, len(values))
+		for key, value := range values {
+			out[key] = sub(value)
+		}
+		return out
+	}
 
 	reinstall := software.ReinstallSpec{Strategy: "reinstall"}
 	if tpl.Reinstall != nil {
@@ -172,6 +182,7 @@ func ResolveTemplate(entry software.CatalogEntry, tpl software.ComponentTemplate
 			PackageRepoProfile: entry.PackageRepoProfile,
 			ScriptPath:         sub(tpl.Install.ScriptPath),
 			ScriptURL:          sub(tpl.Install.ScriptURL),
+			Env:                subMap(tpl.Install.Env),
 			Args:               subSlice(tpl.Install.Args),
 		},
 		Upgrade: software.UpgradeSpec{
@@ -181,6 +192,7 @@ func ResolveTemplate(entry software.CatalogEntry, tpl software.ComponentTemplate
 			PackageRepoProfile: entry.PackageRepoProfile,
 			ScriptPath:         sub(tpl.Upgrade.ScriptPath),
 			ScriptURL:          sub(tpl.Upgrade.ScriptURL),
+			Env:                subMap(tpl.Upgrade.Env),
 			Args:               subSlice(tpl.Upgrade.Args),
 		},
 		Uninstall: software.UninstallSpec{
@@ -190,6 +202,7 @@ func ResolveTemplate(entry software.CatalogEntry, tpl software.ComponentTemplate
 			PackageRepoProfile: entry.PackageRepoProfile,
 			ScriptPath:         sub(tpl.Uninstall.ScriptPath),
 			ScriptURL:          sub(tpl.Uninstall.ScriptURL),
+			Env:                subMap(tpl.Uninstall.Env),
 			Args:               subSlice(tpl.Uninstall.Args),
 		},
 		Verify: software.VerifySpec{

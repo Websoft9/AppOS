@@ -222,21 +222,75 @@ describe('ServerComponentsPanel', () => {
   })
 
   it('auto-opens a focused prerequisite component and consumes the focus request once', async () => {
-    const onFocusComponentConsumed = vi.fn()
+    const onFocusRequestConsumed = vi.fn()
 
     render(
       <ServerComponentsPanel
         serverId="server-1"
         focusComponentKey="docker"
-        onFocusComponentConsumed={onFocusComponentConsumed}
+        focusPanelMode="checklist"
+        onFocusRequestConsumed={onFocusRequestConsumed}
       />
     )
 
     const prerequisitesSection = await screen.findByRole('region', { name: 'Prerequisites section' })
     expect(within(prerequisitesSection).getByText('Docker Compose:')).toBeInTheDocument()
     expect(within(prerequisitesSection).getByText('2.27.0')).toBeInTheDocument()
-    expect(onFocusComponentConsumed).toHaveBeenCalledWith('docker')
-    expect(onFocusComponentConsumed).toHaveBeenCalledTimes(1)
+    expect(within(prerequisitesSection).getByText('Verification Checklist')).toBeInTheDocument()
+    expect(onFocusRequestConsumed).toHaveBeenCalledWith('docker', 'checklist', undefined, undefined)
+    expect(onFocusRequestConsumed).toHaveBeenCalledTimes(1)
+  })
+
+  it('can focus a prerequisite directly into history mode', async () => {
+    const onFocusRequestConsumed = vi.fn()
+
+    listSoftwareOperationsMock.mockResolvedValue([
+      {
+        id: 'op-history-1',
+        server_id: 'server-1',
+        component_key: 'docker',
+        action: 'verify',
+        phase: 'succeeded',
+        terminal_status: 'success',
+        failure_reason: '',
+        event_log: '',
+        created: '2026-04-16T02:03:04Z',
+        updated: '2026-04-16T02:03:10Z',
+      },
+    ])
+
+    render(
+      <ServerComponentsPanel
+        serverId="server-1"
+        focusComponentKey="docker"
+        focusPanelMode="history"
+        onFocusRequestConsumed={onFocusRequestConsumed}
+      />
+    )
+
+    const prerequisitesSection = await screen.findByRole('region', { name: 'Prerequisites section' })
+    expect(await within(prerequisitesSection).findByText('Operation History (1)')).toBeInTheDocument()
+    expect(onFocusRequestConsumed).toHaveBeenCalledWith('docker', 'history', undefined, undefined)
+  })
+
+  it('shows source-aware guidance when the Docker prerequisite is opened from a Docker sub-tab', async () => {
+    render(
+      <ServerComponentsPanel
+        serverId="server-1"
+        focusComponentKey="docker"
+        focusPanelMode="checklist"
+        focusSource="compose"
+        focusIssueCode="compose_missing"
+      />
+    )
+
+    const prerequisitesSection = await screen.findByRole('region', { name: 'Prerequisites section' })
+    expect(within(prerequisitesSection).getByText('Opened from Docker > Compose')).toBeInTheDocument()
+    expect(
+      within(prerequisitesSection).getByText(
+        'Docker prerequisite checks were opened from the Docker Compose view. Start by checking Docker Compose availability here, then return to that Docker screen and retry.'
+      )
+    ).toBeInTheDocument()
   })
 
   it('keeps addon inventory version text aligned with the row font size', async () => {
@@ -625,6 +679,168 @@ describe('ServerComponentsPanel', () => {
     expect(within(selectedAddon).getByRole('button', { name: 'Live Log' })).toBeInTheDocument()
     expect(within(selectedAddon).getByText('Repair requested...')).toBeInTheDocument()
     expect(within(selectedAddon).getByText('Repair accepted (op-123)')).toBeInTheDocument()
+  })
+
+  it('restores a prerequisite live log after returning to the components page mid-operation', async () => {
+    listSoftwareOperationsMock.mockResolvedValue([
+      {
+        id: 'op-docker-restore',
+        server_id: 'server-1',
+        component_key: 'docker',
+        action: 'verify',
+        phase: 'executing',
+        terminal_status: 'none',
+        failure_reason: '',
+        event_log:
+          '2026-05-16T03:00:00Z · Accepted verify request for docker.\n2026-05-16T03:00:05Z · Docker verification is running.',
+        created: '2026-05-16T03:00:00Z',
+        updated: '2026-05-16T03:00:05Z',
+      },
+    ])
+    getSoftwareComponentMock.mockResolvedValue({
+      component_key: 'docker',
+      label: 'Docker Engine',
+      target_type: 'server',
+      template_kind: 'package',
+      installed_state: 'installed',
+      detected_version: '27.0.1',
+      install_source: 'managed',
+      source_evidence: 'apt:docker-ce',
+      verification_state: 'healthy',
+      last_operation: {
+        action: 'verify',
+        phase: 'executing',
+        terminal_status: 'none',
+        updated_at: '2026-05-16T03:00:05Z',
+      },
+      preflight: {
+        ok: true,
+        os_supported: true,
+        privilege_ok: true,
+        network_ok: true,
+        dependency_ready: true,
+      },
+      verification: {
+        state: 'healthy',
+        checked_at: '2026-04-16T02:03:04Z',
+        details: {
+          engine_version: '27.0.1',
+          compose_available: true,
+          compose_version: '2.27.0',
+        },
+      },
+      available_actions: ['verify', 'upgrade'],
+    })
+
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    const prerequisitesSection = await screen.findByRole('region', {
+      name: 'Prerequisites section',
+    })
+
+    expect(await within(prerequisitesSection).findByText('Recheck Log')).toBeInTheDocument()
+    expect(within(prerequisitesSection).getByText('Streaming')).toBeInTheDocument()
+    expect(
+      within(prerequisitesSection).getByText(
+        '2026-05-16T03:00:00Z · Accepted verify request for docker.'
+      )
+    ).toBeInTheDocument()
+    expect(
+      within(prerequisitesSection).getByText('2026-05-16T03:00:05Z · Docker verification is running.')
+    ).toBeInTheDocument()
+  })
+
+  it('restores an addon live log after returning to the components page mid-operation', async () => {
+    listSoftwareComponentsMock.mockResolvedValue([
+      {
+        component_key: 'docker',
+        label: 'Docker Engine',
+        target_type: 'server',
+        template_kind: 'package',
+        installed_state: 'installed',
+        detected_version: '27.0.1',
+        install_source: 'managed',
+        source_evidence: 'apt:docker-ce',
+        verification_state: 'healthy',
+        verification: {
+          state: 'healthy',
+          checked_at: '2026-04-16T02:03:04Z',
+          details: {
+            engine_version: '27.0.1',
+            compose_available: true,
+            compose_version: '2.27.0',
+          },
+        },
+        preflight: {
+          ok: true,
+          os_supported: true,
+          privilege_ok: true,
+          network_ok: true,
+          dependency_ready: true,
+        },
+        available_actions: ['verify', 'upgrade'],
+      },
+      {
+        component_key: 'reverse-proxy',
+        label: 'Reverse Proxy',
+        target_type: 'server',
+        template_kind: 'package',
+        installed_state: 'installed',
+        detected_version: '1.27.0',
+        packaged_version: '1.27.1',
+        verification_state: 'degraded',
+        last_operation: {
+          action: 'reinstall',
+          phase: 'executing',
+          terminal_status: 'none',
+          updated_at: '2026-05-16T04:10:00Z',
+        },
+        preflight: {
+          ok: true,
+          os_supported: true,
+          privilege_ok: true,
+          network_ok: true,
+          dependency_ready: true,
+        },
+        available_actions: ['verify', 'reinstall', 'uninstall'],
+      },
+    ])
+    listSoftwareOperationsMock.mockResolvedValue([
+      {
+        id: 'op-addon-restore',
+        server_id: 'server-1',
+        component_key: 'reverse-proxy',
+        action: 'reinstall',
+        phase: 'executing',
+        terminal_status: 'none',
+        failure_reason: '',
+        event_log:
+          '2026-05-16T04:09:40Z · Accepted reinstall request for reverse-proxy.\n2026-05-16T04:10:00Z · Repair is running.',
+        created: '2026-05-16T04:09:40Z',
+        updated: '2026-05-16T04:10:00Z',
+      },
+    ])
+    getSoftwareOperationMock.mockResolvedValue({
+      id: 'op-addon-restore',
+      server_id: 'server-1',
+      component_key: 'reverse-proxy',
+      action: 'reinstall',
+      phase: 'executing',
+      terminal_status: 'none',
+      failure_reason: '',
+      event_log:
+        '2026-05-16T04:09:40Z · Accepted reinstall request for reverse-proxy.\n2026-05-16T04:10:00Z · Repair is running.',
+      created: '2026-05-16T04:09:40Z',
+      updated: '2026-05-16T04:10:00Z',
+    })
+
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    const selectedAddon = await screen.findByRole('region', { name: 'Selected Addon' })
+    expect(await within(selectedAddon).findByText('Repair Log')).toBeInTheDocument()
+    expect(within(selectedAddon).getByText('Streaming')).toBeInTheDocument()
+    expect(within(selectedAddon).getByText('2026-05-16T04:10:00Z · Repair is running.')).toBeInTheDocument()
+    expect(within(selectedAddon).getByText('Reverse Proxy')).toBeInTheDocument()
   })
 
   it('keeps the addon live log tab available with an empty-state hint', async () => {
@@ -1240,7 +1456,7 @@ describe('ServerComponentsPanel', () => {
     )
 
     const checklistTitle = within(prerequisitesSection).getByText('Verification Checklist')
-    const titleRow = checklistTitle.parentElement
+    const titleRow = checklistTitle.parentElement?.parentElement
     expect(titleRow).not.toBeNull()
     expect(
       within(titleRow as HTMLElement).queryByText('dependency_not_ready: docker compose is missing')

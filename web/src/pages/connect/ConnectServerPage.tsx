@@ -944,9 +944,9 @@ export function ConnectServerPage({
     >
       <div className="flex items-start gap-2 px-3 py-2 border-b shrink-0">
         <div className="mr-1">
-          <h1 className="text-2xl font-bold tracking-tight leading-none">Terminal Workspace</h1>
+          <h1 className="text-2xl font-bold tracking-tight leading-none">Server Terminal</h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Work with server shells and files in one workspace.
+            Work with this server's shell and files in one place.
           </p>
         </div>
 

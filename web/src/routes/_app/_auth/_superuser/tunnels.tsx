@@ -67,6 +67,9 @@ function TunnelsRoutePage() {
               edit: serverId,
               server: undefined,
               focusComponent: undefined,
+              focusPanel: undefined,
+              focusSource: undefined,
+              focusIssue: undefined,
               tab: undefined,
             },
           })

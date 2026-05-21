@@ -1,6 +1,6 @@
 
 .PHONY: help install tidy build run test test-strict test-fast lint lint-strict lint-fast fmt fmt-strict fmt-fast check check-fast sec sec-strict sec-fast artifact-scan \
-	backend web backend-targeted fast strict build-local latest dev \
+	backend web backend-targeted backend-iac backend-software fast strict build-local latest dev \
 	image start stop restart logs stats delete rm kill-port redo \
 	openapi-gen openapi-merge openapi-check openapi-sync
 
@@ -51,7 +51,9 @@ help:
 	@echo "  make test backend         Run strict backend Go tests from backend/"
 	@echo "  make test backend fast    Run faster backend Go tests from backend/"
 	@echo "  make test web            Run web tests from web/"
-	@echo "  make test backend-targeted Run backend routes/secrets/migrations test set"
+	@echo "  make test backend-targeted Run the legacy mixed routes/secrets/migrations integration bundle"
+	@echo "  make test backend-iac     Run focused IaC domain + route regression tests"
+	@echo "  make test backend-software Run focused software catalog/executor regression tests"
 	@echo "  make test e2e            Run the full end-to-end suite entrypoint"
 	@echo "  make test e2e fast       Run the smoke E2E suite"
 	@echo "  make lint                 Run strict linters (golangci-lint, actionlint, eslint, web typecheck)"
@@ -310,9 +312,17 @@ else ifeq ($(QUALITY_SCOPE),web)
 		rm -f "$$log_file"
 	@echo "✓ Web tests completed"
 else ifeq ($(QUALITY_SCOPE),backend-targeted)
-	@echo "Running targeted backend tests..."
+	@echo "Running legacy mixed backend integration bundle..."
 	@cd backend && go test ./domain/routes ./domain/secrets ./infra/migrations -v
-	@echo "✓ Targeted backend tests completed"
+	@echo "✓ Legacy mixed backend integration bundle completed"
+else ifeq ($(QUALITY_SCOPE),backend-iac)
+	@echo "Running focused IaC backend tests..."
+	@cd backend && go test ./domain/iac ./domain/routes -run '^(TestService|TestIACRoutes)' -v
+	@echo "✓ Focused IaC backend tests completed"
+else ifeq ($(QUALITY_SCOPE),backend-software)
+	@echo "Running focused software backend tests..."
+	@cd backend && go test ./domain/software/catalog ./domain/software/executor -run '^(TestLoadServerCatalogComponentKeys|TestServerCatalogCanResolveAllEntries|TestResolveTemplateSubstitutesScriptEnv|TestServerCatalogCapabilityComponentMapConsistency|TestBuildManagedScriptCommand_EmbeddedScript|TestBuildManagedScriptCommand_EmbeddedScriptWithEnv)$$' -v
+	@echo "✓ Focused software backend tests completed"
 else ifeq ($(QUALITY_SCOPE),e2e)
 ifeq ($(QUALITY_MODE),fast)
 	@echo "Running E2E smoke suite..."
@@ -1007,7 +1017,7 @@ endif
 		echo "Error: fuser or lsof required"; exit 1; \
 	fi
 
-backend web backend-targeted fast strict build-local latest dev:
+backend web backend-targeted backend-iac backend-software fast strict build-local latest dev:
 	@:
 
 # Swallow positional args (e.g., make start 9092, make build backend)

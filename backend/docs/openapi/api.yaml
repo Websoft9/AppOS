@@ -6080,6 +6080,49 @@ paths:
             summary: Get monitor target series
             tags:
                 - Monitoring
+    /api/monitor/telegraf/write:
+        post:
+            description: Receives Influx line protocol payloads from managed-server Telegraf agents and forwards them to the embedded VictoriaMetrics Influx write endpoint. Authenticate with HTTP Basic Auth where username is the server record ID and password is the per-server monitor agent token issued during managed metrics collector setup.
+            operationId: post_api_monitor_telegraf_write
+            parameters:
+                - description: Basic base64(serverId:monitorAgentToken)
+                  in: header
+                  name: Authorization
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/GenericRequest'
+                required: false
+            responses:
+                "204":
+                    description: No Content
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MonitorErrorResponse'
+                    description: Unauthorized
+                "413":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MonitorErrorResponse'
+                    description: Payload Too Large
+                "502":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MonitorErrorResponse'
+                    description: Bad Gateway
+            security:
+                - bearerAuth: []
+            summary: Write Telegraf metrics
+            tags:
+                - Monitoring Ingest
     /api/monitor/write:
         post:
             description: Receives Prometheus remote-write protobuf payloads from managed-server Netdata agents. This endpoint is served by the AppOS backend and forwards accepted payloads to the embedded time-series database. Authenticate with HTTP Basic Auth where username is the server record ID and password is the per-server monitor agent token issued during Netdata install/update. Reverse-proxy forwarding headers used elsewhere for agent URL generation are parsed defensively only the first comma-separated host/port value is used and forwarded ports must be numeric.
