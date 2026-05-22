@@ -3,7 +3,6 @@ package executor
 import (
 	"context"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -474,15 +473,15 @@ func TestRestart_SystemdUsesNoBlock(t *testing.T) {
 	commands := []string{}
 	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
 		commands = append(commands, cmd)
-		if containsSubstring(cmd, "systemctl restart --no-block") && containsSubstring(cmd, "netdata.service") {
+		if containsSubstring(cmd, "systemctl restart --no-block") && containsSubstring(cmd, "telegraf.service") {
 			return "", nil
 		}
 		return "", nil
 	}
 
 	ex := &SSHExecutor{}
-	tpl := packageTemplate("netdata", "netdata.service")
-	tpl.ComponentKey = software.ComponentKeyMonitorAgent
+	tpl := packageTemplate("telegraf", "telegraf.service")
+	tpl.ComponentKey = software.ComponentKeyTelegraf
 	_, err := ex.Restart(context.Background(), "srv-1", tpl)
 	if err != nil {
 		t.Fatalf("Restart error: %v", err)
@@ -493,8 +492,8 @@ func TestRestart_SystemdUsesNoBlock(t *testing.T) {
 	if !containsSubstring(commands[0], "systemctl restart --no-block") {
 		t.Fatalf("expected --no-block restart command, got %q", commands[0])
 	}
-	if !containsSubstring(commands[0], "netdata.service") {
-		t.Fatalf("expected netdata service in restart command, got %q", commands[0])
+	if !containsSubstring(commands[0], "telegraf.service") {
+		t.Fatalf("expected telegraf service in restart command, got %q", commands[0])
 	}
 }
 
@@ -608,76 +607,6 @@ func TestVerifySystemd_InactiveService_ReturnsDegraded(t *testing.T) {
 	}
 	if detail.VerificationState != software.VerificationStateDegraded {
 		t.Errorf("expected degraded, got %q", detail.VerificationState)
-	}
-}
-
-func TestVerifySystemd_MonitorAgentActiveWithoutReportingConfig_ReturnsDegraded(t *testing.T) {
-	orig := executeSSHCommand
-	defer func() { executeSSHCommand = orig }()
-
-	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
-		if containsSubstring(cmd, "is-active") {
-			return "active", nil
-		}
-		if containsSubstring(cmd, "exporting.conf") {
-			return "config_present=false", nil
-		}
-		if containsSubstring(cmd, "command -v") {
-			return "/usr/sbin/netdata", nil
-		}
-		return "netdata v2.10.3", nil
-	}
-
-	tpl := packageTemplate("netdata", "netdata.service")
-	tpl.ComponentKey = software.ComponentKeyMonitorAgent
-	ex := &SSHExecutor{}
-	detail, err := ex.verifySystemd(context.Background(), "srv-1", tpl)
-	if err != nil {
-		t.Fatalf("verifySystemd error: %v", err)
-	}
-	if detail.VerificationState != software.VerificationStateDegraded {
-		t.Fatalf("expected degraded, got %q", detail.VerificationState)
-	}
-	if detail.Verification == nil || detail.Verification.Reason != "monitor remote-write configuration is incomplete" {
-		t.Fatalf("expected remote-write reason, got %#v", detail.Verification)
-	}
-}
-
-func TestVerifySystemd_MonitorAgentActiveWithReportingConfig_ReturnsHealthy(t *testing.T) {
-	orig := executeSSHCommand
-	defer func() { executeSSHCommand = orig }()
-
-	executeSSHCommand = func(_ context.Context, _ terminal.ConnectorConfig, cmd string, _ time.Duration) (string, error) {
-		if containsSubstring(cmd, "is-active") {
-			return "active", nil
-		}
-		if containsSubstring(cmd, "exporting.conf") {
-			return strings.Join([]string{
-				"config_present=true",
-				"enabled=true",
-				"destination_configured=true",
-				"username_ok=true",
-				"password_configured=true",
-			}, "\n"), nil
-		}
-		if containsSubstring(cmd, "command -v") {
-			return "/usr/sbin/netdata", nil
-		}
-		return "netdata v2.10.3", nil
-	}
-
-	tpl := packageTemplate("netdata", "netdata.service")
-	tpl.ComponentKey = software.ComponentKeyMonitorAgent
-	ex := &SSHExecutor{}
-	detail, err := ex.verifySystemd(context.Background(), "srv-1", tpl)
-	if err != nil {
-		t.Fatalf("verifySystemd error: %v", err)
-	}
-	if detail.VerificationState != software.VerificationStateHealthy {
-		t.Fatalf("expected healthy, got %q", detail.VerificationState)
-	}
-	if detail.Verification == nil || detail.Verification.Reason != "" {
-		t.Fatalf("expected healthy reporting verification, got %#v", detail.Verification)
 	}
 }
 

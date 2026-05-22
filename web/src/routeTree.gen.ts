@@ -43,7 +43,6 @@ import { Route as AppAuthResourcesTunnelsRouteImport } from './routes/_app/_auth
 import { Route as AppAuthResourcesSupportedSoftwareRouteImport } from './routes/_app/_auth/resources/supported-software'
 import { Route as AppAuthResourcesServiceInstancesRouteImport } from './routes/_app/_auth/resources/service-instances'
 import { Route as AppAuthResourcesServersRouteImport } from './routes/_app/_auth/resources/servers'
-import { Route as AppAuthResourcesScriptsRouteImport } from './routes/_app/_auth/resources/scripts'
 import { Route as AppAuthResourcesPlatformAccountsRouteImport } from './routes/_app/_auth/resources/platform-accounts'
 import { Route as AppAuthResourcesLocalSoftwareRouteImport } from './routes/_app/_auth/resources/local-software'
 import { Route as AppAuthResourcesConnectorsRouteImport } from './routes/_app/_auth/resources/connectors'
@@ -58,9 +57,11 @@ import { Route as AppAuthSuperuserStatusRouteImport } from './routes/_app/_auth/
 import { Route as AppAuthSuperuserSettingsRouteImport } from './routes/_app/_auth/_superuser/settings'
 import { Route as AppAuthSuperuserLogsRouteImport } from './routes/_app/_auth/_superuser/logs'
 import { Route as AppAuthSuperuserIacRouteImport } from './routes/_app/_auth/_superuser/iac'
+import { Route as AppAuthSuperuserAssetsRouteImport } from './routes/_app/_auth/_superuser/assets'
 import { Route as AppAuthSuperuserUsersIndexRouteImport } from './routes/_app/_auth/_superuser/users/index'
 import { Route as AppAuthSuperuserTerminalIndexRouteImport } from './routes/_app/_auth/_superuser/terminal.index'
 import { Route as AppAuthAdminCredentialsEnvVarsRouteImport } from './routes/_app/_auth/admin/credentials/env-vars'
+import { Route as AppAuthSuperuserAssetsScriptsRouteImport } from './routes/_app/_auth/_superuser/assets.scripts'
 import { Route as AppAuthSuperuserTerminalServerServerIdRouteImport } from './routes/_app/_auth/_superuser/terminal.server.$serverId'
 
 const AppRoute = AppRouteImport.update({
@@ -232,11 +233,6 @@ const AppAuthResourcesServersRoute = AppAuthResourcesServersRouteImport.update({
   path: '/resources/servers',
   getParentRoute: () => AppAuthRoute,
 } as any)
-const AppAuthResourcesScriptsRoute = AppAuthResourcesScriptsRouteImport.update({
-  id: '/resources/scripts',
-  path: '/resources/scripts',
-  getParentRoute: () => AppAuthRoute,
-} as any)
 const AppAuthResourcesPlatformAccountsRoute =
   AppAuthResourcesPlatformAccountsRouteImport.update({
     id: '/resources/platform-accounts',
@@ -313,6 +309,11 @@ const AppAuthSuperuserIacRoute = AppAuthSuperuserIacRouteImport.update({
   path: '/iac',
   getParentRoute: () => AppAuthSuperuserRoute,
 } as any)
+const AppAuthSuperuserAssetsRoute = AppAuthSuperuserAssetsRouteImport.update({
+  id: '/assets',
+  path: '/assets',
+  getParentRoute: () => AppAuthSuperuserRoute,
+} as any)
 const AppAuthSuperuserUsersIndexRoute =
   AppAuthSuperuserUsersIndexRouteImport.update({
     id: '/users/',
@@ -330,6 +331,12 @@ const AppAuthAdminCredentialsEnvVarsRoute =
     id: '/admin/credentials/env-vars',
     path: '/admin/credentials/env-vars',
     getParentRoute: () => AppAuthRoute,
+  } as any)
+const AppAuthSuperuserAssetsScriptsRoute =
+  AppAuthSuperuserAssetsScriptsRouteImport.update({
+    id: '/scripts',
+    path: '/scripts',
+    getParentRoute: () => AppAuthSuperuserAssetsRoute,
   } as any)
 const AppAuthSuperuserTerminalServerServerIdRoute =
   AppAuthSuperuserTerminalServerServerIdRouteImport.update({
@@ -360,6 +367,7 @@ export interface FileRoutesByFullPath {
   '/space': typeof AppAuthSpaceRoute
   '/topics': typeof AppAuthTopicsRouteWithChildren
   '/share/topic/$token': typeof ShareTopicTokenRoute
+  '/assets': typeof AppAuthSuperuserAssetsRouteWithChildren
   '/iac': typeof AppAuthSuperuserIacRoute
   '/logs': typeof AppAuthSuperuserLogsRoute
   '/settings': typeof AppAuthSuperuserSettingsRoute
@@ -374,7 +382,6 @@ export interface FileRoutesByFullPath {
   '/resources/connectors': typeof AppAuthResourcesConnectorsRoute
   '/resources/local-software': typeof AppAuthResourcesLocalSoftwareRoute
   '/resources/platform-accounts': typeof AppAuthResourcesPlatformAccountsRoute
-  '/resources/scripts': typeof AppAuthResourcesScriptsRoute
   '/resources/servers': typeof AppAuthResourcesServersRoute
   '/resources/service-instances': typeof AppAuthResourcesServiceInstancesRoute
   '/resources/supported-software': typeof AppAuthResourcesSupportedSoftwareRoute
@@ -385,6 +392,7 @@ export interface FileRoutesByFullPath {
   '/resources/': typeof AppAuthResourcesIndexRoute
   '/store/': typeof AppAuthStoreIndexRoute
   '/topics/': typeof AppAuthTopicsIndexRoute
+  '/assets/scripts': typeof AppAuthSuperuserAssetsScriptsRoute
   '/admin/credentials/env-vars': typeof AppAuthAdminCredentialsEnvVarsRoute
   '/terminal/': typeof AppAuthSuperuserTerminalIndexRoute
   '/users/': typeof AppAuthSuperuserUsersIndexRoute
@@ -409,6 +417,7 @@ export interface FileRoutesByTo {
   '/shared-envs': typeof AppAuthSharedEnvsRoute
   '/space': typeof AppAuthSpaceRoute
   '/share/topic/$token': typeof ShareTopicTokenRoute
+  '/assets': typeof AppAuthSuperuserAssetsRouteWithChildren
   '/iac': typeof AppAuthSuperuserIacRoute
   '/logs': typeof AppAuthSuperuserLogsRoute
   '/settings': typeof AppAuthSuperuserSettingsRoute
@@ -423,7 +432,6 @@ export interface FileRoutesByTo {
   '/resources/connectors': typeof AppAuthResourcesConnectorsRoute
   '/resources/local-software': typeof AppAuthResourcesLocalSoftwareRoute
   '/resources/platform-accounts': typeof AppAuthResourcesPlatformAccountsRoute
-  '/resources/scripts': typeof AppAuthResourcesScriptsRoute
   '/resources/servers': typeof AppAuthResourcesServersRoute
   '/resources/service-instances': typeof AppAuthResourcesServiceInstancesRoute
   '/resources/supported-software': typeof AppAuthResourcesSupportedSoftwareRoute
@@ -434,6 +442,7 @@ export interface FileRoutesByTo {
   '/resources': typeof AppAuthResourcesIndexRoute
   '/store': typeof AppAuthStoreIndexRoute
   '/topics': typeof AppAuthTopicsIndexRoute
+  '/assets/scripts': typeof AppAuthSuperuserAssetsScriptsRoute
   '/admin/credentials/env-vars': typeof AppAuthAdminCredentialsEnvVarsRoute
   '/terminal': typeof AppAuthSuperuserTerminalIndexRoute
   '/users': typeof AppAuthSuperuserUsersIndexRoute
@@ -465,6 +474,7 @@ export interface FileRoutesById {
   '/_app/_auth/space': typeof AppAuthSpaceRoute
   '/_app/_auth/topics': typeof AppAuthTopicsRouteWithChildren
   '/share/topic/$token': typeof ShareTopicTokenRoute
+  '/_app/_auth/_superuser/assets': typeof AppAuthSuperuserAssetsRouteWithChildren
   '/_app/_auth/_superuser/iac': typeof AppAuthSuperuserIacRoute
   '/_app/_auth/_superuser/logs': typeof AppAuthSuperuserLogsRoute
   '/_app/_auth/_superuser/settings': typeof AppAuthSuperuserSettingsRoute
@@ -479,7 +489,6 @@ export interface FileRoutesById {
   '/_app/_auth/resources/connectors': typeof AppAuthResourcesConnectorsRoute
   '/_app/_auth/resources/local-software': typeof AppAuthResourcesLocalSoftwareRoute
   '/_app/_auth/resources/platform-accounts': typeof AppAuthResourcesPlatformAccountsRoute
-  '/_app/_auth/resources/scripts': typeof AppAuthResourcesScriptsRoute
   '/_app/_auth/resources/servers': typeof AppAuthResourcesServersRoute
   '/_app/_auth/resources/service-instances': typeof AppAuthResourcesServiceInstancesRoute
   '/_app/_auth/resources/supported-software': typeof AppAuthResourcesSupportedSoftwareRoute
@@ -490,6 +499,7 @@ export interface FileRoutesById {
   '/_app/_auth/resources/': typeof AppAuthResourcesIndexRoute
   '/_app/_auth/store/': typeof AppAuthStoreIndexRoute
   '/_app/_auth/topics/': typeof AppAuthTopicsIndexRoute
+  '/_app/_auth/_superuser/assets/scripts': typeof AppAuthSuperuserAssetsScriptsRoute
   '/_app/_auth/admin/credentials/env-vars': typeof AppAuthAdminCredentialsEnvVarsRoute
   '/_app/_auth/_superuser/terminal/': typeof AppAuthSuperuserTerminalIndexRoute
   '/_app/_auth/_superuser/users/': typeof AppAuthSuperuserUsersIndexRoute
@@ -519,6 +529,7 @@ export interface FileRouteTypes {
     | '/space'
     | '/topics'
     | '/share/topic/$token'
+    | '/assets'
     | '/iac'
     | '/logs'
     | '/settings'
@@ -533,7 +544,6 @@ export interface FileRouteTypes {
     | '/resources/connectors'
     | '/resources/local-software'
     | '/resources/platform-accounts'
-    | '/resources/scripts'
     | '/resources/servers'
     | '/resources/service-instances'
     | '/resources/supported-software'
@@ -544,6 +554,7 @@ export interface FileRouteTypes {
     | '/resources/'
     | '/store/'
     | '/topics/'
+    | '/assets/scripts'
     | '/admin/credentials/env-vars'
     | '/terminal/'
     | '/users/'
@@ -568,6 +579,7 @@ export interface FileRouteTypes {
     | '/shared-envs'
     | '/space'
     | '/share/topic/$token'
+    | '/assets'
     | '/iac'
     | '/logs'
     | '/settings'
@@ -582,7 +594,6 @@ export interface FileRouteTypes {
     | '/resources/connectors'
     | '/resources/local-software'
     | '/resources/platform-accounts'
-    | '/resources/scripts'
     | '/resources/servers'
     | '/resources/service-instances'
     | '/resources/supported-software'
@@ -593,6 +604,7 @@ export interface FileRouteTypes {
     | '/resources'
     | '/store'
     | '/topics'
+    | '/assets/scripts'
     | '/admin/credentials/env-vars'
     | '/terminal'
     | '/users'
@@ -623,6 +635,7 @@ export interface FileRouteTypes {
     | '/_app/_auth/space'
     | '/_app/_auth/topics'
     | '/share/topic/$token'
+    | '/_app/_auth/_superuser/assets'
     | '/_app/_auth/_superuser/iac'
     | '/_app/_auth/_superuser/logs'
     | '/_app/_auth/_superuser/settings'
@@ -637,7 +650,6 @@ export interface FileRouteTypes {
     | '/_app/_auth/resources/connectors'
     | '/_app/_auth/resources/local-software'
     | '/_app/_auth/resources/platform-accounts'
-    | '/_app/_auth/resources/scripts'
     | '/_app/_auth/resources/servers'
     | '/_app/_auth/resources/service-instances'
     | '/_app/_auth/resources/supported-software'
@@ -648,6 +660,7 @@ export interface FileRouteTypes {
     | '/_app/_auth/resources/'
     | '/_app/_auth/store/'
     | '/_app/_auth/topics/'
+    | '/_app/_auth/_superuser/assets/scripts'
     | '/_app/_auth/admin/credentials/env-vars'
     | '/_app/_auth/_superuser/terminal/'
     | '/_app/_auth/_superuser/users/'
@@ -900,13 +913,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthResourcesServersRouteImport
       parentRoute: typeof AppAuthRoute
     }
-    '/_app/_auth/resources/scripts': {
-      id: '/_app/_auth/resources/scripts'
-      path: '/resources/scripts'
-      fullPath: '/resources/scripts'
-      preLoaderRoute: typeof AppAuthResourcesScriptsRouteImport
-      parentRoute: typeof AppAuthRoute
-    }
     '/_app/_auth/resources/platform-accounts': {
       id: '/_app/_auth/resources/platform-accounts'
       path: '/resources/platform-accounts'
@@ -1005,6 +1011,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthSuperuserIacRouteImport
       parentRoute: typeof AppAuthSuperuserRoute
     }
+    '/_app/_auth/_superuser/assets': {
+      id: '/_app/_auth/_superuser/assets'
+      path: '/assets'
+      fullPath: '/assets'
+      preLoaderRoute: typeof AppAuthSuperuserAssetsRouteImport
+      parentRoute: typeof AppAuthSuperuserRoute
+    }
     '/_app/_auth/_superuser/users/': {
       id: '/_app/_auth/_superuser/users/'
       path: '/users'
@@ -1026,6 +1039,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuthAdminCredentialsEnvVarsRouteImport
       parentRoute: typeof AppAuthRoute
     }
+    '/_app/_auth/_superuser/assets/scripts': {
+      id: '/_app/_auth/_superuser/assets/scripts'
+      path: '/scripts'
+      fullPath: '/assets/scripts'
+      preLoaderRoute: typeof AppAuthSuperuserAssetsScriptsRouteImport
+      parentRoute: typeof AppAuthSuperuserAssetsRoute
+    }
     '/_app/_auth/_superuser/terminal/server/$serverId': {
       id: '/_app/_auth/_superuser/terminal/server/$serverId'
       path: '/terminal/server/$serverId'
@@ -1036,7 +1056,22 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AppAuthSuperuserAssetsRouteChildren {
+  AppAuthSuperuserAssetsScriptsRoute: typeof AppAuthSuperuserAssetsScriptsRoute
+}
+
+const AppAuthSuperuserAssetsRouteChildren: AppAuthSuperuserAssetsRouteChildren =
+  {
+    AppAuthSuperuserAssetsScriptsRoute: AppAuthSuperuserAssetsScriptsRoute,
+  }
+
+const AppAuthSuperuserAssetsRouteWithChildren =
+  AppAuthSuperuserAssetsRoute._addFileChildren(
+    AppAuthSuperuserAssetsRouteChildren,
+  )
+
 interface AppAuthSuperuserRouteChildren {
+  AppAuthSuperuserAssetsRoute: typeof AppAuthSuperuserAssetsRouteWithChildren
   AppAuthSuperuserIacRoute: typeof AppAuthSuperuserIacRoute
   AppAuthSuperuserLogsRoute: typeof AppAuthSuperuserLogsRoute
   AppAuthSuperuserSettingsRoute: typeof AppAuthSuperuserSettingsRoute
@@ -1049,6 +1084,7 @@ interface AppAuthSuperuserRouteChildren {
 }
 
 const AppAuthSuperuserRouteChildren: AppAuthSuperuserRouteChildren = {
+  AppAuthSuperuserAssetsRoute: AppAuthSuperuserAssetsRouteWithChildren,
   AppAuthSuperuserIacRoute: AppAuthSuperuserIacRoute,
   AppAuthSuperuserLogsRoute: AppAuthSuperuserLogsRoute,
   AppAuthSuperuserSettingsRoute: AppAuthSuperuserSettingsRoute,
@@ -1150,7 +1186,6 @@ interface AppAuthRouteChildren {
   AppAuthResourcesConnectorsRoute: typeof AppAuthResourcesConnectorsRoute
   AppAuthResourcesLocalSoftwareRoute: typeof AppAuthResourcesLocalSoftwareRoute
   AppAuthResourcesPlatformAccountsRoute: typeof AppAuthResourcesPlatformAccountsRoute
-  AppAuthResourcesScriptsRoute: typeof AppAuthResourcesScriptsRoute
   AppAuthResourcesServersRoute: typeof AppAuthResourcesServersRoute
   AppAuthResourcesServiceInstancesRoute: typeof AppAuthResourcesServiceInstancesRoute
   AppAuthResourcesSupportedSoftwareRoute: typeof AppAuthResourcesSupportedSoftwareRoute
@@ -1180,7 +1215,6 @@ const AppAuthRouteChildren: AppAuthRouteChildren = {
   AppAuthResourcesConnectorsRoute: AppAuthResourcesConnectorsRoute,
   AppAuthResourcesLocalSoftwareRoute: AppAuthResourcesLocalSoftwareRoute,
   AppAuthResourcesPlatformAccountsRoute: AppAuthResourcesPlatformAccountsRoute,
-  AppAuthResourcesScriptsRoute: AppAuthResourcesScriptsRoute,
   AppAuthResourcesServersRoute: AppAuthResourcesServersRoute,
   AppAuthResourcesServiceInstancesRoute: AppAuthResourcesServiceInstancesRoute,
   AppAuthResourcesSupportedSoftwareRoute:

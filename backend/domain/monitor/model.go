@@ -22,7 +22,7 @@ const (
 )
 
 const (
-	SignalSourceNetdata     = "netdata"
+	SignalSourceCollector   = "monitor_collector"
 	SignalSourceAppOS       = "appos_active_check"
 	SignalSourceSelf        = "appos_self"
 	SignalSourceInventory   = "appos_inventory"

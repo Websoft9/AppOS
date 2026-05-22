@@ -3,6 +3,7 @@ package platform_test
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 	"time"
 
@@ -29,7 +30,9 @@ func TestPlatformObserverCollectWritesPlatformTargets(t *testing.T) {
 	})
 	observer.SetNowFunc(func() time.Time { return now })
 	observer.SetResourceFunc(func([]int) map[int]supervisor.ResourceInfo {
-		return map[int]supervisor.ResourceInfo{}
+		return map[int]supervisor.ResourceInfo{
+			os.Getpid(): {CPU: 12.5, Memory: 2048},
+		}
 	})
 
 	if err := observer.Collect(); err != nil {
@@ -122,6 +125,7 @@ func TestPlatformObserverCollectWritesPlatformMetrics(t *testing.T) {
 	}
 	foundGoroutines := false
 	foundCPU := false
+	foundMemory := false
 	for _, point := range captured {
 		if point.Series == "appos_platform_goroutines" {
 			foundGoroutines = true
@@ -129,12 +133,18 @@ func TestPlatformObserverCollectWritesPlatformMetrics(t *testing.T) {
 		if point.Series == "appos_platform_cpu_percent" {
 			foundCPU = true
 		}
+		if point.Series == "appos_platform_memory_bytes" {
+			foundMemory = true
+		}
 	}
 	if !foundGoroutines {
 		t.Fatalf("expected appos_platform_goroutines in %+v", captured)
 	}
-	if foundCPU {
-		t.Fatalf("did not expect appos_platform_cpu_percent in %+v", captured)
+	if !foundCPU {
+		t.Fatalf("expected appos_platform_cpu_percent in %+v", captured)
+	}
+	if !foundMemory {
+		t.Fatalf("expected appos_platform_memory_bytes in %+v", captured)
 	}
 }
 

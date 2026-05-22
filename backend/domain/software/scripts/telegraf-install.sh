@@ -8,10 +8,11 @@ INSTALL_ROOT="${APPOS_TELEGRAF_INSTALL_ROOT:-/opt/appos/telegraf}"
 ACTIVE_LINK="${APPOS_TELEGRAF_ACTIVE_LINK:-/usr/local/bin/telegraf}"
 CONFIG_DIR="${APPOS_TELEGRAF_CONFIG_DIR:-/etc/telegraf}"
 CONFIG_PATH="${APPOS_TELEGRAF_CONFIG_PATH:-$CONFIG_DIR/telegraf.conf}"
-SERVICE_NAME="${APPOS_TELEGRAF_SERVICE_NAME:-telegraf.service}"
+SERVICE_NAME="${APPOS_TELEGRAF_SERVICE_NAME:-${APPOS_SERVICE:-appos-monitor.service}}"
 SERVICE_PATH="/etc/systemd/system/$SERVICE_NAME"
 DATA_DIR="${APPOS_TELEGRAF_DATA_DIR:-/var/lib/telegraf}"
 LOG_DIR="${APPOS_TELEGRAF_LOG_DIR:-/var/log/telegraf}"
+LEGACY_SERVICE_NAMES_RAW="${APPOS_LEGACY_SERVICE_NAMES:-}"
 
 timestamp() {
   date -u +"%Y-%m-%dT%H:%M:%SZ"
@@ -110,6 +111,8 @@ default_config() {
 [[inputs.disk]]
   ignore_fs = ["tmpfs", "devtmpfs", "devfs", "iso9660", "overlay", "aufs", "squashfs"]
 
+[[inputs.diskio]]
+
 [[inputs.net]]
 
 [[inputs.docker]]
@@ -141,7 +144,7 @@ write_service() {
   tmp_service="$(mktemp)"
   cat > "$tmp_service" <<EOF
 [Unit]
-Description=Telegraf Metrics Collector
+Description=Native Telegraf agent for AppOS metrics collector
 After=network-online.target
 Wants=network-online.target
 
@@ -204,9 +207,42 @@ stop_service() {
   run_root systemctl disable --now "$SERVICE_NAME" >/dev/null 2>&1 || true
 }
 
+cleanup_legacy_services() {
+  local removed_unit=0
+  local raw_name legacy_name legacy_path
+  while IFS= read -r raw_name; do
+    legacy_name="$(printf '%s' "$raw_name" | xargs)"
+    if [[ -z "$legacy_name" || "$legacy_name" == "$SERVICE_NAME" ]]; then
+      continue
+    fi
+
+    legacy_path="/etc/systemd/system/$legacy_name"
+    if [[ ! -f "$legacy_path" ]]; then
+      log_warn "legacy unit $legacy_name is not an AppOS-managed override in /etc/systemd/system; leaving it in place"
+      continue
+    fi
+
+    if grep -q "Native Telegraf agent for AppOS metrics collector" "$legacy_path" || \
+      grep -q "$ACTIVE_LINK --config $CONFIG_PATH" "$legacy_path"; then
+      log_info "cleaning up legacy service $legacy_name"
+      run_root systemctl disable --now "$legacy_name" >/dev/null 2>&1 || true
+      run_root rm -f "$legacy_path"
+      removed_unit=1
+      log_info "removed legacy AppOS Telegraf unit $legacy_name"
+    else
+      log_warn "legacy unit $legacy_name does not look AppOS-managed; leaving unit file in place"
+    fi
+  done <<< "$LEGACY_SERVICE_NAMES_RAW"
+
+  if [[ "$removed_unit" -eq 1 ]]; then
+    run_root systemctl daemon-reload
+  fi
+}
+
 uninstall_telegraf() {
   log_info "stopping Telegraf service"
   stop_service
+  cleanup_legacy_services
   run_root rm -f "$SERVICE_PATH"
   run_root systemctl daemon-reload
   run_root rm -f "$ACTIVE_LINK"
@@ -233,12 +269,14 @@ main() {
       uninstall_telegraf
       ;;
     --upgrade|--reinstall)
+      cleanup_legacy_services
       install_binary
       write_config
       write_service
       enable_service
       ;;
     "")
+      cleanup_legacy_services
       install_binary
       write_config
       write_service

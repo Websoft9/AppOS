@@ -10,6 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Checkbox } from '@/components/ui/checkbox'
 import { TimeSeriesChart } from '@/components/monitor/TimeSeriesChart'
 
+const noAutoCancel = { requestKey: null }
+
 type MonitorSeriesWindow =
   | '1m'
   | '5m'
@@ -65,6 +67,8 @@ type MonitorSeriesResponse = {
   }>
 }
 
+type MonitorSeriesItem = MonitorSeriesResponse['series'][number]
+
 const SERIES_WINDOWS = [
   {
     value: '1m',
@@ -116,6 +120,9 @@ const SERIES_WINDOWS = [
 
 const SNAPSHOT_WINDOW = '15m'
 const SNAPSHOT_REALTIME_INTERVAL_MS = 2000
+const DEFAULT_SERIES_QUERY = 'cpu,memory'
+const EXTENDED_SERIES_QUERY = 'cpu,memory,disk_usage,disk,network'
+const NETWORK_TRAFFIC_SERIES_QUERY = 'network_traffic'
 
 function toLocalDateTimeInputValue(value: Date): string {
   const year = value.getFullYear()
@@ -275,11 +282,36 @@ function supportsNetworkInterfaceSelection(targetType: string, targetId: string)
   return targetType === 'server' || isAppOSCorePlatformTarget(targetType, targetId)
 }
 
-function seriesQueryForTarget(targetType: string, targetId: string): string {
+function seriesQueryForTarget(
+  targetType: string,
+  targetId: string,
+  options?: { includeNetworkTraffic?: boolean }
+): string {
   if (supportsExtendedResourceSeries(targetType, targetId)) {
-    return 'cpu,memory,disk_usage,disk,network,network_traffic'
+    return options?.includeNetworkTraffic === false
+      ? EXTENDED_SERIES_QUERY
+      : `${EXTENDED_SERIES_QUERY},${NETWORK_TRAFFIC_SERIES_QUERY}`
   }
-  return 'cpu,memory'
+  return DEFAULT_SERIES_QUERY
+}
+
+function normalizeSeriesResponse(response: MonitorSeriesResponse, series: MonitorSeriesItem[]) {
+  return {
+    ...response,
+    series,
+  }
+}
+
+function mergeTrendSeries(
+  primarySeries: MonitorSeriesResponse | null,
+  networkTrafficSeries: MonitorSeriesResponse | null
+): MonitorSeriesItem[] {
+  const merged = (primarySeries?.series ?? []).filter(item => item.name !== 'network_traffic')
+  const networkTrafficItems = (networkTrafficSeries?.series ?? []).filter(
+    item => item.name === 'network_traffic'
+  )
+
+  return [...merged, ...networkTrafficItems]
 }
 
 function statusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
@@ -343,6 +375,16 @@ function monitorMetricsPipelineWarning(
   return null
 }
 
+function TrendLoadingIndicator({ visible }: { visible: boolean }) {
+  if (!visible) return null
+  return (
+    <div className="inline-flex items-center gap-2 rounded-md border bg-muted/20 px-2 py-1 text-xs text-muted-foreground">
+      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      Updating...
+    </div>
+  )
+}
+
 export function MonitorTargetPanel({
   targetType,
   targetId,
@@ -368,11 +410,13 @@ export function MonitorTargetPanel({
   const [error, setError] = useState('')
   const [series, setSeries] = useState<MonitorSeriesResponse | null>(null)
   const [seriesLoading, setSeriesLoading] = useState(false)
+  const [networkTrafficSeries, setNetworkTrafficSeries] = useState<MonitorSeriesResponse | null>(null)
+  const [networkTrafficLoading, setNetworkTrafficLoading] = useState(false)
   const [snapshotSeries, setSnapshotSeries] = useState<MonitorSeriesResponse | null>(null)
   const [snapshotLoading, setSnapshotLoading] = useState(false)
   const [snapshotRealtime, setSnapshotRealtime] = useState(false)
   const [selectedWindow, setSelectedWindow] = useState<MonitorSeriesWindow>('1h')
-  const [selectedNetworkInterface, setSelectedNetworkInterface] = useState('all')
+  const [selectedTrendNetworkInterface, setSelectedTrendNetworkInterface] = useState('all')
   const [draftCustomRange, setDraftCustomRange] = useState<CustomRangeState>(() =>
     createDefaultCustomRange()
   )
@@ -394,7 +438,7 @@ export function MonitorTargetPanel({
       try {
         const response = await pb.send<MonitorTargetResponse>(
           `/api/monitor/targets/${encodeURIComponent(targetType)}/${encodeURIComponent(targetId)}`,
-          { method: 'GET' }
+          { method: 'GET', ...noAutoCancel }
         )
         setData(response)
       } catch (err) {
@@ -419,7 +463,7 @@ export function MonitorTargetPanel({
 
     const params = new URLSearchParams({
       window: selectedWindow,
-      series: seriesQueryForTarget(targetType, targetId),
+      series: seriesQueryForTarget(targetType, targetId, { includeNetworkTraffic: false }),
     })
     if (selectedWindow === 'custom') {
       const startAt = toUtcIsoString(appliedCustomRange.startLocal)
@@ -434,33 +478,72 @@ export function MonitorTargetPanel({
 
     setSeriesLoading(true)
     try {
-      if (
-        supportsNetworkInterfaceSelection(targetType, targetId) &&
-        selectedNetworkInterface !== 'all'
-      ) {
-        params.set('networkInterface', selectedNetworkInterface)
-      }
       const response = await pb.send<MonitorSeriesResponse>(
         `/api/monitor/targets/${encodeURIComponent(targetType)}/${encodeURIComponent(targetId)}/series?${params.toString()}`,
-        { method: 'GET' }
+        { method: 'GET', ...noAutoCancel }
       )
-      if (
-        supportsNetworkInterfaceSelection(targetType, targetId) &&
-        response.selectedNetworkInterface &&
-        response.selectedNetworkInterface !== selectedNetworkInterface
-      ) {
-        setSelectedNetworkInterface(response.selectedNetworkInterface)
-      }
-      setSeries({
-        ...response,
-        series: Array.isArray(response.series) ? response.series : [],
-      })
+      setSeries(normalizeSeriesResponse(response, Array.isArray(response.series) ? response.series : []))
     } catch {
       setSeries(null)
     } finally {
       setSeriesLoading(false)
     }
-  }, [appliedCustomRange, selectedNetworkInterface, selectedWindow, targetId, targetType])
+  }, [appliedCustomRange, selectedWindow, targetId, targetType])
+
+  const loadNetworkTrafficSeries = useCallback(async () => {
+    if (
+      !targetId ||
+      !supportsNetworkInterfaceSelection(targetType, targetId) ||
+      (targetType !== 'server' && targetType !== 'platform' && targetType !== 'app')
+    ) {
+      setNetworkTrafficSeries(null)
+      return
+    }
+
+    const params = new URLSearchParams({
+      window: selectedWindow,
+      series: NETWORK_TRAFFIC_SERIES_QUERY,
+    })
+    if (selectedWindow === 'custom') {
+      const startAt = toUtcIsoString(appliedCustomRange.startLocal)
+      const endAt = toUtcIsoString(appliedCustomRange.endLocal)
+      if (!startAt || !endAt || !isValidCustomRange(appliedCustomRange)) {
+        setNetworkTrafficSeries(null)
+        return
+      }
+      params.set('startAt', startAt)
+      params.set('endAt', endAt)
+    }
+    if (selectedTrendNetworkInterface !== 'all') {
+      params.set('networkInterface', selectedTrendNetworkInterface)
+    }
+
+    setNetworkTrafficLoading(true)
+    try {
+      const response = await pb.send<MonitorSeriesResponse>(
+        `/api/monitor/targets/${encodeURIComponent(targetType)}/${encodeURIComponent(targetId)}/series?${params.toString()}`,
+        { method: 'GET', ...noAutoCancel }
+      )
+      if (
+        response.selectedNetworkInterface &&
+        response.selectedNetworkInterface !== selectedTrendNetworkInterface
+      ) {
+        setSelectedTrendNetworkInterface(response.selectedNetworkInterface)
+      }
+      setNetworkTrafficSeries(
+        normalizeSeriesResponse(
+          response,
+          Array.isArray(response.series)
+            ? response.series.filter(item => item.name === 'network_traffic')
+            : []
+        )
+      )
+    } catch {
+      setNetworkTrafficSeries(null)
+    } finally {
+      setNetworkTrafficLoading(false)
+    }
+  }, [appliedCustomRange, selectedTrendNetworkInterface, selectedWindow, targetId, targetType])
 
   const loadSnapshotSeries = useCallback(
     async (silent = false) => {
@@ -477,12 +560,6 @@ export function MonitorTargetPanel({
         window: SNAPSHOT_WINDOW,
         series: seriesQueryForTarget(targetType, targetId),
       })
-      if (
-        supportsNetworkInterfaceSelection(targetType, targetId) &&
-        selectedNetworkInterface !== 'all'
-      ) {
-        params.set('networkInterface', selectedNetworkInterface)
-      }
 
       if (!silent) {
         setSnapshotLoading(true)
@@ -490,12 +567,11 @@ export function MonitorTargetPanel({
       try {
         const response = await pb.send<MonitorSeriesResponse>(
           `/api/monitor/targets/${encodeURIComponent(targetType)}/${encodeURIComponent(targetId)}/series?${params.toString()}`,
-          { method: 'GET' }
+          { method: 'GET', ...noAutoCancel }
         )
-        setSnapshotSeries({
-          ...response,
-          series: Array.isArray(response.series) ? response.series : [],
-        })
+        setSnapshotSeries(
+          normalizeSeriesResponse(response, Array.isArray(response.series) ? response.series : [])
+        )
       } catch {
         if (!silent) {
           setSnapshotSeries(null)
@@ -506,7 +582,7 @@ export function MonitorTargetPanel({
         }
       }
     },
-    [detailLayout, selectedNetworkInterface, targetId, targetType]
+    [detailLayout, targetId, targetType]
   )
 
   const selectedWindowMeta =
@@ -521,10 +597,13 @@ export function MonitorTargetPanel({
   const customRangeDirty =
     draftCustomRange.startLocal !== appliedCustomRange.startLocal ||
     draftCustomRange.endLocal !== appliedCustomRange.endLocal
+  const trendSeries = mergeTrendSeries(series, networkTrafficSeries)
+  const availableTrendNetworkInterfaces =
+    networkTrafficSeries?.availableNetworkInterfaces ?? series?.availableNetworkInterfaces
 
   const handleRefresh = useCallback(async () => {
-    await Promise.all([load(true), loadSeries(), loadSnapshotSeries(true)])
-  }, [load, loadSeries, loadSnapshotSeries])
+    await Promise.all([load(true), loadSeries(), loadNetworkTrafficSeries(), loadSnapshotSeries(true)])
+  }, [load, loadNetworkTrafficSeries, loadSeries, loadSnapshotSeries])
 
   useEffect(() => {
     void load()
@@ -533,6 +612,10 @@ export function MonitorTargetPanel({
   useEffect(() => {
     void loadSeries()
   }, [loadSeries])
+
+  useEffect(() => {
+    void loadNetworkTrafficSeries()
+  }, [loadNetworkTrafficSeries])
 
   useEffect(() => {
     void loadSnapshotSeries()
@@ -553,7 +636,7 @@ export function MonitorTargetPanel({
   }, [handleRefresh, refreshKey])
 
   useEffect(() => {
-    setSelectedNetworkInterface('all')
+    setSelectedTrendNetworkInterface('all')
   }, [targetId, targetType])
 
   useEffect(() => {
@@ -562,9 +645,12 @@ export function MonitorTargetPanel({
 
   const summaryEntries = Object.entries(data?.summary ?? {})
   const snapshotItems = buildSnapshotItems(snapshotSeries?.series ?? [])
+  const hasTrendSeries = trendSeries.length > 0
   const pipelineWarning = monitorMetricsPipelineWarning(
     data,
-    seriesHasUsableData(series) || seriesHasUsableData(snapshotSeries)
+    seriesHasUsableData(series) ||
+      seriesHasUsableData(networkTrafficSeries) ||
+      seriesHasUsableData(snapshotSeries)
   )
 
   if (detailLayout) {
@@ -673,122 +759,120 @@ export function MonitorTargetPanel({
               <CardTitle className="text-sm">Trend History</CardTitle>
               <CardDescription>{selectedWindowMeta.description}</CardDescription>
             </div>
-            <div
-              className="inline-flex flex-wrap items-center rounded-lg border bg-muted/20 p-1"
-              role="tablist"
-              aria-label="trend window selector"
-            >
-              {SERIES_WINDOWS.filter(window => window.value !== 'custom').map(window => {
-                const active = window.value === selectedWindow
-                return (
-                  <Button
-                    key={window.value}
-                    type="button"
-                    size="xs"
-                    variant={active ? 'secondary' : 'ghost'}
-                    aria-pressed={active}
-                    onClick={() => setSelectedWindow(window.value)}
-                    disabled={seriesLoading}
-                  >
-                    {window.label}
-                  </Button>
-                )
-              })}
-              <Popover open={customRangeOpen} onOpenChange={setCustomRangeOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    size="xs"
-                    variant={selectedWindow === 'custom' ? 'secondary' : 'ghost'}
-                    aria-pressed={selectedWindow === 'custom'}
-                    disabled={seriesLoading}
-                  >
-                    {selectedWindow === 'custom'
-                      ? formatCustomRangeLabel(appliedCustomRange)
-                      : 'custom'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="w-[min(24rem,calc(100vw-2rem))] space-y-3">
-                  <div className="space-y-1">
-                    <div className="text-sm font-medium">Custom time range</div>
-                    <div className="text-xs text-muted-foreground">
-                      Choose start and end time, then apply them to the current trend charts.
-                    </div>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="space-y-1 text-sm">
-                      <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Start
-                      </span>
-                      <Input
-                        aria-label="Trend range start"
-                        type="datetime-local"
-                        value={draftCustomRange.startLocal}
-                        onChange={event =>
-                          setDraftCustomRange(current => ({
-                            ...current,
-                            startLocal: event.target.value,
-                          }))
-                        }
-                        max={draftCustomRange.endLocal || undefined}
-                      />
-                    </label>
-                    <label className="space-y-1 text-sm">
-                      <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                        End
-                      </span>
-                      <Input
-                        aria-label="Trend range end"
-                        type="datetime-local"
-                        value={draftCustomRange.endLocal}
-                        onChange={event =>
-                          setDraftCustomRange(current => ({
-                            ...current,
-                            endLocal: event.target.value,
-                          }))
-                        }
-                        min={draftCustomRange.startLocal || undefined}
-                      />
-                    </label>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-xs text-muted-foreground">
-                      {formatCustomRangeDescription(draftCustomRange)}
-                    </div>
+            <div className="flex flex-col items-end gap-2">
+              <TrendLoadingIndicator visible={seriesLoading && hasTrendSeries} />
+              <div
+                className="inline-flex flex-wrap items-center rounded-lg border bg-muted/20 p-1"
+                role="tablist"
+                aria-label="trend window selector"
+              >
+                {SERIES_WINDOWS.filter(window => window.value !== 'custom').map(window => {
+                  const active = window.value === selectedWindow
+                  return (
+                    <Button
+                      key={window.value}
+                      type="button"
+                      size="xs"
+                      variant={active ? 'secondary' : 'ghost'}
+                      aria-pressed={active}
+                      onClick={() => setSelectedWindow(window.value)}
+                      disabled={seriesLoading}
+                    >
+                      {window.label}
+                    </Button>
+                  )
+                })}
+                <Popover open={customRangeOpen} onOpenChange={setCustomRangeOpen}>
+                  <PopoverTrigger asChild>
                     <Button
                       type="button"
-                      variant="outline"
-                      onClick={() => {
-                        setAppliedCustomRange(draftCustomRange)
-                        setSelectedWindow('custom')
-                        setCustomRangeOpen(false)
-                      }}
-                      disabled={
-                        seriesLoading ||
-                        !isValidCustomRange(draftCustomRange) ||
-                        (selectedWindow === 'custom' && !customRangeDirty)
-                      }
+                      size="xs"
+                      variant={selectedWindow === 'custom' ? 'secondary' : 'ghost'}
+                      aria-pressed={selectedWindow === 'custom'}
+                      disabled={seriesLoading}
                     >
-                      Apply
+                      {selectedWindow === 'custom'
+                        ? formatCustomRangeLabel(appliedCustomRange)
+                        : 'custom'}
                     </Button>
-                  </div>
-                </PopoverContent>
-              </Popover>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-[min(24rem,calc(100vw-2rem))] space-y-3">
+                    <div className="space-y-1">
+                      <div className="text-sm font-medium">Custom time range</div>
+                      <div className="text-xs text-muted-foreground">
+                        Choose start and end time, then apply them to the current trend charts.
+                      </div>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="space-y-1 text-sm">
+                        <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Start
+                        </span>
+                        <Input
+                          aria-label="Trend range start"
+                          type="datetime-local"
+                          value={draftCustomRange.startLocal}
+                          onChange={event =>
+                            setDraftCustomRange(current => ({
+                              ...current,
+                              startLocal: event.target.value,
+                            }))
+                          }
+                          max={draftCustomRange.endLocal || undefined}
+                        />
+                      </label>
+                      <label className="space-y-1 text-sm">
+                        <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                          End
+                        </span>
+                        <Input
+                          aria-label="Trend range end"
+                          type="datetime-local"
+                          value={draftCustomRange.endLocal}
+                          onChange={event =>
+                            setDraftCustomRange(current => ({
+                              ...current,
+                              endLocal: event.target.value,
+                            }))
+                          }
+                          min={draftCustomRange.startLocal || undefined}
+                        />
+                      </label>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-xs text-muted-foreground">
+                        {formatCustomRangeDescription(draftCustomRange)}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setAppliedCustomRange(draftCustomRange)
+                          setSelectedWindow('custom')
+                          setCustomRangeOpen(false)
+                        }}
+                        disabled={
+                          seriesLoading ||
+                          !isValidCustomRange(draftCustomRange) ||
+                          (selectedWindow === 'custom' && !customRangeDirty)
+                        }
+                      >
+                        Apply
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
-            {seriesLoading ? (
-              <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Loading trend data...
-              </div>
-            ) : (series?.series?.length ?? 0) === 0 ? (
+            {!hasTrendSeries ? (
               <div className="rounded-md border border-dashed px-3 py-6 text-sm text-muted-foreground">
                 {emptyMessage || 'Trend history is unavailable until monitoring data arrives.'}
               </div>
             ) : (
               <div className="grid gap-3 lg:grid-cols-2">
-                {series?.series.map(item => (
+                {trendSeries.map(item => (
                   <TrendCard
                     key={item.name}
                     name={item.name}
@@ -797,24 +881,37 @@ export function MonitorTargetPanel({
                     points={item.points ?? []}
                     segments={item.segments}
                     metadata={item.metadata}
-                    rangeStartAt={series?.rangeStartAt}
-                    rangeEndAt={series?.rangeEndAt}
-                    stepSeconds={series?.stepSeconds}
+                    rangeStartAt={
+                      item.name === 'network_traffic'
+                        ? networkTrafficSeries?.rangeStartAt
+                        : series?.rangeStartAt
+                    }
+                    rangeEndAt={
+                      item.name === 'network_traffic'
+                        ? networkTrafficSeries?.rangeEndAt
+                        : series?.rangeEndAt
+                    }
+                    stepSeconds={
+                      item.name === 'network_traffic'
+                        ? networkTrafficSeries?.stepSeconds
+                        : series?.stepSeconds
+                    }
                     availableNetworkInterfaces={
                       item.name === 'network' || item.name === 'network_traffic'
-                        ? series.availableNetworkInterfaces
+                        ? availableTrendNetworkInterfaces
                         : undefined
                     }
                     selectedNetworkInterface={
                       item.name === 'network' || item.name === 'network_traffic'
-                        ? selectedNetworkInterface
+                        ? selectedTrendNetworkInterface
                         : undefined
                     }
                     onNetworkInterfaceChange={
-                      item.name === 'network' || item.name === 'network_traffic'
-                        ? setSelectedNetworkInterface
+                      item.name === 'network_traffic'
+                        ? setSelectedTrendNetworkInterface
                         : undefined
                     }
+                    loading={item.name === 'network_traffic' && networkTrafficLoading}
                   />
                 ))}
               </div>
@@ -839,7 +936,7 @@ export function MonitorTargetPanel({
           variant="outline"
           size="sm"
           onClick={() => void handleRefresh()}
-          disabled={loading || refreshing || seriesLoading || !targetId}
+          disabled={loading || refreshing || seriesLoading || networkTrafficLoading || !targetId}
         >
           {loading || refreshing ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -931,18 +1028,20 @@ export function MonitorTargetPanel({
             </CardContent>
           </Card>
 
-          {seriesLoading || (series?.series?.length ?? 0) > 0 ? (
+          {seriesLoading || networkTrafficLoading || hasTrendSeries ? (
             <Card className="lg:col-span-2">
               <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="space-y-1">
                   <CardTitle className="text-base">Trend History</CardTitle>
                   <CardDescription>{selectedWindowMeta.description}</CardDescription>
                 </div>
-                <div
-                  className="inline-flex flex-wrap items-center rounded-lg border bg-muted/20 p-1"
-                  role="tablist"
-                  aria-label="trend window selector"
-                >
+                  <div className="flex flex-col items-end gap-2">
+                  <TrendLoadingIndicator visible={seriesLoading && hasTrendSeries} />
+                  <div
+                    className="inline-flex flex-wrap items-center rounded-lg border bg-muted/20 p-1"
+                    role="tablist"
+                    aria-label="trend window selector"
+                  >
                   {SERIES_WINDOWS.filter(window => window.value !== 'custom').map(window => {
                     const active = window.value === selectedWindow
                     return (
@@ -953,7 +1052,7 @@ export function MonitorTargetPanel({
                         variant={active ? 'secondary' : 'ghost'}
                         aria-pressed={active}
                         onClick={() => setSelectedWindow(window.value)}
-                        disabled={seriesLoading}
+                        disabled={seriesLoading || networkTrafficLoading}
                       >
                         {window.label}
                       </Button>
@@ -966,17 +1065,14 @@ export function MonitorTargetPanel({
                         size="xs"
                         variant={selectedWindow === 'custom' ? 'secondary' : 'ghost'}
                         aria-pressed={selectedWindow === 'custom'}
-                        disabled={seriesLoading}
+                        disabled={seriesLoading || networkTrafficLoading}
                       >
                         {selectedWindow === 'custom'
                           ? formatCustomRangeLabel(appliedCustomRange)
                           : 'custom'}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent
-                      align="end"
-                      className="w-[min(24rem,calc(100vw-2rem))] space-y-3"
-                    >
+                    <PopoverContent align="end" className="w-[min(24rem,calc(100vw-2rem))] space-y-3">
                       <div className="space-y-1">
                         <div className="text-sm font-medium">Custom time range</div>
                         <div className="text-xs text-muted-foreground">
@@ -1033,6 +1129,7 @@ export function MonitorTargetPanel({
                           }}
                           disabled={
                             seriesLoading ||
+                            networkTrafficLoading ||
                             !isValidCustomRange(draftCustomRange) ||
                             (selectedWindow === 'custom' && !customRangeDirty)
                           }
@@ -1043,48 +1140,49 @@ export function MonitorTargetPanel({
                     </PopoverContent>
                   </Popover>
                 </div>
-              </CardHeader>
-              <CardContent>
-                {seriesLoading ? (
-                  <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading trend data...
-                  </div>
-                ) : (
-                  <div className="grid gap-3 lg:grid-cols-2">
-                    {series?.series.map(item => (
-                      <TrendCard
-                        key={item.name}
-                        name={item.name}
-                        unit={item.unit}
-                        window={selectedWindow}
-                        points={item.points ?? []}
-                        segments={item.segments}
-                        metadata={item.metadata}
-                        rangeStartAt={series?.rangeStartAt}
-                        rangeEndAt={series?.rangeEndAt}
-                        stepSeconds={series?.stepSeconds}
-                        availableNetworkInterfaces={
-                          item.name === 'network' || item.name === 'network_traffic'
-                            ? series.availableNetworkInterfaces
-                            : undefined
-                        }
-                        selectedNetworkInterface={
-                          item.name === 'network' || item.name === 'network_traffic'
-                            ? selectedNetworkInterface
-                            : undefined
-                        }
-                        onNetworkInterfaceChange={
-                          item.name === 'network' || item.name === 'network_traffic'
-                            ? setSelectedNetworkInterface
-                            : undefined
-                        }
-                      />
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {!hasTrendSeries ? (
+                <div className="rounded-md border border-dashed px-3 py-6 text-sm text-muted-foreground">
+                  {emptyMessage || 'Trend history is unavailable until monitoring data arrives.'}
+                </div>
+              ) : (
+                <div className="grid gap-3 lg:grid-cols-2">
+                  {trendSeries.map(item => (
+                    <TrendCard
+                      key={item.name}
+                      name={item.name}
+                      unit={item.unit}
+                      window={selectedWindow}
+                      points={item.points ?? []}
+                      segments={item.segments}
+                      metadata={item.metadata}
+                      rangeStartAt={item.name === 'network_traffic' ? networkTrafficSeries?.rangeStartAt : series?.rangeStartAt}
+                      rangeEndAt={item.name === 'network_traffic' ? networkTrafficSeries?.rangeEndAt : series?.rangeEndAt}
+                      stepSeconds={item.name === 'network_traffic' ? networkTrafficSeries?.stepSeconds : series?.stepSeconds}
+                      availableNetworkInterfaces={
+                        item.name === 'network' || item.name === 'network_traffic'
+                          ? availableTrendNetworkInterfaces
+                          : undefined
+                      }
+                      selectedNetworkInterface={
+                        item.name === 'network' || item.name === 'network_traffic'
+                          ? selectedTrendNetworkInterface
+                          : undefined
+                      }
+                      onNetworkInterfaceChange={
+                        item.name === 'network_traffic'
+                          ? setSelectedTrendNetworkInterface
+                        : undefined
+                    }
+                      loading={item.name === 'network_traffic' && networkTrafficLoading}
+                  />
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
           ) : null}
         </div>
       ) : error ? null : (
@@ -1218,6 +1316,7 @@ function TrendCard({
   availableNetworkInterfaces,
   selectedNetworkInterface,
   onNetworkInterfaceChange,
+  loading = false,
 }: {
   name: string
   unit: string
@@ -1231,6 +1330,7 @@ function TrendCard({
   availableNetworkInterfaces?: string[]
   selectedNetworkInterface?: string
   onNetworkInterfaceChange?: (value: string) => void
+  loading?: boolean
 }) {
   const latest = latestValue(points)
   const used = segments?.find(segment => segment.name === 'used')
@@ -1284,6 +1384,7 @@ function TrendCard({
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <TrendLoadingIndicator visible={loading} />
           {name === 'network_traffic' &&
           availableNetworkInterfaces &&
           availableNetworkInterfaces.length > 0 &&
@@ -1294,6 +1395,7 @@ function TrendCard({
                 aria-label="Network interface"
                 className="h-8 rounded-md border bg-background px-2 text-xs text-foreground"
                 value={selectedNetworkInterface ?? 'all'}
+                disabled={loading}
                 onChange={event => onNetworkInterfaceChange(event.target.value)}
               >
                 <option value="all">All interfaces</option>

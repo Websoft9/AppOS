@@ -48,7 +48,7 @@ tags:
   - name: Secrets
     description: "Secret storage, rotation, resolve, and reveal APIs."
   - name: Servers
-    description: "Server registry CRUD and remote operations APIs for connectivity, power, cron, ports, monitor-agent deployment, and systemd management."
+    description: "Server registry CRUD and remote operations APIs for connectivity, power, cron, ports, and systemd management."
   - name: Service Instances
     description: "Service instance catalog and template APIs for managed external services."
   - name: Services
@@ -352,36 +352,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/FileEntry'
-    MonitorAgentDeployRequest:
-      type: object
-      properties:
-        apposBaseUrl:
-          type: string
-    MonitorAgentDeployResponse:
-      type: object
-      properties:
-        server_id:
-          type: string
-        service:
-          type: string
-        status:
-          type: string
-        binary_path:
-          type: string
-        config_path:
-          type: string
-        unit_path:
-          type: string
-        output:
-          type: string
-        systemd:
-          type: object
-          additionalProperties:
-            type: string
-        status_text:
-          type: string
-        packaged_version:
-          type: string
     MoveRequest:
       type: object
       properties:
@@ -4351,7 +4321,7 @@ paths:
     get:
       tags: [Monitoring]
       summary: Get server container telemetry
-      description: "Returns latest and time-series telemetry for containers on one managed server. For the current Netdata-backed MVP, AppOS matches telemetry primarily by normalized containerName; containerId remains a request correlation key and fallback when no name is provided."
+      description: "Returns latest and time-series telemetry for containers on one managed server. AppOS reads stable canonical container metrics and matches telemetry primarily by normalized containerName; containerId remains a request correlation key when no name is provided."
       operationId: get_api_monitor_servers_id_container-telemetry
       parameters:
         - name: id
@@ -4561,83 +4531,23 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MonitorErrorResponse'
-  /api/monitor/telegraf/write:
-    post:
-      tags: [Monitoring Ingest]
-      summary: Write Telegraf metrics
-      description: "Receives Influx line protocol payloads from managed-server Telegraf agents and forwards them to the embedded VictoriaMetrics Influx write endpoint. Authenticate with HTTP Basic Auth where username is the server record ID and password is the per-server monitor agent token issued during managed metrics collector setup."
-      operationId: post_api_monitor_telegraf_write
-      parameters:
-        - name: Authorization
-          in: header
-          description: "Basic base64(serverId:monitorAgentToken)"
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenericRequest'
-      security:
-        - bearerAuth: []
-      responses:
-        "204":
-          description: No Content
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MonitorErrorResponse'
-        "413":
-          description: Payload Too Large
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MonitorErrorResponse'
-        "502":
-          description: Bad Gateway
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MonitorErrorResponse'
   /api/monitor/write:
     post:
       tags: [Monitoring Ingest]
-      summary: Write Netdata metrics
-      description: "Receives Prometheus remote-write protobuf payloads from managed-server Netdata agents. This endpoint is served by the AppOS backend and forwards accepted payloads to the embedded time-series database. Authenticate with HTTP Basic Auth where username is the server record ID and password is the per-server monitor agent token issued during Netdata install/update. Reverse-proxy forwarding headers used elsewhere for agent URL generation are parsed defensively only the first comma-separated host/port value is used and forwarded ports must be numeric."
+      summary: Write monitoring metrics
+      description: "Receives collector payloads from managed-server monitoring collectors, projects stable AppOS canonical metrics, and forwards the raw payload to the embedded VictoriaMetrics Influx write endpoint. Authenticate with HTTP Basic Auth where username is the server record ID and password is the per-server monitor collector token issued during managed collector setup."
       operationId: post_api_monitor_write
       parameters:
         - name: Authorization
           in: header
-          description: "Basic base64(serverId:monitorAgentToken)"
+          description: "Basic base64(serverId:monitorCollectorToken)"
           required: true
-          schema:
-            type: string
-        - name: Content-Encoding
-          in: header
-          description: "remote-write compression, usually snappy"
-          required: false
-          schema:
-            type: string
-        - name: Content-Type
-          in: header
-          description: "application/x-protobuf"
-          required: true
-          schema:
-            type: string
-        - name: X-Prometheus-Remote-Write-Version
-          in: header
-          description: "Prometheus remote-write protocol version"
-          required: false
           schema:
             type: string
       requestBody:
         required: true
         content:
-          application/x-protobuf:
+          text/plain:
             schema:
               type: string
               format: binary
@@ -7610,112 +7520,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-  /api/servers/{serverId}/ops/monitor-agent/install:
-    post:
-      tags: [Servers]
-      summary: Install monitor agent on a managed server
-      description: "Installs and starts the server metrics collector, writes the remote-write configuration, and issues or reuses the per-server monitor-agent token. Optional apposBaseUrl overrides the callback base URL used in the generated collector configuration."
-      operationId: post_api_servers_serverid_ops_monitor-agent_install
-      parameters:
-        - name: serverId
-          in: path
-          description: "server record ID"
-          required: true
-          schema:
-            type: string
-      requestBody:
-        description: "optional AppOS callback base URL override"
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MonitorAgentDeployRequest'
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MonitorAgentDeployResponse'
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MonitorErrorResponse'
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MonitorErrorResponse'
-        "404":
-          description: Not Found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MonitorErrorResponse'
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MonitorErrorResponse'
-  /api/servers/{serverId}/ops/monitor-agent/update:
-    post:
-      tags: [Servers]
-      summary: Update monitor agent on a managed server
-      description: "Reinstalls the server metrics collector, refreshes the remote-write configuration, and returns current service status details. Optional apposBaseUrl overrides the callback base URL used in the generated collector configuration."
-      operationId: post_api_servers_serverid_ops_monitor-agent_update
-      parameters:
-        - name: serverId
-          in: path
-          description: "server record ID"
-          required: true
-          schema:
-            type: string
-      requestBody:
-        description: "optional AppOS callback base URL override"
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MonitorAgentDeployRequest'
-      security:
-        - bearerAuth: []  # superuser required
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MonitorAgentDeployResponse'
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MonitorErrorResponse'
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MonitorErrorResponse'
-        "404":
-          description: Not Found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MonitorErrorResponse'
-        "500":
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MonitorErrorResponse'
   /api/servers/{serverId}/ops/ports:
     get:
       tags: [Servers]

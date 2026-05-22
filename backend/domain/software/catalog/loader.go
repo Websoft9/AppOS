@@ -51,6 +51,20 @@ func validateCatalogEntries(cat software.ComponentCatalog, catalogName string) e
 		if entry.Description == "" {
 			return fmt.Errorf("%s: component %q missing description", catalogName, entry.ComponentKey)
 		}
+		seenLegacyServices := map[string]struct{}{}
+		for _, legacyName := range entry.LegacyServiceNames {
+			trimmed := strings.TrimSpace(legacyName)
+			if trimmed == "" {
+				return fmt.Errorf("%s: component %q has empty legacy_service_names entry", catalogName, entry.ComponentKey)
+			}
+			if trimmed == entry.ServiceName {
+				return fmt.Errorf("%s: component %q legacy_service_names repeats current service_name %q", catalogName, entry.ComponentKey, entry.ServiceName)
+			}
+			if _, exists := seenLegacyServices[trimmed]; exists {
+				return fmt.Errorf("%s: component %q duplicate legacy_service_names entry %q", catalogName, entry.ComponentKey, trimmed)
+			}
+			seenLegacyServices[trimmed] = struct{}{}
+		}
 		if len(entry.ReadinessRequirements) == 0 {
 			return fmt.Errorf("%s: component %q missing readiness_requirements", catalogName, entry.ComponentKey)
 		}
@@ -174,7 +188,9 @@ func ResolveTemplate(entry software.CatalogEntry, tpl software.ComponentTemplate
 			}(),
 			InstalledHint: subSlice(tpl.Detect.InstalledHint),
 		},
-		Preflight: tpl.Preflight,
+		Preflight:           tpl.Preflight,
+		ActionTimeouts:      tpl.ActionTimeouts,
+		ActionTimeoutPolicy: tpl.ActionTimeoutPolicy,
 		Install: software.InstallSpec{
 			Strategy:           tpl.Install.Strategy,
 			PackageName:        sub(tpl.Install.PackageName),

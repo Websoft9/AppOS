@@ -55,6 +55,7 @@ import {
   verifySystemdUnit,
 } from '@/lib/connect-api'
 import { getApiErrorMessage, isRequestCancellation } from '@/lib/api-error'
+import { listSupportedServerSoftware, type SupportedServerSoftwareEntry } from '@/lib/software-api'
 import { cn } from '@/lib/utils'
 
 type SystemdDetailTab = 'overview' | 'logs' | 'unit'
@@ -68,7 +69,7 @@ type DetailRow = {
   value: string
 }
 
-const APPOS_FOCUS_SERVICES = ['docker.service', 'netdata.service', 'appos-tunnel.service'] as const
+const DEFAULT_FOCUS_SERVICES = ['docker.service', 'appos-monitor.service', 'appos-tunnel.service'] as const
 
 const PAGE_SIZE = 12
 const DETAIL_STATUS_KEYS = new Set([
@@ -104,10 +105,27 @@ function getDisplayName(serviceName: string) {
   return normalizeServiceUnitName(serviceName).replace(/\.service$/i, '')
 }
 
-function isFocusService(serviceName: string) {
-  return APPOS_FOCUS_SERVICES.includes(
-    normalizeServiceUnitName(serviceName) as (typeof APPOS_FOCUS_SERVICES)[number]
-  )
+function buildFocusServices(catalog: SupportedServerSoftwareEntry[]): string[] {
+  const seen = new Set<string>()
+  const focusServices: string[] = []
+  for (const serviceName of DEFAULT_FOCUS_SERVICES) {
+    const normalized = normalizeServiceUnitName(serviceName)
+    if (!normalized || seen.has(normalized)) continue
+    seen.add(normalized)
+    focusServices.push(normalized)
+  }
+  for (const item of catalog) {
+    if (!item.favorite_systemd_service || !item.service_name) continue
+    const normalized = normalizeServiceUnitName(item.service_name)
+    if (!normalized || seen.has(normalized)) continue
+    seen.add(normalized)
+    focusServices.push(normalized)
+  }
+  return focusServices
+}
+
+function isFocusService(serviceName: string, focusServices: string[]) {
+  return focusServices.includes(normalizeServiceUnitName(serviceName))
 }
 
 function shouldHideService(service: SystemdService) {
@@ -168,15 +186,12 @@ function compareText(left: string, right: string) {
 function compareServices(
   left: SystemdServiceWithBoot,
   right: SystemdServiceWithBoot,
+  focusServices: string[],
   sortKey: SortKey,
   sortDirection: SortDirection
 ) {
-  const leftFocusIndex = APPOS_FOCUS_SERVICES.indexOf(
-    left.name as (typeof APPOS_FOCUS_SERVICES)[number]
-  )
-  const rightFocusIndex = APPOS_FOCUS_SERVICES.indexOf(
-    right.name as (typeof APPOS_FOCUS_SERVICES)[number]
-  )
+  const leftFocusIndex = focusServices.indexOf(normalizeServiceUnitName(left.name))
+  const rightFocusIndex = focusServices.indexOf(normalizeServiceUnitName(right.name))
   const leftPinned = leftFocusIndex >= 0
   const rightPinned = rightFocusIndex >= 0
 
@@ -247,6 +262,7 @@ function isRowKeyboardActivation(event: { key: string }) {
 
 export function ServerServicesPanel({ serverId }: { serverId: string }) {
   const requestSeqRef = useRef(0)
+  const [supportedCatalog, setSupportedCatalog] = useState<SupportedServerSoftwareEntry[]>([])
   const [services, setServices] = useState<SystemdServiceWithBoot[]>([])
   const [inventoryLoading, setInventoryLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
@@ -295,6 +311,24 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
   }, [loadInventory])
 
   useEffect(() => {
+    let cancelled = false
+    void listSupportedServerSoftware()
+      .then(items => {
+        if (!cancelled) {
+          setSupportedCatalog(items)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSupportedCatalog([])
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
     setPage(1)
   }, [query, statusFilter])
 
@@ -302,6 +336,8 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
     () => services.filter(service => !shouldHideService(service)),
     [services]
   )
+
+  const focusServices = useMemo(() => buildFocusServices(supportedCatalog), [supportedCatalog])
 
   const searchMatchedServices = useMemo(() => {
     const normalizedQuery = normalizeQuery(query)
@@ -311,8 +347,8 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
   const filteredServices = useMemo(() => {
     return [...searchMatchedServices]
       .filter(service => matchesStatus(service, statusFilter))
-      .sort((left, right) => compareServices(left, right, sortKey, sortDirection))
-  }, [searchMatchedServices, sortDirection, sortKey, statusFilter])
+      .sort((left, right) => compareServices(left, right, focusServices, sortKey, sortDirection))
+  }, [focusServices, searchMatchedServices, sortDirection, sortKey, statusFilter])
 
   const statusOptionCounts = useMemo(() => {
     let running = 0
@@ -688,7 +724,7 @@ export function ServerServicesPanel({ serverId }: { serverId: string }) {
               <div className="divide-y divide-border/60">
                 {pagedServices.map(service => {
                   const serviceDisplayName = getDisplayName(service.name)
-                  const focusService = isFocusService(service.name)
+                  const focusService = isFocusService(service.name, focusServices)
                   return (
                     <div
                       key={service.name}

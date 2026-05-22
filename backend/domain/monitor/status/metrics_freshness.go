@@ -108,7 +108,7 @@ func ProjectMetricsFreshnessLatestStatus(app core.App, targetID string, displayN
 		DisplayName:             displayName,
 		Status:                  projection.Status,
 		Reason:                  projection.Reason,
-		SignalSource:            monitor.SignalSourceNetdata,
+		SignalSource:            monitor.SignalSourceCollector,
 		LastTransitionAt:        now.UTC(),
 		LastSuccessAt:           lastSuccessAt,
 		LastFailureAt:           lastFailureAt,

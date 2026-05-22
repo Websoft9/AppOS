@@ -909,11 +909,11 @@ export const VolumesTab = forwardRef<
           {filesVolume ? (
             <div className="flex min-h-0 flex-1 flex-col">
               {filesVolumeRunningContainers.length > 0 ? (
-                <Alert className="m-4 mb-0 shrink-0 border-amber-500/40 bg-amber-500/8 text-foreground">
-                  <AlertDescription>
+                <Alert className="mx-4 mt-4 mb-0 min-w-0 w-auto shrink-0 border-amber-500/40 bg-amber-500/8 text-foreground">
+                  <AlertDescription className="min-w-0 pr-8 leading-5">
                     This volume is currently used by {filesVolumeRunningContainers.length} running container
-                    {filesVolumeRunningContainers.length > 1 ? 's' : ''}: {filesVolumeRunningContainers.join(', ')}.
-                    Editing live application data may affect running workloads.
+                    {filesVolumeRunningContainers.length > 1 ? 's' : ''}:{' '}
+                    {filesVolumeRunningContainers.join(', ')}. Editing may affect the running app.
                   </AlertDescription>
                 </Alert>
               ) : null}
@@ -922,6 +922,7 @@ export const VolumesTab = forwardRef<
                 serverId={serverId}
                 initialPath={filesVolume.Mountpoint}
                 lockedRootPath={filesVolume.Mountpoint}
+                showCurrentPathInStatusBar={false}
                 className="h-full min-h-0"
               />
             </div>

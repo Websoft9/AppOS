@@ -77,14 +77,13 @@ func TestLoadServerCatalogComponentKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadServerCatalog: %v", err)
 	}
-	if len(cat.Components) != 4 {
-		t.Errorf("expected 4 server components, got %d", len(cat.Components))
+	if len(cat.Components) != 3 {
+		t.Errorf("expected 3 server components, got %d", len(cat.Components))
 	}
 	required := []software.ComponentKey{
 		software.ComponentKeyDocker,
 		software.ComponentKeyReverseProxy,
-		software.ComponentKeyMonitorAgent,
-		software.ComponentKey("telegraf"),
+		software.ComponentKeyTelegraf,
 	}
 	found := make(map[software.ComponentKey]bool)
 	for _, e := range cat.Components {
@@ -100,6 +99,23 @@ func TestLoadServerCatalogComponentKeys(t *testing.T) {
 			t.Errorf("server catalog uses reserved flat-route component key %q", key)
 		}
 	}
+}
+
+func TestLoadServerCatalogTelegrafLegacyServiceNames(t *testing.T) {
+	cat, err := catalog.LoadServerCatalog()
+	if err != nil {
+		t.Fatalf("LoadServerCatalog: %v", err)
+	}
+	for _, entry := range cat.Components {
+		if entry.ComponentKey != software.ComponentKeyTelegraf {
+			continue
+		}
+		if len(entry.LegacyServiceNames) != 1 || entry.LegacyServiceNames[0] != "telegraf.service" {
+			t.Fatalf("expected telegraf legacy_service_names to contain telegraf.service, got %#v", entry.LegacyServiceNames)
+		}
+		return
+	}
+	t.Fatal("telegraf entry not found in server catalog")
 }
 
 // TestServerCatalogEntriesHaveTargetTypeServer verifies that all server catalog entries
@@ -158,6 +174,41 @@ func TestServerCatalogSupportedActionsAreValid(t *testing.T) {
 				t.Errorf("server catalog entry %q has invalid action %q", entry.ComponentKey, a)
 			}
 		}
+	}
+}
+
+func TestResolveTemplateCopiesActionTimeouts(t *testing.T) {
+	tpl := software.ComponentTemplate{
+		TemplateKind: software.TemplateKindPackage,
+		ActionTimeouts: software.ActionTimeoutsSpec{
+			InstallSeconds: 300,
+			RestartSeconds: 45,
+		},
+		ActionTimeoutPolicy: software.ActionTimeoutPolicySpec{
+			Install: software.TimeoutPolicyFailed,
+			Restart: software.TimeoutPolicyAttentionRequired,
+		},
+		Install: software.InstallSpec{Strategy: "package", PackageName: "{{package_name}}"},
+		Verify:  software.VerifySpec{Strategy: "systemd", ServiceName: "{{service_name}}"},
+	}
+	entry := software.CatalogEntry{
+		ComponentKey:     software.ComponentKeyDocker,
+		TemplateRef:      "package-systemd",
+		PackageName:      "docker.io",
+		ServiceName:      "docker.service",
+		SupportedActions: []software.Action{software.ActionInstall, software.ActionRestart},
+	}
+
+	resolved := catalog.ResolveTemplate(entry, tpl)
+
+	if got := resolved.ActionTimeouts.DurationFor(software.ActionInstall); got.Seconds() != 300 {
+		t.Fatalf("install timeout = %s, want 5m0s", got)
+	}
+	if got := resolved.ActionTimeouts.DurationFor(software.ActionRestart); got.Seconds() != 45 {
+		t.Fatalf("restart timeout = %s, want 45s", got)
+	}
+	if got := resolved.ActionTimeoutPolicy.ResultFor(software.ActionInstall); got != software.TimeoutPolicyFailed {
+		t.Fatalf("install timeout policy = %q, want %q", got, software.TimeoutPolicyFailed)
 	}
 }
 
@@ -482,7 +533,7 @@ func TestResolveTemplateSubstitutesScriptEnv(t *testing.T) {
 	entry := software.CatalogEntry{
 		ComponentKey: software.ComponentKey("telegraf"),
 		Binary:       "telegraf",
-		ServiceName:  "telegraf.service",
+		ServiceName:  "appos-monitor.service",
 		ScriptPath:   "telegraf-install.sh",
 	}
 	tpl := software.ComponentTemplate{
@@ -515,13 +566,13 @@ func TestResolveTemplateSubstitutesScriptEnv(t *testing.T) {
 	if resolved.Install.Env["APPOS_BINARY"] != "telegraf" {
 		t.Fatalf("expected install env binary substitution, got %q", resolved.Install.Env["APPOS_BINARY"])
 	}
-	if resolved.Install.Env["APPOS_SERVICE"] != "telegraf.service" {
+	if resolved.Install.Env["APPOS_SERVICE"] != "appos-monitor.service" {
 		t.Fatalf("expected install env service substitution, got %q", resolved.Install.Env["APPOS_SERVICE"])
 	}
 	if resolved.Upgrade.Env["APPOS_BINARY"] != "telegraf" {
 		t.Fatalf("expected upgrade env binary substitution, got %q", resolved.Upgrade.Env["APPOS_BINARY"])
 	}
-	if resolved.Uninstall.Env["APPOS_SERVICE"] != "telegraf.service" {
+	if resolved.Uninstall.Env["APPOS_SERVICE"] != "appos-monitor.service" {
 		t.Fatalf("expected uninstall env service substitution, got %q", resolved.Uninstall.Env["APPOS_SERVICE"])
 	}
 }

@@ -179,6 +179,25 @@ describe('Sidebar', () => {
     expect(within(platformNav).queryByRole('link', { name: 'Shared Envs' })).toBeNull()
   })
 
+  it('shows Assets under Workspace and not under Platform for superusers', () => {
+    pathname = '/assets'
+    assignMock.mockReset()
+
+    render(<SidebarModule.Sidebar groups={SidebarModule.buildNavGroups(true)} />)
+
+    const workspaceNav = screen.getAllByLabelText('Workspace navigation')[0]
+    const adminNav = screen.getAllByLabelText('Platform navigation')[0]
+    const assetsLink = within(workspaceNav).getByRole('link', { name: 'Assets' })
+    const spaceLink = within(workspaceNav).getByRole('link', { name: 'Space' })
+
+    expect(assetsLink).toHaveAttribute('href', '/assets')
+    expect(within(adminNav).queryByRole('link', { name: 'Assets' })).toBeNull()
+    expect(
+      assetsLink.compareDocumentPosition(spaceLink) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
   it('opens System and navigates to Status when clicked from a collapsed state', () => {
     pathname = '/overview'
     assignMock.mockReset()
@@ -195,7 +214,7 @@ describe('Sidebar', () => {
     expect(assignMock).toHaveBeenCalledWith({ to: '/status' })
   })
 
-  it('shows Audit before Logs and Orchestration Files after System Crons under the System section for superusers', () => {
+  it('shows Shared Envs and Orchestration Files after System Crons under the System section for superusers', () => {
     pathname = '/status'
     assignMock.mockReset()
 
@@ -208,11 +227,13 @@ describe('Sidebar', () => {
       .filter((label): label is string => Boolean(label))
 
     expect(within(adminNav).getByRole('link', { name: 'System Crons' })).toBeInTheDocument()
+    expect(within(adminNav).getByRole('link', { name: 'Shared Envs' })).toBeInTheDocument()
     expect(within(adminNav).getByRole('link', { name: 'Orchestration Files' })).toBeInTheDocument()
     expect(within(adminNav).getByRole('link', { name: 'Audit' })).toBeInTheDocument()
     expect(within(adminNav).getByRole('link', { name: 'Logs' })).toBeInTheDocument()
     expect(links.indexOf('Audit')).toBeLessThan(links.indexOf('Logs'))
-    expect(links.indexOf('System Crons')).toBeLessThan(links.indexOf('Orchestration Files'))
+    expect(links.indexOf('System Crons')).toBeLessThan(links.indexOf('Shared Envs'))
+    expect(links.indexOf('Shared Envs')).toBeLessThan(links.indexOf('Orchestration Files'))
   })
 
   it('closes the mobile drawer when a child link is clicked', () => {

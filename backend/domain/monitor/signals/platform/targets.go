@@ -28,6 +28,8 @@ func (o *PlatformObserver) collectAppCoreTarget(now time.Time, snapshot RuntimeS
 		return nil, err
 	}
 	points := []monitormetrics.MetricPoint{
+		{Series: "appos_platform_cpu_percent", Value: resource.CPU, Labels: platformMetricLabels(PlatformTargetAppOSCore), ObservedAt: now},
+		{Series: "appos_platform_memory_bytes", Value: float64(resource.Memory), Labels: platformMetricLabels(PlatformTargetAppOSCore), ObservedAt: now},
 		{Series: "appos_platform_goroutines", Value: float64(runtime.NumGoroutine()), Labels: platformMetricLabels(PlatformTargetAppOSCore), ObservedAt: now},
 		{Series: "appos_platform_heap_alloc_bytes", Value: float64(mem.Alloc), Labels: platformMetricLabels(PlatformTargetAppOSCore), ObservedAt: now},
 	}

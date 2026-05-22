@@ -319,6 +319,7 @@ func (s *Service) computeComponent(
 		ComponentKey:      entry.ComponentKey,
 		Label:             entry.Label,
 		TemplateKind:      resolved.TemplateKind,
+		ArtifactKind:      software.EffectiveArtifactKind(entry, resolved.TemplateKind),
 		InstalledState:    software.InstalledStateUnknown,
 		VerificationState: software.VerificationStateUnknown,
 		AvailableActions:  []software.Action{},
@@ -429,7 +430,7 @@ func (s *Service) applyHealthProjection(
 	summary *software.SoftwareComponentSummary,
 	detail *software.SoftwareComponentDetail,
 ) {
-	reportingExpected := entry.ComponentKey == software.ComponentKeyMonitorAgent && targetType == software.TargetTypeServer
+	reportingExpected := entry.ComponentKey == software.ComponentKeyTelegraf && targetType == software.TargetTypeServer
 	metricsFreshnessState, hasMonitorEvidence := s.monitorMetricsFreshness(targetType, targetID, reportingExpected)
 	terminal := software.TerminalStatus("")
 	if lastOp != nil {

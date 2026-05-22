@@ -1321,7 +1321,7 @@ func methodBlock(method, path, tag, auth string, queryParams []string, queryRequ
 		fmt.Fprintf(&buf, "      requestBody:\n")
 		fmt.Fprintf(&buf, "        required: true\n")
 		fmt.Fprintf(&buf, "        content:\n")
-		fmt.Fprintf(&buf, "          application/x-protobuf:\n")
+		fmt.Fprintf(&buf, "          text/plain:\n")
 		fmt.Fprintf(&buf, "            schema:\n")
 		fmt.Fprintf(&buf, "              type: string\n")
 		fmt.Fprintf(&buf, "              format: binary\n")

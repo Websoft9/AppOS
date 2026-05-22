@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 )
 
 // ── Constant value tests ──────────────────────────────────────────────────────
@@ -30,7 +31,6 @@ func TestComponentKeyConstants(t *testing.T) {
 	}{
 		// Only server-target keys are constants; local keys live in catalog YAML.
 		{ComponentKeyDocker, "docker"},
-		{ComponentKeyMonitorAgent, "appos-monitor-collector"},
 		{ComponentKeyReverseProxy, "reverse-proxy"},
 		{ComponentKeyTelegraf, "telegraf"},
 	}
@@ -128,6 +128,44 @@ func TestActionConstants(t *testing.T) {
 	}
 }
 
+func TestActionTimeoutsSpecDurationFor(t *testing.T) {
+	timeouts := ActionTimeoutsSpec{
+		InstallSeconds:   300,
+		RestartSeconds:   45,
+		ReinstallSeconds: 360,
+	}
+
+	if got := timeouts.DurationFor(ActionInstall); got != 5*time.Minute {
+		t.Fatalf("install timeout = %s, want 5m0s", got)
+	}
+	if got := timeouts.DurationFor(ActionRestart); got != 45*time.Second {
+		t.Fatalf("restart timeout = %s, want 45s", got)
+	}
+	if got := timeouts.DurationFor(ActionVerify); got != 0 {
+		t.Fatalf("verify timeout = %s, want 0", got)
+	}
+	if got := timeouts.DurationFor(ActionReinstall); got != 6*time.Minute {
+		t.Fatalf("reinstall timeout = %s, want 6m0s", got)
+	}
+}
+
+func TestActionTimeoutPolicySpecResultFor(t *testing.T) {
+	policy := ActionTimeoutPolicySpec{
+		Install: TimeoutPolicyFailed,
+		Verify:  TimeoutPolicyAttentionRequired,
+	}
+
+	if got := policy.ResultFor(ActionInstall); got != TimeoutPolicyFailed {
+		t.Fatalf("install timeout policy = %q, want %q", got, TimeoutPolicyFailed)
+	}
+	if got := policy.ResultFor(ActionVerify); got != TimeoutPolicyAttentionRequired {
+		t.Fatalf("verify timeout policy = %q, want %q", got, TimeoutPolicyAttentionRequired)
+	}
+	if got := policy.ResultFor(ActionRestart); got != TimeoutPolicyAttentionRequired {
+		t.Fatalf("restart timeout policy default = %q, want %q", got, TimeoutPolicyAttentionRequired)
+	}
+}
+
 func TestOperationPhaseConstants(t *testing.T) {
 	cases := []struct {
 		got  OperationPhase
@@ -174,8 +212,10 @@ func TestFailureCodeConstants(t *testing.T) {
 		{FailureCodePreflightError, "preflight_error"},
 		{FailureCodePreflightBlocked, "preflight_blocked"},
 		{FailureCodeExecutionError, "execution_error"},
+		{FailureCodeExecutionTimeout, "execution_timeout"},
 		{FailureCodeVerificationDegraded, "verification_degraded"},
 		{FailureCodeVerificationError, "verification_error"},
+		{FailureCodeVerificationTimeout, "verification_timeout"},
 		{FailureCodeUninstallTruthMismatch, "uninstall_truth_mismatch"},
 	}
 	for _, c := range cases {

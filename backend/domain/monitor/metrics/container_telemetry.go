@@ -113,7 +113,7 @@ func queryContainerTelemetryVM(ctx context.Context, serverID string, targets []C
 			if containerID == "" {
 				continue
 			}
-			item := itemsByAlias[containerID]
+			item := resolveContainerTelemetryItem(itemsByID, itemsByAlias, containerID, series.Metric)
 			if item == nil {
 				item = &ContainerTelemetryItem{
 					ContainerID: containerID,
@@ -122,6 +122,10 @@ func queryContainerTelemetryVM(ctx context.Context, serverID string, targets []C
 				itemsByID[containerID] = item
 				itemsByAlias[containerID] = item
 			}
+			if item.ContainerID == "" {
+				item.ContainerID = containerID
+			}
+			itemsByAlias[containerID] = item
 			if item.ContainerName == "" {
 				item.ContainerName = normalizeContainerTelemetryName(series.Metric["container_name"])
 				if item.ContainerName != "" {
@@ -129,10 +133,10 @@ func queryContainerTelemetryVM(ctx context.Context, serverID string, targets []C
 				}
 			}
 			if item.ComposeProject == "" {
-				item.ComposeProject = strings.TrimSpace(series.Metric["compose_project"])
+				item.ComposeProject = firstNonEmptyMetricLabel(series.Metric, "compose_project", "com_docker_compose_project", "com.docker.compose.project")
 			}
 			if item.ComposeService == "" {
-				item.ComposeService = strings.TrimSpace(series.Metric["compose_service"])
+				item.ComposeService = firstNonEmptyMetricLabel(series.Metric, "compose_service", "com_docker_compose_service", "com.docker.compose.service")
 			}
 			seriesPoints := cloneMetricPoints(series.Values)
 			latestValue, observedAt, hasLatest := latestMetricPoint(seriesPoints)
@@ -165,6 +169,32 @@ func queryContainerTelemetryVM(ctx context.Context, serverID string, targets []C
 	}
 	response.Items = flattenContainerTelemetryItems(itemsByID)
 	return response, nil
+}
+
+func resolveContainerTelemetryItem(itemsByID map[string]*ContainerTelemetryItem, itemsByAlias map[string]*ContainerTelemetryItem, containerID string, metric map[string]string) *ContainerTelemetryItem {
+	if item := itemsByAlias[containerID]; item != nil {
+		return item
+	}
+	containerName := normalizeContainerTelemetryName(metric["container_name"])
+	if containerName != "" {
+		if item := itemsByAlias[containerName]; item != nil {
+			if strings.TrimSpace(item.ContainerID) == "" {
+				item.ContainerID = containerID
+			}
+			itemsByID[containerID] = item
+			return item
+		}
+	}
+	return nil
+}
+
+func firstNonEmptyMetricLabel(metric map[string]string, keys ...string) string {
+	for _, key := range keys {
+		if value := strings.TrimSpace(metric[key]); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func normalizeContainerTelemetryTargets(values []ContainerTelemetryTarget) []ContainerTelemetryTarget {

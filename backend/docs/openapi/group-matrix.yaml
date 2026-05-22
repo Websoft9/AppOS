@@ -361,7 +361,7 @@ groups:
       nativeRefs: []
 
   - group: Servers
-    description: Server registry CRUD and remote operations APIs for connectivity, power, cron, ports, monitor-agent deployment, and systemd management.
+    description: Server registry CRUD and remote operations APIs for connectivity, power, cron, ports, and systemd management.
     apiType: Mixed
     extSurface:
       - GET /api/servers/docker-targets
@@ -379,8 +379,6 @@ groups:
       - POST /api/servers/{serverId}/ops/cron/jobs/{entryId}/test
       - DELETE /api/servers/{serverId}/ops/cron/jobs/{entryId}
       - POST /api/servers/{serverId}/ops/ports/{port}/release
-      - POST /api/servers/{serverId}/ops/monitor-agent/install
-      - POST /api/servers/{serverId}/ops/monitor-agent/update
       - GET /api/servers/{serverId}/ops/systemd/services
       - GET /api/servers/{serverId}/ops/systemd/{service}/status
       - GET /api/servers/{serverId}/ops/systemd/{service}/content
@@ -400,7 +398,6 @@ groups:
       extRouteFiles:
         - docker.go
         - server.go
-        - server_monitor_agent.go
         - server_ops.go
         - server_view.go
       nativeRefs:
@@ -425,7 +422,6 @@ groups:
     apiType: Ext
     extSurface:
       - POST /api/monitor/write
-      - POST /api/monitor/telegraf/write
     nativeSurface: []
     sources:
       extRouteFiles:

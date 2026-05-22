@@ -13,7 +13,7 @@ const columns: Column[] = [
     key: 'description',
     label: 'Description',
     render: v => (
-      <span className="max-w-[240px] truncate block text-muted-foreground" title={String(v || '')}>
+      <span className="block max-w-[240px] truncate text-muted-foreground" title={String(v || '')}>
         {String(v || '—')}
       </span>
     ),
@@ -52,7 +52,7 @@ const fields: FieldDef[] = [
   },
 ]
 
-function ScriptsPage() {
+function AssetsScriptsPage() {
   const autoCreate = new URLSearchParams(window.location.search).get('create') === '1'
   return (
     <ResourcePage
@@ -63,7 +63,7 @@ function ScriptsPage() {
         columns,
         fields,
         resourceType: 'script',
-        parentNav: { label: 'Resources', href: '/resources' },
+        parentNav: { label: 'Assets', href: '/assets' },
         autoCreate,
         enableGroupAssign: true,
       }}
@@ -71,6 +71,6 @@ function ScriptsPage() {
   )
 }
 
-export const Route = createFileRoute('/_app/_auth/resources/scripts')({
-  component: ScriptsPage,
+export const Route = createFileRoute('/_app/_auth/_superuser/assets/scripts')({
+  component: AssetsScriptsPage,
 })

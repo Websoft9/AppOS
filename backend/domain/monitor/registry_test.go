@@ -86,8 +86,8 @@ func TestResolveTargetRegistryEntryMatchesServerAndAppBaselines(t *testing.T) {
 	if !containsNormalized(serverEntry.EnabledChecks, CheckKindFactsSnapshot) {
 		t.Fatalf("expected facts_snapshot check for server baseline, got %+v", serverEntry.EnabledChecks)
 	}
-	if !containsNormalized(serverEntry.SignalSources, SignalSourceNetdata) {
-		t.Fatalf("expected netdata signal source for server baseline, got %+v", serverEntry.SignalSources)
+	if !containsNormalized(serverEntry.SignalSources, SignalSourceCollector) {
+		t.Fatalf("expected collector signal source for server baseline, got %+v", serverEntry.SignalSources)
 	}
 	if !containsNormalized(serverEntry.SignalSources, SignalSourceAppOS) {
 		t.Fatalf("expected appos active check source for server baseline, got %+v", serverEntry.SignalSources)

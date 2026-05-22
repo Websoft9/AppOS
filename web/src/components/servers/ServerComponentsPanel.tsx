@@ -45,12 +45,14 @@ import {
   getSoftwareComponent,
   invokeSoftwareAction,
   type InstallSource,
+  listSupportedServerSoftware,
   listSoftwareOperations,
   listSoftwareComponents,
   type SoftwareOperation,
   type SoftwareActionType,
   type SoftwareComponentSummary,
   type SoftwareLastOperation,
+  type SupportedServerSoftwareEntry,
 } from '@/lib/software-api'
 import type {
   DockerDependencyIssueCode,
@@ -58,12 +60,15 @@ import type {
 } from '@/components/docker/DockerDependencyAlert'
 
 const PREREQUISITE_COMPONENT_KEYS = new Set(['docker'])
-const MONITOR_AGENT_COMPONENT_KEY = 'appos-monitor-collector'
+const MONITOR_AGENT_COMPONENT_KEYS = new Set(['telegraf', 'appos-monitor-collector'])
+const MONITOR_AGENT_DISPLAY_KEY = 'appos-agent'
+const MONITOR_AGENT_DISPLAY_LABEL = 'Monitor Agent (Native Telegraf)'
 const MONITOR_AGENT_ADDRESS_ACTIONS = new Set<SoftwareActionType>([
   'install',
   'upgrade',
   'reinstall',
 ])
+const POST_ACTION_REFRESH_DELAYS_MS = [1500, 5000, 12000, 25000]
 const ADDON_ACTIONS: SoftwareActionType[] = [
   'install',
   'verify',
@@ -92,6 +97,7 @@ function primaryAddonAction(component: SoftwareComponentSummary): SoftwareAction
   const detected = component.detected_version?.trim() || ''
   const packaged = component.packaged_version?.trim() || ''
   if (component.installed_state !== 'installed' && actions.has('install')) return 'install'
+  if (hasStoppedAddonState(component) && actions.has('start')) return 'start'
   if (component.verification_state === 'degraded' && actions.has('reinstall')) return 'reinstall'
   if (detected && packaged && packaged !== detected && actions.has('upgrade')) return 'upgrade'
   if (component.verification_state !== 'healthy' && actions.has('start')) return 'start'
@@ -107,11 +113,22 @@ function isStoppedAddon(component: SoftwareComponentSummary): boolean {
   return (
     component.installed_state === 'installed' &&
     component.verification_state === 'degraded' &&
-    ((component.available_actions ?? []).includes('start') ||
-      reason.includes('stopped') ||
+    (reason.includes('stopped') ||
       reason.includes('inactive') ||
       reason.includes('not running'))
   )
+}
+
+function hasStoppedAddonState(component: SoftwareComponentSummary): boolean {
+  return component.service_status === 'stopped' || isStoppedAddon(component)
+}
+
+function stoppedAddonGuidance(component: SoftwareComponentSummary): string | null {
+  if (!hasStoppedAddonState(component)) return null
+  if ((component.available_actions ?? []).includes('start')) {
+    return 'This addon is stopped. Use Start to bring it back online.'
+  }
+  return 'This addon is stopped. Bring the service back online, then run Check to verify health.'
 }
 
 function addonActionLabel(action: SoftwareActionType): string {
@@ -171,6 +188,13 @@ function addonFormatLabel(kind: string | undefined): string | null {
   if (kind === 'docker') return 'docker'
   if (kind === 'script') return 'script'
   return null
+}
+
+function addonArtifactLabel(
+  component: Pick<SoftwareComponentSummary, 'artifact_kind' | 'template_kind'>,
+  entry?: Pick<SupportedServerSoftwareEntry, 'artifact_kind'>
+): string | null {
+  return addonFormatLabel(component.artifact_kind ?? entry?.artifact_kind ?? component.template_kind)
 }
 
 function primaryPrerequisiteAction(component: SoftwareComponentSummary): SoftwareActionType | null {
@@ -305,6 +329,22 @@ function installSourceTone(component: SoftwareComponentSummary): string {
   return 'text-muted-foreground'
 }
 
+function isMonitorAgentComponentKey(componentKey: string): boolean {
+  return MONITOR_AGENT_COMPONENT_KEYS.has(componentKey)
+}
+
+function displayComponentKey(componentKey: string): string {
+  return isMonitorAgentComponentKey(componentKey) ? MONITOR_AGENT_DISPLAY_KEY : componentKey
+}
+
+function displayComponentLabel(component: Pick<SoftwareComponentSummary, 'component_key' | 'label'>): string {
+  if (isMonitorAgentComponentKey(component.component_key)) {
+    return MONITOR_AGENT_DISPLAY_LABEL
+  }
+  const label = component.label?.trim()
+  return label || component.component_key
+}
+
 function formatTimestamp(value: string | undefined): string {
   if (!value) return ''
   const timestamp = new Date(value)
@@ -329,12 +369,15 @@ function normalizeAppOSBaseURL(value: string | undefined): string {
   }
 }
 
-function needsMonitorAgentAddressChoice(componentKey: string, action: SoftwareActionType): boolean {
-  return componentKey === MONITOR_AGENT_COMPONENT_KEY && MONITOR_AGENT_ADDRESS_ACTIONS.has(action)
+function isMonitorAgentReportingAction(componentKey: string, action: SoftwareActionType): boolean {
+  return isMonitorAgentComponentKey(componentKey) && MONITOR_AGENT_ADDRESS_ACTIONS.has(action)
 }
 
-function isMonitorAgentReportingAction(componentKey: string, action: SoftwareActionType): boolean {
-  return componentKey === MONITOR_AGENT_COMPONENT_KEY && MONITOR_AGENT_ADDRESS_ACTIONS.has(action)
+function requiresAppOSBaseURL(
+  entry: SupportedServerSoftwareEntry | undefined,
+  action: SoftwareActionType
+): boolean {
+  return Boolean(entry?.requires_appos_base_url) && MONITOR_AGENT_ADDRESS_ACTIONS.has(action)
 }
 
 function acceptedActionSummary(
@@ -355,9 +398,10 @@ function acceptedActionMessage(
   action: SoftwareActionType,
   operationId?: string
 ): string {
+	const componentDisplayKey = displayComponentKey(componentKey)
   const base = operationId
-    ? `${action} accepted for ${componentKey} (${operationId})`
-    : `${action} accepted for ${componentKey}`
+		? `${action} accepted for ${componentDisplayKey} (${operationId})`
+		: `${action} accepted for ${componentDisplayKey}`
   if (!isMonitorAgentReportingAction(componentKey, action)) {
     return base
   }
@@ -366,6 +410,11 @@ function acceptedActionMessage(
 
 function phaseLabel(op: SoftwareLastOperation | undefined): string {
   if (!op) return ''
+  if (op.failure_code === 'execution_timeout' || op.failure_code === 'verification_timeout') {
+    return op.failure_reason
+      ? `Timed out, status unknown: ${op.failure_reason}`
+      : 'Timed out, status unknown'
+  }
   if (op.terminal_status === 'success') return 'Succeeded'
   if (op.terminal_status === 'failed')
     return op.failure_reason ? `Failed: ${op.failure_reason}` : 'Failed'
@@ -385,6 +434,11 @@ function phaseLabel(op: SoftwareLastOperation | undefined): string {
 
 function phaseLabelFromOperation(op: SoftwareOperation | undefined): string {
   if (!op) return ''
+  if (op.failure_code === 'execution_timeout' || op.failure_code === 'verification_timeout') {
+    return op.failure_reason
+      ? `Timed out, status unknown: ${op.failure_reason}`
+      : 'Timed out, status unknown'
+  }
   if (op.terminal_status === 'success') return 'Succeeded'
   if (op.terminal_status === 'failed') {
     return op.failure_reason ? `Failed: ${op.failure_reason}` : 'Failed'
@@ -417,6 +471,9 @@ function operationTone(op: SoftwareOperation): 'default' | 'secondary' | 'outlin
 }
 
 function operationStatusBadgeLabel(op: SoftwareOperation): string {
+  if (op.failure_code === 'execution_timeout' || op.failure_code === 'verification_timeout') {
+    return 'Timed out'
+  }
   if (op.terminal_status === 'success') return 'Succeeded'
   if (op.terminal_status === 'failed') return 'Failed'
   if (op.terminal_status === 'attention_required') return 'Attention required'
@@ -467,11 +524,11 @@ function extractInFlightComponentKey(message: string): string | null {
 function statusTone(
   component: SoftwareComponentSummary
 ): 'default' | 'secondary' | 'outline' | 'destructive' {
+  if (hasStoppedAddonState(component)) return 'outline'
   if (component.service_status === 'needs_attention') return 'destructive'
   if (component.service_status === 'stopped') return 'outline'
   if (component.service_status === 'running') return 'default'
   if (component.service_status === 'not_installed') return 'secondary'
-  if (isStoppedAddon(component)) return 'outline'
   if (component.verification_state === 'degraded') return 'destructive'
   if (component.installed_state === 'installed' && component.verification_state === 'healthy')
     return 'default'
@@ -480,6 +537,7 @@ function statusTone(
 }
 
 function statusLabel(component: SoftwareComponentSummary): string {
+  if (hasStoppedAddonState(component)) return 'Stopped'
   switch (component.service_status) {
     case 'running':
       return 'Running'
@@ -494,7 +552,6 @@ function statusLabel(component: SoftwareComponentSummary): string {
     case 'unknown':
       return 'Unknown'
   }
-  if (isStoppedAddon(component)) return 'Stopped'
   if (component.verification_state === 'degraded') return 'Needs Attention'
   // installed + healthy = runtime verified running — distinct from merely being installed
   if (component.installed_state === 'installed' && component.verification_state === 'healthy')
@@ -820,7 +877,13 @@ function OperationHistory({
   )
 }
 
-function AddonDetailRows({ component }: { component: SoftwareComponentSummary }) {
+function AddonDetailRows({
+  component,
+  entry,
+}: {
+  component: SoftwareComponentSummary
+  entry?: SupportedServerSoftwareEntry
+}) {
   const installSource = installSourceSummary(component)
   const lastOp = component.last_operation
   const lastActionAt = formatTimestamp(component.last_action?.at || lastOp?.updated_at)
@@ -829,12 +892,17 @@ function AddonDetailRows({ component }: { component: SoftwareComponentSummary })
   const packaged = component.packaged_version?.trim() || null
   const hasUpgrade = Boolean(detected && packaged && packaged !== detected)
   const apposConnection = appOSConnectionLabel(component)
+  const guidance = stoppedAddonGuidance(component)
   return [
     { label: 'Service Status', value: statusLabel(component) },
+    ...(guidance ? [{ label: 'Guidance', value: guidance }] : []),
     ...(apposConnection ? [{ label: 'AppOS Connection', value: apposConnection }] : []),
     { label: 'Installed', value: detected || '—' },
     ...(hasUpgrade ? [{ label: 'Latest', value: packaged! }] : []),
-    { label: 'Artifact', value: addonFormatLabel(component.template_kind) || '—' },
+    {
+      label: 'Artifact',
+      value: addonArtifactLabel(component, entry) || '—',
+    },
     { label: 'Install Source', value: installSource?.replace(/^Install source:\s*/i, '') || '—' },
     {
       label: 'Last Action',
@@ -923,6 +991,7 @@ function AddonActions({
                     variant={DANGEROUS_ADDON_ACTIONS.has(action) ? 'destructive' : 'default'}
                     onSelect={() => runAction(action)}
                     className="cursor-pointer text-xs"
+                    aria-label={available ? addonActionLabel(action) : `${addonActionLabel(action)}Locked`}
                   >
                     {loading ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
                     <span>{addonActionLabel(action)}</span>
@@ -940,6 +1009,7 @@ function AddonActions({
 
 function AddonInventoryRow({
   component,
+  entry,
   selected,
   onSelect,
   onAction,
@@ -947,6 +1017,7 @@ function AddonInventoryRow({
   actionLoading,
 }: {
   component: SoftwareComponentSummary
+  entry?: SupportedServerSoftwareEntry
   selected: boolean
   onSelect: (componentKey: string) => void
   onAction: (componentKey: string, action: SoftwareActionType) => void
@@ -956,6 +1027,7 @@ function AddonInventoryRow({
   const detected = component.detected_version?.trim() || null
   const packaged = component.packaged_version?.trim() || null
   const hasUpgrade = Boolean(detected && packaged && packaged !== detected)
+  const artifact = addonArtifactLabel(component, entry)
   const apposConnection = appOSConnectionLabel(component)
   const inProgress = isInProgress(component.last_operation)
 
@@ -978,15 +1050,15 @@ function AddonInventoryRow({
       tabIndex={0}
       onClick={handleSelect}
       onKeyDown={handleKeyDown}
-      className={`grid w-full grid-cols-[minmax(0,1.1fr)_11rem_6rem_9rem_10rem] items-center gap-3 px-3 py-2 text-left text-sm ${selected ? 'bg-accent/40' : 'hover:bg-accent/20'}`}
-      aria-label={component.label}
+      className={`grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2 text-left text-sm ${selected ? 'bg-accent/40' : 'hover:bg-accent/20'}`}
+      aria-label={displayComponentLabel(component)}
     >
       <div className="min-w-0 space-y-1">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
               <div className="flex items-center gap-2">
-                <div className="min-w-0 truncate font-medium text-foreground">{component.label}</div>
+                <div className="min-w-0 truncate font-medium text-foreground">{displayComponentLabel(component)}</div>
                 {inProgress ? (
                   <Badge variant="outline" className="shrink-0 text-[11px] font-normal">
                     In progress
@@ -1001,34 +1073,31 @@ function AddonInventoryRow({
             ) : null}
           </Tooltip>
         </TooltipProvider>
-        <div className="truncate text-[11px] font-mono text-muted-foreground">
-          {component.component_key}
-        </div>
+        {artifact ? <div className="text-[11px] text-muted-foreground">{artifact}</div> : null}
       </div>
       <div className="min-w-0 space-y-0.5">
-        <div className="truncate text-muted-foreground/70">
+        <div className="break-all text-muted-foreground/70">
           Installed: {detected || '—'}
         </div>
         <div
-          className={`truncate ${hasUpgrade ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground/70'}`}
+          className={`break-all ${hasUpgrade ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground/70'}`}
         >
           Latest: {packaged || detected || '—'}
         </div>
       </div>
-      <div className="truncate text-muted-foreground/80">
-        {addonFormatLabel(component.template_kind) || '—'}
-      </div>
       <div className="min-w-0 space-y-0.5 text-muted-foreground/80">
-        <div className="truncate">Service: {statusLabel(component)}</div>
-        {apposConnection ? <div className="truncate">AppOS: {apposConnection}</div> : null}
+        <div className="whitespace-normal break-words">Service: {statusLabel(component)}</div>
+        {apposConnection ? (
+          <div className="whitespace-normal break-words">AppOS: {apposConnection}</div>
+        ) : null}
         {inProgress ? (
-          <div className="truncate text-foreground/80">
+          <div className="whitespace-normal break-words text-foreground/80">
             Operation: {phaseLabel(component.last_operation)}
           </div>
         ) : null}
       </div>
       <div
-        className="flex items-center justify-end gap-1"
+        className="flex items-center justify-start gap-1"
         onClick={stopRowSelection}
         onKeyDown={stopRowSelection}
         onPointerDown={stopRowSelection}
@@ -1038,7 +1107,7 @@ function AddonInventoryRow({
           onAction={onAction}
           actionsLocked={actionsLocked}
           actionLoading={actionLoading}
-          moreActionsLabel={`More actions for ${component.label}`}
+          moreActionsLabel={`More actions for ${displayComponentLabel(component)}`}
           onBeforeAction={handleSelect}
         />
       </div>
@@ -1219,11 +1288,13 @@ function PrerequisiteCard({
           <button
             type="button"
             className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
-            aria-label={`${component.label} details`}
+            aria-label={`${displayComponentLabel(component)} details`}
           >
             <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-2">
-                <div className="text-sm font-medium text-foreground">{component.label}</div>
+                <div className="text-sm font-medium text-foreground">
+                  {displayComponentLabel(component)}
+                </div>
                 <Badge variant={statusTone(component)} className="text-xs">
                   {prerequisiteStatusLabel(component)}
                 </Badge>
@@ -1362,8 +1433,7 @@ function PrerequisiteCard({
                   <OperationHistory
                     serverId={serverId}
                     componentKey={component.component_key}
-                    enabled={open && panelMode === 'history'}
-                    reloadKey={lastOp?.updated_at}
+                    reloadKey={component.last_operation?.updated_at}
                   />
                 ) : (
                   <PrerequisiteChecklist component={component} />
@@ -1379,19 +1449,18 @@ function PrerequisiteCard({
 
 export function ServerComponentsPanel({
   serverId,
-  actionIntent,
-  onActionIntentConsumed,
   focusComponentKey,
   focusPanelMode,
   focusSource,
   focusIssueCode,
   onFocusRequestConsumed,
+  actionIntent,
+  onActionIntentConsumed,
+  postActionRefreshDelaysMs = POST_ACTION_REFRESH_DELAYS_MS,
 }: {
   serverId: string
-  actionIntent?: ServerComponentActionIntent | null
-  onActionIntentConsumed?: (nonce: number) => void
-  focusComponentKey?: string | null
-  focusPanelMode?: PrerequisitePanelMode | null
+  focusComponentKey?: string
+  focusPanelMode?: PrerequisitePanelMode
   focusSource?: DockerFocusSource | null
   focusIssueCode?: DockerDependencyIssueCode | null
   onFocusRequestConsumed?: (
@@ -1400,6 +1469,9 @@ export function ServerComponentsPanel({
     source?: DockerFocusSource | null,
     issueCode?: DockerDependencyIssueCode | null
   ) => void
+  actionIntent?: ServerComponentActionIntent | null
+  onActionIntentConsumed?: (nonce: number) => void
+  postActionRefreshDelaysMs?: number[]
 }) {
   const [prerequisiteOpen, setPrerequisiteOpen] = useState<Record<string, boolean>>({})
   const [prerequisitePanelMode, setPrerequisitePanelMode] = useState<
@@ -1437,6 +1509,7 @@ export function ServerComponentsPanel({
   } | null>(null)
   const [monitorAddressChoice, setMonitorAddressChoice] =
     useState<MonitorAgentAddressChoice | null>(null)
+  const [supportedCatalog, setSupportedCatalog] = useState<SupportedServerSoftwareEntry[]>([])
   const [activeOperationKeys, setActiveOperationKeys] = useState<Record<string, boolean>>({})
   const [focusHint, setFocusHint] = useState<{
     componentKey: string
@@ -1446,7 +1519,10 @@ export function ServerComponentsPanel({
   } | null>(null)
   const loading = prerequisitesLoading || addonsLoading
   const operationPollersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const postActionRefreshTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>[]>>({})
   const restoredOperationIdsRef = useRef<Record<string, string>>({})
+  const supportedCatalogPromiseRef = useRef<Promise<SupportedServerSoftwareEntry[]> | null>(null)
+  const supportedCatalogLoadedRef = useRef(false)
   const handledActionIntentRef = useRef<number | null>(null)
   const handledFocusRequestRef = useRef<string | null>(null)
   const prerequisiteCardRefs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -1459,6 +1535,10 @@ export function ServerComponentsPanel({
     () => [...prerequisiteComponents, ...addonComponents],
     [addonComponents, prerequisiteComponents]
   )
+  const supportedCatalogByKey = useMemo(
+    () => new Map(supportedCatalog.map(item => [item.component_key, item])),
+    [supportedCatalog]
+  )
   const actionConflictComponent = useMemo(
     () =>
       actionConflictComponentKey
@@ -1470,6 +1550,30 @@ export function ServerComponentsPanel({
   const actionsLocked =
     actionLoading !== null ||
     Object.values(activeOperationKeys).some(Boolean)
+
+  const ensureSupportedCatalog = useCallback(async (): Promise<SupportedServerSoftwareEntry[]> => {
+    if (supportedCatalogLoadedRef.current) return supportedCatalog
+    if (supportedCatalogPromiseRef.current) return supportedCatalogPromiseRef.current
+    const request = listSupportedServerSoftware()
+      .then(items => {
+        supportedCatalogLoadedRef.current = true
+        setSupportedCatalog(items)
+        return items
+      })
+      .catch(() => {
+        supportedCatalogLoadedRef.current = true
+        return []
+      })
+      .finally(() => {
+        supportedCatalogPromiseRef.current = null
+      })
+    supportedCatalogPromiseRef.current = request
+    return request
+  }, [supportedCatalog])
+
+  useEffect(() => {
+    void ensureSupportedCatalog()
+  }, [ensureSupportedCatalog])
 
   useEffect(() => {
     if (!selectedAddon) return
@@ -1608,12 +1712,21 @@ export function ServerComponentsPanel({
     }
   }, [])
 
+  const cancelPostActionRefresh = useCallback((componentKey: string) => {
+    const timers = postActionRefreshTimersRef.current[componentKey]
+    if (!timers?.length) return
+    timers.forEach(timer => clearTimeout(timer))
+    delete postActionRefreshTimersRef.current[componentKey]
+  }, [])
+
   const loadComponents = useCallback(async () => {
     if (!serverId) return
     setPrerequisitesLoading(true)
     setAddonsLoading(true)
     setPrerequisiteError('')
     setAddonError('')
+
+    let prerequisiteAddonBlocker: string | null = null
 
     const loadPrerequisites = async () => {
       try {
@@ -1638,6 +1751,10 @@ export function ServerComponentsPanel({
     const loadAddons = async () => {
       try {
         const items = await listSoftwareComponents(serverId)
+        if (prerequisiteAddonBlocker) {
+          setAddonComponents([])
+          return
+        }
         setAddonComponents(items.filter(component => !isPrerequisiteComponent(component)))
       } catch (err) {
         setAddonComponents([])
@@ -1647,11 +1764,13 @@ export function ServerComponentsPanel({
       }
     }
 
+    const addonsPromise = loadAddons()
     const prerequisiteLoadResult = await loadPrerequisites()
     if (typeof prerequisiteLoadResult === 'string') {
+      prerequisiteAddonBlocker = prerequisiteLoadResult
       setAddonComponents([])
       setAddonError(prerequisiteLoadResult)
-      setAddonsLoading(false)
+      await addonsPromise
       return
     }
 
@@ -1659,14 +1778,27 @@ export function ServerComponentsPanel({
       .map(component => addonInventoryBlockingError(component))
       .find((message): message is string => !!message)
     if (prerequisiteBlocker) {
+      prerequisiteAddonBlocker = prerequisiteBlocker
       setAddonComponents([])
       setAddonError(prerequisiteBlocker)
-      setAddonsLoading(false)
+      await addonsPromise
       return
     }
 
-    await loadAddons()
+    await addonsPromise
   }, [serverId])
+
+  const schedulePostActionRefresh = useCallback(
+    (componentKey: string) => {
+      cancelPostActionRefresh(componentKey)
+      postActionRefreshTimersRef.current[componentKey] = postActionRefreshDelaysMs.map(delay =>
+        setTimeout(() => {
+          void loadComponents()
+        }, delay)
+      )
+    },
+    [cancelPostActionRefresh, loadComponents, postActionRefreshDelaysMs]
+  )
 
   const startOperationPolling = useCallback(
     (
@@ -1701,6 +1833,7 @@ export function ServerComponentsPanel({
             }
             stopOperationPolling(componentKey)
             await loadComponents()
+            schedulePostActionRefresh(componentKey)
             return
           }
 
@@ -1712,6 +1845,7 @@ export function ServerComponentsPanel({
               delete restoredOperationIdsRef.current[componentKey]
               stopOperationPolling(componentKey)
               await loadComponents()
+              schedulePostActionRefresh(componentKey)
               return
             }
           } catch {
@@ -1725,7 +1859,7 @@ export function ServerComponentsPanel({
 
       void poll()
     },
-    [appendAddonLog, appendPrerequisiteLog, loadComponents, serverId, stopOperationPolling]
+    [appendAddonLog, appendPrerequisiteLog, loadComponents, schedulePostActionRefresh, serverId, stopOperationPolling]
   )
 
   useEffect(() => {
@@ -1804,6 +1938,7 @@ export function ServerComponentsPanel({
 
   const executeAction = useCallback(
     async (componentKey: string, action: SoftwareActionType, apposBaseUrl?: string) => {
+      cancelPostActionRefresh(componentKey)
       setActionLoading(`${componentKey}:${action}`)
       setActionError('')
       setActionConflictComponentKey(null)
@@ -1885,6 +2020,7 @@ export function ServerComponentsPanel({
             return { ...current, [componentKey]: false }
           })
           await loadComponents()
+          schedulePostActionRefresh(componentKey)
           if (!isPrerequisite) {
             setAddonPanelMode(current => ({ ...current, [componentKey]: 'history' }))
           }
@@ -1913,14 +2049,32 @@ export function ServerComponentsPanel({
         setActionLoading(null)
       }
     },
-    [appendPrerequisiteLog, loadComponents, serverId, startOperationPolling, stopOperationPolling]
+    [appendPrerequisiteLog, cancelPostActionRefresh, loadComponents, schedulePostActionRefresh, serverId, startOperationPolling, stopOperationPolling]
   )
 
+  useEffect(() => {
+    return () => {
+      Object.keys(postActionRefreshTimersRef.current).forEach(componentKey => {
+        const timers = postActionRefreshTimersRef.current[componentKey] ?? []
+        timers.forEach(timer => clearTimeout(timer))
+      })
+      postActionRefreshTimersRef.current = {}
+    }
+  }, [])
+
   const resolveMonitorAgentAddressChoice = useCallback(
-    async (componentKey: string, action: SoftwareActionType): Promise<string | null> => {
+    async (
+      componentKey: string,
+      action: SoftwareActionType
+    ): Promise<{ apposBaseUrl: string | null; required: boolean }> => {
+      const catalog = await ensureSupportedCatalog()
+      const catalogEntry =
+        supportedCatalogByKey.get(componentKey) ??
+        catalog.find(item => item.component_key === componentKey)
+      const required = requiresAppOSBaseURL(catalogEntry, action)
       const detectedURL = browserAppOSBaseURL()
-      if (!needsMonitorAgentAddressChoice(componentKey, action)) {
-        return detectedURL ?? null
+      if (!required) {
+        return { apposBaseUrl: detectedURL ?? null, required: false }
       }
 
       let configuredURL = ''
@@ -1928,23 +2082,23 @@ export function ServerComponentsPanel({
         configuredURL = normalizeAppOSBaseURL(await getConfiguredAppURL())
       } catch (err) {
         setActionError(err instanceof Error ? err.message : 'Failed to load App URL')
-        return null
+        return { apposBaseUrl: null, required: true }
       }
 
       if (!detectedURL) {
-        if (configuredURL) return configuredURL
+        if (configuredURL) return { apposBaseUrl: configuredURL, required: true }
         setActionError('Cannot detect the AppOS callback address from this browser session.')
-        return null
+        return { apposBaseUrl: null, required: true }
       }
 
       if (configuredURL && configuredURL !== detectedURL) {
         setMonitorAddressChoice({ componentKey, action, detectedURL, configuredURL })
-        return null
+        return { apposBaseUrl: null, required: true }
       }
 
-      return detectedURL
+      return { apposBaseUrl: detectedURL, required: true }
     },
-    []
+    [ensureSupportedCatalog, supportedCatalogByKey]
   )
 
   const handleAction = useCallback(
@@ -1958,9 +2112,9 @@ export function ServerComponentsPanel({
         return
       }
 
-      const apposBaseUrl = await resolveMonitorAgentAddressChoice(componentKey, action)
-      if (needsMonitorAgentAddressChoice(componentKey, action) && !apposBaseUrl) return
-      await executeAction(componentKey, action, apposBaseUrl ?? undefined)
+      const resolution = await resolveMonitorAgentAddressChoice(componentKey, action)
+      if (resolution.required && !resolution.apposBaseUrl) return
+      await executeAction(componentKey, action, resolution.apposBaseUrl ?? undefined)
     },
     [executeAction, resolveMonitorAgentAddressChoice]
   )
@@ -1982,17 +2136,18 @@ export function ServerComponentsPanel({
     setSelectedAddonKey(actionIntent.componentKey)
     onActionIntentConsumed?.(actionIntent.nonce)
     void (async () => {
-      const apposBaseUrl = await resolveMonitorAgentAddressChoice(
+      const resolution = await resolveMonitorAgentAddressChoice(
         actionIntent.componentKey,
         actionIntent.action
       )
-      if (
-        needsMonitorAgentAddressChoice(actionIntent.componentKey, actionIntent.action) &&
-        !apposBaseUrl
-      ) {
+      if (resolution.required && !resolution.apposBaseUrl) {
         return
       }
-      await executeAction(actionIntent.componentKey, actionIntent.action, apposBaseUrl ?? undefined)
+      await executeAction(
+        actionIntent.componentKey,
+        actionIntent.action,
+        resolution.apposBaseUrl ?? undefined
+      )
     })()
   }, [
     actionIntent,
@@ -2047,7 +2202,17 @@ export function ServerComponentsPanel({
           if (!open) setMonitorAddressChoice(null)
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="sm:max-w-xl">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="absolute right-3 top-3 h-8 w-8 text-muted-foreground hover:text-foreground"
+            onClick={() => setMonitorAddressChoice(null)}
+            aria-label="Close monitor callback address dialog"
+          >
+            <X className="h-4 w-4" />
+          </Button>
           <AlertDialogHeader>
             <AlertDialogTitle>Choose monitor callback address</AlertDialogTitle>
             <AlertDialogDescription>
@@ -2058,43 +2223,47 @@ export function ServerComponentsPanel({
           </AlertDialogHeader>
           {monitorAddressChoice ? (
             <div className="space-y-3 text-sm">
-              <div className="rounded-md border p-3">
-                <div className="font-medium text-foreground">Detected address</div>
-                <div className="break-all text-muted-foreground">
-                  {monitorAddressChoice.detectedURL}
+              <div className="flex items-start justify-between gap-3 rounded-md border p-3">
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium text-foreground">Detected address</div>
+                  <div className="break-all text-muted-foreground">
+                    {monitorAddressChoice.detectedURL}
+                  </div>
                 </div>
+                <Button
+                  type="button"
+                  className="shrink-0"
+                  onClick={() => {
+                    const next = monitorAddressChoice
+                    setMonitorAddressChoice(null)
+                    void executeAction(next.componentKey, next.action, next.detectedURL)
+                  }}
+                >
+                  Use detected address
+                </Button>
               </div>
-              <div className="rounded-md border p-3">
-                <div className="font-medium text-foreground">App URL</div>
-                <div className="break-all text-muted-foreground">
-                  {monitorAddressChoice.configuredURL}
+              <div className="flex items-start justify-between gap-3 rounded-md border p-3">
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium text-foreground">App URL</div>
+                  <div className="break-all text-muted-foreground">
+                    {monitorAddressChoice.configuredURL}
+                  </div>
                 </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="shrink-0"
+                  onClick={() => {
+                    const next = monitorAddressChoice
+                    setMonitorAddressChoice(null)
+                    void executeAction(next.componentKey, next.action, next.configuredURL)
+                  }}
+                >
+                  Use App URL
+                </Button>
               </div>
             </div>
           ) : null}
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (!monitorAddressChoice) return
-                const next = monitorAddressChoice
-                setMonitorAddressChoice(null)
-                void executeAction(next.componentKey, next.action, next.detectedURL)
-              }}
-            >
-              Use detected address
-            </AlertDialogAction>
-            <AlertDialogAction
-              onClick={() => {
-                if (!monitorAddressChoice) return
-                const next = monitorAddressChoice
-                setMonitorAddressChoice(null)
-                void executeAction(next.componentKey, next.action, next.configuredURL)
-              }}
-            >
-              Use App URL
-            </AlertDialogAction>
-          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
@@ -2104,7 +2273,7 @@ export function ServerComponentsPanel({
           <AlertTitle>Operation already in progress</AlertTitle>
           <AlertDescription className="space-y-2">
             <div>
-              {actionConflictComponent.label} already has an active{' '}
+              {displayComponentLabel(actionConflictComponent)} already has an active{' '}
               {softwareActionLabel(actionConflictComponent.last_operation?.action).toLowerCase()} request.
             </div>
             <div>
@@ -2223,12 +2392,11 @@ export function ServerComponentsPanel({
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
           <section className="space-y-4 rounded-md border p-4" aria-label="Addon inventory">
-            <div className="grid grid-cols-[minmax(0,1.1fr)_11rem_6rem_9rem_10rem] gap-3 px-3 py-2 text-sm font-medium text-muted-foreground">
-              <span>Component</span>
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 px-3 py-2 text-sm font-medium text-muted-foreground">
+              <span>Name</span>
               <span>Version</span>
-              <span>Artifact</span>
               <span>Health</span>
-              <span className="text-right">Actions</span>
+              <span>Actions</span>
             </div>
 
             {addonError ? <p className="px-3 py-2 text-sm text-destructive">{addonError}</p> : null}
@@ -2243,6 +2411,7 @@ export function ServerComponentsPanel({
                   <AddonInventoryRow
                     key={component.component_key}
                     component={component}
+                    entry={supportedCatalogByKey.get(component.component_key)}
                     selected={selectedAddonKey === component.component_key}
                     onSelect={setSelectedAddonKey}
                     onAction={(componentKey, action) => {
@@ -2265,7 +2434,7 @@ export function ServerComponentsPanel({
                 Selected Addon
               </h3>
               <p className="text-xs text-muted-foreground">
-                {selectedAddon ? selectedAddon.label : 'Select one addon from the inventory.'}
+				{selectedAddon ? displayComponentLabel(selectedAddon) : 'Select one addon from the inventory.'}
               </p>
             </div>
 
@@ -2282,7 +2451,7 @@ export function ServerComponentsPanel({
                     <AlertDescription className="space-y-2">
                       <div>
                         {softwareActionLabel(selectedAddon.last_operation?.action)} is still{' '}
-                        {phaseLabel(selectedAddon.last_operation)} for {selectedAddon.label}.
+						{phaseLabel(selectedAddon.last_operation)} for {displayComponentLabel(selectedAddon)}.
                       </div>
                       <div>
                         Last updated:{' '}
@@ -2412,7 +2581,10 @@ export function ServerComponentsPanel({
                       />
                     ) : (
                       <div className="space-y-2">
-                        {AddonDetailRows({ component: selectedAddon }).map(item => (
+                        {AddonDetailRows({
+                          component: selectedAddon,
+                          entry: supportedCatalogByKey.get(selectedAddon.component_key),
+                        }).map(item => (
                           <div
                             key={`${selectedAddon.component_key}:${item.label}`}
                             className="flex flex-col gap-1 sm:flex-row sm:gap-2"

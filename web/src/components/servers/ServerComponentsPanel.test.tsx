@@ -21,6 +21,7 @@ const listSoftwareOperationsMock = vi.fn()
 const deleteSoftwareOperationMock = vi.fn()
 const invokeSoftwareActionMock = vi.fn()
 const getConfiguredAppURLMock = vi.fn()
+const listSupportedServerSoftwareMock = vi.fn()
 
 vi.mock('@/lib/software-api', () => ({
   listSoftwareComponents: (...args: unknown[]) => listSoftwareComponentsMock(...args),
@@ -30,6 +31,7 @@ vi.mock('@/lib/software-api', () => ({
   deleteSoftwareOperation: (...args: unknown[]) => deleteSoftwareOperationMock(...args),
   invokeSoftwareAction: (...args: unknown[]) => invokeSoftwareActionMock(...args),
   getConfiguredAppURL: (...args: unknown[]) => getConfiguredAppURLMock(...args),
+  listSupportedServerSoftware: (...args: unknown[]) => listSupportedServerSoftwareMock(...args),
 }))
 
 afterEach(() => {
@@ -45,10 +47,83 @@ describe('ServerComponentsPanel', () => {
     deleteSoftwareOperationMock.mockReset()
     invokeSoftwareActionMock.mockReset()
     getConfiguredAppURLMock.mockReset()
+    listSupportedServerSoftwareMock.mockReset()
 
     listSoftwareOperationsMock.mockResolvedValue([])
     deleteSoftwareOperationMock.mockResolvedValue(undefined)
     getConfiguredAppURLMock.mockResolvedValue('')
+    listSupportedServerSoftwareMock.mockResolvedValue([
+      {
+        component_key: 'docker',
+        label: 'Docker',
+        template_kind: 'package',
+        artifact_kind: 'package',
+        supported_actions: ['install', 'upgrade', 'verify'],
+        action_timeouts: { install: 300, upgrade: 300, verify: 45 },
+        timeout_policy: {
+          install: 'attention_required',
+          upgrade: 'attention_required',
+          verify: 'attention_required',
+        },
+        description: 'Docker is supported by AppOS.',
+        readiness_requirements: [],
+        visibility: ['server_operations', 'supported_software_discovery'],
+      },
+      {
+        component_key: 'reverse-proxy',
+        label: 'Reverse Proxy',
+        template_kind: 'package',
+        artifact_kind: 'package',
+        supported_actions: ['verify', 'reinstall', 'uninstall'],
+        action_timeouts: { verify: 45, reinstall: 360, uninstall: 300 },
+        timeout_policy: {
+          verify: 'attention_required',
+          reinstall: 'attention_required',
+          uninstall: 'attention_required',
+        },
+        description: 'Reverse proxy managed by AppOS.',
+        readiness_requirements: [],
+        visibility: ['server_operations', 'supported_software_discovery'],
+      },
+      {
+        component_key: 'appos-monitor-collector',
+        label: 'Monitor Agent (Native Telegraf)',
+        template_kind: 'script',
+        artifact_kind: 'package',
+        supported_actions: ['install', 'upgrade', 'reinstall'],
+        action_timeouts: { install: 300, upgrade: 300, reinstall: 360 },
+        timeout_policy: {
+          install: 'attention_required',
+          upgrade: 'attention_required',
+          reinstall: 'attention_required',
+        },
+        description: 'Native Telegraf agent for AppOS metrics collector.',
+        readiness_requirements: [],
+        requires_appos_base_url: true,
+        favorite_systemd_service: true,
+        service_name: 'netdata.service',
+        visibility: ['server_operations', 'supported_software_discovery'],
+      },
+      {
+        component_key: 'telegraf',
+        label: 'Monitor Agent (Native Telegraf)',
+        template_kind: 'script',
+        artifact_kind: 'binary',
+        supported_actions: ['install', 'upgrade', 'reinstall'],
+        action_timeouts: { install: 300, upgrade: 300, reinstall: 360 },
+        timeout_policy: {
+          install: 'attention_required',
+          upgrade: 'attention_required',
+          reinstall: 'attention_required',
+        },
+        description: 'Native Telegraf agent for AppOS metrics collector.',
+        readiness_requirements: [],
+        requires_appos_base_url: true,
+        favorite_systemd_service: true,
+        service_name: 'appos-monitor.service',
+        visibility: ['server_operations', 'supported_software_discovery'],
+      },
+    ])
 
     listSoftwareComponentsMock.mockResolvedValue([
       {
@@ -154,7 +229,6 @@ describe('ServerComponentsPanel', () => {
     expect(await screen.findByRole('heading', { name: 'Prerequisites' })).toBeInTheDocument()
     expect(await screen.findByRole('heading', { name: 'Addons' })).toBeInTheDocument()
     expect(screen.getByText('Reverse Proxy')).toBeInTheDocument()
-    expect(screen.getByText('reverse-proxy')).toBeInTheDocument()
 
     const prerequisitesSection = screen.getByRole('region', { name: 'Prerequisites section' })
     expect(
@@ -205,7 +279,7 @@ describe('ServerComponentsPanel', () => {
     expect(within(addonsSection).queryByText('Docker Engine')).toBeNull()
     expect(within(addonsSection).getByText('Reverse Proxy')).toBeInTheDocument()
     expect(within(addonsSection).getByRole('button', { name: 'Addons help' })).toBeInTheDocument()
-    expect(within(addonsSection).getByText('Artifact')).toBeInTheDocument()
+    expect(within(addonsSection).getByText('Name')).toBeInTheDocument()
     expect(within(addonsSection).queryByText('Package Type')).toBeNull()
 
     const inventory = within(addonsSection).getByRole('region', { name: 'Addon inventory' })
@@ -346,7 +420,7 @@ describe('ServerComponentsPanel', () => {
       },
       {
         component_key: 'appos-monitor-collector',
-        label: 'Netdata Agent',
+        label: 'Monitor Agent (Native Telegraf)',
         target_type: 'server',
         template_kind: 'script',
         installed_state: 'installed',
@@ -374,7 +448,7 @@ describe('ServerComponentsPanel', () => {
     expect(within(inventory).getByText('Service: Running')).toBeInTheDocument()
     expect(within(inventory).getByText('AppOS: Connected')).toBeInTheDocument()
 
-    fireEvent.click(within(inventory).getByRole('button', { name: 'Netdata Agent' }))
+    fireEvent.click(within(inventory).getByRole('button', { name: 'Monitor Agent (Native Telegraf)' }))
 
     const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
     expect(within(selectedAddon).getByText('Service Status:')).toBeInTheDocument()
@@ -386,11 +460,55 @@ describe('ServerComponentsPanel', () => {
     ).toBeInTheDocument()
   })
 
+  it('uses the supported catalog artifact and stopped guidance in addon details', async () => {
+    listSoftwareComponentsMock.mockResolvedValue([
+      {
+        component_key: 'telegraf',
+        label: 'Monitor Agent (Native Telegraf)',
+        target_type: 'server',
+        template_kind: 'script',
+        installed_state: 'installed',
+        detected_version: '2.10.3',
+        packaged_version: '2.10.3',
+        verification_state: 'degraded',
+        service_status: 'needs_attention',
+        verification: {
+          state: 'degraded',
+          checked_at: '2026-04-16T02:03:04Z',
+          reason: 'service is inactive',
+        },
+        preflight: {
+          ok: true,
+          os_supported: true,
+          privilege_ok: true,
+          network_ok: true,
+          dependency_ready: true,
+        },
+        available_actions: ['verify', 'start', 'restart', 'stop'],
+      },
+    ])
+
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    const inventory = await screen.findByRole('region', { name: 'Addon inventory' })
+    fireEvent.click(within(inventory).getByRole('button', { name: 'Monitor Agent (Native Telegraf)' }))
+
+    const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
+    expect(within(selectedAddon).getByText('Service Status:')).toBeInTheDocument()
+    expect(within(selectedAddon).getByText('Stopped')).toBeInTheDocument()
+    expect(within(selectedAddon).getByText('Guidance:')).toBeInTheDocument()
+    expect(
+      within(selectedAddon).getByText('This addon is stopped. Use Start to bring it back online.')
+    ).toBeInTheDocument()
+    expect(within(selectedAddon).getByText('Artifact:')).toBeInTheDocument()
+    expect(within(selectedAddon).getByText('binary')).toBeInTheDocument()
+  })
+
   it('shows Connecting while the monitor addon is waiting for its first sample', async () => {
     listSoftwareComponentsMock.mockResolvedValue([
       {
         component_key: 'appos-monitor-collector',
-        label: 'Netdata Agent',
+        label: 'Monitor Agent (Native Telegraf)',
         target_type: 'server',
         template_kind: 'script',
         installed_state: 'installed',
@@ -416,7 +534,7 @@ describe('ServerComponentsPanel', () => {
     const inventory = await screen.findByRole('region', { name: 'Addon inventory' })
     expect(within(inventory).getByText('AppOS: Connecting')).toBeInTheDocument()
 
-    fireEvent.click(within(inventory).getByRole('button', { name: 'Netdata Agent' }))
+    fireEvent.click(within(inventory).getByRole('button', { name: 'Monitor Agent (Native Telegraf)' }))
 
     const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
     expect(within(selectedAddon).getByText('AppOS Connection:')).toBeInTheDocument()
@@ -459,7 +577,7 @@ describe('ServerComponentsPanel', () => {
       },
       {
         component_key: 'appos-monitor-collector',
-        label: 'Netdata Agent',
+        label: 'Monitor Agent (Native Telegraf)',
         target_type: 'server',
         template_kind: 'package',
         installed_state: 'installed',
@@ -492,11 +610,11 @@ describe('ServerComponentsPanel', () => {
     expect(within(inventory).getByText('In progress')).toBeInTheDocument()
     expect(within(inventory).getByText('Operation: Accepted')).toBeInTheDocument()
 
-    fireEvent.click(within(inventory).getByRole('button', { name: 'Netdata Agent' }))
+    fireEvent.click(within(inventory).getByRole('button', { name: 'Monitor Agent (Native Telegraf)' }))
 
     const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
     expect(within(selectedAddon).getByText('Operation in progress')).toBeInTheDocument()
-    expect(within(selectedAddon).getByText('Restart is still Accepted for Netdata Agent.')).toBeInTheDocument()
+    expect(within(selectedAddon).getByText('Restart is still Accepted for Monitor Agent (Native Telegraf).')).toBeInTheDocument()
     expect(within(selectedAddon).getByText('Operation History')).toBeInTheDocument()
     expect(await within(selectedAddon).findByText('Current')).toBeInTheDocument()
   })
@@ -575,6 +693,12 @@ describe('ServerComponentsPanel', () => {
         installed_state: 'installed',
         detected_version: '1.0.0',
         verification_state: 'degraded',
+        service_status: 'needs_attention',
+        verification: {
+          state: 'degraded',
+          checked_at: '2026-04-16T02:03:04Z',
+          reason: 'service is inactive',
+        },
         preflight: {
           ok: true,
           os_supported: true,
@@ -582,7 +706,7 @@ describe('ServerComponentsPanel', () => {
           network_ok: true,
           dependency_ready: true,
         },
-        available_actions: ['verify', 'start', 'restart', 'stop'],
+        available_actions: ['verify', 'start', 'restart', 'stop', 'reinstall'],
       },
     ])
 
@@ -594,6 +718,49 @@ describe('ServerComponentsPanel', () => {
     expect(within(inventory).getByRole('button', { name: 'Check' })).toBeInTheDocument()
     expect(within(inventory).getByRole('button', { name: 'Start' })).toBeInTheDocument()
     expect(within(inventory).queryByRole('button', { name: 'Stop' })).toBeNull()
+    expect(within(inventory).queryByRole('button', { name: 'Repair' })).toBeNull()
+  })
+
+  it('keeps degraded addons with start available in needs-attention state when no stopped evidence exists', async () => {
+    listSoftwareComponentsMock.mockResolvedValue([
+      {
+        component_key: 'reverse-proxy',
+        label: 'Reverse Proxy',
+        target_type: 'server',
+        template_kind: 'package',
+        installed_state: 'installed',
+        detected_version: '1.27.0',
+        verification_state: 'degraded',
+        service_status: 'needs_attention',
+        verification: {
+          state: 'degraded',
+          checked_at: '2026-04-16T02:03:04Z',
+          reason: 'config validation failed',
+        },
+        preflight: {
+          ok: true,
+          os_supported: true,
+          privilege_ok: true,
+          network_ok: true,
+          dependency_ready: true,
+        },
+        available_actions: ['verify', 'start', 'restart', 'stop', 'reinstall'],
+      },
+    ])
+
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    const inventory = await screen.findByRole('region', { name: 'Addon inventory' })
+    expect(within(inventory).getByText('Service: Needs Attention')).toBeInTheDocument()
+    expect(within(inventory).getByRole('button', { name: 'Repair' })).toBeInTheDocument()
+    expect(within(inventory).queryByRole('button', { name: 'Start' })).toBeNull()
+
+    fireEvent.click(within(inventory).getByRole('button', { name: 'Reverse Proxy' }))
+
+    const selectedAddon = screen.getByRole('region', { name: 'Selected Addon' })
+    expect(within(selectedAddon).getByText('Service Status:')).toBeInTheDocument()
+    expect(within(selectedAddon).getByText('Needs Attention')).toBeInTheDocument()
+    expect(within(selectedAddon).queryByText('Guidance:')).toBeNull()
   })
 
   it('distinguishes stopped addons from other attention states', async () => {
@@ -887,6 +1054,89 @@ describe('ServerComponentsPanel', () => {
     await within(selectedAddon).findByText('No operation history yet.')
   })
 
+  it('refreshes addon inventory after a delayed post-action snapshot update', async () => {
+    const user = userEvent.setup()
+    const staleAddons = [
+      {
+        component_key: 'reverse-proxy',
+        label: 'Reverse Proxy',
+        target_type: 'server',
+        template_kind: 'package',
+        installed_state: 'installed',
+        detected_version: '1.27.0',
+        packaged_version: '1.27.1',
+        verification_state: 'degraded',
+        preflight: {
+          ok: false,
+          os_supported: true,
+          privilege_ok: true,
+          network_ok: true,
+          dependency_ready: false,
+          issues: ['dependency_not_ready: docker is not ready'],
+        },
+        last_action: { action: 'verify', result: 'failed', at: '2026-04-16T02:03:04Z' },
+        available_actions: ['verify', 'reinstall', 'uninstall'],
+      },
+    ]
+    const refreshedAddons = [
+      {
+        component_key: 'reverse-proxy',
+        label: 'Reverse Proxy',
+        target_type: 'server',
+        template_kind: 'package',
+        installed_state: 'installed',
+        detected_version: '1.27.1',
+        packaged_version: '1.27.1',
+        verification_state: 'healthy',
+        preflight: {
+          ok: true,
+          os_supported: true,
+          privilege_ok: true,
+          network_ok: true,
+          dependency_ready: true,
+          issues: [],
+        },
+        last_action: { action: 'reinstall', result: 'succeeded', at: '2026-04-16T02:03:10Z' },
+        available_actions: ['verify', 'restart', 'uninstall'],
+      },
+    ]
+
+    listSoftwareComponentsMock
+      .mockReset()
+      .mockResolvedValueOnce(staleAddons)
+      .mockResolvedValueOnce(staleAddons)
+      .mockResolvedValue(refreshedAddons)
+
+    getSoftwareOperationMock.mockResolvedValue({
+      id: 'op-123',
+      server_id: 'server-1',
+      component_key: 'reverse-proxy',
+      action: 'reinstall',
+      phase: 'succeeded',
+      terminal_status: 'success',
+      failure_reason: '',
+      event_log: '2026-04-16T02:03:10Z · Repair completed.',
+      created: '2026-04-16T02:03:04Z',
+      updated: '2026-04-16T02:03:10Z',
+    })
+
+    render(<ServerComponentsPanel serverId="server-1" postActionRefreshDelaysMs={[10]} />)
+
+    expect(await screen.findByRole('heading', { name: 'Addons' })).toBeInTheDocument()
+
+    const inventory = screen.getByRole('region', { name: 'Addon inventory' })
+    fireEvent.click(within(inventory).getByRole('button', { name: 'Reverse Proxy' }))
+
+    await user.click(within(inventory).getByRole('button', { name: 'Repair' }))
+    expect(invokeSoftwareActionMock).toHaveBeenCalledWith('server-1', 'reverse-proxy', 'reinstall', {
+      apposBaseUrl: window.location.origin,
+    })
+
+    await waitFor(() => {
+      expect(within(inventory).getByRole('button', { name: 'Check' })).toBeInTheDocument()
+    })
+  })
+
   it('invokes component actions and surfaces the accepted operation message', async () => {
     const user = userEvent.setup()
     render(<ServerComponentsPanel serverId="server-1" />)
@@ -924,7 +1174,7 @@ describe('ServerComponentsPanel', () => {
     listSoftwareComponentsMock.mockResolvedValue([
       {
         component_key: 'appos-monitor-collector',
-        label: 'Netdata Agent',
+        label: 'Monitor Agent (Native Telegraf)',
         target_type: 'server',
         template_kind: 'script-systemd',
         installed_state: 'not_installed',
@@ -953,7 +1203,7 @@ describe('ServerComponentsPanel', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getAllByText('Netdata Agent').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('Monitor Agent (Native Telegraf)').length).toBeGreaterThan(0)
     })
     await waitFor(() => {
       expect(invokeSoftwareActionMock).toHaveBeenCalledWith(
@@ -967,7 +1217,7 @@ describe('ServerComponentsPanel', () => {
     })
     expect(
       await screen.findByText(
-        'install accepted for appos-monitor-collector (op-123). Waiting for the first metrics sample; AppOS Connection will show Connecting until trend data arrives.'
+        'install accepted for appos-agent (op-123). Waiting for the first metrics sample; AppOS Connection will show Connecting until trend data arrives.'
       )
     ).toBeInTheDocument()
   })
@@ -977,7 +1227,7 @@ describe('ServerComponentsPanel', () => {
     listSoftwareComponentsMock.mockResolvedValue([
       {
         component_key: 'appos-monitor-collector',
-        label: 'Netdata Agent',
+        label: 'Monitor Agent (Native Telegraf)',
         target_type: 'server',
         template_kind: 'script-systemd',
         installed_state: 'not_installed',
@@ -1004,10 +1254,13 @@ describe('ServerComponentsPanel', () => {
         }}
       />
     )
-
     expect(await screen.findByText('Choose monitor callback address')).toBeInTheDocument()
     expect(screen.getByText(window.location.origin)).toBeInTheDocument()
     expect(screen.getByText('https://appos.example.com')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Close monitor callback address dialog' })
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull()
     expect(invokeSoftwareActionMock).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Use App URL' }))
@@ -1021,6 +1274,61 @@ describe('ServerComponentsPanel', () => {
           apposBaseUrl: 'https://appos.example.com',
         }
       )
+    })
+  })
+
+  it('asks which callback address to use when telegraf requires an AppOS callback address', async () => {
+    getConfiguredAppURLMock.mockResolvedValue('https://appos.example.com')
+    listSoftwareComponentsMock.mockResolvedValue([
+      {
+        component_key: 'telegraf',
+        label: 'Monitor Agent (Native Telegraf)',
+        target_type: 'server',
+        template_kind: 'script',
+        artifact_kind: 'binary',
+        installed_state: 'not_installed',
+        verification_state: 'unknown',
+        preflight: {
+          ok: true,
+          os_supported: true,
+          privilege_ok: true,
+          network_ok: true,
+          dependency_ready: true,
+        },
+        available_actions: ['install', 'verify'],
+      },
+    ])
+
+    render(
+      <ServerComponentsPanel
+        serverId="server-1"
+        actionIntent={{
+          serverId: 'server-1',
+          componentKey: 'telegraf',
+          action: 'install',
+          nonce: 103,
+        }}
+      />
+    )
+
+    const inventory = await screen.findByRole('region', { name: 'Addon inventory' })
+    expect(within(inventory).getByText('binary')).toBeInTheDocument()
+
+    expect(await screen.findByText('Choose monitor callback address')).toBeInTheDocument()
+    expect(screen.getByText(window.location.origin)).toBeInTheDocument()
+    expect(screen.getByText('https://appos.example.com')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Close monitor callback address dialog' })
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull()
+    expect(invokeSoftwareActionMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use App URL' }))
+
+    await waitFor(() => {
+      expect(invokeSoftwareActionMock).toHaveBeenCalledWith('server-1', 'telegraf', 'install', {
+        apposBaseUrl: 'https://appos.example.com',
+      })
     })
   })
 
@@ -1039,7 +1347,7 @@ describe('ServerComponentsPanel', () => {
     const inventory = screen.getByRole('region', { name: 'Addon inventory' })
     expect(within(inventory).getByText('ssh connection failed')).toBeInTheDocument()
     expect(within(inventory).queryByRole('button', { name: 'Reverse Proxy' })).toBeNull()
-    expect(listSoftwareComponentsMock).not.toHaveBeenCalled()
+    expect(listSoftwareComponentsMock).toHaveBeenCalledWith('server-1')
   })
 
   it('shows prerequisite privilege errors in addon inventory even when prerequisite fetch succeeds', async () => {
@@ -1080,7 +1388,7 @@ describe('ServerComponentsPanel', () => {
       )
     ).toBeInTheDocument()
     expect(within(inventory).queryByRole('button', { name: 'Reverse Proxy' })).toBeNull()
-    expect(listSoftwareComponentsMock).not.toHaveBeenCalled()
+    expect(listSoftwareComponentsMock).toHaveBeenCalledWith('server-1')
   })
 
   it('loads docker detail only when compose verification is missing from the list response', async () => {
@@ -1167,6 +1475,9 @@ describe('ServerComponentsPanel', () => {
     fireEvent.click(within(prerequisitesSection).getByRole('button', { name: 'Upgrade' }))
 
     expect(await screen.findByText('Confirm Upgrade')).toBeInTheDocument()
+    expect(
+      screen.getByText(/upgrade or replace Docker components on this server/i)
+    ).toBeInTheDocument()
     expect(invokeSoftwareActionMock).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
@@ -1382,6 +1693,58 @@ describe('ServerComponentsPanel', () => {
     await waitFor(() => {
       expect(within(prerequisitesSection).queryByText('previous check failed')).toBeNull()
     })
+  })
+
+  it('shows timeout-specific labels for operation history records', async () => {
+    listSoftwareOperationsMock.mockResolvedValue([
+      {
+        id: 'op-timeout-1',
+        server_id: 'server-1',
+        component_key: 'docker',
+        action: 'upgrade',
+        phase: 'attention_required',
+        terminal_status: 'attention_required',
+        failure_code: 'execution_timeout',
+        failure_reason: 'execute "upgrade" timed out: context deadline exceeded',
+        created: '2026-05-13T01:00:00Z',
+        updated: '2026-05-13T01:01:00Z',
+      },
+    ])
+
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    const prerequisitesSection = await screen.findByRole('region', {
+      name: 'Prerequisites section',
+    })
+    fireEvent.click(
+      within(prerequisitesSection).getByRole('button', { name: 'Docker Engine details' })
+    )
+    fireEvent.click(within(prerequisitesSection).getByRole('button', { name: 'History' }))
+
+    expect(
+      await within(prerequisitesSection).findByText('Operation History (1)')
+    ).toBeInTheDocument()
+    expect(await within(prerequisitesSection).findByText('Timed out')).toBeInTheDocument()
+    expect(
+      within(prerequisitesSection).getByText('execute "upgrade" timed out: context deadline exceeded')
+    ).toBeInTheDocument()
+  })
+
+  it('keeps timeout policy hints out of addon and prerequisite action chrome', async () => {
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    const prerequisitesSection = await screen.findByRole('region', {
+      name: 'Prerequisites section',
+    })
+    fireEvent.click(
+      within(prerequisitesSection).getByRole('button', { name: 'Docker Engine details' })
+    )
+    await within(prerequisitesSection).findByText('Verification Checklist')
+
+    const addonsSection = screen.getByRole('region', { name: 'Addons section' })
+    const inventory = within(addonsSection).getByRole('region', { name: 'Addon inventory' })
+    fireEvent.click(within(inventory).getByRole('button', { name: 'Reverse Proxy' }))
+    expect(screen.queryByText(/Timeout .*on timeout:/i)).toBeNull()
   })
 
   it('keeps blocking issue out of the checklist title row and shows mode tabs', async () => {
@@ -1700,7 +2063,7 @@ describe('ServerComponentsPanel', () => {
     expect(await screen.findByText('Reverse Proxy')).toBeInTheDocument()
   })
 
-  it('waits for prerequisites before starting the addon list request', async () => {
+  it('starts the addon list request before prerequisites finish loading', async () => {
     const prerequisiteDeferred = deferred<{
       component_key: string
       label: string
@@ -1757,7 +2120,7 @@ describe('ServerComponentsPanel', () => {
     render(<ServerComponentsPanel serverId="server-1" />)
 
     expect(getSoftwareComponentMock).toHaveBeenCalledWith('server-1', 'docker')
-    expect(listSoftwareComponentsMock).not.toHaveBeenCalled()
+    expect(listSoftwareComponentsMock).toHaveBeenCalledWith('server-1')
 
     prerequisiteDeferred.resolve({
       component_key: 'docker',
@@ -1788,8 +2151,98 @@ describe('ServerComponentsPanel', () => {
       available_actions: ['verify', 'upgrade'],
     })
 
-    await waitFor(() => {
-      expect(listSoftwareComponentsMock).toHaveBeenCalledWith('server-1')
+    expect(await screen.findByText('Reverse Proxy')).toBeInTheDocument()
+  })
+
+  it('renders addon inventory data even while prerequisites are still loading', async () => {
+    const prerequisiteDeferred = deferred<{
+      component_key: string
+      label: string
+      target_type: 'server'
+      template_kind: 'package'
+      installed_state: 'installed'
+      detected_version: string
+      install_source: 'managed'
+      source_evidence: string
+      verification_state: 'healthy'
+      preflight: {
+        ok: true
+        os_supported: true
+        privilege_ok: true
+        network_ok: true
+        dependency_ready: true
+      }
+      verification: {
+        state: 'healthy'
+        checked_at: string
+        details: {
+          engine_version: string
+          compose_available: true
+          compose_version: string
+        }
+      }
+      available_actions: Array<'verify' | 'upgrade'>
+    }>()
+
+    getSoftwareComponentMock.mockReturnValueOnce(prerequisiteDeferred.promise)
+    listSoftwareComponentsMock.mockResolvedValueOnce([
+      {
+        component_key: 'reverse-proxy',
+        label: 'Reverse Proxy',
+        target_type: 'server',
+        template_kind: 'package',
+        installed_state: 'installed',
+        detected_version: '1.27.0',
+        packaged_version: '1.27.1',
+        verification_state: 'degraded',
+        preflight: {
+          ok: false,
+          os_supported: true,
+          privilege_ok: true,
+          network_ok: true,
+          dependency_ready: false,
+          issues: ['dependency_not_ready: docker is not ready'],
+        },
+        last_action: { action: 'verify', result: 'failed', at: '2026-04-16T02:03:04Z' },
+        available_actions: ['verify', 'reinstall', 'uninstall'],
+      },
+    ])
+
+    render(<ServerComponentsPanel serverId="server-1" />)
+
+    const addonsSection = await screen.findByRole('region', { name: 'Addons section' })
+    expect(await within(addonsSection).findByText('Reverse Proxy')).toBeInTheDocument()
+    expect(within(addonsSection).queryByText('Loading addons...')).toBeNull()
+
+    prerequisiteDeferred.resolve({
+      component_key: 'docker',
+      label: 'Docker Engine',
+      target_type: 'server',
+      template_kind: 'package',
+      installed_state: 'installed',
+      detected_version: '27.0.1',
+      install_source: 'managed',
+      source_evidence: 'apt:docker-ce',
+      verification_state: 'healthy',
+      preflight: {
+        ok: true,
+        os_supported: true,
+        privilege_ok: true,
+        network_ok: true,
+        dependency_ready: true,
+      },
+      verification: {
+        state: 'healthy',
+        checked_at: '2026-04-16T02:03:04Z',
+        details: {
+          engine_version: '27.0.1',
+          compose_available: true,
+          compose_version: '2.27.0',
+        },
+      },
+      available_actions: ['verify', 'upgrade'],
     })
+
+    expect(await screen.findByText('Docker Engine')).toBeInTheDocument()
   })
 })

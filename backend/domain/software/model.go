@@ -1,6 +1,9 @@
 package software
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 type TemplateKind string
 
@@ -8,6 +11,15 @@ const (
 	TemplateKindPackage TemplateKind = "package"
 	TemplateKindScript  TemplateKind = "script"
 	TemplateKindBinary  TemplateKind = "binary"
+)
+
+type ArtifactKind string
+
+const (
+	ArtifactKindPackage ArtifactKind = "package"
+	ArtifactKindScript  ArtifactKind = "script"
+	ArtifactKindBinary  ArtifactKind = "binary"
+	ArtifactKindDocker  ArtifactKind = "docker"
 )
 
 type ComponentKey string
@@ -20,7 +32,6 @@ var reservedSoftwareRouteKeys = map[string]struct{}{
 const (
 	// Server-target components — referenced by CapabilityComponentMap and provisioning logic.
 	ComponentKeyDocker       ComponentKey = "docker"
-	ComponentKeyMonitorAgent ComponentKey = "appos-monitor-collector"
 	ComponentKeyReverseProxy ComponentKey = "reverse-proxy"
 	ComponentKeyTelegraf     ComponentKey = "telegraf"
 	// Local-target components are purely catalog-data-driven: their component_key strings
@@ -110,6 +121,92 @@ const (
 	ActionUninstall Action = "uninstall"
 )
 
+// ActionTimeoutsSpec defines optional total timeouts for each managed action.
+// Values are declared in whole seconds in template YAML. A zero value means
+// the action uses the existing executor/default timing behavior.
+type ActionTimeoutsSpec struct {
+	InstallSeconds   int `yaml:"install_seconds"`
+	UpgradeSeconds   int `yaml:"upgrade_seconds"`
+	StartSeconds     int `yaml:"start_seconds"`
+	StopSeconds      int `yaml:"stop_seconds"`
+	RestartSeconds   int `yaml:"restart_seconds"`
+	VerifySeconds    int `yaml:"verify_seconds"`
+	ReinstallSeconds int `yaml:"reinstall_seconds"`
+	UninstallSeconds int `yaml:"uninstall_seconds"`
+}
+
+func (s ActionTimeoutsSpec) DurationFor(action Action) time.Duration {
+	seconds := 0
+	switch action {
+	case ActionInstall:
+		seconds = s.InstallSeconds
+	case ActionUpgrade:
+		seconds = s.UpgradeSeconds
+	case ActionStart:
+		seconds = s.StartSeconds
+	case ActionStop:
+		seconds = s.StopSeconds
+	case ActionRestart:
+		seconds = s.RestartSeconds
+	case ActionVerify:
+		seconds = s.VerifySeconds
+	case ActionReinstall:
+		seconds = s.ReinstallSeconds
+	case ActionUninstall:
+		seconds = s.UninstallSeconds
+	}
+	if seconds <= 0 {
+		return 0
+	}
+	return time.Duration(seconds) * time.Second
+}
+
+type TimeoutPolicyResult string
+
+const (
+	TimeoutPolicyAttentionRequired TimeoutPolicyResult = "attention_required"
+	TimeoutPolicyFailed            TimeoutPolicyResult = "failed"
+)
+
+// ActionTimeoutPolicySpec defines the terminal result to apply when an action
+// exceeds its declared total timeout.
+type ActionTimeoutPolicySpec struct {
+	Install   TimeoutPolicyResult `yaml:"install"`
+	Upgrade   TimeoutPolicyResult `yaml:"upgrade"`
+	Start     TimeoutPolicyResult `yaml:"start"`
+	Stop      TimeoutPolicyResult `yaml:"stop"`
+	Restart   TimeoutPolicyResult `yaml:"restart"`
+	Verify    TimeoutPolicyResult `yaml:"verify"`
+	Reinstall TimeoutPolicyResult `yaml:"reinstall"`
+	Uninstall TimeoutPolicyResult `yaml:"uninstall"`
+}
+
+func (s ActionTimeoutPolicySpec) ResultFor(action Action) TimeoutPolicyResult {
+	var result TimeoutPolicyResult
+	switch action {
+	case ActionInstall:
+		result = s.Install
+	case ActionUpgrade:
+		result = s.Upgrade
+	case ActionStart:
+		result = s.Start
+	case ActionStop:
+		result = s.Stop
+	case ActionRestart:
+		result = s.Restart
+	case ActionVerify:
+		result = s.Verify
+	case ActionReinstall:
+		result = s.Reinstall
+	case ActionUninstall:
+		result = s.Uninstall
+	}
+	if result != TimeoutPolicyFailed {
+		return TimeoutPolicyAttentionRequired
+	}
+	return result
+}
+
 // TargetType identifies the delivery target class for a software component.
 // Software Delivery manages static component state for both target types.
 type TargetType string
@@ -156,8 +253,10 @@ const (
 	FailureCodePreflightError         FailureCode = "preflight_error"
 	FailureCodePreflightBlocked       FailureCode = "preflight_blocked"
 	FailureCodeExecutionError         FailureCode = "execution_error"
+	FailureCodeExecutionTimeout       FailureCode = "execution_timeout"
 	FailureCodeVerificationDegraded   FailureCode = "verification_degraded"
 	FailureCodeVerificationError      FailureCode = "verification_error"
+	FailureCodeVerificationTimeout    FailureCode = "verification_timeout"
 	FailureCodeUninstallTruthMismatch FailureCode = "uninstall_truth_mismatch"
 )
 
@@ -207,6 +306,7 @@ type SoftwareComponentSummary struct {
 	ComponentKey      ComponentKey                `json:"component_key"`
 	Label             string                      `json:"label"`
 	TemplateKind      TemplateKind                `json:"template_kind"`
+	ArtifactKind      ArtifactKind                `json:"artifact_kind,omitempty"`
 	InstalledState    InstalledState              `json:"installed_state"`
 	DetectedVersion   string                      `json:"detected_version,omitempty"`
 	InstallSource     InstallSource               `json:"install_source,omitempty"`
@@ -334,13 +434,15 @@ type ReinstallSpec struct {
 // Each template defines a full set of execution steps that any compatible catalog
 // entry can follow, substituting catalog-supplied placeholder values at resolve time.
 type ComponentTemplate struct {
-	TemplateKind TemplateKind  `yaml:"template_kind"`
-	Detect       DetectSpec    `yaml:"detect"`
-	Preflight    PreflightSpec `yaml:"preflight"`
-	Install      InstallSpec   `yaml:"install"`
-	Upgrade      UpgradeSpec   `yaml:"upgrade"`
-	Uninstall    UninstallSpec `yaml:"uninstall"`
-	Verify       VerifySpec    `yaml:"verify"`
+	TemplateKind        TemplateKind            `yaml:"template_kind"`
+	Detect              DetectSpec              `yaml:"detect"`
+	Preflight           PreflightSpec           `yaml:"preflight"`
+	ActionTimeouts      ActionTimeoutsSpec      `yaml:"action_timeouts"`
+	ActionTimeoutPolicy ActionTimeoutPolicySpec `yaml:"timeout_policy"`
+	Install             InstallSpec             `yaml:"install"`
+	Upgrade             UpgradeSpec             `yaml:"upgrade"`
+	Uninstall           UninstallSpec           `yaml:"uninstall"`
+	Verify              VerifySpec              `yaml:"verify"`
 	// Reinstall is optional in YAML. When absent, ResolveTemplate defaults to reinstall strategy.
 	Reinstall *ReinstallSpec `yaml:"reinstall"`
 }
@@ -354,23 +456,43 @@ type TemplateRegistry struct {
 // Placeholder fields (Binary, ServiceName, PackageName, ScriptURL) are injected
 // into template specs by ResolveTemplate; they never originate from user input.
 type CatalogEntry struct {
-	ComponentKey          ComponentKey        `yaml:"component_key"`
-	TargetType            TargetType          `yaml:"target_type"`
-	Label                 string              `yaml:"label"`
-	Capability            Capability          `yaml:"capability"`
-	TemplateRef           string              `yaml:"template_ref"`
-	VersionCommand        string              `yaml:"version_command"`
-	Binary                string              `yaml:"binary"`
-	ServiceName           string              `yaml:"service_name"`
-	PackageName           string              `yaml:"package_name"`
-	PackageNames          []string            `yaml:"package_names"`
-	PackageRepoProfile    string              `yaml:"package_repo_profile"`
-	ScriptPath            string              `yaml:"script_path"`
-	ScriptURL             string              `yaml:"script_url"`
-	Description           string              `yaml:"description"`
-	ReadinessRequirements []string            `yaml:"readiness_requirements"`
-	Visibility            []CatalogVisibility `yaml:"visibility"`
-	SupportedActions      []Action            `yaml:"supported_actions"`
+	ComponentKey           ComponentKey        `yaml:"component_key"`
+	TargetType             TargetType          `yaml:"target_type"`
+	Label                  string              `yaml:"label"`
+	Capability             Capability          `yaml:"capability"`
+	ArtifactKind           ArtifactKind        `yaml:"artifact_kind"`
+	TemplateRef            string              `yaml:"template_ref"`
+	VersionCommand         string              `yaml:"version_command"`
+	Binary                 string              `yaml:"binary"`
+	ServiceName            string              `yaml:"service_name"`
+	LegacyServiceNames     []string            `yaml:"legacy_service_names"`
+	PackageName            string              `yaml:"package_name"`
+	PackageNames           []string            `yaml:"package_names"`
+	PackageRepoProfile     string              `yaml:"package_repo_profile"`
+	ScriptPath             string              `yaml:"script_path"`
+	ScriptURL              string              `yaml:"script_url"`
+	Description            string              `yaml:"description"`
+	ReadinessRequirements  []string            `yaml:"readiness_requirements"`
+	RequiresAppOSBaseURL   bool                `yaml:"requires_appos_base_url"`
+	FavoriteSystemdService bool                `yaml:"favorite_systemd_service"`
+	Visibility             []CatalogVisibility `yaml:"visibility"`
+	SupportedActions       []Action            `yaml:"supported_actions"`
+}
+
+func EffectiveArtifactKind(entry CatalogEntry, templateKind TemplateKind) ArtifactKind {
+	if entry.ArtifactKind != "" {
+		return entry.ArtifactKind
+	}
+	switch templateKind {
+	case TemplateKindPackage:
+		return ArtifactKindPackage
+	case TemplateKindBinary:
+		return ArtifactKindBinary
+	case TemplateKindScript:
+		return ArtifactKindScript
+	default:
+		return ArtifactKind(templateKind)
+	}
 }
 
 // ComponentCatalog holds all registered components.
@@ -384,17 +506,19 @@ type ComponentCatalog struct {
 // ResolvedTemplate is the sole input type accepted by ComponentExecutor; no
 // component-specific logic is permitted outside of this resolution step.
 type ResolvedTemplate struct {
-	ComponentKey     ComponentKey
-	TemplateRef      string
-	TemplateKind     TemplateKind
-	Detect           DetectSpec
-	Preflight        PreflightSpec
-	Install          InstallSpec
-	Upgrade          UpgradeSpec
-	Uninstall        UninstallSpec
-	Verify           VerifySpec
-	Reinstall        ReinstallSpec
-	SupportedActions []Action
+	ComponentKey        ComponentKey
+	TemplateRef         string
+	TemplateKind        TemplateKind
+	Detect              DetectSpec
+	Preflight           PreflightSpec
+	ActionTimeouts      ActionTimeoutsSpec
+	ActionTimeoutPolicy ActionTimeoutPolicySpec
+	Install             InstallSpec
+	Upgrade             UpgradeSpec
+	Uninstall           UninstallSpec
+	Verify              VerifySpec
+	Reinstall           ReinstallSpec
+	SupportedActions    []Action
 }
 
 // ── Readiness types ───────────────────────────────────────────────────────────

@@ -90,6 +90,7 @@ export interface FileManagerPanelProps {
   initialPath?: string
   lockedRootPath?: string
   className?: string
+  showCurrentPathInStatusBar?: boolean
   onLocationChange?: (location: { path: string; lockedRoot: string | null }) => void
 }
 
@@ -227,6 +228,7 @@ export function FileManagerPanel({
   initialPath = '/',
   lockedRootPath,
   className,
+  showCurrentPathInStatusBar = true,
   onLocationChange,
 }: FileManagerPanelProps) {
   const scopedRootPath = normalizePath(lockedRootPath || '/')
@@ -1426,7 +1428,9 @@ export function FileManagerPanel({
             {!searchRecursive && searchQuery.trim() && ` · filtered`}
           </span>
         )}
-        <span className="truncate max-w-[200px]">{currentPath}</span>
+        {showCurrentPathInStatusBar ? (
+          <span className="truncate max-w-[200px]">{currentPath}</span>
+        ) : null}
       </div>
 
       {/* Delete confirmation dialog */}

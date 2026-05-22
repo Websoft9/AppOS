@@ -12,7 +12,6 @@ import {
   Loader2,
   ChevronRight,
   Layers,
-  FileCode2,
   Wrench,
 } from 'lucide-react'
 import { pb } from '@/lib/pb'
@@ -79,31 +78,6 @@ const RUNTIME_INFRASTRUCTURE: ResourceDef[] = [
   },
 ]
 
-const SHARED_ASSETS: ResourceDef[] = [
-  {
-    key: 'shared-envs',
-    title: 'Shared Envs',
-    description: 'Reusable shared environment sets and variables that can be mapped across apps.',
-    icon: <Layers className="h-5 w-5" />,
-    href: '/shared-envs',
-    createLabel: 'Create a shared environment set',
-    createDescription: 'Reusable environment variable sets shared across apps and workflows.',
-    exampleItems: ['Runtime Variables', 'Secrets Mapping', 'Shared Defaults'],
-    countQuery: { collection: 'env_sets' },
-  },
-  {
-    key: 'scripts',
-    title: 'Scripts',
-    description:
-      'Reusable automation scripts for operations, recovery steps, and repeatable tasks.',
-    icon: <FileCode2 className="h-5 w-5" />,
-    href: '/resources/scripts',
-    createLabel: 'Add an automation script',
-    createDescription: 'Reusable automation scripts for operational tasks and workflows.',
-    exampleItems: ['Health Check', 'Backup', 'Cleanup'],
-    apiPath: '/api/ext/resources/scripts',
-  },
-]
 
 const EXTERNAL_INTEGRATIONS: ResourceDef[] = [
   {
@@ -167,12 +141,6 @@ const RESOURCE_SECTIONS: ResourceSection[] = [
     resources: RUNTIME_INFRASTRUCTURE,
   },
   {
-    key: 'shared-assets',
-    title: 'Shared Assets',
-    description: 'Reusable shared environment sets and scripts that support multiple applications.',
-    resources: SHARED_ASSETS,
-  },
-  {
     key: 'software-delivery',
     title: 'Software Delivery',
     description:
@@ -190,7 +158,6 @@ const RESOURCE_SECTIONS: ResourceSection[] = [
 
 const ALL_RESOURCES = [
   ...RUNTIME_INFRASTRUCTURE,
-  ...SHARED_ASSETS,
   ...SOFTWARE_DELIVERY,
   ...EXTERNAL_INTEGRATIONS,
 ]

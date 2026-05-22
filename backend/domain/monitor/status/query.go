@@ -56,6 +56,7 @@ func buildOverviewFromRecords(records []*core.Record) (*OverviewResponse, error)
 			resp.UnhealthyItems = append(resp.UnhealthyItems, item)
 		}
 	}
+	ensurePlatformOverviewItems(resp)
 	return resp, nil
 }
 
@@ -74,6 +75,8 @@ func GetTargetStatus(app core.App, targetType, targetID string) (*TargetStatusRe
 				return synthesizeServerTargetStatus(app, targetID)
 			case monitor.TargetTypeApp:
 				return synthesizeAppTargetStatus(app, targetID, monitor.ResolveAppBaselineTarget())
+			case monitor.TargetTypePlatform:
+				return synthesizePlatformTargetStatus(targetID)
 			}
 		}
 		return nil, err
@@ -197,6 +200,96 @@ func synthesizeAppTargetStatusFromRecord(appRecord *core.Record, appEntry monito
 			"publication_summary": strings.TrimSpace(appRecord.GetString("publication_summary")),
 			"server_id":           strings.TrimSpace(appRecord.GetString("server_id")),
 		},
+	}
+}
+
+type platformTargetDefinition struct {
+	ID          string
+	DisplayName string
+}
+
+var platformTargetDefinitions = []platformTargetDefinition{
+	{ID: "appos-core", DisplayName: "AppOS Core"},
+	{ID: "worker", DisplayName: "Worker"},
+	{ID: "scheduler", DisplayName: "Scheduler"},
+}
+
+func ensurePlatformOverviewItems(resp *OverviewResponse) {
+	if resp == nil {
+		return
+	}
+	existing := make(map[string]OverviewItem, len(resp.PlatformItems))
+	for _, item := range resp.PlatformItems {
+		existing[item.TargetID] = item
+	}
+	ordered := make([]OverviewItem, 0, len(platformTargetDefinitions)+len(existing))
+	for _, definition := range platformTargetDefinitions {
+		item, ok := existing[definition.ID]
+		if ok {
+			ordered = append(ordered, item)
+			delete(existing, definition.ID)
+			continue
+		}
+		ordered = append(ordered, synthesizePlatformOverviewItem(definition.ID, definition.DisplayName))
+		resp.Counts[monitor.StatusUnknown]++
+	}
+	for _, item := range resp.PlatformItems {
+		if _, ok := existing[item.TargetID]; ok {
+			ordered = append(ordered, item)
+			delete(existing, item.TargetID)
+		}
+	}
+	resp.PlatformItems = ordered
+}
+
+func synthesizePlatformOverviewItem(targetID, displayName string) OverviewItem {
+	return OverviewItem{
+		TargetType:  monitor.TargetTypePlatform,
+		TargetID:    targetID,
+		DisplayName: displayName,
+		Status:      monitor.StatusUnknown,
+		Reason:      "platform self-observation has not reported yet",
+		DetailHref:  detailHref(monitor.TargetTypePlatform, targetID),
+		Summary:     platformAwaitingSummary(targetID),
+	}
+}
+
+func synthesizePlatformTargetStatus(targetID string) (*TargetStatusResponse, error) {
+	displayName, ok := platformTargetDisplayName(targetID)
+	if !ok {
+		return nil, sql.ErrNoRows
+	}
+	return &TargetStatusResponse{
+		HasData:             false,
+		TargetType:          monitor.TargetTypePlatform,
+		TargetID:            targetID,
+		DisplayName:         displayName,
+		Status:              monitor.StatusUnknown,
+		Reason:              "platform self-observation has not reported yet",
+		SignalSource:        monitor.SignalSourceSelf,
+		LastTransitionAt:    "",
+		LastSuccessAt:       nil,
+		LastFailureAt:       nil,
+		LastCheckedAt:       nil,
+		LastReportedAt:      nil,
+		ConsecutiveFailures: 0,
+		Summary:             platformAwaitingSummary(targetID),
+	}, nil
+}
+
+func platformTargetDisplayName(targetID string) (string, bool) {
+	for _, definition := range platformTargetDefinitions {
+		if definition.ID == targetID {
+			return definition.DisplayName, true
+		}
+	}
+	return "", false
+}
+
+func platformAwaitingSummary(targetID string) map[string]any {
+	return map[string]any{
+		"monitoring_state": "awaiting_self_observation",
+		"platform_target":  targetID,
 	}
 }
 

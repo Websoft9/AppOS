@@ -3,7 +3,6 @@ import { Link } from '@tanstack/react-router'
 import {
   AlertTriangle,
   ArrowRight,
-  ChevronRight,
   KeyRound,
   Loader2,
   Radar,
@@ -17,10 +16,17 @@ import {
 import { pb } from '@/lib/pb'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { TimeSeriesChart } from '@/components/monitor/TimeSeriesChart'
 import { useAuth } from '@/contexts/AuthContext'
+import { getRejectedSections, warnDegradedSections } from '@/lib/degraded-sections'
 import { type AppInstance, formatTime, runtimeVariant } from '@/pages/apps/types'
 import type { TunnelOverviewResponse } from '@/pages/system/tunnel-types'
 
@@ -156,10 +162,6 @@ const APPOS_CORE_OVERVIEW_SERIES_QUERY = 'cpu,memory,disk_usage,network'
 
 const APPOS_CORE_OVERVIEW_SERIES_ORDER = ['cpu', 'memory', 'disk_usage', 'network'] as const
 
-const CONTROL_PLANE_SUMMARY_EXCLUDES = new Set(['last_dispatch_at', 'last_tick_at', 'started_at'])
-
-const APPOS_CORE_SUMMARY_EXCLUDES = new Set(['cpu_percent', 'go_version'])
-
 function formatStatusLabel(value: string): string {
   return value
     .split('_')
@@ -264,21 +266,6 @@ function orderedOverviewSeries(input: MonitorSeries[] | undefined): MonitorSerie
   ).filter((item): item is MonitorSeries => Boolean(item))
 }
 
-function controlPlaneSummaryEntries(item: MonitorOverviewItem): Array<[string, unknown]> {
-  const excludes =
-    item.targetId === 'appos-core'
-      ? new Set([...CONTROL_PLANE_SUMMARY_EXCLUDES, ...APPOS_CORE_SUMMARY_EXCLUDES])
-      : CONTROL_PLANE_SUMMARY_EXCLUDES
-
-  return Object.entries(item.summary ?? {})
-    .filter(([key]) => !excludes.has(key) && !key.endsWith('_at'))
-    .slice(0, item.targetId === 'appos-core' ? 4 : 2)
-}
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : 'Request failed'
-}
-
 function isExpiringSoon(iso?: string, warnBeforeDays = 30): boolean {
   if (!iso) return false
   const expiresAt = new Date(iso)
@@ -301,21 +288,6 @@ function issueBadgeVariant(
     case 'critical':
       return 'destructive'
     case 'warning':
-      return 'outline'
-    default:
-      return 'secondary'
-  }
-}
-
-function platformBadgeVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-  switch (status) {
-    case 'healthy':
-      return 'default'
-    case 'offline':
-    case 'unreachable':
-    case 'credential_invalid':
-      return 'destructive'
-    case 'degraded':
       return 'outline'
     default:
       return 'secondary'
@@ -472,7 +444,7 @@ export function OverviewPage() {
   const { user } = useAuth()
   const isSuperuser = user?.collectionName === '_superusers'
   const [data, setData] = useState<OverviewData>(EMPTY_DATA)
-  const [controlPlaneSeries, setControlPlaneSeries] = useState<MonitorSeriesResponse | null>(null)
+  const [trendSeries, setTrendSeries] = useState<MonitorSeriesResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
@@ -498,7 +470,7 @@ export function OverviewPage() {
           pb.send<MonitorOverviewResponse>('/api/monitor/overview', { method: 'GET' }),
           pb.send<TunnelOverviewResponse>('/api/tunnel/overview', { method: 'GET' }),
           isSuperuser
-            ? pb.collection('servers').getFullList<ServerOverviewRecord>({ sort: '-created' })
+            ? pb.collection('servers').getFullList<ServerOverviewRecord>({ sort: 'name' })
             : Promise.resolve<ServerOverviewRecord[]>([]),
           isSuperuser
             ? pb.collection('secrets').getFullList<SecretOverviewRecord>({ sort: '-created' })
@@ -510,39 +482,49 @@ export function OverviewPage() {
             : Promise.resolve<CertificateOverviewRecord[]>([]),
         ])
 
-        const coreFailures = [appsResult, monitorResult, tunnelsResult].filter(
-          result => result.status === 'rejected'
-        )
+        const coreFailures = getRejectedSections([
+          { section: 'apps', result: appsResult },
+          { section: 'monitor', result: monitorResult },
+          { section: 'tunnels', result: tunnelsResult },
+        ])
         if (coreFailures.length === 3) {
-          throw new Error(errorMessage(coreFailures[0].reason))
+          throw new Error(coreFailures[0].message)
         }
 
-        if (
-          coreFailures.length > 0 ||
-          [serversResult, secretsResult, certificatesResult].some(
-            result => result.status === 'rejected'
-          )
-        ) {
+        const collectionFailures = getRejectedSections([
+          { section: 'servers', result: serversResult },
+          { section: 'secrets', result: secretsResult },
+          { section: 'certificates', result: certificatesResult },
+        ])
+
+        if (coreFailures.length > 0 || collectionFailures.length > 0) {
+          warnDegradedSections('Overview', [...coreFailures, ...collectionFailures])
           setError('Some overview sections are temporarily unavailable.')
         }
 
         const normalizedMonitor = normalizeMonitorOverview(
           monitorResult.status === 'fulfilled' ? monitorResult.value : undefined
         )
-        let nextControlPlaneSeries: MonitorSeriesResponse | null = null
-        if (normalizedMonitor.platformItems.some(item => item.targetId === 'appos-core')) {
-          try {
-            nextControlPlaneSeries = await pb.send<MonitorSeriesResponse>(
-              `/api/monitor/targets/platform/appos-core/series?${new URLSearchParams({
-                window: '1h',
-                series: APPOS_CORE_OVERVIEW_SERIES_QUERY,
-              }).toString()}`,
-              { method: 'GET' }
-            )
-          } catch {
-            nextControlPlaneSeries = null
-          }
-        }
+        const nextServers =
+          serversResult.status === 'fulfilled'
+            ? normalizeCollectionItems<ServerOverviewRecord>(serversResult.value)
+            : []
+        const apposTrendResult = await Promise.allSettled([
+          normalizedMonitor.platformItems.some(item => item.targetId === 'appos-core')
+            ? pb.send<MonitorSeriesResponse>(
+                `/api/monitor/targets/platform/appos-core/series?${new URLSearchParams({
+                  window: '1h',
+                  series: APPOS_CORE_OVERVIEW_SERIES_QUERY,
+                }).toString()}`,
+                { method: 'GET' }
+              )
+            : Promise.resolve(null),
+        ])
+
+        warnDegradedSections(
+          'Overview trends',
+          getRejectedSections([{ section: 'appos', result: apposTrendResult[0] }])
+        )
 
         setData({
           apps:
@@ -553,10 +535,7 @@ export function OverviewPage() {
           tunnels: normalizeTunnelOverview(
             tunnelsResult.status === 'fulfilled' ? tunnelsResult.value : undefined
           ),
-          servers:
-            serversResult.status === 'fulfilled'
-              ? normalizeCollectionItems<ServerOverviewRecord>(serversResult.value)
-              : [],
+          servers: nextServers,
           secrets:
             secretsResult.status === 'fulfilled'
               ? normalizeCollectionItems<SecretOverviewRecord>(secretsResult.value)
@@ -566,9 +545,13 @@ export function OverviewPage() {
               ? normalizeCollectionItems<CertificateOverviewRecord>(certificatesResult.value)
               : [],
         })
-        setControlPlaneSeries(nextControlPlaneSeries)
+        setTrendSeries(
+          apposTrendResult[0].status === 'fulfilled' && apposTrendResult[0].value
+            ? apposTrendResult[0].value
+            : null
+        )
       } catch (err) {
-        setControlPlaneSeries(null)
+        setTrendSeries(null)
         setError(err instanceof Error ? err.message : 'Failed to load overview')
       } finally {
         setLoading(false)
@@ -635,12 +618,6 @@ export function OverviewPage() {
 
   const issueItems = useMemo(() => buildIssueItems(data), [data])
 
-  const controlPlaneItems = useMemo(() => {
-    const apposCore = data.monitor.platformItems.find(item => item.targetId === 'appos-core')
-    const rest = data.monitor.platformItems.filter(item => item.targetId !== 'appos-core')
-    return apposCore ? [apposCore, ...rest] : data.monitor.platformItems
-  }, [data.monitor.platformItems])
-
   const recentApps = useMemo(
     () =>
       [...data.apps]
@@ -651,10 +628,7 @@ export function OverviewPage() {
     [data.apps]
   )
 
-  const apposCoreOverviewSeries = useMemo(
-    () => orderedOverviewSeries(controlPlaneSeries?.series),
-    [controlPlaneSeries]
-  )
+  const apposTrendSeries = useMemo(() => orderedOverviewSeries(trendSeries?.series), [trendSeries])
 
   return (
     <div className="space-y-6">
@@ -750,108 +724,59 @@ export function OverviewPage() {
         </Card>
 
         <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3">
-              <CardTitle>Control Plane</CardTitle>
-              <Link
-                to="/status"
-                aria-label="System Monitor"
-                className="inline-flex items-center text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Link>
-            </div>
-            <CardDescription>
-              AppOS self-observation summary plus one-hour resource trends for the core process.
-            </CardDescription>
+          <CardHeader className="relative pr-16">
+            <CardTitle>1H Trends</CardTitle>
+            <CardDescription>CPU, memory, disk, and network over the last hour.</CardDescription>
+            <Link
+              to="/status"
+              aria-label="View system status"
+              className="absolute right-2 top-0 p-1 text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ArrowRight className="h-4 w-4" />
+            </Link>
           </CardHeader>
           <CardContent className="space-y-3">
             {loading ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Loading platform status...
+                Loading trends...
               </div>
-            ) : controlPlaneItems.length === 0 ? (
+            ) : apposTrendSeries.length === 0 ? (
               <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-                Platform self-observation has not reported yet.
+                Trend data has not reported yet.
               </div>
             ) : (
-              <div className="grid gap-3 md:grid-cols-3">
-                {controlPlaneItems.map(item => {
-                  const summaryEntries = controlPlaneSummaryEntries(item)
-                  return (
-                    <div key={item.targetId} className="rounded-lg border bg-background px-4 py-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-foreground">{item.displayName}</span>
-                          <Badge variant={platformBadgeVariant(item.status)}>
-                            {formatStatusLabel(item.status)}
-                          </Badge>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {apposTrendSeries.map(item => (
+                  <div key={item.name} className="rounded-lg border bg-background p-3">
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-medium text-foreground">
+                          {formatSeriesLabel(item.name)}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {item.reason || 'No active issue reported.'}
+                          {latestSeriesSummary(item)}
                         </div>
                       </div>
-                      {summaryEntries.length > 0 ? (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {summaryEntries.map(([key, value]) => (
-                            <span
-                              key={key}
-                              className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground"
-                            >
-                              {formatStatusLabel(key)}: {formatSummaryValue(key, value)}
-                            </span>
-                          ))}
-                        </div>
-                      ) : null}
+                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        {item.unit}
+                      </div>
                     </div>
-                  )
-                })}
+                    <TimeSeriesChart
+                      name={item.name}
+                      unit={item.unit}
+                      window={trendSeries?.window ?? '1h'}
+                      rangeStartAt={trendSeries?.rangeStartAt}
+                      rangeEndAt={trendSeries?.rangeEndAt}
+                      stepSeconds={trendSeries?.stepSeconds}
+                      points={item.points}
+                      segments={item.segments}
+                      formatValue={formatTrendValue}
+                    />
+                  </div>
+                ))}
               </div>
             )}
-            {apposCoreOverviewSeries.length > 0 ? (
-              <div className="bg-muted/10 p-3">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-medium text-foreground">AppOS Core Trends</div>
-                    <div className="text-xs text-muted-foreground">
-                      Canonical monitor metrics for the last hour.
-                    </div>
-                  </div>
-                  <div className="text-xs text-muted-foreground">Window 1h</div>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {apposCoreOverviewSeries.map(item => (
-                    <div key={item.name} className="rounded-lg border bg-background p-3">
-                      <div className="mb-3 flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-sm font-medium text-foreground">
-                            {formatSeriesLabel(item.name)}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {latestSeriesSummary(item)}
-                          </div>
-                        </div>
-                        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                          {item.unit}
-                        </div>
-                      </div>
-                      <TimeSeriesChart
-                        name={item.name}
-                        unit={item.unit}
-                        window={controlPlaneSeries?.window ?? '1h'}
-                        rangeStartAt={controlPlaneSeries?.rangeStartAt}
-                        rangeEndAt={controlPlaneSeries?.rangeEndAt}
-                        stepSeconds={controlPlaneSeries?.stepSeconds}
-                        points={item.points}
-                        segments={item.segments}
-                        formatValue={formatTrendValue}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
           </CardContent>
         </Card>
       </div>

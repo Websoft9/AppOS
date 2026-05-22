@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Upload,
   Trash2,
+  ChartColumn,
   Share2,
   FileText,
   Copy,
@@ -54,6 +55,7 @@ import {
 } from '@/components/ui/table'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -79,6 +81,13 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 
 // ─── Types ───────────────────────────────────────────────
@@ -111,8 +120,9 @@ interface Quota {
   disallowed_folder_names: string[]
 }
 
-type SortField = 'name' | 'type' | 'created' | 'updated'
+type SortField = 'name' | 'type' | 'size' | 'created' | 'updated'
 type SortDir = 'asc' | 'desc'
+type SharedFilter = 'all' | 'yes' | 'no'
 
 // ─── Constants ───────────────────────────────────────────
 
@@ -144,6 +154,10 @@ function resolveMaxUploadFiles(raw: number | undefined) {
 function isExpired(expiresAt: string) {
   if (!expiresAt) return true
   return new Date(expiresAt) < new Date()
+}
+
+function isShared(item: UserFile) {
+  return !item.is_folder && !!item.share_token && !isExpired(item.share_expires_at)
 }
 
 /** Build an absolute public share URL from the relative path returned by the server. */
@@ -538,6 +552,7 @@ function FilesPage() {
 
   // ── List controls ──────────────────────────────────────
   const [search, setSearch] = useState('')
+  const [sharedFilter, setSharedFilter] = useState<SharedFilter>('all')
   const [sortBy, setSortBy] = useState<SortField>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [page, setPage] = useState(1)
@@ -545,6 +560,7 @@ function FilesPage() {
 
   // ── Trash view ─────────────────────────────────────────
   const [trashView, setTrashView] = useState(false)
+  const [statsOpen, setStatsOpen] = useState(false)
 
   // ── Row selection (bulk ops) ───────────────────────────
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -689,10 +705,14 @@ function FilesPage() {
         const q = search.toLowerCase()
         filtered = filtered.filter(i => i.name.toLowerCase().includes(q))
       }
+      if (sharedFilter !== 'all') {
+        filtered = filtered.filter(i => isShared(i) === (sharedFilter === 'yes'))
+      }
       return [...filtered].sort((a, b) => {
         let cmp = 0
         if (sortBy === 'name') cmp = a.name.localeCompare(b.name)
         else if (sortBy === 'type') cmp = (a.mime_type ?? '').localeCompare(b.mime_type ?? '')
+        else if (sortBy === 'size') cmp = (a.size ?? 0) - (b.size ?? 0)
         else if (sortBy === 'updated') cmp = a.updated.localeCompare(b.updated)
         else cmp = a.created.localeCompare(b.created)
         return sortDir === 'asc' ? cmp : -cmp
@@ -706,6 +726,9 @@ function FilesPage() {
       const q = search.toLowerCase()
       filtered = filtered.filter(i => i.name.toLowerCase().includes(q))
     }
+    if (sharedFilter !== 'all') {
+      filtered = filtered.filter(i => isShared(i) === (sharedFilter === 'yes'))
+    }
 
     filtered = [...filtered].sort((a, b) => {
       // Folders always before files.
@@ -713,13 +736,14 @@ function FilesPage() {
       let cmp = 0
       if (sortBy === 'name') cmp = a.name.localeCompare(b.name)
       else if (sortBy === 'type') cmp = (a.mime_type ?? '').localeCompare(b.mime_type ?? '')
+      else if (sortBy === 'size') cmp = (a.size ?? 0) - (b.size ?? 0)
       else if (sortBy === 'updated') cmp = a.updated.localeCompare(b.updated)
       else cmp = a.created.localeCompare(b.created)
       return sortDir === 'asc' ? cmp : -cmp
     })
 
     return filtered
-  }, [items, currentFolderId, search, sortBy, sortDir, trashView])
+  }, [items, currentFolderId, search, sharedFilter, sortBy, sortDir, trashView])
 
   const totalPages = Math.max(1, Math.ceil(viewItems.length / pageSize))
   const safePage = Math.min(page, totalPages)
@@ -741,7 +765,7 @@ function FilesPage() {
   // Reset to page 1 whenever the view changes.
   useEffect(() => {
     setPage(1)
-  }, [currentFolderId, search, sortBy, sortDir, trashView, pageSize])
+  }, [currentFolderId, search, sharedFilter, sortBy, sortDir, trashView, pageSize])
 
   // ─── Sort ──────────────────────────────────────────────
 
@@ -1395,136 +1419,195 @@ function FilesPage() {
   // ─── Render ────────────────────────────────────────────
 
   return (
-    <div className="space-y-4">
-      {/* ── Unified toolbar ─────────────────────────── */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <h2 className="text-2xl font-bold shrink-0">Space</h2>
-
-        {/* Trash breadcrumb OR normal folder breadcrumb */}
-        {trashView ? (
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-muted-foreground text-sm">/</span>
-            <span className="text-sm font-semibold text-foreground flex items-center gap-1">
-              <Trash2 className="h-3.5 w-3.5" /> Trash
-            </span>
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold tracking-tight">Space</h1>
+          <div className="flex items-center gap-2">
             <Button
-              variant="ghost"
+              variant="outline"
+              size="icon"
+              onClick={() => setStatsOpen(true)}
+              aria-label="Open space stats"
+            >
+              <ChartColumn className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="icon" onClick={fetchAll} disabled={loading} aria-label="Refresh">
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
+        </div>
+        <p className="text-sm text-muted-foreground">Your files, folders, and shares.</p>
+      </div>
+
+      <div className="space-y-4 border-t pt-4">
+        {/* ── Unified toolbar ─────────────────────────── */}
+        <div className="flex items-center gap-2 flex-wrap">
+
+          {/* Trash breadcrumb OR normal folder breadcrumb */}
+          {trashView ? (
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-muted-foreground text-sm">/</span>
+              <span className="text-sm font-semibold text-foreground flex items-center gap-1">
+                <Archive className="h-3.5 w-3.5" /> Trash
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-muted-foreground h-7 px-2"
+                onClick={() => {
+                  setTrashView(false)
+                  setSearch('')
+                }}
+              >
+                ← Back to Files
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 text-sm shrink-0">
+              <button
+                className={`hover:underline font-mono ${!currentFolderId ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}
+                onClick={() => navigateTo(null)}
+              >
+                /
+              </button>
+              {breadcrumb.map((seg, i) => (
+                <span key={seg.id} className="flex items-center gap-1">
+                  <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                  <button
+                    className={`hover:underline ${i === breadcrumb.length - 1 ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}
+                    onClick={() => navigateTo(seg.id)}
+                  >
+                    {seg.name}
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Search */}
+          <div className="relative min-w-[12rem] flex-1 sm:flex-none sm:w-44">
+            <Search className="h-4 w-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <Input
+              className="pl-8 h-8 text-sm w-full"
+              placeholder="Search by name…"
+              value={search}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
+            />
+          </div>
+          <Select value={sharedFilter} onValueChange={(value: SharedFilter) => setSharedFilter(value)}>
+            <SelectTrigger className="h-8 w-[92px] text-xs">
+              <SelectValue placeholder="Shared" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="yes">Yes</SelectItem>
+              <SelectItem value="no">No</SelectItem>
+            </SelectContent>
+          </Select>
+          {search && (
+            <Button variant="ghost" size="sm" onClick={() => setSearch('')}>
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+          {!loading && search && (
+            <span className="text-xs text-muted-foreground">
+              {viewItems.length} item{viewItems.length !== 1 ? 's' : ''}
+            </span>
+          )}
+
+          <div className="flex-1" />
+
+          <div className="hidden md:flex items-center gap-2">
+            {/* View toggle — shows icon for the OPPOSITE mode to switch to */}
+            <Button
+              variant="outline"
               size="sm"
-              className="text-xs text-muted-foreground h-7 px-2"
+              title={viewMode === 'list' ? 'Switch to Grid view' : 'Switch to List view'}
+              onClick={() => setViewMode(m => (m === 'list' ? 'grid' : 'list'))}
+            >
+              {viewMode === 'list' ? <LayoutGrid className="h-4 w-4" /> : <List className="h-4 w-4" />}
+            </Button>
+            <Button
+              variant={trashView ? 'secondary' : 'outline'}
+              size="sm"
+              title="Trash"
+              className="relative"
               onClick={() => {
-                setTrashView(false)
+                setTrashView(v => !v)
+                setCurrentFolderId(null)
                 setSearch('')
               }}
             >
-              ← Back to Files
+              <Archive className="h-4 w-4" />
+              {trashCount > 0 && (
+                <span className="absolute -top-1 -right-1 h-4 min-w-4 rounded-full bg-destructive text-[9px] text-white flex items-center justify-center px-0.5">
+                  {trashCount > 9 ? '9+' : trashCount}
+                </span>
+              )}
             </Button>
+            {!trashView && (
+              <>
+                <Button variant="outline" size="sm" onClick={openNewFolder}>
+                  <FolderPlus className="h-4 w-4 mr-1" /> New Folder
+                </Button>
+                <Button variant="outline" size="sm" onClick={openNewFile}>
+                  <FilePlus className="h-4 w-4 mr-1" /> New File
+                </Button>
+                <Button size="sm" onClick={openUpload}>
+                  <Upload className="h-4 w-4 mr-1" /> Upload
+                </Button>
+                <Button variant="outline" size="sm" onClick={openFetch}>
+                  <Globe className="h-4 w-4 mr-1" /> Fetch URL
+                </Button>
+              </>
+            )}
           </div>
-        ) : (
-          <div className="flex items-center gap-1 text-sm shrink-0">
-            <button
-              className={`hover:underline font-mono ${!currentFolderId ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}
-              onClick={() => navigateTo(null)}
-            >
-              /
-            </button>
-            {breadcrumb.map((seg, i) => (
-              <span key={seg.id} className="flex items-center gap-1">
-                <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                <button
-                  className={`hover:underline ${i === breadcrumb.length - 1 ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}
-                  onClick={() => navigateTo(seg.id)}
-                >
-                  {seg.name}
-                </button>
-              </span>
-            ))}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="md:hidden" aria-label="Open space actions">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="md:hidden">
+              <DropdownMenuItem onClick={() => setViewMode(m => (m === 'list' ? 'grid' : 'list'))}>
+                {viewMode === 'list' ? 'Switch to Grid View' : 'Switch to List View'}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  setTrashView(v => !v)
+                  setCurrentFolderId(null)
+                  setSearch('')
+                }}
+              >
+                {trashView ? 'Back to Files' : 'Open Trash'}
+              </DropdownMenuItem>
+              {!trashView ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={openNewFolder}>New Folder</DropdownMenuItem>
+                  <DropdownMenuItem onClick={openNewFile}>New File</DropdownMenuItem>
+                  <DropdownMenuItem onClick={openUpload}>Upload</DropdownMenuItem>
+                  <DropdownMenuItem onClick={openFetch}>Fetch URL</DropdownMenuItem>
+                </>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {loading && (
+          <div className="flex items-center gap-2 text-muted-foreground py-2">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading…
           </div>
         )}
-
-        {/* Search */}
-        <div className="relative">
-          <Search className="h-4 w-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-          <Input
-            className="pl-8 h-8 text-sm w-44"
-            placeholder="Search by name…"
-            value={search}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
-          />
-        </div>
-        {search && (
-          <Button variant="ghost" size="sm" onClick={() => setSearch('')}>
-            <X className="h-4 w-4" />
-          </Button>
-        )}
-        {!loading && search && (
-          <span className="text-xs text-muted-foreground">
-            {viewItems.length} item{viewItems.length !== 1 ? 's' : ''}
-          </span>
-        )}
-
-        <div className="flex-1" />
-
-        {/* View toggle — shows icon for the OPPOSITE mode to switch to */}
-        <Button
-          variant="outline"
-          size="sm"
-          title={viewMode === 'list' ? 'Switch to Grid view' : 'Switch to List view'}
-          onClick={() => setViewMode(m => (m === 'list' ? 'grid' : 'list'))}
-        >
-          {viewMode === 'list' ? <LayoutGrid className="h-4 w-4" /> : <List className="h-4 w-4" />}
-        </Button>
-        {/* Trash toggle */}
-        <Button
-          variant={trashView ? 'secondary' : 'outline'}
-          size="sm"
-          title="Trash"
-          className="relative"
-          onClick={() => {
-            setTrashView(v => !v)
-            setCurrentFolderId(null)
-            setSearch('')
-          }}
-        >
-          <Trash2 className="h-4 w-4" />
-          {trashCount > 0 && (
-            <span className="absolute -top-1 -right-1 h-4 min-w-4 rounded-full bg-destructive text-[9px] text-white flex items-center justify-center px-0.5">
-              {trashCount > 9 ? '9+' : trashCount}
-            </span>
-          )}
-        </Button>
-        <Button variant="outline" size="sm" onClick={fetchAll} disabled={loading} title="Refresh">
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-        </Button>
-        {!trashView && (
-          <>
-            <Button variant="outline" size="sm" onClick={openNewFolder}>
-              <FolderPlus className="h-4 w-4 mr-1" /> New Folder
-            </Button>
-            <Button variant="outline" size="sm" onClick={openNewFile}>
-              <FilePlus className="h-4 w-4 mr-1" /> New File
-            </Button>
-            <Button size="sm" onClick={openUpload}>
-              <Upload className="h-4 w-4 mr-1" /> Upload
-            </Button>
-            <Button variant="outline" size="sm" onClick={openFetch}>
-              <Globe className="h-4 w-4 mr-1" /> Fetch URL
-            </Button>
-          </>
-        )}
-      </div>
-
-      {loading && (
-        <div className="flex items-center gap-2 text-muted-foreground py-2">
-          <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-        </div>
-      )}
-      {error && <p className="text-destructive text-sm">{error}</p>}
+        {error && <p className="text-destructive text-sm">{error}</p>}
 
       {!loading && viewItems.length === 0 && !error && (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             {trashView ? (
-              <Trash2 className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <Archive className="h-10 w-10 mx-auto mb-3 opacity-30" />
             ) : (
               <Folder className="h-10 w-10 mx-auto mb-3 opacity-30" />
             )}
@@ -1590,12 +1673,14 @@ function FilesPage() {
 
       {/* ── File list (table) ──────────────────────────── */}
       {!loading && viewItems.length > 0 && viewMode === 'list' && (
-        <Card>
-          <CardContent className="p-0 overflow-x-auto">
+        <Card className="overflow-hidden rounded-lg bg-background">
+          <CardContent className="p-0">
+            <div className="px-2">
+              <div className="overflow-x-auto">
             <Table>
-              <TableHeader>
+              <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90">
                 <TableRow>
-                  <TableHead>
+                  <TableHead className="w-[36%] min-w-[260px] pl-5 pr-2">
                     <div className="flex items-center gap-2">
                       <input
                         ref={headerCheckboxRef}
@@ -1606,40 +1691,47 @@ function FilesPage() {
                         title="Select all on this page"
                       />
                       <button
-                        className="flex items-center font-semibold hover:text-foreground"
+                        className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
                         onClick={() => toggleSort('name')}
                       >
                         Name <SortIcon field="name" sortBy={sortBy} sortDir={sortDir} />
                       </button>
                     </div>
                   </TableHead>
-                  <TableHead>
+                  <TableHead className="min-w-[140px]">
                     <button
-                      className="flex items-center font-semibold hover:text-foreground"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
                       onClick={() => toggleSort('type')}
                     >
                       Type <SortIcon field="type" sortBy={sortBy} sortDir={sortDir} />
                     </button>
                   </TableHead>
-                  <TableHead>Size</TableHead>
-                  <TableHead>Shared</TableHead>
-                  <TableHead>
+                  <TableHead className="w-[110px] min-w-[110px]">
                     <button
-                      className="flex items-center font-semibold hover:text-foreground"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
+                      onClick={() => toggleSort('size')}
+                    >
+                      Size <SortIcon field="size" sortBy={sortBy} sortDir={sortDir} />
+                    </button>
+                  </TableHead>
+                  <TableHead className="w-[96px] min-w-[96px] text-xs font-medium text-foreground">Shared</TableHead>
+                  <TableHead className="min-w-[150px]">
+                    <button
+                      className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
                       onClick={() => toggleSort('created')}
                     >
                       Created <SortIcon field="created" sortBy={sortBy} sortDir={sortDir} />
                     </button>
                   </TableHead>
-                  <TableHead>
+                  <TableHead className="min-w-[150px]">
                     <button
-                      className="flex items-center font-semibold hover:text-foreground"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
                       onClick={() => toggleSort('updated')}
                     >
                       Modified <SortIcon field="updated" sortBy={sortBy} sortDir={sortDir} />
                     </button>
                   </TableHead>
-                  <TableHead className="w-8" />
+                  <TableHead className="w-[52px] text-xs font-medium text-foreground" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1652,7 +1744,7 @@ function FilesPage() {
                   return (
                     <>
                       <TableRow key={item.id} className={isExpanded ? 'bg-muted/30' : ''}>
-                        <TableCell className="font-medium">
+                        <TableCell className="pl-5 pr-3 py-3 text-xs font-medium">
                           <div className="flex items-center gap-2 min-w-0">
                             <input
                               type="checkbox"
@@ -1680,32 +1772,30 @@ function FilesPage() {
                           </div>
                         </TableCell>
                         <TableCell
-                          className="text-muted-foreground text-sm max-w-[120px] truncate"
+                          className="max-w-[140px] truncate py-3 text-xs text-muted-foreground"
                           title={mime}
                         >
                           {truncateMime(mime)}
                         </TableCell>
-                        <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
+                        <TableCell className="py-3 text-xs text-muted-foreground whitespace-nowrap">
                           {item.is_folder ? '—' : formatFileSize(item.size)}
                         </TableCell>
-                        <TableCell>
-                          {!item.is_folder &&
-                          item.share_token &&
-                          !isExpired(item.share_expires_at) ? (
+                        <TableCell className="py-3">
+                          {isShared(item) ? (
                             <Badge variant="secondary" className="text-xs whitespace-nowrap">
                               Shared
                             </Badge>
                           ) : (
-                            <span className="text-muted-foreground text-sm">—</span>
+                            <span className="text-muted-foreground text-xs">—</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                        <TableCell className="py-3 text-xs text-muted-foreground whitespace-nowrap">
                           {formatDate(item.created)}
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                        <TableCell className="py-3 text-xs text-muted-foreground whitespace-nowrap">
                           {formatDate(item.updated)}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-3">
                           <ItemMenu
                             item={item}
                             editable={editable}
@@ -1729,7 +1819,7 @@ function FilesPage() {
                           key={`${item.id}-expand`}
                           className="bg-muted/20 hover:bg-muted/20"
                         >
-                          <TableCell colSpan={7} className="py-3 px-6">
+                          <TableCell colSpan={7} className="bg-muted/20 px-4 py-3">
                             <div className="flex gap-6 flex-wrap">
                               {previewType === 'image' && (
                                 <div className="shrink-0">
@@ -1771,79 +1861,82 @@ function FilesPage() {
                 })}
               </TableBody>
             </Table>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
 
       {/* ── File list (grid) ───────────────────────────── */}
       {!loading && viewItems.length > 0 && viewMode === 'grid' && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-          {pagedItems.map(item => {
-            const editable = isEditable(item, quota)
-            const previewType = getPreviewType(item, quota)
-            const isSelected = selectedIds.has(item.id)
-            return (
-              <div
-                key={item.id}
-                className={`group relative flex flex-col items-center gap-1.5 rounded-lg border p-3 cursor-pointer select-none transition-colors
-                  ${isSelected ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}
-              >
-                {/* Selection checkbox */}
-                <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 cursor-pointer"
-                    checked={isSelected}
-                    onChange={() => toggleSelect(item.id)}
-                    onClick={e => e.stopPropagation()}
-                  />
-                </div>
-                {/* Icon */}
-                <div
-                  className="flex items-center justify-center h-12 w-12 mt-1"
-                  onClick={() => (item.is_folder ? navigateTo(item.id) : toggleExpand(item))}
-                >
-                  <FileIcon file={item} className="h-10 w-10 shrink-0" />
-                </div>
-                {/* Name */}
-                <span
-                  className="text-xs text-center leading-tight max-w-full break-words line-clamp-2"
-                  title={item.name}
-                  onClick={() => (item.is_folder ? navigateTo(item.id) : toggleExpand(item))}
-                >
-                  {item.name}
-                </span>
-                {/* More menu */}
-                <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <ItemMenu
-                    item={item}
-                    editable={editable}
-                    previewType={previewType}
-                    inTrash={trashView}
-                    onOpen={() => navigateTo(item.id)}
-                    onPreview={() => openPreview(item)}
-                    onEdit={() => openEditor(item)}
-                    onDownloadUrl={buildDownloadUrl(item)}
-                    onShare={() => openShare(item)}
-                    onRename={() => openRename(item)}
-                    onDuplicate={() => handleDuplicate(item)}
-                    onDelete={() => setDeleteItem(item)}
-                    onRestore={() => handleRestore(item)}
-                    onHardDelete={() => setDeleteItem(item)}
-                  />
-                </div>
-              </div>
-            )
-          })}
-        </div>
+        <Card className="overflow-hidden rounded-lg bg-background">
+          <CardContent className="p-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+              {pagedItems.map(item => {
+                const editable = isEditable(item, quota)
+                const previewType = getPreviewType(item, quota)
+                const isSelected = selectedIds.has(item.id)
+                return (
+                  <div
+                    key={item.id}
+                    className={`group relative flex flex-col items-center gap-1.5 rounded-lg border p-3 cursor-pointer select-none transition-colors
+                      ${isSelected ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}
+                  >
+                    {/* Selection checkbox */}
+                    <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 cursor-pointer"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(item.id)}
+                        onClick={e => e.stopPropagation()}
+                      />
+                    </div>
+                    {/* Icon */}
+                    <div
+                      className="flex items-center justify-center h-12 w-12 mt-1"
+                      onClick={() => (item.is_folder ? navigateTo(item.id) : toggleExpand(item))}
+                    >
+                      <FileIcon file={item} className="h-10 w-10 shrink-0" />
+                    </div>
+                    {/* Name */}
+                    <span
+                      className="text-xs text-center leading-tight max-w-full break-words line-clamp-2"
+                      title={item.name}
+                      onClick={() => (item.is_folder ? navigateTo(item.id) : toggleExpand(item))}
+                    >
+                      {item.name}
+                    </span>
+                    {/* More menu */}
+                    <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <ItemMenu
+                        item={item}
+                        editable={editable}
+                        previewType={previewType}
+                        inTrash={trashView}
+                        onOpen={() => navigateTo(item.id)}
+                        onPreview={() => openPreview(item)}
+                        onEdit={() => openEditor(item)}
+                        onDownloadUrl={buildDownloadUrl(item)}
+                        onShare={() => openShare(item)}
+                        onRename={() => openRename(item)}
+                        onDuplicate={() => handleDuplicate(item)}
+                        onDelete={() => setDeleteItem(item)}
+                        onRestore={() => handleRestore(item)}
+                        onHardDelete={() => setDeleteItem(item)}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* ── Pagination ─────────────────────────────────── */}
       {viewItems.length > 0 && (
-        <div className="flex items-center justify-between text-sm text-muted-foreground flex-wrap gap-2">
-          <span>
-            {viewItems.length} items · page {safePage} of {totalPages}
-          </span>
+        <div className="flex items-center justify-end text-sm text-muted-foreground flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <label className="flex items-center gap-1.5 text-xs">
               Per page
@@ -1867,35 +1960,23 @@ function FilesPage() {
               size="sm"
               disabled={safePage <= 1}
               onClick={() => setPage(p => Math.max(1, p - 1))}
+              aria-label="Previous page"
             >
               ‹
             </Button>
+            <span className="min-w-12 text-center text-xs font-medium text-foreground">
+              {safePage}/{totalPages}
+            </span>
             <Button
               variant="outline"
               size="sm"
               disabled={safePage >= totalPages}
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              aria-label="Next page"
             >
               ›
             </Button>
           </div>
-        </div>
-      )}
-
-      {/* ── Stats ──────────────────────────────────────── */}
-      {quota && !loading && !trashView && (
-        <div className="flex items-center gap-3 flex-wrap">
-          <p className="text-xs text-muted-foreground">
-            {allFolders.length} folder{allFolders.length !== 1 ? 's' : ''}
-            {' · '}
-            {allFiles.length} file{allFiles.length !== 1 ? 's' : ''}
-            {' · '}
-            {items.filter(i => !i.is_deleted).length} / {quota.max_per_user} items used
-            {' · '}max file size {formatBytes(quota.max_size_mb)}
-            {trashCount > 0 && (
-              <span className="text-destructive/70"> · {trashCount} in trash</span>
-            )}
-          </p>
         </div>
       )}
       {trashView && trashCount > 0 && (
@@ -1905,6 +1986,46 @@ function FilesPage() {
           </Button>
         </div>
       )}
+
+      </div>
+
+      <Dialog open={statsOpen} onOpenChange={setStatsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Space Stats</DialogTitle>
+            <DialogDescription>Usage and limits for your current space.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg border bg-muted/20 px-4 py-3">
+              <div className="text-xs text-muted-foreground">Folders</div>
+              <div className="mt-1 text-2xl font-semibold text-foreground">{allFolders.length}</div>
+            </div>
+            <div className="rounded-lg border bg-muted/20 px-4 py-3">
+              <div className="text-xs text-muted-foreground">Files</div>
+              <div className="mt-1 text-2xl font-semibold text-foreground">{allFiles.length}</div>
+            </div>
+            <div className="rounded-lg border bg-muted/20 px-4 py-3">
+              <div className="text-xs text-muted-foreground">Items Used</div>
+              <div className="mt-1 text-2xl font-semibold text-foreground">
+                {items.filter(i => !i.is_deleted).length}
+                {quota ? <span className="text-base text-muted-foreground">/{quota.max_per_user}</span> : null}
+              </div>
+            </div>
+            <div className="rounded-lg border bg-muted/20 px-4 py-3">
+              <div className="text-xs text-muted-foreground">Max File Size</div>
+              <div className="mt-1 text-2xl font-semibold text-foreground">
+                {quota ? formatBytes(quota.max_size_mb) : '—'}
+              </div>
+            </div>
+            <div className="rounded-lg border bg-muted/20 px-4 py-3 sm:col-span-2">
+              <div className="text-xs text-muted-foreground">Trash</div>
+              <div className="mt-1 text-sm text-foreground">
+                {trashCount} item{trashCount !== 1 ? 's' : ''} currently in trash.
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Bulk Move Dialog ───────────────────────────── */}
       <Dialog
@@ -2291,33 +2412,41 @@ function FilesPage() {
         }}
       >
         <DialogContent
+          showCloseButton={false}
           className={
             previewFullscreen
-              ? '!w-screen !h-screen !max-w-none !translate-x-0 !translate-y-0 !left-0 !top-0 !rounded-none flex flex-col overflow-hidden'
-              : 'sm:max-w-4xl w-full'
+              ? '!w-screen !h-screen !max-w-none !translate-x-0 !translate-y-0 !left-0 !top-0 !rounded-none flex flex-col overflow-hidden p-0'
+              : 'sm:max-w-4xl w-full overflow-hidden p-0'
           }
           aria-describedby={undefined}
         >
-          <DialogHeader className="pr-10">
+          <DialogHeader className="border-b px-4 py-3">
             <div className="flex items-center gap-2">
-              <DialogTitle className="truncate">{previewFile?.name}</DialogTitle>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="ml-auto h-7 w-7 shrink-0"
-                onClick={() => setPreviewFullscreen(f => !f)}
-                title={previewFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-              >
-                {previewFullscreen ? (
-                  <Minimize2 className="h-4 w-4" />
-                ) : (
-                  <Maximize2 className="h-4 w-4" />
-                )}
-              </Button>
+              <DialogTitle className="min-w-0 flex-1 truncate">{previewFile?.name}</DialogTitle>
+              <div className="flex items-center gap-1 shrink-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setPreviewFullscreen(f => !f)}
+                  title={previewFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                >
+                  {previewFullscreen ? (
+                    <Minimize2 className="h-4 w-4" />
+                  ) : (
+                    <Maximize2 className="h-4 w-4" />
+                  )}
+                </Button>
+                <DialogClose asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Close preview">
+                    <X className="h-4 w-4" />
+                  </Button>
+                </DialogClose>
+              </div>
             </div>
           </DialogHeader>
           <div
-            className={`flex items-center justify-center overflow-auto ${previewFullscreen ? 'flex-1' : 'min-h-[40vh] max-h-[70vh]'}`}
+            className={`flex items-center justify-center overflow-auto px-4 py-4 ${previewFullscreen ? 'flex-1' : 'min-h-[40vh] max-h-[70vh]'}`}
           >
             {previewLoading && (
               <div className="flex items-center gap-2 text-muted-foreground">

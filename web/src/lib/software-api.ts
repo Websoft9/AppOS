@@ -33,6 +33,7 @@ export type AppOSConnectionStatus =
   | 'unknown'
   | 'not_applicable'
 export type TemplateKind = 'package' | 'script' | 'binary' | 'docker'
+export type ArtifactKind = 'package' | 'script' | 'binary' | 'docker'
 export type CatalogVisibility =
   | 'server_operations'
   | 'supported_software_discovery'
@@ -60,6 +61,7 @@ export interface SoftwareLastOperation {
   action: SoftwareActionType
   phase: OperationPhase
   terminal_status: TerminalStatusType
+  failure_code?: string
   failure_reason?: string
   updated_at: string
 }
@@ -87,6 +89,7 @@ export interface SoftwareOperation {
   action: SoftwareActionType
   phase: OperationPhase
   terminal_status: TerminalStatusType
+  failure_code?: string
   failure_reason: string
   event_log?: string
   created: string
@@ -99,6 +102,7 @@ export interface SoftwareComponentSummary {
   description?: string
   target_type: 'server' | 'local'
   template_kind: TemplateKind
+  artifact_kind?: ArtifactKind
   installed_state: InstalledState
   detected_version?: string
   install_source?: InstallSource
@@ -142,9 +146,15 @@ export interface SupportedServerSoftwareEntry {
   label: string
   capability?: string
   supported_actions: SoftwareActionType[]
+  action_timeouts?: Partial<Record<SoftwareActionType, number>>
+  timeout_policy?: Partial<Record<SoftwareActionType, 'attention_required' | 'failed'>>
   template_kind: TemplateKind
+  artifact_kind?: ArtifactKind
+  service_name?: string
   description: string
   readiness_requirements: string[]
+  requires_appos_base_url?: boolean
+  favorite_systemd_service?: boolean
   visibility: CatalogVisibility[]
 }
 
@@ -161,6 +171,8 @@ function localSoftwareBasePath(): string {
 function supportedServerCatalogBasePath(): string {
   return '/api/software/server-catalog'
 }
+
+const noAutoCancel = { requestKey: null }
 
 // ─── API Functions ────────────────────────────────────────────────────────────
 
@@ -266,6 +278,7 @@ export async function invokeSoftwareAction(
     {
       method: 'POST',
       body: options?.apposBaseUrl ? { apposBaseUrl: options.apposBaseUrl } : undefined,
+      ...noAutoCancel,
     }
   )
 }

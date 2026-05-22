@@ -100,7 +100,7 @@ func TestEnqueueMonitorReachabilitySweepRequiresClient(t *testing.T) {
 	}
 }
 
-func TestHandleMonitorMetricsFreshnessProjectsNetdataFreshStatus(t *testing.T) {
+func TestHandleMonitorMetricsFreshnessProjectsCollectorFreshStatus(t *testing.T) {
 	app := newWorkerTestApp(t)
 	server := seedServerRecord(t, app, "metrics-prod-01")
 	now := time.Now().UTC()
@@ -131,8 +131,8 @@ func TestHandleMonitorMetricsFreshnessProjectsNetdataFreshStatus(t *testing.T) {
 	if got := status.GetString("status"); got != monitor.StatusHealthy {
 		t.Fatalf("expected healthy metrics freshness status, got %q", got)
 	}
-	if got := status.GetString("signal_source"); got != monitor.SignalSourceNetdata {
-		t.Fatalf("expected netdata signal source, got %q", got)
+	if got := status.GetString("signal_source"); got != monitor.SignalSourceCollector {
+		t.Fatalf("expected collector signal source, got %q", got)
 	}
 	summary, err := store.SummaryFromRecord(status)
 	if err != nil {

@@ -242,6 +242,8 @@ Signal relationship rules:
 
 ### Minimal Data Placement
 
+Prefer stable AppOS canonical metrics in TSDB; synthesize operator-facing status at projection/query time; keep raw collector formats only as short-lived debug or replay input, not as the product API contract.
+
 | Data kind | Goes to | Notes |
 |----------|---------|-------|
 | raw host, container, process, and probe telemetry | VictoriaMetrics | raw append-only series from managed-server or local collectors |

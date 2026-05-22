@@ -264,8 +264,8 @@ func TestSoftwareComponentSummaryShouldNotHardcodePackageTemplate(t *testing.T) 
 		if !ok {
 			t.Fatalf("missing template ref %q", entry.TemplateRef)
 		}
-		if entry.ComponentKey == software.ComponentKeyMonitorAgent && tpl.TemplateKind != software.TemplateKindPackage {
-			t.Fatalf("appos-monitor-collector should resolve to package template, got %q", tpl.TemplateKind)
+		if entry.ComponentKey == software.ComponentKeyTelegraf && tpl.TemplateKind != software.TemplateKindScript {
+			t.Fatalf("telegraf should resolve to script template, got %q", tpl.TemplateKind)
 		}
 	}
 }
@@ -400,6 +400,9 @@ func TestSupportedServerCatalogRoutesExposeReadOnlyCatalogSurface(t *testing.T) 
 	if _, ok := first["supported_actions"].([]any); !ok {
 		t.Fatalf("expected supported_actions array, got %#v", first["supported_actions"])
 	}
+	if first["artifact_kind"] == "" {
+		t.Fatalf("expected artifact_kind in supported server catalog, got %#v", first["artifact_kind"])
+	}
 	if first["description"] == "" {
 		t.Fatalf("expected supported software description, got %#v", first["description"])
 	}
@@ -421,11 +424,32 @@ func TestSupportedServerCatalogRoutesExposeReadOnlyCatalogSurface(t *testing.T) 
 	if body["capability"] != "container_runtime" {
 		t.Fatalf("expected capability container_runtime, got %#v", body["capability"])
 	}
+	if body["artifact_kind"] != "package" {
+		t.Fatalf("expected artifact_kind package, got %#v", body["artifact_kind"])
+	}
 	if _, ok := body["readiness_requirements"].([]any); !ok {
 		t.Fatalf("expected detail readiness_requirements array, got %#v", body["readiness_requirements"])
 	}
 	if _, ok := body["visibility"].([]any); !ok {
 		t.Fatalf("expected detail visibility array, got %#v", body["visibility"])
+	}
+
+	rec = te.doSoftware(t, http.MethodGet, "/api/software/server-catalog/telegraf", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected telegraf supported server catalog detail 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body = parseJSON(t, rec)
+	if body["artifact_kind"] != "binary" {
+		t.Fatalf("expected telegraf artifact_kind binary, got %#v", body["artifact_kind"])
+	}
+	if body["requires_appos_base_url"] != true {
+		t.Fatalf("expected telegraf requires_appos_base_url true, got %#v", body["requires_appos_base_url"])
+	}
+	if body["favorite_systemd_service"] != true {
+		t.Fatalf("expected telegraf favorite_systemd_service true, got %#v", body["favorite_systemd_service"])
+	}
+	if body["service_name"] != "appos-monitor.service" {
+		t.Fatalf("expected telegraf service_name appos-monitor.service, got %#v", body["service_name"])
 	}
 
 	rec = te.doSoftware(t, http.MethodGet, "/api/software/server-catalog/not-a-component", "", true)
@@ -484,7 +508,7 @@ func TestSoftwareOperationListSupportsComponentFilter(t *testing.T) {
 		componentKey string
 	}{
 		{serverID: "srv-1", componentKey: "docker"},
-		{serverID: "srv-1", componentKey: "appos-monitor-collector"},
+		{serverID: "srv-1", componentKey: "telegraf"},
 		{serverID: "srv-2", componentKey: "docker"},
 	} {
 		record := core.NewRecord(col)

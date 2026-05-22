@@ -25,7 +25,7 @@ var enqueueSoftwareSnapshotWarmTask = worker.EnqueueSoftwareSnapshotWarm
 var defaultWarmSnapshotComponents = []software.ComponentKey{
 	software.ComponentKeyDocker,
 	software.ComponentKeyReverseProxy,
-	software.ComponentKeyMonitorAgent,
+	software.ComponentKeyTelegraf,
 }
 
 func registerServerOpsRoutes(g *router.RouterGroup[*core.RequestEvent]) {
@@ -51,8 +51,6 @@ func registerServerOpsRoutes(g *router.RouterGroup[*core.RequestEvent]) {
 	serverOps.PUT("/systemd/{service}/unit", handleSystemdServiceUnitWrite)
 	serverOps.POST("/systemd/{service}/unit/verify", handleSystemdServiceUnitVerify)
 	serverOps.POST("/systemd/{service}/unit/apply", handleSystemdServiceUnitApply)
-	serverOps.POST("/monitor-agent/install", handleMonitorAgentInstall)
-	serverOps.POST("/monitor-agent/update", handleMonitorAgentUpdate)
 }
 
 // ════════════════════════════════════════════════════════════

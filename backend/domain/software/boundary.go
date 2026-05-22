@@ -105,6 +105,6 @@ var MaterialSubdomainMap = map[string]Subdomain{
 // they must not depend on component_key directly.
 var CapabilityComponentMap = map[Capability]ComponentKey{
 	CapabilityContainerRuntime: ComponentKeyDocker,
-	CapabilityMonitorAgent:     ComponentKeyMonitorAgent,
+	CapabilityMonitorAgent:     ComponentKeyTelegraf,
 	CapabilityReverseProxy:     ComponentKeyReverseProxy,
 }

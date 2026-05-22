@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Layers,
   Settings,
+  FileCode2,
   PanelLeftClose,
   PanelLeft,
   ChevronDown,
@@ -51,6 +52,13 @@ export interface NavGroup {
 
 // ─── Default navigation groups ───────────────────────────
 
+const assetsNavItem: NavItem = {
+  id: 'assets',
+  label: 'Assets',
+  icon: <FileCode2 className="h-5 w-5" />,
+  href: '/assets',
+}
+
 const workspaceGroup: NavGroup = {
   id: 'workspace',
   label: 'Workspace',
@@ -89,6 +97,7 @@ const workspaceGroup: NavGroup = {
         { id: 'topics', label: 'Topics', href: '/topics' },
       ],
     },
+    assetsNavItem,
     { id: 'space', label: 'Space', icon: <FolderOpen className="h-5 w-5" />, href: '/space' },
   ],
 }
@@ -111,6 +120,7 @@ const systemNavItem: NavItem = {
     { id: 'audit', label: 'Audit', href: '/audit' },
     { id: 'logs', label: 'Logs', href: '/logs' },
     { id: 'system-tasks', label: 'System Crons', href: '/system-tasks' },
+    { id: 'shared-envs', label: 'Shared Envs', href: '/shared-envs' },
     { id: 'iac', label: 'Orchestration Files', href: '/iac' },
   ],
 }

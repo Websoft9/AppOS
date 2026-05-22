@@ -5,6 +5,7 @@ import { OverviewPage } from './OverviewPage'
 const sendMock = vi.fn()
 const getFullListMock = vi.fn()
 let currentUserCollectionName = '_superusers'
+let warnSpy: ReturnType<typeof vi.spyOn>
 
 vi.mock('@/lib/pb', () => ({
   pb: {
@@ -53,9 +54,11 @@ describe('OverviewPage', () => {
     sendMock.mockReset()
     getFullListMock.mockReset()
     currentUserCollectionName = '_superusers'
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
   })
 
   afterEach(() => {
+    warnSpy.mockRestore()
     cleanup()
   })
 
@@ -230,7 +233,7 @@ describe('OverviewPage', () => {
       .mockResolvedValueOnce([
         { id: 'srv-1', name: 'server-a', connect_type: 'tunnel', tunnel_status: 'online' },
         { id: 'srv-2', name: 'server-b', connect_type: 'tunnel', tunnel_status: 'offline' },
-        { id: 'srv-3', name: 'server-c', connect_type: 'direct' },
+        { id: 'srv-3', name: 'local', connect_type: 'direct' },
       ])
       .mockResolvedValueOnce([
         {
@@ -262,17 +265,19 @@ describe('OverviewPage', () => {
     expect(await screen.findByText('Applications')).toBeInTheDocument()
     expect(await screen.findByText('Attention Needed')).toBeInTheDocument()
     expect(await screen.findByText('Needs Attention')).toBeInTheDocument()
-    expect((await screen.findAllByText('AppOS Core')).length).toBeGreaterThan(0)
-    expect(await screen.findByText('AppOS Core Trends')).toBeInTheDocument()
+    expect(await screen.findByText('1H Trends')).toBeInTheDocument()
+    expect(
+      await screen.findByText('CPU, memory, disk, and network over the last hour.')
+    ).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'View system status' })).toHaveAttribute(
+      'href',
+      '/status'
+    )
     expect(await screen.findByLabelText('cpu time series chart')).toBeInTheDocument()
     expect(await screen.findByLabelText('memory time series chart')).toBeInTheDocument()
     expect(await screen.findByLabelText('disk_usage time series chart')).toBeInTheDocument()
     expect(await screen.findByLabelText('network time series chart')).toBeInTheDocument()
     expect(await screen.findByText('Recent App Changes')).toBeInTheDocument()
-    expect(await screen.findByRole('link', { name: /System Monitor/i })).toHaveAttribute(
-      'href',
-      '/status'
-    )
     expect(await screen.findByRole('link', { name: /Manage Servers/i })).toHaveAttribute(
       'href',
       '/resources/servers'
@@ -326,6 +331,46 @@ describe('OverviewPage', () => {
     expect(await screen.findByText('No applications deployed yet.')).toBeInTheDocument()
     await waitFor(() => {
       expect(getFullListMock).not.toHaveBeenCalled()
+    })
+  })
+
+  it('logs degraded overview sources when optional requests fail', async () => {
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/apps') {
+        return Promise.resolve([])
+      }
+      if (path === '/api/monitor/overview') {
+        return Promise.resolve({
+          counts: { healthy: 1 },
+          unhealthyItems: [],
+          platformItems: [],
+        })
+      }
+      if (path === '/api/tunnel/overview') {
+        return Promise.resolve({
+          summary: { total: 0, online: 0, offline: 0, waiting_for_first_connect: 0 },
+          items: [],
+        })
+      }
+      return Promise.reject(new Error(`Unexpected path ${path}`))
+    })
+
+    getFullListMock
+      .mockRejectedValueOnce(new Error('servers unavailable'))
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+
+    render(<OverviewPage />)
+
+    expect(await screen.findByText('Some overview sections are temporarily unavailable.')).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Overview degraded data sources',
+        expect.arrayContaining([
+          expect.objectContaining({ section: 'servers', message: 'servers unavailable' }),
+        ])
+      )
     })
   })
 })

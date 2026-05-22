@@ -51,13 +51,13 @@ describe('ServerMonitorTab', () => {
     sendMock.mockReset()
     getSystemdStatusMock.mockResolvedValue({
       server_id: 'server-1',
-      service: 'netdata',
+      service: 'appos-monitor.service',
       status: {
         ActiveState: 'active',
         SubState: 'running',
         UnitFileState: 'enabled',
       },
-      status_text: 'netdata.service - Netdata',
+      status_text: 'appos-monitor.service - Native Telegraf agent for AppOS metrics collector',
     })
     sendMock.mockResolvedValue({
       hasData: true,
@@ -76,7 +76,7 @@ describe('ServerMonitorTab', () => {
     render(<ServerMonitorTab serverId="server-1" serverName="alpha" connectionStatus="online" />)
 
     expect(await screen.findByText('Monitor')).toBeInTheDocument()
-    expect(getSystemdStatusMock).toHaveBeenCalledWith('server-1', 'netdata')
+    expect(getSystemdStatusMock).toHaveBeenCalledWith('server-1', 'appos-monitor.service')
     expect(
       screen.getByRole('region', { name: 'Monitor current values and trend history' })
     ).toBeInTheDocument()
@@ -93,10 +93,10 @@ describe('ServerMonitorTab', () => {
     expect(screen.getByText('Monitor panel for server-1')).toBeInTheDocument()
     expect(screen.getByText('Monitor panel layout detail')).toBeInTheDocument()
     expect(
-      screen.getByText(
+      screen.queryByText(
         'No monitoring data available yet for alpha. Current connectivity status is online.'
       )
-    ).toBeInTheDocument()
+    ).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete conclusion Resource pressure' }))
     expect(screen.queryByText('Resource pressure')).toBeNull()
@@ -140,7 +140,18 @@ describe('ServerMonitorTab', () => {
   })
 
   it('shows a strong intervention state and opens Components when the agent is missing', async () => {
-    getSystemdStatusMock.mockRejectedValueOnce(new Error('unit netdata.service not found'))
+    getSystemdStatusMock.mockRejectedValueOnce(new Error('unit appos-monitor.service not found'))
+    sendMock.mockResolvedValueOnce({
+      hasData: false,
+      targetType: 'server',
+      targetId: 'server-1',
+      displayName: 'alpha',
+      status: 'unknown',
+      reason: 'monitor target unavailable',
+      signalSource: 'inventory',
+      lastTransitionAt: '2026-05-20T06:00:00Z',
+      summary: {},
+    })
     const onMonitorAgentAction = vi.fn()
 
     render(
@@ -156,7 +167,7 @@ describe('ServerMonitorTab', () => {
       await screen.findByText('Monitoring is not connected on this server.')
     ).toBeInTheDocument()
     expect(
-      screen.getByText(/Install or repair the monitor agent from Components/)
+      screen.getByText(/Install or repair the Monitor Agent addon from Components/)
     ).toBeInTheDocument()
     expect(screen.getByText('No conclusions yet.')).toBeInTheDocument()
     expect(screen.queryByText('Monitor agent runtime')).toBeNull()
@@ -165,6 +176,64 @@ describe('ServerMonitorTab', () => {
 
     await waitFor(() => {
       expect(onMonitorAgentAction).toHaveBeenCalledWith('install')
+    })
+  })
+
+  it('treats monitor data as connected even if the service probe fails', async () => {
+    getSystemdStatusMock.mockRejectedValueOnce(new Error('ssh command timed out'))
+    sendMock.mockResolvedValueOnce({
+      hasData: true,
+      targetType: 'server',
+      targetId: 'server-1',
+      displayName: 'alpha',
+      status: 'healthy',
+      reason: null,
+      signalSource: 'netdata',
+      lastTransitionAt: '2026-05-20T06:00:00Z',
+      summary: {
+        monitoring_state: 'healthy',
+      },
+    })
+
+    render(<ServerMonitorTab serverId="server-1" serverName="alpha" connectionStatus="online" />)
+
+    expect(await screen.findByText('Monitoring active')).toBeInTheDocument()
+    expect(screen.queryByText('Monitoring is not connected on this server.')).toBeNull()
+    expect(screen.getByText('Monitor panel for server-1')).toBeInTheDocument()
+  })
+
+  it('refreshes only monitor status chains from the header action', async () => {
+    render(<ServerMonitorTab serverId="server-1" serverName="alpha" connectionStatus="online" />)
+
+    await screen.findByText('Monitoring active · running')
+
+    getSystemdStatusMock.mockResolvedValueOnce({
+      server_id: 'server-1',
+      service: 'appos-monitor.service',
+      status: {
+        ActiveState: 'active',
+        SubState: 'running',
+        UnitFileState: 'enabled',
+      },
+      status_text: 'appos-monitor.service - Native Telegraf agent for AppOS metrics collector',
+    })
+    sendMock.mockResolvedValueOnce({
+      hasData: true,
+      targetType: 'server',
+      targetId: 'server-1',
+      displayName: 'alpha',
+      status: 'healthy',
+      reason: null,
+      signalSource: 'netdata',
+      lastTransitionAt: '2026-05-20T06:00:00Z',
+      summary: {},
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh monitor status' }))
+
+    await waitFor(() => {
+      expect(getSystemdStatusMock).toHaveBeenCalledTimes(2)
+      expect(sendMock).toHaveBeenCalledTimes(2)
     })
   })
 })

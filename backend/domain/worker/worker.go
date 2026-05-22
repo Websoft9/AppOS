@@ -168,6 +168,25 @@ func (w *Worker) Start() {
 		log.Printf("recover orphaned docker image pull operations: %v", err)
 	}
 
+	mux := w.newServeMux()
+	w.startLifecycleScheduler()
+
+	go func() {
+		if err := w.server.Run(mux); err != nil {
+			w.stateMu.Lock()
+			w.serverRunning = false
+			w.lastServerError = err.Error()
+			w.stateMu.Unlock()
+			log.Printf("asynq worker error: %v", err)
+			return
+		}
+		w.stateMu.Lock()
+		w.serverRunning = false
+		w.stateMu.Unlock()
+	}()
+}
+
+func (w *Worker) newServeMux() *asynq.ServeMux {
 	mux := asynq.NewServeMux()
 	mux.HandleFunc(TaskDeployApp, w.handleDeployApp)
 	mux.HandleFunc(TaskMonitorAppHealthSweep, w.handleMonitorAppHealthSweep)
@@ -185,26 +204,15 @@ func (w *Worker) Start() {
 	mux.HandleFunc(TaskBackupRestore, w.handleBackupRestore)
 	mux.HandleFunc(TaskSoftwareInstall, w.handleSoftwareAction)
 	mux.HandleFunc(TaskSoftwareUpgrade, w.handleSoftwareAction)
+	mux.HandleFunc(TaskSoftwareStart, w.handleSoftwareAction)
+	mux.HandleFunc(TaskSoftwareStop, w.handleSoftwareAction)
+	mux.HandleFunc(TaskSoftwareRestart, w.handleSoftwareAction)
 	mux.HandleFunc(TaskSoftwareVerify, w.handleSoftwareAction)
 	mux.HandleFunc(TaskSoftwareReinstall, w.handleSoftwareAction)
 	mux.HandleFunc(TaskSoftwareUninstall, w.handleSoftwareAction)
 	mux.HandleFunc(TaskSoftwareWarmSnapshot, w.handleSoftwareSnapshotWarm)
 	mux.HandleFunc(TaskDockerImagePull, w.handleDockerImagePull)
-	w.startLifecycleScheduler()
-
-	go func() {
-		if err := w.server.Run(mux); err != nil {
-			w.stateMu.Lock()
-			w.serverRunning = false
-			w.lastServerError = err.Error()
-			w.stateMu.Unlock()
-			log.Printf("asynq worker error: %v", err)
-			return
-		}
-		w.stateMu.Lock()
-		w.serverRunning = false
-		w.stateMu.Unlock()
-	}()
+	return mux
 }
 
 // Client returns the shared Asynq client for enqueuing tasks.

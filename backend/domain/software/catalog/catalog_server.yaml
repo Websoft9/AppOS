@@ -17,6 +17,7 @@ components:
     target_type: server
     label: Docker
     capability: container_runtime
+    artifact_kind: package
     template_ref: script-install-package-systemd
     binary: docker
     service_name: docker.service
@@ -54,6 +55,7 @@ components:
     target_type: server
     label: Nginx
     capability: reverse_proxy
+    artifact_kind: package
     template_ref: package-systemd
     binary: nginx
     service_name: nginx.service
@@ -79,49 +81,26 @@ components:
       - uninstall
 
   # Observability
-  - component_key: appos-monitor-collector
-    target_type: server
-    label: Netdata Agent
-    capability: monitor_agent
-    template_ref: script-install-package-systemd
-    binary: netdata
-    version_command: "netdata -V"
-    service_name: netdata.service
-    script_path: monitor-agent-install.sh
-    package_name: netdata
-    description: Managed monitoring agent installer for connected servers.
-    readiness_requirements:
-      - verified_os_baseline
-      - root_privilege
-      - network_access
-      - service_manager
-    visibility:
-      - server_operations
-      - supported_software_discovery
-    supported_actions:
-      - install
-      - upgrade
-      - verify
-      - start
-      - restart
-      - stop
-      - reinstall
-      - uninstall
-
   - component_key: telegraf
     target_type: server
-    label: Telegraf
+    label: Monitor Agent (Native Telegraf)
+    capability: monitor_agent
+    artifact_kind: binary
     template_ref: script-systemd
     binary: telegraf
     version_command: "telegraf version"
-    service_name: telegraf.service
+    service_name: appos-monitor.service
+    legacy_service_names:
+      - telegraf.service
     script_path: telegraf-install.sh
-    description: Managed Telegraf collector installed as a standalone binary with a systemd service.
+    description: Native Telegraf agent for AppOS metrics collector.
     readiness_requirements:
       - verified_os_baseline
       - root_privilege
       - network_access
       - service_manager
+    requires_appos_base_url: true
+    favorite_systemd_service: true
     visibility:
       - server_operations
       - supported_software_discovery

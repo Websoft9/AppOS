@@ -177,11 +177,11 @@ function ServerCard({
       </div>
       <Button
         size="sm"
-        variant={isConnected ? 'default' : 'outline'}
+        variant="outline"
         className="shrink-0 ml-2 opacity-0 group-hover:opacity-100 transition-opacity"
         onClick={() => onConnect(server)}
       >
-        {isConnected ? 'Resume' : 'Open Terminal'}
+        Open Terminal
         <ArrowRight className="h-3.5 w-3.5 ml-1" />
       </Button>
     </div>
@@ -348,9 +348,9 @@ function ServersPanel({
   }
 
   return (
-    <div className="h-full overflow-y-auto pt-6">
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-        <section className="space-y-2 min-w-0">
+    <div className="h-full overflow-y-auto pt-6 xl:overflow-hidden">
+      <div className="grid gap-6 xl:h-full xl:min-h-0 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <section className="space-y-2 min-w-0 xl:flex xl:min-h-0 xl:flex-col">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold">
               Available Servers
@@ -362,24 +362,25 @@ function ServersPanel({
             </h3>
           </div>
 
-          {servers.length === 0 ? (
-            <div className="rounded-lg border border-dashed p-8 text-center space-y-2">
-              <Server className="h-8 w-8 mx-auto text-muted-foreground" />
-              <p className="text-sm font-medium">No servers configured</p>
-              <p className="text-xs text-muted-foreground">
-                Add a server in Resources to get started
-              </p>
-            </div>
-          ) : onlineServers.length === 0 ? (
-            <div className="rounded-lg border border-dashed p-8 text-center space-y-2">
-              <Server className="h-8 w-8 mx-auto text-muted-foreground" />
-              <p className="text-sm font-medium">No online servers</p>
-              <p className="text-xs text-muted-foreground">
-                Only servers that are currently online are shown here.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
+          <div className="xl:flex-1 xl:min-h-0 xl:overflow-y-auto xl:pr-1">
+            {servers.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-8 text-center space-y-2">
+                <Server className="h-8 w-8 mx-auto text-muted-foreground" />
+                <p className="text-sm font-medium">No servers configured</p>
+                <p className="text-xs text-muted-foreground">
+                  Add a server in Resources to get started
+                </p>
+              </div>
+            ) : onlineServers.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-8 text-center space-y-2">
+                <Server className="h-8 w-8 mx-auto text-muted-foreground" />
+                <p className="text-sm font-medium">No online servers</p>
+                <p className="text-xs text-muted-foreground">
+                  Only servers that are currently online are shown here.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
               {onlineServers.map(server => {
                 const latestSession = latestSessionByServer.get(server.id)
                 const lastSessionUpdatedAt = latestSession ? getSessionUpdatedAt(latestSession) : null
@@ -400,11 +401,12 @@ function ServersPanel({
                   />
                 )
               })}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
         </section>
 
-        <section className="space-y-2 min-w-0">
+        <section className="space-y-2 min-w-0 xl:flex xl:min-h-0 xl:flex-col">
           <div className="flex items-center justify-between gap-3">
             <h3 className="text-sm font-semibold">Active Sessions</h3>
             <div className="flex items-center gap-2">
@@ -422,31 +424,33 @@ function ServersPanel({
             </div>
           </div>
 
-          {activeSessions.length > 0 ? (
-            <div className="space-y-2">
-              {activeSessions.map(({ session, server }) => (
-                <ActiveSessionCard
-                  key={session.id}
-                  session={session}
-                  server={server}
-                  idleTimeoutSeconds={idleTimeoutSeconds}
-                  nowTs={nowTs}
-                  isClosing={closingSessionId === session.id}
-                  sessionCount={sessionCounts.get(server.id) ?? 1}
-                  onResume={onResumeSession}
-                  onExit={onExitSession}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-lg border border-dashed p-8 text-center space-y-2">
-              <Clock className="h-8 w-8 mx-auto text-muted-foreground" />
-              <p className="text-sm font-medium">No active sessions</p>
-              <p className="text-xs text-muted-foreground">
-                Open a server terminal to keep a resumable session here.
-              </p>
-            </div>
-          )}
+          <div className="xl:flex-1 xl:min-h-0 xl:overflow-y-auto xl:pr-1">
+            {activeSessions.length > 0 ? (
+              <div className="space-y-2">
+                {activeSessions.map(({ session, server }) => (
+                  <ActiveSessionCard
+                    key={session.id}
+                    session={session}
+                    server={server}
+                    idleTimeoutSeconds={idleTimeoutSeconds}
+                    nowTs={nowTs}
+                    isClosing={closingSessionId === session.id}
+                    sessionCount={sessionCounts.get(server.id) ?? 1}
+                    onResume={onResumeSession}
+                    onExit={onExitSession}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed p-8 text-center space-y-2">
+                <Clock className="h-8 w-8 mx-auto text-muted-foreground" />
+                <p className="text-sm font-medium">No active sessions</p>
+                <p className="text-xs text-muted-foreground">
+                  Open a server terminal to keep a resumable session here.
+                </p>
+              </div>
+            )}
+          </div>
         </section>
       </div>
     </div>
@@ -499,13 +503,6 @@ export function TerminalIndexPage() {
     counts.set(session.resource_id, (counts.get(session.resource_id) ?? 0) + 1)
     return counts
   }, new Map<string, number>())
-
-  const latestSessionByServer = sessionItems.reduce((sessions, session) => {
-    if (!sessions.has(session.resource_id)) {
-      sessions.set(session.resource_id, session)
-    }
-    return sessions
-  }, new Map<string, TerminalSessionSummary>())
 
   const fetchServers = useCallback(async () => {
     setLoading(true)
@@ -593,11 +590,6 @@ export function TerminalIndexPage() {
 
   const handleConnect = useCallback(
     async (server: ServerType) => {
-      const existingSession = latestSessionByServer.get(server.id)
-      if (existingSession) {
-        handleResumeSession(existingSession, server)
-        return
-      }
       const label = server.name || server.host || server.id
       setConnectingTarget(label)
       setConnectingPhase('checking')
@@ -620,7 +612,7 @@ export function TerminalIndexPage() {
         setConnectingDetail(err instanceof Error ? err.message : 'Connection check failed.')
       }
     },
-    [handleResumeSession, latestSessionByServer, navigate]
+    [navigate]
   )
 
   const handleAddServer = useCallback(() => {

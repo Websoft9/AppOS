@@ -31,6 +31,10 @@ function capabilityLabel(capability?: string): string {
   return capability.replaceAll('_', ' ')
 }
 
+function artifactLabel(item: SupportedServerSoftwareEntry): string {
+  return item.artifact_kind || item.template_kind
+}
+
 export function SupportedSoftwarePage() {
   const [items, setItems] = useState<SupportedServerSoftwareEntry[]>([])
   const [selected, setSelected] = useState<SupportedServerSoftwareEntry | null>(null)
@@ -118,7 +122,7 @@ export function SupportedSoftwarePage() {
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Capability</TableHead>
-              <TableHead>Template</TableHead>
+              <TableHead>Artifact</TableHead>
               <TableHead>Supported Actions</TableHead>
               <TableHead className="w-[96px] text-right">Detail</TableHead>
             </TableRow>
@@ -138,7 +142,7 @@ export function SupportedSoftwarePage() {
                 <TableCell>{capabilityLabel(item.capability)}</TableCell>
                 <TableCell>
                   <Badge variant="secondary" className="text-xs uppercase">
-                    {item.template_kind}
+                    {artifactLabel(item)}
                   </Badge>
                 </TableCell>
                 <TableCell>
@@ -197,6 +201,10 @@ export function SupportedSoftwarePage() {
                   <div>
                     <div className="text-xs uppercase text-muted-foreground">Mapped capability</div>
                     <div>{capabilityLabel(selected.capability)}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs uppercase text-muted-foreground">Artifact</div>
+                    <div>{artifactLabel(selected)}</div>
                   </div>
                   <div>
                     <div className="text-xs uppercase text-muted-foreground">Template kind</div>

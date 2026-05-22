@@ -191,10 +191,13 @@ describe('MonitorTargetPanel', () => {
     expect(screen.getByLabelText('cpu time series chart')).toBeInTheDocument()
     expect(screen.getByLabelText('disk_usage time series chart')).toBeInTheDocument()
     expect(screen.getByLabelText('disk time series chart')).toBeInTheDocument()
-    expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/server/srv-1', { method: 'GET' })
+    expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/server/srv-1', {
+      method: 'GET',
+      requestKey: null,
+    })
     expect(sendMock).toHaveBeenCalledWith(
       '/api/monitor/targets/server/srv-1/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
-      { method: 'GET' }
+      { method: 'GET', requestKey: null }
     )
   }, 15000)
 
@@ -297,10 +300,13 @@ describe('MonitorTargetPanel', () => {
 
     expect(await screen.findByText('Demo App')).toBeInTheDocument()
     expect(await screen.findByText('Trend History')).toBeInTheDocument()
-    expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/app/app-1', { method: 'GET' })
+    expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/app/app-1', {
+      method: 'GET',
+      requestKey: null,
+    })
     expect(sendMock).toHaveBeenCalledWith(
       '/api/monitor/targets/app/app-1/series?window=1h&series=cpu%2Cmemory',
-      { method: 'GET' }
+      { method: 'GET', requestKey: null }
     )
   })
 
@@ -399,10 +405,11 @@ describe('MonitorTargetPanel', () => {
     expect(screen.getByLabelText('Network interface')).toBeInTheDocument()
     expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/platform/appos-core', {
       method: 'GET',
+      requestKey: null,
     })
     expect(sendMock).toHaveBeenCalledWith(
       '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
-      { method: 'GET' }
+      { method: 'GET', requestKey: null }
     )
   })
 
@@ -456,7 +463,7 @@ describe('MonitorTargetPanel', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
         '/api/monitor/targets/platform/worker/series?window=1h&series=cpu%2Cmemory',
-        { method: 'GET' }
+        { method: 'GET', requestKey: null }
       )
     })
     expect(screen.queryByLabelText('Network interface')).not.toBeInTheDocument()
@@ -611,7 +618,7 @@ describe('MonitorTargetPanel', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
         '/api/monitor/targets/server/srv-2/series?window=5h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
-        { method: 'GET' }
+        { method: 'GET', requestKey: null }
       )
     })
 
@@ -624,7 +631,7 @@ describe('MonitorTargetPanel', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
         '/api/monitor/targets/server/srv-2/series?window=12h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
-        { method: 'GET' }
+        { method: 'GET', requestKey: null }
       )
     })
     expect(
@@ -636,7 +643,7 @@ describe('MonitorTargetPanel', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
         '/api/monitor/targets/server/srv-2/series?window=24h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
-        { method: 'GET' }
+        { method: 'GET', requestKey: null }
       )
     })
 
@@ -645,7 +652,7 @@ describe('MonitorTargetPanel', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
         '/api/monitor/targets/server/srv-2/series?window=7d&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
-        { method: 'GET' }
+        { method: 'GET', requestKey: null }
       )
     })
 
@@ -761,11 +768,11 @@ describe('MonitorTargetPanel', () => {
     expect(screen.getByLabelText('Live current snapshot')).toBeInTheDocument()
     expect(sendMock).toHaveBeenCalledWith(
       '/api/monitor/targets/server/srv-detail/series?window=15m&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
-      { method: 'GET' }
+      { method: 'GET', requestKey: null }
     )
     expect(sendMock).toHaveBeenCalledWith(
       '/api/monitor/targets/server/srv-detail/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
-      { method: 'GET' }
+      { method: 'GET', requestKey: null }
     )
 
     fireEvent.click(screen.getByRole('button', { name: '24h' }))
@@ -773,7 +780,101 @@ describe('MonitorTargetPanel', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
         '/api/monitor/targets/server/srv-detail/series?window=24h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
-        { method: 'GET' }
+        { method: 'GET', requestKey: null }
+      )
+    })
+  })
+
+  it('keeps existing trend cards visible while a new detail window is loading', async () => {
+    let resolveSeriesWindowChange: (value: unknown) => void = () => {
+      throw new Error('expected pending trend series request resolver')
+    }
+    sendMock
+      .mockResolvedValueOnce({
+        hasData: true,
+        targetType: 'server',
+        targetId: 'srv-detail-loading',
+        displayName: 'prod-loading',
+        status: 'healthy',
+        reason: null,
+        signalSource: 'agent',
+        lastTransitionAt: '2026-04-14T12:03:00Z',
+        lastSuccessAt: '2026-04-14T12:03:00Z',
+        lastFailureAt: null,
+        lastCheckedAt: null,
+        lastReportedAt: '2026-04-14T12:03:00Z',
+        consecutiveFailures: 0,
+        summary: { heartbeat_state: 'fresh' },
+      })
+      .mockResolvedValueOnce({
+        targetType: 'server',
+        targetId: 'srv-detail-loading',
+        window: '1h',
+        selectedNetworkInterface: 'all',
+        series: [
+          {
+            name: 'cpu',
+            unit: 'percent',
+            points: [
+              [1713096000, 22],
+              [1713096060, 25],
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        targetType: 'server',
+        targetId: 'srv-detail-loading',
+        window: '15m',
+        selectedNetworkInterface: 'all',
+        series: [
+          {
+            name: 'cpu',
+            unit: 'percent',
+            points: [[1713096060, 25]],
+          },
+        ],
+      })
+      .mockImplementationOnce(
+        () =>
+          new Promise(resolve => {
+            resolveSeriesWindowChange = resolve
+          })
+      )
+
+    render(
+      <MonitorTargetPanel targetType="server" targetId="srv-detail-loading" layout="detail" />
+    )
+
+    expect(await screen.findByText('Trend History')).toBeInTheDocument()
+    expect(screen.getAllByText('CPU').length).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getByRole('button', { name: '24h' }))
+
+    expect(screen.getAllByText('CPU').length).toBeGreaterThan(0)
+    expect(screen.getByText('Updating...')).toBeInTheDocument()
+
+    resolveSeriesWindowChange({
+      targetType: 'server',
+      targetId: 'srv-detail-loading',
+      window: '24h',
+      selectedNetworkInterface: 'all',
+      series: [
+        {
+          name: 'cpu',
+          unit: 'percent',
+          points: [
+            [1713096000, 20],
+            [1713182400, 21],
+          ],
+        },
+      ],
+    })
+
+    await waitFor(() => {
+      expect(sendMock).toHaveBeenCalledWith(
+        '/api/monitor/targets/server/srv-detail-loading/series?window=24h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
+        { method: 'GET', requestKey: null }
       )
     })
   })
@@ -1033,7 +1134,7 @@ describe('MonitorTargetPanel', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
         '/api/monitor/targets/server/srv-3/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic&networkInterface=eth0',
-        { method: 'GET' }
+        { method: 'GET', requestKey: null }
       )
     })
   })

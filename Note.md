@@ -148,4 +148,6 @@ ports tab 不稳定，经常打开显示  somethins wrong
 
 
 addons 的 netdata restart 报错
-addons 针对于没有安装的服务器，打开超过10s才显示数据
+Server Terminal  退出连接后再重连，就会失败
+
+crontab list 保存不住

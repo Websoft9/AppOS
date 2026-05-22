@@ -9,6 +9,9 @@ import { MonitorTargetPanel } from '@/components/monitor/MonitorTargetPanel'
 import { getSystemdStatus } from '@/lib/connect-api'
 import { pb } from '@/lib/pb'
 
+const MONITOR_COLLECTOR_SERVICE = 'appos-monitor.service'
+const noAutoCancel = { requestKey: null }
+
 type MonitorChainState = 'ok' | 'attention' | 'info' | 'checking'
 
 type MonitorConclusion = {
@@ -96,12 +99,12 @@ function monitorTargetSummaryFromResponse(response: unknown): MonitorTargetStatu
   }
 }
 
-function useMonitorTargetSummary(serverId: string, enabled: boolean) {
+function useMonitorTargetSummary(serverId: string) {
   const [summary, setSummary] = useState<MonitorTargetStatusSummary | null>(null)
   const [loading, setLoading] = useState(false)
 
   const refresh = useCallback(async () => {
-    if (!serverId || !enabled) {
+    if (!serverId) {
       setSummary(null)
       return
     }
@@ -109,7 +112,7 @@ function useMonitorTargetSummary(serverId: string, enabled: boolean) {
     try {
       const response = await pb.send(
         `/api/monitor/targets/server/${encodeURIComponent(serverId)}`,
-        { method: 'GET' }
+        { method: 'GET', ...noAutoCancel }
       )
       setSummary(monitorTargetSummaryFromResponse(response))
     } catch {
@@ -117,7 +120,7 @@ function useMonitorTargetSummary(serverId: string, enabled: boolean) {
     } finally {
       setLoading(false)
     }
-  }, [enabled, serverId])
+  }, [serverId])
 
   useEffect(() => {
     void refresh()
@@ -136,12 +139,12 @@ function useMonitorAgentStatus(serverId: string) {
     setLoadingStatus(true)
     setStatusError('')
     try {
-      const response = await getSystemdStatus(serverId, 'netdata')
+		const response = await getSystemdStatus(serverId, MONITOR_COLLECTOR_SERVICE)
       setStatus(response.status)
     } catch (error) {
       setStatus(null)
       setStatusError(
-        error instanceof Error ? error.message : 'Unable to read monitor agent service status'
+        error instanceof Error ? error.message : 'Unable to read monitor collector service status'
       )
     } finally {
       setLoadingStatus(false)
@@ -208,9 +211,9 @@ export function ServerMonitorConclusions({
           ? 'Checking monitor data path.'
           : 'Use charts to confirm freshness.',
         detail: checkingMonitoring
-          ? 'AppOS is checking whether the monitor agent can provide usable trend data.'
+          ? 'AppOS is checking whether the monitor collector can provide usable trend data.'
           : 'Trend cards on the left are the source of truth for whether data is current and complete.',
-        nextStep: 'If charts stay empty or stale, open Components to verify monitor-agent.',
+        nextStep: 'If charts stay empty or stale, open Components to verify the Monitor Agent addon.',
         observedAt,
       },
       {
@@ -379,25 +382,26 @@ export function ServerMonitorTab({
   onMonitorAgentAction?: (action: 'install' | 'upgrade' | 'reinstall') => void
 }) {
   const monitorAgent = useMonitorAgentStatus(serverId)
-  const monitorTarget = useMonitorTargetSummary(serverId, monitorAgent.connected)
-  const [refreshKey, setRefreshKey] = useState(0)
-  const monitoringNeedsIntervention = !monitorAgent.loadingStatus && !monitorAgent.connected
+  const monitorTarget = useMonitorTargetSummary(serverId)
   const awaitingFirstSample =
-	monitorAgent.connected &&
-	(
-		monitorTarget.summary?.monitoringState === 'awaiting_control_plane_pull' ||
-		(!monitorTarget.summary?.hasData &&
-			monitorTarget.summary?.reason === 'server monitoring has not collected evidence yet')
-	)
+    monitorTarget.summary?.monitoringState === 'awaiting_control_plane_pull' ||
+    (!monitorTarget.summary?.hasData &&
+      monitorTarget.summary?.reason === 'server monitoring has not collected evidence yet')
+  const hasMonitorData = monitorTarget.summary?.hasData === true
+  const monitorEmptyMessage = hasMonitorData
+    ? undefined
+    : `No monitoring data available yet for ${serverName}. Current connectivity status is ${connectionStatus}.`
+  const monitoringConnected = monitorAgent.connected || hasMonitorData || awaitingFirstSample
+  const monitoringNeedsIntervention =
+    !monitorAgent.loadingStatus && !monitorTarget.loading && !monitoringConnected
   const monitorHint = monitorAgent.loadingStatus
-	? 'Checking monitoring'
-	: awaitingFirstSample
-		? 'Monitoring active · waiting for first sample'
-		: monitorAgent.connected
-			? `Monitoring active${monitorAgent.subState ? ` · ${monitorAgent.subState}` : ''}`
-			: 'Monitoring not connected'
-  const refreshAll = useCallback(() => {
-    setRefreshKey(current => current + 1)
+  ? 'Checking monitoring'
+  : awaitingFirstSample
+    ? 'Monitoring active · waiting for first sample'
+    : monitoringConnected
+      ? `Monitoring active${monitorAgent.connected && monitorAgent.subState ? ` · ${monitorAgent.subState}` : ''}`
+      : 'Monitoring not connected'
+  const refreshMonitorStatus = useCallback(() => {
     void monitorAgent.refresh()
     void monitorTarget.refresh()
   }, [monitorAgent, monitorTarget])
@@ -420,10 +424,10 @@ export function ServerMonitorTab({
             variant="ghost"
             size="sm"
             className="shrink-0"
-            onClick={refreshAll}
+            onClick={refreshMonitorStatus}
             disabled={monitorAgent.loadingStatus || monitorTarget.loading}
-            aria-label="Refresh monitor data"
-            title="Refresh monitor data"
+            aria-label="Refresh monitor status"
+            title="Refresh monitor status"
           >
             {monitorAgent.loadingStatus || monitorTarget.loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -441,7 +445,7 @@ export function ServerMonitorTab({
             <div>
               <div className="font-medium">Monitoring is not connected on this server.</div>
               <div className="mt-1 text-sm">
-                Install or repair the monitor agent from Components before relying on monitor data.
+				Install or repair the Monitor Agent addon from Components before relying on monitor data.
                 {monitorAgent.statusError ? ` ${monitorAgent.statusError}` : ''}
               </div>
             </div>
@@ -468,20 +472,19 @@ export function ServerMonitorTab({
           <MonitorTargetPanel
             targetType="server"
             targetId={serverId}
-            emptyMessage={`No monitoring data available yet for ${serverName}. Current connectivity status is ${connectionStatus}.`}
+            emptyMessage={monitorEmptyMessage}
             layout="detail"
-            refreshKey={refreshKey}
             metricsPipelineAction={
               onMonitorAgentAction
                 ? {
                     label: 'Repair monitor agent',
-                    description: 'Rewrites remote-write credentials and restarts Netdata.',
+                    description: 'Rewrites callback credentials and restarts the AppOS monitor collector.',
                     onClick: () => onMonitorAgentAction('reinstall'),
                   }
                 : onOpenComponents
                   ? {
                       label: 'Open Components',
-                      description: 'Use Repair on the Netdata Agent addon.',
+                      description: 'Use Repair on the Monitor Agent addon.',
                       onClick: onOpenComponents,
                     }
                   : undefined
@@ -491,8 +494,8 @@ export function ServerMonitorTab({
         <ServerMonitorConclusions
           serverName={serverName}
           connectionStatus={connectionStatus}
-          monitoringConnected={monitorAgent.connected}
-          checkingMonitoring={monitorAgent.loadingStatus}
+          monitoringConnected={monitoringConnected}
+          checkingMonitoring={monitorAgent.loadingStatus || monitorTarget.loading}
         />
       </div>
     </div>

@@ -191,9 +191,29 @@ type MonitorLatestStatusRecord = {
 
 function monitorShortcutTone(status: string): string {
   const normalized = status.trim().toLowerCase()
-  return normalized === 'healthy' || normalized === 'online' || normalized === 'ok'
-    ? 'text-emerald-600 hover:text-emerald-700'
-    : 'text-muted-foreground hover:text-foreground'
+  if (!normalized) {
+    return 'text-muted-foreground hover:text-foreground'
+  }
+  if (
+    normalized === 'offline' ||
+    normalized === 'unreachable' ||
+    normalized === 'credential_invalid'
+  ) {
+    return 'text-destructive hover:text-destructive'
+  }
+  if (normalized === 'degraded' || normalized === 'stale') {
+    return 'text-amber-600 hover:text-amber-700'
+  }
+  return 'text-emerald-600 hover:text-emerald-700'
+}
+
+function monitorShortcutTitle(status: string, reason: string): string {
+  const normalizedStatus = status.trim()
+  const normalizedReason = reason.trim()
+  const prefix = normalizedReason
+    ? `Observed monitor target status: ${normalizedStatus}. ${normalizedReason}`
+    : `Observed monitor target status: ${normalizedStatus}`
+  return `${prefix}. This reflects the latest monitoring evidence for the server target and may lag behind addon status.`
 }
 
 function buildServerConnectionFacts(
@@ -1090,9 +1110,7 @@ export function ServersPage() {
                 monitorShortcutTone(status)
               )}
               aria-label={`Open monitor for ${name}`}
-              title={
-                reason ? `Monitoring status: ${status}. ${reason}` : `Monitoring status: ${status}`
-              }
+              title={monitorShortcutTitle(status, reason)}
               onClick={event => {
                 event.stopPropagation()
                 handleOpenServer(row, 'monitor')

@@ -179,7 +179,7 @@ describe('VolumesTab', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText(/Editing live application data may affect running workloads\./i)).toBeInTheDocument()
+      expect(screen.getByText(/Editing may affect the running app\./i)).toBeInTheDocument()
     })
     expect(screen.getByText(/demo-app/i)).toBeInTheDocument()
 
@@ -188,6 +188,7 @@ describe('VolumesTab', () => {
         serverId: 'srv-1',
         initialPath: '/var/lib/docker/volumes/used-data/_data',
         lockedRootPath: '/var/lib/docker/volumes/used-data/_data',
+        showCurrentPathInStatusBar: false,
       })
     )
   })

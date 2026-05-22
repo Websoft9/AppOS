@@ -699,6 +699,10 @@ describe('ServersPage layout', () => {
     const monitorShortcut = screen.getByRole('button', { name: 'Open monitor for alpha' })
     expect(monitorShortcut).toBeInTheDocument()
     expect(monitorShortcut.className).toContain('text-emerald-600')
+    expect(monitorShortcut).toHaveAttribute(
+      'title',
+      'Observed monitor target status: online. netdata ready. This reflects the latest monitoring evidence for the server target and may lag behind addon status.'
+    )
 
     fireEvent.pointerDown(screen.getByRole('button', { name: 'Filter Secret Type' }))
     fireEvent.click((await screen.findAllByText('SSH Key')).at(-1) as HTMLElement)

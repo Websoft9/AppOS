@@ -33,6 +33,7 @@ import {
   type MonitorOverviewItem,
   type MonitorOverviewResponse,
 } from '@/pages/system/monitor-overview-shared'
+import { getRejectedSections, warnDegradedSections } from '@/lib/degraded-sections'
 import { pb } from '@/lib/pb'
 
 type MonitorSeries = {
@@ -453,8 +454,8 @@ function derivePlatformAvailability(
     {
       label: 'Monitoring',
       targetIds: [],
-      serviceNames: ['victoria-metrics', 'netdata'],
-      fallbackReason: 'Monitoring collectors and storage are available.',
+      serviceNames: ['victoria-metrics', 'appos-core'],
+      fallbackReason: 'Monitoring storage and the AppOS self-collector are available.',
     },
   ]
 
@@ -573,15 +574,18 @@ export function PlatformStatusPage() {
           ),
         ])
 
-        const failedCount = [overviewResult, servicesResult, infrastructureResult].filter(
-          result => result.status === 'rejected'
-        ).length
+        const failures = getRejectedSections([
+          { section: 'overview', result: overviewResult },
+          { section: 'services', result: servicesResult },
+          { section: 'infrastructure', result: infrastructureResult },
+        ])
 
-        if (failedCount === 3) {
+        if (failures.length === 3) {
           throw new Error('Failed to load platform status')
         }
 
-        if (failedCount > 0) {
+        if (failures.length > 0) {
+          warnDegradedSections('Platform status', failures)
           setError('Some status sections are temporarily unavailable.')
         }
 

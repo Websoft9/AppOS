@@ -95,7 +95,7 @@ func TestCapabilityToComponentMapping(t *testing.T) {
 		component  ComponentKey
 	}{
 		{CapabilityContainerRuntime, ComponentKeyDocker},
-		{CapabilityMonitorAgent, ComponentKeyMonitorAgent},
+		{CapabilityMonitorAgent, ComponentKeyTelegraf},
 		{CapabilityReverseProxy, ComponentKeyReverseProxy},
 	}
 	for _, c := range cases {

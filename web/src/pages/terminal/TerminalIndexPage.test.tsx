@@ -132,7 +132,7 @@ describe('TerminalIndexPage', () => {
     await waitFor(() => {
       expect(screen.getAllByText('Beta').length).toBeGreaterThan(0)
       expect(screen.getAllByText('Connected').length).toBeGreaterThan(0)
-      expect(getButtonByText('Resume')).toBeInTheDocument()
+      expect(getButtonByText('Open Terminal')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /exit/i })).toBeInTheDocument()
     })
   })
@@ -150,7 +150,7 @@ describe('TerminalIndexPage', () => {
     })
   })
 
-  it('keeps the resume action working for connected servers', async () => {
+  it('keeps the active-session resume action working for connected servers', async () => {
     listTerminalSessionsMock.mockResolvedValue([
       {
         id: 'tab-1',
@@ -173,8 +173,8 @@ describe('TerminalIndexPage', () => {
     renderPage()
 
     await screen.findByText('Active Sessions')
-    const resumeButton = getButtonByText('Resume')
-    fireEvent.click(resumeButton)
+    const resumeButtons = screen.getAllByRole('button', { name: 'Resume' })
+    fireEvent.click(resumeButtons[0])
 
     await waitFor(() => {
       expect(navigateMock).toHaveBeenCalledWith({
@@ -191,6 +191,42 @@ describe('TerminalIndexPage', () => {
     })
 
     expect(checkServerStatusMock).not.toHaveBeenCalled()
+  })
+
+  it('opens a connected server from the left list as a fresh terminal entry', async () => {
+    listTerminalSessionsMock.mockResolvedValue([
+      {
+        id: 'tab-1',
+        user_id: 'user-1',
+        resource_type: 'server',
+        resource_id: 'srv-1',
+        session_type: 'ssh',
+        state: 'attached',
+        started_at: new Date(Date.now() - 60 * 1000).toISOString(),
+        last_active_at: new Date().toISOString(),
+        workspace: {},
+      },
+    ])
+
+    renderPage()
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: 'Open Terminal' }).length).toBeGreaterThan(0)
+    })
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Open Terminal' })[0])
+
+    await waitFor(
+      () => {
+        expect(checkServerStatusMock).toHaveBeenCalled()
+        expect(navigateMock).toHaveBeenCalledWith({
+          to: '/terminal/server/$serverId',
+          params: { serverId: 'srv-1' },
+          search: {},
+        })
+      },
+      { timeout: 3000 }
+    )
   })
 
   it('shows the Server Terminal header and no deprecated capability tabs', async () => {
@@ -234,7 +270,7 @@ describe('TerminalIndexPage', () => {
     await waitFor(() => {
       expect(screen.getAllByText('Alpha').length).toBeGreaterThan(0)
       expect(screen.getAllByText('Connected').length).toBeGreaterThan(0)
-      expect(getButtonByText('Resume')).toBeInTheDocument()
+      expect(getButtonByText('Open Terminal')).toBeInTheDocument()
     })
 
     expect(screen.queryAllByText('Beta')).toHaveLength(0)

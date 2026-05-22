@@ -12,6 +12,7 @@ const updateSystemdUnitMock = vi.fn()
 const verifySystemdUnitMock = vi.fn()
 const applySystemdUnitMock = vi.fn()
 const controlSystemdServiceMock = vi.fn()
+const listSupportedServerSoftwareMock = vi.fn()
 
 vi.mock('@/lib/connect-api', () => ({
   listSystemdServices: (...args: unknown[]) => listSystemdServicesMock(...args),
@@ -23,6 +24,10 @@ vi.mock('@/lib/connect-api', () => ({
   verifySystemdUnit: (...args: unknown[]) => verifySystemdUnitMock(...args),
   applySystemdUnit: (...args: unknown[]) => applySystemdUnitMock(...args),
   controlSystemdService: (...args: unknown[]) => controlSystemdServiceMock(...args),
+}))
+
+vi.mock('@/lib/software-api', () => ({
+  listSupportedServerSoftware: (...args: unknown[]) => listSupportedServerSoftwareMock(...args),
 }))
 
 afterEach(() => {
@@ -40,6 +45,22 @@ describe('ServerServicesPanel', () => {
     verifySystemdUnitMock.mockReset()
     applySystemdUnitMock.mockReset()
     controlSystemdServiceMock.mockReset()
+    listSupportedServerSoftwareMock.mockReset()
+
+    listSupportedServerSoftwareMock.mockResolvedValue([
+      {
+        component_key: 'telegraf',
+        label: 'Monitor Agent (Native Telegraf)',
+        template_kind: 'script',
+        artifact_kind: 'binary',
+        supported_actions: ['install', 'upgrade', 'reinstall'],
+        description: 'Native Telegraf agent for AppOS metrics collector.',
+        readiness_requirements: [],
+        visibility: ['server_operations', 'supported_software_discovery'],
+        favorite_systemd_service: true,
+        service_name: 'appos-monitor.service',
+      },
+    ])
 
     listSystemdServicesMock.mockResolvedValue([
       {
@@ -70,13 +91,13 @@ describe('ServerServicesPanel', () => {
         sub_state: 'running',
         description: 'Docker Application Container Engine',
       },
-      {
-        name: 'netdata.service',
-        load_state: 'loaded',
-        active_state: 'active',
-        sub_state: 'running',
-        description: 'Netdata Agent',
-      },
+    {
+    name: 'appos-monitor.service',
+    load_state: 'loaded',
+    active_state: 'active',
+    sub_state: 'running',
+    description: 'Native Telegraf agent for AppOS metrics collector',
+    },
       {
         name: 'appos-tunnel.service',
         load_state: 'loaded',
@@ -175,7 +196,7 @@ describe('ServerServicesPanel', () => {
     expect(within(inventory).queryByText('A-Z')).toBeNull()
     expect(within(inventory).queryByText('Sort')).toBeNull()
     expect(within(inventory).getByText('docker')).toBeInTheDocument()
-    expect(within(inventory).getByText('netdata')).toBeInTheDocument()
+    expect(within(inventory).getByText('appos-monitor')).toBeInTheDocument()
     expect(within(inventory).getByText('appos-tunnel')).toBeInTheDocument()
     expect(within(inventory).getByText('auditd')).toBeInTheDocument()
     expect(within(inventory).getByText('connman')).toBeInTheDocument()
@@ -209,7 +230,7 @@ describe('ServerServicesPanel', () => {
 
     expect(getRowLabels()).toEqual([
       'docker',
-      'netdata',
+  		'appos-monitor',
       'appos-tunnel',
       'auditd',
       'backup-task',
@@ -224,7 +245,7 @@ describe('ServerServicesPanel', () => {
     expect(within(inventory).queryByText('Z-A')).toBeNull()
     expect(getRowLabels()).toEqual([
       'docker',
-      'netdata',
+  		'appos-monitor',
       'appos-tunnel',
       'connman',
       'backup-task',
@@ -349,11 +370,11 @@ describe('ServerServicesPanel', () => {
     expect(within(detailSection).getAllByText('docker').length).toBeGreaterThan(0)
 
     fireEvent.pointerDown(
-      within(inventory).getByRole('button', { name: /service actions for netdata/i })
+      within(inventory).getByRole('button', { name: /service actions for appos-monitor/i })
     )
 
     expect(await screen.findByRole('menuitem', { name: 'Open overview' })).toBeInTheDocument()
-    expect(within(detailSection).queryByText('netdata')).toBeNull()
+    expect(within(detailSection).queryByText('appos-monitor')).toBeNull()
   })
 
   it('renders load errors inside the systemd inventory', async () => {

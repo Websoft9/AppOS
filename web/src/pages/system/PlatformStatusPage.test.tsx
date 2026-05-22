@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PlatformStatusPage } from './PlatformStatusPage'
 
 const sendMock = vi.fn()
+let warnSpy: ReturnType<typeof vi.spyOn>
 
 vi.mock('@/lib/pb', () => ({
   pb: {
@@ -119,16 +120,6 @@ function mockPlatformStatusResponses() {
           last_detected_at: '2026-04-21T14:20:00Z',
           log_available: true,
         },
-        {
-          name: 'netdata',
-          state: 'running',
-          pid: 204,
-          uptime: 8200,
-          cpu: 0.7,
-          memory: 35651584,
-          last_detected_at: '2026-04-21T14:20:00Z',
-          log_available: true,
-        },
       ])
     }
 
@@ -232,9 +223,11 @@ function mockPlatformStatusResponses() {
 describe('PlatformStatusPage', () => {
   beforeEach(() => {
     sendMock.mockReset()
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
   })
 
   afterEach(() => {
+    warnSpy.mockRestore()
     cleanup()
     vi.clearAllMocks()
   })
@@ -316,5 +309,45 @@ describe('PlatformStatusPage', () => {
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument()
     expect(await screen.findByText('Docker')).toBeInTheDocument()
+  })
+
+  it('logs degraded platform status sources when one section fails', async () => {
+    sendMock.mockImplementation((path: string) => {
+      if (path === '/api/monitor/overview') {
+        return Promise.resolve({
+          counts: { healthy: 1 },
+          unhealthyItems: [],
+          platformItems: [],
+        })
+      }
+
+      if (path === '/api/components/services') {
+        return Promise.reject(new Error('services unavailable'))
+      }
+
+      if (path.startsWith('/api/monitor/targets/platform/appos-core/series?')) {
+        return Promise.resolve({
+          targetType: 'platform',
+          targetId: 'appos-core',
+          window: '1h',
+          series: [],
+        })
+      }
+
+      return Promise.resolve([])
+    })
+
+    render(<PlatformStatusPage />)
+
+    expect(await screen.findByText('Some status sections are temporarily unavailable.')).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Platform status degraded data sources',
+        expect.arrayContaining([
+          expect.objectContaining({ section: 'services', message: 'services unavailable' }),
+        ])
+      )
+    })
   })
 })

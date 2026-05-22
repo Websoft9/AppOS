@@ -61,7 +61,7 @@ func TestQueryMetricSeriesQueriesNetdataPlatformAppOSCoreMemoryExpression(t *tes
 	queries := make([]string, 0, 2)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		queries = append(queries, r.URL.Query().Get("query"))
-		_, _ = w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
+		_, _ = w.Write([]byte(`{"status":"success","data":{"result":[{"values":[[1713096000,"1"]]}]}}`))
 	}))
 	defer server.Close()
 	t.Setenv(metrics.EnvVictoriaMetricsURL, server.URL)
@@ -139,7 +139,7 @@ func TestQueryMetricSeriesQueriesNetdataPlatformAppOSCoreNetworkExpression(t *te
 			_, _ = w.Write([]byte(`{"status":"success","data":[{"network_interface":"eth0"},{"network_interface":"ens3"}]}`))
 		default:
 			queries = append(queries, r.URL.Query().Get("query"))
-			_, _ = w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
+			_, _ = w.Write([]byte(`{"status":"success","data":{"result":[{"values":[[1713096000,"1"]]}]}}`))
 		}
 	}))
 	defer server.Close()
@@ -180,7 +180,7 @@ func TestQueryMetricSeriesQueriesNetdataServerMemoryExpression(t *testing.T) {
 	queries := make([]string, 0, 2)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		queries = append(queries, r.URL.Query().Get("query"))
-		_, _ = w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
+		_, _ = w.Write([]byte(`{"status":"success","data":{"result":[{"values":[[1713096000,"1"]]}]}}`))
 	}))
 	defer server.Close()
 	t.Setenv(metrics.EnvVictoriaMetricsURL, server.URL)
@@ -240,7 +240,7 @@ func TestQueryMetricSeriesQueriesNetdataServerNetworkExpression(t *testing.T) {
 			_, _ = w.Write([]byte(`{"status":"success","data":[{"network_interface":"eth0"},{"network_interface":"ens3"}]}`))
 		default:
 			queries = append(queries, r.URL.Query().Get("query"))
-			_, _ = w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
+			_, _ = w.Write([]byte(`{"status":"success","data":{"result":[{"values":[[1713096000,"1"]]}]}}`))
 		}
 	}))
 	defer server.Close()
@@ -280,7 +280,7 @@ func TestQueryMetricSeriesQueriesCanonicalServerAggregateNetworkExpressionByDefa
 			_, _ = w.Write([]byte(`{"status":"success","data":[{"network_interface":"eth0"},{"network_interface":"ens3"}]}`))
 		default:
 			queries = append(queries, r.URL.Query().Get("query"))
-			_, _ = w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
+			_, _ = w.Write([]byte(`{"status":"success","data":{"result":[{"values":[[1713096000,"1"]]}]}}`))
 		}
 	}))
 	defer server.Close()
@@ -361,7 +361,7 @@ func TestQueryMetricSeriesQueriesNetdataServerDiskUsageExpression(t *testing.T) 
 	queries := make([]string, 0, 2)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		queries = append(queries, r.URL.Query().Get("query"))
-		_, _ = w.Write([]byte(`{"status":"success","data":{"result":[]}}`))
+		_, _ = w.Write([]byte(`{"status":"success","data":{"result":[{"values":[[1713096000,"1"]]}]}}`))
 	}))
 	defer server.Close()
 	t.Setenv(metrics.EnvVictoriaMetricsURL, server.URL)

@@ -21,6 +21,24 @@ templates:
         - openeuler
       service_manager: systemd
       package_manager: native
+    action_timeouts:
+      install_seconds: 300
+      upgrade_seconds: 300
+      start_seconds: 45
+      stop_seconds: 45
+      restart_seconds: 45
+      verify_seconds: 45
+      reinstall_seconds: 360
+      uninstall_seconds: 300
+    timeout_policy:
+      install: attention_required
+      upgrade: attention_required
+      start: attention_required
+      stop: attention_required
+      restart: attention_required
+      verify: attention_required
+      reinstall: attention_required
+      uninstall: attention_required
     install:
       strategy: package
       package_name: "{{package_name}}"
@@ -60,6 +78,24 @@ templates:
         - openeuler
       service_manager: systemd
       package_manager: native
+    action_timeouts:
+      install_seconds: 300
+      upgrade_seconds: 300
+      start_seconds: 45
+      stop_seconds: 45
+      restart_seconds: 45
+      verify_seconds: 45
+      reinstall_seconds: 360
+      uninstall_seconds: 300
+    timeout_policy:
+      install: attention_required
+      upgrade: attention_required
+      start: attention_required
+      stop: attention_required
+      restart: attention_required
+      verify: attention_required
+      reinstall: attention_required
+      uninstall: attention_required
     install:
       strategy: script
       script_path: "{{script_path}}"
@@ -92,6 +128,24 @@ templates:
         - debian
         - rocky
       service_manager: systemd
+    action_timeouts:
+      install_seconds: 300
+      upgrade_seconds: 300
+      start_seconds: 45
+      stop_seconds: 45
+      restart_seconds: 45
+      verify_seconds: 45
+      reinstall_seconds: 360
+      uninstall_seconds: 300
+    timeout_policy:
+      install: attention_required
+      upgrade: attention_required
+      start: attention_required
+      stop: attention_required
+      restart: attention_required
+      verify: attention_required
+      reinstall: attention_required
+      uninstall: attention_required
     install:
       strategy: script
       script_path: "{{script_path}}"
@@ -129,6 +183,14 @@ templates:
       require_root: false
       require_network: false
       verified_os: []  # container-internal: OS-agnostic
+    action_timeouts:
+      restart_seconds: 30
+      verify_seconds: 30
+      reinstall_seconds: 30
+    timeout_policy:
+      restart: attention_required
+      verify: attention_required
+      reinstall: attention_required
     install:
       strategy: ""
     upgrade:
@@ -153,6 +215,10 @@ templates:
       require_root: false
       require_network: false
       verified_os: []  # container-internal: OS-agnostic
+    action_timeouts:
+      verify_seconds: 15
+    timeout_policy:
+      verify: attention_required
     install:
       strategy: ""
     upgrade:

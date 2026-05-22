@@ -1,13 +1,30 @@
 package worker
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/hibiken/asynq"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/websoft9/appos/backend/domain/deploy"
 )
+
+func TestWorkerServeMuxRegistersSoftwareRuntimeActions(t *testing.T) {
+	w := &Worker{}
+	mux := w.newServeMux()
+
+	for _, taskType := range []string{TaskSoftwareStart, TaskSoftwareStop, TaskSoftwareRestart} {
+		err := mux.ProcessTask(context.Background(), asynq.NewTask(taskType, []byte(`{}`)))
+		if err == nil {
+			continue
+		}
+		if strings.Contains(err.Error(), "handler not found") {
+			t.Fatalf("expected handler for %s, got %v", taskType, err)
+		}
+	}
+}
 
 func TestRecoverOrphanedDeploymentsMarksFailed(t *testing.T) {
 	app := newWorkerTestApp(t)

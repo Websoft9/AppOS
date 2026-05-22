@@ -64,8 +64,10 @@ func ensureSoftwareOperationsCollection(app core.App) error {
 		string(software.FailureCodePreflightError),
 		string(software.FailureCodePreflightBlocked),
 		string(software.FailureCodeExecutionError),
+		string(software.FailureCodeExecutionTimeout),
 		string(software.FailureCodeVerificationDegraded),
 		string(software.FailureCodeVerificationError),
+		string(software.FailureCodeVerificationTimeout),
 		string(software.FailureCodeUninstallTruthMismatch),
 	}
 

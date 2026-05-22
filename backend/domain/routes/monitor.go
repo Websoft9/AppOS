@@ -28,7 +28,6 @@ var monitorWriteHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 func registerMonitorRoutes(se *core.ServeEvent) {
 	se.Router.POST("/api/monitor/write", handleMonitorWrite)
-	se.Router.POST("/api/monitor/telegraf/write", handleMonitorTelegrafWrite)
 
 	monitorGroup := se.Router.Group("/api/monitor")
 	monitorGroup.Bind(apis.RequireAuth())
@@ -39,14 +38,11 @@ func registerMonitorRoutes(se *core.ServeEvent) {
 
 }
 
-// @Summary Write Netdata metrics
-// @Description Receives Prometheus remote-write protobuf payloads from managed-server Netdata agents. This endpoint is served by the AppOS backend and forwards accepted payloads to the embedded time-series database. Authenticate with HTTP Basic Auth where username is the server record ID and password is the per-server monitor agent token issued during Netdata install/update. Reverse-proxy forwarding headers used elsewhere for agent URL generation are parsed defensively: only the first comma-separated host/port value is used and forwarded ports must be numeric.
+// @Summary Write monitoring metrics
+// @Description Receives collector payloads from managed-server monitoring collectors, projects stable AppOS canonical metrics, and forwards the raw payload to the embedded VictoriaMetrics Influx write endpoint. Authenticate with HTTP Basic Auth where username is the server record ID and password is the per-server monitor collector token issued during managed collector setup.
 // @Tags Monitoring Ingest
-// @Param Authorization header string true "Basic base64(serverId:monitorAgentToken)"
-// @Param Content-Type header string true "application/x-protobuf"
-// @Param Content-Encoding header string false "remote-write compression, usually snappy"
-// @Param X-Prometheus-Remote-Write-Version header string false "Prometheus remote-write protocol version"
-// @Accept application/x-protobuf
+// @Param Authorization header string true "Basic base64(serverId:monitorCollectorToken)"
+// @Accept text/plain
 // @Success 204 {object} nil
 // @Failure 401 {object} MonitorErrorResponse
 // @Failure 413 {object} MonitorErrorResponse
@@ -61,58 +57,7 @@ func handleMonitorWrite(e *core.RequestEvent) error {
 	if _, err := findMonitorServer(e.App, serverID); err != nil {
 		return monitorWriteUnauthorized(e)
 	}
-	expectedToken, err := readMonitorAgentToken(e.App, serverID)
-	if err != nil || !constantTimeTokenEqual(expectedToken, token) {
-		return monitorWriteUnauthorized(e)
-	}
-	if e.Request.ContentLength > maxMonitorWriteBodyBytes {
-		return monitorWritePayloadTooLarge(e)
-	}
-
-	if _, err := monitorWriteEndpoint(); err != nil {
-		return e.JSON(http.StatusBadGateway, map[string]any{"error": "tsdb_unavailable", "message": err.Error()})
-	}
-	limitedBody := &monitorWriteLimitReadCloser{body: e.Request.Body, remaining: maxMonitorWriteBodyBytes}
-	defer limitedBody.Close()
-	payload, err := io.ReadAll(limitedBody)
-	if err != nil {
-		if errors.Is(err, errMonitorWritePayloadTooLarge) {
-			return monitorWritePayloadTooLarge(e)
-		}
-		return e.JSON(http.StatusBadGateway, map[string]any{"error": "tsdb_read_failed", "message": err.Error()})
-	}
-	points, projectionErr := projectRemoteWriteMetricPoints(payload, e.Request.Header.Get("Content-Encoding"), serverID)
-	if projectionErr != nil {
-		slog.Warn(describeRemoteWriteProjectionError(projectionErr), "server_id", serverID)
-	}
-	if len(points) > 0 {
-		if err := monitormetrics.WriteMetricPoints(e.Request.Context(), points); err != nil {
-			slog.Warn("remote write canonical metric write failed", "server_id", serverID, "error", err)
-		}
-	}
-	return e.NoContent(http.StatusNoContent)
-}
-
-// @Summary Write Telegraf metrics
-// @Description Receives Influx line protocol payloads from managed-server Telegraf agents and forwards them to the embedded VictoriaMetrics Influx write endpoint. Authenticate with HTTP Basic Auth where username is the server record ID and password is the per-server monitor agent token issued during managed metrics collector setup.
-// @Tags Monitoring Ingest
-// @Param Authorization header string true "Basic base64(serverId:monitorAgentToken)"
-// @Accept text/plain
-// @Success 204 {object} nil
-// @Failure 401 {object} MonitorErrorResponse
-// @Failure 413 {object} MonitorErrorResponse
-// @Failure 502 {object} MonitorErrorResponse
-// @Router /api/monitor/telegraf/write [post]
-func handleMonitorTelegrafWrite(e *core.RequestEvent) error {
-	serverID, token, ok := e.Request.BasicAuth()
-	serverID = strings.TrimSpace(serverID)
-	if !ok || serverID == "" || strings.TrimSpace(token) == "" {
-		return monitorWriteUnauthorized(e)
-	}
-	if _, err := findMonitorServer(e.App, serverID); err != nil {
-		return monitorWriteUnauthorized(e)
-	}
-	expectedToken, err := readMonitorAgentToken(e.App, serverID)
+	expectedToken, err := readMonitorCollectorToken(e.App, serverID)
 	if err != nil || !constantTimeTokenEqual(expectedToken, token) {
 		return monitorWriteUnauthorized(e)
 	}
@@ -131,6 +76,15 @@ func handleMonitorTelegrafWrite(e *core.RequestEvent) error {
 			return monitorWritePayloadTooLarge(e)
 		}
 		return e.JSON(http.StatusBadGateway, map[string]any{"error": "tsdb_read_failed", "message": err.Error()})
+	}
+	points, projectionErr := projectTelegrafMetricPoints(payload, serverID, time.Now().UTC())
+	if projectionErr != nil {
+		slog.Warn("monitor canonical projection skipped", "server_id", serverID, "error", projectionErr)
+	}
+	if len(points) > 0 {
+		if err := monitormetrics.WriteMetricPoints(e.Request.Context(), points); err != nil {
+			slog.Warn("monitor canonical metric write failed", "server_id", serverID, "error", err)
+		}
 	}
 	req, err := http.NewRequestWithContext(e.Request.Context(), http.MethodPost, endpoint, strings.NewReader(string(payload)))
 	if err != nil {
@@ -152,7 +106,7 @@ func handleMonitorTelegrafWrite(e *core.RequestEvent) error {
 
 func monitorWriteUnauthorized(e *core.RequestEvent) error {
 	e.Response.Header().Set("WWW-Authenticate", `Basic realm="AppOS monitor write"`)
-	return e.JSON(http.StatusUnauthorized, map[string]any{"error": "invalid_monitor_agent_credentials"})
+	return e.JSON(http.StatusUnauthorized, map[string]any{"error": "invalid_monitor_write_credentials"})
 }
 
 func monitorWritePayloadTooLarge(e *core.RequestEvent) error {
@@ -188,21 +142,6 @@ func (r *monitorWriteLimitReadCloser) Read(p []byte) (int, error) {
 
 func (r *monitorWriteLimitReadCloser) Close() error {
 	return r.body.Close()
-}
-
-func monitorWriteEndpoint() (string, error) {
-	baseURL := strings.TrimRight(strings.TrimSpace(os.Getenv(monitormetrics.EnvVictoriaMetricsURL)), "/")
-	if baseURL == "" {
-		return "", fmt.Errorf("%s is not configured", monitormetrics.EnvVictoriaMetricsURL)
-	}
-	parsed, err := url.Parse(baseURL)
-	if err != nil {
-		return "", err
-	}
-	if parsed.Scheme == "" || parsed.Host == "" {
-		return "", fmt.Errorf("%s must include scheme and host", monitormetrics.EnvVictoriaMetricsURL)
-	}
-	return baseURL + "/api/v1/write", nil
 }
 
 func monitorInfluxWriteEndpoint() (string, error) {
@@ -338,7 +277,7 @@ func handleMonitorOverview(e *core.RequestEvent) error {
 }
 
 // @Summary Get server container telemetry
-// @Description Returns latest and time-series telemetry for containers on one managed server. For the current Netdata-backed MVP, AppOS matches telemetry primarily by normalized containerName; containerId remains a request correlation key and fallback when no name is provided.
+// @Description Returns latest and time-series telemetry for containers on one managed server. AppOS reads stable canonical container metrics and matches telemetry primarily by normalized containerName; containerId remains a request correlation key when no name is provided.
 // @Tags Monitoring
 // @Security BearerAuth
 // @Param id path string true "server record ID"
