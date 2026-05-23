@@ -2,7 +2,6 @@ package tsdb
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"sort"
 	"strings"
@@ -23,8 +22,8 @@ func (s *Service) WritePrometheusImport(ctx context.Context, lines []string) err
 	return s.client.WritePrometheusImport(ctx, lines)
 }
 
-func (s *Service) ListNetworkInterfaces(ctx context.Context, targetID string, start, end time.Time) ([]string, error) {
-	series, err := s.client.ListSeries(ctx, []string{fmt.Sprintf(`appos_host_network_rx_bytes_per_second{target_type="server",target_id=%q,network_interface!=""}`, targetID)}, start, end)
+func (s *Service) ListNetworkInterfaces(ctx context.Context, selector string, start, end time.Time) ([]string, error) {
+	series, err := s.client.ListSeries(ctx, []string{selector}, start, end)
 	if err != nil {
 		return nil, err
 	}
@@ -57,8 +56,8 @@ func WritePrometheusImport(ctx context.Context, client *http.Client, baseURL str
 	return NewService(client, baseURL).WritePrometheusImport(ctx, lines)
 }
 
-func ListNetworkInterfaces(ctx context.Context, client *http.Client, baseURL, targetID string, start, end time.Time) ([]string, error) {
-	return NewService(client, baseURL).ListNetworkInterfaces(ctx, targetID, start, end)
+func ListNetworkInterfaces(ctx context.Context, client *http.Client, baseURL, selector string, start, end time.Time) ([]string, error) {
+	return NewService(client, baseURL).ListNetworkInterfaces(ctx, selector, start, end)
 }
 
 func ExecuteQueryRange(ctx context.Context, client *http.Client, baseURL, query string, start, end time.Time, step time.Duration) ([][]float64, error) {

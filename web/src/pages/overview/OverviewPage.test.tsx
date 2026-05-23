@@ -7,6 +7,21 @@ const getFullListMock = vi.fn()
 let currentUserCollectionName = '_superusers'
 let warnSpy: ReturnType<typeof vi.spyOn>
 
+function expectAppOSCorePlatformSeriesRequests() {
+  const platformSeriesCalls = sendMock.mock.calls
+    .map(call => String(call[0]))
+    .filter(path => path.includes('/api/monitor/targets/platform/appos-core/series?'))
+
+  for (const path of platformSeriesCalls) {
+    const decoded = decodeURIComponent(path)
+    expect(decoded).toContain('disk_usage')
+    expect(decoded).toContain(',network')
+    expect(decoded).not.toContain('&series=network_traffic')
+    expect(decoded).toContain(',disk')
+    expect(decoded).toContain(',network')
+  }
+}
+
 vi.mock('@/lib/pb', () => ({
   pb: {
     send: (...args: unknown[]) => sendMock(...args),
@@ -148,7 +163,7 @@ describe('OverviewPage', () => {
       }
       if (
         path ===
-        '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cnetwork'
+        '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork'
       ) {
         return Promise.resolve({
           targetType: 'platform',
@@ -187,40 +202,24 @@ describe('OverviewPage', () => {
               name: 'disk_usage',
               unit: 'bytes',
               segments: [
-                {
-                  name: 'used',
-                  points: [
-                    [1713096000, 75161927680],
-                    [1713096060, 76235669504],
-                  ],
-                },
-                {
-                  name: 'free',
-                  points: [
-                    [1713096000, 32212254720],
-                    [1713096060, 31138512896],
-                  ],
-                },
+                { name: 'used', points: [[1713096000, 8589934592], [1713096060, 9663676416]] },
+                { name: 'free', points: [[1713096000, 21474836480], [1713096060, 20401094656]] },
+              ],
+            },
+            {
+              name: 'disk',
+              unit: 'bytes/s',
+              segments: [
+                { name: 'read', points: [[1713096000, 4096], [1713096060, 8192]] },
+                { name: 'write', points: [[1713096000, 2048], [1713096060, 4096]] },
               ],
             },
             {
               name: 'network',
               unit: 'bytes/s',
               segments: [
-                {
-                  name: 'in',
-                  points: [
-                    [1713096000, 2048],
-                    [1713096060, 4096],
-                  ],
-                },
-                {
-                  name: 'out',
-                  points: [
-                    [1713096000, 1024],
-                    [1713096060, 2048],
-                  ],
-                },
+                { name: 'in', points: [[1713096000, 1024], [1713096060, 1536]] },
+                { name: 'out', points: [[1713096000, 768], [1713096060, 1280]] },
               ],
             },
           ],
@@ -267,7 +266,7 @@ describe('OverviewPage', () => {
     expect(await screen.findByText('Needs Attention')).toBeInTheDocument()
     expect(await screen.findByText('1H Trends')).toBeInTheDocument()
     expect(
-      await screen.findByText('CPU, memory, disk, and network over the last hour.')
+      await screen.findByText('AppOS control-plane CPU, memory, disk, and network over the last hour.')
     ).toBeInTheDocument()
     expect(await screen.findByRole('link', { name: 'View system status' })).toHaveAttribute(
       'href',
@@ -276,6 +275,7 @@ describe('OverviewPage', () => {
     expect(await screen.findByLabelText('cpu time series chart')).toBeInTheDocument()
     expect(await screen.findByLabelText('memory time series chart')).toBeInTheDocument()
     expect(await screen.findByLabelText('disk_usage time series chart')).toBeInTheDocument()
+    expect(await screen.findByLabelText('disk time series chart')).toBeInTheDocument()
     expect(await screen.findByLabelText('network time series chart')).toBeInTheDocument()
     expect(await screen.findByText('Recent App Changes')).toBeInTheDocument()
     expect(await screen.findByRole('link', { name: /Manage Servers/i })).toHaveAttribute(
@@ -296,10 +296,11 @@ describe('OverviewPage', () => {
       expect(sendMock).toHaveBeenCalledWith('/api/monitor/overview', { method: 'GET' })
       expect(sendMock).toHaveBeenCalledWith('/api/tunnel/overview', { method: 'GET' })
       expect(sendMock).toHaveBeenCalledWith(
-        '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cnetwork',
+        '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork',
         { method: 'GET' }
       )
     })
+    expectAppOSCorePlatformSeriesRequests()
   })
 
   it('skips admin-only collection requests for non-superusers and still renders overview content', async () => {

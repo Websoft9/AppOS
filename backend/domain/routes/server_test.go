@@ -338,6 +338,8 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 		Items []struct {
 			ID              string         `json:"id"`
 			Name            string         `json:"name"`
+			Created         string         `json:"created"`
+			Updated         string         `json:"updated"`
 			CreatedByName   string         `json:"created_by_name"`
 			CredentialType  string         `json:"credential_type"`
 			CloudProvider   string         `json:"cloud_provider_name"`
@@ -372,6 +374,8 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 
 	byName := make(map[string]struct {
 		ID               string
+		Created          string
+		Updated          string
 		CreatedByName    string
 		CredentialType   string
 		ConnectionState  string
@@ -387,6 +391,8 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 	for _, item := range payload.Items {
 		entry := struct {
 			ID               string
+			Created          string
+			Updated          string
 			CreatedByName    string
 			CredentialType   string
 			ConnectionState  string
@@ -400,6 +406,8 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 			TunnelWaiting    bool
 		}{
 			ID:               item.ID,
+			Created:          item.Created,
+			Updated:          item.Updated,
 			CreatedByName:    item.CreatedByName,
 			CredentialType:   item.CredentialType,
 			ConnectionState:  item.Connection.StateCode,
@@ -428,6 +436,9 @@ func TestServersViewBuildsAccessAndTunnelReadModel(t *testing.T) {
 	}
 	if got := byName["direct-a"]; got.CreatedByName != "admin@test.com" {
 		t.Fatalf("expected direct created_by_name admin@test.com, got %#v", got)
+	}
+	if got := byName["direct-a"]; got.Created == "" || got.Updated == "" {
+		t.Fatalf("expected direct created and updated timestamps, got %#v", got)
 	}
 	if got := byName["direct-a"]; got.TunnelState != "" {
 		t.Fatalf("expected no tunnel payload for direct server, got %#v", got)
@@ -582,6 +593,59 @@ func TestServersViewUsesControlReachabilityAccessCache(t *testing.T) {
 	}
 	if item.Connection.StateCode != "needs_attention" || item.Connection.ReasonCode != "control_unreachable" {
 		t.Fatalf("expected needs_attention/control_unreachable connection, got %#v", item.Connection)
+	}
+}
+
+func TestServersViewUsesCredentialAuthFailedAccessCache(t *testing.T) {
+	ensureConnectorSecretRuntime(t)
+	te := newTestEnv(t)
+	defer te.cleanup()
+
+	secret := createRouteSecret(t, te, "global", "")
+	direct := createServerRecord(t, te, "direct-auth-failed", "10.0.0.99", 22, "root", "password")
+	direct.Set("connect_type", "direct")
+	direct.Set("credential", secret.Id)
+	direct.Set("access_status", "unavailable")
+	direct.Set("access_reason", "credential_auth_failed")
+	direct.Set("access_checked_at", "2026-05-13 10:00:00.000Z")
+	if err := te.app.Save(direct); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := te.doServer(t, http.MethodGet, "/api/servers/connection", "", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []struct {
+			Name       string `json:"name"`
+			Connection struct {
+				StateCode  string `json:"state_code"`
+				ReasonCode string `json:"reason_code"`
+			} `json:"connection"`
+			Access struct {
+				Status string `json:"status"`
+				Reason string `json:"reason"`
+				Source string `json:"source"`
+			} `json:"access"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if len(payload.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(payload.Items))
+	}
+	item := payload.Items[0]
+	if item.Name != "direct-auth-failed" {
+		t.Fatalf("unexpected server row: %#v", item)
+	}
+	if item.Access.Status != "unavailable" || item.Access.Reason != "credential_auth_failed" || item.Access.Source != "cached" {
+		t.Fatalf("unexpected access projection: %#v", item.Access)
+	}
+	if item.Connection.StateCode != "needs_attention" || item.Connection.ReasonCode != "credential_auth_failed" {
+		t.Fatalf("expected needs_attention/credential_auth_failed connection, got %#v", item.Connection)
 	}
 }
 

@@ -48,6 +48,23 @@ type ConnectivityCheckResult struct {
 	CacheReason string
 }
 
+func cacheReasonFromConnectCategory(category terminal.ConnectErrorCategory) string {
+	switch category {
+	case terminal.ErrCatAuthFailed:
+		return "credential_auth_failed"
+	case terminal.ErrCatNetworkUnreachable, terminal.ErrCatConnectionRefused:
+		return "tcp_connect_failed"
+	case terminal.ErrCatCredentialInvalid:
+		return "credential_invalid"
+	case terminal.ErrCatSessionFailed:
+		return "ssh_session_failed"
+	case terminal.ErrCatServerDisconnected:
+		return "ssh_server_disconnected"
+	default:
+		return "connectivity_check_failed"
+	}
+}
+
 func (s ConnectivityRuntimeService) Check(ctx context.Context, input ConnectivityCheckInput) (ConnectivityCheckResult, error) {
 	result := ConnectivityCheckResult{Status: "offline", Mode: input.Mode}
 
@@ -76,15 +93,17 @@ func (s ConnectivityRuntimeService) Check(ctx context.Context, input Connectivit
 		conn, err := s.ConnectSSH(probeCtx, *input.Config)
 		if err != nil {
 			reason := err.Error()
+			cacheReason := "connectivity_check_failed"
 			var ce *terminal.ConnectError
 			if ok := AsConnectError(err, &ce); ok {
 				result.Category = string(ce.Category)
 				reason = ce.Message
+				cacheReason = cacheReasonFromConnectCategory(ce.Category)
 			}
 			result.Reason = reason
 			result.ShouldCache = true
 			result.CacheStatus = "unavailable"
-			result.CacheReason = reason
+			result.CacheReason = cacheReason
 			return result, nil
 		}
 		_ = conn.Close()

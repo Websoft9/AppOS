@@ -21,6 +21,8 @@ This ADR is intentionally domain-centered.
 | Lifecycle Execution | Supporting | Execute lifecycle intent through pipelines, workers, dispatch, compensation, and projections | `PipelineRun`, `CompensationPlan` |
 | Resource Control | Supporting | Provide connection, access, and control capabilities across managed resources | `Server`, `TerminalSession`, `RemoteFileSession`, `ServiceTarget`, `RuntimeContainer` |
 | Observability | Supporting | Provide telemetry, health, diagnostics, and platform self-observation | `TelemetryStream`, `HealthCheckSet`, `PlatformStatusSnapshot` |
+
+Boundary note: `PlatformStatusSnapshot` is a product-level summary, not a promise of host-level introspection. In restricted local runtime mode it may represent only AppOS control-plane roles and AppOS-container-self runtime telemetry.
 | Resource Organization | Supporting | Organize resource references, operational knowledge, external signals, incidents, and procedures | `ResourceGroup`, `Topic`, `Feed`, `KnowledgeDocument`, `Incident`, `Procedure` |
 | App Catalog | Supporting | Provide catalog apps, custom apps, templates, favorites, and notes | `CatalogApp`, `CustomApp`, `Template`, `UserCatalogState` |
 | Gateway Management | Supporting | Manage shared domain binding, routing, certificates, and gateway policy | `DomainBinding`, `GatewayRoute`, `CertificateBinding`, `GatewayPolicy` |

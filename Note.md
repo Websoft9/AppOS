@@ -151,3 +151,7 @@ addons 的 netdata restart 报错
 Server Terminal  退出连接后再重连，就会失败
 
 crontab list 保存不住
+
+去掉所有与 docker.sock 的强依赖与硬编码
+
+平台metrics 的读取查询与对服务器 metrics 的查询，是不是后端代码应该分离

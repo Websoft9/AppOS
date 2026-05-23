@@ -57,7 +57,9 @@ For control-plane-reporting components such as the monitor agent, the operator-f
 
 Story 29.1 owns the backend contract for projecting these fields into component inventory responses. Monitor/control-plane telemetry remains the evidence source for reporting freshness and history. Health/status projection must be implemented as an explicit decision tree or rule table so precedence is reviewable and reusable across components, not as scattered component-specific `if/else` logic.
 
-New monitoring direction: Software Delivery should not deliver or manage a custom `appos-agent`. Managed servers keep Netdata as the only continuous monitoring agent. Any non-metric facts, runtime snapshots, or manageability checks are collected by the AppOS control plane through SSH/tunnel pull or temporary collectors, not by a Software Delivery-managed AppOS agent component.
+Current monitoring direction: Software Delivery should deliver and manage the AppOS `monitor-agent` as the continuous managed-side collector. Any non-metric facts, runtime snapshots, or manageability checks are collected by the AppOS control plane through SSH/tunnel pull or temporary collectors, not by a second Software Delivery-managed monitoring component.
+
+Restricted local runtime note: when AppOS runs without host PID access and without Docker socket access, platform self-observation is limited to AppOS control-plane roles and AppOS-container-self runtime telemetry. Software Delivery should not imply host or peer-container local monitoring in that mode.
 
 ## Subdomains
 

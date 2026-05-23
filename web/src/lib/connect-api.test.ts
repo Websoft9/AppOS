@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  checkServerStatus,
   deleteServerCronJob,
   disableServerCronJob,
   enableServerCronJob,
@@ -148,6 +149,28 @@ describe('getConnectTerminalSettings', () => {
     })
     expect(sendMock).toHaveBeenCalledWith('/api/servers/srv-1/ops/cron/jobs/cron%201', {
       method: 'DELETE',
+    })
+  })
+
+  it('uses SSH connectivity checks for direct servers', async () => {
+    sendMock.mockResolvedValue({ status: 'online' })
+
+    await expect(
+      checkServerStatus({ id: 'srv-1', name: 'alpha', host: '10.0.0.1', connect_type: 'direct' })
+    ).resolves.toEqual({ status: 'online', reason: undefined })
+
+    expect(sendMock).toHaveBeenCalledWith('/api/servers/srv-1/ops/connectivity?mode=ssh', {
+      method: 'GET',
+    })
+  })
+
+  it('keeps tunnel connectivity checks on tunnel mode', async () => {
+    sendMock.mockResolvedValue({ status: 'online' })
+
+    await checkServerStatus({ id: 'srv-2', name: 'beta', host: '', connect_type: 'tunnel' })
+
+    expect(sendMock).toHaveBeenCalledWith('/api/servers/srv-2/ops/connectivity?mode=tunnel', {
+      method: 'GET',
     })
   })
 })

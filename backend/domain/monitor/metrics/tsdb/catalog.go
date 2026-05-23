@@ -48,10 +48,10 @@ func PlatformSeriesDefinitions(platformTargetAppOSCore string) map[string]Series
 	return map[string]SeriesDefinition{
 		"cpu":             SelectorDefinition("appos_platform_cpu_percent", "percent"),
 		"memory":          SelectorDefinition("appos_platform_memory_bytes", "bytes"),
-		"disk":            SelectorDefinition("appos_host_disk_read_bytes_per_second", "bytes/s"),
-		"disk_usage":      SelectorDefinition("appos_host_disk_usage_bytes", "percent"),
-		"network":         SelectorDefinition("appos_host_network_rx_bytes_per_second", "bytes/s"),
-		"network_traffic": SelectorDefinition("appos_host_network_rx_bytes_per_second", "bytes"),
+		"disk":            SelectorDefinition("appos_platform_disk_read_bytes_per_second", "bytes/s"),
+		"disk_usage":      SelectorDefinition("appos_platform_disk_usage_bytes", "bytes"),
+		"network":         SelectorDefinition("appos_platform_network_rx_bytes_per_second", "bytes/s"),
+		"network_traffic": SelectorDefinition("appos_platform_network_rx_bytes_per_second", "bytes"),
 	}
 }
 

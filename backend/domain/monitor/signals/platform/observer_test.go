@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -123,6 +124,7 @@ func TestPlatformObserverCollectWritesPlatformMetrics(t *testing.T) {
 	if len(captured) == 0 {
 		t.Fatal("expected platform metrics to be written")
 	}
+
 	foundGoroutines := false
 	foundCPU := false
 	foundMemory := false
@@ -135,6 +137,9 @@ func TestPlatformObserverCollectWritesPlatformMetrics(t *testing.T) {
 		}
 		if point.Series == "appos_platform_memory_bytes" {
 			foundMemory = true
+		}
+		if strings.HasPrefix(point.Series, "appos_host_") || strings.HasPrefix(point.Series, "appos_container_") {
+			t.Fatalf("expected restricted default to skip host/container telemetry, got %+v", captured)
 		}
 	}
 	if !foundGoroutines {

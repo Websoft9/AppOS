@@ -131,7 +131,7 @@ Migration rules:
 | redis               Running      8d 2h         2026-04-21 14:20     Cache ready                      [Logs]       |
 | nginx               Running      8d 2h         2026-04-21 14:20     Proxy ready                      [Logs]       |
 | victoria-metrics    Running      8d 2h         2026-04-21 14:20     Metrics storage healthy          [Logs]       |
-| netdata             Running      8d 2h         2026-04-21 14:20     Collector active                 [Logs]       |
+| monitor-pipeline    Running      8d 2h         2026-04-21 14:20     Collector ingest healthy         [Logs]       |
 +------------------------------------------------------------------------------------------------------------------+
 
 +------------------------------------------------------------------------------------------------------------------+
@@ -208,6 +208,8 @@ And non-active components are not rendered as a standalone primary section on th
 
 - `Platform Availability` is a product conclusion, not a raw monitor object
 - `Platform Targets` remain important, but only as control-plane evidence for the availability conclusion
+- In restricted local runtime mode, `Platform Targets` should stay limited to `AppOS Core`, `Worker`, and `Scheduler`, with any extra runtime charts clearly labeled as AppOS-container-self metrics rather than host metrics.
+- In restricted local runtime mode, `platform/appos-core` may show AppOS-container-self `CPU %`, `MEM USAGE / LIMIT` (used plus available-from-limit), `Disk Usage`, `BLOCK I/O`, and `NET I/O` trends when sourced from container-internal telemetry; `Worker` and `Scheduler` remain compact `cpu,memory` targets.
 - The first implementation pass should reuse existing read models and frontend building blocks where possible
 - if compatibility requires continued use of the old service routes, treat them as transitional transport rather than as the long-term domain naming
 
@@ -221,10 +223,10 @@ And non-active components are not rendered as a standalone primary section on th
 - Kept `Active Services` primary and moved installed components into a secondary drawer opened from that section.
 - Promoted `System Crons` to a direct child under the `System` navigation group.
 - Refined `Platform Targets` into a three-column detail layout with richer per-target summary fields.
-- Renamed the infrastructure section to `系统性能` and clarified it reads AppOS container metrics from `platform/appos-core`, not host metrics.
+- Renamed the infrastructure section to `系统性能` and clarified it reads AppOS container-self metrics from `platform/appos-core`, not host metrics.
 - Renamed the main services section to `Bundled services` and changed the secondary components entry to a text link that opens a right-side drawer.
 - Removed the small `Healthy x / y` target aggregate because the platform target set is intentionally small.
-- Finalized `Platform performance` as five trend cards sourced from `platform/appos-core` series (`CPU %`, `MEM USAGE / LIMIT`, `MEM %`, `NET I/O`, `BLOCK I/O`) in a three-column layout.
+- Finalized `Platform performance` as five trend cards sourced from `platform/appos-core` series (`CPU %`, `MEM USAGE / LIMIT`, `Disk Usage`, `NET I/O`, `BLOCK I/O`) in a three-column layout.
 - Changed the components entry to `Bundle >` and redesigned the drawer as a compact list surface with `Name`, `Version`, `Updated`, and `CLI` columns plus inline refresh/close actions.
 
 ### File List

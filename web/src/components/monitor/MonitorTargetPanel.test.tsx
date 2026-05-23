@@ -163,6 +163,35 @@ describe('MonitorTargetPanel', () => {
           },
         ],
       })
+      .mockResolvedValueOnce({
+        targetType: 'server',
+        targetId: 'srv-1',
+        window: '1h',
+        availableNetworkInterfaces: ['eth0', 'ens3'],
+        selectedNetworkInterface: 'all',
+        series: [
+          {
+            name: 'network_traffic',
+            unit: 'bytes',
+            segments: [
+              {
+                name: 'in',
+                points: [
+                  [1713096000, 64 * 1024 * 1024],
+                  [1713096060, 160 * 1024 * 1024],
+                ],
+              },
+              {
+                name: 'out',
+                points: [
+                  [1713096000, 64 * 1024 * 1024],
+                  [1713096060, 160 * 1024 * 1024],
+                ],
+              },
+            ],
+          },
+        ],
+      })
 
     render(<MonitorTargetPanel targetType="server" targetId="srv-1" />)
 
@@ -196,7 +225,11 @@ describe('MonitorTargetPanel', () => {
       requestKey: null,
     })
     expect(sendMock).toHaveBeenCalledWith(
-      '/api/monitor/targets/server/srv-1/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
+      '/api/monitor/targets/server/srv-1/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork',
+      { method: 'GET', requestKey: null }
+    )
+    expect(sendMock).toHaveBeenCalledWith(
+      '/api/monitor/targets/server/srv-1/series?window=1h&series=network_traffic',
       { method: 'GET', requestKey: null }
     )
   }, 15000)
@@ -310,7 +343,7 @@ describe('MonitorTargetPanel', () => {
     )
   })
 
-  it('loads extended resource trends for appos-core platform targets', async () => {
+  it('shows extended resource trends for appos-core platform targets', async () => {
     sendMock
       .mockResolvedValueOnce({
         hasData: true,
@@ -334,8 +367,6 @@ describe('MonitorTargetPanel', () => {
         targetType: 'platform',
         targetId: 'appos-core',
         window: '1h',
-        availableNetworkInterfaces: ['eth0', 'docker0'],
-        selectedNetworkInterface: 'all',
         series: [
           {
             name: 'cpu',
@@ -357,40 +388,79 @@ describe('MonitorTargetPanel', () => {
             name: 'disk_usage',
             unit: 'bytes',
             segments: [
-              {
-                name: 'used',
-                points: [
-                  [1713096000, 72 * 1024 * 1024 * 1024],
-                  [1713096060, 73 * 1024 * 1024 * 1024],
-                ],
-              },
-              {
-                name: 'free',
-                points: [
-                  [1713096000, 28 * 1024 * 1024 * 1024],
-                  [1713096060, 27 * 1024 * 1024 * 1024],
-                ],
-              },
+              { name: 'used', points: [[1713096000, 8589934592], [1713096060, 9663676416]] },
+              { name: 'free', points: [[1713096000, 21474836480], [1713096060, 20401094656]] },
+            ],
+          },
+          {
+            name: 'disk',
+            unit: 'bytes/s',
+            segments: [
+              { name: 'read', points: [[1713096000, 4096], [1713096060, 8192]] },
+              { name: 'write', points: [[1713096000, 2048], [1713096060, 4096]] },
+            ],
+          },
+          {
+            name: 'network',
+            unit: 'bytes/s',
+            segments: [
+              { name: 'in', points: [[1713096000, 1024], [1713096060, 1536]] },
+              { name: 'out', points: [[1713096000, 768], [1713096060, 1280]] },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        targetType: 'platform',
+        targetId: 'appos-core',
+        cadenceSeconds: 10,
+        availableNetworkInterfaces: ['eth0'],
+        selectedNetworkInterface: 'all',
+        series: [
+          {
+            name: 'cpu',
+            unit: 'percent',
+            points: [
+              [1713096060, 11.8],
+            ],
+          },
+          {
+            name: 'memory',
+            unit: 'bytes',
+            points: [
+              [1713096060, 272629760],
+            ],
+          },
+          {
+            name: 'disk_usage',
+            unit: 'bytes',
+            segments: [
+              { name: 'used', points: [[1713096060, 9663676416]] },
+              { name: 'free', points: [[1713096060, 20401094656]] },
+            ],
+          },
+          {
+            name: 'disk',
+            unit: 'bytes/s',
+            segments: [
+              { name: 'read', points: [[1713096060, 8192]] },
+              { name: 'write', points: [[1713096060, 4096]] },
+            ],
+          },
+          {
+            name: 'network',
+            unit: 'bytes/s',
+            segments: [
+              { name: 'in', points: [[1713096060, 1536]] },
+              { name: 'out', points: [[1713096060, 1280]] },
             ],
           },
           {
             name: 'network_traffic',
             unit: 'bytes',
             segments: [
-              {
-                name: 'in',
-                points: [
-                  [1713096000, 64 * 1024 * 1024],
-                  [1713096060, 160 * 1024 * 1024],
-                ],
-              },
-              {
-                name: 'out',
-                points: [
-                  [1713096000, 64 * 1024 * 1024],
-                  [1713096060, 160 * 1024 * 1024],
-                ],
-              },
+              { name: 'in', points: [[1713096060, 160 * 1024 * 1024]] },
+              { name: 'out', points: [[1713096060, 96 * 1024 * 1024]] },
             ],
           },
         ],
@@ -400,15 +470,19 @@ describe('MonitorTargetPanel', () => {
 
     expect(await screen.findByText('AppOS Core')).toBeInTheDocument()
     expect(await screen.findByText('Trend History')).toBeInTheDocument()
-    expect(screen.getByText('Disk Usage')).toBeInTheDocument()
-    expect(screen.getByText('Network Traffic')).toBeInTheDocument()
-    expect(screen.getByLabelText('Network interface')).toBeInTheDocument()
+  expect(screen.getByText('Disk Usage')).toBeInTheDocument()
+  expect(screen.getByText('Network Traffic')).toBeInTheDocument()
+  expect(screen.getByLabelText('Network interface')).toBeInTheDocument()
     expect(sendMock).toHaveBeenCalledWith('/api/monitor/targets/platform/appos-core', {
       method: 'GET',
       requestKey: null,
     })
     expect(sendMock).toHaveBeenCalledWith(
-      '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
+    '/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork',
+    { method: 'GET', requestKey: null }
+  )
+  expect(sendMock).toHaveBeenCalledWith(
+    '/api/monitor/targets/platform/appos-core/latest?series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
       { method: 'GET', requestKey: null }
     )
   })
@@ -470,143 +544,90 @@ describe('MonitorTargetPanel', () => {
   })
 
   it('switches trend windows and refetches series', async () => {
-    sendMock
-      .mockResolvedValueOnce({
-        hasData: true,
+    sendMock.mockImplementation((url: unknown) => {
+      const request = String(url)
+      if (request === '/api/monitor/targets/server/srv-2') {
+        return Promise.resolve({
+          hasData: true,
+          targetType: 'server',
+          targetId: 'srv-2',
+          displayName: 'prod-02',
+          status: 'healthy',
+          reason: null,
+          signalSource: 'agent',
+          lastTransitionAt: '2026-04-14T12:03:00Z',
+          lastSuccessAt: '2026-04-14T12:03:00Z',
+          lastFailureAt: null,
+          lastCheckedAt: null,
+          lastReportedAt: '2026-04-14T12:03:00Z',
+          consecutiveFailures: 0,
+          summary: { heartbeat_state: 'fresh' },
+        })
+      }
+      if (request.includes('series=network_traffic')) {
+        return Promise.resolve({
+          targetType: 'server',
+          targetId: 'srv-2',
+          window: request.includes('window=12h') ? '12h' : request.includes('window=24h') ? '24h' : request.includes('window=7d') ? '7d' : request.includes('window=custom') ? 'custom' : request.includes('window=5h') ? '5h' : '1h',
+          availableNetworkInterfaces: ['eth0'],
+          selectedNetworkInterface: 'all',
+          series: [],
+        })
+      }
+      const window = request.includes('window=12h')
+        ? '12h'
+        : request.includes('window=24h')
+          ? '24h'
+          : request.includes('window=7d')
+            ? '7d'
+            : request.includes('window=custom')
+              ? 'custom'
+              : request.includes('window=5h')
+                ? '5h'
+                : '1h'
+      return Promise.resolve({
         targetType: 'server',
         targetId: 'srv-2',
-        displayName: 'prod-02',
-        status: 'healthy',
-        reason: null,
-        signalSource: 'agent',
-        lastTransitionAt: '2026-04-14T12:03:00Z',
-        lastSuccessAt: '2026-04-14T12:03:00Z',
-        lastFailureAt: null,
-        lastCheckedAt: null,
-        lastReportedAt: '2026-04-14T12:03:00Z',
-        consecutiveFailures: 0,
-        summary: {
-          heartbeat_state: 'fresh',
-        },
-      })
-      .mockResolvedValueOnce({
-        targetType: 'server',
-        targetId: 'srv-2',
-        window: '1h',
+        window,
         selectedNetworkInterface: 'all',
         series: [
           {
             name: 'cpu',
             unit: 'percent',
-            points: [
-              [1713096000, 32.1],
-              [1713096060, 30.8],
-            ],
+            points:
+              window === '5h'
+                ? [
+                    [1713096000, 34.1],
+                    [1713110400, 29.4],
+                  ]
+                : window === '12h'
+                  ? [
+                      [1713096000, 40.1],
+                      [1713182400, 28.4],
+                    ]
+                  : window === '24h'
+                    ? [
+                        [1713096000, 39.7],
+                        [1713182400, 26.8],
+                      ]
+                    : window === '7d'
+                      ? [
+                          [1713096000, 44.2],
+                          [1713697200, 31.2],
+                        ]
+                      : window === 'custom'
+                        ? [
+                            [1713081600, 27.2],
+                            [1713124800, 24.1],
+                          ]
+                        : [
+                            [1713096000, 32.1],
+                            [1713096060, 30.8],
+                          ],
           },
         ],
       })
-      .mockResolvedValueOnce({
-        targetType: 'server',
-        targetId: 'srv-2',
-        window: '5h',
-        selectedNetworkInterface: 'all',
-        series: [
-          {
-            name: 'cpu',
-            unit: 'percent',
-            points: [
-              [1713096000, 34.1],
-              [1713110400, 29.4],
-            ],
-          },
-        ],
-      })
-      .mockResolvedValueOnce({
-        targetType: 'server',
-        targetId: 'srv-2',
-        window: '12h',
-        selectedNetworkInterface: 'all',
-        series: [
-          {
-            name: 'cpu',
-            unit: 'percent',
-            points: [
-              [1713096000, 40.1],
-              [1713182400, 28.4],
-            ],
-          },
-        ],
-      })
-      .mockResolvedValueOnce({
-        targetType: 'server',
-        targetId: 'srv-2',
-        window: '24h',
-        selectedNetworkInterface: 'all',
-        series: [
-          {
-            name: 'cpu',
-            unit: 'percent',
-            points: [
-              [1713096000, 39.7],
-              [1713182400, 26.8],
-            ],
-          },
-        ],
-      })
-      .mockResolvedValueOnce({
-        targetType: 'server',
-        targetId: 'srv-2',
-        window: '7d',
-        selectedNetworkInterface: 'all',
-        series: [
-          {
-            name: 'cpu',
-            unit: 'percent',
-            points: [
-              [1713096000, 44.2],
-              [1713697200, 31.2],
-            ],
-          },
-        ],
-      })
-      .mockResolvedValueOnce({
-        targetType: 'server',
-        targetId: 'srv-2',
-        window: 'custom',
-        rangeStartAt: '2026-04-16T00:11:00.000Z',
-        rangeEndAt: '2026-04-16T01:11:00.000Z',
-        stepSeconds: 60,
-        selectedNetworkInterface: 'all',
-        series: [
-          {
-            name: 'cpu',
-            unit: 'percent',
-            points: [
-              [1713226260, 27.2],
-              [1713229860, 24.1],
-            ],
-          },
-        ],
-      })
-      .mockResolvedValueOnce({
-        targetType: 'server',
-        targetId: 'srv-2',
-        window: 'custom',
-        rangeStartAt: '2026-04-14T08:00:00.000Z',
-        rangeEndAt: '2026-04-14T20:00:00.000Z',
-        stepSeconds: 600,
-        selectedNetworkInterface: 'all',
-        series: [
-          {
-            name: 'cpu',
-            unit: 'percent',
-            points: [
-              [1713081600, 27.2],
-              [1713124800, 24.1],
-            ],
-          },
-        ],
-      })
+    })
 
     render(<MonitorTargetPanel targetType="server" targetId="srv-2" />)
 
@@ -617,7 +638,7 @@ describe('MonitorTargetPanel', () => {
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
-        '/api/monitor/targets/server/srv-2/series?window=5h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
+        '/api/monitor/targets/server/srv-2/series?window=5h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork',
         { method: 'GET', requestKey: null }
       )
     })
@@ -630,7 +651,7 @@ describe('MonitorTargetPanel', () => {
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
-        '/api/monitor/targets/server/srv-2/series?window=12h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
+        '/api/monitor/targets/server/srv-2/series?window=12h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork',
         { method: 'GET', requestKey: null }
       )
     })
@@ -642,7 +663,7 @@ describe('MonitorTargetPanel', () => {
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
-        '/api/monitor/targets/server/srv-2/series?window=24h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
+        '/api/monitor/targets/server/srv-2/series?window=24h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork',
         { method: 'GET', requestKey: null }
       )
     })
@@ -651,7 +672,7 @@ describe('MonitorTargetPanel', () => {
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
-        '/api/monitor/targets/server/srv-2/series?window=7d&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
+        '/api/monitor/targets/server/srv-2/series?window=7d&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork',
         { method: 'GET', requestKey: null }
       )
     })
@@ -672,106 +693,137 @@ describe('MonitorTargetPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
 
     await waitFor(() => {
-      expect(sendMock.mock.calls).toHaveLength(7)
-    })
-    const customSeriesRequest = sendMock.mock.calls.at(-1)?.[0]
-    expect(customSeriesRequest).toEqual(
-      expect.stringContaining(
-        '/api/monitor/targets/server/srv-2/series?window=custom&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic'
+      expect(sendMock).toHaveBeenCalledWith(
+        expect.stringContaining(
+          '/api/monitor/targets/server/srv-2/series?window=custom&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork'
+        ),
+        { method: 'GET', requestKey: null }
       )
-    )
-    expect(customSeriesRequest).toEqual(expect.stringContaining('startAt='))
-    expect(customSeriesRequest).toEqual(expect.stringContaining('endAt='))
+    })
+    const customPrimaryRequest = sendMock.mock.calls
+      .map(call => call[0])
+      .find(
+        call =>
+          typeof call === 'string' &&
+          call.includes('/api/monitor/targets/server/srv-2/series?window=custom&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork')
+      )
+    expect(customPrimaryRequest).toEqual(expect.stringContaining('startAt='))
+    expect(customPrimaryRequest).toEqual(expect.stringContaining('endAt='))
     expect(screen.queryByText('Custom time range')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'custom' })).not.toBeInTheDocument()
+
   }, 15000)
 
-  it('keeps current snapshot on a short window when trend window changes', async () => {
-    sendMock
-      .mockResolvedValueOnce({
-        hasData: true,
+  it('keeps latest stat independent when trend window changes', async () => {
+    sendMock.mockImplementation((url: unknown) => {
+      const request = String(url)
+      if (request === '/api/monitor/targets/server/srv-detail') {
+        return Promise.resolve({
+          hasData: true,
+          targetType: 'server',
+          targetId: 'srv-detail',
+          displayName: 'detail-server',
+          status: 'healthy',
+          reason: null,
+          signalSource: 'agent',
+          lastTransitionAt: '2026-04-14T12:03:00Z',
+          lastSuccessAt: '2026-04-14T12:03:00Z',
+          lastFailureAt: null,
+          lastCheckedAt: null,
+          lastReportedAt: '2026-04-14T12:03:00Z',
+          consecutiveFailures: 0,
+          summary: {},
+        })
+      }
+      if (request.includes('/latest?')) {
+        return Promise.resolve({
+          targetType: 'server',
+          targetId: 'srv-detail',
+          cadenceSeconds: 10,
+          selectedNetworkInterface: 'all',
+          series: [
+            {
+              name: 'cpu',
+              unit: 'percent',
+              points: [[1713096120, 21]],
+            },
+            {
+              name: 'disk',
+              unit: 'bytes/s',
+              segments: [
+                { name: 'read', points: [[1713096120, 8192]] },
+                { name: 'write', points: [[1713096120, 4096]] },
+              ],
+            },
+          ],
+        })
+      }
+      if (request.includes('series=network_traffic')) {
+        return Promise.resolve({
+          targetType: 'server',
+          targetId: 'srv-detail',
+          window: request.includes('window=24h') ? '24h' : '1h',
+          availableNetworkInterfaces: ['eth0'],
+          selectedNetworkInterface: 'all',
+          series: [],
+        })
+      }
+      return Promise.resolve({
         targetType: 'server',
         targetId: 'srv-detail',
-        displayName: 'detail-server',
-        status: 'healthy',
-        reason: null,
-        signalSource: 'agent',
-        lastTransitionAt: '2026-04-14T12:03:00Z',
-        lastSuccessAt: '2026-04-14T12:03:00Z',
-        lastFailureAt: null,
-        lastCheckedAt: null,
-        lastReportedAt: '2026-04-14T12:03:00Z',
-        consecutiveFailures: 0,
-        summary: {},
-      })
-      .mockResolvedValueOnce({
-        targetType: 'server',
-        targetId: 'srv-detail',
-        window: '1h',
+        window: request.includes('window=24h') ? '24h' : '1h',
         selectedNetworkInterface: 'all',
-        series: [
-          {
-            name: 'cpu',
-            unit: 'percent',
-            points: [
-              [1713096000, 20],
-              [1713096060, 21],
+        series: request.includes('window=24h')
+          ? [
+              {
+                name: 'cpu',
+                unit: 'percent',
+                points: [
+                  [1713096000, 22],
+                  [1713182400, 25],
+                ],
+              },
+              {
+                name: 'disk',
+                unit: 'bytes/s',
+                segments: [
+                  { name: 'read', points: [[1713182400, 4096]] },
+                  { name: 'write', points: [[1713182400, 2048]] },
+                ],
+              },
+            ]
+          : [
+              {
+                name: 'cpu',
+                unit: 'percent',
+                points: [
+                  [1713096000, 20],
+                  [1713096120, 21],
+                ],
+              },
+              {
+                name: 'disk',
+                unit: 'bytes/s',
+                segments: [
+                  { name: 'read', points: [[1713096120, 8192]] },
+                  { name: 'write', points: [[1713096120, 4096]] },
+                ],
+              },
             ],
-          },
-        ],
       })
-      .mockResolvedValueOnce({
-        targetType: 'server',
-        targetId: 'srv-detail',
-        window: '15m',
-        selectedNetworkInterface: 'all',
-        series: [
-          {
-            name: 'cpu',
-            unit: 'percent',
-            points: [
-              [1713096060, 28],
-              [1713096120, 30],
-            ],
-          },
-          {
-            name: 'disk',
-            unit: 'bytes/s',
-            segments: [
-              { name: 'read', points: [[1713096120, 8192]] },
-              { name: 'write', points: [[1713096120, 4096]] },
-            ],
-          },
-        ],
-      })
-      .mockResolvedValueOnce({
-        targetType: 'server',
-        targetId: 'srv-detail',
-        window: '24h',
-        selectedNetworkInterface: 'all',
-        series: [
-          {
-            name: 'cpu',
-            unit: 'percent',
-            points: [
-              [1713096000, 22],
-              [1713182400, 25],
-            ],
-          },
-        ],
-      })
+    })
 
     render(<MonitorTargetPanel targetType="server" targetId="srv-detail" layout="detail" />)
 
-    expect(await screen.findByText('Current Snapshot')).toBeInTheDocument()
-    expect(await screen.findByText('Disk IO')).toBeInTheDocument()
-    expect(screen.getByLabelText('Live current snapshot')).toBeInTheDocument()
+    expect(await screen.findByText('Latest Stat')).toBeInTheDocument()
+    expect((await screen.findAllByText('Disk IO')).length).toBeGreaterThan(0)
     expect(sendMock).toHaveBeenCalledWith(
-      '/api/monitor/targets/server/srv-detail/series?window=15m&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
+      '/api/monitor/targets/server/srv-detail/latest?series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
       { method: 'GET', requestKey: null }
     )
+    const initialUpdatedAt = screen.getByText(/Updated at /).textContent
     expect(sendMock).toHaveBeenCalledWith(
-      '/api/monitor/targets/server/srv-detail/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
+      '/api/monitor/targets/server/srv-detail/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork',
       { method: 'GET', requestKey: null }
     )
 
@@ -779,10 +831,14 @@ describe('MonitorTargetPanel', () => {
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
-        '/api/monitor/targets/server/srv-detail/series?window=24h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
+        '/api/monitor/targets/server/srv-detail/series?window=24h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork',
         { method: 'GET', requestKey: null }
       )
     })
+    expect(
+      sendMock.mock.calls.filter(call => String(call[0]).includes('/api/monitor/targets/server/srv-detail/latest?')).length
+    ).toBe(1)
+    expect(screen.getByText(initialUpdatedAt ?? 'Updated at —')).toBeInTheDocument()
   })
 
   it('keeps existing trend cards visible while a new detail window is loading', async () => {
@@ -819,19 +875,6 @@ describe('MonitorTargetPanel', () => {
               [1713096000, 22],
               [1713096060, 25],
             ],
-          },
-        ],
-      })
-      .mockResolvedValueOnce({
-        targetType: 'server',
-        targetId: 'srv-detail-loading',
-        window: '15m',
-        selectedNetworkInterface: 'all',
-        series: [
-          {
-            name: 'cpu',
-            unit: 'percent',
-            points: [[1713096060, 25]],
           },
         ],
       })
@@ -873,7 +916,7 @@ describe('MonitorTargetPanel', () => {
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
-        '/api/monitor/targets/server/srv-detail-loading/series?window=24h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic',
+        '/api/monitor/targets/server/srv-detail-loading/series?window=24h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork',
         { method: 'GET', requestKey: null }
       )
     })
@@ -904,13 +947,6 @@ describe('MonitorTargetPanel', () => {
         targetType: 'server',
         targetId: 'srv-missing-metrics',
         window: '1h',
-        selectedNetworkInterface: 'all',
-        series: [],
-      })
-      .mockResolvedValueOnce({
-        targetType: 'server',
-        targetId: 'srv-missing-metrics',
-        window: '15m',
         selectedNetworkInterface: 'all',
         series: [],
       })
@@ -977,19 +1013,6 @@ describe('MonitorTargetPanel', () => {
           },
         ],
       })
-      .mockResolvedValueOnce({
-        targetType: 'server',
-        targetId: 'srv-warning-mismatch',
-        window: '15m',
-        selectedNetworkInterface: 'all',
-        series: [
-          {
-            name: 'cpu',
-            unit: 'percent',
-            points: [[1713099600, 18]],
-          },
-        ],
-      })
 
     render(
       <MonitorTargetPanel targetType="server" targetId="srv-warning-mismatch" layout="detail" />
@@ -1005,30 +1028,94 @@ describe('MonitorTargetPanel', () => {
   })
 
   it('switches server network trends by interface', async () => {
-    sendMock
-      .mockResolvedValueOnce({
-        hasData: true,
-        targetType: 'server',
-        targetId: 'srv-3',
-        displayName: 'prod-03',
-        status: 'healthy',
-        reason: null,
-        signalSource: 'agent',
-        lastTransitionAt: '2026-04-14T12:03:00Z',
-        lastSuccessAt: '2026-04-14T12:03:00Z',
-        lastFailureAt: null,
-        lastCheckedAt: null,
-        lastReportedAt: '2026-04-14T12:03:00Z',
-        consecutiveFailures: 0,
-        summary: {
-          heartbeat_state: 'fresh',
-        },
-      })
-      .mockResolvedValueOnce({
+    sendMock.mockImplementation((url: unknown) => {
+      const request = String(url)
+      if (request === '/api/monitor/targets/server/srv-3') {
+        return Promise.resolve({
+          hasData: true,
+          targetType: 'server',
+          targetId: 'srv-3',
+          displayName: 'prod-03',
+          status: 'healthy',
+          reason: null,
+          signalSource: 'agent',
+          lastTransitionAt: '2026-04-14T12:03:00Z',
+          lastSuccessAt: '2026-04-14T12:03:00Z',
+          lastFailureAt: null,
+          lastCheckedAt: null,
+          lastReportedAt: '2026-04-14T12:03:00Z',
+          consecutiveFailures: 0,
+          summary: { heartbeat_state: 'fresh' },
+        })
+      }
+      if (request.includes('series=network_traffic&networkInterface=eth0')) {
+        return Promise.resolve({
+          targetType: 'server',
+          targetId: 'srv-3',
+          window: '1h',
+          availableNetworkInterfaces: ['all', 'eth0'],
+          selectedNetworkInterface: 'eth0',
+          series: [
+            {
+              name: 'network_traffic',
+              unit: 'bytes',
+              metadata: { network_interface: 'eth0' },
+              segments: [
+                {
+                  name: 'in',
+                  points: [
+                    [1713096000, 32 * 1024 * 1024],
+                    [1713096060, 80 * 1024 * 1024],
+                  ],
+                },
+                {
+                  name: 'out',
+                  points: [
+                    [1713096000, 32 * 1024 * 1024],
+                    [1713096060, 80 * 1024 * 1024],
+                  ],
+                },
+              ],
+            },
+          ],
+        })
+      }
+      if (request.includes('series=network_traffic')) {
+        return Promise.resolve({
+          targetType: 'server',
+          targetId: 'srv-3',
+          window: '1h',
+          availableNetworkInterfaces: ['all', 'eth0'],
+          selectedNetworkInterface: 'all',
+          series: [
+            {
+              name: 'network_traffic',
+              unit: 'bytes',
+              segments: [
+                {
+                  name: 'in',
+                  points: [
+                    [1713096000, 64 * 1024 * 1024],
+                    [1713096060, 96 * 1024 * 1024],
+                  ],
+                },
+                {
+                  name: 'out',
+                  points: [
+                    [1713096000, 64 * 1024 * 1024],
+                    [1713096060, 96 * 1024 * 1024],
+                  ],
+                },
+              ],
+            },
+          ],
+        })
+      }
+      return Promise.resolve({
         targetType: 'server',
         targetId: 'srv-3',
         window: '1h',
-        availableNetworkInterfaces: ['eth0'],
+        availableNetworkInterfaces: ['all', 'eth0'],
         selectedNetworkInterface: 'all',
         series: [
           {
@@ -1051,89 +1138,19 @@ describe('MonitorTargetPanel', () => {
               },
             ],
           },
-          {
-            name: 'network_traffic',
-            unit: 'GB',
-            segments: [
-              {
-                name: 'in',
-                points: [
-                  [1713096000, 0.06],
-                  [1713096060, 0.09],
-                ],
-              },
-              {
-                name: 'out',
-                points: [
-                  [1713096000, 0.06],
-                  [1713096060, 0.09],
-                ],
-              },
-            ],
-          },
         ],
       })
-      .mockResolvedValueOnce({
-        targetType: 'server',
-        targetId: 'srv-3',
-        window: '1h',
-        availableNetworkInterfaces: ['eth0'],
-        selectedNetworkInterface: 'eth0',
-        series: [
-          {
-            name: 'network',
-            unit: 'bytes/s',
-            metadata: { network_interface: 'eth0' },
-            segments: [
-              {
-                name: 'in',
-                points: [
-                  [1713096000, 512],
-                  [1713096060, 768],
-                ],
-              },
-              {
-                name: 'out',
-                points: [
-                  [1713096000, 512],
-                  [1713096060, 768],
-                ],
-              },
-            ],
-          },
-          {
-            name: 'network_traffic',
-            unit: 'bytes',
-            metadata: { network_interface: 'eth0' },
-            segments: [
-              {
-                name: 'in',
-                points: [
-                  [1713096000, 32 * 1024 * 1024],
-                  [1713096060, 80 * 1024 * 1024],
-                ],
-              },
-              {
-                name: 'out',
-                points: [
-                  [1713096000, 32 * 1024 * 1024],
-                  [1713096060, 80 * 1024 * 1024],
-                ],
-              },
-            ],
-          },
-        ],
-      })
+    })
 
     render(<MonitorTargetPanel targetType="server" targetId="srv-3" />)
 
     expect(await screen.findByText('prod-03')).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('Network interface'), { target: { value: 'eth0' } })
+    fireEvent.change(await screen.findByLabelText('Network interface'), { target: { value: 'eth0' } })
 
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith(
-        '/api/monitor/targets/server/srv-3/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork%2Cnetwork_traffic&networkInterface=eth0',
+        '/api/monitor/targets/server/srv-3/series?window=1h&series=network_traffic&networkInterface=eth0',
         { method: 'GET', requestKey: null }
       )
     })

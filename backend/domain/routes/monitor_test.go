@@ -608,6 +608,49 @@ func TestMonitorTargetSeriesParsesCustomRange(t *testing.T) {
 	}
 }
 
+func TestMonitorTargetLatestReturnsIndependentLatestMetrics(t *testing.T) {
+	te := newMonitorTestEnv(t)
+	defer te.cleanup()
+
+	server := createMonitorServer(t, te, "prod-latest")
+	restore := monitormetrics.SetMetricLatestQueryFuncForTest(func(_ context.Context, targetType, targetID string, seriesNames []string, options monitormetrics.MetricSeriesQueryOptions) (*monitormetrics.MetricLatestResponse, error) {
+		if targetType != monitor.TargetTypeServer || targetID != server.Id {
+			t.Fatalf("unexpected latest query params: %s %s %+v", targetType, targetID, seriesNames)
+		}
+		if len(seriesNames) != 1 || seriesNames[0] != "cpu,network" {
+			t.Fatalf("unexpected requested series: %+v", seriesNames)
+		}
+		if options.NetworkInterface != "eth0" {
+			t.Fatalf("unexpected options: %+v", options)
+		}
+		return &monitormetrics.MetricLatestResponse{
+			TargetType:     targetType,
+			TargetID:       targetID,
+			CadenceSeconds: 10,
+			Series: []monitormetrics.MetricSeries{{
+				Name:   "cpu",
+				Unit:   "percent",
+				Points: [][]float64{{1713096060, 30.8}},
+			}},
+			AvailableNetworkInterfaces: []string{"eth0"},
+			SelectedNetworkInterface:   "eth0",
+		}, nil
+	})
+	defer restore()
+
+	rec := te.doMonitor(t, http.MethodGet, "/api/monitor/targets/server/"+server.Id+"/latest?series=cpu%2Cnetwork&networkInterface=eth0", "", te.token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp monitormetrics.MetricLatestResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.TargetID != server.Id || resp.CadenceSeconds != 10 || len(resp.Series) != 1 {
+		t.Fatalf("unexpected latest response: %s", rec.Body.String())
+	}
+}
+
 func TestMonitorServerContainerTelemetryReturnsServerScopedItems(t *testing.T) {
 	te := newMonitorTestEnv(t)
 	defer te.cleanup()

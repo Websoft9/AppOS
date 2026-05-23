@@ -42,8 +42,25 @@ func TestConnectivityRuntimeServiceSSHOfflineWithCategory(t *testing.T) {
 	if result.Status != "offline" || result.Category != string(terminal.ErrCatAuthFailed) || result.Reason != "credentials rejected" {
 		t.Fatalf("unexpected result: %#v", result)
 	}
-	if !result.ShouldCache || result.CacheStatus != "unavailable" {
+	if !result.ShouldCache || result.CacheStatus != "unavailable" || result.CacheReason != "credential_auth_failed" {
 		t.Fatalf("expected unavailable cache result, got %#v", result)
+	}
+}
+
+func TestConnectivityRuntimeServiceSSHNetworkErrorCachesStableReasonCode(t *testing.T) {
+	service := ConnectivityRuntimeService{
+		ConnectSSH: func(context.Context, terminal.ConnectorConfig) (io.Closer, error) {
+			return nil, terminal.NewConnectError(terminal.ErrCatNetworkUnreachable, "network unreachable", errors.New("timeout"))
+		},
+	}
+
+	config := terminal.ConnectorConfig{Host: "example.com", Port: 22, User: "root"}
+	result, err := service.Check(context.Background(), ConnectivityCheckInput{Mode: "ssh", Config: &config})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if result.CacheReason != "tcp_connect_failed" {
+		t.Fatalf("expected tcp_connect_failed cache reason, got %#v", result)
 	}
 }
 

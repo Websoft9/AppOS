@@ -45,6 +45,15 @@ type MetricSeriesResponse struct {
 	SelectedNetworkInterface   string         `json:"selectedNetworkInterface,omitempty"`
 }
 
+type MetricLatestResponse struct {
+	TargetType                 string         `json:"targetType"`
+	TargetID                   string         `json:"targetId"`
+	CadenceSeconds             int            `json:"cadenceSeconds,omitempty"`
+	Series                     []MetricSeries `json:"series"`
+	AvailableNetworkInterfaces []string       `json:"availableNetworkInterfaces,omitempty"`
+	SelectedNetworkInterface   string         `json:"selectedNetworkInterface,omitempty"`
+}
+
 type ContainerTelemetryTarget struct {
 	ID   string
 	Name string

@@ -158,9 +158,9 @@ const QUICK_LINKS = [
   },
 ] as const
 
-const APPOS_CORE_OVERVIEW_SERIES_QUERY = 'cpu,memory,disk_usage,network'
+const APPOS_CORE_OVERVIEW_SERIES_QUERY = 'cpu,memory,disk_usage,disk,network'
 
-const APPOS_CORE_OVERVIEW_SERIES_ORDER = ['cpu', 'memory', 'disk_usage', 'network'] as const
+const APPOS_CORE_OVERVIEW_SERIES_ORDER = ['cpu', 'memory', 'disk_usage', 'disk', 'network'] as const
 
 function formatStatusLabel(value: string): string {
   return value
@@ -210,6 +210,7 @@ function formatTrendValue(unit: string, name: string, value: number): string {
 function formatSeriesLabel(value: string): string {
   const normalized = value.trim().toLowerCase()
   if (normalized === 'cpu') return 'CPU'
+  if (normalized === 'disk') return 'Disk IO'
   if (normalized === 'network') return 'Network Speed'
   return formatStatusLabel(value)
 }
@@ -253,6 +254,16 @@ function latestSeriesSummary(series: MonitorSeries): string {
     const latestOutbound = latestValue(outbound?.points ?? [])
     if (latestInbound !== null || latestOutbound !== null) {
       return `${latestInbound === null ? '—' : `${formatBytes(latestInbound)}/s`} in${latestOutbound === null ? '' : ` / ${formatBytes(latestOutbound)}/s out`}`
+    }
+  }
+
+  if (series.name === 'disk') {
+    const read = series.segments?.find(segment => segment.name === 'read')
+    const write = series.segments?.find(segment => segment.name === 'write')
+    const latestRead = latestValue(read?.points ?? [])
+    const latestWrite = latestValue(write?.points ?? [])
+    if (latestRead !== null || latestWrite !== null) {
+      return `${latestRead === null ? '—' : `${formatBytes(latestRead)}/s`} read${latestWrite === null ? '' : ` / ${formatBytes(latestWrite)}/s write`}`
     }
   }
 
@@ -726,7 +737,7 @@ export function OverviewPage() {
         <Card>
           <CardHeader className="relative pr-16">
             <CardTitle>1H Trends</CardTitle>
-            <CardDescription>CPU, memory, disk, and network over the last hour.</CardDescription>
+            <CardDescription>AppOS control-plane CPU, memory, disk, and network over the last hour.</CardDescription>
             <Link
               to="/status"
               aria-label="View system status"
@@ -739,11 +750,11 @@ export function OverviewPage() {
             {loading ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Loading trends...
+                Loading AppOS self metrics...
               </div>
             ) : apposTrendSeries.length === 0 ? (
               <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-                Trend data has not reported yet.
+                AppOS self metrics have not reported yet.
               </div>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2">

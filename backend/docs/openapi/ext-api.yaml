@@ -127,6 +127,25 @@ components:
           type: string
         maxBytes:
           type: integer
+    MonitorMetricLatestResponse:
+      type: object
+      properties:
+        targetType:
+          type: string
+        targetId:
+          type: string
+        cadenceSeconds:
+          type: integer
+        series:
+          type: array
+          items:
+            $ref: '#/components/schemas/MonitorMetricSeries'
+        availableNetworkInterfaces:
+          type: array
+          items:
+            type: string
+        selectedNetworkInterface:
+          type: string
     MonitorMetricSeriesResponse:
       type: object
       properties:
@@ -4436,6 +4455,70 @@ paths:
                 $ref: '#/components/schemas/MonitorErrorResponse'
         "500":
           description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitorErrorResponse'
+  /api/monitor/targets/{targetType}/{targetId}/latest:
+    get:
+      tags: [Monitoring]
+      summary: Get latest monitor target metrics
+      description: "Returns the most recent observed metric point for a monitor target at the managed-agent collection cadence. targetType accepts server, app, container, or platform. series accepts cpu, memory, disk, disk_usage, network, or network_traffic depending on target type."
+      operationId: get_api_monitor_targets_targettype_targetid_latest
+      parameters:
+        - name: targetType
+          in: path
+          description: "monitor target type"
+          required: true
+          schema:
+            type: string
+            enum:
+              - "server"
+              - "app"
+              - "container"
+              - "platform"
+        - name: targetId
+          in: path
+          description: "monitor target ID; platform uses appos-core for AppOS host metrics"
+          required: true
+          schema:
+            type: string
+        - name: networkInterface
+          in: query
+          description: "network interface for network series; use all or omit for aggregate"
+          required: false
+          schema:
+            type: string
+        - name: series
+          in: query
+          description: "metric series alias"
+          required: false
+          schema:
+            type: string
+            enum:
+              - "cpu"
+              - "memory"
+              - "disk"
+              - "disk_usage"
+              - "network"
+              - "network_traffic"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitorMetricLatestResponse'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitorErrorResponse'
+        "400":
+          description: Bad Request
           content:
             application/json:
               schema:

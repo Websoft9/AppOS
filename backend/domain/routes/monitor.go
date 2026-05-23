@@ -34,8 +34,42 @@ func registerMonitorRoutes(se *core.ServeEvent) {
 	monitorGroup.GET("/overview", handleMonitorOverview)
 	monitorGroup.GET("/servers/{id}/container-telemetry", handleMonitorServerContainerTelemetry)
 	monitorGroup.GET("/targets/{targetType}/{targetId}", handleMonitorTargetStatus)
+	monitorGroup.GET("/targets/{targetType}/{targetId}/latest", handleMonitorTargetLatest)
 	monitorGroup.GET("/targets/{targetType}/{targetId}/series", handleMonitorTargetSeries)
 
+}
+
+// @Summary Get latest monitor target metrics
+// @Description Returns the most recent observed metric point for a monitor target at the managed-agent collection cadence. targetType accepts server, app, container, or platform. series accepts cpu, memory, disk, disk_usage, network, or network_traffic depending on target type.
+// @Tags Monitoring
+// @Security BearerAuth
+// @Param targetType path string true "monitor target type" Enums(server,app,container,platform)
+// @Param targetId path string true "monitor target ID; platform uses appos-core for AppOS host metrics"
+// @Param series query string false "metric series alias" Enums(cpu,memory,disk,disk_usage,network,network_traffic)
+// @Param networkInterface query string false "network interface for network series; use all or omit for aggregate"
+// @Success 200 {object} MonitorMetricLatestResponse
+// @Failure 400 {object} MonitorErrorResponse
+// @Failure 401 {object} MonitorErrorResponse
+// @Router /api/monitor/targets/{targetType}/{targetId}/latest [get]
+func handleMonitorTargetLatest(e *core.RequestEvent) error {
+	options := monitormetrics.MetricSeriesQueryOptions{
+		NetworkInterface: strings.TrimSpace(e.Request.URL.Query().Get("networkInterface")),
+	}
+	requestedSeries := []string{}
+	if raw := strings.TrimSpace(e.Request.URL.Query().Get("series")); raw != "" {
+		requestedSeries = append(requestedSeries, raw)
+	}
+	response, err := monitormetrics.QueryLatestMetricSeries(
+		e.Request.Context(),
+		e.Request.PathValue("targetType"),
+		e.Request.PathValue("targetId"),
+		requestedSeries,
+		options,
+	)
+	if err != nil {
+		return e.BadRequestError("failed to query latest monitor metrics", err)
+	}
+	return e.JSON(http.StatusOK, response)
 }
 
 // @Summary Write monitoring metrics
@@ -208,6 +242,15 @@ type MonitorMetricSeriesResponse struct {
 	RangeStartAt               string                `json:"rangeStartAt,omitempty"`
 	RangeEndAt                 string                `json:"rangeEndAt,omitempty"`
 	StepSeconds                int                   `json:"stepSeconds,omitempty"`
+	Series                     []MonitorMetricSeries `json:"series"`
+	AvailableNetworkInterfaces []string              `json:"availableNetworkInterfaces,omitempty"`
+	SelectedNetworkInterface   string                `json:"selectedNetworkInterface,omitempty"`
+}
+
+type MonitorMetricLatestResponse struct {
+	TargetType                 string                `json:"targetType"`
+	TargetID                   string                `json:"targetId"`
+	CadenceSeconds             int                   `json:"cadenceSeconds,omitempty"`
 	Series                     []MonitorMetricSeries `json:"series"`
 	AvailableNetworkInterfaces []string              `json:"availableNetworkInterfaces,omitempty"`
 	SelectedNetworkInterface   string                `json:"selectedNetworkInterface,omitempty"`

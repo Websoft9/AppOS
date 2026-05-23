@@ -300,46 +300,7 @@ func readHostDiskCounters() (float64, float64, error) {
 }
 
 func readHostNetworkCounters() (map[string]localNetworkCounters, error) {
-	file, err := os.Open(resolveHostProcPath(filepath.Join("net", "dev")))
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	result := map[string]localNetworkCounters{}
-	scanner := bufio.NewScanner(file)
-	lineNumber := 0
-	for scanner.Scan() {
-		lineNumber++
-		if lineNumber <= 2 {
-			continue
-		}
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-		parts := strings.SplitN(line, ":", 2)
-		if len(parts) != 2 {
-			continue
-		}
-		name := strings.TrimSpace(parts[0])
-		if name == "" || name == "lo" {
-			continue
-		}
-		fields := strings.Fields(parts[1])
-		if len(fields) < 9 {
-			continue
-		}
-		rxBytes, err1 := strconv.ParseFloat(fields[0], 64)
-		txBytes, err2 := strconv.ParseFloat(fields[8], 64)
-		if err1 != nil || err2 != nil {
-			continue
-		}
-		result[name] = localNetworkCounters{RxBytes: rxBytes, TxBytes: txBytes}
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-	return result, nil
+	return readNetworkCounters(resolveHostProcPath(filepath.Join("net", "dev")))
 }
 
 func listHostBlockDevices() (map[string]struct{}, error) {

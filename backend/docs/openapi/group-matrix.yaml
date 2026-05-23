@@ -410,6 +410,7 @@ groups:
       - GET /api/monitor/overview
       - GET /api/monitor/servers/{id}/container-telemetry
       - GET /api/monitor/targets/{targetType}/{targetId}
+      - GET /api/monitor/targets/{targetType}/{targetId}/latest
       - GET /api/monitor/targets/{targetType}/{targetId}/series
     nativeSurface: []
     sources:

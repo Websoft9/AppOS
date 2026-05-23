@@ -13,7 +13,7 @@ Use the same high-level layout model as `Systemd`, but keep monitoring infrastru
 
 - header: lightweight freshness / coverage hint when monitoring works
 - top banner: only for broken or not-connected monitoring
-- left: current snapshot, then trend history
+- left: latest stat, then trend history
 - right: compact conclusions list + selected conclusion detail
 
 The tab should answer:
@@ -33,11 +33,18 @@ Do not show a large `Monitoring Health` block. Show only a small hint near the t
 
 Show:
 
-- current resource snapshot
+- latest resource stat cards
 - trend history for CPU, memory, disk, network
 - existing window switching
 
-`Current Snapshot` is point-in-time and must not sit under `Trend History`.
+`Latest Stat` is a separate latest-observed surface and must not be derived from the active trend window.
+It should load independently from trend history, refresh on the managed-agent cadence, and show only the most recent point per metric family.
+
+Preferred presentation:
+
+- CPU, Memory, Disk Usage: half-gauge cards
+- Disk IO, Network Speed, Network Traffic: symmetric two-sided comparison bars
+- updated-at label derived from the latest observed timestamps, not from the selected trend window label
 
 ### Right Pane
 
@@ -69,7 +76,7 @@ Trigger examples:
 In this state:
 
 - clearly state that monitoring is unavailable
-- keep `Current Snapshot` / `Trend History` in empty or unavailable state
+- keep `Latest Stat` / `Trend History` in empty or unavailable state
 - show `Conclusions` empty state, not `Agent missing`
 - provide one primary action: go to `Components`
 
@@ -83,11 +90,11 @@ The install / repair workflow should live in `Components`, not inside `Monitor`.
 +----------------------------------------------------------------------------------+
 |                                                                                  |
 |  +--------------------------------------------------+   +---------------------+  |
-|  | Current Snapshot                                 |   | Conclusions         |  |
-|  | CPU      32%                                     |   | - Control link OK   |  |
-|  | Memory   4.2 GB / 8 GB                           |   | - Agent missing      |  |
-|  | Disk     71% used                                |   | - No fresh metrics   |  |
-|  | Network  1.2 MB/s                                |   | - User action needed |  |
+|  | Latest Stat                                      |   | Conclusions         |  |
+|  | CPU Gauge      32%                               |   | - Control link OK   |  |
+|  | Memory Gauge   4.2 GB / 8 GB                     |   | - Agent missing      |  |
+|  | Disk Gauge     71% used                          |   | - No fresh metrics   |  |
+|  | Network Bars   1.2 MB/s in vs 0.8 MB/s out       |   | - User action needed |  |
 |  +--------------------------------------------------+   +---------------------+  |
 |                                                                                  |
 |  +--------------------------------------------------+   +---------------------+  |
@@ -109,7 +116,7 @@ Broken monitoring state:
 +----------------------------------------------------------------------------------+
 | [!] Monitoring is not connected. Install or repair from Components. [Go]          |
 +----------------------------------------------------------------------------------+
-| Current Snapshot unavailable        | Conclusions: No conclusions yet             |
+| Latest Stat unavailable             | Conclusions: No conclusions yet             |
 | Trend History unavailable           | Monitoring data is required for analysis.   |
 +----------------------------------------------------------------------------------+
 ```
@@ -117,8 +124,13 @@ Broken monitoring state:
 ## Acceptance Criteria
 
 - [x] AC1: `Monitor` uses a two-column detail-tab layout aligned with `Systemd`.
-- [x] AC2: The left pane is the primary visual surface for current resource values and trend charts.
+- [x] AC2: The left pane is the primary visual surface for latest resource values and trend charts.
 - [x] AC3: The right pane shows message-style conclusions across multiple monitoring chains.
 - [x] AC4: The tab has a strong intervention state when monitoring is not connected.
 - [x] AC5: The primary recovery action from the intervention state navigates to `Components`.
 - [x] AC6: `Monitor` stays focused on status comprehension, not install / repair workflow ownership.
+
+## Implementation Note
+
+The implemented `Latest Stat` surface is no longer a synonym for `1m` trend.
+It reads from a dedicated latest-metrics endpoint, keeps its own refresh cadence aligned with the managed monitor agent, and remains visible even when the user switches trend windows.

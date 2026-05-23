@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
 import { TimeSeriesChart } from '@/components/monitor/TimeSeriesChart'
 
 const noAutoCancel = { requestKey: null }
@@ -53,6 +52,24 @@ type MonitorSeriesResponse = {
   rangeStartAt?: string
   rangeEndAt?: string
   stepSeconds?: number
+  availableNetworkInterfaces?: string[]
+  selectedNetworkInterface?: string
+  series: Array<{
+    name: string
+    unit: string
+    points?: number[][]
+    segments?: Array<{
+      name: string
+      points: number[][]
+    }>
+    metadata?: Record<string, string>
+  }>
+}
+
+type MonitorLatestResponse = {
+  targetType: string
+  targetId: string
+  cadenceSeconds?: number
   availableNetworkInterfaces?: string[]
   selectedNetworkInterface?: string
   series: Array<{
@@ -118,11 +135,13 @@ const SERIES_WINDOWS = [
   { value: 'custom', label: 'custom', description: 'Custom trends for a chosen time range.' },
 ] as const
 
-const SNAPSHOT_WINDOW = '15m'
-const SNAPSHOT_REALTIME_INTERVAL_MS = 2000
+const LIVE_SERIES_INTERVAL_MS = 2000
+const DEFAULT_AGENT_METRIC_CADENCE_MS = 10000
 const DEFAULT_SERIES_QUERY = 'cpu,memory'
 const EXTENDED_SERIES_QUERY = 'cpu,memory,disk_usage,disk,network'
 const NETWORK_TRAFFIC_SERIES_QUERY = 'network_traffic'
+const LATEST_STAT_ORDER = ['cpu', 'memory', 'disk_usage', 'disk', 'network', 'network_traffic']
+const LIVE_SERIES_WINDOWS: ReadonlySet<MonitorSeriesWindow> = new Set(['1m', '5m', '15m'])
 
 function toLocalDateTimeInputValue(value: Date): string {
   const year = value.getFullYear()
@@ -270,16 +289,12 @@ function formatTrendValue(unit: string, name: string, value: number): string {
   return formatValue(name, value)
 }
 
-function isAppOSCorePlatformTarget(targetType: string, targetId: string): boolean {
-  return targetType === 'platform' && targetId === 'appos-core'
-}
-
 function supportsExtendedResourceSeries(targetType: string, targetId: string): boolean {
-  return targetType === 'server' || isAppOSCorePlatformTarget(targetType, targetId)
+  return targetType === 'server' || (targetType === 'platform' && targetId === 'appos-core')
 }
 
 function supportsNetworkInterfaceSelection(targetType: string, targetId: string): boolean {
-  return targetType === 'server' || isAppOSCorePlatformTarget(targetType, targetId)
+  return targetType === 'server' || (targetType === 'platform' && targetId === 'appos-core')
 }
 
 function seriesQueryForTarget(
@@ -412,9 +427,8 @@ export function MonitorTargetPanel({
   const [seriesLoading, setSeriesLoading] = useState(false)
   const [networkTrafficSeries, setNetworkTrafficSeries] = useState<MonitorSeriesResponse | null>(null)
   const [networkTrafficLoading, setNetworkTrafficLoading] = useState(false)
-  const [snapshotSeries, setSnapshotSeries] = useState<MonitorSeriesResponse | null>(null)
-  const [snapshotLoading, setSnapshotLoading] = useState(false)
-  const [snapshotRealtime, setSnapshotRealtime] = useState(false)
+  const [latestStats, setLatestStats] = useState<MonitorLatestResponse | null>(null)
+  const [latestStatsLoading, setLatestStatsLoading] = useState(false)
   const [selectedWindow, setSelectedWindow] = useState<MonitorSeriesWindow>('1h')
   const [selectedTrendNetworkInterface, setSelectedTrendNetworkInterface] = useState('all')
   const [draftCustomRange, setDraftCustomRange] = useState<CustomRangeState>(() =>
@@ -545,45 +559,47 @@ export function MonitorTargetPanel({
     }
   }, [appliedCustomRange, selectedTrendNetworkInterface, selectedWindow, targetId, targetType])
 
-  const loadSnapshotSeries = useCallback(
-    async (silent = false) => {
+  const loadLatestStats = useCallback(async () => {
+    if (
+      !targetId ||
+      (targetType !== 'server' && targetType !== 'platform' && targetType !== 'app')
+    ) {
+      setLatestStats(null)
+      return
+    }
+
+    const params = new URLSearchParams({
+      series: seriesQueryForTarget(targetType, targetId),
+    })
+    if (
+      supportsNetworkInterfaceSelection(targetType, targetId) &&
+      selectedTrendNetworkInterface !== 'all'
+    ) {
+      params.set('networkInterface', selectedTrendNetworkInterface)
+    }
+
+    setLatestStatsLoading(true)
+    try {
+      const response = await pb.send<MonitorLatestResponse>(
+        `/api/monitor/targets/${encodeURIComponent(targetType)}/${encodeURIComponent(targetId)}/latest?${params.toString()}`,
+        { method: 'GET', ...noAutoCancel }
+      )
       if (
-        !detailLayout ||
-        !targetId ||
-        (targetType !== 'server' && targetType !== 'platform' && targetType !== 'app')
+        response.selectedNetworkInterface &&
+        response.selectedNetworkInterface !== selectedTrendNetworkInterface
       ) {
-        setSnapshotSeries(null)
-        return
+        setSelectedTrendNetworkInterface(response.selectedNetworkInterface)
       }
-
-      const params = new URLSearchParams({
-        window: SNAPSHOT_WINDOW,
-        series: seriesQueryForTarget(targetType, targetId),
+      setLatestStats({
+        ...response,
+        series: Array.isArray(response.series) ? response.series : [],
       })
-
-      if (!silent) {
-        setSnapshotLoading(true)
-      }
-      try {
-        const response = await pb.send<MonitorSeriesResponse>(
-          `/api/monitor/targets/${encodeURIComponent(targetType)}/${encodeURIComponent(targetId)}/series?${params.toString()}`,
-          { method: 'GET', ...noAutoCancel }
-        )
-        setSnapshotSeries(
-          normalizeSeriesResponse(response, Array.isArray(response.series) ? response.series : [])
-        )
-      } catch {
-        if (!silent) {
-          setSnapshotSeries(null)
-        }
-      } finally {
-        if (!silent) {
-          setSnapshotLoading(false)
-        }
-      }
-    },
-    [detailLayout, targetId, targetType]
-  )
+    } catch {
+      setLatestStats(null)
+    } finally {
+      setLatestStatsLoading(false)
+    }
+  }, [selectedTrendNetworkInterface, targetId, targetType])
 
   const selectedWindowMeta =
     selectedWindow === 'custom'
@@ -602,8 +618,8 @@ export function MonitorTargetPanel({
     networkTrafficSeries?.availableNetworkInterfaces ?? series?.availableNetworkInterfaces
 
   const handleRefresh = useCallback(async () => {
-    await Promise.all([load(true), loadSeries(), loadNetworkTrafficSeries(), loadSnapshotSeries(true)])
-  }, [load, loadNetworkTrafficSeries, loadSeries, loadSnapshotSeries])
+    await Promise.all([load(true), loadSeries(), loadNetworkTrafficSeries(), loadLatestStats()])
+  }, [load, loadLatestStats, loadNetworkTrafficSeries, loadSeries])
 
   useEffect(() => {
     void load()
@@ -618,16 +634,24 @@ export function MonitorTargetPanel({
   }, [loadNetworkTrafficSeries])
 
   useEffect(() => {
-    void loadSnapshotSeries()
-  }, [loadSnapshotSeries])
+    void loadLatestStats()
+  }, [loadLatestStats])
 
   useEffect(() => {
-    if (!detailLayout || !snapshotRealtime) return
+    if (!detailLayout || !LIVE_SERIES_WINDOWS.has(selectedWindow)) return
     const interval = window.setInterval(() => {
-      void loadSnapshotSeries(true)
-    }, SNAPSHOT_REALTIME_INTERVAL_MS)
+      void Promise.all([loadSeries(), loadNetworkTrafficSeries()])
+    }, LIVE_SERIES_INTERVAL_MS)
     return () => window.clearInterval(interval)
-  }, [detailLayout, loadSnapshotSeries, snapshotRealtime])
+  }, [detailLayout, loadNetworkTrafficSeries, loadSeries, selectedWindow])
+
+  useEffect(() => {
+    if (!detailLayout) return
+    const interval = window.setInterval(() => {
+      void loadLatestStats()
+    }, Math.max((latestStats?.cadenceSeconds ?? DEFAULT_AGENT_METRIC_CADENCE_MS / 1000) * 1000, 1000))
+    return () => window.clearInterval(interval)
+  }, [detailLayout, latestStats?.cadenceSeconds, loadLatestStats])
 
   useEffect(() => {
     if (refreshKey > 0) {
@@ -644,13 +668,13 @@ export function MonitorTargetPanel({
   }, [targetId, targetType])
 
   const summaryEntries = Object.entries(data?.summary ?? {})
-  const snapshotItems = buildSnapshotItems(snapshotSeries?.series ?? [])
+  const latestStatItems = buildLatestStatItems(latestStats?.series ?? [])
+  const latestStatUpdatedAt = latestStatsUpdatedAt(latestStats?.series ?? [])
   const hasTrendSeries = trendSeries.length > 0
   const pipelineWarning = monitorMetricsPipelineWarning(
     data,
     seriesHasUsableData(series) ||
-      seriesHasUsableData(networkTrafficSeries) ||
-      seriesHasUsableData(snapshotSeries)
+      seriesHasUsableData(networkTrafficSeries)
   )
 
   if (detailLayout) {
@@ -691,62 +715,31 @@ export function MonitorTargetPanel({
         <Card>
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-1">
-              <CardTitle className="text-sm">Current Snapshot</CardTitle>
+              <CardTitle className="text-sm">Latest Stat</CardTitle>
               <CardDescription>
                 {data?.hasData
-                  ? data.reason || 'Latest values from a short current-data window.'
+                  ? data.reason || 'Latest observed values sampled by the monitoring agent.'
                   : 'Unavailable until monitoring data is connected.'}
               </CardDescription>
             </div>
-            <label className="inline-flex shrink-0 items-center gap-2 rounded-md border bg-muted/20 px-2 py-1.5 text-xs text-muted-foreground">
-              <Checkbox
-                aria-label="Live current snapshot"
-                checked={snapshotRealtime}
-                onCheckedChange={checked => {
-                  const enabled = checked === true
-                  setSnapshotRealtime(enabled)
-                  if (enabled) {
-                    void loadSnapshotSeries(true)
-                  }
-                }}
-                disabled={!targetId || snapshotLoading}
-              />
-              <span>Live</span>
-            </label>
+            <div className="shrink-0 rounded-md border bg-muted/20 px-3 py-1.5 text-xs text-muted-foreground">
+              {formatUpdatedAtText(latestStatUpdatedAt)}
+            </div>
           </CardHeader>
           <CardContent>
-            {loading || (snapshotLoading && snapshotItems.length === 0) ? (
+            {loading || (latestStatsLoading && latestStatItems.length === 0) ? (
               <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Loading current values...
+                Loading latest stats...
               </div>
-            ) : snapshotItems.length === 0 ? (
+            ) : latestStatItems.length === 0 ? (
               <div className="rounded-md border border-dashed px-3 py-6 text-sm text-muted-foreground">
-                {emptyMessage || 'Current values are unavailable until monitoring data arrives.'}
+                {emptyMessage || 'Latest stats are unavailable until monitoring data arrives.'}
               </div>
             ) : (
-              <div className="space-y-3">
-                {snapshotItems.map(item => (
-                  <div key={item.key} className="rounded-md border bg-background px-3 py-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="truncate text-xs uppercase tracking-wide text-muted-foreground">
-                          {item.label}
-                        </div>
-                        <div className="mt-1 break-words text-sm font-medium">{item.value}</div>
-                      </div>
-                      <div className="shrink-0 text-xs text-muted-foreground">{item.unit}</div>
-                    </div>
-                    <div
-                      className="mt-2 h-2 overflow-hidden rounded-full bg-muted"
-                      aria-label={`${item.label} current value bar`}
-                    >
-                      <div
-                        className="h-full rounded-full bg-primary transition-all"
-                        style={{ width: `${item.barPercent}%` }}
-                      />
-                    </div>
-                  </div>
+              <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(15rem,1fr))]">
+                {latestStatItems.map(item => (
+                  <LatestStatCard key={item.key} item={item} />
                 ))}
               </div>
             )}
@@ -803,7 +796,7 @@ export function MonitorTargetPanel({
                         Choose start and end time, then apply them to the current trend charts.
                       </div>
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(12rem,1fr))]">
                       <label className="space-y-1 text-sm">
                         <span className="text-xs uppercase tracking-wide text-muted-foreground">
                           Start
@@ -871,7 +864,7 @@ export function MonitorTargetPanel({
                 {emptyMessage || 'Trend history is unavailable until monitoring data arrives.'}
               </div>
             ) : (
-              <div className="grid gap-3 lg:grid-cols-2">
+              <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(20rem,1fr))]">
                 {trendSeries.map(item => (
                   <TrendCard
                     key={item.name}
@@ -936,7 +929,7 @@ export function MonitorTargetPanel({
           variant="outline"
           size="sm"
           onClick={() => void handleRefresh()}
-          disabled={loading || refreshing || seriesLoading || networkTrafficLoading || !targetId}
+          disabled={loading || refreshing || seriesLoading || networkTrafficLoading || latestStatsLoading || !targetId}
         >
           {loading || refreshing ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -959,7 +952,7 @@ export function MonitorTargetPanel({
           Loading monitor status...
         </div>
       ) : data ? (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(20rem,1fr))]">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
@@ -968,7 +961,7 @@ export function MonitorTargetPanel({
               </CardTitle>
               <CardDescription>{data.reason || 'No active issue reported.'}</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-2 text-sm sm:grid-cols-2">
+            <CardContent className="grid gap-2 text-sm [grid-template-columns:repeat(auto-fit,minmax(12rem,1fr))]">
               {[
                 ['Signal Source', formatStatusLabel(data.signalSource)],
                 ['Last Transition', formatValue('last_transition_at', data.lastTransitionAt)],
@@ -1014,7 +1007,7 @@ export function MonitorTargetPanel({
                   No summary details available yet.
                 </div>
               ) : (
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(12rem,1fr))]">
                   {summaryEntries.map(([key, value]) => (
                     <div key={key} className="rounded-md border bg-background px-3 py-2">
                       <div className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -1079,7 +1072,7 @@ export function MonitorTargetPanel({
                           Choose start and end time, then apply them to the current trend charts.
                         </div>
                       </div>
-                      <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(12rem,1fr))]">
                         <label className="space-y-1 text-sm">
                           <span className="text-xs uppercase tracking-wide text-muted-foreground">
                             Start
@@ -1148,7 +1141,7 @@ export function MonitorTargetPanel({
                   {emptyMessage || 'Trend history is unavailable until monitoring data arrives.'}
                 </div>
               ) : (
-                <div className="grid gap-3 lg:grid-cols-2">
+                <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(20rem,1fr))]">
                   {trendSeries.map(item => (
                     <TrendCard
                       key={item.name}
@@ -1212,17 +1205,7 @@ function latestSegmentValue(
   return segment ? latestValue(segment.points) : null
 }
 
-function snapshotMetricMagnitude(item: MonitorSeriesResponse['series'][number]): number {
-  const latest = latestValue(item.points ?? [])
-  if (latest !== null) return Math.abs(latest)
-  const names = ['used', 'free', 'available', 'read', 'write', 'in', 'out']
-  return names.reduce((total, name) => {
-    const value = latestSegmentValue(item, name)
-    return total + (value === null ? 0 : Math.abs(value))
-  }, 0)
-}
-
-function snapshotMetricPercent(item: MonitorSeriesResponse['series'][number]): number | null {
+function metricPercent(item: MonitorSeriesResponse['series'][number]): number | null {
   const latest = latestValue(item.points ?? [])
   if (item.unit === 'percent' && latest !== null) return clampPercent(latest)
   if (item.name === 'memory') {
@@ -1243,25 +1226,245 @@ function snapshotMetricPercent(item: MonitorSeriesResponse['series'][number]): n
   return null
 }
 
-function buildSnapshotItems(series: MonitorSeriesResponse['series']) {
-  const supported = series.filter(item =>
-    ['cpu', 'memory', 'disk_usage', 'disk', 'network', 'network_traffic'].includes(item.name)
-  )
-  const magnitudes = supported.map(snapshotMetricMagnitude)
-  const maxMagnitude = Math.max(...magnitudes, 0)
+function latestTimestamp(points: number[][]): number | null {
+  const timestamps = points.map(point => point[0]).filter(value => Number.isFinite(value))
+  if (timestamps.length === 0) return null
+  return timestamps[timestamps.length - 1] * 1000
+}
 
-  return supported.map((item, index) => {
-    const percent = snapshotMetricPercent(item)
-    const relativePercent =
-      percent === null && maxMagnitude > 0 ? (magnitudes[index] / maxMagnitude) * 100 : 0
+function latestMetricTimestamp(item: MonitorSeriesResponse['series'][number]): number | null {
+  const direct = latestTimestamp(item.points ?? [])
+  const segmentLatest = (item.segments ?? []).reduce<number | null>((current, segment) => {
+    const timestamp = latestTimestamp(segment.points)
+    if (timestamp === null) return current
+    if (current === null || timestamp > current) return timestamp
+    return current
+  }, null)
+  if (direct === null) return segmentLatest
+  if (segmentLatest === null) return direct
+  return Math.max(direct, segmentLatest)
+}
+
+function latestStatsUpdatedAt(series: MonitorSeriesResponse['series']): {
+  oldest: number | null
+  newest: number | null
+} {
+  return series.reduce(
+    (current, item) => {
+      const timestamp = latestMetricTimestamp(item)
+      if (timestamp === null) return current
+      return {
+        oldest: current.oldest === null || timestamp < current.oldest ? timestamp : current.oldest,
+        newest: current.newest === null || timestamp > current.newest ? timestamp : current.newest,
+      }
+    },
+    { oldest: null, newest: null } as { oldest: number | null; newest: number | null }
+  )
+}
+
+function comparisonBars(item: MonitorSeriesResponse['series'][number]) {
+  const pairs =
+    item.name === 'disk'
+      ? [
+          { key: 'read', label: 'Read', value: latestSegmentValue(item, 'read') },
+          { key: 'write', label: 'Write', value: latestSegmentValue(item, 'write') },
+        ]
+      : [
+          { key: 'in', label: 'In', value: latestSegmentValue(item, 'in') },
+          { key: 'out', label: 'Out', value: latestSegmentValue(item, 'out') },
+        ]
+  const maxValue = Math.max(...pairs.map(pair => Math.abs(pair.value ?? 0)), 0)
+
+  return pairs.map(pair => ({
+    ...pair,
+    display:
+      pair.value === null
+        ? '—'
+        : item.unit === 'bytes/s'
+          ? `${formatRateBytes(pair.value)}/s`
+          : formatTrendValue(item.unit, `${item.name}_${pair.key}`, pair.value),
+    percent:
+      pair.value === null || maxValue <= 0
+        ? 0
+        : Math.max(10, clampPercent((Math.abs(pair.value) / maxValue) * 100)),
+  }))
+}
+
+type LatestStatItem = {
+  key: string
+  label: string
+  value: string
+  unit: string
+  variant: 'gauge' | 'bars'
+  updatedAt: number | null
+  percent: number | null
+  bars: Array<{
+    key: string
+    label: string
+    display: string
+    percent: number
+  }>
+}
+
+function buildLatestStatItems(series: MonitorSeriesResponse['series']): LatestStatItem[] {
+  const supported = LATEST_STAT_ORDER
+    .map(name => series.find(item => item.name === name))
+    .filter((item): item is MonitorSeriesResponse['series'][number] => Boolean(item))
+
+  return supported.map(item => {
+    const percent = metricPercent(item)
     return {
       key: item.name,
       label: formatLabel(item.name),
       value: formatSeriesLatestLabel(item),
       unit: item.unit,
-      barPercent: Math.max(2, clampPercent(percent ?? relativePercent)),
+      variant: ['cpu', 'memory', 'disk_usage'].includes(item.name) ? 'gauge' : 'bars',
+      updatedAt: latestMetricTimestamp(item),
+      percent,
+      bars: comparisonBars(item),
     }
   })
+}
+
+function formatUpdatedAtValue(timestamp: number, includeDate: boolean): string {
+  return new Date(timestamp).toLocaleString(
+    undefined,
+    includeDate
+      ? {
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        }
+      : {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        }
+  )
+}
+
+function formatUpdatedAtText(timestamps: { oldest: number | null; newest: number | null }): string {
+  if (timestamps.newest === null) return 'Updated at —'
+  const newestDate = new Date(timestamps.newest)
+  const oldestDate = timestamps.oldest === null ? null : new Date(timestamps.oldest)
+  const includeDate =
+    newestDate.toDateString() !== new Date().toDateString() ||
+    (oldestDate !== null && oldestDate.toDateString() !== newestDate.toDateString())
+  if (timestamps.oldest !== null && timestamps.oldest !== timestamps.newest) {
+    return `Updated at ${formatUpdatedAtValue(timestamps.oldest, includeDate)} - ${formatUpdatedAtValue(timestamps.newest, includeDate)}`
+  }
+  return `Updated at ${formatUpdatedAtValue(timestamps.newest, includeDate)}`
+}
+
+function LatestGauge({
+  itemKey,
+  percent,
+}: {
+  itemKey: string
+  percent: number | null
+}) {
+  const clamped = percent === null ? 0 : clampPercent(percent)
+  const radius = 46
+  const centerX = 60
+  const centerY = 60
+  const arcPath = `M ${centerX - radius} ${centerY} A ${radius} ${radius} 0 0 1 ${centerX + radius} ${centerY}`
+  const arcLength = Math.PI * radius
+  const dashOffset = arcLength * (1 - clamped / 100)
+
+  return (
+    <div className="space-y-2" aria-label={`${itemKey} latest stat gauge`}>
+      <svg viewBox="0 0 120 72" className="h-24 w-full overflow-visible" preserveAspectRatio="xMidYMid meet">
+        <path d={arcPath} fill="none" stroke="currentColor" strokeWidth="10" className="text-muted/40" strokeLinecap="round" />
+        <path
+          d={arcPath}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="10"
+          className="text-primary"
+          strokeLinecap="round"
+          strokeDasharray={arcLength}
+          strokeDashoffset={dashOffset}
+        />
+        <text x="60" y="52" textAnchor="middle" className="fill-foreground text-[18px] font-semibold">
+          {percent === null ? '—' : `${Math.round(clamped)}%`}
+        </text>
+      </svg>
+      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+        <span>0%</span>
+        <span>100%</span>
+      </div>
+    </div>
+  )
+}
+
+function LatestBarComparison({
+  itemKey,
+  bars,
+}: {
+  itemKey: string
+  bars: LatestStatItem['bars']
+}) {
+  const [left, right] = bars
+  return (
+    <div className="space-y-3" aria-label={`${itemKey} latest stat comparison`}>
+      <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-3">
+        <div className="space-y-1 text-right">
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{left?.label ?? '—'}</div>
+          <div className="text-xs font-medium text-foreground">{left?.display ?? '—'}</div>
+        </div>
+        <div className="h-16 w-px bg-border/80" />
+        <div className="space-y-1">
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{right?.label ?? '—'}</div>
+          <div className="text-xs font-medium text-foreground">{right?.display ?? '—'}</div>
+        </div>
+      </div>
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+        <div className="flex justify-end">
+          <div
+            className="h-3 w-full max-w-32 rounded-l-full bg-primary/75 transition-all"
+            style={{ width: `${left?.percent ?? 0}%` }}
+          />
+        </div>
+        <div className="h-6 w-px bg-border/80" />
+        <div className="flex">
+          <div
+            className="h-3 w-full max-w-32 rounded-r-full bg-primary/40 transition-all"
+            style={{ width: `${right?.percent ?? 0}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function LatestStatCard({ item }: { item: LatestStatItem }) {
+  return (
+    <div className="rounded-md border bg-background px-4 py-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="truncate text-xs uppercase tracking-wide text-muted-foreground">
+            {item.label}
+          </div>
+          <div className="mt-1 break-words text-sm font-medium">{item.value}</div>
+        </div>
+        {item.variant === 'gauge' ? (
+          <div className="shrink-0 text-xs font-semibold text-muted-foreground">
+            {item.percent === null ? '—' : `${Math.round(clampPercent(item.percent))}%`}
+          </div>
+        ) : (
+          <div className="shrink-0 text-[11px] text-muted-foreground">{item.unit}</div>
+        )}
+      </div>
+      <div className="mt-3">
+        {item.variant === 'gauge' ? (
+          <LatestGauge itemKey={item.key} percent={item.percent} />
+        ) : (
+          <LatestBarComparison itemKey={item.key} bars={item.bars} />
+        )}
+      </div>
+    </div>
+  )
 }
 
 function formatSeriesLatestLabel(item: MonitorSeriesResponse['series'][number]): string {

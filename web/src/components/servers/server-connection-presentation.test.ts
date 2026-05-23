@@ -132,6 +132,30 @@ const cases: DecisionCase[] = [
     },
   },
   {
+    name: 'direct auth failed',
+    facts: {
+      ...baseDirectFacts,
+      connection: {
+        state_code: 'needs_attention',
+        reason_code: 'credential_auth_failed',
+        config_ready: true,
+      },
+      access: {
+        status: 'unavailable',
+        reason: 'credential_auth_failed',
+        checked_at: '2026-04-22T10:00:00Z',
+        source: 'cached',
+      },
+    },
+    expected: {
+      state: 'needs_attention',
+      reason: 'SSH reachable, authentication failed.',
+      primaryAction: 'Fix Configuration',
+      stateActions: ['View Connection', 'View Details'],
+      toolActions: ['Restart', 'Shutdown'],
+    },
+  },
+  {
     name: 'direct unreachable from monitor control projection',
     facts: {
       ...baseDirectFacts,

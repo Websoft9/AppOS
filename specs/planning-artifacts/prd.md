@@ -67,6 +67,8 @@ This table is the baseline mapping of domain boundaries, product modules, and ca
 | Observability | Telemetry | Metrics, Logs, Events, Container Stats | Current | `TelemetryStream` | `MetricSeries`, `LogEntry`, `PlatformEvent` |
 | Observability | Health & Diagnostics | Health, Diagnostic Views, App Health, Connectivity Checks | Current + Planned | `HealthCheckSet` | `HealthSummary`, `DiagnosticSignal`, `CheckResult` |
 | Observability | Platform Self-Observation | AppOS Status, Active Services, System Crons | Current + Planned | `PlatformStatusSnapshot` | `ComponentStatus`, `ServiceStatus`, `CronStatus` |
+
+Boundary note: in restricted local runtime mode without host PID access and Docker socket access, `Platform Self-Observation` is limited to AppOS control-plane roles and AppOS-container-self runtime telemetry. It does not imply host or peer-container observability. `platform/appos-core` may still expose container-self `cpu`, `memory` (used plus available-from-limit), `disk_usage`, `disk`, and `network` telemetry sourced from container-internal proc/cgroup surfaces.
 | Operations Management | Groups & Inventory Views | Groups, Resource Inventory, Resource Graph | Current + Planned | `Group` | `Group`, `GroupItem`, `ResourceReference`, `ResourceEdge`, `OwnershipBinding` |
 | Operations Management | External Signals | Feeds | Planned | `Feed` | `FeedSource`, `FeedItem`, `FeedJudgment`, `FeedBinding` |
 | Operations Management | Operational Knowledge | Topics | Current | `Topic` | `Topic`, `TopicPost`, `TopicReference` |

@@ -730,7 +730,7 @@ export async function checkServerStatus(server: Server): Promise<ServerStatusRes
   const connectType = String(server.connect_type || 'direct').toLowerCase()
 
   try {
-    const mode = connectType === 'tunnel' ? 'tunnel' : 'tcp'
+    const mode = connectType === 'tunnel' ? 'tunnel' : 'ssh'
     const response = await withTimeout(
       pb.send(`/api/servers/${id}/ops/connectivity?mode=${encodeURIComponent(mode)}`, {
         method: 'GET',

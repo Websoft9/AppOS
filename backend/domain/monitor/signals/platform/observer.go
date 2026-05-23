@@ -15,12 +15,24 @@ import (
 
 func NewPlatformObserver(app core.App, snapshotFn func() RuntimeSnapshot) *PlatformObserver {
 	localDockerClient := docker.New(docker.NewLocalExecutor(""))
+
+	var hostTelemetryFn func(time.Time, localHostTelemetryState) ([]MetricPoint, localHostTelemetryState, error)
+	if platformRuntimeCapabilityEnabled(EnvPlatformEnableHostTelemetry) {
+		hostTelemetryFn = collectLocalHostMetricPoints
+	}
+
+	var containerStatsFn func(context.Context) (string, error)
+	if platformRuntimeCapabilityEnabled(EnvPlatformEnableContainerTelemetry) {
+		containerStatsFn = localDockerClient.ContainerStats
+	}
+
 	return &PlatformObserver{
-		app:        app,
-		snapshotFn: snapshotFn,
-		resourceFn: supervisor.GetProcessResources,
-		hostTelemetryFn: collectLocalHostMetricPoints,
-		containerStatsFn: localDockerClient.ContainerStats,
+		app:              app,
+		snapshotFn:       snapshotFn,
+		resourceFn:       supervisor.GetProcessResources,
+		appCoreTelemetryFn: collectLocalAppCoreMetricPoints,
+		hostTelemetryFn:  hostTelemetryFn,
+		containerStatsFn: containerStatsFn,
 		containerSamples: map[string]localContainerCounters{},
 		nowFn: func() time.Time {
 			return time.Now().UTC()
@@ -40,6 +52,13 @@ func (o *PlatformObserver) SetResourceFunc(resourceFn func([]int) map[int]superv
 		return
 	}
 	o.resourceFn = resourceFn
+}
+
+func (o *PlatformObserver) SetAppCoreTelemetryFunc(appCoreTelemetryFn func(time.Time, localAppCoreTelemetryState) ([]MetricPoint, localAppCoreTelemetryState, error)) {
+	if appCoreTelemetryFn == nil {
+		return
+	}
+	o.appCoreTelemetryFn = appCoreTelemetryFn
 }
 
 func (o *PlatformObserver) SetContainerStatsFunc(containerStatsFn func(context.Context) (string, error)) {
@@ -100,6 +119,15 @@ func (o *PlatformObserver) Collect() error {
 		return err
 	}
 	platformMetricPoints = append(platformMetricPoints, schedulerMetricPoints...)
+	if o.appCoreTelemetryFn != nil {
+		appCoreMetricPoints, nextAppCoreState, err := o.appCoreTelemetryFn(now, o.appCoreState)
+		if err != nil {
+			slog.Warn("platform observer local app core telemetry skipped", "error", err)
+		} else {
+			o.appCoreState = nextAppCoreState
+			platformMetricPoints = append(platformMetricPoints, appCoreMetricPoints...)
+		}
+	}
 	if o.hostTelemetryFn != nil {
 		hostMetricPoints, nextHostState, err := o.hostTelemetryFn(now, o.hostState)
 		if err != nil {

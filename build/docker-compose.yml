@@ -3,24 +3,12 @@ services:
     image: websoft9dev/appos:${IMAGE_TAG:-latest}
     container_name: ${CONTAINER_NAME:-appos}
     restart: ${RESTART_POLICY:-unless-stopped}
-    pid: host
-    cap_add:
-      - SYS_PTRACE
-      - SYS_ADMIN
-      - DAC_READ_SEARCH
-    security_opt:
-      - apparmor:unconfined
     ports:
       - "${HTTP_PORT:-9091}:80"
       - "${TUNNEL_SSH_PORT:-9222}:2222"
       #- "${TUNNEL_PORT_START:-40000}-${TUNNEL_PORT_END:-49999}:40000-49999"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /etc/passwd:/host/etc/passwd:ro
-      - /etc/group:/host/etc/group:ro
-      - /etc/os-release:/host/etc/os-release:ro
       - appos_data:/appos/data
     environment:
       - TZ=UTC

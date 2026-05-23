@@ -97,7 +97,7 @@ For this story:
 
 - keep current behavior unchanged
 - do not add canonical monitor usage summaries to these tabs
-- do not imply that Netdata replaces Docker inventory collection for these objects
+- do not imply that monitor telemetry replaces Docker inventory collection for these objects
 
 ## Read Model Draft
 
@@ -106,7 +106,7 @@ This story assumes canonical monitor read APIs can provide allowlisted container
 Required read-model properties:
 
 - server-scoped query
-- stable `container_name` join key for the current Netdata-backed MVP
+- stable `container_name` join key for the current collector-backed MVP
 - allowlisted series names only
 - compact latest value plus short-window points
 - explicit freshness or observation timestamp

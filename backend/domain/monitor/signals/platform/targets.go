@@ -12,10 +12,19 @@ import (
 )
 
 func (o *PlatformObserver) collectAppCoreTarget(now time.Time, snapshot RuntimeSnapshot, resource supervisor.ResourceInfo, mem runtime.MemStats) ([]monitormetrics.MetricPoint, error) {
+	memoryUsedBytes := float64(resource.Memory)
+	memoryAvailableBytes := 0.0
+	if localMemoryUsedBytes, localMemoryAvailableBytes, err := readLocalAppCoreMemory(); err == nil {
+		if localMemoryUsedBytes > 0 {
+			memoryUsedBytes = localMemoryUsedBytes
+		}
+		memoryAvailableBytes = localMemoryAvailableBytes
+	}
 	appCoreSummary := map[string]any{
 		"pid":              os.Getpid(),
 		"cpu_percent":      resource.CPU,
-		"memory_bytes":     resource.Memory,
+		"memory_bytes":     memoryUsedBytes,
+		"memory_available_bytes": memoryAvailableBytes,
 		"goroutines":       runtime.NumGoroutine(),
 		"heap_alloc_bytes": mem.Alloc,
 		"uptime_seconds":   secondsSince(now, snapshot.StartedAt),
@@ -29,7 +38,8 @@ func (o *PlatformObserver) collectAppCoreTarget(now time.Time, snapshot RuntimeS
 	}
 	points := []monitormetrics.MetricPoint{
 		{Series: "appos_platform_cpu_percent", Value: resource.CPU, Labels: platformMetricLabels(PlatformTargetAppOSCore), ObservedAt: now},
-		{Series: "appos_platform_memory_bytes", Value: float64(resource.Memory), Labels: platformMetricLabels(PlatformTargetAppOSCore), ObservedAt: now},
+		{Series: "appos_platform_memory_bytes", Value: memoryUsedBytes, Labels: platformMetricLabels(PlatformTargetAppOSCore), ObservedAt: now},
+		{Series: "appos_platform_memory_available_bytes", Value: memoryAvailableBytes, Labels: platformMetricLabels(PlatformTargetAppOSCore), ObservedAt: now},
 		{Series: "appos_platform_goroutines", Value: float64(runtime.NumGoroutine()), Labels: platformMetricLabels(PlatformTargetAppOSCore), ObservedAt: now},
 		{Series: "appos_platform_heap_alloc_bytes", Value: float64(mem.Alloc), Labels: platformMetricLabels(PlatformTargetAppOSCore), ObservedAt: now},
 	}

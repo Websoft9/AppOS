@@ -1,4 +1,4 @@
-# ADR: Remove appos-agent from the monitor architecture
+# ADR: Standardize on AppOS monitor-agent for the monitor architecture
 
 **Status**: Proposed  
 **Date**: 2026-05-12  
@@ -6,23 +6,32 @@
 
 ## Decision
 
-AppOS will remove `appos-agent` from the managed-server monitoring architecture.
+AppOS will standardize on `monitor-agent` as the managed-server continuous collector for Epic 28.
 
-Managed servers keep Netdata as the only continuous managed-side monitoring agent. AppOS control plane owns non-metric collection through SSH/tunnel pull, temporary collectors where needed, and monitor-domain projection.
+Managed servers keep the AppOS `monitor-agent` as the continuous managed-side telemetry path. In current implementation, `monitor-agent` is the AppOS product name for the native `telegraf`-based collector. AppOS control plane owns non-metric collection through SSH/tunnel pull, temporary collectors where needed, and monitor-domain projection.
 
 ## Rationale
 
-Maintaining a second AppOS-owned managed-server agent adds packaging, upgrade, compatibility, and lifecycle complexity. AppOS already has a control path to managed servers through SSH/tunnel, so non-timeseries state can be collected by the control plane without a long-running custom agent.
+AppOS already has a managed collector path and a control path to managed servers through SSH/tunnel, so continuous telemetry and non-timeseries evidence do not need to be split across unrelated monitoring products.
 
-Netdata remains a good fit for continuous host/container metrics and metrics freshness. It is not the authority for AppOS product status, business lifecycle, component inventory, tunnel manageability, or deployment outcomes.
+The managed collector is not the authority for AppOS product status, business lifecycle, component inventory, tunnel manageability, or deployment outcomes. Those remain AppOS monitor-domain and business-domain responsibilities.
+
+AppOS self-observation is a separate AppOS-owned local collector path (`platform observer`), not the managed-server Telegraf path. In restricted local runtime mode, that path is limited to AppOS control-plane roles plus AppOS-container-self telemetry available from inside the AppOS container; it does not imply host or peer-container visibility.
 
 ## Architecture
 
 ```text
 Managed server
-  Netdata agent
+  AppOS monitor-agent
+    -> native telegraf collector
     -> continuous metrics
     -> metrics freshness evidence
+
+AppOS self
+  platform observer
+    -> AppOS runtime metrics
+    -> control-plane role health
+    -> AppOS-container-self CPU, memory, disk, and network telemetry
 
 AppOS control plane
   SSH/tunnel pull or temporary collector
@@ -56,8 +65,8 @@ Monitor must not directly write app lifecycle phase, deployment phase, component
 
 ## Consequences
 
-- Existing `appos-agent` ingest, installer, and catalog material becomes legacy and should be retired after replacement paths exist.
-- `heartbeat` splits into `metrics_freshness` from Netdata and `control_reachability` from SSH/tunnel pull.
+- Existing `appos-agent`-specific ingest and bootstrap contracts become legacy and should stay retired.
+- `metrics_freshness` comes from accepted monitor-agent samples and `control_reachability` from SSH/tunnel pull.
 - `runtime-status` becomes a control-plane-collected snapshot, not a pushed agent payload.
 - Facts are low-frequency control-plane snapshots, with field naming aligned where practical to OpenTelemetry Resource semantic conventions.
 - OTel Collector is not introduced in this phase; it may be reconsidered later for traces or multi-source telemetry routing.
@@ -65,7 +74,7 @@ Monitor must not directly write app lifecycle phase, deployment phase, component
 ## Implementation order
 
 1. Introduce monitor evidence contracts and projection rules.
-2. Add Netdata metrics freshness evidence.
+2. Add monitor-agent metrics freshness evidence.
 3. Add SSH/tunnel control reachability evidence.
 4. Move runtime/facts collection to control-plane pull or temporary collector.
 5. Retire `appos-agent` delivery, tokens, setup routes, and ingest routes after compatibility decisions are made.

@@ -331,6 +331,25 @@ components:
                 message:
                     type: string
             type: object
+        MonitorMetricLatestResponse:
+            properties:
+                availableNetworkInterfaces:
+                    items:
+                        type: string
+                    type: array
+                cadenceSeconds:
+                    type: integer
+                selectedNetworkInterface:
+                    type: string
+                series:
+                    items:
+                        $ref: '#/components/schemas/MonitorMetricSeries'
+                    type: array
+                targetId:
+                    type: string
+                targetType:
+                    type: string
+            type: object
         MonitorMetricSeriesResponse:
             properties:
                 availableNetworkInterfaces:
@@ -5956,6 +5975,71 @@ paths:
             security:
                 - bearerAuth: []
             summary: Get monitor target status
+            tags:
+                - Monitoring
+    /api/monitor/targets/{targetType}/{targetId}/latest:
+        get:
+            description: Returns the most recent observed metric point for a monitor target at the managed-agent collection cadence. targetType accepts server, app, container, or platform. series accepts cpu, memory, disk, disk_usage, network, or network_traffic depending on target type.
+            operationId: get_api_monitor_targets_targettype_targetid_latest
+            parameters:
+                - description: monitor target type
+                  in: path
+                  name: targetType
+                  required: true
+                  schema:
+                    enum:
+                        - server
+                        - app
+                        - container
+                        - platform
+                    type: string
+                - description: monitor target ID; platform uses appos-core for AppOS host metrics
+                  in: path
+                  name: targetId
+                  required: true
+                  schema:
+                    type: string
+                - description: network interface for network series; use all or omit for aggregate
+                  in: query
+                  name: networkInterface
+                  required: false
+                  schema:
+                    type: string
+                - description: metric series alias
+                  in: query
+                  name: series
+                  required: false
+                  schema:
+                    enum:
+                        - cpu
+                        - memory
+                        - disk
+                        - disk_usage
+                        - network
+                        - network_traffic
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MonitorMetricLatestResponse'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MonitorErrorResponse'
+                    description: Bad Request
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MonitorErrorResponse'
+                    description: Unauthorized
+            security:
+                - bearerAuth: []
+            summary: Get latest monitor target metrics
             tags:
                 - Monitoring
     /api/monitor/targets/{targetType}/{targetId}/series:

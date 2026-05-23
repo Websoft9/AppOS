@@ -2501,9 +2501,6 @@ function FilesPage() {
               })()}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={closePreview}>
-              Close
-            </Button>
             {previewFile &&
               getPreviewType(previewFile, quota) === 'text' &&
               isEditable(previewFile, quota) && (
@@ -2520,15 +2517,6 @@ function FilesPage() {
                   <Edit3 className="h-4 w-4 mr-1" /> Edit
                 </Button>
               )}
-            {previewFile?.content && (
-              <a
-                href={buildDownloadUrl(previewFile) ?? '#'}
-                download={previewFile.name}
-                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium border border-input bg-background hover:bg-muted transition-colors"
-              >
-                <Download className="h-4 w-4" /> Download
-              </a>
-            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

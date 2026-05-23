@@ -5,6 +5,21 @@ import { PlatformStatusPage } from './PlatformStatusPage'
 const sendMock = vi.fn()
 let warnSpy: ReturnType<typeof vi.spyOn>
 
+function expectAppOSCorePlatformSeriesRequests() {
+  const platformSeriesCalls = sendMock.mock.calls
+    .map(call => String(call[0]))
+    .filter(path => path.includes('/api/monitor/targets/platform/appos-core/series?'))
+
+  for (const path of platformSeriesCalls) {
+    const decoded = decodeURIComponent(path)
+    expect(decoded).toContain('disk_usage')
+    expect(decoded).toContain(',network')
+    expect(decoded).not.toContain('&series=network_traffic')
+    expect(decoded).toContain(',disk')
+    expect(decoded).toContain(',network')
+  }
+}
+
 vi.mock('@/lib/pb', () => ({
   pb: {
     send: (...args: unknown[]) => sendMock(...args),
@@ -161,43 +176,39 @@ function mockPlatformStatusResponses() {
             ],
           },
           {
+            name: 'disk_usage',
+            unit: 'bytes',
+            segments: [
+              {
+                name: 'used',
+                points: [
+                  [1713705600, 8589934592],
+                  [1713705660, 9663676416],
+                ],
+              },
+              {
+                name: 'free',
+                points: [
+                  [1713705600, 21474836480],
+                  [1713705660, 20401094656],
+                ],
+              },
+            ],
+          },
+          {
             name: 'disk',
             unit: 'bytes/s',
             segments: [
-              {
-                name: 'read',
-                points: [
-                  [1713705600, 1048576],
-                  [1713705660, 2097152],
-                ],
-              },
-              {
-                name: 'write',
-                points: [
-                  [1713705600, 524288],
-                  [1713705660, 1048576],
-                ],
-              },
+              { name: 'read', points: [[1713705600, 4096], [1713705660, 8192]] },
+              { name: 'write', points: [[1713705600, 2048], [1713705660, 4096]] },
             ],
           },
           {
             name: 'network',
             unit: 'bytes/s',
             segments: [
-              {
-                name: 'in',
-                points: [
-                  [1713705600, 8388608],
-                  [1713705660, 9437184],
-                ],
-              },
-              {
-                name: 'out',
-                points: [
-                  [1713705600, 4194304],
-                  [1713705660, 5242880],
-                ],
-              },
+              { name: 'in', points: [[1713705600, 1024], [1713705660, 1536]] },
+              { name: 'out', points: [[1713705600, 768], [1713705660, 1280]] },
             ],
           },
         ],
@@ -249,8 +260,14 @@ describe('PlatformStatusPage', () => {
     expect(screen.getByText(/3(\.0)? GB \/ 4(\.0)? GB \(75%\)/)).toBeInTheDocument()
     expect(screen.getByText('NET I/O')).toBeInTheDocument()
     expect(screen.getByText('BLOCK I/O')).toBeInTheDocument()
+    expect(screen.getByText('Disk Usage')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Bundle >' })).toBeInTheDocument()
     expect(screen.getAllByTitle('View Logs').length).toBeGreaterThan(0)
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/monitor/targets/platform/appos-core/series?window=1h&series=cpu%2Cmemory%2Cdisk_usage%2Cdisk%2Cnetwork'),
+      { method: 'GET' }
+    )
+    expectAppOSCorePlatformSeriesRequests()
   })
 
   it('switches platform trend windows including custom range', async () => {
@@ -291,6 +308,7 @@ describe('PlatformStatusPage', () => {
     })
 
     expect(screen.queryByLabelText('Start')).not.toBeInTheDocument()
+    expectAppOSCorePlatformSeriesRequests()
   }, 10000)
 
   it('opens bundle components as a secondary surface', async () => {

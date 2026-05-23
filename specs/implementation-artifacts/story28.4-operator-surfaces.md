@@ -98,9 +98,13 @@ Keep this separate from general unhealthy targets so operators can quickly disti
 Suggested items:
 
 - `appos-core`
-- `monitor-ingest`
 - `scheduler`
 - `worker`
+
+Restricted local runtime rule:
+
+- when AppOS runs without host PID access and without Docker socket access, this list is the complete required local target set
+- do not add host or peer-container pseudo-targets in that mode
 
 ## Embedded Detail Summary Draft
 
@@ -113,8 +117,16 @@ Show:
 - current status
 - last heartbeat
 - last failure reason
+- latest stat cards sourced from the most recent observed metric point
 - short-window host metric trend
 - compact container runtime summary
+
+Latest-stat guidance:
+
+- do not derive this block from the currently selected trend window
+- load it independently so status comprehension survives trend-window switches
+- show one latest point per metric family with freshness text
+- reserve trends for history, not for the "what is it doing now" answer
 
 Do not show:
 
@@ -256,8 +268,9 @@ Preferred presentation:
 Recommended loading order for each embedded summary:
 
 1. load normalized latest status
-2. if metrics exist, load one short-window series request
-3. if check diagnostics are relevant, load latest check results
+2. if latest metrics exist, load one latest-stat request for the most recent observed point
+3. if metrics history is needed, load one short-window series request
+4. if check diagnostics are relevant, load latest check results
 
 This keeps the page useful even when TSDB data is slow or temporarily unavailable.
 
@@ -273,6 +286,7 @@ UI behavior when some monitoring data is unavailable:
 
 - `GET /api/monitor/overview`
 - `GET /api/monitor/targets/{targetType}/{targetId}`
+- `GET /api/monitor/targets/{targetType}/{targetId}/latest`
 - `GET /api/monitor/targets/{targetType}/{targetId}/series`
 - `GET /api/monitor/targets/{targetType}/{targetId}/checks`
 
@@ -291,7 +305,7 @@ UI behavior when some monitoring data is unavailable:
 ## Implementation Notes
 
 - Prefer existing detail pages and system status surfaces over adding new navigation sprawl.
-- Read from latest-status projections first, then query time-series data only for compact trends.
+- Read from latest-status projections first, then query dedicated latest metrics, then query time-series data only for compact trends.
 - Keep copy operator-facing and diagnosis-oriented.
 - Keep the overview intentionally sparse enough that an operator can decide where to click within a few seconds.
 - Reuse existing app-detail observability language rather than inventing a second vocabulary for the same concepts.

@@ -2,14 +2,15 @@ package metrics
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"time"
 
 	monitortsdb "github.com/websoft9/appos/backend/domain/monitor/metrics/tsdb"
 )
 
-func buildNetworkSeries(ctx context.Context, service *monitortsdb.Service, targetID, selectedInterface string, start, end time.Time, step time.Duration) (MetricSeries, error) {
-	receivedQuery, sentQuery, metadata := monitortsdb.BuildNetworkQueries(targetID, selectedInterface)
+func buildNetworkSeries(ctx context.Context, service *monitortsdb.Service, targetType, targetID, selectedInterface string, start, end time.Time, step time.Duration) (MetricSeries, error) {
+	receivedQuery, sentQuery, metadata := buildNetworkQueriesForTarget(targetType, targetID, selectedInterface)
 	receivedPoints, err := executeVMQueryRange(ctx, service, receivedQuery, start, end, step)
 	if err != nil {
 		return MetricSeries{}, err
@@ -30,8 +31,8 @@ func buildNetworkSeries(ctx context.Context, service *monitortsdb.Service, targe
 	}, nil
 }
 
-func buildNetworkTrafficSeries(ctx context.Context, service *monitortsdb.Service, targetID, selectedInterface string, start, end time.Time, step time.Duration) (MetricSeries, error) {
-	receivedQuery, sentQuery, metadata := monitortsdb.BuildNetworkQueries(targetID, selectedInterface)
+func buildNetworkTrafficSeries(ctx context.Context, service *monitortsdb.Service, targetType, targetID, selectedInterface string, start, end time.Time, step time.Duration) (MetricSeries, error) {
+	receivedQuery, sentQuery, metadata := buildNetworkQueriesForTarget(targetType, targetID, selectedInterface)
 	receivedPoints, err := executeVMQueryRange(ctx, service, receivedQuery, start, end, step)
 	if err != nil {
 		return MetricSeries{}, err
@@ -53,6 +54,25 @@ func buildNetworkTrafficSeries(ctx context.Context, service *monitortsdb.Service
 		},
 		Metadata: metadata,
 	}, nil
+}
+
+func buildNetworkQueriesForTarget(targetType, targetID, selectedInterface string) (string, string, map[string]string) {
+	if isNetdataPlatformTarget(targetType, targetID) {
+		selected := selectedInterface
+		if selected == "" {
+			selected = monitortsdb.AllNetworkInterfaces
+		}
+		receivedQuery := fmt.Sprintf(`sum(appos_platform_network_rx_bytes_per_second{target_type="platform",target_id=%q,network_interface=""})`, targetID)
+		sentQuery := fmt.Sprintf(`sum(appos_platform_network_tx_bytes_per_second{target_type="platform",target_id=%q,network_interface=""})`, targetID)
+		metadata := map[string]string(nil)
+		if selected != monitortsdb.AllNetworkInterfaces {
+			receivedQuery = fmt.Sprintf(`sum(appos_platform_network_rx_bytes_per_second{target_type="platform",target_id=%q,network_interface=%q})`, targetID, selected)
+			sentQuery = fmt.Sprintf(`sum(appos_platform_network_tx_bytes_per_second{target_type="platform",target_id=%q,network_interface=%q})`, targetID, selected)
+			metadata = map[string]string{"network_interface": selected}
+		}
+		return receivedQuery, sentQuery, metadata
+	}
+	return monitortsdb.BuildNetworkQueries(targetID, selectedInterface)
 }
 
 func absolutePoints(points [][]float64) [][]float64 {

@@ -79,7 +79,7 @@ type AvailabilitySummary = {
   capabilities: AvailabilityCapability[]
 }
 
-const INFRASTRUCTURE_SERIES_QUERY = 'cpu,memory,disk,network'
+const PLATFORM_PERFORMANCE_SERIES_QUERY = 'cpu,memory,disk_usage,disk,network'
 const RANGE_OPTIONS: Array<{ value: RangeOption; label: string }> = [
   { value: '1h', label: '1h' },
   { value: '6h', label: '6h' },
@@ -157,6 +157,7 @@ function latestSeriesSummary(series: MonitorSeries): string {
   const latest = latestValue(series.points ?? [])
   const used = series.segments?.find(segment => segment.name === 'used')
   const available = series.segments?.find(segment => segment.name === 'available')
+  const free = series.segments?.find(segment => segment.name === 'free')
   const inbound = series.segments?.find(segment => segment.name === 'in')
   const outbound = series.segments?.find(segment => segment.name === 'out')
   const read = series.segments?.find(segment => segment.name === 'read')
@@ -173,6 +174,14 @@ function latestSeriesSummary(series: MonitorSeries): string {
       const total = latestUsed + (latestAvailable ?? 0)
       const percent = total > 0 ? (latestUsed / total) * 100 : null
       return `${formatBytes(latestUsed)} / ${formatBytes(total)}${percent === null ? '' : ` (${formatTrendValue('percent', 'memory_percent', percent)})`}`
+    }
+  }
+
+  if (series.name === 'disk_usage') {
+    const latestUsed = latestValue(used?.points ?? [])
+    const latestFree = latestValue(free?.points ?? [])
+    if (latestUsed !== null || latestFree !== null) {
+      return `${latestUsed === null ? '—' : formatBytes(latestUsed)} used${latestFree === null ? '' : ` / ${formatBytes(latestFree)} free`}`
     }
   }
 
@@ -195,14 +204,15 @@ function latestSeriesSummary(series: MonitorSeries): string {
   return '—'
 }
 
-function orderedInfrastructureSeries(input: MonitorSeries[] | undefined): MonitorSeries[] {
+function orderedPlatformPerformanceSeries(input: MonitorSeries[] | undefined): MonitorSeries[] {
   const items = Array.isArray(input) ? input : []
   const cpu = items.find(item => item.name === 'cpu')
   const memory = items.find(item => item.name === 'memory')
-  const network = items.find(item => item.name === 'network')
+  const diskUsage = items.find(item => item.name === 'disk_usage')
   const disk = items.find(item => item.name === 'disk')
+  const network = items.find(item => item.name === 'network')
 
-  return [cpu, memory, network, disk].filter((item): item is MonitorSeries => Boolean(item))
+  return [cpu, memory, diskUsage, disk, network].filter((item): item is MonitorSeries => Boolean(item))
 }
 
 function BundleComponentsSheetContent({ onClose }: { onClose: () => void }) {
@@ -391,13 +401,13 @@ function buildRangeQuery(range: RangeOption): URLSearchParams {
       window: 'custom',
       startAt: startAt.toISOString(),
       endAt: endAt.toISOString(),
-      series: INFRASTRUCTURE_SERIES_QUERY,
+      series: PLATFORM_PERFORMANCE_SERIES_QUERY,
     })
   }
 
   return new URLSearchParams({
     window: range,
-    series: INFRASTRUCTURE_SERIES_QUERY,
+    series: PLATFORM_PERFORMANCE_SERIES_QUERY,
   })
 }
 
@@ -409,7 +419,7 @@ function buildCustomRangeQuery(range: CustomRangeState): URLSearchParams | null 
     window: 'custom',
     startAt,
     endAt,
-    series: INFRASTRUCTURE_SERIES_QUERY,
+    series: PLATFORM_PERFORMANCE_SERIES_QUERY,
   })
 }
 
@@ -534,7 +544,7 @@ export function PlatformStatusPage() {
     normalizeOverviewResponse(undefined)
   )
   const [services, setServices] = useState<ServiceItem[]>([])
-  const [infrastructure, setInfrastructure] = useState<MonitorSeriesResponse | null>(null)
+  const [platformPerformance, setPlatformPerformance] = useState<MonitorSeriesResponse | null>(null)
   const [selectedRange, setSelectedRange] = useState<RangeOption>('1h')
   const [draftCustomRange, setDraftCustomRange] = useState<CustomRangeState>(() =>
     createDefaultCustomRange()
@@ -565,7 +575,7 @@ export function PlatformStatusPage() {
           selectedRange === 'custom'
             ? buildCustomRangeQuery(appliedCustomRange)
             : buildRangeQuery(selectedRange)
-        const [overviewResult, servicesResult, infrastructureResult] = await Promise.allSettled([
+        const [overviewResult, servicesResult, platformPerformanceResult] = await Promise.allSettled([
           pb.send<MonitorOverviewResponse>('/api/monitor/overview', { method: 'GET' }),
           fetchActiveServices(),
           pb.send<MonitorSeriesResponse>(
@@ -577,7 +587,7 @@ export function PlatformStatusPage() {
         const failures = getRejectedSections([
           { section: 'overview', result: overviewResult },
           { section: 'services', result: servicesResult },
-          { section: 'infrastructure', result: infrastructureResult },
+          { section: 'platformPerformance', result: platformPerformanceResult },
         ])
 
         if (failures.length === 3) {
@@ -595,19 +605,19 @@ export function PlatformStatusPage() {
         if (servicesResult.status === 'fulfilled') {
           setServices(servicesResult.value)
         }
-        if (infrastructureResult.status === 'fulfilled') {
-          setInfrastructure({
-            ...infrastructureResult.value,
-            series: Array.isArray(infrastructureResult.value.series)
-              ? infrastructureResult.value.series
-              : [],
-          })
+      if (platformPerformanceResult.status === 'fulfilled') {
+        setPlatformPerformance({
+          ...platformPerformanceResult.value,
+          series: Array.isArray(platformPerformanceResult.value.series)
+            ? platformPerformanceResult.value.series
+            : [],
+        })
         } else {
-          setInfrastructure(null)
+        setPlatformPerformance(null)
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load platform status')
-        setInfrastructure(null)
+      setPlatformPerformance(null)
       } finally {
         setLoading(false)
         setRefreshing(false)
@@ -644,9 +654,9 @@ export function PlatformStatusPage() {
     [overview.platformItems, services]
   )
 
-  const infrastructureSeries = useMemo(
-    () => orderedInfrastructureSeries(infrastructure?.series),
-    [infrastructure]
+  const platformPerformanceSeries = useMemo(
+    () => orderedPlatformPerformanceSeries(platformPerformance?.series),
+    [platformPerformance]
   )
 
   const handleRangeChange = useCallback(
@@ -687,7 +697,7 @@ export function PlatformStatusPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Status</h1>
           <p className="mt-1 text-muted-foreground">
-            Unified platform status for AppOS runtime, services, and infrastructure.
+            Unified status for the AppOS control plane, bundled services, and monitoring surfaces.
           </p>
         </div>
         <Button
@@ -767,7 +777,7 @@ export function PlatformStatusPage() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <CardTitle>Platform performance</CardTitle>
-              <CardDescription>Runtime performance trends.</CardDescription>
+              <CardDescription>Control-plane self metrics for the AppOS runtime container.</CardDescription>
             </div>
             <div ref={customRangeRef} className="relative flex flex-col items-end gap-3">
               <SharedTimeRangeSelector
@@ -868,18 +878,18 @@ export function PlatformStatusPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {loading && infrastructureSeries.length === 0 ? (
+          {loading && platformPerformanceSeries.length === 0 ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Loading infrastructure trends...
+              Loading platform trends...
             </div>
-          ) : infrastructureSeries.length === 0 ? (
+          ) : platformPerformanceSeries.length === 0 ? (
             <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-              Infrastructure trends are not available yet.
+              Platform self metrics are not available yet.
             </div>
           ) : (
             <div className="grid gap-4 xl:grid-cols-3">
-              {infrastructureSeries.map(item => (
+              {platformPerformanceSeries.map(item => (
                 <div key={item.name} className="rounded-lg border bg-background p-4">
                   <div className="mb-3 flex items-start justify-between gap-3">
                     <div>
@@ -898,10 +908,10 @@ export function PlatformStatusPage() {
                   <TimeSeriesChart
                     name={item.name}
                     unit={item.unit}
-                    window={infrastructure?.window ?? '1h'}
-                    rangeStartAt={infrastructure?.rangeStartAt}
-                    rangeEndAt={infrastructure?.rangeEndAt}
-                    stepSeconds={infrastructure?.stepSeconds}
+                    window={platformPerformance?.window ?? '1h'}
+                  rangeStartAt={platformPerformance?.rangeStartAt}
+                  rangeEndAt={platformPerformance?.rangeEndAt}
+                  stepSeconds={platformPerformance?.stepSeconds}
                     points={item.points}
                     segments={item.segments}
                     formatValue={formatTrendValue}
